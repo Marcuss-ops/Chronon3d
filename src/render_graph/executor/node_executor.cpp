@@ -37,7 +37,14 @@ double run_node(
         return 0.001;
     }
 
-    const auto exec_t0 = profiling::now();
+    // HOT-PATH TAX B — the returned duration feeds telemetry emission only;
+    // with no counters sink attached there is no consumer for it, so the two
+    // profiling::now() clock reads are skipped entirely on the production hot
+    // path (mirrors the cache_evaluator scope).
+    const bool timing_enabled = ctx.node_exec.counters != nullptr;
+    const auto exec_t0 = timing_enabled
+        ? profiling::now()
+        : profiling::Clock::time_point{};
     OwnedFB owned;
     {
         // chronon.node is a debug/slow category: node execution only shows
@@ -59,8 +66,10 @@ double run_node(
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
             }
-            const auto exec_t1 = profiling::now();
-            return profiling::duration_ms(exec_t0, exec_t1);
+            const auto exec_t1 = timing_enabled
+                ? profiling::now()
+                : profiling::Clock::time_point{};
+            return timing_enabled ? profiling::duration_ms(exec_t0, exec_t1) : 0.0;
         }
         owned = exec_result.take_value();
     }
@@ -91,8 +100,10 @@ double run_node(
             ctx.services.node_cache->store(key, result);
         }
     }
-    const auto exec_t1 = profiling::now();
-    return profiling::duration_ms(exec_t0, exec_t1);
+    const auto exec_t1 = timing_enabled
+        ? profiling::now()
+        : profiling::Clock::time_point{};
+    return timing_enabled ? profiling::duration_ms(exec_t0, exec_t1) : 0.0;
 }
 
 } // namespace chronon3d::graph

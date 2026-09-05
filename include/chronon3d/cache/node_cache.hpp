@@ -59,7 +59,30 @@ struct NodeCacheKey {
     i32         tile_size{0};
     u64         tile_hash{0};
 
+    // HOT-PATH TAX D — digest memoized once per key.  `evaluate_cache` is
+    // the single funnel that finishes a runtime key (input_hash/temporal/
+    // tile fields are all assigned there) and then calls `finalize_digest()`
+    // BEFORE the key reaches any unordered_map (lookup/store) or the state
+    // publication.  After finalize the key is read-only, so digest() is a
+    // single load instead of re-hashing 17 fields.  Keys never finalized
+    // (e.g. compile-time static_key baking) fall back to a pure on-demand
+    // computation.  Do NOT mutate key fields after finalize_digest() — the
+    // memo would go stale.  These members sit at the END so positional
+    // aggregate inits and designated initializers keep compiling.
+    u64  precomputed_digest{0};
+    bool digest_finalized{false};
+
+    /// Memoize the digest.  Idempotent; safe to call more than once.
+    void finalize_digest() noexcept {
+        if (!digest_finalized) {
+            precomputed_digest = compute_digest();
+            digest_finalized = true;
+        }
+    }
+
     [[nodiscard]] u64 digest() const;
+    /// Pure digest computation over the current fields (no memo read).
+    [[nodiscard]] u64 compute_digest() const;
     bool operator==(const NodeCacheKey&) const = default;
 };
 

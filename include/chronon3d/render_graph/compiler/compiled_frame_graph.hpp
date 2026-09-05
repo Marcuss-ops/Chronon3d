@@ -56,6 +56,15 @@ struct CompiledNodeInfo {
     bool reachable{false};
     bool early_exit_skip{false};
     bool lowered_into_batch{false};
+    /// HOT-PATH TAX A — topology-time gate for per-frame NodeCacheKey
+    /// construction.  True when the node itself can perform a cache lookup
+    /// or some (transitive) consumer can: the node's digest folds into its
+    /// consumers' input_hash via ExecutionState::resolved_key_digest, so
+    /// skipping a key whose digest a lookup path may read would collapse
+    /// consumer keys across frames (NODE-CACHE-KEY-COLLAPSE-ROT).  Computed
+    /// by FrameGraphCompiler after node metadata; conservative default true
+    /// keeps graphs compiled without the pass byte-identical to today.
+    bool cache_key_required{true};
     ExecutionOwner execution_owner{ExecutionOwner::None};
     EliminationReason elimination_reason{EliminationReason::None};
     std::optional<raster::BBox> predicted_bbox;
