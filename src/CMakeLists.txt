@@ -107,6 +107,19 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_software
 )
 
+# `chronon3d_runtime` is an OBJECT library; its sqlite3 usage requirement
+# does not reach final consumers when the runtime objects are absorbed
+# through the pipeline registry exposure below.  Publish the sqlite runtime
+# at the pipeline boundary in telemetry builds (same pattern as the OpenSSL
+# / nlohmann-validator / NVRTC object-lib dependencies above): without this,
+# every suite that links chronon3d_pipeline without chronon3d_sdk fails to
+# link with undefined `sqlite3_*` symbols in CHRONON3D_ENABLE_TELEMETRY=ON
+# builds (e.g. chronon3d_text_alignment_isolated_tests).
+if(CHRONON3D_ENABLE_TELEMETRY)
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        unofficial::sqlite3::sqlite3)
+endif()
+
 # `chronon3d_assets` is an OBJECT library, so its private OpenSSL dependency
 # does not reach final consumers through the SDK aggregate.  Publish the
 # crypto runtime at the pipeline boundary when the asset digest uses EVP.
