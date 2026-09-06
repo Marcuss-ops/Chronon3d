@@ -19,7 +19,7 @@ Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **st
 | 2 | Test core | `ctest` su test core, nessun fallimento |
 | 3 | Build lean | Compilazione senza contenuti opzionali |
 | 4 | Test lean | Test senza contenuti, nessun fallimento |
-| 5 | Architecture gate | `tools/check_architecture_boundaries.sh` bloccante |
+| 5 | Architecture gate | `tools/check_architecture.py` (regole in `tools/architecture_rules.toml`) bloccante |
 | 6 | Renderer boundary gate | Gate renderer/backend bloccante |
 | 7 | No-content build/test | Build e test senza moduli content |
 | 8 | Scene/camera test | Link + run di `chronon3d_scene_tests` |
@@ -111,37 +111,26 @@ Regole:
 4. il probe è una capability probe reale (`ffmpeg -h encoder=<name>`), non la
    sola presenza dell'eseguibile (`ffmpeg -version`).
 
-## Certificazione Globale Linux (21-item DoD)
+## Certificazione Globale Linux
 
-Il comando canonico per la certificazione prodotto end-to-end è:
+Gli orchestratori prodotto `tools/verify_*_linux.sh` (15 sub-gate, verdict aggregato
+`CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}`) sono stati consolidati nei gate
+CI/manifest il 2026-09-03 (`722aec744`). I gate eseguibili correnti sono:
 
-```bash
-bash tools/verify_chronon_product_linux.sh
-```
+- developer gate chain: `tools/gates/manifest.sh`, eseguita da `tools/run_developer_gates.sh` e dal pre-push hook;
+- CI Gate 1–8 in `.github/workflows/ci.yml` (core-build, sdk-build, public-header-check, install-consumer, architecture-check, sdk-product-certification, trace-gates);
+- certificazione SDK installata: `tools/install_consumer_test.sh` + `tools/verify_sdk_product.sh`;
+- certificazione zero-copy: `tools/verify_zero_copy_end_to_end.sh` ([`docs/ZERO_COPY_GATES.md`](ZERO_COPY_GATES.md)).
 
-L'orchestratore usa una lista unica di **15 sub-gate eseguibili** e un verdict aggregato `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}`. Tutti i gate vengono eseguiti anche quando un gate precedente fallisce; non esistono più righe forward-pointed nel manifest prodotto.
+La baseline storica della vecchia orchestrazione (verdict aggregato
+`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`: 14/14 PASS + 1 forward-pointed) resta come
+evidenza in [`docs/baselines/main-ef9c83f1-baseline.md`](baselines/main-ef9c83f1-baseline.md);
+la reference verde storica `main@7eb5c2ba` (11/11) resta in
+[`docs/baselines/main-7eb5c2ba-baseline.md`](baselines/main-7eb5c2ba-baseline.md).
 
-| # | Sub-gate | Copertura DoD |
-|---|----------|----------------|
-| 1 | `verify_repository_baseline_linux` | 0 clean-build error + 0 test falliti + 0 test disabilitati (3 item) |
-| 2 | `verify_text_functional_linux` | 0 testo richiesto senza glifi + +1 pipeline testo (2 item) |
-| 3 | `verify_camera_functional_linux` | 0 camera ricompilata per frame + +1 pipeline camera (2 item) |
-| 4 | `verify_render_runtime_linux` | 0 frame neri silenziosi + +1 renderer canonico (2 item) |
-| 5 | `verify_video_pipeline_linux` | bonus gate |
-| 6 | `verify_asset_preflight_linux` | 0 asset mancanti ignorati + +1 asset preflight (2 item) |
-| 7 | `verify_timeline_functional_linux` | +1 timeline (1 item) |
-| 8 | `verify_compositing_effects_linux` | +1 RenderGraph (1 item) |
-| 9 | `verify_determinism_linux` | 0 divergenze seriale/parallelo + 0 differenze cache fredda/calda (2 item) |
-| 10 | `verify_error_handling_linux` | bonus gate (10 classi di errore) |
-| 11 | `install_consumer_test` | 0 header internal nel consumer + +1 SDK pubblico (2 item) |
-| 12 | `verify_packaging_linux` | 0 path assoluti nel pacchetto (1 item) |
-| 13 | `verify_performance_linux` | bonus gate |
-| 14 | `verify_sanitizer_linux` | 0 race rilevate + 0 leak ASan (2 item) |
-| 15 | `verify_diagnostics_linux` | bonus gate: percorso `render` canonico, tassonomia 10 classi e formatter strutturato |
-
-L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Il wiring dei 15 gate è completo, ma il nuovo orchestratore e il diagnostics gate devono ancora essere eseguiti sullo stesso working-build-host commit prima di dichiarare una nuova baseline. L'ultima baseline prodotto osservata resta quella storica in [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md).
-
-**Il release SHA v0.1 è BLOCKED / NOT CERTIFIED** finché la stessa SHA non supera build, CTest e gate. Le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per lo stato aggiornato.
+**Il release SHA v0.1 è BLOCKED / NOT CERTIFIED** finché la stessa SHA non supera
+build, CTest e gate. Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per
+lo stato aggiornato.
 
 ## Criterio di chiusura
 

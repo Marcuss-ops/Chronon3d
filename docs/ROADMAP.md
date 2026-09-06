@@ -47,6 +47,8 @@ plugin o sistemi sperimentali.
 
 ## Global DoD Sign-off (21-item) — historical evidence, not v0.1 certification
 
-Il comando canonico di certificazione prodotto è `tools/verify_chronon_product_linux.sh`
-(15 sub-gate eseguibili, verdict aggregato `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}`).
-Dettaglio e baseline storiche: [`docs/baselines/`](baselines/) e [`docs/RELEASE_GATE.md`](RELEASE_GATE.md).
+La certificazione 21-item è evidenza storica: l'orchestratore
+`tools/verify_chronon_product_linux.sh` (15 sub-gate, verdict aggregato
+`CHRONON_PRODUCT_FUNCTIONAL_*`) è stato consolidato nei gate CI/manifest il
+2026-09-03 (`722aec744`). Baseline: [`docs/baselines/main-ef9c83f1-baseline.md`](baselines/main-ef9c83f1-baseline.md);
+gate correnti: `tools/gates/manifest.sh` + `.github/workflows/ci.yml`.

@@ -189,23 +189,6 @@ compile_composition(const Composition& composition,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// compile_composition(Composition)
-//
-// Compatibility adapter: snapshot the legacy CompositionDefinition into the
-// canonical Composition model and delegate to the core compiler.
-// ─────────────────────────────────────────────────────────────────────────────
-Result<CompiledComposition, CompositionCompileError>
-compile_composition(const CompositionDefinition& definition,
-                    const CompositionCompileContext& context) {
-    Composition composition(definition.composition, definition.scene,
-                            definition.scene_content_fingerprint);
-    if (definition.camera.has_value()) {
-        composition.default_camera_descriptor(*definition.camera);
-    }
-    return compile_composition(composition, context);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // evaluate()
 //
 // V2 staging — pure.  Threads `frame` into `FrameContext::frame`, calls the
