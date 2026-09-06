@@ -1,5 +1,4 @@
 #include <optional>
-#include <cstdio>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_prewarm_text_layout_cache.cpp — Success-path coverage for PR 10's
 // prewarm_text_run_layout_for_frame hook (PR 11).
@@ -70,6 +69,10 @@ std::shared_ptr<TextRunShape> make_real_shape(
     shape->glyphs = make_initial_glyph_states(shape->layout->placed);
     shape->engine = &engine;
     shape->layout_spec = layout;
+    // Fase B3 — wire the per-shape cache the way the materializer does in
+    // production, so prewarm/apply re-shaping stores into the cache the
+    // test can observe (s_text_cache) instead of a null (no-store) cache.
+    shape->cache = &cache;
     return shape;
 }
 
@@ -244,49 +247,6 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     // prewarm case for the rationale.
     const FontSpec resolved_font = shape->layout->font;
     const auto key = build_expected_cache_key(state.transition_text, resolved_font, layout);
-    std::fprintf(stderr, "PROBE text=%s contains(base)=%d\n",
-                 state.transition_text.c_str(), (int)cache.contains(key));
-    {
-        TextLayoutCacheKey probe = key;
-        for (const char* f : {"", "kern", "kern,liga", "liga", "kern liga"}) {
-            probe.features = f;
-            std::fprintf(stderr, "PROBE features='%s' dir=%d lang='%s' contains=%d\n", f,
-                         (int)probe.direction, std::string(probe.language).c_str(),
-                         (int)cache.contains(probe));
-        }
-        // flip font fields one at a time against resolved_font baseline
-        FontSpec alt = resolved_font;
-        alt.font_family.clear();  probe = key; probe.font_family = alt.font_family;
-        std::fprintf(stderr, "PROBE font_family='' contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.font_path = "tests/fixtures/Inter-Bold.ttf";
-        std::fprintf(stderr, "PROBE font_path=rel contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.font_weight = 400;
-        std::fprintf(stderr, "PROBE font_weight=400 contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.font_size = 0.0f;
-        std::fprintf(stderr, "PROBE font_size=0 contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.paragraph = ParagraphStyle{};
-        std::fprintf(stderr, "PROBE paragraph=default contains=%d\n", (int)cache.contains(probe));
-        for (int d = 1; d <= 2; ++d) {
-            probe = key; probe.direction = static_cast<TextDirection>(d);
-            std::fprintf(stderr, "PROBE direction=%d contains=%d\n", d, (int)cache.contains(probe));
-        }
-        probe = key; probe.language = "en";
-        std::fprintf(stderr, "PROBE language=en contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.variation_axes = "wght=700";
-        std::fprintf(stderr, "PROBE variation=wght700 contains=%d\n", (int)cache.contains(probe));
-        // text sanity probes
-        for (const char* t : {"PR11ScrambleSrc", "PR11ScrambleDst", "QGLU7YWSV337DSU"}) {
-            probe = key; probe.text = t;
-            std::fprintf(stderr, "PROBE text='%s' contains=%d\n", t, (int)cache.contains(probe));
-        }
-        // box/layout probes
-        probe = key; probe.box_width = 0.0f;
-        std::fprintf(stderr, "PROBE box_width=0 contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.align = 0;
-        std::fprintf(stderr, "PROBE align=0 contains=%d\n", (int)cache.contains(probe));
-        probe = key; probe.wrap = TextWrap::Word;
-        std::fprintf(stderr, "PROBE wrap=word contains=%d\n", (int)cache.contains(probe));
-    }
     CHECK(cache.contains(key));
     auto found = cache.find(key);
     REQUIRE(found != nullptr);
@@ -575,7 +535,11 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
         REQUIRE(post_state.active != nullptr);
         REQUIRE(post_state.active->utf8 == "PR11CFDst");
 
-        CHECK(apply_active_state_to_text_run_shape(
+        // The active-side layout was already rebuilt to the destination at
+        // mid-gap, so apply is a fast-path no-op here (returns false — no
+        // rebuild).  What matters is the lifecycle: the crossfade slots are
+        // cleared outside the gap.
+        CHECK_FALSE(apply_active_state_to_text_run_shape(
             *shape, post_state, engine, layout));
 
         CHECK(shape->dissolve_layout == nullptr);

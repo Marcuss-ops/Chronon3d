@@ -18,6 +18,7 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_resolver.hpp>
 #include <doctest/doctest.h>
+#include "test_text_font_fixture.hpp"
 
 #include <optional>
 #include <vector>
@@ -35,8 +36,9 @@ namespace {
 TextDocument make_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
-    doc.defaults.font.font_family = "DejaVu Sans";
-    doc.defaults.font.font_size   = 32.0f;
+    // Path-based fixture font: family-only specs can't be resolved on hosts
+    // without a family→path mapping (see font_engine load path).
+    doc.defaults.font = test_text_fixture::inter_bold();
     doc.split_paragraphs();
     return doc;
 }
