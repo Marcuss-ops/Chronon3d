@@ -79,13 +79,17 @@ struct FfmpegExportOptions {
         FullGraph,
     };
     ResolvedExecutionPath resolved_execution_path{ResolvedExecutionPath::FullGraph};
-    // The resolver's authoritative orthogonal plan. It is optional only for
-    // legacy direct callers that predate the resolver boundary.
+    // The resolver's authoritative orthogonal FINAL plan. It is optional only
+    // for legacy direct callers that predate the resolver boundary.
     std::optional<chronon3d::media::VideoExecutionPlan> resolved_execution_plan;
-    // Pooling remains opt-in until benchmark evidence demonstrates a
-    // material win over job-local NativeAvEncoder ownership.
-    bool encoder_session_pool_enabled{false};
-
+    // Structured resolver reason for the final plan (e.g. a downgrade reason
+    // such as "hybrid_pipeline_unavailable"). Receipt surface: surfaced in
+    // logs today and available for timing-sidecar/telemetry persistence.
+    std::string resolved_execution_reason;
+    // Resolver validity for the final plan (false = fail-closed downgrade or
+    // unsupported requirement; the exporter still executes the plan axes and
+    // downstream failure handling is unchanged).
+    bool resolved_execution_valid{true};
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};
 
@@ -113,52 +117,6 @@ struct VideoEncoderCreateContext {
 std::unique_ptr<IVideoEncoder> create_video_encoder(
     const FfmpegExportOptions& opts,
     const VideoEncoderCreateContext& context = {});
-
-/// Canonical video-pipeline evaluation: supplies the renderer-owned runtime
-/// through an explicit FrameContext so text services are resolved per render.
-///
-/// Non reintroduce shared_font_engine() or a global singleton:
-/// the project removed them intentionally.
-///
-/// SampleTime overload — preserves sub-frame evaluation without a hidden
-/// engine argument.
-inline Scene evaluate_video_scene(
-    const CompiledComposition& compiled,
-    SampleTime time,
-    SoftwareRenderer& renderer)
-{
-    const auto& spec = compiled.composition->spec();
-    const auto context = make_frame_context({
-        .global_time = time,
-        .duration = spec.duration,
-        .width = spec.width,
-        .height = spec.height,
-        .assets_root = renderer.runtime().resolver().mount_root().string(),
-        .font_engine = &renderer.runtime().font_engine(),
-        .runtime = &renderer.runtime(),
-    });
-    const auto evaluated = chronon3d::evaluate(
-        compiled, CompositionEvaluateContext{.frame_context = context}, time);
-    if (!evaluated) throw std::runtime_error(evaluated.error().message);
-    auto& frame = evaluated.value();
-    Scene scene = frame.scene.clone();
-    if (frame.camera) scene.set_camera_2_5d(*frame.camera);
-    return scene;
-}
-
-/// Convenience overload for callers that only have a discrete Frame
-/// (e.g. integer frame loops in chunked/pipe exporters).  Converts to
-/// SampleTime at the composition's native frame rate.
-inline Scene evaluate_video_scene(
-    const CompiledComposition& compiled,
-    Frame frame,
-    SoftwareRenderer& renderer)
-{
-    return evaluate_video_scene(compiled,
-        SampleTime::from_frame_int(frame, compiled.composition->frame_rate()),
-        renderer);
-}
-
 
 } // namespace chronon3d::cli
 

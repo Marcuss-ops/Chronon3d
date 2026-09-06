@@ -4,6 +4,8 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <vector>
+
 namespace chronon3d::backends::vulkan {
 
     // DEMOLISHED (P1.4): Impl::preallocate_plan_surfaces removed — it never
@@ -130,38 +132,48 @@ namespace chronon3d::backends::vulkan {
         for (const auto handle : pending) release_surface_now(handle);
     }
 
+    void VulkanBackend::Impl::release_frame_transient_handles(bool log_lifecycle) {
+        // Reused scratch (see transient_release_scratch_): avoids a
+        // per-call handle-vector allocation in the cleanup drains.
+        auto& handles = transient_release_scratch_;
+        handles.clear();
+        handles.reserve(surfaces.surface_bindings.size());
+        for (const auto& [handle, slot] : surfaces.surface_bindings) {
+            const auto it = surfaces.physical_surfaces.find(slot);
+            if (it != surfaces.physical_surfaces.end() &&
+                it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
+                !surfaces.unplanned_surface_handles.contains(handle)) {
+                handles.push_back(handle);
+            }
+        }
+        for (const auto handle : handles) {
+            if (log_lifecycle && surface_lifecycle_diag_enabled()) {
+                spdlog::info("[surface-lifecycle] retire handle={}", handle);
+            }
+            const auto binding = surfaces.surface_bindings.find(handle);
+            if (binding == surfaces.surface_bindings.end()) continue;
+            const auto slot = binding->second;
+            surfaces.surface_bindings.erase(binding);
+            surfaces.unplanned_surface_handles.erase(handle);
+            const auto it = surfaces.physical_surfaces.find(slot);
+            if (it != surfaces.physical_surfaces.end() &&
+                !surfaces.slot_in_use(slot)) {
+                it->second.image.initialized = false;
+            }
+            ++stats.surface_releases;
+        }
+        prune_unused_transient_slots();
+    }
+
     void VulkanBackend::Impl::release_frame_transient_surfaces() noexcept {
         try {
             // Explicit end-of-job drain: wait only for submissions tracked by
             // this backend. Do not use vkDeviceWaitIdle here; the compiled
             // frame path must never acquire an implicit device-global sync.
             wait_for_pending();
-            std::vector<runtime::RenderSurfaceHandle> handles;
-            handles.reserve(surfaces.surface_bindings.size());
-            for (const auto& [handle, slot] : surfaces.surface_bindings) {
-                const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end() &&
-                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                    !surfaces.unplanned_surface_handles.contains(handle)) {
-                    handles.push_back(handle);
-                }
-            }
-            for (const auto handle : handles) {
-                const auto binding = surfaces.surface_bindings.find(handle);
-                if (binding == surfaces.surface_bindings.end()) continue;
-                const auto slot = binding->second;
-                surfaces.surface_bindings.erase(binding);
-                surfaces.unplanned_surface_handles.erase(handle);
-                const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end() &&
-                    !surfaces.slot_in_use(slot)) {
-                    it->second.image.initialized = false;
-                }
-                ++stats.surface_releases;
-            }
             // The tracked-submission drain above makes orphaned transient
             // backing images safe to destroy without a global device idle.
-            prune_unused_transient_slots();
+            release_frame_transient_handles(/*log_lifecycle=*/false);
             if (surfaces.physical_surfaces.size() > 32) {
                 spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
                              surfaces.surface_bindings.size(), surfaces.physical_surfaces.size(),
@@ -171,6 +183,7 @@ namespace chronon3d::backends::vulkan {
             spdlog::error("[vulkan] transient cleanup failed: {}", error.what());
         } catch (...) {
             // Cleanup is best-effort and must not terminate the daemon.
+            spdlog::warn("[vulkan] transient cleanup aborted by a non-std exception");
         }
     }
 
@@ -192,40 +205,15 @@ namespace chronon3d::backends::vulkan {
                 read_gpu_timestamps(i);
             }
 
-            std::vector<runtime::RenderSurfaceHandle> handles;
-            handles.reserve(surfaces.surface_bindings.size());
-            for (const auto& [handle, slot] : surfaces.surface_bindings) {
-                const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end() &&
-                    it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                    !surfaces.unplanned_surface_handles.contains(handle)) {
-                    handles.push_back(handle);
-                }
-            }
-            for (const auto handle : handles) {
-                if (surface_lifecycle_diag_enabled()) {
-                    spdlog::info("[surface-lifecycle] retire handle={}", handle);
-                }
-                const auto binding = surfaces.surface_bindings.find(handle);
-                if (binding == surfaces.surface_bindings.end()) continue;
-                const auto slot = binding->second;
-                surfaces.surface_bindings.erase(binding);
-                surfaces.unplanned_surface_handles.erase(handle);
-                const auto it = surfaces.physical_surfaces.find(slot);
-                if (it != surfaces.physical_surfaces.end() &&
-                    !surfaces.slot_in_use(slot)) {
-                    it->second.image.initialized = false;
-                }
-                ++stats.surface_releases;
-            }
             // All relevant submission fences were complete above, so it is
             // now safe to reclaim the physical images whose logical handles
-            // were retired.
-            prune_unused_transient_slots();
+            // are retired below.
+            release_frame_transient_handles(/*log_lifecycle=*/true);
         } catch (const std::exception& error) {
             spdlog::error("[vulkan] non-blocking transient retirement failed: {}", error.what());
         } catch (...) {
             // Best effort: final job cleanup remains responsible for recovery.
+            spdlog::warn("[vulkan] non-blocking transient retirement aborted by a non-std exception");
         }
     }
 

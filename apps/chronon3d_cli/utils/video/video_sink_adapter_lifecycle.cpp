@@ -79,10 +79,14 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
 bool VideoSinkEncoderAdapter::close() {
     if (!sink_) return true;
     const auto close_t0 = profiling::now();
+    // A failed flush means encoder-queued frames were not written: the output
+    // artifact is truncated. Report it at error severity and fold it into the
+    // close() result so the finalize path cannot certify a truncated file as
+    // successful.
     bool flush_ok = sink_->flush();
     if (!flush_ok) {
-        spdlog::warn("[video_adapter] sink->flush() reported failure: {} — {}",
-                     to_string(sink_->last_error()), sink_->last_error_message());
+        spdlog::error("[video_adapter] sink->flush() reported failure — output may be truncated: {} — {}",
+                      to_string(sink_->last_error()), sink_->last_error_message());
     }
     bool close_ok = sink_->close();
     if (!close_ok) {
@@ -93,12 +97,21 @@ bool VideoSinkEncoderAdapter::close() {
     spdlog::info("[video_adapter] Closed sink — {} frames written, write_blocked={:.2f}ms, close={:.2f}ms",
                  frames_written_, write_blocked_ms_, close_ms);
     sink_.reset();
-    return close_ok;
+    return close_ok && flush_ok;
 }
 
 VideoSinkEncoderAdapter::~VideoSinkEncoderAdapter() noexcept {
     if (sink_) {
-        try { close(); } catch (...) {}
+        // Teardown-by-destruction must not swallow the final file outcome:
+        // close() already logs flush/close failures at error severity; only
+        // unexpected exceptions remain to be surfaced here.
+        try {
+            (void)close();
+        } catch (const std::exception& error) {
+            spdlog::error("[video_adapter] close() during destruction threw: {}", error.what());
+        } catch (...) {
+            spdlog::error("[video_adapter] close() during destruction threw a non-std exception");
+        }
     }
 }
 

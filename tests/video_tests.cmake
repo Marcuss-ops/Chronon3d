@@ -42,3 +42,11 @@ else()
         SOURCES video/test_video_sink_factory_no_native.cpp
     )
 endif()
+
+# VFR source-sample selection table (decoder-facing contract).
+chronon3d_add_test_suite(
+    NAME chronon3d_source_sample_table_tests
+    TIER UNIT
+    LINK_TARGETS chronon3d_media_video
+    SOURCES video/test_source_sample_table.cpp
+)

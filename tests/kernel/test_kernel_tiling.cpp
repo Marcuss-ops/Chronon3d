@@ -83,9 +83,10 @@ TEST_CASE("KernelTiling: union of tiles == bbox exactly (no overlap, no gaps)") 
         CHECK(t.w <= ts.width);
         CHECK(t.h <= ts.height);
         CHECK(t.index == i);
-        // Sanity: tile fits inside bbox (right edge ≤ bbox.x+bbox.w).
-        CHECK(t.x + t.w <= bbox.x + bbox.w);
-        CHECK(t.y + t.h <= bbox.y + bbox.h);
+        // Sanity: tile fits inside bbox (BBox stores exclusive x1/y1 bounds,
+        // so the tile's outer edge must not exceed bbox.x1/bbox.y1).
+        CHECK(t.x + t.w <= bbox.x1);
+        CHECK(t.y + t.h <= bbox.y1);
         // The first tile MUST be the (0,0) tile.
         if (i == 0) {
             CHECK(t.x == 0);
@@ -202,10 +203,13 @@ TEST_CASE("KernelTiling: bitmap-traced union equals bbox area (small bbox)") {
             for (int dx = 0; dx < t.w; ++dx) {
                 const int x = t.x + dx;
                 const int y = t.y + dy;
-                REQUIRE(x >= 0 && x < 7);
-                REQUIRE(y >= 0 && y < 5);
+                REQUIRE(x >= 0);
+                REQUIRE(x < 7);
+                REQUIRE(y >= 0);
+                REQUIRE(y < 5);
                 const std::size_t idx = static_cast<std::size_t>(y * 7 + x);
-                CHECK_FALSE(bitmap[idx]);     // no double-cover
+                const bool already_covered = bitmap[idx];
+                CHECK_FALSE(already_covered);  // no double-cover
                 bitmap[idx] = true;
                 ++covered;
             }

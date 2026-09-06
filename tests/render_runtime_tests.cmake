@@ -91,6 +91,11 @@ chronon3d_add_test_suite(
     SOURCES render_graph/compiler/test_template_program.cpp
 )
 chronon3d_add_test_suite(
+    NAME chronon3d_compiled_scene_program_tests
+    TIER INTEGRATION
+    SOURCES render_graph/compiler/test_compiled_scene_program.cpp
+)
+chronon3d_add_test_suite(
     NAME chronon3d_segment_execution_tests
     TIER UNIT
     SOURCES render_graph/compiler/test_segment_execution_descriptor.cpp
@@ -123,6 +128,11 @@ chronon3d_add_test_suite(
     NAME chronon3d_resource_state_tracker_tests
     TIER UNIT
     SOURCES runtime/test_resource_state_tracker.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_resource_transition_alias_tests
+    TIER UNIT
+    SOURCES runtime/test_resource_transition_alias.cpp
 )
 chronon3d_add_test_suite(
     NAME chronon3d_compiled_resource_authority_tests

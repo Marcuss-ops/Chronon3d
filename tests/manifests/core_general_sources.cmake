@@ -13,6 +13,7 @@ set(CORE_TEST_SOURCES
     simd/test_simd_kernels.cpp
     simd/test_kernel_resolver_avx2_parity.cpp
     simd/test_kernel_registry.cpp
+    kernel/test_kernel_tiling.cpp
     cache/test_lru_weight.cpp
     core/test_sharded_telemetry_store.cpp
     core/test_render_counters.cpp
@@ -72,6 +73,7 @@ set(CORE_TEST_SOURCES
     core/test_system_metrics_parse.cpp
     core/test_execution_scope.cpp
     core/test_cpu_budget.cpp
+    core/test_parallel_render_engines_debug_isolation.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     text/test_text_run_umbrella_contract.cpp

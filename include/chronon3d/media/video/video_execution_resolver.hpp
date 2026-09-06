@@ -8,13 +8,6 @@
 
 namespace chronon3d::media {
 
-enum class VideoExecutionPath : unsigned char {
-    BitstreamCopy,   ///< whole-clip packet copy, zero GPU
-    SmartGopCopy,    ///< hybrid: some GOPs copied, others DirectYUV/NVENC
-    DirectYuv,       ///< NVDEC → CUDA → NVENC for every frame
-    RenderGraph,     ///< render-graph composition; encode/interop are separate plan axes
-};
-
 // These dimensions are independent.  A composition can therefore select a
 // Vulkan graph while the encoder remains NVENC, without overloading one enum
 // with the meaning of all four decisions.
@@ -117,20 +110,35 @@ struct GopExecutionPlan {
 };
 
 struct VideoExecutionDecision {
-    // Authoritative plan. `path` and `render_fallback` remain as a migration
-    // view for old packet/export callers and must not gain new semantics.
+    // Authoritative FINAL plan. The executor executes exactly these axes and
+    // never re-decides policy; downgrades (e.g. a hybrid GOP plan that cannot
+    // be executed) are already resolved here with a structured `reason`.
     VideoExecutionPlan plan{};
-    VideoExecutionPath path{VideoExecutionPath::RenderGraph};
-    // Path used when the selected packet-copy path cannot be safely executed.
-    // The executor must honor this resolver-owned fallback rather than infer
-    // FullGraph from any path other than DirectYuv.
-    VideoExecutionPath render_fallback{VideoExecutionPath::RenderGraph};
     std::string_view reason{"render_graph_default"};
     bool valid{true};
-    // Populated when path == SmartGopCopy or BitstreamCopy. Null otherwise.
+    // Populated when the final plan copies packets (whole-clip or per-GOP).
+    // Null otherwise.
     std::optional<GopExecutionPlan> gop_plan{};
 };
 
+/// GOP-level facts extracted by the caller's compressed-source preflight
+/// (inspect_gop_source). Feeding these into the resolver lets the FINAL plan
+/// (including any downgrade) be decided before execution starts, with a
+/// structured reason; the executor never downgrades at runtime.
+struct GopAnalysisSummary {
+    bool available{false};        ///< source inspection succeeded
+    std::size_t total_gops{0};
+    std::size_t copy_gops{0};     ///< copy-eligible AND splice-safe
+    std::size_t reencode_gops{0};
+    bool all_copy{false};         ///< copy_gops == total_gops
+    bool hybrid{false};           ///< copy_gops > 0 && reencode_gops > 0
+    bool safe_to_splice{false};   ///< valid only when hybrid
+};
+
+/// Public, backend-neutral resolution. `has_gop_source` / `gop_copy_only` /
+/// `allow_hybrid_gop` describe authoring intent; when a caller has already
+/// inspected the source it should pass the summary via
+/// resolve_video_execution_with_gop_analysis() so the plan is final.
 [[nodiscard]] VideoExecutionDecision resolve_video_execution(
     const ExecutionRequirements& requirements,
     const OutputSpec& output,
@@ -138,6 +146,19 @@ struct VideoExecutionDecision {
     bool has_gop_source = false,
     bool gop_copy_only = false,
     bool allow_hybrid_gop = false) noexcept;
+
+/// Resolves with GOP pre-analysis folded in: the returned plan is FINAL and
+/// the executor must not perform runtime downgrades. `intent_*` mirror the
+/// parameters of resolve_video_execution(); when `analysis.available` is true
+/// they are interpreted as: explicit whole-clip copy intent (gop_copy_only),
+/// or hybrid eligibility (allow_hybrid_gop).
+[[nodiscard]] VideoExecutionDecision resolve_video_execution_with_gop_analysis(
+    const ExecutionRequirements& requirements,
+    const OutputSpec& output,
+    const VideoCapabilities& capabilities,
+    bool intent_gop_copy_only,
+    bool intent_allow_hybrid_gop,
+    const GopAnalysisSummary& analysis) noexcept;
 
 struct ResolvedExecutionParameters {
     std::string backend{"auto"};

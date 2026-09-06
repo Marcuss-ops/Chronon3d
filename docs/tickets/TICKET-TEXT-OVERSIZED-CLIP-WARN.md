@@ -1,7 +1,7 @@
 # TICKET-TEXT-OVERSIZED-CLIP-WARN — warning Chronon di clipping testo oversized (NON BLOCKING)
 
 ## Stato
-OPEN
+OPEN (limitation formalizzata 2026-09-06 → `TICKET-TEXT-CLIP-BOX.md`; policy di output = decisione di prodotto, pointer a PipelineGen product-validation; nessun code change)
 
 ## Priorità
 P3 — **NON BLOCKING**: nessun impatto sul percorso RenderingGen stabile né sul golden canary (rendering reale PASS, artifact verificato, replay idempotente verde). Ticket dedicato per isolare la WARN dal lavoro RenderingGen, che resta congelato.
@@ -18,7 +18,7 @@ La warning è emessa da `verify_text_visibility()` quando l'invariante di **cont
 Stato attuale del problema:
 1. Il warning è **diagnostico-only** (`spdlog::warn`, dedup per `(node_id, kind)` via `WarnOnceDeduper`), gated da `CHRONON3D_BUILD_DIAGNOSTICS`: in produzione non c'è alcun segnale strutturato.
 2. Non esiste una **policy esplicita** per i layer preset generati da PipelineGen (`title_centered`, `kinetic_word`, `entity_card`, stat/quote): il testo oversized viene clippato silenziosamente (dal punto di vista del job) — l'unico segnale è la WARN nel worker log.
-3. Il reference `TICKET-TEXT-CLIP-BOX` citato in `test_text_clip_oversized.cpp` **non ha una scheda ticket**: la limitation è documentata solo come commento nel test.
+3. Il reference `TICKET-TEXT-CLIP-BOX` citato in `test_text_clip_oversized.cpp` è ora formalizzato in `docs/tickets/TICKET-TEXT-CLIP-BOX.md` (2026-09-06): semantica della limitation, exit conditions e pointer alla policy di prodotto.
 
 ## Evidenza
 - `src/text/text_visibility_reporting.cpp` — emissione `spdlog::warn("[text-vis] CLIP_DROPS_INK node={}", nm)` quando `audit.clip_contains_visible_ink == false`.
@@ -45,10 +45,10 @@ Stato attuale del problema:
 4. Documentare la WARN nel worker log come segnale atteso (non error) per job con testo lungo.
 
 ## Criteri di accettazione
-- `TICKET-TEXT-CLIP-BOX` formalizzata (scheda aperta) o chiusa con policy documentata.
-- Policy esplicita documentata per i preset PipelineGen (auto-fit / ellipsis / clip) — decisione registrata.
-- Nessuna modifica ai file RenderingGen; golden canary invariato (stesso SHA, stesse certification).
-- (Opzionale) WARN strutturata disponibile in telemetria.
+- [x] `TICKET-TEXT-CLIP-BOX` formalizzata (scheda aperta `docs/tickets/TICKET-TEXT-CLIP-BOX.md`) — 2026-09-06.
+- [ ] Policy esplicita documentata per i preset PipelineGen (auto-fit / ellipsis / clip) — decisione di PRODOTTO, registrata in PipelineGen product-validation (fuori confine core).
+- [x] Nessuna modifica ai file RenderingGen; golden canary invariato (stesso SHA, stesse certification).
+- [ ] (Opzionale) WARN strutturata disponibile in telemetria (exit condition 4 in `TICKET-TEXT-CLIP-BOX.md`).
 
 ## Linkage
 - **Test/regression separato**: [`TICKET-TEXT-OVERSIZED-CLIP-REGRESSION-TEST`](TICKET-TEXT-OVERSIZED-CLIP-REGRESSION-TEST.md) (questo ticket è il parent: warning; l'altro è il lock testuale).

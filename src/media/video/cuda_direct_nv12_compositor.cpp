@@ -218,7 +218,11 @@ void ensure_nvrtc_builtins_loaded() {
     }
 }
 
-std::string get_compiled_direct_ptx() {
+// Returns the process-cached PTX by reference: after the first NVRTC compile
+// (guarded by ptx_mutex) the cached string is immutable, so every later
+// compositor session observes the same static storage without copying the
+// whole PTX source per session.
+const std::string& get_compiled_direct_ptx() {
     static std::mutex ptx_mutex;
     static std::string cached_ptx;
     std::lock_guard<std::mutex> lock(ptx_mutex);
@@ -255,7 +259,9 @@ CudaDirectNv12Compositor::CudaDirectNv12Compositor(CUcontext context)
     if (!context_) fail("CudaDirectNv12Compositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
-    const auto ptx = get_compiled_direct_ptx();
+    // Reference to the process-cached PTX: cuModuleLoadData copies the image,
+    // so the static string outlives the call safely.
+    const auto& ptx = get_compiled_direct_ptx();
     check_cuda(cuModuleLoadData(&module_, ptx.c_str()), "cuModuleLoadData(direct)");
     check_cuda(cuModuleGetFunction(&kernel_, module_,
                                    "nv12_composite_layer_batch_2x2"),

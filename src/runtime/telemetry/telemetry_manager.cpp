@@ -1,4 +1,5 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
 #else
@@ -103,6 +104,14 @@ TelemetryManager::TelemetryManager() = default;
 
 void TelemetryManager::configure(TelemetryRuntimeConfig config) {
     m_config = std::move(config);
+    // Keep the render_graph hot-path capture gate in sync with the config
+    // authority (single writer: this class).
+    set_telemetry_capture_level(m_config.level);
+}
+
+void TelemetryManager::set_level(TelemetryLevel level) noexcept {
+    m_config.level = level;
+    set_telemetry_capture_level(level);
 }
 
 void TelemetryManager::add_store(std::shared_ptr<TelemetryStore> store) {

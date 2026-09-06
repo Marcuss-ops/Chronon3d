@@ -175,12 +175,29 @@ EncodeOutcome encode_frame(
                 runtime::UploadTicket upload_ticket{};
                 if (!ctx.backend.upload_surface_async(
                         source_surface, source_desc, rgba, upload_ticket).ok()) {
-                    (void)ctx.backend.release_surface(source_surface);
-                    (void)surface_registry->release(source_surface);
+                    spdlog::error(
+                        "[video] native upload failed for retained source at frame {} "
+                        "(handle={}); dropping to the CPU encode lane",
+                        static_cast<int>(current_frame), source_surface);
+                    if (!ctx.backend.release_surface(source_surface).ok()) {
+                        spdlog::error("[video] release_surface failed for upload-failure handle={}",
+                                      source_surface);
+                    }
+                    if (!surface_registry->release(source_surface)) {
+                        spdlog::error("[video] surface_registry release failed for upload-failure handle={}",
+                                      source_surface);
+                    }
                     source_surface = runtime::kInvalidRenderSurfaceHandle;
                 }
             } else {
-                (void)surface_registry->release(source_surface);
+                spdlog::error(
+                    "[video] create_surface failed for retained source at frame {} "
+                    "(handle={}); dropping to the CPU encode lane",
+                    static_cast<int>(current_frame), source_surface);
+                if (!surface_registry->release(source_surface)) {
+                    spdlog::error("[video] surface_registry release failed for create-failure handle={}",
+                                  source_surface);
+                }
                 source_surface = runtime::kInvalidRenderSurfaceHandle;
             }
         }
