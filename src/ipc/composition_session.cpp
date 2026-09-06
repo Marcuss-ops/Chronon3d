@@ -72,14 +72,13 @@ void CompositionSession::create_composition(std::string_view composition_id,
     const_cast<CompositionRegistry*>(registry)->add(std::move(descriptor));
     auto comp = const_cast<CompositionRegistry*>(registry)->create(composition_id);
 
-    auto compiled = chronon3d::compile_composition(comp, CompositionCompileContext{});
-    if (!compiled) {
-        throw std::runtime_error("compile failed: " + compiled.error().message);
-    }
-
     SessionComposition session;
     session.composition_id = std::string(composition_id);
-    session.compiled = std::move(compiled).value();
+    // Prepare once at the daemon boundary. This performs resource preparation
+    // and renderer warm-up before the composition becomes visible to clients;
+    // RenderFrame then reuses the prepared slot/cache pipeline instead of
+    // entering the generic compiled-composition path for every frame.
+    session.prepared = std::make_unique<PreparedRenderJob>(m_engine->prepare(comp));
     session.engine = m_engine;
 
     std::lock_guard lock(m_mutex);
@@ -91,7 +90,7 @@ std::shared_ptr<Framebuffer> CompositionSession::render_frame(
     std::lock_guard lock(m_mutex);
     auto it = m_compositions.find(std::string(composition_id));
     if (it == m_compositions.end()) return nullptr;
-    return it->second.engine->render_compiled(it->second.compiled, frame);
+    return it->second.prepared ? it->second.prepared->render(frame) : nullptr;
 }
 
 } // namespace chronon3d::ipc

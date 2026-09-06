@@ -206,6 +206,17 @@ struct VulkanBackend::Impl {
     // a single member is safe; contents are cleared before each fill.
     std::vector<runtime::RenderSurfaceHandle> transient_release_scratch_;
 
+    // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — submit() scratch.
+    // Rebuilt as four fresh std::vector allocations on EVERY submit() (once
+    // per frame, plus CUDA-interop wait-slot entries). Reused here instead:
+    // same single-submission-thread serialization contract as
+    // transient_release_scratch_ above; contents are cleared before each
+    // fill and capacity is retained across frames.
+    std::vector<VkSemaphore> submit_wait_semaphores_;
+    std::vector<VkPipelineStageFlags> submit_wait_stages_;
+    std::vector<VkSemaphore> submit_signal_semaphores_;
+    std::vector<std::uint64_t> submit_signal_values_;
+
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
          VkQueue graphics, std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
