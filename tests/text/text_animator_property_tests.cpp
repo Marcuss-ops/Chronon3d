@@ -512,6 +512,9 @@ TEST_CASE("Property: TrackingProperty cumulative — single glyph is unaffected"
     TextAnimatorSpec spec;
     spec.id = "track_single";
     spec.selectors.push_back({});
+    // Rectangular (Square) weight profile: these tests exercise the pure
+    // cumulative-tracking math, not the Smooth default edge falloff.
+    spec.selectors.back().shape = TextSelectorShape::Square;
     spec.selectors.back().amount.set(100.0f);
     spec.properties.push_back(TrackingProperty{14.0f});
 
@@ -532,6 +535,8 @@ TEST_CASE("Property: TrackingProperty cumulative — N glyphs spread evenly") {
     TextAnimatorSpec spec;
     spec.id = "track_spread";
     spec.selectors.push_back({});
+    // Rectangular (Square) weight profile — see track_single.
+    spec.selectors.back().shape = TextSelectorShape::Square;
     spec.selectors.back().amount.set(100.0f);
     spec.properties.push_back(TrackingProperty{10.0f});
 
@@ -557,6 +562,8 @@ TEST_CASE("Property: TrackingProperty cumulative — first and last hold the gap
     TextAnimatorSpec spec;
     spec.id = "track_gap";
     spec.selectors.push_back({});
+    // Rectangular (Square) weight profile — see track_single.
+    spec.selectors.back().shape = TextSelectorShape::Square;
     spec.selectors.back().amount.set(100.0f);
     spec.properties.push_back(TrackingProperty{4.0f});
 
@@ -579,6 +586,8 @@ TEST_CASE("Property: TrackingProperty with partial selector weight halves the sp
     TextAnimatorSpec spec;
     spec.id = "track_half";
     spec.selectors.push_back({});
+    // Rectangular (Square) weight profile — see track_single.
+    spec.selectors.back().shape = TextSelectorShape::Square;
     spec.selectors.back().amount.set(50.0f);  // 50% weight
     spec.properties.push_back(TrackingProperty{10.0f});
 
@@ -606,6 +615,8 @@ TEST_CASE("Property: TrackingProperty Replace matches Add when starting from ide
     spec.id = "track_replace";
     spec.transform_mode = TextPropertyBlendMode::Replace;
     spec.selectors.push_back({});
+    // Rectangular (Square) weight profile — see track_single.
+    spec.selectors.back().shape = TextSelectorShape::Square;
     spec.selectors.back().amount.set(100.0f);
     spec.properties.push_back(TrackingProperty{6.0f});
 
@@ -639,6 +650,8 @@ TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack")
         s1.id = "static_shift";
         s1.transform_mode = TextPropertyBlendMode::Add;
         s1.selectors.push_back({});
+        // Rectangular (Square) weight profile — see track_single.
+        s1.selectors.back().shape = TextSelectorShape::Square;
         s1.selectors.back().amount.set(100.0f);
         s1.properties.push_back(
             PositionProperty{Vec3{kStaticShift, 0.0f, 0.0f}});
@@ -647,6 +660,8 @@ TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack")
         s2.id = "tracking";
         s2.transform_mode = track_blend;
         s2.selectors.push_back({});
+        // Rectangular (Square) weight profile — see track_single.
+        s2.selectors.back().shape = TextSelectorShape::Square;
         s2.selectors.back().amount.set(100.0f);
         s2.properties.push_back(TrackingProperty{10.0f});
 

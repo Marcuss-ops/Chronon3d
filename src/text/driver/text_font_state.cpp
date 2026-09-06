@@ -25,6 +25,15 @@ FontSpec apply_overrides_h(
     if (defaults == nullptr) {
         return basis;
     }
+    // No font SELECTED on the active document (neither a path nor a
+    // family anchor): inherit the basis untouched.  FontSpec's defaults
+    // (weight 400 / style "normal" / size 32) are indistinguishable from
+    // explicit author values, so a field-wise merge here would silently
+    // corrupt the basis (e.g. a 700-weight shape layout downgraded to the
+    // default 400 whenever the animated doc keyframe doesn't pick a font).
+    if (defaults->font.font_path.empty() && defaults->font.font_family.empty()) {
+        return basis;
+    }
     // `defaults` is a TextDefaults* — its `.font` member is the FontSpec
     // we copy into.  `basis` IS the FontSpec, so direct field access.
     if (!defaults->font.font_path.empty()) {

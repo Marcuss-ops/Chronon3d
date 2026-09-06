@@ -177,7 +177,12 @@ TEST_CASE("EveryLine: Full justification distributes slack") {
     auto run = make_test_run({20.0f, 10.0f, 20.0f, 10.0f, 20.0f}, "a b c");
     ParagraphStyle style;
     style.justification = TextJustification::Full;
-    style.spacing.word_max = 5.0f;
+    // Generous spacing caps so the 120px of slack can actually be
+    // distributed across the two word gaps + letter gaps (the line
+    // natural width is 80px inside a 200px box).
+    style.spacing.word_max = 30.0f;
+    style.spacing.letter_max = 60.0f;
+    style.spacing.glyph_scale_max = 3.0f;
     auto layout = compose_every_line(run, 200.0f, style, "a b c");
     CHECK(layout.lines.size() == 1);
     CHECK(layout.lines[0].final_width == doctest::Approx(200.0f));

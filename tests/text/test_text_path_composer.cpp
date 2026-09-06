@@ -307,6 +307,9 @@ TEST_CASE("TextPath: WrapClosedPath wraps clusters past path end") {
     auto shaped = make_shaped_run({100.0f, 100.0f, 100.0f}); // 300px > 200
     auto spec = make_spec(path);
     spec.overflow = TextPathOverflow::WrapClosedPath;
+    // Canonical contract: WrapClosedPath only wraps when the spec marks
+    // the path as closed (the end connects to the start).
+    spec.closed = true;
     // Cluster centres: 50, 150, 250. 250 wraps → 250-200=50.
     auto result = compose_text_on_path(shaped, sampler, spec);
     REQUIRE(result.clusters.size() == 3);
