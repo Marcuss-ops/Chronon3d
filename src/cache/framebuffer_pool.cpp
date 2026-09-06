@@ -130,7 +130,14 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         auto it = m_free.find(key);
         if (it != m_free.end() && !it->second.empty()) {
             auto& bucket = it->second;
-            // Take the oldest (LRU) entry from the front to keep fresher entries for later.
+            // OPT-POOL-EXACT-FIT — steady-state acquire is an exact-bucket hit
+            // (the graph preallocator predicts the same size classes every
+            // frame). The O(1) hash lookup + front-pop is the fast path;
+            // the best-fit index below only engages on a bucket miss.
+            // LRU-faithful: the oldest (lowest-tick) entry is the one handed
+            // out, matching the release-order invariant the eviction tests
+            // lock (tests/cache/test_framebuffer_pool.cpp,
+            // tests/cache/test_evict_lru_for.cpp).
             auto entry = std::move(bucket.front());
             bucket.erase(bucket.begin());
             m_current_bytes -= entry.fb->size_bytes();
@@ -144,24 +151,28 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         }
     }
 
-    auto best_fit = m_free.end();
-    size_t best_area = std::numeric_limits<size_t>::max();
-    for (auto it = m_free.begin(); it != m_free.end(); ++it) {
-        const auto& key = it->first;
-        if (key.width < rounded_w || key.height < rounded_h || it->second.empty()) {
-            continue;
-        }
-        const size_t area = static_cast<size_t>(key.width) * static_cast<size_t>(key.height);
-        if (area < best_area) {
-            best_area = area;
-            best_fit = it;
-        }
-    }
-
-    if (best_fit != m_free.end()) {
-        auto& bucket = best_fit->second;
+    // OPT-POOL-BESTFIT — the linear scan over every free bucket (O(distinct
+    // size classes) per cold acquire) is replaced by an ordered index
+    // (m_free_by_area: set of (area, key) pairs, smallest first). The walk
+    // starts at the first bucket with area >= the rounded request area and
+    // stops at the first bucket whose dims both fit — identical selection
+    // semantics to the previous scan (minimum area among fitting buckets).
+    // Correctness note: a bucket with area == min_area but a smaller dim
+    // sorts strictly before the probe and is (correctly) never visited; any
+    // fitting bucket sorts at or after the probe.
+    const std::uint64_t min_area =
+        static_cast<std::uint64_t>(rounded_w) * static_cast<std::uint64_t>(rounded_h);
+    for (auto idx_it = m_free_by_area.lower_bound(
+             {min_area, FramebufferPoolKey{rounded_w, rounded_h}});
+         idx_it != m_free_by_area.end(); ++idx_it) {
+        const auto& key = idx_it->second;
+        if (key.width < rounded_w || key.height < rounded_h) continue; // does not fit
+        auto bucket_it = m_free.find(key);
+        if (bucket_it == m_free.end() || bucket_it->second.empty()) continue; // defensive
+        auto& bucket = bucket_it->second;
         auto entry = std::move(bucket.back());
         bucket.pop_back();
+        if (bucket.empty()) m_free_by_area.erase(idx_it);
         m_current_bytes -= entry.fb->size_bytes();
         m_total_reuses.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
@@ -358,7 +369,14 @@ void FramebufferPool::release(Framebuffer* fb) {
     // Insert into pool
     m_current_bytes += weight;
     m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
+    const bool bucket_was_empty =
+        !m_free.contains(key) || m_free[key].empty();
     m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
+    if (bucket_was_empty) {
+        // OPT-POOL-BESTFIT: register the bucket in the ordered index only
+        // when it transitions empty → non-empty.
+        m_free_by_area.insert({free_bucket_area(key), key});
+    }
 
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
@@ -378,6 +396,7 @@ void FramebufferPool::set_native_surface_releaser(
 void FramebufferPool::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_free.clear();
+    m_free_by_area.clear();
     m_current_bytes = 0;
 }
 

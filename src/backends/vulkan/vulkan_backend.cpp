@@ -126,9 +126,9 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
 #endif
 }
 
-void VulkanBackend::begin_frame_batch() {
+void VulkanBackend::begin_frame_batch_unlocked() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    // Caller holds api_mutex. P1-7: no re-entry into the recursive mutex.
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (batch.active) {
@@ -223,7 +223,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         throw std::length_error(
             "Vulkan compiled pass timing capacity exhausted");
     }
-    begin_frame_batch();
+    begin_frame_batch_unlocked();
     m_impl->retire_completed_frame_transient_surfaces();
 
     // CommandPlan is the sole compiled synchronization authority. Vulkan
@@ -327,9 +327,9 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #endif
 }
 
-void VulkanBackend::end_frame_batch() {
+void VulkanBackend::end_frame_batch_unlocked() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    // Caller holds api_mutex. P1-7: no re-entry into the recursive mutex.
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
@@ -340,6 +340,26 @@ void VulkanBackend::end_frame_batch() {
     m_impl->submit_batch();
     m_impl->flush_deferred_surface_releases();
     batch.active = false;
+#endif
+}
+
+void VulkanBackend::begin_frame_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    // Public entry: synchronized ingress. The single-owner hot path calls
+    // the *_unlocked core directly.
+    std::lock_guard lock(m_impl->api_mutex);
+    begin_frame_batch_unlocked();
+#else
+    (void)0;
+#endif
+}
+
+void VulkanBackend::end_frame_batch() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    // Public entry: synchronized ingress. The single-owner hot path calls
+    // the *_unlocked core directly.
+    std::lock_guard lock(m_impl->api_mutex);
+    end_frame_batch_unlocked();
 #else
     (void)0;
 #endif

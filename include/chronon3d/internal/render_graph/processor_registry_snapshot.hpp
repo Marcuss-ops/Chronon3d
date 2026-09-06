@@ -94,6 +94,17 @@ public:
         return m_shapes[handle.index].second;
     }
 
+    /// Non-owning access for callers that already retain this snapshot for the
+    /// complete operation. The snapshot owns every processor in m_shapes, so
+    /// this avoids a shared_ptr refcount operation in tight read-only loops.
+    [[nodiscard]] ShapeProcessor* shape_ptr(
+        ShapeProcessorHandle handle) const noexcept {
+        if (!handle.valid() || handle.index >= m_shapes.size()) {
+            return nullptr;
+        }
+        return m_shapes[handle.index].second.get();
+    }
+
     [[nodiscard]] std::shared_ptr<EffectProcessor> effect_shared(
         EffectProcessorHandle handle) const noexcept {
         if (!handle.valid() || handle.index >= m_effects.size()) {

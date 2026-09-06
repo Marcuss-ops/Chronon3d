@@ -18,14 +18,20 @@ void compute_scene_root_bboxes(
     const RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer
 ) {
+    // RenderBackend keeps the immutable snapshot refreshed only when the
+    // registry generation changes. Capture it once for this root collection;
+    // SoftwareRegistry::snapshot() would otherwise rebuild vectors, sort them,
+    // and allocate a shared snapshot for every root node.
+    const auto snapshot = sw_renderer->backend().processor_snapshot();
+    if (!snapshot) return;
+
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
         const auto placement = evaluate_root_source_placement(
             node, ctx, node.name, "root_bbox");
         if (!placement) continue;
         const Mat4 matrix = placement->render_matrix;
-        const auto snapshot = sw_renderer->software_registry().snapshot();
-        const auto processor = snapshot->shape_shared(
+        auto* processor = snapshot->shape_ptr(
             snapshot->shape_handle(node.shape.type()));
         if (!processor) continue;
         f32 spread = 0.0f;
