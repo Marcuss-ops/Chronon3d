@@ -108,12 +108,11 @@ TEST_CASE("VulkanBackend records a native solid surface fill") {
     REQUIRE(backend != nullptr);
 
     const runtime::RenderSurfaceHandle handle = 0xC3D001u;
-    const runtime::SurfaceDesc desc{
-        .width = 64,
-        .height = 48,
-        .format = runtime::PixelFormat::Rgba32Float,
-        .usage = runtime::ResourceUsage::Generic,
-        .lifetime = runtime::LifetimeClass::FrameTransient};
+    const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
+        64, 48, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Generic,
+        runtime::LifetimeClass::FrameTransient,
+        runtime::ColorMetadata{});
     REQUIRE(backend->create_surface(handle, desc).ok());
     backend->begin_frame_batch();
     const auto fill = backend->fill_rect_surface(
@@ -135,11 +134,11 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     REQUIRE(backend != nullptr);
 
     const runtime::RenderSurfaceHandle handle = 0xC3D002u;
-    const runtime::SurfaceDesc desc{
-        .width = 96, .height = 64,
-        .format = runtime::PixelFormat::Rgba32Float,
-        .usage = runtime::ResourceUsage::Generic,
-        .lifetime = runtime::LifetimeClass::FrameTransient};
+    const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
+        96, 64, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Generic,
+        runtime::LifetimeClass::FrameTransient,
+        runtime::ColorMetadata{});
     REQUIRE(backend->create_surface(handle, desc).ok());
 
     Framebuffer framebuffer(96, 64);

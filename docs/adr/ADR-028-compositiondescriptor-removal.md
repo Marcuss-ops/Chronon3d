@@ -136,7 +136,6 @@ Total: ~60 sites migrated in this chore.
 - AGENTS.md Cat-2 freeze ("No espansione API non necessaria" + ABI-stability ADR gate).
 - `docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md` — the parent ticket with full lineage (Phase-1/2/2.5/3) + forward-points.
 - `docs/adr/ADR-022-divergence-window-gate.md` — ADR format precedent.
-- `docs/adr/ADR-027-compositiondescriptor-migration.md` — the prior deprecation ADR.
 - B2 (CompositionDescriptor migration) commits + reversal commit (cited in §Context inline).
 - `include/chronon3d/core/composition/composition_registry.hpp` (the legacy overload source).
 - `include/chronon3d/internal/project.hpp` (the `Project::add` + `Project::composition` source).

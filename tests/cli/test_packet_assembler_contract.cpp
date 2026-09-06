@@ -10,7 +10,6 @@
 
 using chronon3d::media::AudioExecutionPath;
 using chronon3d::media::resolve_audio_execution;
-using chronon3d::media::VideoExecutionPath;
 using chronon3d::media::resolve_video_execution;
 
 TEST_CASE("VideoExecutionResolver: semantic GPU contract selects direct composition") {

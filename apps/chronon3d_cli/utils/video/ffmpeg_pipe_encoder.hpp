@@ -4,6 +4,8 @@
 // ffmpeg_pipe_encoder.hpp — Abstract IVideoEncoder interface
 // =============================================================================
 
+#include "../../commands/video/common/canonical_frame_rate.hpp"
+
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_surface_handle.hpp>
@@ -171,11 +173,14 @@ struct FfmpegPipeOptions {
     double audio_start_seconds{0.0};
     double audio_end_seconds{0.0};
 
+    // Single canonicalisation rule shared with OutputOptions (see
+    // canonical_frame_rate.hpp); parity is locked by the test
+    // "FfmpegFrameRate: OutputOptions and FfmpegPipeOptions agree".
     [[nodiscard]] int canonical_fps_num() const noexcept {
-        return (fps_num == 30 && fps_den == 1 && fps != 30) ? fps : fps_num;
+        return canonical_frame_rate(fps, fps_num, fps_den).num;
     }
     [[nodiscard]] int canonical_fps_den() const noexcept {
-        return (fps_num == 30 && fps_den == 1 && fps != 30) ? 1 : fps_den;
+        return canonical_frame_rate(fps, fps_num, fps_den).den;
     }
 };
 

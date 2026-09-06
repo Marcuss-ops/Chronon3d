@@ -125,3 +125,78 @@ if(CHRONON3D_BUILD_TESTS)
         LINK_TARGETS chronon3d_pipeline
     )
 endif()
+
+# ── Re-registered text-domain suites (audit reconciliation 2026-09) ────────
+# Suites dropped from registration by earlier refactors but still present and
+# maintained on disk. Re-registered one-suite-per-file so each carries its own
+# doctest binary (no cross-suite TEST_CASE collisions).
+chronon3d_add_test_suite(
+    NAME chronon3d_text_document_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_document.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_resolver_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_resolver.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_single_line_composer_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_single_line_composer.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_paragraph_layout_extras_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_paragraph_layout_extras.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_every_line_composer_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_every_line_composer.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_path_sampler_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_path_sampler.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_path_composer_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_path_composer.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_run_builder_animated_doc_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_builder_animated_doc.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_run_driver_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_run_driver_pr10_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver_pr10.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_prewarm_text_layout_cache_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_prewarm_text_layout_cache.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_video_flicker_fps_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_video_flicker_fps.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_text_animator_property_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/text_animator_property_tests.cpp
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_builder_consumed_commit_validation_tests
+    TIER INTEGRATION
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_builder_consumed_commit_validation.cpp
+)

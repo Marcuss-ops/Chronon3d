@@ -9,8 +9,10 @@
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d {
@@ -88,10 +90,39 @@ struct PreResolvedNode {
         : inputs(res), input_bboxes(res) {}
 };
 
+// Cache evaluation outcome.  The status is an enum on the hot path so the
+// per-node/frame evaluation never allocates a heap std::string just to feed a
+// "hit"/"miss" comparison and telemetry/logging; the legacy token set is
+// preserved verbatim by cache_status_name() so SQLite/telemetry text and
+// diagnostics output are unchanged.
+enum class CacheEvaluationStatus : std::uint8_t {
+    Hit,
+    Miss,
+    BypassNoCache,
+    BypassCompositeForZeroCopy,
+    BypassNotCacheable,
+    BypassFrameDependent,
+};
+
+[[nodiscard]] constexpr std::string_view cache_status_name(
+    CacheEvaluationStatus status) noexcept {
+    switch (status) {
+    case CacheEvaluationStatus::Hit: return "hit";
+    case CacheEvaluationStatus::Miss: return "miss";
+    case CacheEvaluationStatus::BypassNoCache: return "bypass_no_cache";
+    case CacheEvaluationStatus::BypassCompositeForZeroCopy:
+        return "bypass_composite_for_zerocopy";
+    case CacheEvaluationStatus::BypassNotCacheable: return "bypass_not_cacheable";
+    case CacheEvaluationStatus::BypassFrameDependent:
+        return "bypass_frame_dependent";
+    }
+    return "unknown";
+}
+
 struct CacheEvalResult {
     CachedFB result;
     NodeCacheKey key;
-    std::string cache_status;
+    CacheEvaluationStatus cache_status{CacheEvaluationStatus::Miss};
     bool node_frame_dependent = false;
     bool use_cache = false;
     bool is_cacheable = false;

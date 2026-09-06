@@ -14,12 +14,11 @@ namespace {
 struct UploadBackendFixture {
     std::unique_ptr<chronon3d::backends::vulkan::VulkanBackend> backend;
     chronon3d::runtime::RenderSurfaceHandle handle{0xC3D201u};
-    chronon3d::runtime::SurfaceDesc desc{
-        .width = 32,
-        .height = 24,
-        .format = chronon3d::runtime::PixelFormat::Rgba32Float,
-        .usage = chronon3d::runtime::ResourceUsage::Generic,
-        .lifetime = chronon3d::runtime::LifetimeClass::JobPersistent};
+    chronon3d::runtime::SurfaceDesc desc = chronon3d::runtime::SurfaceDesc::make(
+        32, 24, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Generic,
+        chronon3d::runtime::LifetimeClass::JobPersistent,
+        chronon3d::runtime::ColorMetadata{});
     std::vector<float> pixels;
 
     UploadBackendFixture()

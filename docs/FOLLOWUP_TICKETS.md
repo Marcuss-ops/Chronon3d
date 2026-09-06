@@ -30,8 +30,14 @@
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
-| Telemetry granular emitter | P2 | OPEN | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emit per-nodo non gated da TelemetryLevel nei build telemetry-ON + store sharded orfani senza consumer (zero collect_*) |
+| Telemetry granular emitter | P2 | CODE DONE (build pending) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — capture-level gate: Summary = zero granular emission (node/culling), Detailed/Trace only; drains verified present → [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
+
+## Audit roadmap waves 1-6 (working session)
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| Video execution authority + easy cleanup + surface tests + telemetry gate | P1 | CODE DONE (build/CI pending) | [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) — Waves 1/2/3/5/6 code landed; Wave 4 (NV12 unification) + downgrade-reason→SQLite receipt deferred to GPU-host session |
 
 ## Recently Closed (ultimi 3)
 

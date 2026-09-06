@@ -199,6 +199,12 @@ struct VulkanBackend::Impl {
     VulkanMemoryManager memory_manager{};
     VulkanDebugContext* debug_context{nullptr};
     VulkanBackendStats stats{};
+    // Scratch reused by the frame-transient cleanup drains so per-frame
+    // release_frame_transient_surfaces()/retire_completed_frame_transient_surfaces()
+    // do not re-allocate a handle vector on every call. Impl methods are
+    // serialized on the backend instance (single queue/submission thread), so
+    // a single member is safe; contents are cleared before each fill.
+    std::vector<runtime::RenderSurfaceHandle> transient_release_scratch_;
 
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
          VkQueue graphics, std::uint32_t family, VkCommandPool pool,
@@ -322,6 +328,9 @@ struct VulkanBackend::Impl {
     void ensure_upload_slot(VulkanUploadRing::UploadSlot& slot, VkDeviceSize bytes);
     void release_surface_now(runtime::RenderSurfaceHandle handle);
     void flush_deferred_surface_releases();
+    // Shared frame-transient drain used by both cleanup paths; the caller
+    // performs its own pre-drain (blocking wait vs non-blocking fence poll).
+    void release_frame_transient_handles(bool log_lifecycle);
     void release_frame_transient_surfaces() noexcept;
     void retire_completed_frame_transient_surfaces() noexcept;
     std::uint64_t submit_upload(VulkanUploadRing::UploadSlot& slot,

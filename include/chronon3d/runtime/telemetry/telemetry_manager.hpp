@@ -37,7 +37,7 @@ public:
 
     // Capture-level override (equivalent to configure() with only `level`
     // set). Convenience for hosts/tests that keep the default boundary paths.
-    void set_level(TelemetryLevel level) noexcept { m_config.level = level; }
+    void set_level(TelemetryLevel level) noexcept;
 
     // Registers a custom backend store.
     void add_store(std::shared_ptr<TelemetryStore> store);

@@ -15,12 +15,11 @@ struct BackendFixture {
         auto base = chronon3d::backends::vulkan::make_vulkan_backend(0);
         backend.reset(dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(base.release()));
         if (!backend) return;
-        const chronon3d::runtime::SurfaceDesc desc{
-            .width = 32,
-            .height = 24,
-            .format = chronon3d::runtime::PixelFormat::Rgba32Float,
-            .usage = chronon3d::runtime::ResourceUsage::Generic,
-            .lifetime = chronon3d::runtime::LifetimeClass::FrameTransient};
+        const chronon3d::runtime::SurfaceDesc desc = chronon3d::runtime::SurfaceDesc::make(
+            32, 24, chronon3d::runtime::PixelFormat::Rgba32Float,
+            chronon3d::runtime::ResourceUsage::Generic,
+            chronon3d::runtime::LifetimeClass::FrameTransient,
+            chronon3d::runtime::ColorMetadata{});
         if (!backend->create_surface(handle, desc).ok()) backend.reset();
     }
 

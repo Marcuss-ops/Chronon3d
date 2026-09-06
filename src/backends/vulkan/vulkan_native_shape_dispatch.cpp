@@ -124,16 +124,25 @@ bool try_native_path_stroke(
     // back to the exact CPU stroker: slower-but-correct beats
     // fast-but-wrong-pixels (backend specialization must never change render
     // semantics).
+    // The pre-scan doubles as the point capture: a path that passes the gate
+    // is exactly MoveTo + a single LineTo, so the points below are the only
+    // ones the emission step can ever see. Keeping the capture here (instead
+    // of a second command loop) guarantees no unreachable flattening/Close
+    // emission branches can be re-introduced below the gate.
     int segments = 0;
     bool saw_move = false;
+    Vec2 move_point{0.0f};
+    Vec2 line_point{0.0f};
     for (const auto& command : path.commands) {
         switch (command.type) {
         case PathCommandType::MoveTo:
             if (saw_move) return false;  // multiple subpaths → unsupported
             saw_move = true;
+            move_point = command.p0;
             break;
         case PathCommandType::LineTo:
             if (!saw_move || ++segments > 1) return false;  // polyline → CPU
+            line_point = command.p0;
             break;
         case PathCommandType::Close:
         case PathCommandType::QuadraticTo:
@@ -157,9 +166,6 @@ bool try_native_path_stroke(
     };
     bool emitted = false;
     bool ok = true;
-    Vec2 current{0.0f};
-    Vec2 subpath_start{0.0f};
-    bool have_current = false;
 
     const auto emit = [&](Vec2 from, Vec2 to) {
         if (!ok || glm::length(to - from) <= 1e-5f) return;
@@ -181,50 +187,10 @@ bool try_native_path_stroke(
         emitted = true;
     };
 
-    for (const auto& command : path.commands) {
-        switch (command.type) {
-        case PathCommandType::MoveTo:
-            current = subpath_start = command.p0;
-            have_current = true;
-            break;
-        case PathCommandType::LineTo:
-            if (!have_current) break;
-            emit(current, command.p0);
-            current = command.p0;
-            break;
-        case PathCommandType::QuadraticTo: {
-            if (!have_current) break;
-            const Vec2 from = current;
-            for (int i = 1; i <= 8; ++i) {
-                const float t = static_cast<float>(i) / 8.0f;
-                const float u = 1.0f - t;
-                const Vec2 point = u * u * from + 2.0f * u * t * command.p1 + t * t * command.p0;
-                emit(i == 1 ? from : current, point);
-                current = point;
-            }
-            break;
-        }
-        case PathCommandType::CubicTo: {
-            if (!have_current) break;
-            const Vec2 from = current;
-            for (int i = 1; i <= 12; ++i) {
-                const float t = static_cast<float>(i) / 12.0f;
-                const float u = 1.0f - t;
-                const Vec2 point = u * u * u * from + 3.0f * u * u * t * command.p1 +
-                    3.0f * u * t * t * command.p2 + t * t * t * command.p0;
-                emit(i == 1 ? from : current, point);
-                current = point;
-            }
-            break;
-        }
-        case PathCommandType::Close:
-            if (have_current) {
-                emit(current, subpath_start);
-                current = subpath_start;
-            }
-            break;
-        }
-    }
+    // Gate guarantees exactly one MoveTo + one LineTo; no Close/curve branch
+    // can reach this point (the approximate flattening paths were demolished
+    // with the pre-scan gate in 4f4a217d).
+    emit(move_point, line_point);
     return emitted && ok;
 }
 

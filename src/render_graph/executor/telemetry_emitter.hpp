@@ -18,7 +18,7 @@ void emit_node_records(
     const chronon3d::cache::NodeCacheKey& key,
     const CachedFB& result,
     const std::optional<raster::BBox>& clip_rect,
-    const std::string& cache_status,
+    CacheEvaluationStatus cache_status,
     bool is_cacheable,
     int input_count,
     double duration_ms
@@ -35,7 +35,7 @@ inline void emit_node_records(
     const cache::NodeCacheKey& /*key*/,
     const CachedFB& /*result*/,
     const std::optional<raster::BBox>& /*clip_rect*/,
-    const std::string& /*cache_status*/,
+    CacheEvaluationStatus /*cache_status*/,
     bool /*is_cacheable*/,
     int /*input_count*/,
     double /*duration_ms*/
