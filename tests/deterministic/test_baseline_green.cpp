@@ -286,9 +286,9 @@ TEST_CASE("Baseline green §3: 1t == 4t == 8t bit-exact under per-render tbb are
     // static-scene composition + fresh renderer + per-render arena
     // pinning, all three thread configurations MUST produce bit-exact
     // hashes.  The rot inside `gradient_determinism_tests.cpp §3` is
-    // gradient+SSE path-specific (see `tools/verify_downsample_blur.cpp`
-    // for the floating-point associativity contract investigation), not
-    // present in the static-scene path.
+    // gradient+SSE path-specific (see `tests/deterministic/` and
+    // `tools/check_determinism.sh`), not present in the static-scene
+    // path.
     auto comp = make_baseline_static_comp();
 
     auto r1t = test::make_renderer();

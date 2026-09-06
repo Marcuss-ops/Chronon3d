@@ -1,5 +1,4 @@
 #include <optional>
-static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_prewarm_text_layout_cache.cpp — Success-path coverage for PR 10's
 // prewarm_text_run_layout_for_frame hook (PR 11).
@@ -32,6 +31,10 @@ static chronon3d::TextLayoutCache s_text_cache;
 
 #include <memory>
 #include <string>
+
+// File-local cache, declared AFTER includes for unity-build safety (the
+// same pattern as test_text_run_driver.cpp / test_compile_text_layout_identity.cpp).
+static chronon3d::TextLayoutCache s_text_cache;
 
 using namespace chronon3d;
 
