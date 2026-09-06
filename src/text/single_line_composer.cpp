@@ -80,8 +80,13 @@ namespace {
             line_end = cursor;
         } else if (cursor < n && width > available_width) {
             if (last_break > line_start) {
-                line_end = last_break;
-                cursor = last_break;
+                // Rewind to the last break opportunity STRICTLY BEFORE the
+                // overflowing cluster.  last_break may point just past the
+                // overflowing cluster itself (when it is breakable), which
+                // would fold the whole overflow suffix into one line.
+                line_end = std::min(last_break, cursor);
+                if (line_end <= line_start) line_end = line_start + 1;
+                cursor = line_end;
             } else {
                 line_end = cursor == line_start ? cursor + 1 : cursor;
                 cursor = line_end;

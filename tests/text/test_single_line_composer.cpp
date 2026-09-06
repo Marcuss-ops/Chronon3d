@@ -84,17 +84,19 @@ PlacedGlyphRun make_test_run(
 // 1. Empty input / edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("SingleLine: empty shaped run produces one empty line") {
+TEST_CASE("SingleLine: empty shaped run produces empty layout") {
     PlacedGlyphRun empty;
     empty.ascent = 50.0f;
     empty.descent = 12.0f;
     empty.baseline = 50.0f;
     empty.total_height = 62.0f;
 
+    // Canonical contract: an empty shaped run has no clusters, so the
+    // composer returns an empty ParagraphLayout (no lines) — an empty
+    // line record is only produced when the RESOLVER emits an empty
+    // paragraph segment (e.g. a blank line between hard breaks).
     auto layout = compose_single_line_paragraph(empty, 500.0f, ParagraphStyle{}, {});
-    CHECK(layout.lines.size() == 1);
-    CHECK(layout.lines[0].cluster_count == 0);
-    CHECK(layout.lines[0].natural_width == doctest::Approx(0.0f));
+    CHECK(layout.lines.empty());
 }
 
 TEST_CASE("SingleLine: zero box width produces one line (emergency)") {
@@ -205,7 +207,12 @@ TEST_CASE("SingleLine: Full justification expands word spacing") {
     auto run = make_test_run({20.0f, 10.0f, 20.0f, 10.0f, 20.0f}, "a b c");
     ParagraphStyle style;
     style.justification = TextJustification::Full;
-    style.spacing.word_max = 5.0f;  // allow large expansion for test
+    // Generous spacing caps so the 120px of slack can actually be
+    // distributed across the two word gaps + letter gaps (the line
+    // natural width is 80px inside a 200px box).
+    style.spacing.word_max = 30.0f;
+    style.spacing.letter_max = 60.0f;
+    style.spacing.glyph_scale_max = 3.0f;
     auto layout = compose_single_line_paragraph(run, 200.0f, style, "a b c");
     CHECK(layout.lines.size() == 1);
     CHECK(layout.lines[0].word_spacing_adjustment > 0.0f);
@@ -282,14 +289,19 @@ TEST_CASE("SingleLine: space_after is included in bounds height") {
 // 7. Paragraph bounds
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("SingleLine: bounds.x tracks widest line (including overhang)") {
+TEST_CASE("SingleLine: bounds.x tracks widest line on overflow split") {
+    // "AAAA BB" = 100px word + 10px space + 40px word inside a 60px box.
+    // The greedy composer char-splits the overlong first word (no
+    // word-integrity overflow) so every line fits the box; bounds.x must
+    // track the widest (box-filling) line.
     auto run = make_test_run(
         {25.0f,25.0f,25.0f,25.0f, 10.0f, 20.0f,20.0f},
         "AAAA BB"
     );
     auto layout = compose_single_line_paragraph(run, 60.0f, ParagraphStyle{}, "AAAA BB");
     CHECK(layout.lines.size() >= 2);
-    CHECK(layout.bounds.x >= 100.0f);
+    CHECK(layout.bounds.x <= 60.0f);
+    CHECK(layout.bounds.x >= 40.0f);
 }
 
 TEST_CASE("SingleLine: bounds.y includes all lines") {

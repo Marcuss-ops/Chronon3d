@@ -86,9 +86,19 @@ void flatten_quadratic(
 }
 
 // ── Flatten a full PathShape into a vector of points ─────────────────────
+//
+// `subpath_starts` receives the index of every point that begins a NEW
+// subpath (i.e. every MoveTo that occurs after the path has already been
+// started).  The pen *jumps* to those points without drawing, so their
+// incoming segment must not contribute arc length.
 
-[[nodiscard]] std::vector<Vec2> flatten_path(const PathShape& path, float tolerance) {
+[[nodiscard]] std::vector<Vec2> flatten_path(
+    const PathShape& path,
+    float tolerance,
+    std::vector<size_t>& subpath_starts
+) {
     std::vector<Vec2> points;
+    subpath_starts.clear();
 
     if (path.commands.empty()) return points;
 
@@ -103,6 +113,7 @@ void flatten_quadratic(
         case PathCommandType::MoveTo:
             current = cmd.p0;
             path_start = current;
+            subpath_starts.push_back(points.size());
             points.push_back(current);
             break;
 
@@ -151,11 +162,21 @@ void flatten_quadratic(
 
 PathSampler PathSampler::compile(const PathShape& path, float flatness_tolerance) {
     PathSampler sampler;
-    auto points = flatten_path(path, flatness_tolerance);
+
+    std::vector<size_t> subpath_starts;
+    auto points = flatten_path(path, flatness_tolerance, subpath_starts);
 
     if (points.size() < 2) {
         sampler.m_total_length = 0.0f;
         return sampler;
+    }
+
+    // Points that begin a new subpath (after the first) have no incoming
+    // drawn segment: the pen jumped to them.  Mark them so the jump is not
+    // counted as arc length.
+    std::vector<bool> is_subpath_start(points.size(), false);
+    for (size_t idx : subpath_starts) {
+        if (idx < points.size()) is_subpath_start[idx] = true;
     }
 
     sampler.m_samples.reserve(points.size());
@@ -168,16 +189,23 @@ PathSampler PathSampler::compile(const PathShape& path, float flatness_tolerance
         alp.position = points[i];
         alp.cumulative_distance = cumulative;
 
-        // Tangent: direction to next point (or same as previous at end)
+        // Tangent: direction to next point (or same as previous at end).
+        // A jump to a new subpath keeps the incoming tangent and adds no
+        // length; the zero-length placeholder segment makes distance
+        // queries continue seamlessly onto the next subpath.
         if (i + 1 < points.size()) {
-            Vec2 dir = points[i + 1] - points[i];
-            float len = glm::length(dir);
-            if (len > 1e-9f) {
-                alp.tangent = dir / len;
-                prev_tangent = alp.tangent;
-                cumulative += len;
-            } else {
+            if (is_subpath_start[i + 1]) {
                 alp.tangent = prev_tangent;
+            } else {
+                Vec2 dir = points[i + 1] - points[i];
+                float len = glm::length(dir);
+                if (len > 1e-9f) {
+                    alp.tangent = dir / len;
+                    prev_tangent = alp.tangent;
+                    cumulative += len;
+                } else {
+                    alp.tangent = prev_tangent;
+                }
             }
         } else {
             alp.tangent = prev_tangent;

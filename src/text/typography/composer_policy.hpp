@@ -67,8 +67,11 @@ inline void finalize_lines(
 
         ParagraphStyle line_style = style;
         if (is_last_line) {
+            // Full justification stretches EVERY line, including the last
+            // (that is exactly what distinguishes it from the
+            // FullLastLine* variants, which relax the final line to the
+            // requested alignment).
             switch (style.justification) {
-            case TextJustification::Full:
             case TextJustification::FullLastLineLeft:
                 line_style.justification = TextJustification::Left;
                 break;
