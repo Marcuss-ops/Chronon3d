@@ -77,6 +77,25 @@ VerifyLevel verify_level() {
     return level;
 }
 
+/// Raw requested policy from the environment ("" when unset).  Recorded on
+/// the receipt so consumers can distinguish "no policy requested" from the
+/// resolved default.
+std::string requested_verify_policy() {
+    if (const char* raw = std::getenv("CHRONON_RECEIPT_VERIFY")) {
+        return std::string(raw);
+    }
+    return std::string();
+}
+
+/// Canonical name of the policy level that will actually run.
+std::string resolved_verify_policy_name() {
+    switch (verify_level()) {
+        case VerifyLevel::Normal: return "normal";
+        case VerifyLevel::Certify: return "certify";
+        default: return "fast";
+    }
+}
+
 /// Parse "num/den" into numerator/denominator (denominator defaults to 1).
 void parse_rate(const std::string& value, int& num, int& den) {
     num = 0;
@@ -111,19 +130,18 @@ std::int64_t stream_frame_count(const nlohmann::json& stream) {
 /// ffprobe the output and fill the media contract (video + audio streams).
 /// Returns true when a video stream was probed.
 ///
-/// `decode_count` adds `-count_frames`, which makes ffprobe fully re-decode
-/// the video stream to report `nb_read_frames`.  Only the historical
-/// "certify" level pays that second full decode (the normal level's single
-/// `ffmpeg -f null -` pass is the decode gate and reads the frame count from
-/// the container instead).  `require_exit_ok` is false only for the legacy
-/// certify path, which keeps its historical tolerance for non-zero exits.
+/// The metadata probe never re-decodes the freshly muxed output; the frame
+/// count comes from the container.  The certify level adds a dedicated
+/// `-count_frames` pass (see `count_frames_ffprobe`) whose cost is timed
+/// separately from this probe.  `require_exit_ok` is false only for the
+/// legacy certify path, which keeps its historical tolerance for non-zero
+/// exits.
 bool probe_media(const std::filesystem::path& output, MediaContract& media,
-                 bool decode_count, bool require_exit_ok, double* ms_out) {
+                 bool require_exit_ok, double* ms_out) {
     const auto start = std::chrono::steady_clock::now();
-    std::string command = "ffprobe -v error ";
-    if (decode_count) command += "-count_frames ";
-    command += "-show_streams -show_format -of json '" +
-               output.string() + "' 2>/dev/null";
+    std::string command =
+        "ffprobe -v error -show_streams -show_format -of json '" +
+        output.string() + "' 2>/dev/null";
     const CapturedOutput captured = run_capture_checked(command);
     if (ms_out != nullptr) {
         const auto elapsed = std::chrono::steady_clock::now() - start;
@@ -172,6 +190,36 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
     return found_video;
 }
 
+/// Authoritative decoded frame count (`nb_read_frames`) via a dedicated
+/// `ffprobe -count_frames` pass.  Only the "certify" level pays this full
+/// re-decode of the output; its wall time is reported separately in
+/// `count_ms_out` so the receipt can attribute the count-frames cost instead
+/// of folding it into the metadata probe.  Returns -1 when the pass failed.
+std::int64_t count_frames_ffprobe(const std::filesystem::path& output,
+                                  double* count_ms_out) {
+    const auto start = std::chrono::steady_clock::now();
+    std::string command =
+        "ffprobe -v error -count_frames -select_streams v:0 "
+        "-show_entries stream=nb_read_frames -of json '" +
+        output.string() + "' 2>/dev/null";
+    const CapturedOutput captured = run_capture_checked(command);
+    if (count_ms_out != nullptr) {
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        *count_ms_out = std::chrono::duration<double, std::milli>(elapsed).count();
+    }
+    if (!captured.exit_ok || captured.out.empty()) return -1;
+    try {
+        const auto js = nlohmann::json::parse(captured.out);
+        if (!js.contains("streams") || !js["streams"].is_array()) return -1;
+        for (const auto& stream : js["streams"]) {
+            if (stream.value("codec_type", "") != "video") continue;
+            return stream_frame_count(stream);
+        }
+    } catch (...) {
+    }
+    return -1;
+}
+
 } // namespace
 
 RenderReceipt build_render_receipt(const RenderReceiptInput& input,
@@ -197,6 +245,11 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.fps_den = input.fps_den;
     receipt.frames = input.frames;
 
+    // Record the verification policy that was requested and the level that
+    // will actually run, before any output-dependent work.
+    receipt.verification.requested_policy = requested_verify_policy();
+    receipt.verification.resolved_policy = resolved_verify_policy_name();
+
     std::error_code ec;
     const bool exists = std::filesystem::exists(output_path, ec) && !ec &&
         std::filesystem::is_regular_file(output_path, ec) && !ec;
@@ -215,16 +268,23 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
 
     if (is_video) {
         const VerifyLevel level = verify_level();
-        // Only the historical certify gate pays `ffprobe -count_frames`,
-        // which decodes the whole output a second time just to count frames.
-        const bool decode_count = level == VerifyLevel::Certify;
-        const bool probed = probe_media(output_path, receipt.media,
-                                        decode_count,
-                                        /*require_exit_ok=*/level != VerifyLevel::Certify,
-                                        &receipt.timing.probe_ms);
+        const bool probed = probe_media(
+            output_path, receipt.media,
+            /*require_exit_ok=*/level != VerifyLevel::Certify,
+            &receipt.timing.probe_ms);
         receipt.verification.ffprobe = probed ? "pass" : "fail";
 
         if (probed) {
+            // Certify-level authoritative frame count: one dedicated
+            // `-count_frames` decode pass, timed separately from the
+            // metadata probe above so the receipt can attribute the cost.
+            if (level == VerifyLevel::Certify) {
+                const auto counted =
+                    count_frames_ffprobe(output_path,
+                                         &receipt.timing.count_frames_ms);
+                if (counted >= 0) receipt.media.frame_count = counted;
+            }
+
             // Decode gate.  Fast never re-decodes the freshly-muxed output
             // (the encoder + muxer just succeeded in-process); normal runs ONE
             // full multithreaded decode pass; certify adds the historical
@@ -261,8 +321,9 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             }
 
             // Frame count (skip when the container reported none).  Under the
-            // certify level this is the decoded count; otherwise it is the
-            // container-stored nb_frames of the freshly-muxed mp4.
+            // certify level this is the decoded nb_read_frames count;
+            // otherwise it is the container-stored nb_frames of the
+            // freshly-muxed mp4.
             if (receipt.media.frame_count >= 0) {
                 receipt.verification.frame_count =
                     receipt.media.frame_count == receipt.frames
@@ -382,7 +443,19 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"duration_ms", receipt.media.duration_ms},
         {"has_audio", receipt.media.has_audio},
     };
+    const bool verification_ok =
+        receipt.verification.ffprobe != "fail" &&
+        receipt.verification.decode != "fail" &&
+        receipt.verification.frame_count != "fail" &&
+        receipt.verification.codec != "fail" &&
+        receipt.verification.pixel_format != "fail" &&
+        receipt.verification.resolution != "fail" &&
+        receipt.verification.fps != "fail" &&
+        receipt.verification.audio != "fail";
     js["verification"] = {
+        {"requested_policy", receipt.verification.requested_policy},
+        {"resolved_policy", receipt.verification.resolved_policy},
+        {"status", verification_ok ? "pass" : "fail"},
         {"ffprobe", receipt.verification.ffprobe},
         {"decode", receipt.verification.decode},
         {"frame_count", receipt.verification.frame_count},
@@ -395,6 +468,7 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
     js["timing_ms"] = {
         {"sha256_ms", receipt.timing.sha256_ms},
         {"probe_ms", receipt.timing.probe_ms},
+        {"count_frames_ms", receipt.timing.count_frames_ms},
         {"decode_ms", receipt.timing.decode_ms},
         {"total_ms", receipt.timing.total_ms},
     };
