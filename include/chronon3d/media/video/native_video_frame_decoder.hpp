@@ -94,6 +94,16 @@ private:
         AVFrame* hw_transfer_frame{nullptr};
         AVFrame* decoded{nullptr};
         AVFrame* closest_frame{nullptr};
+        /// Small window of recently decoded-and-materialized frames (sample
+        /// index -> retained ref), so duplicate or slightly-out-of-order
+        /// requests — FPS mapping, two layers sharing one source path — can
+        /// be replayed without a keyframe seek + GOP re-decode.
+        struct RetainedFrame {
+            std::int64_t index{-1};
+            AVFrame* frame{nullptr};
+        };
+        std::vector<RetainedFrame> retained_frames;
+        static constexpr std::int64_t kRetainedWindowSize = 6;
         AVPacket* packet{nullptr};
         SwsContext* sws{nullptr};
         int stream_index{-1};
@@ -137,6 +147,7 @@ private:
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
 
     DecodeResult decode_frame_internal(Session& session, int64_t sample_index);
+    static void retain_materialized_frame(Session& session, std::int64_t index, AVFrame* frame);
     std::shared_ptr<Session> open_session_locked(
         const std::string& path, DecodeDiagnostic* diagnostic);
 };

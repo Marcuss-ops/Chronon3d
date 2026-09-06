@@ -112,12 +112,60 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
             "decoder session is missing required native state"}};
     }
 
-    const bool sequential = session.last_sample_index >= 0 &&
-        session.sample_table.are_sequential(
-            static_cast<std::size_t>(session.last_sample_index), target_index);
+    const std::size_t last_index = session.last_sample_index >= 0
+        ? static_cast<std::size_t>(session.last_sample_index) : 0;
+    const bool same_continuity = session.last_sample_index >= 0 &&
+        session.sample_table[last_index].continuity_id == target_sample.continuity_id;
+    const bool sequential = same_continuity &&
+        session.sample_table.are_sequential(last_index, target_index);
+    // A small forward gap (a skipped source frame, e.g. 30fps-on-24fps
+    // mapping steps +2 every few frames) is cheaper to satisfy by decoding
+    // forward through the gap than by seeking back to the previous keyframe
+    // and re-decoding the GOP from scratch.
+    constexpr std::size_t kMaxForwardDecodeFrames = 64;
+    const bool forward_gap = same_continuity &&
+        target_index > last_index &&
+        (target_index - last_index) <= kMaxForwardDecodeFrames;
+
+    // Requests that fall inside the recently-decoded retained window (a
+    // duplicate sample index from FPS mapping, or a slightly-out-of-order
+    // request when two layers share one source path) are replayed from the
+    // retained decoded frame instead of flushing the decoder and re-decoding
+    // the whole GOP from its keyframe — the previous behaviour cost a full
+    // keyframe re-decode (~100-200ms) for every repeated/regressed index.
+    AVFrame* window_frame = nullptr;
+    if (same_continuity) {
+        for (const auto& retained : session.retained_frames) {
+            if (retained.index == target_index) {
+                window_frame = retained.frame;
+                break;
+            }
+        }
+    }
+    if (window_frame) {
+        av_frame_unref(session.decoded);
+        DecodeDiagnostic replay_diagnostic;
+        std::shared_ptr<Framebuffer> replayed;
+        const bool ok = (replayed = try_native_frame(
+                             session, window_frame, &replay_diagnostic)) ||
+            (session.capture_native_frame && session.captured_native_frame);
+        if (ok) {
+            return DecodedFrame{std::move(replayed), target_sample.pts,
+                target_sample.dts, target_sample.source_order};
+        }
+        // The retained frame is no longer usable (surface retired); fall
+        // through to the seek path and decode the sample again for real.
+        session.captured_native_frame.reset();
+    }
+
+    if (const char* dt = std::getenv("CHRONON_DECODE_TRACE"); dt && *dt) {
+        spdlog::info("[dec-trace] sess={} target={} last={} win={} seq={} fwd={}",
+            static_cast<void*>(&session), target, session.last_sample_index,
+            window_frame != nullptr, sequential, forward_gap);
+    }
 
     std::size_t matches_remaining = 1;
-    if (!sequential) {
+    if (!sequential && !forward_gap) {
         const std::size_t seek_index = session.sample_table.previous_keyframe(target_index).value_or(target_index);
         const auto& seek_sample = session.sample_table[seek_index];
         const int seek_result = av_seek_frame(
@@ -156,8 +204,14 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
 
     auto materialize = [&](AVFrame* frame) -> bool {
         DecodeDiagnostic native_diagnostic;
-        if ((framebuffer = try_native_frame(session, frame, &native_diagnostic))) return true;
-        if (session.capture_native_frame && session.captured_native_frame) return true;
+        if ((framebuffer = try_native_frame(session, frame, &native_diagnostic))) {
+            retain_materialized_frame(session, target_index, frame);
+            return true;
+        }
+        if (session.capture_native_frame && session.captured_native_frame) {
+            retain_materialized_frame(session, target_index, frame);
+            return true;
+        }
         if (native_diagnostic.failed()) failure_diagnostic = std::move(native_diagnostic);
         if (m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
             m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv) {
@@ -201,8 +255,10 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
                 render ? render->pkt_dts : target_sample.dts,
                 target_sample.source_order,
                 "decoded frame could not be converted into the render working format");
+            return false;
         }
-        return static_cast<bool>(framebuffer);
+        retain_materialized_frame(session, target_index, frame);
+        return true;
     };
 
     auto drain_decoder = [&]() -> int {
