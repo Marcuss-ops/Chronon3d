@@ -59,10 +59,21 @@ void VulkanBackend::Impl::wait_for_pending() {
 std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     check(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
     const auto signal_value = ++next_timeline_value;
-    std::vector<VkSemaphore> wait_semaphores;
-    std::vector<VkPipelineStageFlags> wait_stages;
-    std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
-    std::vector<std::uint64_t> signal_values{signal_value};
+    // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1): the four vectors below
+    // were rebuilt per submit (per frame). They now reuse the Impl-member
+    // scratch (submit_wait_semaphores_ etc.), which is safe because Impl
+    // methods are serialized on the single submission thread exactly like
+    // transient_release_scratch_. Capacity is retained across frames.
+    std::vector<VkSemaphore>& wait_semaphores = submit_wait_semaphores_;
+    std::vector<VkPipelineStageFlags>& wait_stages = submit_wait_stages_;
+    std::vector<VkSemaphore>& signal_semaphores = submit_signal_semaphores_;
+    std::vector<std::uint64_t>& signal_values = submit_signal_values_;
+    wait_semaphores.clear();
+    wait_stages.clear();
+    signal_semaphores.clear();
+    signal_values.clear();
+    signal_semaphores.push_back(timeline_semaphore);
+    signal_values.push_back(signal_value);
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
         const auto it = surfaces.physical_surfaces.find(physical_slot);

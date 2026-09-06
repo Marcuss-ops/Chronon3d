@@ -26,7 +26,7 @@ using namespace chronon3d::ipc;
 namespace {
 
 struct DaemonArgs {
-    std::string socket_path{"/tmp/chronon.sock"};
+    std::string socket_path{"/run/chronon3d/chronon.sock"};
     std::string assets_root;
     std::string backend{"auto"};
 };
@@ -34,7 +34,7 @@ struct DaemonArgs {
 [[noreturn]] void print_usage_and_exit(int code) {
     fmt::print(stderr,
         "Usage: chronon3d_daemon [options]\n\n"
-        "  --socket PATH      Unix socket path (default: /tmp/chronon.sock)\n"
+        "  --socket PATH      Unix socket path (default: /run/chronon3d/chronon.sock)\n"
         "  --assets-root DIR  Asset resolution root\n"
         "  --backend NAME     Render backend: auto|software|vulkan\n"
         "  --help, -h         Show this help\n");
@@ -105,6 +105,8 @@ int main(int argc, char* argv[]) {
     spdlog::info("RenderEngine initialised.");
 
     IpcCommandDispatcher dispatcher(std::move(engine));
+    dispatcher.warmup();
+    spdlog::info("Daemon runtime READY.");
 
     const FrameHandler handler = [&dispatcher, &args](const WireFrame& request) -> ServerReply {
         auto decoded = IpcCodec::decode_request(request);

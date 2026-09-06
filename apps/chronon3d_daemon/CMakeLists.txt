@@ -9,7 +9,10 @@ if(NOT CHRONON3D_BUILD_DAEMON)
     return()
 endif()
 
-add_executable(chronon3d_daemon main.cpp)
+add_executable(chronon3d_daemon
+    main.cpp
+    ${CMAKE_SOURCE_DIR}/src/daemon/daemon_runtime.cpp
+)
 target_link_libraries(chronon3d_daemon PRIVATE
     chronon3d_ipc
     chronon3d_pipeline

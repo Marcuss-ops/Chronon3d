@@ -39,6 +39,9 @@ chronon3d_add_test_suite(
         renderer/lighting/test_shadows.cpp
         renderer/perf/test_motion_blur_integration.cpp
         runtime/test_telemetry.cpp
+        # Split from runtime/test_telemetry.cpp (each part ≤ 400 LOC):
+        runtime/test_telemetry_policy.cpp
+        runtime/test_telemetry_sqlite.cpp
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
         runtime/test_media_session_pool.cpp
@@ -68,6 +71,8 @@ chronon3d_add_test_suite(
     SOURCES
         render_graph/cache/test_scene_program_store.cpp
         render_graph/compiler/test_frame_graph_compiler_fixtures.cpp
+        render_graph/compiler/test_frame_graph_compiler_validation.cpp
+        render_graph/compiler/test_frame_graph_compiler_scheduling.cpp
         render_graph/compiler/test_frame_graph_compiler_reuse.cpp
         render_graph/compiler/test_frame_graph_compiler_runtime.cpp
         render_graph/compiler/test_frame_graph_compiler_golden.cpp
@@ -100,6 +105,9 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_grid_math.cpp
         render_graph/pipeline/test_line_grid.cpp
         render_graph/pipeline/test_pipeline_robustness_coordinate.cpp
+        render_graph/pipeline/test_pipeline_robustness_render_readback.cpp
+        render_graph/pipeline/test_pipeline_robustness_predicted_bbox.cpp
+        render_graph/pipeline/test_pipeline_robustness_bbox_invariants.cpp
         render_graph/pipeline/test_pipeline_robustness_diagnostics.cpp
         render_graph/pipeline/test_pipeline_robustness_placement.cpp
         render_graph/pipeline/test_render_backend.cpp
