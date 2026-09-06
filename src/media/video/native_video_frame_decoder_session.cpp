@@ -4,11 +4,48 @@
 
 #include "native_video_frame_decoder_detail.hpp"
 
+#include <algorithm>
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
 namespace chronon3d::media {
 
 NativeVideoFrameDecoder::~NativeVideoFrameDecoder() = default;
+
+void NativeVideoFrameDecoder::retain_materialized_frame(Session& session,
+                                                        std::int64_t index,
+                                                        AVFrame* frame) {
+    if (!frame) return;
+    for (auto& retained : session.retained_frames) {
+        if (retained.index == index) {
+            av_frame_unref(retained.frame);
+            if (av_frame_ref(retained.frame, frame) < 0) av_frame_unref(retained.frame);
+            return;
+        }
+    }
+    AVFrame* copy = av_frame_alloc();
+    if (!copy) return;
+    if (av_frame_ref(copy, frame) < 0) {
+        av_frame_free(&copy);
+        return;
+    }
+    session.retained_frames.push_back(Session::RetainedFrame{index, copy});
+    // Evict everything older than the trailing window so the decoder's
+    // hardware surface pool is never starved by retained references.
+    std::int64_t newest = index;
+    for (const auto& retained : session.retained_frames) {
+        newest = std::max(newest, retained.index);
+    }
+    const std::int64_t floor = newest - Session::kRetainedWindowSize;
+    for (auto it = session.retained_frames.begin(); it != session.retained_frames.end();) {
+        if (it->index < floor) {
+            av_frame_free(&it->frame);
+            it = session.retained_frames.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
 
 NativeVideoFrameDecoder::Session::~Session() {
     prefetch_stop.store(true, std::memory_order_relaxed);
@@ -21,6 +58,8 @@ NativeVideoFrameDecoder::Session::~Session() {
     av_frame_free(&decoded);
     av_frame_free(&closest_frame);
     av_packet_free(&packet);
+    for (auto& retained : retained_frames) av_frame_free(&retained.frame);
+    retained_frames.clear();
     av_frame_free(&hw_transfer_frame);
     if (sws) sws_freeContext(sws);
     avcodec_free_context(&codec);
@@ -229,6 +268,10 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
     if (prefetch_enabled) session->start_prefetch_worker(this);
     else session->direct_prefetch_disabled = true;
     m_sessions[path] = session;
+    if (const char* dt = std::getenv("CHRONON_DECODE_TRACE"); dt && *dt) {
+        spdlog::info("[dec-trace] session open ptr={} path={} samples={}",
+            static_cast<void*>(session.get()), path, session->sample_table.size());
+    }
     return session;
 }
 
