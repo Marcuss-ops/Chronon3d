@@ -51,6 +51,12 @@ struct MediaContract {
     int height{0};
     int fps_num{0};
     int fps_den{1};
+    // r_frame_rate from ffprobe: the CFR nominal rate derived from a
+    // constant frame-duration pattern.  0/0-shaped (num=0) when the container
+    // exposes no constant rate; the fps verdict then relies on avg_frame_rate
+    // alone (fps_num/fps_den above).
+    int r_fps_num{0};
+    int r_fps_den{1};
     std::int64_t frame_count{-1};
     double duration_ms{-1.0};
     bool has_audio{false};
