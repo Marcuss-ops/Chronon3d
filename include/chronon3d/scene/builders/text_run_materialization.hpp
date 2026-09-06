@@ -23,14 +23,4 @@ struct TextRunShape;
     std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
 );
 
-// Source compatibility only: TextRunDefinition is an alias of PreparedText,
-// and this entry point delegates to the canonical prepared-text materializer.
-[[deprecated("Use materialize_prepared_text")]]
-[[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunDefinition& prepared,
-    FontEngine* engine,
-    SampleTime sample_time,
-    std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
-);
-
 } // namespace chronon3d

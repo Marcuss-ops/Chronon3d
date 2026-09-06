@@ -341,16 +341,8 @@ struct PreparedFrameProgram {
 ///   vkAllocateMemory / frame    = 0
 ///
 /// The pool-based fallback stays alive for unplanned surfaces.
-/// DEMOLISHED (P1.4): the Phase 5 pre-allocation entry point no longer
-/// exists.  "Preallocate every physical GPU surface" was never true — the
-/// only backend override (Vulkan) explicitly set plan_preallocated = false
-/// and pruned unused slots.  Native surfaces are materialized lazily by the
-/// per-backend surface authority, guided by the CompiledResourceTable.
-[[deprecated("preallocate_surfaces demolished: surface authority materializes lazily from the compiled plan; do not call")]]
-inline void preallocate_surfaces(const CompiledTemplateProgram&,
-                                 RenderBackend*,
-                                 std::uint32_t,
-                                 std::uint32_t) {}
+/// Native surfaces are materialized lazily by the per-backend surface
+/// authority, guided by the CompiledResourceTable.
 
 // ── Template program derivation ─────────────────────────────────────────────
 //
