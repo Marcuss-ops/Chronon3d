@@ -87,6 +87,20 @@ CompositionDefinition make_unify_def(const std::string& name,
     return def;
 }
 
+// Canonical projection of a CompositionDefinition onto the immutable
+// Composition model.  The deprecated
+// `compile_composition(const CompositionDefinition&, ...)` overload was
+// removed; this mirrors exactly what the removed adapter did (threading
+// the optional camera descriptor through default_camera_descriptor).
+Composition as_composition(const CompositionDefinition& definition) {
+    Composition composition(definition.composition, definition.scene,
+                            definition.scene_content_fingerprint);
+    if (definition.camera.has_value()) {
+        composition.default_camera_descriptor(*definition.camera);
+    }
+    return composition;
+}
+
 CompositionEvaluateContext make_unify_eval_ctx(FrameRate fps = kTestFps) {
     CompositionEvaluateContext ctx;
     ctx.frame_context = ctx.frame_context.with_frame_rate(fps);
@@ -112,7 +126,7 @@ void check_cam2_5d_match(const Camera2_5D& a, const Camera2_5D& b, float eps = k
 // ════════════════════════════════════════════════════════════════════════
 TEST_CASE("P3-F [1]: compile_composition runs camera compile exactly once") {
     CompositionDefinition def = make_unify_def("unify_one_compile");
-    auto cc_res = compile_composition(def, {});
+    auto cc_res = compile_composition(as_composition(def), {});
     REQUIRE(cc_res.has_value());
     CompiledComposition cc = std::move(cc_res).value();
 
@@ -152,7 +166,7 @@ TEST_CASE("P3-F [1]: compile_composition runs camera compile exactly once") {
 // ════════════════════════════════════════════════════════════════════════
 TEST_CASE("P3-F [2]: 100 concurrent renders share one immutable CameraProgram") {
     CompositionDefinition def = make_unify_def("unify_100_concurrent");
-    auto cc_res = compile_composition(def, {});
+    auto cc_res = compile_composition(as_composition(def), {});
     REQUIRE(cc_res.has_value());
     CompiledComposition cc = std::move(cc_res).value();
     REQUIRE(cc.camera_program);
@@ -204,7 +218,7 @@ TEST_CASE("P3-F [2]: 100 concurrent renders share one immutable CameraProgram") 
 // the program does not retain a reference to it.
 TEST_CASE("P3-F [3]: each render has its own CameraSession — no cross-thread state") {
     CompositionDefinition def = make_unify_def("unify_distinct_sessions");
-    auto cc_res = compile_composition(def, {});
+    auto cc_res = compile_composition(as_composition(def), {});
     REQUIRE(cc_res.has_value());
     CompiledComposition cc = std::move(cc_res).value();
     REQUIRE(cc.camera_program);
@@ -256,7 +270,7 @@ TEST_CASE("P3-F [3]: each render has its own CameraSession — no cross-thread s
 // ════════════════════════════════════════════════════════════════════════
 TEST_CASE("P3-F [4]: FOV / Zoom / PhysicalLens / DOF / motion blur end-to-end") {
     auto eval_one = [](CompositionDefinition& def) {
-        auto cc_res = compile_composition(def, {});
+        auto cc_res = compile_composition(as_composition(def), {});
         REQUIRE(cc_res.has_value());
         auto cc = std::move(cc_res).value();
         REQUIRE(cc.camera_program);
@@ -335,7 +349,7 @@ TEST_CASE("P3-F [4]: FOV / Zoom / PhysicalLens / DOF / motion blur end-to-end") 
 // ════════════════════════════════════════════════════════════════════════
 TEST_CASE("P3-F [5]: random access — sequence [5,100,0,50,25,10,0] is bit-stable") {
     CompositionDefinition def = make_unify_def("unify_random_access");
-    auto cc_res = compile_composition(def, {});
+    auto cc_res = compile_composition(as_composition(def), {});
     REQUIRE(cc_res.has_value());
     CompiledComposition cc = std::move(cc_res).value();
     REQUIRE(cc.camera_program);
@@ -386,7 +400,7 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
 
     CompositionCompileContext context_a{};
     CompositionCompileContext context_b{};
-    auto cc1_res = compile_composition(def1, context_a);
+    auto cc1_res = compile_composition(as_composition(def1), context_a);
     REQUIRE(cc1_res.has_value());
     std::uint64_t fp1 = cc1_res->fingerprint;
     REQUIRE(fp1 != 0);
@@ -395,7 +409,7 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
     CompositionDefinition def2 = def1;
     def2.camera->base.position.x += 1.0f;
 
-    auto cc2_res = compile_composition(def2, {});
+    auto cc2_res = compile_composition(as_composition(def2), {});
     REQUIRE(cc2_res.has_value());
     std::uint64_t fp2 = cc2_res->fingerprint;
     CHECK(fp1 != fp2);
@@ -407,7 +421,7 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
         proj.fov_deg.set(45.0f);
         def3.camera->base.projection = std::move(proj);
     }
-    auto cc3_res = compile_composition(def3, {});
+    auto cc3_res = compile_composition(as_composition(def3), {});
     REQUIRE(cc3_res.has_value());
     CHECK(fp1 != cc3_res->fingerprint);
 
@@ -416,7 +430,7 @@ TEST_CASE("P3-F [7]: modify descriptor → new fingerprint; same input → same 
         "unify_fp_test",                              // same name field-by-field
         Vec3{10.0f, 20.0f, -1000.0f},
         50.0f);
-    auto cc4_res = compile_composition(def4, context_b);
+    auto cc4_res = compile_composition(as_composition(def4), context_b);
     REQUIRE(cc4_res.has_value());
     CHECK(cc4_res->fingerprint == fp1);
 
