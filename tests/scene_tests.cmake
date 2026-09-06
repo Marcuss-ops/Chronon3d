@@ -64,7 +64,15 @@ chronon3d_add_test_suite(
         scene/camera/test_camera_registry.cpp
         scene/camera/test_camera_program.cpp
         scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
+        # Splits of test_camera_program_compiled.cpp (each part ≤ 400 LOC):
+        scene/camera/test_camera_program_compiled_metadata.cpp
+        scene/camera/test_camera_program_compiled_trajectory.cpp
+        scene/camera/test_camera_program_orient_along_path.cpp
         scene/camera/test_camera_program_projection_orientation.cpp   # CAM-01 split: §2 projections + §3 modifier + §4 orientation
+        # Splits of test_camera_program_projection_orientation.cpp (each part ≤ 400 LOC):
+        scene/camera/test_camera_program_orientation_ticket022.cpp
+        scene/camera/test_camera_program_orbit_ticket024.cpp
+        scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
         scene/camera/test_camera_program_constraints_policy.cpp   # CAM-01 split: §5-§10 constraints, policies, fingerprint, golden
         scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
         scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll

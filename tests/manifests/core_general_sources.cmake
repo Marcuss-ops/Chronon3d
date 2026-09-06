@@ -28,6 +28,10 @@ set(CORE_TEST_SOURCES
     core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
     text/test_text_placement_resolver.cpp
+    # Split from test_text_placement_resolver.cpp (each part ≤ 400 LOC):
+    text/test_text_placement_resolver_anchors.cpp
+    text/test_text_placement_resolver_adr019.cpp
+    text/test_text_placement_resolver_coordinate_contract.cpp
     text/test_timed_text_equivalence.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
@@ -49,6 +53,9 @@ set(CORE_TEST_SOURCES
     core/test_frame_rate_edge_cases.cpp
     core/test_temporal_contract.cpp
     core/animation/test_temporal_spatial_curve.cpp
+    # Split from test_temporal_spatial_curve.cpp (each part ≤ 400 LOC):
+    core/animation/test_temporal_spatial_curve_timing_paths.cpp
+    core/animation/test_temporal_spatial_curve_arclength_modes.cpp
     core/animation/path/test_catmull_rom_path.cpp
     core/animation/path/test_spatial_bezier_path.cpp
     core/animation/test_quaternion_track.cpp
@@ -92,6 +99,9 @@ set(CORE_TEST_SOURCES
     runtime/test_camera_session_cache_failed_no_commit.cpp
     runtime/test_render_runtime_isolation.cpp
     runtime/test_resource_preparation.cpp
+    # Split from test_resource_preparation.cpp (each part ≤ 400 LOC):
+    runtime/test_resource_preparation_mesh.cpp
+    runtime/test_resource_preparation_render.cpp
     runtime/test_gpu_asset_cache_content_addressed.cpp
     runtime/test_prepared_render_job.cpp
     runtime/test_prepared_render_job_allocations.cpp
