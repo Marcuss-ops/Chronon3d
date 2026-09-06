@@ -46,12 +46,6 @@ compile_camera(const camera_v1::CameraDescriptor&, const CompositionCompileConte
 Result<CompiledComposition, CompositionCompileError>
 compile_composition(const Composition&, const CompositionCompileContext&);
 
-/// Boundary compatibility overload. New code must construct Composition and
-/// use the canonical overload above.
-[[deprecated("use compile_composition(const Composition&, ...) instead")]]
-Result<CompiledComposition, CompositionCompileError>
-compile_composition(const CompositionDefinition&, const CompositionCompileContext&);
-
 Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition&, const CompositionEvaluateContext&, Frame);
 

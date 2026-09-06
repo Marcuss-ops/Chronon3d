@@ -109,7 +109,7 @@ TEST_CASE("Property: PositionProperty offsets glyph") {
     spec.id = "move";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(PositionProperty{{0.0f, 60.0f, 0.0f}});
+    spec.properties.push_back(PositionProperty{Vec3{0.0f, 60.0f, 0.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -126,7 +126,7 @@ TEST_CASE("Property: ScaleProperty scales down glyph") {
     spec.id = "shrink";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(ScaleProperty{{0.5f, 0.5f, 1.0f}});
+    spec.properties.push_back(ScaleProperty{Vec3{0.5f, 0.5f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -143,7 +143,7 @@ TEST_CASE("Property: RotationProperty adds rotation") {
     spec.id = "spin";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(RotationProperty{{0.0f, 0.0f, 90.0f}});
+    spec.properties.push_back(RotationProperty{Vec3{0.0f, 0.0f, 90.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -175,7 +175,7 @@ TEST_CASE("Property: FillColorProperty changes color") {
     spec.id = "paint";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(FillColorProperty{{0.2f, 0.5f, 0.8f, 1.0f}});
+    spec.properties.push_back(FillColorProperty{Color{0.2f, 0.5f, 0.8f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -193,7 +193,7 @@ TEST_CASE("Property: property with zero selector weight has no effect") {
     spec.id = "weak";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(0.0f);  // zero weight
-    spec.properties.push_back(PositionProperty{{100.0f, 100.0f, 0.0f}});
+    spec.properties.push_back(PositionProperty{Vec3{100.0f, 100.0f, 0.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -214,14 +214,14 @@ TEST_CASE("Stack: two animators combine position additively") {
     spec1.id = "up";
     spec1.selectors.push_back({});
     spec1.selectors.back().amount.set(100.0f);
-    spec1.properties.push_back(PositionProperty{{0.0f, 50.0f, 0.0f}});
+    spec1.properties.push_back(PositionProperty{Vec3{0.0f, 50.0f, 0.0f}});
     spec1.transform_mode = TextPropertyBlendMode::Add;
 
     TextAnimatorSpec spec2;
     spec2.id = "right";
     spec2.selectors.push_back({});
     spec2.selectors.back().amount.set(100.0f);
-    spec2.properties.push_back(PositionProperty{{30.0f, 0.0f, 0.0f}});
+    spec2.properties.push_back(PositionProperty{Vec3{30.0f, 0.0f, 0.0f}});
     spec2.transform_mode = TextPropertyBlendMode::Add;
 
     auto placed = make_test_placed_run_prop(1);
@@ -297,7 +297,7 @@ TEST_CASE("Stack: multiple properties in one animator") {
     spec.id = "combo";
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(PositionProperty{{0.0f, 60.0f, 0.0f}});
+    spec.properties.push_back(PositionProperty{Vec3{0.0f, 60.0f, 0.0f}});
     spec.properties.push_back(OpacityProperty{0.3f});
     spec.properties.push_back(BlurProperty{12.0f});
 
@@ -318,7 +318,7 @@ TEST_CASE("Stack: disabled animator is skipped") {
     spec.enabled = false;
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(PositionProperty{{100.0f, 0.0f, 0.0f}});
+    spec.properties.push_back(PositionProperty{Vec3{100.0f, 0.0f, 0.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -371,7 +371,7 @@ TEST_CASE("Property: StrokeColorProperty sets stroke") {
     spec.color_mode = TextPropertyBlendMode::Replace;
     spec.selectors.push_back({});
     spec.selectors.back().amount.set(100.0f);
-    spec.properties.push_back(StrokeColorProperty{{0.8f, 0.2f, 0.1f, 1.0f}});
+    spec.properties.push_back(StrokeColorProperty{Color{0.8f, 0.2f, 0.1f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -393,7 +393,7 @@ TEST_CASE("Property: StrokeColorProperty with partial weight") {
     spec.selectors.back().amount.set(50.0f);  // half weight
     // Initial stroke is {0,0,0,0} (alpha=0 = disabled).
     // Lerp from {0,0,0,0} to white {1,1,1,1} at 50% = {0.5,0.5,0.5,0.5}
-    spec.properties.push_back(StrokeColorProperty{{1.0f, 1.0f, 1.0f, 1.0f}});
+    spec.properties.push_back(StrokeColorProperty{Color{1.0f, 1.0f, 1.0f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -415,14 +415,14 @@ TEST_CASE("Property: ScaleProperty Add accumulates deltas") {
     spec1.transform_mode = TextPropertyBlendMode::Add;
     spec1.selectors.push_back({});
     spec1.selectors.back().amount.set(100.0f);
-    spec1.properties.push_back(ScaleProperty{{0.5f, 1.0f, 1.0f}});
+    spec1.properties.push_back(ScaleProperty{Vec3{0.5f, 1.0f, 1.0f}});
 
     TextAnimatorSpec spec2;
     spec2.id = "shrink2";
     spec2.transform_mode = TextPropertyBlendMode::Add;
     spec2.selectors.push_back({});
     spec2.selectors.back().amount.set(100.0f);
-    spec2.properties.push_back(ScaleProperty{{0.5f, 1.0f, 1.0f}});
+    spec2.properties.push_back(ScaleProperty{Vec3{0.5f, 1.0f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -442,14 +442,14 @@ TEST_CASE("Property: ScaleProperty Multiply composes factors") {
     spec1.transform_mode = TextPropertyBlendMode::Multiply;
     spec1.selectors.push_back({});
     spec1.selectors.back().amount.set(100.0f);
-    spec1.properties.push_back(ScaleProperty{{0.5f, 1.0f, 1.0f}});
+    spec1.properties.push_back(ScaleProperty{Vec3{0.5f, 1.0f, 1.0f}});
 
     TextAnimatorSpec spec2;
     spec2.id = "mul2";
     spec2.transform_mode = TextPropertyBlendMode::Multiply;
     spec2.selectors.push_back({});
     spec2.selectors.back().amount.set(100.0f);
-    spec2.properties.push_back(ScaleProperty{{0.5f, 1.0f, 1.0f}});
+    spec2.properties.push_back(ScaleProperty{Vec3{0.5f, 1.0f, 1.0f}});
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
@@ -473,7 +473,7 @@ TEST_CASE("Property: ScaleProperty Add vs Multiply produce different results") {
     add_spec.transform_mode = TextPropertyBlendMode::Add;
     add_spec.selectors.push_back({});
     add_spec.selectors.back().amount.set(100.0f);
-    add_spec.properties.push_back(ScaleProperty{{0.5f, 0.5f, 1.0f}});
+    add_spec.properties.push_back(ScaleProperty{Vec3{0.5f, 0.5f, 1.0f}});
     auto add_states = evaluate_animator_stack({add_spec}, placed, source, t);
 
     TextAnimatorSpec mul_spec;
@@ -481,7 +481,7 @@ TEST_CASE("Property: ScaleProperty Add vs Multiply produce different results") {
     mul_spec.transform_mode = TextPropertyBlendMode::Multiply;
     mul_spec.selectors.push_back({});
     mul_spec.selectors.back().amount.set(100.0f);
-    mul_spec.properties.push_back(ScaleProperty{{0.5f, 0.5f, 1.0f}});
+    mul_spec.properties.push_back(ScaleProperty{Vec3{0.5f, 0.5f, 1.0f}});
     auto mul_states = evaluate_animator_stack({mul_spec}, placed, source, t);
 
     // Add: 1.0 + (0.5 - 1.0) = 0.5
@@ -634,14 +634,14 @@ TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack")
     constexpr size_t N = 4;
     const float kStaticShift = 20.0f;
 
-    auto base_spec = [](TextPropertyBlendMode track_blend) {
+    auto base_spec = [kStaticShift](TextPropertyBlendMode track_blend) {
         TextAnimatorSpec s1;
         s1.id = "static_shift";
         s1.transform_mode = TextPropertyBlendMode::Add;
         s1.selectors.push_back({});
         s1.selectors.back().amount.set(100.0f);
         s1.properties.push_back(
-            PositionProperty{{kStaticShift, 0.0f, 0.0f}});
+            PositionProperty{Vec3{kStaticShift, 0.0f, 0.0f}});
 
         TextAnimatorSpec s2;
         s2.id = "tracking";
