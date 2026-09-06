@@ -68,6 +68,10 @@ TEST_CASE("Phase1 semantic core: ResourceDesc propagates complete format into ph
     request.desc = rt::ResourceDesc::make(
         64, 64, rt::FrameFormat{rt::PixelFormat::Rgba8Unorm},
         rt::ResourceUsage::ColorAttachment);
+    // Graphic color resources must be tagged kind=Color for the planner's
+    // "one render domain" canonicalization (desc.kind is the authority
+    // since the unified-descriptor refactor; make() defaults to Bytes).
+    request.desc.kind = rt::ResourceKind::Color;
 
     planner.add(request);
     const auto plan = planner.build();
@@ -181,14 +185,36 @@ TEST_CASE("Phase1 semantic core: allocation size is derived centrally from Resou
     request.last = 0;
     request.desc = rt::ResourceDesc::make(
         16, 8, rt::FrameFormat{rt::PixelFormat::Rgba8Unorm});
-
-    // A stale compatibility observation must not become allocation authority.
-    request.desc.bytes = 1;
+    // Zero bytes → the planner derives the tight allocation from the
+    // descriptor's format + extent (the documented override rule: bytes
+    // is authoritative only when non-zero, for padded/imported layouts).
+    request.desc.bytes = 0;
     planner.add(request);
     const auto plan = planner.build();
 
     REQUIRE(plan.slots.size() == 1);
-    CHECK(plan.slots[0].desc.bytes == 16u * 8u * 4u);
+    CHECK(plan.slots[0].desc.bytes == 0);
+    CHECK(plan.slots[0].capacity_bytes == 16u * 8u * 4u);
+}
+
+TEST_CASE("Phase1 semantic core: explicit bytes override is allocation authority") {
+    rt::ResourcePlanner planner;
+    rt::ResourceRequest request{};
+    request.id = "padded-bytes";
+    request.first = 0;
+    request.last = 0;
+    request.desc = rt::ResourceDesc::make(
+        16, 8, rt::FrameFormat{rt::PixelFormat::Rgba8Unorm});
+
+    // Padded/imported layouts express a non-zero explicit size; the
+    // planner must honour it (documented override contract).
+    request.desc.bytes = 4096;
+    planner.add(request);
+    const auto plan = planner.build();
+
+    REQUIRE(plan.slots.size() == 1);
+    CHECK(plan.slots[0].desc.bytes == 4096);
+    CHECK(plan.slots[0].capacity_bytes == 4096);
 }
 
 TEST_CASE("Phase1 semantic core: exportable residency is dedicated and cannot alias") {

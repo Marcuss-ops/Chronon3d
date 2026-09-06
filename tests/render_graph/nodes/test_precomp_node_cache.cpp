@@ -68,7 +68,12 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
 // this wiring, the PrecompNode::execute() fallback path would return an
 // empty framebuffer instead of the cached one the test expects.
 struct TestContext {
-    SoftwareRenderer            backend;
+    // Hold the FULL TestRenderer (not a sliced SoftwareRenderer):
+    // TestRenderer owns the RenderRuntime in a separate base
+    // (TestRuntimeOwner); assigning a SoftwareRenderer value member from
+    // test::make_renderer() slices the derived object away and destroys
+    // the runtime, leaving SoftwareRenderer::m_runtime dangling.
+    test::TestRenderer            backend;
     std::shared_ptr<FramebufferPool> pool;
     NodeCache                   node_cache;
     CompositionRegistry         registry;
