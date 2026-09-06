@@ -71,7 +71,14 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
     Session& session, AVFrame* frame, DecodeDiagnostic* diagnostic) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     profiling::ProfilingGuard profiling_guard(m_counters, nullptr);
-    if (!frame || frame->format != AV_PIX_FMT_CUDA) return nullptr;
+    if (!frame) return nullptr;
+    // Capture mode (decode_native_frame_at) hands whatever was decoded — CUDA
+    // surface OR software frame — straight back to the caller as an owned
+    // AVFrame ref, so the retained-frame window can replay a repeated index
+    // deterministically even for software sources. This branch must precede
+    // the CUDA-format gate below: a capture that fell through to the seek
+    // path used to re-seek + flush for a repeated software frame, which
+    // crashes FFmpeg's rawvideo flush on the second pass.
     if (session.capture_native_frame) {
         AVFrame* captured = av_frame_alloc();
         const int ref_result = captured ? av_frame_ref(captured, frame) : AVERROR(ENOMEM);
@@ -90,6 +97,7 @@ std::shared_ptr<Framebuffer> NativeVideoFrameDecoder::try_native_frame(
         }
         return nullptr;
     }
+    if (!frame || frame->format != AV_PIX_FMT_CUDA) return nullptr;
     if (!m_native_importer) return nullptr;
     runtime::PixelFormat format = runtime::PixelFormat::Nv12;
     if (frame->hw_frames_ctx) {
