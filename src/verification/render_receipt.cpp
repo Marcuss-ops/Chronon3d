@@ -182,6 +182,13 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
             media.height = stream.value("height", 0);
             parse_rate(stream.value("avg_frame_rate", "0/1"),
                        media.fps_num, media.fps_den);
+            // r_frame_rate is the CFR nominal rate ffprobe derives from a
+            // constant frame-duration pattern.  On a CFR mp4 avg_frame_rate
+            // can be a container artifact (e.g. 19584/815 ~= 24.029 for an
+            // exact 24 fps stream, because ffprobe divides nb_frames by the
+            // DTS span), so the verdict keeps both signals (see fps below).
+            parse_rate(stream.value("r_frame_rate", "0/1"),
+                       media.r_fps_num, media.r_fps_den);
             media.frame_count = stream_frame_count(stream);
             found_video = true;
         }
@@ -349,18 +356,26 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             // Frame-rate contract vs the requested fps.
             // FFmpeg may expose a reduced rational (e.g. 4500/149) for a
             // constant-rate 30 fps stream because of container time-base
-            // rounding. Compare the effective rates within one milliframe
-            // while preserving the exact requested rate in `render`.
-            const double media_fps = receipt.media.fps_den > 0
-                ? static_cast<double>(receipt.media.fps_num) /
-                    static_cast<double>(receipt.media.fps_den)
-                : 0.0;
-            const double requested_fps = receipt.fps_den > 0
-                ? static_cast<double>(receipt.fps_num) /
-                    static_cast<double>(receipt.fps_den)
-                : 0.0;
+            // rounding. The avg_frame_rate alone can also overshoot the true
+            // CFR rate by a whole frame over the DTS span (e.g. an exact
+            // 24 fps stream reported as 19584/815 ~= 24.029), so the verdict
+            // passes when EITHER signal matches the requested rate within one
+            // milliframe: avg_frame_rate (safe against VFR drift) or
+            // r_frame_rate (the CFR nominal rate, reliable when frame
+            // durations are constant). A genuinely variable-rate output
+            // disagrees with both and is rejected. The exact requested rate
+            // stays preserved in `render`.
+            const auto fps_of = [](int num, int den) {
+                return den > 0 ? static_cast<double>(num) /
+                    static_cast<double>(den) : 0.0;
+            };
+            const double requested_fps = fps_of(receipt.fps_num,
+                                                receipt.fps_den);
             const bool fps_ok = requested_fps > 0.0 &&
-                std::abs(media_fps - requested_fps) <= 0.001;
+                (std::abs(fps_of(receipt.media.fps_num,
+                                 receipt.media.fps_den) - requested_fps) <= 0.001 ||
+                 std::abs(fps_of(receipt.media.r_fps_num,
+                                 receipt.media.r_fps_den) - requested_fps) <= 0.001);
             receipt.verification.fps = fps_ok ? "pass" : "fail";
 
             // Audio policy: an output with audio tracks requires an audio
@@ -439,6 +454,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"height", receipt.media.height},
         {"fps_num", receipt.media.fps_num},
         {"fps_den", receipt.media.fps_den},
+        {"r_fps_num", receipt.media.r_fps_num},
+        {"r_fps_den", receipt.media.r_fps_den},
         {"frame_count", receipt.media.frame_count},
         {"duration_ms", receipt.media.duration_ms},
         {"has_audio", receipt.media.has_audio},
