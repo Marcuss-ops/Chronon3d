@@ -15,6 +15,17 @@
 //   ffprobe → decode → frame count → codec → pixel_format → resolution → fps
 //   → audio
 //
+// Verification cost is policy-controlled (env `CHRONON_RECEIPT_VERIFY`):
+//   fast    — container/stream metadata only, NO re-decode of the output
+//             (production hot path; the encoder+muxer already succeeded
+//             in-process). Default.
+//   normal  — one full multithreaded `ffmpeg -f null -` decode pass as the
+//             decodability gate; frame count from the container metadata.
+//   certify — historical strict gate: full `ffprobe -count_frames` decode
+//             plus an independent full `ffmpeg -f null -` decode smoke
+//             (CI/golden determinism runs).
+// `fast` performs no decode at all; `normal` decodes the output exactly once.
+//
 // `copy_eligible` is NOT "render finished".  It is true only when the output
 // file exists, its SHA-256 was computed (canonical assets::sha256_file), and
 // every applicable verification check passed.  Any single FAIL makes it false.
@@ -57,6 +68,17 @@ struct ReceiptVerification {
     std::string resolution{"skip"};
     std::string fps{"skip"};
     std::string audio{"skip"};
+};
+
+/// Wall-clock cost of the post-render verification, in milliseconds.  Values
+/// are -1 when the stage did not run (e.g. `decode_ms` under the fast policy).
+/// Additive telemetry: written as `timing_ms` in the receipt JSON and never
+/// part of the verification verdicts.
+struct ReceiptTiming {
+    double sha256_ms{-1.0};
+    double probe_ms{-1.0};   // whole ffprobe call (metadata + optional count decode)
+    double decode_ms{-1.0};  // certify-only independent decode smoke
+    double total_ms{-1.0};   // whole build_render_receipt wall clock
 };
 
 /// Deterministic identity + render contract for one output.  Callers map
@@ -111,6 +133,7 @@ struct RenderReceipt {
     // media + verification
     MediaContract media;
     ReceiptVerification verification;
+    ReceiptTiming timing;
 
     // output
     std::int64_t bytes{0};
