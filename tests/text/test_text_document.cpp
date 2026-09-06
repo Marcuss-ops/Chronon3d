@@ -204,14 +204,21 @@ TEST_CASE("TextDocument: split_paragraphs on two lines produces 2 paragraphs") {
     CHECK(doc.paragraphs[1].byte_start > doc.paragraphs[0].byte_end);
 }
 
-TEST_CASE("TextDocument: split_paragraphs collapses \\n\\n into one break") {
+TEST_CASE("TextDocument: split_paragraphs keeps consecutive breaks as empty paragraphs") {
+    // Canonical contract: consecutive hard breaks are KEPT as explicit
+    // empty paragraph records ("A\n\nB" → A, empty, B) — the resolver
+    // and layout stages rely on the empty record for vertical spacing.
     TextDocument doc;
     doc.utf8 = "A\n\nB";
     doc.defaults = make_defaults();
 
     size_t count = doc.split_paragraphs();
-    CHECK(count == 2);
-    REQUIRE(doc.paragraphs.size() == 2);
+    CHECK(count == 3);
+    REQUIRE(doc.paragraphs.size() == 3);
+    CHECK(doc.paragraphs[0].byte_start == 0);
+    CHECK(doc.paragraphs[0].byte_end == 1);      // "A"
+    CHECK(doc.paragraphs[1].byte_start == doc.paragraphs[1].byte_end);  // empty record
+    CHECK(doc.paragraphs[2].byte_start > doc.paragraphs[1].byte_end);   // "B"
 }
 
 TEST_CASE("TextDocument: split_paragraphs handles trailing newline") {
