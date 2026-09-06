@@ -62,10 +62,17 @@ namespace {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /// Build a simple scene with configurable layers for structure hash testing.
+/// NOTE: with the current SceneBuilder model, top-level rect() calls become
+/// scene-level RenderNodes (NOT layers) — only layer() calls populate
+/// scene.layers().  The layer-based tests below mutate layers[1] ("fg"),
+/// so the background must be authored as an explicit layer too.
 Scene make_test_scene() {
-    SceneBuilder builder;        builder.rect("bg", {.size = {100, 100}, .color = Color{0.5f, 0.5f, 0.5f}});
-        builder.layer("fg", [](LayerBuilder& lb) {
-            lb.rect("box", {.size = {50, 50}, .color = Color::red()});
+    SceneBuilder builder;
+    builder.layer("bg", [](LayerBuilder& lb) {
+        lb.rect("bg", {.size = {100, 100}, .color = Color{0.5f, 0.5f, 0.5f}});
+    });
+    builder.layer("fg", [](LayerBuilder& lb) {
+        lb.rect("box", {.size = {50, 50}, .color = Color::red()});
         lb.blend(BlendMode::Multiply);
         lb.blur(5.0f);
     });
@@ -512,8 +519,12 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
     // verifies that animated transforms do NOT change SceneStructureKey.
 
     // Build a scene with a layer that has animated transforms.
+    // (Background must be a layer() — top-level rect() calls become
+    // scene-level nodes and would not be present in scene.layers().)
     SceneBuilder builder;
-    builder.rect("bg", {.size = {1920, 1080}, .color = Color{0.5f, 0.5f, 0.5f}});
+    builder.layer("bg", [](LayerBuilder& lb) {
+        lb.rect("bg", {.size = {1920, 1080}, .color = Color{0.5f, 0.5f, 0.5f}});
+    });
     builder.layer("anim", [](LayerBuilder& lb) {
         lb.rect("box", {.size = {100, 100}, .color = Color::red()});
         lb.blur(5.0f);
@@ -603,18 +614,27 @@ TEST_CASE("scene_program: binding table valid after optimizer pass") {
 
     using namespace chronon3d::graph::optimizer;
 
+    // Helper: a REAL transform (non-identity).  The optimizer's
+    // prune_branches pass canonically bypasses identity transforms, so an
+    // identity Transform{} would not survive optimization.
+    const auto make_real_xform = [] {
+        Transform xf;
+        xf.position = Vec3{12.0f, 8.0f, 0.0f};
+        return std::make_unique<TransformNode>(xf);
+    };
+
     RenderGraph graph;
 
     // Create nodes with binding metadata set on CompiledNodeInfo.
     auto src_a = graph.add_node(std::make_unique<SourceNode>(
         "src_a", RenderNode{}, cache::NodeCacheKey{}, false));
-    auto xform_a = graph.add_node(std::make_unique<TransformNode>(Transform{}));
+    auto xform_a = graph.add_node(make_real_xform());
     auto effect_a = graph.add_node(std::make_unique<EffectStackNode>(
         EffectStack{}, Frame{0}));
 
     auto src_b = graph.add_node(std::make_unique<SourceNode>(
         "src_b", RenderNode{}, cache::NodeCacheKey{}, false));
-    auto xform_b = graph.add_node(std::make_unique<TransformNode>(Transform{}));
+    auto xform_b = graph.add_node(make_real_xform());
 
     // Add an unreachable node (should be removed by dead node elimination).
     auto dead_src = graph.add_node(std::make_unique<SourceNode>(
@@ -715,7 +735,11 @@ TEST_CASE("scene_program: optimizer preserves binding metadata "
 
     auto src = graph.add_node(std::make_unique<SourceNode>(
         "src", RenderNode{}, cache::NodeCacheKey{}, false));
-    auto xform = graph.add_node(std::make_unique<TransformNode>(Transform{}));
+    // Non-identity transform: prune_branches canonically bypasses identity
+    // transforms, so Transform{} would not survive optimization.
+    Transform xf;
+    xf.position = Vec3{5.0f, 0.0f, 0.0f};
+    auto xform = graph.add_node(std::make_unique<TransformNode>(xf));
     auto effect = graph.add_node(std::make_unique<EffectStackNode>(
         EffectStack{}, Frame{0}));
 

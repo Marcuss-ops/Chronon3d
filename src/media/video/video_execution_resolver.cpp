@@ -62,6 +62,20 @@ Decision resolve_legacy_internal(
     bool allow_hybrid_gop) noexcept {
     const bool native_nvenc = encoder_native && hardware_nvenc;
 
+    // An explicit GPU-native composition is stronger than GOP-copy intent.
+    // A gop source is still needed for audio/muxing, but allowing the hybrid
+    // shortcut here would silently select DirectYuv and drop other visual
+    // layers (for example the foreground over a video background).
+    if (hot_path == GpuHotPathMode::RequireGpuNative) {
+        return {.plan = {DecodePath::Nvdec, CompositePath::VulkanGraph,
+                         EncodePath::Nvenc, InteropPath::VulkanCuda,
+                         SurfaceHandoffPath::VulkanCopy},
+                .path = ResolvedPath::RenderGraph,
+                .render_fallback = ResolvedPath::RenderGraph,
+                .reason = "required_gpu_native_full_graph",
+                .valid = true};
+    }
+
     if (has_gop_source && gop_copy_only) {
         return {.plan = packet_copy_plan(),
                 .path = ResolvedPath::BitstreamCopy,
@@ -98,18 +112,6 @@ Decision resolve_legacy_internal(
                 .path = ResolvedPath::DirectYuv,
                 .render_fallback = ResolvedPath::RenderGraph,
                 .reason = "required_direct_yuv",
-                .valid = true};
-    }
-    // RequireGpuNative means FullGraph on Vulkan with native GPU encoding. It
-    // must never be interpreted as DirectYuv: FullGraph is required for text,
-    // image overlays and any other non-trivial composition.
-    if (hot_path == GpuHotPathMode::RequireGpuNative) {
-        return {.plan = {DecodePath::Nvdec, CompositePath::VulkanGraph,
-                         EncodePath::Nvenc, InteropPath::VulkanCuda,
-                         SurfaceHandoffPath::VulkanCopy},
-                .path = ResolvedPath::RenderGraph,
-                .render_fallback = ResolvedPath::RenderGraph,
-                .reason = "required_gpu_native_full_graph",
                 .valid = true};
     }
     // Auto is a resolver decision, not an alias for FullGraph. The direct
@@ -200,6 +202,14 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
     bool intent_gop_copy_only,
     bool intent_allow_hybrid_gop,
     const GopAnalysisSummary& analysis) noexcept {
+    // Composition is an explicit visual requirement. GOP copy/hybrid intent
+    // may still provide audio timing, but it must not replace the graph with
+    // DirectYuv or packet-copy execution and lose authored layers.
+    if (requirements.gpu_required && requirements.composition_required) {
+        return resolve_video_execution(requirements, {}, capabilities,
+                                       false, false, false);
+    }
+
     // Explicit whole-clip copy request: the plan is BitstreamCopy only when
     // the preflight proves every GOP is copy-eligible AND splice-safe. Any
     // other outcome is a FINAL structured downgrade — the executor performs
