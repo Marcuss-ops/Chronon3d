@@ -4,7 +4,7 @@
 
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
-// TICKET-100 — route the legacy materialize_text_run_shape pipeline through
+// TICKET-100 — route the legacy text-run materialization through
 // compile_text_layout.  Single canonical TextRunLayout compiler lives in
 // this directory (text_run_builder.cpp implementation TU); we include it here
 // so the materializer
@@ -335,14 +335,6 @@ LayerBuilder& TextRunBuilder::commit() {
     return *m_parent;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// materialize_text_run_shape — shared helper
-//
-// Reads the composable nested TextRunDefinition fields after the PR3→PR4
-// migration (TextRunDefinition is now an alias of TextRunDefinition — see
-// builder_params.hpp).
-// ═══════════════════════════════════════════════════════════════════════════
-
 #ifdef CHRONON3D_USE_BLEND2D
 
 namespace text_run_materialize_detail {
@@ -402,19 +394,6 @@ namespace text_run_materialize_detail {
 }
 
 } // namespace text_run_materialize_detail
-
-std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const PreparedText& prepared,
-    FontEngine* engine,
-    SampleTime sample_time,
-    std::shared_ptr<const AnimatedTextDocument> animated_doc
-) {
-    return materialize_prepared_text(
-        text_internal::normalize_prepared_text(prepared),
-        engine,
-        sample_time,
-        std::move(animated_doc));
-}
 
 std::shared_ptr<TextRunShape> materialize_prepared_text(
     const PreparedText& prepared,

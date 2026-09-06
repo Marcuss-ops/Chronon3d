@@ -174,15 +174,6 @@ std::size_t DeviceScheduler::device_count() const noexcept {
     return m_devices.size();
 }
 
-const DeviceCapabilities* DeviceScheduler::capabilities(DeviceId id) const noexcept {
-    // Preserve the exported/source-compatible symbol without leaking an address
-    // into m_devices after m_mutex is released. The compatibility pointer now
-    // refers to a per-thread copy; capability_snapshot() is the canonical API.
-    thread_local std::optional<DeviceCapabilities> snapshot;
-    snapshot = capability_snapshot(id);
-    return snapshot ? &*snapshot : nullptr;
-}
-
 std::optional<DeviceCapabilities> DeviceScheduler::capability_snapshot(DeviceId id) const {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (id >= m_devices.size()) return std::nullopt;
