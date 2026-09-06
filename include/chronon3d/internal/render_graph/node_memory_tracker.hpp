@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -46,6 +47,17 @@ struct NodeMemoryReport {
 /// concurrent graph executions serialize updates through this tracker, while
 /// TemporalSampleKey keeps sample domains distinct. The owning session may
 /// call reset() at an explicit report-lifetime boundary.
+///
+/// OPT-TRACKER-LOOKUP — hot-path allocation profile. The tracker is observed
+/// once per node × frame from execute_single_node (ScopedNodeMemory), so the
+/// observation path is on the render data-plane. The maps therefore use
+/// transparent comparators (std::less<>): steady-state observations perform
+/// heterogeneous string_view lookups with ZERO heap allocation; the owned
+/// key string is constructed only on first sight of a node (insertion).
+/// Cross-thread visibility of live bytes is required (snapshot() is read
+/// mid-scope by the report path and tests), so observations stay locked —
+/// the fused transfer_temporary() halves that lock traffic for the
+/// set_live_bytes resize pattern (release + acquire in one acquisition).
 class NodeMemoryTracker {
 public:
     NodeMemoryTracker() = default;
@@ -54,7 +66,7 @@ public:
 
     void observe_node(std::string_view node_id, const NodeMemoryMetrics& metrics) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_reporter.observe_node(std::string(node_id), metrics);
+        m_reporter.observe_node(node_id, metrics);
     }
 
     void acquire_temporary(
@@ -65,15 +77,25 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_current_live_bytes += bytes;
         m_peak_live_bytes = std::max(m_peak_live_bytes, m_current_live_bytes);
-        auto& node = m_live_nodes[std::string(node_id)];
+        auto node_it = m_live_nodes.find(node_id);
+        if (node_it == m_live_nodes.end()) {
+            node_it = m_live_nodes.emplace(std::string(node_id), 0).first;
+        }
+        auto& node = node_it->second;
         node += bytes;
-        auto& node_peak = m_peak_live_nodes[std::string(node_id)];
+        auto peak_it = m_peak_live_nodes.find(node_id);
+        if (peak_it == m_peak_live_nodes.end()) {
+            peak_it = m_peak_live_nodes.emplace(std::string(node_id), 0).first;
+        }
+        auto& node_peak = peak_it->second;
         node_peak = std::max(node_peak, node);
 
-        NodeMemoryMetrics metrics;
-        metrics.temporary_buffers.store(1, std::memory_order_relaxed);
-        m_reporter.observe_node(std::string(node_id), metrics);
-        m_reporter.observe_live_bytes(std::string(node_id), node, node_peak);
+        // NodeMemoryMetrics is atomic-membered (non-copyable/non-movable);
+        // pass a local by const reference (observe_node borrows it).
+        NodeMemoryMetrics temporary_metric;
+        temporary_metric.temporary_buffers.store(1, std::memory_order_relaxed);
+        m_reporter.observe_node(node_id, temporary_metric);
+        m_reporter.observe_live_bytes(node_id, node, node_peak);
 
         if (sample_key) {
             auto& sample = m_samples[*sample_key];
@@ -92,15 +114,79 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         subtract_saturating(m_current_live_bytes, bytes);
-        auto node = m_live_nodes.find(std::string(node_id));
+        auto node = m_live_nodes.find(node_id);
         if (node != m_live_nodes.end()) {
             subtract_saturating(node->second, bytes);
-            const auto peak = m_peak_live_nodes[std::string(node_id)];
-            m_reporter.observe_live_bytes(std::string(node_id), node->second, peak);
+            auto peak_it = m_peak_live_nodes.find(node_id);
+            const auto peak = peak_it != m_peak_live_nodes.end() ? peak_it->second : 0;
+            m_reporter.observe_live_bytes(node_id, node->second, peak);
         }
         if (sample_key) {
             auto sample = m_samples.find(*sample_key);
             if (sample != m_samples.end()) subtract_saturating(sample->second.live_bytes, bytes);
+        }
+    }
+
+    /// Fused release(old) + acquire(new) in ONE lock acquisition. Semantically
+    /// identical to calling release_temporary(old) then acquire_temporary(new)
+    /// (the composition execute_single_node performs per resize); the bytes in
+    /// flight between the two steps are never observable because both halves
+    /// of the original sequence also ran under the same session mutex.
+    void transfer_temporary(
+        std::string_view node_id,
+        std::optional<TemporalSampleKey> sample_key,
+        std::uint64_t released_bytes,
+        std::uint64_t acquired_bytes)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        // ── release half ──
+        if (released_bytes != 0) {
+            subtract_saturating(m_current_live_bytes, released_bytes);
+            auto node = m_live_nodes.find(node_id);
+            if (node != m_live_nodes.end()) {
+                subtract_saturating(node->second, released_bytes);
+            }
+            if (sample_key) {
+                auto sample = m_samples.find(*sample_key);
+                if (sample != m_samples.end()) {
+                    subtract_saturating(sample->second.live_bytes, released_bytes);
+                }
+            }
+        }
+
+        // ── acquire half ──
+        if (acquired_bytes != 0) {
+            m_current_live_bytes += acquired_bytes;
+            m_peak_live_bytes = std::max(m_peak_live_bytes, m_current_live_bytes);
+            auto node_it = m_live_nodes.find(node_id);
+            if (node_it == m_live_nodes.end()) {
+                node_it = m_live_nodes.emplace(std::string(node_id), 0).first;
+            }
+            auto& node = node_it->second;
+            node += acquired_bytes;
+            auto peak_it = m_peak_live_nodes.find(node_id);
+            if (peak_it == m_peak_live_nodes.end()) {
+                peak_it = m_peak_live_nodes.emplace(std::string(node_id), 0).first;
+            }
+            auto& node_peak = peak_it->second;
+            node_peak = std::max(node_peak, node);
+            if (sample_key) {
+                auto& sample = m_samples[*sample_key];
+                sample.sample_key = *sample_key;
+                sample.temporary_bytes_observed += acquired_bytes;
+                sample.temporary_buffers += 1;
+                sample.live_bytes += acquired_bytes;
+                sample.peak_live_bytes = std::max(sample.peak_live_bytes, sample.live_bytes);
+            }
+        }
+
+        if (acquired_bytes != 0 || released_bytes != 0) {
+            auto node = m_live_nodes.find(node_id);
+            const auto live = node != m_live_nodes.end() ? node->second : 0;
+            auto peak_it = m_peak_live_nodes.find(node_id);
+            const auto peak = peak_it != m_peak_live_nodes.end() ? peak_it->second : 0;
+            m_reporter.observe_live_bytes(node_id, live, peak);
         }
     }
 
@@ -195,14 +281,23 @@ private:
         }
     };
 
+    // Transparent comparators: find(string_view) never builds a std::string.
+    // Owned keys are created exactly once, on first insertion of a node.
+    struct StringLess {
+        using is_transparent = void;
+        bool operator()(std::string_view a, std::string_view b) const noexcept {
+            return a < b;
+        }
+    };
+
     static void subtract_saturating(std::uint64_t& value, std::uint64_t amount) noexcept {
         value = amount > value ? 0 : value - amount;
     }
 
     mutable std::mutex m_mutex;
     NodeStatsReporter m_reporter;
-    std::map<std::string, std::uint64_t> m_live_nodes;
-    std::map<std::string, std::uint64_t> m_peak_live_nodes;
+    std::map<std::string, std::uint64_t, StringLess> m_live_nodes;
+    std::map<std::string, std::uint64_t, StringLess> m_peak_live_nodes;
     std::map<TemporalSampleKey, NodeMemorySampleSnapshot, SampleKeyLess> m_samples;
     NodeMemoryPoolSnapshot m_pool{};
     std::uint64_t m_current_live_bytes{0};
@@ -213,6 +308,12 @@ private:
 /// RAII live-memory scope. It records a separate allocation event only when
 /// record_allocation() is explicitly requested, so borrowed/reused buffers do
 /// not inflate allocation counters.
+///
+/// OPT-TRACKER-LOOKUP: the node id is borrowed as a string_view (callers pass
+/// a stack-buffer-backed view — see memory_node_id_into() in the executor);
+/// the tracker owns its key strings, so the scope itself performs ZERO heap
+/// allocations. Resizes through set_live_bytes() use the fused
+/// transfer_temporary() path (one lock acquisition instead of two).
 class ScopedNodeMemory {
 public:
     ScopedNodeMemory(
@@ -236,9 +337,15 @@ public:
 
     void set_live_bytes(std::uint64_t bytes) {
         if (!m_tracker || bytes == m_bytes) return;
-        if (m_bytes != 0) m_tracker->release_temporary(m_node_id, m_sample_key, m_bytes);
+        const std::uint64_t previous = m_bytes;
         m_bytes = bytes;
-        if (m_bytes != 0) m_tracker->acquire_temporary(m_node_id, m_sample_key, m_bytes);
+        if (previous == 0) {
+            m_tracker->acquire_temporary(m_node_id, m_sample_key, m_bytes);
+        } else if (m_bytes == 0) {
+            m_tracker->release_temporary(m_node_id, m_sample_key, previous);
+        } else {
+            m_tracker->transfer_temporary(m_node_id, m_sample_key, previous, m_bytes);
+        }
     }
 
     void record_allocation(std::uint64_t bytes) {
@@ -247,7 +354,7 @@ public:
 
 private:
     NodeMemoryTracker* m_tracker;
-    std::string m_node_id;
+    std::string_view m_node_id;   // borrowed: caller-owned buffer outlives the scope
     std::optional<TemporalSampleKey> m_sample_key;
     std::uint64_t m_bytes{0};
 };

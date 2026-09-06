@@ -24,6 +24,8 @@
 #include <mutex>
 #include <optional>
 #include <string_view>
+#include <set>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
@@ -398,6 +400,32 @@ private:
         std::vector<PoolEntry>,
         FramebufferPoolKeyHash
     > m_free;
+
+    // OPT-POOL-BESTFIT — ordered index over non-empty free buckets, keyed by
+    // (area, dims). Replaces the O(distinct-buckets) linear scan in
+    // acquire_unique's best-fit fallback with an ordered lower_bound walk.
+    // Invariant (guarded by m_mutex, same as m_free): one entry per
+    // non-empty m_free bucket. Maintained at: release() insert,
+    // evict_one_from_bucket(), evict_global_lru(), clear(), preallocate().
+    struct FreeBucketAreaLess {
+        using is_transparent = void;
+        bool operator()(const std::pair<std::uint64_t, FramebufferPoolKey>& a,
+                        const std::pair<std::uint64_t, FramebufferPoolKey>& b) const noexcept {
+            if (a.first != b.first) return a.first < b.first;
+            if (a.second.width != b.second.width) return a.second.width < b.second.width;
+            return a.second.height < b.second.height;
+        }
+    };
+    using FreeBucketAreaIndex =
+        std::set<std::pair<std::uint64_t, FramebufferPoolKey>, FreeBucketAreaLess>;
+
+    /// Area of a bucket key (shared by the index comparator and maintainers).
+    static std::uint64_t free_bucket_area(const FramebufferPoolKey& k) noexcept {
+        return static_cast<std::uint64_t>(k.width) *
+               static_cast<std::uint64_t>(k.height);
+    }
+
+    FreeBucketAreaIndex m_free_by_area;
     std::function<void(Framebuffer&)> m_native_surface_releaser;
 
 public:

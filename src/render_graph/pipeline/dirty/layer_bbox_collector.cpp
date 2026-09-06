@@ -18,6 +18,10 @@
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
 
+#include <string_view>
+#include <utility>
+#include <vector>
+
 namespace chronon3d::graph::detail {
 
 void populate_node_semantic_fingerprints(
@@ -111,12 +115,20 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     };
 
     (void)cam25d;
-    tbb::enumerable_thread_specific<std::unordered_map<std::string, LayerBBoxState>> tls_bboxes;
+    // Keep the parallel scratch storage contiguous. The public dirty-history
+    // contract still consumes a name-indexed map below, but constructing a
+    // node-based unordered_map in every TBB worker recreated hash nodes and
+    // bucket growth for every frame.
+    using LocalEntry = std::pair<std::string_view, LayerBBoxState>;
+    tbb::enumerable_thread_specific<std::vector<LocalEntry>> tls_bboxes;
 
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, resolved.layers.size()),
         [&](const tbb::blocked_range<size_t>& r) {
-            auto& local_map = tls_bboxes.local();
+            auto& local_entries = tls_bboxes.local();
+            if (local_entries.empty()) {
+                local_entries.reserve(r.size());
+            }
             for (size_t i = r.begin(); i < r.end(); ++i) {
                 const auto& rl = resolved.layers[i];
                 if (rl.layer && rl.layer->active_at(frame)) {
@@ -167,16 +179,19 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     state.content_hash = content_h;
                     populate_layer_semantic_fingerprints(
                         *rl.layer, ctx.frame_input.sample_time, state);
-                    local_map[std::string(rl.layer->name)] = state;
+                    // Resolved layers own the names for the duration of this
+                    // call. Materialize strings only once in the final map.
+                    local_entries.emplace_back(rl.layer->name, std::move(state));
                 }
             }
         }
     );
 
     std::unordered_map<std::string, LayerBBoxState> merged;
-    for (auto& local_map : tls_bboxes) {
-        for (auto&& [name, state] : local_map) {
-            merged[name] = std::move(state);
+    merged.reserve(resolved.layers.size());
+    for (auto& local_entries : tls_bboxes) {
+        for (auto&& [name, state] : local_entries) {
+            merged.insert_or_assign(std::string(name), std::move(state));
         }
     }
     return merged;

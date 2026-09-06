@@ -11,6 +11,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/error.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 }
@@ -377,39 +378,58 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
                                  const int linesize[4], int source_av_format,
                                  int width, int height, std::int64_t pts_hint) {
     const auto submit_start = Clock::now();
+    const auto prepare_start = Clock::now();
     const int writable_result = av_frame_make_writable(frame_);
     if (writable_result < 0) {
         return fail(VideoSinkError::EncoderFailed,
                     "av_frame_make_writable failed: " + ffmpeg_error(writable_result));
     }
 
-    sws_ = sws_getCachedContext(
-        sws_, width, height, static_cast<AVPixelFormat>(source_av_format),
-        codec_->width, codec_->height, codec_->pix_fmt,
-        SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (!sws_) {
-        return fail(VideoSinkError::EncoderFailed,
-                    "sws_getCachedContext failed");
-    }
-    const int rows = sws_scale(sws_, data, linesize, 0, height,
-                               frame_->data, frame_->linesize);
-    if (rows != height) {
-        return fail(VideoSinkError::EncoderFailed,
-                    "sws_scale produced an incomplete frame");
+    stats_.frame_prepare_ms += elapsed_ms(prepare_start);
+    const bool native_format = source_av_format == codec_->pix_fmt &&
+        width == codec_->width && height == codec_->height;
+    if (native_format) {
+        const auto copy_start = Clock::now();
+        av_image_copy(frame_->data, frame_->linesize,
+                      data, linesize, codec_->pix_fmt, width, height);
+        stats_.frame_copy_ms += elapsed_ms(copy_start);
+    } else {
+        sws_ = sws_getCachedContext(
+            sws_, width, height, static_cast<AVPixelFormat>(source_av_format),
+            codec_->width, codec_->height, codec_->pix_fmt,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (!sws_) {
+            return fail(VideoSinkError::EncoderFailed,
+                        "sws_getCachedContext failed");
+        }
+        const auto sws_start = Clock::now();
+        const int rows = sws_scale(sws_, data, linesize, 0, height,
+                                   frame_->data, frame_->linesize);
+        const double sws_ms = elapsed_ms(sws_start);
+        stats_.sws_scale_ms += sws_ms;
+        stats_.pixel_conversion_ms += sws_ms;
+        if (rows != height) {
+            return fail(VideoSinkError::EncoderFailed,
+                        "sws_scale produced an incomplete frame");
+        }
     }
 
     // Preserve the caller's media timeline. NativeAvSink must not silently
     // replace source PTS with submission order.
     frame_->pts = pts_hint;
 
+    const auto send_start = Clock::now();
     int send_result = avcodec_send_frame(codec_, frame_);
+    stats_.avcodec_send_ms += elapsed_ms(send_start);
     if (send_result == AVERROR(EAGAIN)) {
         // libavcodec is applying backpressure: receive all currently
         // available packets, then retry the exact same frame once. The
         // send/receive contract guarantees that both sides cannot remain at
         // EAGAIN without progress.
         if (!drain_packets(false)) return false;
+        const auto retry_start = Clock::now();
         send_result = avcodec_send_frame(codec_, frame_);
+        stats_.avcodec_send_ms += elapsed_ms(retry_start);
         if (send_result == AVERROR(EAGAIN)) {
             return fail(VideoSinkError::EncoderFailed,
                         "libavcodec made no progress after send-frame EAGAIN");
@@ -431,7 +451,9 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
 
 bool NativeAvSink::drain_packets(bool flushing) {
     for (;;) {
+        const auto receive_start = Clock::now();
         const int receive_result = avcodec_receive_packet(codec_, packet_);
+        stats_.avcodec_receive_ms += elapsed_ms(receive_start);
         if (receive_result == AVERROR(EAGAIN)) {
             if (!flushing) return true;
             return fail(VideoSinkError::EncoderFailed,
@@ -443,22 +465,13 @@ bool NativeAvSink::drain_packets(bool flushing) {
                         "avcodec_receive_packet failed: " + ffmpeg_error(receive_result));
         }
 
-        AVPacket* cloned = av_packet_clone(packet_);
-        av_packet_unref(packet_);
-        if (!cloned) {
-            return fail(VideoSinkError::EncoderFailed,
-                        "av_packet_clone failed");
-        }
-        std::shared_ptr<AVPacket> owned(
-            cloned, [](AVPacket* packet) { av_packet_free(&packet); });
-        const bool keyframe = (owned->flags & AV_PKT_FLAG_KEY) != 0;
-        if (!mux_ || !mux_->submit_video(chronon3d::media::EncodedPacket{
-                .packet = std::move(owned),
-                .time_base = codec_->time_base,
-                .keyframe = keyframe})) {
+        const auto mux_start = Clock::now();
+        if (!mux_ || !mux_->submit_video(*packet_, codec_->time_base)) {
             return fail(VideoSinkError::WriteFailed,
                         "libavformat failed to mux an encoded packet");
         }
+        stats_.packet_mux_ms += elapsed_ms(mux_start);
+        av_packet_unref(packet_);
     }
 }
 
@@ -491,7 +504,9 @@ bool NativeAvSink::flush() {
     if (send_result != AVERROR_EOF && !drain_packets(true)) return false;
 
     encoder_flushed_ = true;
-    stats_.total_flush_ms += elapsed_ms(flush_start);
+    const double flush_ms = elapsed_ms(flush_start);
+    stats_.encoder_flush_ms += flush_ms;
+    stats_.total_flush_ms += flush_ms;
     state_ = VideoSinkState::Open;
     return true;
 }
@@ -507,15 +522,19 @@ bool NativeAvSink::close() noexcept {
     bool ok = state_ != VideoSinkState::Failed;
     if (ok && !encoder_flushed_) ok = flush();
     if (ok && mux_) {
+        const auto trailer_start = Clock::now();
         if (!mux_->finalize()) {
             error_ = VideoSinkError::WriteFailed;
             error_message_ = "libavformat trailer/finalization failed";
             ok = false;
         }
+        stats_.mux_trailer_ms += elapsed_ms(trailer_start);
     }
 
     const auto output_path = config_.output.output_path;
+    const auto close_start = Clock::now();
     release_ffmpeg();
+    stats_.file_close_ms += elapsed_ms(close_start);
     if (ok) {
         std::error_code ec;
         const auto size = std::filesystem::file_size(output_path, ec);

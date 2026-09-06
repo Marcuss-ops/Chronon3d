@@ -554,14 +554,18 @@ struct RenderGraphContext {
     RenderServices       services{};
     NodeExecutionContext node_exec{};
 
-    /// P0-1 — shared mutable error slot.  Initialized by
-    /// execute_internal() before dispatching nodes, and copied by
-    /// clone_for_node_execution() so that error writes from a node's
-    /// cloned context are visible to the parent executor.  When non-null
-    /// and has_value() after execute_levels() returns, the executor
+    /// P0-1 — non-owning mutable error slot.  Points at frame-scoped
+    /// storage initialized by execute_internal() before dispatching nodes,
+    /// and copied by clone_for_node_execution() so that error writes from a
+    /// node's cloned context are visible to the parent executor.  When
+    /// non-null and has_value() after execute_levels() returns, the executor
     /// treats the frame as failed and returns nullptr to the caller
     /// (the documented "engine error" path).
-    std::shared_ptr<std::optional<NodeExecutionError>> frame_error;
+    ///
+    /// Data-oriented profile: no shared ownership and no heap allocation on
+    /// the success path. The pointed-to optional lives in the executor's
+    /// stack frame for the complete (synchronous) node execution.
+    std::optional<NodeExecutionError>* frame_error{nullptr};
 
     /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
     OwnedFB acquire_owned_fb(

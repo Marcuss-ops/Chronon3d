@@ -8,26 +8,11 @@ void execute_single_node(
     RenderCounters* parent_counters,
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    double* out_cache_ms,
-    double* out_dirty_ms,
-    double* out_telemetry_ms,
-    double* out_execute_ms,
-    double* out_predicted_bbox_ms,
-    double* out_clone_context_ms,
-    double* out_state_assign_ms,
     const CompiledFrameGraph& compiled
 ) {
-    // Stage 3: fine-grained per-node timing is no longer part of the normal
-    // execution contract. Keep the ABI-compatible pointer surface for
-    // diagnostic callers, but the production dispatcher passes nullptr and
-    // pays no region Clock::now() calls here.
-    (void)out_cache_ms;
-    (void)out_dirty_ms;
-    (void)out_telemetry_ms;
-    (void)out_execute_ms;
-    (void)out_predicted_bbox_ms;
-    (void)out_clone_context_ms;
-    (void)out_state_assign_ms;
+    // OPT-DEAD-TIMINGS — the 7 dead per-node timing out-params are removed.
+    // Fine-grained per-node timing left the execution contract in Stage 3;
+    // the production dispatcher never passed anything but nullptr for them.
 
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
@@ -175,7 +160,15 @@ void execute_single_node(
         node_ctx.node_exec.current_shape_processor = {};
         node_ctx.node_exec.current_shape_processors = {};
         node_ctx.node_exec.current_effect_processors = {};
-        node_ctx.node_exec.processor_snapshot = compiled.processor_snapshot;
+        // OPT-CLONE-BORROW — the clone's processor_snapshot is (re)assigned
+        // from the compiled graph, which owns the snapshot for the entire
+        // execution; per-node refcount traffic buys nothing here. The raw
+        // alias is written via shared_ptr aliasing-ctor-free borrow: the
+        // compiled graph keeps the only strong reference and outlives every
+        // node_ctx (synchronous execution inside execute_internal).
+        node_ctx.node_exec.processor_snapshot =
+            std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot>(
+                std::shared_ptr<void>(), compiled.processor_snapshot.get());
         if (node_info.shape_processors_count > 0 &&
             node_info.shape_processors_offset <= compiled.shape_processor_table.size() &&
             node_info.shape_processors_count <=
@@ -200,7 +193,10 @@ void execute_single_node(
         node_ctx.node_exec.current_shape_processor = {};
         node_ctx.node_exec.current_shape_processors = {};
         node_ctx.node_exec.current_effect_processors = {};
-        node_ctx.node_exec.processor_snapshot = compiled.processor_snapshot;
+        // OPT-CLONE-BORROW — non-owning alias, see the reachable branch above.
+        node_ctx.node_exec.processor_snapshot =
+            std::shared_ptr<const ::chronon3d::renderer::ProcessorRegistrySnapshot>(
+                std::shared_ptr<void>(), compiled.processor_snapshot.get());
         node_ctx.node_exec.processor_bindings_compiled = false;
     }
 
@@ -234,11 +230,15 @@ void execute_single_node(
     if (ctx.frame_input.temporal_key != TemporalSampleKey{}) {
         sample_key = ctx.frame_input.temporal_key;
     }
+    // The scope below borrows this storage until execute_single_node returns.
+    // Keep it outside the conditional that constructs ScopedNodeMemory.
+    char node_id_buffer[kMemoryNodeIdCapacity]{};
     std::optional<ScopedNodeMemory> node_memory_scope;
     if (state.node_memory_tracker) {
+        // OPT-TRACKER-LOOKUP — id formatted into a stack buffer (no heap).
         node_memory_scope.emplace(
             *state.node_memory_tracker,
-            memory_node_id(compiled, id, node.name()),
+            format_memory_node_id(node_id_buffer, compiled, id, node.name()),
             sample_key,
             0);
     }

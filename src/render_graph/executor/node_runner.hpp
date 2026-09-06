@@ -44,13 +44,6 @@ void execute_single_node(
     RenderCounters* parent_counters,
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    double* out_cache_ms,
-    double* out_dirty_ms,
-    double* out_telemetry_ms,
-    double* out_execute_ms,
-    double* out_predicted_bbox_ms,
-    double* out_clone_context_ms,
-    double* out_state_assign_ms,
     const CompiledFrameGraph& compiled
 );
 
