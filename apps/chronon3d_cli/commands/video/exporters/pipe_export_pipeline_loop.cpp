@@ -3,7 +3,6 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/native_frame_importer_factory.hpp>
-#include <chronon3d/media/video/detail/video_execution_legacy.hpp>
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <cuda.h>
@@ -144,9 +143,20 @@ RenderLoopOutput run_pipe_export_loop(
     if (session.renderer_ptr() && !native_encoder) {
         auto& rt = session.renderer_ptr()->runtime();
         rt.backend().release_frame_transient_surfaces();
+        std::size_t release_failures = 0;
         for (const auto handle : rt.surface_registry().handles_with_lifetime(
                  runtime::LifetimeClass::FrameTransient)) {
-            (void)rt.surface_registry().release(handle);
+            if (!rt.surface_registry().release(handle)) {
+                ++release_failures;
+                spdlog::error(
+                    "[video] surface release failed during transient teardown handle={}",
+                    handle);
+            }
+        }
+        if (release_failures > 0) {
+            spdlog::error(
+                "[video] transient teardown left {} surface(s) unreleased; "
+                "VRAM will be reclaimed at backend destruction", release_failures);
         }
         session.full_graph_session->execution_slots.close();
     }

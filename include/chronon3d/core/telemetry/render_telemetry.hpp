@@ -1,5 +1,6 @@
 #pragma once
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/runtime/telemetry/telemetry_level.hpp>
 
 #include <array>
 #include <atomic>
@@ -9,6 +10,36 @@
 #include <vector>
 
 namespace chronon3d::telemetry {
+
+// ── Capture-level gate ─────────────────────────────────────────────────────
+// TelemetryLevel is process-boundary config resolved once at startup;
+// TelemetryManager::configure()/set_level() are the ONLY writers (they
+// forward into this slot).  The slot is a hot-path read cache so the
+// per-node/per-frame granular emitters (emit_node_records, culling) do not
+// pay a manager/store lock on every node.  TelemetryManager remains the
+// config authority; this is derived state for the render_graph hot path.
+namespace detail {
+inline std::atomic<unsigned char>& capture_level_slot() noexcept {
+    static std::atomic<unsigned char> slot{
+        static_cast<unsigned char>(kDefaultTelemetryLevel)};
+    return slot;
+}
+} // namespace detail
+
+/// Current capture level.  Summary (the default) means NO granular
+/// per-event capture: emitters early-out before building any record or
+/// string.  Only Detailed/Trace populate the per-event sharded stores.
+[[nodiscard]] inline TelemetryLevel telemetry_capture_level() noexcept {
+    return static_cast<TelemetryLevel>(
+        detail::capture_level_slot().load(std::memory_order_relaxed));
+}
+
+/// Sets the capture level.  Single-writer discipline: called only from
+/// TelemetryManager::configure()/set_level() at the process boundary.
+inline void set_telemetry_capture_level(TelemetryLevel level) noexcept {
+    detail::capture_level_slot().store(
+        static_cast<unsigned char>(level), std::memory_order_relaxed);
+}
 
 namespace detail {
 

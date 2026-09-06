@@ -10,6 +10,8 @@
 /// that every video export job needs regardless of sink type.
 // ---------------------------------------------------------------------------
 
+#include "canonical_frame_rate.hpp"
+
 #include <string>
 #include <chronon3d/core/types/time.hpp>
 
@@ -29,8 +31,12 @@ struct OutputOptions {
     int fps_den{1};
 
     [[nodiscard]] chronon3d::FrameRate frame_rate() const noexcept {
-        const int n = (fps_num == 30 && fps_den == 1 && fps != 30) ? fps : fps_num;
-        return chronon3d::FrameRate{n, fps_den};
+        // Single canonicalisation rule shared with FfmpegPipeOptions (see
+        // canonical_frame_rate.hpp) — the legacy 30/1 sentinel semantics and
+        // the parity between the two accessors are locked by test
+        // "FfmpegFrameRate: OutputOptions and FfmpegPipeOptions agree".
+        const auto canonical = canonical_frame_rate(fps, fps_num, fps_den);
+        return chronon3d::FrameRate{canonical.num, canonical.den};
     }
 
     [[nodiscard]] double fps_value() const noexcept {

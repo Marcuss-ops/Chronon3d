@@ -2,6 +2,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <filesystem>
+#include <system_error>
+
 namespace chronon3d::cli {
 
 bool validate_video_job(const RenderJob& job) {
@@ -46,6 +49,20 @@ bool validate_video_job(const RenderJob& job) {
         }
         // Packet copy is resolved by the canonical video execution resolver;
         // do not reject it at generic job validation time.
+    }
+    // A supplied compressed source must be readable before any resolver
+    // downgrade can silently swap the requested lane for a different plan.
+    if (!job.video_settings.gop_source.empty()) {
+        std::error_code ec;
+        const bool readable =
+            std::filesystem::is_regular_file(job.video_settings.gop_source, ec) &&
+            !ec;
+        if (!readable) {
+            spdlog::error("[video] gop_source '{}' is not a readable regular file (ec={})",
+                          job.video_settings.gop_source,
+                          ec ? ec.message() : "none");
+            return false;
+        }
     }
     return true;
 }

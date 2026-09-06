@@ -148,25 +148,26 @@ CacheEvalResult evaluate_cache(
             if (cr.result) {
                 ctx.node_exec.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
                 ctx.node_exec.counters->node_cache_hits.fetch_add(1, std::memory_order_relaxed);
-                cr.cache_status = "hit";
+                cr.cache_status = CacheEvaluationStatus::Hit;
             } else {
                 ctx.node_exec.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
                 ctx.node_exec.counters->node_cache_misses.fetch_add(1, std::memory_order_relaxed);
-                cr.cache_status = "miss";
+                cr.cache_status = CacheEvaluationStatus::Miss;
             }
         } else {
-            cr.cache_status = cr.result ? "hit" : "miss";
+            cr.cache_status = cr.result
+                ? CacheEvaluationStatus::Hit : CacheEvaluationStatus::Miss;
         }
     } else {
         if (!ctx.services.node_cache) {
-            cr.cache_status = "bypass_no_cache";
+            cr.cache_status = CacheEvaluationStatus::BypassNoCache;
         } else if (node.kind() == RenderGraphNodeKind::Composite) {
             // Explicit composite status — composites always bypass cache so the
             // next composite's input keeps use_count == 1 and the reusable_inputs
             // zero-copy path activates (see cache_skip block above).
-            cr.cache_status = "bypass_composite_for_zerocopy";
+            cr.cache_status = CacheEvaluationStatus::BypassCompositeForZeroCopy;
         } else if (!is_cacheable) {
-            cr.cache_status = "bypass_not_cacheable";
+            cr.cache_status = CacheEvaluationStatus::BypassNotCacheable;
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
             }
@@ -175,7 +176,7 @@ CacheEvalResult evaluate_cache(
                              static_cast<int>(ctx.frame_input.frame), node.name(), node_id, to_string(node.kind()));
             }
         } else {
-            cr.cache_status = "bypass_frame_dependent";
+            cr.cache_status = CacheEvaluationStatus::BypassFrameDependent;
             if (ctx.policy.diagnostics_enabled) {
                 spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
                               static_cast<int>(ctx.frame_input.frame), node.name(), node_id, to_string(node.kind()));
@@ -187,7 +188,9 @@ CacheEvalResult evaluate_cache(
             "[node-cache-decision] frame={} node_id={} cache_key_digest={} "
             "cache_status={} cache_decision={} use_cache={} frame_dependent={}",
             static_cast<int>(ctx.frame_input.frame), node_id, cr.key.digest(),
-            cr.cache_status, cr.cache_status == "hit" || cr.cache_status == "miss"
+            cache_status_name(cr.cache_status),
+            cr.cache_status == CacheEvaluationStatus::Hit ||
+                cr.cache_status == CacheEvaluationStatus::Miss
                 ? "cache_lookup" : "cache_bypass",
             cr.use_cache ? 1 : 0, cr.node_frame_dependent ? 1 : 0);
     }

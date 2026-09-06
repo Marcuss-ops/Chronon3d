@@ -104,7 +104,8 @@ void execute_single_node(
     if (diag_exec_logging_enabled()) {
         spdlog::info("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
             static_cast<int>(ctx.frame_input.frame), node.name(), id, to_string(node.kind()),
-            cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
+            cache_status_name(cache_eval.cache_status),
+            cache_eval.node_frame_dependent ? 1 : 0,
             cache_eval.use_cache ? 1 : 0,
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
     }
@@ -113,7 +114,7 @@ void execute_single_node(
 
     const bool cache_hit_fast_path =
         cache_eval.result &&
-        cache_eval.cache_status == "hit" &&
+        cache_eval.cache_status == CacheEvaluationStatus::Hit &&
         !cache_eval.node_frame_dependent &&
         !ctx.policy.tile_execution_enabled;
 

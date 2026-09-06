@@ -75,7 +75,8 @@ void commit_node_state(
     state.temp[id]                     = cache_eval.result;
     state.resolved_key_digest[id]      = cache_eval.key.digest();
     state.resolved_frame_dependent[id] = cache_eval.node_frame_dependent ? 1 : 0;
-    state.resolved_cache_hit[id]       = (cache_eval.cache_status == "hit") ? 1 : 0;
+    state.resolved_cache_hit[id]       =
+        (cache_eval.cache_status == CacheEvaluationStatus::Hit) ? 1 : 0;
     state.resolved_bboxes[id]          = std::move(predicted_bbox);
 }
 

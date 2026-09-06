@@ -2,8 +2,7 @@
 // include/chronon3d/layout/overlay_layout_resolver.hpp
 //
 // V1 overlay layout resolver.  Turns overlay LAYOUT INTENTS into concrete
-// top-left positions on a canvas, honouring (in order, per the ADR-029 V1
-// contract):
+// top-left positions on a canvas, honouring (in order):
 //
 //   1. preferred anchor
 //   2. calculate content bounds
