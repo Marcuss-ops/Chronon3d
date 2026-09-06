@@ -3,6 +3,8 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <cmath>
 #include <filesystem>
 
@@ -112,28 +114,36 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
             entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
             if (entry->fb_img) {
                 entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
-                std::size_t out_gpu = 0;
                 const uint8_t* src = buffer->pixels.get();
-                for (int y = 0; y < entry->height; ++y) {
-                    Color* dst_row = entry->fb_img->pixels_row(y);
-                    for (int x = 0; x < entry->width; ++x) {
-                        const int idx = (y * entry->width + x) * 4;
-                        const float r = src[idx + 0] / 255.0f;
-                        const float g = src[idx + 1] / 255.0f;
-                        const float b = src[idx + 2] / 255.0f;
-                        const float a = src[idx + 3] / 255.0f;
-                        // Framebuffers store premultiplied linear colors.
-                        // The image backend delivers straight sRGB bytes;
-                        // converting after premultiplication leaves dark
-                        // assets far too bright and breaks image/shape parity.
-                        const auto color = Color{r, g, b, a}.to_linear().premultiplied();
-                        dst_row[x] = color;
-                        entry->gpu_rgba[out_gpu++] = color.r;
-                        entry->gpu_rgba[out_gpu++] = color.g;
-                        entry->gpu_rgba[out_gpu++] = color.b;
-                        entry->gpu_rgba[out_gpu++] = color.a;
-                    }
-                }
+                // Each row is independent. Parallelizing this conversion is
+                // safe because both destinations are pre-sized and indexed
+                // by row; it removes the serial sRGB->linear bottleneck while
+                // preserving the exact premultiplied-color operation.
+                tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
+                    [&](const tbb::blocked_range<int>& rows) {
+                        for (int y = rows.begin(); y < rows.end(); ++y) {
+                            Color* dst_row = entry->fb_img->pixels_row(y);
+                            float* gpu_row = entry->gpu_rgba.data() +
+                                static_cast<std::size_t>(y) * entry->width * 4;
+                            for (int x = 0; x < entry->width; ++x) {
+                                const int idx = (y * entry->width + x) * 4;
+                                const float r = src[idx + 0] / 255.0f;
+                                const float g = src[idx + 1] / 255.0f;
+                                const float b = src[idx + 2] / 255.0f;
+                                const float a = src[idx + 3] / 255.0f;
+                                // Framebuffers store premultiplied linear colors.
+                                // The image backend delivers straight sRGB bytes;
+                                // converting after premultiplication leaves dark
+                                // assets far too bright and breaks image/shape parity.
+                                const auto color = Color{r, g, b, a}.to_linear().premultiplied();
+                                dst_row[x] = color;
+                                gpu_row[x * 4 + 0] = color.r;
+                                gpu_row[x * 4 + 1] = color.g;
+                                gpu_row[x * 4 + 2] = color.b;
+                                gpu_row[x * 4 + 3] = color.a;
+                            }
+                        }
+                    });
                 const std::string_view bytes(
                     reinterpret_cast<const char*>(entry->gpu_rgba.data()),
                     entry->gpu_rgba.size() * sizeof(float));

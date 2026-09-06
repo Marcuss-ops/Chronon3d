@@ -403,9 +403,21 @@ bool RawVideoSink::close() noexcept {
         state_ = VideoSinkState::Closed;
         return true;
     }
-
     if (file_.is_open()) {
+        // The final flush is where late I/O failures (disk full, remote
+        // filesystem error) surface. A close() that ignores a failed flush
+        // would declare success on an incomplete/corrupt output file, so the
+        // stream state is checked BEFORE the terminal Closed transition.
         file_.flush();
+        if (!file_) {
+            // Release the descriptor, but never report success: the output
+            // was not durably written. The sink enters Failed (terminal) so
+            // callers observe the real outcome instead of Closed.
+            last_error_ = VideoSinkError::WriteFailed;
+            file_.close();
+            state_ = VideoSinkState::Failed;
+            return false;
+        }
         file_.close();
     }
 

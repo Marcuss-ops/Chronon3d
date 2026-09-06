@@ -12,7 +12,8 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 chronon3d_add_test_suite(
     NAME chronon3d_ipc_tests
     TIER UNIT
-    SOURCES ipc/test_ipc_codec.cpp ipc/test_shared_memory_transport.cpp $<TARGET_OBJECTS:chronon3d_ipc>
+    SOURCES ipc/test_ipc_codec.cpp ipc/test_shared_memory_transport.cpp
+            ipc/test_unix_socket_transport.cpp $<TARGET_OBJECTS:chronon3d_ipc>
     LINK_TARGETS chronon3d_pipeline flatbuffers::flatbuffers
                  nlohmann_json_schema_validator::validator
 )

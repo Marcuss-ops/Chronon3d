@@ -113,6 +113,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");
     if (value.contains("fit")) layer.fit = fit_mode(value.at("fit").get<std::string>());
+    layer.radius = optional_value<float>(value, "radius");
 
     if (value.contains("style")) {
         const auto& style = value.at("style");
