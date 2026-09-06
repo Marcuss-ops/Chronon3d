@@ -25,10 +25,17 @@ using namespace chronon3d;
 
 namespace {
 
+// Canonical fixture font: path-based specs are required so the
+// cluster-level coverage probe is stable (fictional family names cannot
+// be loaded and fragment runs at whitespace).  Font families are
+// canonicalized to lowercase by the resolver.
+inline constexpr const char* kDefaultFontPath = "assets/fonts/Inter-Regular.ttf";
+
 TextDocument make_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
-    doc.defaults.font.font_family = "DefaultFamily";
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_path   = kDefaultFontPath;
     doc.defaults.font.font_size   = 72.0f;
     doc.split_paragraphs();
     return doc;
@@ -72,7 +79,9 @@ TEST_CASE("TextResolver: single paragraph produces single LTR run") {
     CHECK(run.direction == TextDirection::LTR);
     CHECK(run.byte_offset == 0);
     CHECK(run.byte_len == doc.utf8.size());
-    CHECK(run.font.font_family == "DefaultFamily");
+    // Family is canonicalized to lowercase; the path stays as authored.
+    CHECK(run.font.font_family == "inter");
+    CHECK(run.font.font_path == kDefaultFontPath);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -82,10 +91,14 @@ TEST_CASE("TextResolver: single paragraph produces single LTR run") {
 TEST_CASE("TextResolver: font-override span creates separate run") {
     TextDocument doc;
     doc.utf8 = "AAABBB";
-    doc.defaults.font.font_family = "DefaultFamily";
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_path   = kDefaultFontPath;
     doc.defaults.font.font_size   = 72.0f;
 
     // Override bytes [3, 6) ("BBB") with a different font family.
+    // Only the family is overridden (font_path is inherited from the
+    // document defaults by effective_font), which is enough to create
+    // a span boundary while keeping every cluster covered.
     TextStyleSpan span;
     span.byte_start = 3;
     span.byte_end   = 6;
@@ -106,12 +119,12 @@ TEST_CASE("TextResolver: font-override span creates separate run") {
     REQUIRE(tree.paragraphs[0].runs.size() == 2);
 
     CHECK(tree.paragraphs[0].runs[0].text == "AAA");
-    CHECK(tree.paragraphs[0].runs[0].font.font_family == "DefaultFamily");
+    CHECK(tree.paragraphs[0].runs[0].font.font_family == "inter");
     CHECK(tree.paragraphs[0].runs[0].byte_offset == 0);
     CHECK(tree.paragraphs[0].runs[0].byte_len == 3);
 
     CHECK(tree.paragraphs[0].runs[1].text == "BBB");
-    CHECK(tree.paragraphs[0].runs[1].font.font_family == "OverrideFamily");
+    CHECK(tree.paragraphs[0].runs[1].font.font_family == "overridefamily");
     CHECK(tree.paragraphs[0].runs[1].byte_offset == 3);
     CHECK(tree.paragraphs[0].runs[1].byte_len == 3);
 }
@@ -222,7 +235,8 @@ TEST_CASE("TextResolver: consecutive newlines produce empty paragraph") {
 TEST_CASE("TextResolver: paragraph style propagates to runs") {
     TextDocument doc;
     doc.utf8 = "Styled text";
-    doc.defaults.font.font_family = "Test";
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_path   = kDefaultFontPath;
 
     ParagraphRange pr;
     pr.byte_start = 0;
@@ -279,6 +293,7 @@ TEST_CASE("TextResolver: BCP-47 language tag is canonicalized at source (TICKET-
     TextDocument doc;
     doc.utf8 = "Hello";
     doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_path   = kDefaultFontPath;
     doc.defaults.font.font_size   = 72.0f;
 
     ParagraphRange pr;

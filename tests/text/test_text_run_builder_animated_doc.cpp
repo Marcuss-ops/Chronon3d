@@ -20,6 +20,7 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_driver.hpp>
 #include <doctest/doctest.h>
+#include "test_text_font_fixture.hpp"
 
 #include <memory>
 #include <utility>
@@ -49,8 +50,9 @@ AnimatedTextDocument make_two_keyframe_doc(const std::string& text_a,
 PreparedText make_spec(const std::string& literal_text) {
     PreparedText spec;
     spec.document.utf8 = literal_text;
-    spec.style.font.font_family = "DejaVu Sans";
-    spec.style.font.font_size   = 32.0f;
+    // Path-based fixture font: family-only specs can't be resolved on hosts
+    // without a family→path mapping (see the font_engine load path).
+    spec.style.font = test_text_fixture::inter_bold();
     spec.frame.size       = {800.0f, 200.0f};
     return spec;
 }
@@ -98,10 +100,13 @@ TEST_CASE("TextRunBuilder+PendingDoc: animated_doc drives layout content + per-f
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "Apple";
+    // The transition lives on the OUTGOING keyframe (kf0 governs the
+    // 0→60 gap), per the convention documented on
+    // SourceTextKeyframe::transition.
+    kf0.transition = SourceTextTransition::Scramble;
     doc.add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
-    kf60.transition = SourceTextTransition::Scramble;
     kf60.document.utf8 = "Orange";
     doc.add_keyframe(kf60);
     auto shared_doc = std::make_shared<const AnimatedTextDocument>(std::move(doc));
