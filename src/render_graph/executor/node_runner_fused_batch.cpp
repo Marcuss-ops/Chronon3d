@@ -36,6 +36,22 @@
 namespace chronon3d::graph::detail {
 namespace {
 
+// HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — fused-batch scratch.
+// execute_fused_batch_impl runs once per fused batch per frame and previously
+// rebuilt std::vector<GlyphStatic> + std::vector<TextRunDynamic> +
+// std::vector<RenderSurfaceHandle> + std::unordered_map (text path) and an
+// unordered_map (image path) from scratch every call. The containers are
+// thread_local so parallel level execution never shares state (same pattern
+// as command_plan_executor.cpp's tls_instances); clear() keeps capacity so
+// steady-state frames pay zero allocations.
+thread_local std::vector<runtime::GlyphStatic> tls_fused_glyphs;
+thread_local std::vector<runtime::TextRunDynamic> tls_fused_runs;
+thread_local std::vector<runtime::RenderSurfaceHandle> tls_fused_atlas_pages;
+thread_local std::unordered_map<runtime::RenderSurfaceHandle, uint32_t>
+    tls_fused_atlas_map;
+thread_local std::unordered_map<runtime::RenderSurfaceHandle, uint32_t>
+    tls_fused_resource_map;
+
 void execute_fused_batch_impl(
     ExecutionState& state,
     RenderGraph& graph,
@@ -57,10 +73,14 @@ void execute_fused_batch_impl(
 
     if (is_text_batch) {
 #if defined(CHRONON3D_ENABLE_TEXT)
-        std::vector<runtime::GlyphStatic> all_glyphs;
-        std::vector<runtime::TextRunDynamic> all_runs;
-        std::vector<runtime::RenderSurfaceHandle> atlas_pages;
-        std::unordered_map<runtime::RenderSurfaceHandle, uint32_t> atlas_map;
+        std::vector<runtime::GlyphStatic>& all_glyphs = tls_fused_glyphs;
+        std::vector<runtime::TextRunDynamic>& all_runs = tls_fused_runs;
+        std::vector<runtime::RenderSurfaceHandle>& atlas_pages = tls_fused_atlas_pages;
+        std::unordered_map<runtime::RenderSurfaceHandle, uint32_t>& atlas_map = tls_fused_atlas_map;
+        all_glyphs.clear();
+        all_runs.clear();
+        atlas_pages.clear();
+        atlas_map.clear();
 
         for (const auto& inst : batch.instances) {
             if (inst.node >= graph.size() || !graph.has_node(inst.node)) continue;
@@ -156,7 +176,9 @@ void execute_fused_batch_impl(
     gpu_batch.is_gpu_fused = batch.is_gpu_fused;
     auto& instances = gpu_batch.instances;
     auto& resources = gpu_batch.resources;
-    std::unordered_map<runtime::RenderSurfaceHandle, uint32_t> resource_map;
+    std::unordered_map<runtime::RenderSurfaceHandle, uint32_t>& resource_map =
+        tls_fused_resource_map;
+    resource_map.clear();
     std::optional<raster::BBox> image_bbox;
 
     for (const auto& inst : batch.instances) {

@@ -28,7 +28,7 @@ namespace chronon3d::ipc {
 /// Result of a CreateComposition IPC request.
 struct SessionComposition {
     std::string composition_id;
-    CompiledComposition compiled;
+    std::unique_ptr<PreparedRenderJob> prepared;
     RenderEngine* engine{nullptr};
 };
 
