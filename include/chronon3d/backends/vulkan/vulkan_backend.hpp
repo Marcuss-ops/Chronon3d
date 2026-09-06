@@ -414,6 +414,14 @@ public:
 private:
     template <typename Fn>
     graph::RenderOpResult run_batched_surface_op(Fn&& fn);
+#ifdef CHRONON3D_ENABLE_VULKAN
+    /// Single-owner unlocked hot path (P1-7). The public begin/end entries
+    /// take api_mutex exactly once and delegate here; run_batched_surface_op
+    /// and begin_plan_batch call the unlocked core directly instead of
+    /// re-entering the recursive mutex for every recorded surface operation.
+    void begin_frame_batch_unlocked();
+    void end_frame_batch_unlocked();
+#endif
     void composite_legacy_surface(
         Framebuffer& destination, const Framebuffer& source, BlendMode mode,
         const std::optional<raster::BBox>& clip);

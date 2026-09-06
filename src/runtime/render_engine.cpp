@@ -55,6 +55,12 @@ struct PreparedRenderJob::Impl {
     bool finished{false};
     runtime::ResourcePlan resource_plan;
 
+    // Job-lifetime stable values. assets_root cannot change between frames of
+    // one job (RenderEngine::set_assets_root() is an engine-level operation,
+    // not a per-frame one), so materialize the mount-root string once per
+    // job instead of rebuilding a std::string in every evaluate_frame().
+    std::string assets_root;
+
     // Canonical fixed-frame execution authorities. PreparedRenderJob owns
     // orchestration only; slot storage/lifecycle, bounded handoff, and GPU
     // completion state remain in their single-responsibility components.
@@ -159,6 +165,276 @@ struct PreparedRenderJob::Impl {
         Frame frame, FrameArena& arena) const;
     [[nodiscard]] std::shared_ptr<Framebuffer> render_evaluated_frame(
         EvaluatedCompositionFrame& evaluated, Frame frame) const;
+
+    // ── Persistent stage workers (data-oriented runtime profile) ─────────
+    //
+    // Three stage workers created once per job and reused across
+    // render_frames() batches. A batch is one "session": the caller
+    // publishes batch parameters under the pool mutex, wakes the workers,
+    // and waits until all three stage-done flags are set. Workers park on
+    // the session latch between batches instead of exiting, so short jobs
+    // no longer pay thread create/join per batch (P1-6).
+    //
+    // Completion protocol: a worker sets its done flag as its LAST session
+    // action, after its stage loop broke (no more work or failure). The
+    // caller therefore waits for evaluation_done && render_done &&
+    // encode_done before touching slot storage — the equivalent guarantee
+    // the previous design got from thread::join().
+    struct WorkerPool {
+        Impl& self;
+
+        std::mutex mutex;
+        std::condition_variable cv;
+
+        // Session lifecycle.
+        bool session_active{false};
+        bool shutdown{false};
+        bool workers_started{false};
+
+        // Per-session batch parameters. session_encoder borrows the caller's
+        // callback for one session; render_frames() blocks until the session
+        // completes, so the borrow always outlives its use.
+        Frame batch_first{0};
+        Frame batch_end{0};
+        bool split_evaluation{false};
+        const PreparedFrameEncoder* session_encoder{nullptr};
+
+        // Stage-done flags. Reset by the caller at session start; set by the
+        // owning worker when its stage has no more work for the session.
+        bool evaluation_done{false};
+        bool render_done{false};
+        bool encode_done{false};
+
+        // Per-session failure state and counters.
+        bool failed{false};
+        Frame failed_frame{-1};
+        std::string error;
+        std::size_t frames_encoded{0};
+        std::size_t frames_rendered{0};
+        std::size_t max_queue_depth{0};
+
+        std::thread evaluation_thread;
+        std::thread render_thread;
+        std::thread encoder_thread;
+
+        explicit WorkerPool(Impl& owner) : self(owner) {}
+        ~WorkerPool() {
+            {
+                std::lock_guard lock(mutex);
+                shutdown = true;
+                session_active = false;
+            }
+            cv.notify_all();
+            if (evaluation_thread.joinable()) evaluation_thread.join();
+            if (render_thread.joinable()) render_thread.join();
+            if (encoder_thread.joinable()) encoder_thread.join();
+        }
+
+        WorkerPool(const WorkerPool&) = delete;
+        WorkerPool& operator=(const WorkerPool&) = delete;
+
+        void fail(Frame frame, std::string message) {
+            {
+                std::lock_guard lock(mutex);
+                failed = true;
+                failed_frame = frame;
+                if (error.empty()) error = std::move(message);
+            }
+            cv.notify_all();
+        }
+
+        void ensure_started() {
+            std::lock_guard lock(mutex);
+            if (workers_started) return;
+            workers_started = true;
+            evaluation_thread = std::thread([this] { evaluation_loop(); });
+            render_thread = std::thread([this] { render_loop(); });
+            encoder_thread = std::thread([this] { encoder_loop(); });
+        }
+
+        void evaluation_loop() {
+            for (;;) {
+                std::unique_lock lock(mutex);
+                cv.wait(lock, [&] {
+                    return shutdown || (session_active && !evaluation_done);
+                });
+                if (shutdown) return;
+                if (!session_active) continue; // spurious/parked wakeup
+                lock.unlock();
+
+                // Production loop: one slot per frame in the batch window.
+                for (Frame frame = batch_first; frame < batch_end; ++frame) {
+                    runtime::FrameExecutionSlot* slot = nullptr;
+                    {
+                        std::unique_lock wait_lock(mutex);
+                        cv.wait(wait_lock, [&] {
+                            return failed || shutdown ||
+                                (slot = self.acquire_for_evaluation()) != nullptr;
+                        });
+                        if (failed || shutdown) break;
+                    }
+                    slot->frame_index = frame.integral();
+                    auto& payload = self.payload(*slot);
+                    payload.reset();
+                    try {
+                        if (split_evaluation) {
+                            payload.evaluated.emplace(
+                                self.evaluate_frame(frame, payload.arena));
+                        }
+                        if (!self.publish_evaluated(*slot)) {
+                            throw std::runtime_error(
+                                "PreparedRenderJob failed to publish evaluated frame");
+                        }
+                    } catch (const std::exception& exception) {
+                        (void)self.abort(*slot);
+                        fail(frame, std::string{"PreparedRenderJob evaluation failed: "} +
+                                        exception.what());
+                        break;
+                    } catch (...) {
+                        (void)self.abort(*slot);
+                        fail(frame,
+                             "PreparedRenderJob evaluation failed with an unknown exception");
+                        break;
+                    }
+                    cv.notify_all();
+                }
+
+                lock.lock();
+                evaluation_done = true;
+                cv.notify_all();
+            }
+        }
+
+        void render_loop() {
+            for (;;) {
+                std::unique_lock lock(mutex);
+                cv.wait(lock, [&] {
+                    return shutdown || (session_active && !render_done);
+                });
+                if (shutdown) return;
+                if (!session_active) continue; // spurious/parked wakeup
+                lock.unlock();
+
+                for (;;) {
+                    runtime::FrameExecutionSlot* slot = nullptr;
+                    {
+                        std::unique_lock wait_lock(mutex);
+                        cv.wait(wait_lock, [&] {
+                            if (slot) return true;
+                            if (shutdown) return true;
+                            if ((slot = self.acquire_for_render()) != nullptr) {
+                                return true;
+                            }
+                            return failed || evaluation_done;
+                        });
+                        if (!slot || shutdown) break; // stage drained / failure / shutdown
+                    }
+                    auto& payload = self.payload(*slot);
+                    const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
+                    try {
+                        std::shared_ptr<Framebuffer> output;
+                        if (split_evaluation) {
+                            output = self.render_evaluated_frame(
+                                *payload.evaluated, slot_frame);
+                            payload.evaluated.reset();
+                        } else {
+                            // Temporal/SSAA paths retain their canonical complete
+                            // compositor boundary, but still participate in the
+                            // bounded render→encode stages.
+                            output = self.engine->render_compiled(
+                                *self.compiled, slot_frame);
+                        }
+                        payload.rendered = std::move(output);
+                        ++frames_rendered;
+                        if (!self.publish_rendered(*slot)) {
+                            throw std::runtime_error(
+                                "PreparedRenderJob failed to publish rendered frame");
+                        }
+                        const auto depth = self.rendered_depth();
+                        if (depth > max_queue_depth) max_queue_depth = depth;
+                    } catch (const std::exception& exception) {
+                        (void)self.abort(*slot);
+                        fail(slot_frame, std::string{"PreparedRenderJob render failed: "} +
+                                            exception.what());
+                        break;
+                    } catch (...) {
+                        (void)self.abort(*slot);
+                        fail(slot_frame,
+                             "PreparedRenderJob render failed with an unknown exception");
+                        break;
+                    }
+                    cv.notify_all();
+                }
+
+                lock.lock();
+                render_done = true;
+                cv.notify_all();
+            }
+        }
+
+        void encoder_loop() {
+            for (;;) {
+                std::unique_lock lock(mutex);
+                cv.wait(lock, [&] {
+                    return shutdown || (session_active && !encode_done);
+                });
+                if (shutdown) return;
+                if (!session_active) continue; // spurious/parked wakeup
+                const PreparedFrameEncoder* encoder = session_encoder;
+                lock.unlock();
+
+                for (;;) {
+                    runtime::FrameExecutionSlot* slot = nullptr;
+                    {
+                        std::unique_lock wait_lock(mutex);
+                        cv.wait(wait_lock, [&] {
+                            if (slot) return true;
+                            if (shutdown) return true;
+                            if ((slot = self.acquire_for_encoding()) != nullptr) {
+                                return true;
+                            }
+                            return failed || render_done;
+                        });
+                        if (!slot || shutdown) break; // stage drained / failure / shutdown
+                    }
+                    auto& payload = self.payload(*slot);
+                    const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
+                    try {
+                        if (!self.begin_encoding(*slot)) {
+                            throw std::runtime_error(
+                                "PreparedRenderJob failed to begin encoding frame");
+                        }
+                        if (!encoder || !payload.rendered ||
+                            !(*encoder)(slot_frame, *payload.rendered)) {
+                            (void)self.abort(*slot);
+                            fail(slot_frame, "PreparedRenderJob encoder rejected frame");
+                            break;
+                        }
+                    } catch (const std::exception& exception) {
+                        (void)self.abort(*slot);
+                        fail(slot_frame, std::string{"PreparedRenderJob encoder threw: "} +
+                                            exception.what());
+                        break;
+                    } catch (...) {
+                        (void)self.abort(*slot);
+                        fail(slot_frame,
+                             "PreparedRenderJob encoder threw an unknown exception");
+                        break;
+                    }
+                    payload.rendered.reset();
+                    (void)self.release_encoded(*slot);
+                    ++frames_encoded;
+                    cv.notify_all();
+                }
+
+                lock.lock();
+                encode_done = true;
+                cv.notify_all();
+            }
+        }
+    };
+
+    WorkerPool workers{*this};
 };
 
 PreparedRenderJob::PreparedRenderJob(std::unique_ptr<Impl> impl) noexcept

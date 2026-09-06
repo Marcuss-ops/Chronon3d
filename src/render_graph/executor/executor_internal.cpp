@@ -109,7 +109,13 @@ std::shared_ptr<Framebuffer> execute_internal(
             std::memory_order_relaxed);
     }
 
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    // Frame-scoped error slot. Nodes publish failures through the non-owning
+    // pointer copied into their cloned contexts; a clean frame pays zero
+    // allocations (no shared_ptr control block, no optional heap storage).
+    // Node execution is synchronous (TBB joins before execute_* returns), so
+    // stack lifetime covers every writer.
+    std::optional<NodeExecutionError> frame_error_slot;
+    ctx.frame_error = &frame_error_slot;
 
     if (compiled.program.fully_recorded) {
         execute_compiled_program(compiled.program, ctx, state, parent_counters);

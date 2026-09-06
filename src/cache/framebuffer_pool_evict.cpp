@@ -83,6 +83,8 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
 
     if (bucket.empty()) {
         m_free.erase(it);
+        // OPT-POOL-BESTFIT: drop the empty bucket from the ordered index.
+        m_free_by_area.erase({free_bucket_area(key), key});
     }
     return true;
 }
@@ -138,6 +140,8 @@ bool FramebufferPool::evict_global_lru() {
 
     if (bucket.empty()) {
         m_free.erase(*lru_key);
+        // OPT-POOL-BESTFIT: drop the empty bucket from the ordered index.
+        m_free_by_area.erase({free_bucket_area(*lru_key), *lru_key});
     }
     return true;
 }
@@ -223,9 +227,15 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
     const int rounded_w = round_up_bucket(options.width);
     const int rounded_h = round_up_bucket(options.height);
 
-    return do_preallocate_into_bucket(m_free, m_current_bytes,
+    const auto created = do_preallocate_into_bucket(m_free, m_current_bytes,
                                       m_config.max_retained_bytes,
                                       options, rounded_w, rounded_h, options.count);
+    if (created > 0) {
+        // OPT-POOL-BESTFIT: preallocation may have created a new bucket.
+        FramebufferPoolKey key{rounded_w, rounded_h};
+        m_free_by_area.insert({free_bucket_area(key), key});
+    }
+    return created;
 }
 
 size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions& options) {
@@ -249,9 +259,14 @@ size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions
     }
 
     const size_t needed = options.count - existing;
-    return do_preallocate_into_bucket(m_free, m_current_bytes,
+    const auto created = do_preallocate_into_bucket(m_free, m_current_bytes,
                                       m_config.max_retained_bytes,
                                       options, rounded_w, rounded_h, needed);
+    if (created > 0 && existing == 0) {
+        // OPT-POOL-BESTFIT: bucket may have been created by this call.
+        m_free_by_area.insert({free_bucket_area(key), key});
+    }
+    return created;
 }
 
 size_t FramebufferPool::warm_up(const std::vector<FramebufferPoolPreallocOptions>& predictions) {

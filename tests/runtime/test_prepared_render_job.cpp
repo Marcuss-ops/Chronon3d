@@ -121,6 +121,32 @@ TEST_CASE("PreparedRenderJob render_frames applies bounded encoder backpressure"
     CHECK(job.telemetry().pipeline_in_flight == 0);
 }
 
+TEST_CASE("PreparedRenderJob reuses its bounded workers across batches") {
+    chronon3d::RenderEngine engine;
+    auto job = engine.prepare(make_empty_composition());
+    std::vector<chronon3d::Frame> encoded;
+
+    const auto encode = [&](chronon3d::Frame frame,
+                            const chronon3d::Framebuffer&) {
+        encoded.push_back(frame);
+        return true;
+    };
+    const auto first = job.render_frames(
+        chronon3d::Frame{0}, chronon3d::Frame{4}, encode);
+    const auto second = job.render_frames(
+        chronon3d::Frame{4}, chronon3d::Frame{4}, encode);
+
+    REQUIRE(first.ok);
+    REQUIRE(second.ok);
+    CHECK(first.frames_encoded == 4);
+    CHECK(second.frames_encoded == 4);
+    CHECK(job.telemetry().pipeline_in_flight == 0);
+    REQUIRE(encoded.size() == 8);
+    for (std::size_t i = 0; i < encoded.size(); ++i) {
+        CHECK(encoded[i] == chronon3d::Frame{static_cast<chronon3d::i64>(i)});
+    }
+}
+
 TEST_CASE("PreparedRenderJob framebuffer allocations plateau after preparation") {
     const chronon3d::Composition composition{
         chronon3d::CompositionSpec{

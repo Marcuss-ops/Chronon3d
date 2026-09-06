@@ -309,7 +309,8 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     // P0-1 — seed the frame_error slot so the node can surface the
     // backend failure.  Without this, the node's ctx.frame_error is
     // null (no-op), and the test only validates the spdlog diagnostic.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    std::optional<NodeExecutionError> frame_error_slot;
+    ctx.frame_error = &frame_error_slot;
     REQUIRE_NOTHROW(auto _fb = node.execute(ctx, empty_inputs, empty_bboxes));
 
     // Locked invariant: the dispatch reached the backend exactly once.
@@ -365,7 +366,8 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
 
     // P0-1 — seed frame_error slot so the node can surface the failure.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    std::optional<NodeExecutionError> frame_error_slot;
+    ctx.frame_error = &frame_error_slot;
 
     // First call → diagnostic fires.
     {
@@ -426,7 +428,8 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
 
     // P0-1 — seed frame_error slot.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    std::optional<NodeExecutionError> frame_error_slot;
+    ctx.frame_error = &frame_error_slot;
 
     {
         REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
