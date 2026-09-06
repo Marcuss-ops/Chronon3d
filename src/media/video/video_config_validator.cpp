@@ -142,8 +142,22 @@ ValidationResult validate_video_sink_config(
         return {false, "transport.asynchronous=true is not yet implemented; "
                        "set transport.asynchronous=false for synchronous mode"};
     }
-    if (config.transport.write_timeout.count() < 0) {
-        return {false, "transport.write_timeout must be >= 0ms"};
+    if (config.transport.use_io_uring) {
+        return {false, "transport.use_io_uring=true is not implemented by any pipe "
+                       "transport; set transport.use_io_uring=false"};
+    }
+    // The implemented pipe transports are synchronous single-frame writers:
+    // queue_capacity must be 1 and write_timeout must be 0 (no deadline).
+    // Accepting any other value would promise queueing/timeout behaviour the
+    // transport does not enforce, so unsupported values fail fast instead of
+    // being silently ignored.
+    if (config.transport.queue_capacity != 1) {
+        return {false, "transport.queue_capacity must be 1 (synchronous single-frame "
+                       "transport; larger queues are not implemented)"};
+    }
+    if (config.transport.write_timeout.count() != 0) {
+        return {false, "transport.write_timeout must be 0ms (implemented writes are "
+                       "blocking with no deadline; timed writes are not implemented)"};
     }
     return {true, {}};
 }

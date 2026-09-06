@@ -150,6 +150,12 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
                              session, window_frame, &replay_diagnostic)) ||
             (session.capture_native_frame && session.captured_native_frame);
         if (ok) {
+            // Satisfied from the retained window: no keyframe seek, no GOP
+            // re-decode. Exposed via decode_profiling_stats() so regression
+            // tests can assert deterministically that a repeated or
+            // slightly-out-of-order request was replayed rather than
+            // re-decoded.
+            session.profiling.retained_replays++;
             return DecodedFrame{std::move(replayed), target_sample.pts,
                 target_sample.dts, target_sample.source_order};
         }
@@ -521,6 +527,7 @@ NativeVideoFrameDecoder::DecodeProfilingStats NativeVideoFrameDecoder::decode_pr
         if (!session) continue;
         std::lock_guard s_lock(session->mutex);
         total.decoded_frames += session->profiling.decoded_frames;
+        total.retained_replays += session->profiling.retained_replays;
         total.container_open_ms += session->profiling.container_open_ms;
         total.stream_probe_ms += session->profiling.stream_probe_ms;
         total.decoder_open_ms += session->profiling.decoder_open_ms;

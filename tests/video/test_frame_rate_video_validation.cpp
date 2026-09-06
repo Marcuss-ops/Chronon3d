@@ -129,3 +129,67 @@ TEST_CASE("frame_buffer_size: depends only on geometry, not fps") {
     // Verify determinism: calling twice yields same result.
     CHECK(frame_buffer_size(PixelFormat::YUV420P, W, H) == yuv_size);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+//  Section T: PipeTransportConfig honesty — unsupported values fail fast
+//
+//  The implemented pipe transports are synchronous single-frame writers
+//  (queue_capacity == 1, write_timeout == 0ms, io_uring off).  Any value that
+//  promises unimplemented queueing/timeout/async behaviour must be rejected
+//  by the validator instead of silently ignored.
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("VideoSinkConfig: default transport config passes validation") {
+    auto cfg = make_rate_config(30, 1);
+    // Sanity: defaults are queue_capacity=1 / write_timeout=0 / async=false /
+    // io_uring=false, i.e. exactly what the transports implement.
+    CHECK(cfg.transport.queue_capacity == 1);
+    CHECK(cfg.transport.write_timeout.count() == 0);
+    CHECK_FALSE(cfg.transport.asynchronous);
+    CHECK_FALSE(cfg.transport.use_io_uring);
+    CHECK(validate_video_sink_config(cfg).valid);
+}
+
+TEST_CASE("VideoSinkConfig: queue_capacity > 1 is rejected (not implemented)") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.queue_capacity = 4;
+    auto result = validate_video_sink_config(cfg);
+    CHECK_FALSE(result.valid);
+    CHECK(result.error_message.find("queue_capacity") != std::string::npos);
+}
+
+TEST_CASE("VideoSinkConfig: queue_capacity == 0 is rejected (not implemented)") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.queue_capacity = 0;
+    CHECK_FALSE(validate_video_sink_config(cfg).valid);
+}
+
+TEST_CASE("VideoSinkConfig: positive write_timeout is rejected (not implemented)") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.write_timeout = std::chrono::milliseconds(30000);
+    auto result = validate_video_sink_config(cfg);
+    CHECK_FALSE(result.valid);
+    CHECK(result.error_message.find("write_timeout") != std::string::npos);
+}
+
+TEST_CASE("VideoSinkConfig: negative write_timeout is rejected") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.write_timeout = std::chrono::milliseconds(-1);
+    CHECK_FALSE(validate_video_sink_config(cfg).valid);
+}
+
+TEST_CASE("VideoSinkConfig: use_io_uring=true is rejected (not implemented)") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.use_io_uring = true;
+    auto result = validate_video_sink_config(cfg);
+    CHECK_FALSE(result.valid);
+    CHECK(result.error_message.find("io_uring") != std::string::npos);
+}
+
+TEST_CASE("VideoSinkConfig: asynchronous=true is rejected (not implemented)") {
+    auto cfg = make_rate_config(30, 1);
+    cfg.transport.asynchronous = true;
+    auto result = validate_video_sink_config(cfg);
+    CHECK_FALSE(result.valid);
+    CHECK(result.error_message.find("asynchronous") != std::string::npos);
+}

@@ -38,7 +38,13 @@ void LevelTimings::roll_up(RenderCounters& counters,
         state_sum += state[i];
     }
 
-    double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
+    // Production dispatch intentionally keeps the per-node vectors empty.
+    // In that mode the whole dispatch duration is already accounted for by
+    // node_dispatch; reporting it again as overhead would double-count the
+    // same wall time. node_overhead is therefore an exclusive residual only
+    // when the detailed buckets are actually available.
+    double overhead_ms = n == 0 ? 0.0
+                       : dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
                        - pred_bbox_sum - clone_ctx_sum - state_sum;
     if (overhead_ms < 0.0) overhead_ms = 0.0;
 

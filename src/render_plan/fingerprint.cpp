@@ -179,6 +179,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     for (const auto value : layer.rotation) out.add_float(value);
     out.add_size(layer.rotation_dimensions);
 
+    add_optional(out, layer.radius,
+                 [](auto& writer, float value) { writer.add_float(value); });
+
     add_optional(out, layer.start_frame,
                  [](auto& writer, Frame value) { writer.add_frame(value); });
     add_optional(out, layer.duration_frames,

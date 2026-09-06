@@ -313,7 +313,33 @@ int SharedMemoryTransport::serve(const FrameHandler& handler) noexcept {
         }
 
         WireFrame request_frame(region->request, region->request + length);
-        WireFrame reply = handler(request_frame);
+        ServerReply server_reply;
+        try {
+            server_reply = handler(request_frame);
+        } catch (...) {
+            result = EIO;
+            region->response_len = 0;
+            region->server_closed = 1;
+            ::sem_post(&region->response_ready);
+            break;
+        }
+        const WireFrame& reply = server_reply.reply;
+        if (server_reply.shutdown) {
+            // Deliver the Shutdown acknowledgment to the client, then stop
+            // serving and report a clean shutdown (result stays 0).
+            if (reply.size() > kMaxFrameLen) {
+                result = EMSGSIZE;
+                region->response_len = 0;
+                region->server_closed = 1;
+                ::sem_post(&region->response_ready);
+                break;
+            }
+            std::memcpy(region->response, reply.data(), reply.size());
+            region->response_len = static_cast<std::uint32_t>(reply.size());
+            region->server_closed = 1;
+            ::sem_post(&region->response_ready);
+            break;
+        }
         if (reply.empty()) {
             region->response_len = 0;
             region->server_closed = 1;
