@@ -187,13 +187,20 @@ bool VideoSinkEncoderAdapter::build_sink_config(
 
     config.encoder.encoded_pixel_format = map_output_pix_fmt(opts.output_pix_fmt);
     config.encoder.apply_gamma = opts.color_transform.apply_gamma;
+    // The implemented pipe transports are synchronous single-frame writers:
+    // the config must describe exactly what they do (queue_capacity=1,
+    // write_timeout=0, io_uring/async off) or the validator would reject the
+    // unsupported values. A requested io_uring writer is an explicit error,
+    // not a silent fallback.
     config.transport.asynchronous = false;
-    config.transport.queue_capacity = 4;
+    config.transport.queue_capacity = 1;
     if (opts.pipe_writer == "io_uring") {
-        spdlog::warn("[video_adapter] io_uring pipe writer is not implemented; falling back to classic synchronous pipe");
+        spdlog::error("[video_adapter] io_uring pipe writer is not implemented; "
+                      "refusing config instead of silently writing synchronously");
+        return false;
     }
     config.transport.use_io_uring = false;
-    config.transport.write_timeout = std::chrono::milliseconds(30000);
+    config.transport.write_timeout = std::chrono::milliseconds(0);
     config.output.container = sink_type_ == VideoSinkType::RawFile
         ? VideoContainer::Raw : detect_container(opts.output_path);
     config.output.output_path = std::filesystem::path(opts.output_path);

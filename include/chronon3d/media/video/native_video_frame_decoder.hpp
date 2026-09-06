@@ -72,6 +72,13 @@ public:
 
     struct DecodeProfilingStats {
         uint64_t decoded_frames{0};
+        /// Number of requests satisfied from the retained-frame window
+        /// instead of a keyframe seek + GOP re-decode (duplicate or
+        /// slightly-out-of-order sample indices, e.g. two layers sharing one
+        /// source path). Monotonic per session; deterministic regression
+        /// coverage asserts this increments on replays and stays flat on new
+        /// sample decodes.
+        uint64_t retained_replays{0};
         double container_open_ms{0.0};
         double stream_probe_ms{0.0};
         double decoder_open_ms{0.0};

@@ -29,9 +29,21 @@ namespace chronon3d::ipc {
 /// Transport-level only — never parsed by the transport layer.
 using WireFrame = std::vector<std::uint8_t>;
 
+/// Server handler result: the reply wire-frame plus a flag telling the
+/// transport that this reply is a terminal Shutdown acknowledgment after
+/// which the server must stop accepting/serving clients.
+///
+/// A reply that is empty (but not a shutdown) tells the transport to close
+/// this client's connection without sending anything.
+struct ServerReply {
+    WireFrame reply;
+    bool shutdown{false};
+};
+
 /// Callback invoked by the server when a complete frame arrives from a
-/// client.  Returns the reply wire-frame (or empty vector on error).
-using FrameHandler = std::function<WireFrame(const WireFrame&)>;
+/// client.  Returns the reply wire-frame (or empty vector on error) plus the
+/// shutdown signal.
+using FrameHandler = std::function<ServerReply(const WireFrame&)>;
 
 // ── Transport interface ────────────────────────────────────────────────────
 
@@ -44,9 +56,13 @@ public:
     /// Throws std::system_error on failure.
     virtual void listen(std::string_view address) = 0;
 
-    /// Blocking accept + serve loop.  Each incoming connection is served
-    /// until the client disconnects or the handler returns a Shutdown
-    /// reply.  Returns 0 on clean exit, or a positive errno on failure.
+    /// Accept + serve loop.  Connections are served concurrently (each client
+    /// owns a serving thread) while handler dispatch is serialized, so an
+    /// idle connection can never block other clients.  Serving continues
+    /// until a handler returns ServerReply::shutdown == true (the reply is
+    /// delivered first), the transport is closed, or a transport error
+    /// occurs.  Returns 0 on clean exit (including Shutdown), or a positive
+    /// errno on failure.
     [[nodiscard]] virtual int serve(const FrameHandler& handler) noexcept = 0;
 
     /// Close the transport and release resources.  No-op if already closed.

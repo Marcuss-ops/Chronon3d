@@ -132,6 +132,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                        static_cast<float>(plan.canvas.height)};
                             params.fit = detail::fit_mode(
                                 layer.fit.value_or(FitMode::Cover));
+                            params.radius = layer.radius.value_or(0.0f);
                             builder.image("image", std::move(params));
                             break;
                         }

@@ -110,6 +110,7 @@
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },
+          "radius": { "type": "number", "minimum": 0 },
           "style": {
             "type": "object",
             "additionalProperties": false,

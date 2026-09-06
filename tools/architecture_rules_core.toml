@@ -492,6 +492,16 @@ required_patterns = [
 ]
 
 [[contract]]
+name = "native_decoder_retained_replay_coverage"
+description = "Native decoder test must pin the retained-frame replay contract"
+file = "tests/video/test_native_video_retained_replay.cpp"
+optional = true
+required_patterns = [
+    'retained_replays',
+    'decode_native_frame_at',
+]
+
+[[contract]]
 name = "effect_processor_coverage"
 description = "Every catalogued effect must have a software processor registration"
 effect_catalog = "include/chronon3d/effects/effect_catalog.def"

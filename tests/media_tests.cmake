@@ -77,6 +77,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
         TIER INTEGRATION
         LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
         SOURCES video/test_native_video_frame_decoder.cpp
+            video/test_native_video_retained_replay.cpp
             video/test_video_device_runtime.cpp
     )
 

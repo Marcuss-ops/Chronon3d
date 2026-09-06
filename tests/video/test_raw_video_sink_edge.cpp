@@ -447,6 +447,36 @@ TEST_CASE("RawVideoSink: submit after flush succeeds (flush stays Open)") {
     std::filesystem::remove(path);
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  close() must not report success when the final flush fails
+//  ═════════════════════════════════════════════════════════════════════════════
+
+#if defined(__linux__)
+TEST_CASE("RawVideoSink: close reports failure when the final flush fails") {
+    // /dev/full accepts open() and buffered writes but fails the flush with
+    // ENOSPC — exactly the late I/O failure (disk full, remote FS error) that
+    // close() used to swallow by returning true unconditionally.
+    RawVideoSink sink;
+    auto cfg = make_config(8, 8, PixelFormat::RGBA8, "/dev/full", true);
+    REQUIRE(sink.open(cfg));
+    CHECK(sink.state() == VideoSinkState::Open);
+
+    std::vector<uint8_t> buf(8 * 8 * 4, 0xAB);
+    VideoFrameView fv;
+    fv.data          = buf.data();
+    fv.width         = 8;
+    fv.height        = 8;
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
+    CHECK(sink.submit(fv));  // buffered write succeeds
+
+    CHECK_FALSE(sink.close());
+    // The failure is surfaced: the sink must NOT claim Closed success on an
+    // output that was never durably written.
+    CHECK(sink.state() == VideoSinkState::Failed);
+}
+#endif
+
 TEST_CASE("RawVideoSink: submit with format different from session fails") {
     const auto path = temp_path("format_mismatch");
 

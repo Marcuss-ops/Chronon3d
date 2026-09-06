@@ -19,7 +19,7 @@ TEST_CASE("SharedMemoryTransport round-trips bounded wire frames") {
     std::atomic<int> serve_result{-1};
     std::thread serving([&] {
         serve_result.store(server.serve([](const WireFrame& request) {
-            return WireFrame(request.rbegin(), request.rend());
+            return ServerReply{WireFrame(request.rbegin(), request.rend()), false};
         }), std::memory_order_release);
     });
 
@@ -62,7 +62,7 @@ TEST_CASE("SharedMemoryTransport transfers the memfd across a process boundary")
     }
 
     const int serve_result = server.serve([](const WireFrame& request) {
-        return WireFrame(request.rbegin(), request.rend());
+        return ServerReply{WireFrame(request.rbegin(), request.rend()), false};
     });
     CHECK(serve_result == 0);
 

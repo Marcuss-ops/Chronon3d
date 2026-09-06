@@ -19,24 +19,6 @@
 
 namespace chronon3d::media {
 
-struct alignas(8) DirectYuvLayerHost {
-    int kind{0};
-    CUdeviceptr rgba{0};
-    CUdeviceptr y{0};
-    CUdeviceptr uv{0};
-    int pitch{0};
-    int uv_pitch{0};
-    int source_width{0};
-    int source_height{0};
-    float dst_x0{0.0f}, dst_y0{0.0f}, dst_x1{0.0f}, dst_y1{0.0f};
-    float src_x0{0.0f}, src_y0{0.0f}, src_x1{1.0f}, src_y1{1.0f};
-    float opacity{1.0f};
-    int blend_mode{0};
-    float corner_radius{0.0f};
-    float _pad{0.0f};
-};
-static_assert(sizeof(DirectYuvLayerHost) == 96);
-
 constexpr const char* kDirectKernel = R"CUDA(
 struct DirectYuvLayer {
   int kind;
@@ -285,8 +267,13 @@ bool CudaDirectNv12Compositor::composite_direct_nv12_batch(
     if (!kernel_ || !bg_y || !bg_uv || !out_y || !out_uv ||
         width == 0 || height == 0 || batch.instances.empty()) return false;
 
-    std::vector<DirectYuvLayerHost> host_layers;
-    host_layers.reserve(batch.instances.size());
+    // Reuse the member scratch vector instead of allocating a fresh host
+    // array per composited frame: capacity is preserved across calls so the
+    // DirectYUV hot path does no per-frame heap churn (mirrors the
+    // device-side layer_batch_buffer_ capacity reuse below).
+    host_layers_scratch_.clear();
+    host_layers_scratch_.reserve(batch.instances.size());
+    auto& host_layers = host_layers_scratch_;
     for (const auto& instance : batch.instances) {
         if (instance.resource_index >= resources.size()) return false;
         const auto& resource = resources[instance.resource_index];

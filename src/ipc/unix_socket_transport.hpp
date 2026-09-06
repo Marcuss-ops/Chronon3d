@@ -16,6 +16,7 @@
 #include "ipc_transport.hpp"
 #include <chronon3d/internal/testing/failure_injector.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -151,15 +152,104 @@ public:
     }
 
     int serve(const FrameHandler& handler) noexcept override {
-        for (;;) {
+        // Concurrency model (see ipc_transport.hpp): connections are served
+        // concurrently by per-client threads, while handler dispatch is
+        // serialized under a single mutex. The RenderEngine is not assumed
+        // thread-safe, so two clients can never dispatch at the same time —
+        // but an idle client holding its socket open can no longer block
+        // every other client from being served (the historical single-thread
+        // accept→serve_client→accept loop's head-of-line stall).
+        std::atomic<bool> shutdown_requested{false};
+        struct ActiveClients {
+            std::mutex mutex;
+            std::vector<int> fds;
+        };
+        const auto active = std::make_shared<ActiveClients>();
+        std::mutex dispatch_mutex;
+        std::vector<std::thread> workers;
+
+        // Wake every client worker blocked in recv() so they exit and can be
+        // joined before serve() returns (a std::thread must never outlive the
+        // locals this lambda captures).
+        const auto stop_all_workers = [&]() noexcept {
+            shutdown_requested.store(true, std::memory_order_release);
+            std::lock_guard lock(active->mutex);
+            for (const int fd : active->fds) ::shutdown(fd, SHUT_RDWR);
+        };
+
+        while (!shutdown_requested.load(std::memory_order_acquire)) {
+            pollfd ready{};
+            ready.fd = m_fd;
+            ready.events = POLLIN;
+            const int polled = ::poll(&ready, 1, 100);
+            if (polled < 0) {
+                if (errno == EINTR) continue;
+                stop_all_workers();
+                for (auto& worker : workers) {
+                    if (worker.joinable()) worker.join();
+                }
+                return errno;
+            }
+            if (polled == 0) continue;
             const int client = ::accept(m_fd, nullptr, nullptr);
             if (client < 0) {
                 if (errno == EINTR) continue;
+                stop_all_workers();
+                for (auto& worker : workers) {
+                    if (worker.joinable()) worker.join();
+                }
                 return errno;
             }
-            serve_client(client, handler);
-            ::close(client);
+            {
+                // Register the client under the same lock a Shutdown-signalling
+                // worker uses to wake peers, so no accepted fd can be missed:
+                // if Shutdown already raced ahead of this accept, close the fd
+                // here rather than spawning a worker nobody will ever wake.
+                std::lock_guard lock(active->mutex);
+                if (shutdown_requested.load(std::memory_order_acquire)) {
+                    ::shutdown(client, SHUT_RDWR);
+                    ::close(client);
+                    break;
+                }
+                active->fds.push_back(client);
+            }
+            try {
+                workers.emplace_back([this, client, &handler, &shutdown_requested,
+                                      active, &dispatch_mutex]() {
+                    bool shutdown = false;
+                    serve_client(client, handler, dispatch_mutex, &shutdown);
+                    ::close(client);
+                    {
+                        std::lock_guard lock(active->mutex);
+                        active->fds.erase(
+                            std::remove(active->fds.begin(), active->fds.end(), client),
+                            active->fds.end());
+                    }
+                    if (shutdown) {
+                        // Deliver Shutdown has completed: stop accepting and
+                        // wake every other client so serve() can return 0.
+                        std::lock_guard lock(active->mutex);
+                        for (const int fd : active->fds) {
+                            if (fd != client) ::shutdown(fd, SHUT_RDWR);
+                        }
+                        shutdown_requested.store(true, std::memory_order_release);
+                    }
+                });
+            } catch (const std::exception&) {
+                // Thread creation/resource exhaustion: never return from a
+                // noexcept serve() with joinable workers alive.
+                ::close(client);
+                stop_all_workers();
+                for (auto& worker : workers) {
+                    if (worker.joinable()) worker.join();
+                }
+                return EAGAIN;
+            }
         }
+        for (auto& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
+        return 0;
     }
 
     void close() noexcept override {
@@ -176,13 +266,30 @@ public:
     [[nodiscard]] const std::string& address() const noexcept override { return m_address; }
 
 private:
-    static void serve_client(int fd, const FrameHandler& handler) noexcept {
+    static void serve_client(int fd, const FrameHandler& handler,
+                             std::mutex& dispatch_mutex, bool* shutdown) noexcept {
         while (true) {
             auto frame = LengthPrefixFraming::read_frame(fd);
             if (!frame) break;
-            const WireFrame reply = handler(*frame);
-            if (reply.empty()) break;
-            if (!LengthPrefixFraming::write_frame(fd, reply)) break;
+            ServerReply result;
+            try {
+                std::lock_guard lock(dispatch_mutex);
+                result = handler(*frame);
+            } catch (...) {
+                // A throwing handler must never take down the daemon; treat
+                // it as a transport error for this client.
+                break;
+            }
+            if (result.shutdown) {
+                // Deliver the Shutdown acknowledgment, then stop serving so
+                // the accept loop can exit. Even if the write fails, the
+                // daemon must terminate (never keep looping after Shutdown).
+                (void)LengthPrefixFraming::write_frame(fd, result.reply);
+                *shutdown = true;
+                return;
+            }
+            if (result.reply.empty()) break;
+            if (!LengthPrefixFraming::write_frame(fd, result.reply)) break;
         }
     }
 
