@@ -164,6 +164,11 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
             "failed to initialize decoder parameters");
         avcodec_free_context(&cc); return nullptr;
     }
+    // CUVID needs the packet time base explicitly.  Without it FFmpeg emits
+    // "Invalid pkt_timebase" and passes packet timestamps through unchanged;
+    // that is unsafe for GOP seeks and can surface as intermittent frame
+    // glitches even when the output container remains decodable.
+    cc->pkt_timebase = fmt->streams[index]->time_base;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     const bool uses_nvdec = codec->name && std::string_view(codec->name).ends_with("_cuvid");
     AVBufferRef* device = nullptr;
@@ -212,8 +217,15 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
         return nullptr;
     }
     session->test_options = m_test_options;
-    const bool prefetch_enabled = m_test_options.enable_prefetch &&
-        m_gpu_hot_path_mode != GpuHotPathMode::RequireDirectYuv;
+    // Native GPU graph renders synchronously request each source frame. A
+    // prefetch worker can already hold decode_mutex inside NVDEC when the
+    // graph asks to stop/join it, creating a driver-level wait cycle (most
+    // visible with two video nodes). Keep speculative prefetch for the CPU
+    // path, but disable it for both native GPU paths.
+    const bool native_gpu_path =
+        m_gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv ||
+        m_gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
+    const bool prefetch_enabled = m_test_options.enable_prefetch && !native_gpu_path;
     if (prefetch_enabled) session->start_prefetch_worker(this);
     else session->direct_prefetch_disabled = true;
     m_sessions[path] = session;

@@ -91,7 +91,14 @@ CompiledFrameGraph build_synthetic_compiled_graph() {
     g.prepared_parameters = table;
 
     // ── Physical plan ──────────────────────────────────────────────────
-    g.resource_table().slots.push_back(chronon3d::runtime::PhysicalResourceSlot{});
+    // The physical slot must carry a real extent: Fase C sizing derives
+    // surface bytes from desc width/height × bytes_per_pixel (RGBA32F=16)
+    // when capacity_bytes is zero, so a default-constructed slot yields
+    // a zero-byte plan.
+    auto slot = chronon3d::runtime::PhysicalResourceSlot{};
+    slot.desc.width  = 64;
+    slot.desc.height = 64;
+    g.resource_table().slots.push_back(slot);
     g.resource_table().physical_slot_count = 1;
     g.resource_table().logical_resource_count = 3;
     g.resource_table().resources.resize(3);

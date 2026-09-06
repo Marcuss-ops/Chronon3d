@@ -9,6 +9,7 @@
 #include <chronon3d/timeline/composition_definition.hpp>
 
 #include <filesystem>
+#include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -137,6 +138,23 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         case LayerType::Video: {
                             video::VideoSource source{
                                 .path = resolved_video_paths[index]};
+                            // Render-plan video geometry is expressed as a
+                            // top-left canvas box.  The canonical scene
+                            // transform, consumed by both the graph and
+                            // DirectYUV, is centre-relative.  Preserve the
+                            // effective displayed size by making the source
+                            // size the pre-scale box; this also prevents the
+                            // DirectYUV path from applying `size` and
+                            // `scale` twice.
+                            if (layer.size_dimensions == 2) {
+                                const float sx = std::abs(layer.scale[0]) > 1e-6f
+                                    ? std::abs(layer.scale[0]) : 1.0f;
+                                const float sy = std::abs(layer.scale[1]) > 1e-6f
+                                    ? std::abs(layer.scale[1]) : 1.0f;
+                                source.size = {
+                                    layer.size[0] / sx,
+                                    layer.size[1] / sy};
+                            }
                             if (layer.loop)
                                 source.loop_mode = video::VideoLoopMode::Loop;
                             builder.video(std::move(source));
@@ -167,6 +185,23 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         }
                     }
                     detail::apply_layer_primitives(builder, layer);
+                    if (layer.type == LayerType::Video &&
+                        layer.position_dimensions >= 2) {
+                        const float sx = std::abs(layer.scale[0]) > 1e-6f
+                            ? std::abs(layer.scale[0]) : 1.0f;
+                        const float sy = std::abs(layer.scale[1]) > 1e-6f
+                            ? std::abs(layer.scale[1]) : 1.0f;
+                        const float displayed_w = layer.size_dimensions == 2
+                            ? layer.size[0] : static_cast<float>(plan.canvas.width) * sx;
+                        const float displayed_h = layer.size_dimensions == 2
+                            ? layer.size[1] : static_cast<float>(plan.canvas.height) * sy;
+                        builder.position({
+                            layer.position[0] + displayed_w * 0.5f -
+                                static_cast<float>(plan.canvas.width) * 0.5f,
+                            layer.position[1] + displayed_h * 0.5f -
+                                static_cast<float>(plan.canvas.height) * 0.5f,
+                            layer.position[2]});
+                    }
                 });
             }
             return scene.build();
