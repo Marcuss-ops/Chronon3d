@@ -151,7 +151,7 @@ Using the resolved font size means the binary search runs on every **first** mat
 
 ### Spec
 
-Auto-fit runs **once** at materialization time (`materialize_text_run_shape` → `compile_or_cache_layout`).  The per-frame driver (`update_text_run_shape_per_frame`) does **not** re-run auto-fit.  If the box size changes between frames, the materialized shape retains the font size from the first materialization until a full re-materialization is triggered.
+Auto-fit runs **once** at materialization time (`materialize_prepared_text` → `compile_or_cache_layout`).  The per-frame driver (`update_text_run_shape_per_frame`) does **not** re-run auto-fit.  If the box size changes between frames, the materialized shape retains the font size from the first materialization until a full re-materialization is triggered.
 
 ### Rationale
 

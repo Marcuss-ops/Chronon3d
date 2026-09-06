@@ -3,12 +3,11 @@
 // For every StaticBakeRegion discovered by the temporal analysis, prepare()
 // marks interior nodes as skip and records the root node as a baked producer.
 //
-// Phase 4 does NOT allocate GPU surfaces.  The former Phase 5 entry point
-// preallocate_surfaces()/RenderBackend::preallocate_plan_surfaces() has been
-// DEMOLISHED (P1.4): it never preallocated anything — the Vulkan override
-// only set plan_preallocated=false and pruned unused slots.  Native surface
-// materialization is lazily owned by the VulkanSurfaceAuthority; the
-// compiled plan drives WHICH surfaces exist, not this hook.
+// Phase 4 does NOT allocate GPU surfaces.  The former Phase 5 pre-allocation
+// entry points were DEMOLISHED (P1.4): they never preallocated anything — the
+// Vulkan override only set plan_preallocated=false and pruned unused slots.
+// Native surface materialization is lazily owned by the VulkanSurfaceAuthority;
+// the compiled plan drives WHICH surfaces exist, not this hook.
 //
 // What Phase 4 delivers:
 //   1. `interior_node_skip` mask: interior nodes execute = 0 after prepare
