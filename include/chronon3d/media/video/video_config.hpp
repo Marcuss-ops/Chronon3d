@@ -137,10 +137,19 @@ struct VideoEncoderConfig {
 // ==========================================================================
 
 /// Controls the internal transport between the producer and the encoder.
+///
+/// The implemented pipe transports (RawVideoSink and the FFmpeg pipe sink)
+/// are synchronous, single-frame writers: submit() blocks until the frame is
+/// fully written and the sink stages exactly one frame at a time. Every field
+/// below therefore describes REAL implemented behaviour, and the config
+/// validator rejects any value the transports do not implement — a setting
+/// that promises unsupported behaviour is never silently ignored.
 struct PipeTransportConfig {
     /// Maximum number of frames buffered in the internal queue.
-    /// Higher values smooth out render-time spikes but use more memory.
-    std::size_t queue_capacity{4};
+    /// Implemented transports are synchronous single-frame writers, so the
+    /// only supported capacity is 1 (the in-flight staging frame). The
+    /// validator rejects any other value as not implemented.
+    std::size_t queue_capacity{1};
 
     /// When true, frame submission returns immediately after enqueuing.
     /// When false, submit() blocks until the frame is fully written.
@@ -149,12 +158,16 @@ struct PipeTransportConfig {
     bool asynchronous{false};
 
     /// Use Linux io_uring for asynchronous I/O (experimental).
-    /// Ignored on non-Linux platforms or when io_uring is unavailable.
+    /// io_uring is NOT implemented by any pipe transport; the validator
+    /// rejects use_io_uring=true instead of silently ignoring it.
     bool use_io_uring{false};
 
     /// Maximum time to wait for a write to complete (per-frame).
-    /// 0 = no timeout (block indefinitely).
-    std::chrono::milliseconds write_timeout{30000};
+    /// Implemented writes are blocking with no deadline, so the only honest
+    /// value is 0 (= no timeout). Any positive timeout promises a bounded
+    /// write that the transport does not enforce and is rejected by the
+    /// validator.
+    std::chrono::milliseconds write_timeout{0};
 };
 
 // ==========================================================================

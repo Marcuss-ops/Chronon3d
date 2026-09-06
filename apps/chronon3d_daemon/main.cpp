@@ -31,24 +31,38 @@ struct DaemonArgs {
     std::string backend{"auto"};
 };
 
+[[noreturn]] void print_usage_and_exit(int code) {
+    fmt::print(stderr,
+        "Usage: chronon3d_daemon [options]\n\n"
+        "  --socket PATH      Unix socket path (default: /tmp/chronon.sock)\n"
+        "  --assets-root DIR  Asset resolution root\n"
+        "  --backend NAME     Render backend: auto|software|vulkan\n"
+        "  --help, -h         Show this help\n");
+    std::exit(code);
+}
+
+[[noreturn]] void usage_error(const char* message) {
+    fmt::print(stderr, "Error: {}\n\n", message);
+    print_usage_and_exit(2);
+}
+
 DaemonArgs parse_args(int argc, char* argv[]) {
     DaemonArgs args;
     for (int i = 1; i < argc; ++i) {
-        std::string_view arg = argv[i];
-        if (arg == "--socket" && i + 1 < argc) {
+        const std::string_view arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            print_usage_and_exit(0);
+        } else if (arg == "--socket") {
+            if (i + 1 >= argc) usage_error("--socket requires a PATH argument");
             args.socket_path = argv[++i];
-        } else if (arg == "--assets-root" && i + 1 < argc) {
+        } else if (arg == "--assets-root") {
+            if (i + 1 >= argc) usage_error("--assets-root requires a DIR argument");
             args.assets_root = argv[++i];
-        } else if (arg == "--backend" && i + 1 < argc) {
+        } else if (arg == "--backend") {
+            if (i + 1 >= argc) usage_error("--backend requires a NAME argument");
             args.backend = argv[++i];
-        } else if (arg == "--help" || arg == "-h") {
-            fmt::print(stderr,
-                "Usage: chronon3d_daemon [options]\n\n"
-                "  --socket PATH      Unix socket path (default: /tmp/chronon.sock)\n"
-                "  --assets-root DIR  Asset resolution root\n"
-                "  --backend NAME     Render backend: auto|software|vulkan\n"
-                "  --help, -h         Show this help\n");
-            std::exit(0);
+        } else {
+            usage_error("unknown argument");
         }
     }
     return args;
@@ -57,7 +71,8 @@ DaemonArgs parse_args(int argc, char* argv[]) {
 graph::BackendPreference preference_from_string(std::string_view s) {
     if (s == "software") return graph::BackendPreference::Software;
     if (s == "vulkan")   return graph::BackendPreference::GPU;
-    return graph::BackendPreference::Auto;
+    if (s == "auto")     return graph::BackendPreference::Auto;
+    usage_error("unsupported --backend value; expected auto|software|vulkan");
 }
 
 } // anonymous namespace
@@ -91,18 +106,22 @@ int main(int argc, char* argv[]) {
 
     IpcCommandDispatcher dispatcher(std::move(engine));
 
-    const FrameHandler handler = [&dispatcher, &args](const WireFrame& request) -> WireFrame {
+    const FrameHandler handler = [&dispatcher, &args](const WireFrame& request) -> ServerReply {
         auto decoded = IpcCodec::decode_request(request);
         if (!decoded) {
-            return IpcCodec::encode_reply(0, IpcResponse{
-                IpcCreateCompositionResult{IpcStatus_BadRequest, "bad request"}});
+            return ServerReply{IpcCodec::encode_reply(0, IpcResponse{
+                IpcCreateCompositionResult{IpcStatus_BadRequest, "bad request"}}), false};
         }
 
         const auto [msg_id, req] = *decoded;
 
         if (std::holds_alternative<IpcShutdown>(req)) {
-            return IpcCodec::encode_reply(msg_id, IpcResponse{
-                IpcShutdownResult{IpcStatus_Shutdown, "bye"}});
+            // Shutdown is a terminal transport signal: the reply is delivered
+            // first, then the transport stops serving and main() exits so the
+            // daemon process actually terminates (never loops for new
+            // clients after acknowledging Shutdown).
+            return ServerReply{IpcCodec::encode_reply(msg_id, IpcResponse{
+                IpcShutdownResult{IpcStatus_Shutdown, "bye"}}), true};
         }
 
 #ifdef CHRONON3D_ENABLE_CRASH_HANDLER
@@ -129,7 +148,7 @@ int main(int argc, char* argv[]) {
         chronon3d::crash::set_crash_context(nullptr);
 #endif
 
-        return IpcCodec::encode_reply(msg_id, response);
+        return ServerReply{IpcCodec::encode_reply(msg_id, response), false};
     };
 
     UnixSocketTransport transport;
