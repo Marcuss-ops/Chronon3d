@@ -1,5 +1,3 @@
-#include <optional>
-static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_run_driver.cpp — Per-frame TextRun driver tests (PR 8)
 //
@@ -21,9 +19,14 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <chronon3d/text/text_resolver.hpp>
 #include <doctest/doctest.h>
 
+#include <optional>
 #include <vector>
 
 using namespace chronon3d;
+
+// File-local cache, declared AFTER includes for unity-build safety (the
+// same pattern as test_text_run_driver_pr10.cpp / test_compile_text_layout_identity.cpp).
+static chronon3d::TextLayoutCache s_text_cache;
 
 namespace {
 

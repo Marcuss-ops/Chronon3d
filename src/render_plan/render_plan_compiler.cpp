@@ -174,7 +174,20 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         definition.scene_content_fingerprint = content_fingerprint;
 
         const auto composition_t0 = chronon3d::profiling::now();
-        auto compiled = chronon3d::compile_composition(definition, {});
+        // Canonical compile path: compile_composition() takes a Composition,
+        // not a CompositionDefinition (the deprecated definition overload was
+        // removed).  Project the definition onto a Composition, threading the
+        // optional camera descriptor exactly like the removed adapter did.
+        Composition definition_composition(
+            definition.composition,
+            definition.scene,
+            definition.scene_content_fingerprint);
+        if (definition.camera.has_value()) {
+            definition_composition.default_camera_descriptor(
+                *definition.camera);
+        }
+        auto compiled =
+            chronon3d::compile_composition(definition_composition, {});
         composition_compile_ms = chronon3d::profiling::duration_ms(
             composition_t0, chronon3d::profiling::now());
         if (!compiled)

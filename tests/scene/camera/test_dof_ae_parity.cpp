@@ -71,7 +71,15 @@ CompositionEvaluateContext make_ctx(Frame fr = Frame{0}) {
 }
 
 Camera2_5D eval_one(CompositionDefinition& def, Frame fr = Frame{0}) {
-    auto cc_res = compile_composition(def, {});
+    // Canonical path: the deprecated compile_composition(CompositionDefinition)
+    // overload was removed — project onto a Composition, threading the camera
+    // descriptor the same way the removed adapter did.
+    Composition composition(def.composition, def.scene,
+                            def.scene_content_fingerprint);
+    if (def.camera.has_value()) {
+        composition.default_camera_descriptor(*def.camera);
+    }
+    auto cc_res = compile_composition(composition, {});
     REQUIRE(cc_res.has_value());
     auto cc = std::move(cc_res).value();
     REQUIRE(cc.camera_program);
