@@ -203,6 +203,12 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
                 const auto receipt_path =
                     verification::write_render_receipt(receipt, output);
                 spdlog::info("receipt: {}", receipt_path.string());
+                spdlog::info(
+                    "[video] receipt verification total_ms={:.1f} "
+                    "sha256_ms={:.1f} probe_ms={:.1f} decode_ms={:.1f} copy_eligible={}",
+                    receipt.timing.total_ms, receipt.timing.sha256_ms,
+                    receipt.timing.probe_ms, receipt.timing.decode_ms,
+                    receipt.copy_eligible ? "true" : "false");
             } catch (const std::exception& error) {
                 spdlog::warn("receipt generation failed: {}", error.what());
             }

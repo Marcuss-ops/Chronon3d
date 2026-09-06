@@ -5,12 +5,13 @@
 #include <nlohmann/json.hpp>
 
 #include <array>
+#include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include <cmath>
 
 namespace chronon3d::verification {
 
@@ -32,6 +33,48 @@ std::string run_capture(const std::string& command) {
 /// Exit-code probe (0 on success).
 bool command_succeeds(const std::string& command) {
     return std::system(command.c_str()) == 0;
+}
+
+/// Run a command, capture stdout and report whether it exited 0.
+struct CapturedOutput {
+    std::string out;
+    bool exit_ok{false};
+};
+
+CapturedOutput run_capture_checked(const std::string& command) {
+    CapturedOutput result;
+    std::array<char, 4096> buffer{};
+    std::FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe) return result;
+    while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+        result.out += buffer.data();
+    }
+    result.exit_ok = pclose(pipe) == 0;
+    return result;
+}
+
+/// Post-render verification policy.  Controlled by CHRONON_RECEIPT_VERIFY:
+///   "fast"    — container/stream metadata only; the freshly-muxed output is
+///               NOT re-decoded.  Default: the encoder + muxer just succeeded
+///               in-process and no consumer gates on the receipt's decode
+///               verdict, so a full re-decode of the whole output would only
+///               slow the render lane down.
+///   "normal"  — ONE full decode pass (`ffmpeg -f null -`, multithreaded) as
+///               the decodability gate; frame count comes from the container.
+///   "certify" — historical strict gate: full `ffprobe -count_frames` decode
+///               (frame count) PLUS the independent `ffmpeg -f null -` smoke.
+enum class VerifyLevel { Fast, Normal, Certify };
+
+VerifyLevel verify_level() {
+    static const VerifyLevel level = [] {
+        if (const char* raw = std::getenv("CHRONON_RECEIPT_VERIFY")) {
+            const std::string value(raw);
+            if (value == "normal") return VerifyLevel::Normal;
+            if (value == "certify") return VerifyLevel::Certify;
+        }
+        return VerifyLevel::Fast;
+    }();
+    return level;
 }
 
 /// Parse "num/den" into numerator/denominator (denominator defaults to 1).
@@ -67,16 +110,30 @@ std::int64_t stream_frame_count(const nlohmann::json& stream) {
 
 /// ffprobe the output and fill the media contract (video + audio streams).
 /// Returns true when a video stream was probed.
-bool probe_media(const std::filesystem::path& output, MediaContract& media) {
-    const std::string command =
-        "ffprobe -v error -count_frames -show_streams -show_format -of json '" +
-        output.string() + "' 2>/dev/null";
-    const std::string raw = run_capture(command);
-    if (raw.empty()) return false;
+///
+/// `decode_count` adds `-count_frames`, which makes ffprobe fully re-decode
+/// the video stream to report `nb_read_frames`.  Only the historical
+/// "certify" level pays that second full decode (the normal level's single
+/// `ffmpeg -f null -` pass is the decode gate and reads the frame count from
+/// the container instead).  `require_exit_ok` is false only for the legacy
+/// certify path, which keeps its historical tolerance for non-zero exits.
+bool probe_media(const std::filesystem::path& output, MediaContract& media,
+                 bool decode_count, bool require_exit_ok, double* ms_out) {
+    const auto start = std::chrono::steady_clock::now();
+    std::string command = "ffprobe -v error ";
+    if (decode_count) command += "-count_frames ";
+    command += "-show_streams -show_format -of json '" +
+               output.string() + "' 2>/dev/null";
+    const CapturedOutput captured = run_capture_checked(command);
+    if (ms_out != nullptr) {
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        *ms_out = std::chrono::duration<double, std::milli>(elapsed).count();
+    }
+    if (captured.out.empty() || (require_exit_ok && !captured.exit_ok)) return false;
 
     nlohmann::json js;
     try {
-        js = nlohmann::json::parse(raw);
+        js = nlohmann::json::parse(captured.out);
     } catch (...) {
         return false;
     }
@@ -120,6 +177,7 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media) {
 RenderReceipt build_render_receipt(const RenderReceiptInput& input,
                                    const std::filesystem::path& output_path,
                                    bool is_video) {
+    const auto total_start = std::chrono::steady_clock::now();
     RenderReceipt receipt;
 
     // Reuse the caller-provided identity — never recompute it.
@@ -146,24 +204,65 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
         receipt.bytes = static_cast<std::int64_t>(
             std::filesystem::file_size(output_path, ec));
         if (ec) receipt.bytes = -1;
+        const auto sha_start = std::chrono::steady_clock::now();
         if (const auto digest = chronon3d::assets::sha256_file(output_path)) {
             receipt.sha256 = digest->hex();
         }
+        const auto sha_elapsed = std::chrono::steady_clock::now() - sha_start;
+        receipt.timing.sha256_ms =
+            std::chrono::duration<double, std::milli>(sha_elapsed).count();
     }
 
     if (is_video) {
-        const bool probed = probe_media(output_path, receipt.media);
+        const VerifyLevel level = verify_level();
+        // Only the historical certify gate pays `ffprobe -count_frames`,
+        // which decodes the whole output a second time just to count frames.
+        const bool decode_count = level == VerifyLevel::Certify;
+        const bool probed = probe_media(output_path, receipt.media,
+                                        decode_count,
+                                        /*require_exit_ok=*/level != VerifyLevel::Certify,
+                                        &receipt.timing.probe_ms);
         receipt.verification.ffprobe = probed ? "pass" : "fail";
 
         if (probed) {
-            // Full-decode smoke: ffmpeg decodes the entire file to null.
+            // Decode gate.  Fast never re-decodes the freshly-muxed output
+            // (the encoder + muxer just succeeded in-process); normal runs ONE
+            // full multithreaded decode pass; certify adds the historical
+            // `ffmpeg -f null -` smoke on top of the count_frames pass above.
             const std::string decode_cmd =
                 "ffmpeg -v error -i '" + output_path.string() +
                 "' -f null - > /dev/null 2>&1";
-            receipt.verification.decode =
-                command_succeeds(decode_cmd) ? "pass" : "fail";
+            switch (level) {
+                case VerifyLevel::Fast:
+                    receipt.verification.decode = "skip";
+                    break;
+                case VerifyLevel::Normal: {
+                    const auto decode_start = std::chrono::steady_clock::now();
+                    receipt.verification.decode =
+                        command_succeeds(decode_cmd) ? "pass" : "fail";
+                    const auto decode_elapsed =
+                        std::chrono::steady_clock::now() - decode_start;
+                    receipt.timing.decode_ms =
+                        std::chrono::duration<double, std::milli>(
+                            decode_elapsed).count();
+                    break;
+                }
+                case VerifyLevel::Certify: {
+                    const auto decode_start = std::chrono::steady_clock::now();
+                    receipt.verification.decode =
+                        command_succeeds(decode_cmd) ? "pass" : "fail";
+                    const auto decode_elapsed =
+                        std::chrono::steady_clock::now() - decode_start;
+                    receipt.timing.decode_ms =
+                        std::chrono::duration<double, std::milli>(
+                            decode_elapsed).count();
+                    break;
+                }
+            }
 
-            // Frame count (skip when the container reported none).
+            // Frame count (skip when the container reported none).  Under the
+            // certify level this is the decoded count; otherwise it is the
+            // container-stored nb_frames of the freshly-muxed mp4.
             if (receipt.media.frame_count >= 0) {
                 receipt.verification.frame_count =
                     receipt.media.frame_count == receipt.frames
@@ -210,7 +309,7 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
                 : "skip";
         } else {
             // Not probed: media-dependent checks are unresolvable.
-            receipt.verification.decode = "skip";
+            receipt.verification.decode = "fail";
             receipt.verification.frame_count = "skip";
             receipt.verification.codec = "fail";
             receipt.verification.pixel_format = "fail";
@@ -243,6 +342,9 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.copy_eligible =
         exists && !receipt.sha256.empty() && receipt.bytes > 0 && verification_ok;
 
+    const auto total_elapsed = std::chrono::steady_clock::now() - total_start;
+    receipt.timing.total_ms =
+        std::chrono::duration<double, std::milli>(total_elapsed).count();
     return receipt;
 }
 
@@ -289,6 +391,12 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"resolution", receipt.verification.resolution},
         {"fps", receipt.verification.fps},
         {"audio", receipt.verification.audio},
+    };
+    js["timing_ms"] = {
+        {"sha256_ms", receipt.timing.sha256_ms},
+        {"probe_ms", receipt.timing.probe_ms},
+        {"decode_ms", receipt.timing.decode_ms},
+        {"total_ms", receipt.timing.total_ms},
     };
     js["output"] = {
         {"bytes", receipt.bytes},
