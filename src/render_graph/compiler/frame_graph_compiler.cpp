@@ -19,7 +19,27 @@
 #include <functional>
 #include <stdexcept>
 
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::graph {
+namespace {
+
+// Optimization is advisory: it runs in-place on the graph and cannot fail, so
+// the [[nodiscard]] OptimizationResult carries fusion/pruning census only.
+// Surface it under the diagnostics policy instead of discarding it, so the
+// counters the optimizer was built to provide stay observable.
+void report_optimization_result(
+    const optimizer::OptimizationResult& result, const RenderGraphContext& ctx) {
+    if (!ctx.policy.diagnostics_enabled) return;
+    spdlog::debug(
+        "[graph-optimizer] nodes {} -> {} ({} fused, {} pruned, {} dead, "
+        "{} effect-fused, {} static-bakes)",
+        result.nodes_before, result.nodes_after, result.nodes_fused,
+        result.nodes_pruned, result.dead_nodes_removed, result.effects_fused,
+        result.static_bakes);
+}
+
+} // namespace
 
 CompiledFrameGraph FrameGraphCompiler::compile(
     RenderGraph graph,
@@ -27,8 +47,8 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     const FrameGraphCompileOptions& options
 ) const {
     if (options.run_optimizer) {
-        [[maybe_unused]] const auto optimization_result =
-            optimizer::optimize_graph(graph, ctx);
+        const auto optimization_result = optimizer::optimize_graph(graph, ctx);
+        report_optimization_result(optimization_result, ctx);
     }
 
     CompiledFrameGraph compiled;
@@ -265,8 +285,8 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         compiled.effect_processor_table  = prior_compiled.effect_processor_table;
     } else {
         if (options.run_optimizer) {
-            [[maybe_unused]] const auto optimization_result =
-                optimizer::optimize_graph(graph, ctx);
+            const auto optimization_result = optimizer::optimize_graph(graph, ctx);
+            report_optimization_result(optimization_result, ctx);
             compiled.output = graph.output();
         }
         build_execution_levels(graph, compiled.output, compiled);

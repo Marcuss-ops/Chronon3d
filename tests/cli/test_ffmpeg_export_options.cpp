@@ -203,3 +203,114 @@ TEST_CASE("FfmpegExportOptions: cancellation_token survives sub-struct copy") {
     CHECK(copy.cancellation_token->is_cancelled());
     CHECK(copy.output.output == "/tmp/test.mp4");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FfmpegExportOptions: audit Wave-1 execution-receipt fields
+// ─────────────────────────────────────────────────────────────────────────────
+// The resolver closeout (TICKET-AUDIT-ROADMAP-WAVES, Wave 1) surfaces the
+// FINAL plan on the options so the executor never re-decides policy.  The
+// receipt fields must default to the un-resolved contract and survive the
+// option copy/assignment pattern used by the video dispatch paths.
+
+TEST_CASE("FfmpegExportOptions: execution-receipt fields default to unresolved contract") {
+    FfmpegExportOptions opts;
+    CHECK_FALSE(opts.resolved_execution_plan.has_value());
+    CHECK(opts.resolved_execution_reason.empty());
+    CHECK(opts.resolved_execution_valid);
+    CHECK(opts.resolved_execution_path ==
+          FfmpegExportOptions::ResolvedExecutionPath::FullGraph);
+}
+
+TEST_CASE("FfmpegExportOptions: execution-receipt fields survive whole-option copy") {
+    FfmpegExportOptions opts;
+    opts.resolved_execution_plan = chronon3d::media::VideoExecutionPlan{
+        chronon3d::media::DecodePath::Nvdec,
+        chronon3d::media::CompositePath::DirectYuv,
+        chronon3d::media::EncodePath::Nvenc,
+        chronon3d::media::InteropPath::CudaNative,
+        chronon3d::media::SurfaceHandoffPath::Direct};
+    opts.resolved_execution_reason = "gop_splice_unsafe";
+    opts.resolved_execution_valid = false;
+    opts.resolved_execution_path =
+        FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
+
+    FfmpegExportOptions copy = opts;
+    CHECK(copy.resolved_execution_plan.has_value());
+    REQUIRE(copy.resolved_execution_plan);
+    CHECK(copy.resolved_execution_plan->decode ==
+          chronon3d::media::DecodePath::Nvdec);
+    CHECK(copy.resolved_execution_plan->composite ==
+          chronon3d::media::CompositePath::DirectYuv);
+    CHECK(copy.resolved_execution_reason == "gop_splice_unsafe");
+    CHECK_FALSE(copy.resolved_execution_valid);
+    CHECK(copy.resolved_execution_path ==
+          FfmpegExportOptions::ResolvedExecutionPath::DirectYuv);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Frame-rate canonicalisation parity (canonical_frame_rate.hpp)
+// ─────────────────────────────────────────────────────────────────────────────
+// The {fps, fps_num, fps_den} triple is carried by both OutputOptions and
+// FfmpegPipeOptions, and the "which field wins" rule must be identical for the
+// two accessors (single-source canonical_frame_rate()). Lock the rule and the
+// parity so a future fix to one side cannot silently desynchronise the other.
+
+TEST_CASE("FfmpegFrameRate: canonical_frame_rate is the single source of truth") {
+    const auto canonical = chronon3d::cli::canonical_frame_rate;
+    struct Case { int fps; int fps_num; int fps_den; int want_num; int want_den; };
+    const Case cases[] = {
+        // Defaults: untouched rational sentinel 30/1, untouched legacy fps=30.
+        {30, 30, 1, 30, 1},
+        // Legacy integer fps overrides the untouched 30/1 default.
+        {24, 30, 1, 24, 1},
+        {25, 30, 1, 25, 1},
+        // Non-default rational fields are authoritative even when legacy fps
+        // differs (NTSC 30000/1001 and 24/1.001-style rational).
+        {25, 30000, 1001, 30000, 1001},
+        {30, 24000, 1000, 24000, 1000},
+        // Sentinel edge: fps_num==30 && fps_den==1 && fps==30 is
+        // indistinguishable from an untouched default; result is 30/1.
+        {30, 30, 1, 30, 1},
+    };
+    for (const auto& c : cases) {
+        const auto got = canonical(c.fps, c.fps_num, c.fps_den);
+        CHECK(got.num == c.want_num);
+        CHECK(got.den == c.want_den);
+    }
+}
+
+TEST_CASE("FfmpegFrameRate: OutputOptions and FfmpegPipeOptions agree") {
+    // Parity lock: for every representative triple, OutputOptions::frame_rate()
+    // and FfmpegPipeOptions::canonical_fps_num()/den() must resolve to the same
+    // rational — including the legacy branch and the mixed rational cases.
+    struct Case { int fps; int fps_num; int fps_den; };
+    const Case cases[] = {
+        {30, 30, 1}, {24, 30, 1}, {25, 30, 1}, {60, 60, 1},
+        {25, 30000, 1001}, {30, 24000, 1000},
+        // The case the two inlined heuristics historically disagreed on:
+        // legacy fps differs AND fps_den != 1 (legacy must not apply).
+        {24, 30, 2}, {25, 60, 2},
+    };
+    for (const auto& c : cases) {
+        OutputOptions output;
+        output.fps = c.fps;
+        output.fps_num = c.fps_num;
+        output.fps_den = c.fps_den;
+
+        FfmpegPipeOptions pipe;
+        pipe.fps = c.fps;
+        pipe.fps_num = c.fps_num;
+        pipe.fps_den = c.fps_den;
+
+        const auto canonical = chronon3d::cli::canonical_frame_rate(
+            c.fps, c.fps_num, c.fps_den);
+        const auto rate = output.frame_rate();
+        CHECK(rate.numerator == canonical.num);
+        CHECK(rate.denominator == canonical.den);
+        CHECK(pipe.canonical_fps_num() == canonical.num);
+        CHECK(pipe.canonical_fps_den() == canonical.den);
+        // Cross-parity: the two struct accessors agree with each other.
+        CHECK(pipe.canonical_fps_num() == rate.numerator);
+        CHECK(pipe.canonical_fps_den() == rate.denominator);
+    }
+}

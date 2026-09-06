@@ -5,7 +5,6 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
-#include <chronon3d/media/video/detail/video_execution_legacy.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -15,6 +14,7 @@ extern "C" {
 }
 #endif
 
+#include <algorithm>
 #include <filesystem>
 #include <utility>
 
@@ -74,6 +74,75 @@ BitstreamTargetContract make_bitstream_target_contract(
     return target;
 }
 
+// ── Single GOP preflight (before any decision) ─────────────────────────────
+// Runs once at the top of the executor; the resulting summary is folded into
+// the resolver so the FINAL plan already contains any downgrade.  The
+// executor must not re-inspect or re-resolve later.
+media::GopAnalysisSummary inspect_source_once(
+    const FfmpegExportOptions& opts, const CompiledComposition& compiled,
+    double start_sec, double end_sec) {
+    media::GopAnalysisSummary summary;
+    if (opts.gop_source.empty()) return summary;
+    const auto analysis = inspect_gop_source(
+        opts.gop_source,
+        make_bitstream_target_contract(opts, compiled, opts.gop_source),
+        start_sec, end_sec);
+    if (!analysis) {
+        summary.available = false;
+        return summary;
+    }
+    summary.available = true;
+    summary.total_gops = analysis->plans.size();
+    summary.copy_gops = analysis->copy_count;
+    summary.reencode_gops = analysis->reencode_count;
+    summary.all_copy = analysis->all_copy_eligible;
+    summary.hybrid = analysis->is_hybrid();
+    // Splice safety matters only when some GOPs are copied alongside
+    // re-encoded ones: every planned Copy must have passed the gate.
+    summary.safe_to_splice = summary.hybrid;
+    if (summary.safe_to_splice) {
+        for (const auto& plan : analysis->plans) {
+            if (plan.copy_packets() && !plan.compatibility.safe_to_splice()) {
+                summary.safe_to_splice = false;
+                break;
+            }
+        }
+    }
+    return summary;
+}
+
+// CLI flag surface → semantic execution requirements.  The public media
+// resolver never sees backend strings; the CLI translates its own flags at
+// this boundary (the only legacy-flag caller after the resolver closeout).
+media::ExecutionRequirements cli_execution_requirements(
+    const FfmpegExportOptions& opts) {
+    const auto hot = opts.gpu_hot_path_mode;
+    return media::ExecutionRequirements{
+        .gpu_required = hot == GpuHotPathMode::RequireDirectYuv ||
+                        hot == GpuHotPathMode::RequireGpuNative,
+        .cpu_fallback_allowed = true,
+        // FullGraph composition is required only for the explicit Vulkan
+        // graph mode; DirectYuv composes overlays in the NV12 domain and the
+        // Auto lane follows the legacy direct-candidate/default semantics.
+        .composition_required = hot == GpuHotPathMode::RequireGpuNative,
+        .packet_copy_allowed = true,
+    };
+}
+
+media::VideoCapabilities cli_effective_capabilities(
+    const FfmpegExportOptions& opts) {
+    const bool native_nvenc = opts.encoder.encoder_backend == "native" &&
+                              opts.encoder.hardware_encoder == "nvenc";
+    return media::VideoCapabilities{
+        .nvdec = native_nvenc,
+        .nvenc = native_nvenc,
+        .vulkan_graph =
+            opts.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+            opts.backend_preference == graph::BackendPreference::GPU,
+        .cuda_native = native_nvenc,
+    };
+}
+
 } // namespace
 
 int render_and_encode_ffmpeg(
@@ -103,47 +172,112 @@ int render_and_encode_ffmpeg(
                       opts.sink.ffmpeg_mode);
         return 1;
     }
-
-    const auto path_decision = media::detail::resolve_legacy_video_execution(
-        media::detail::LegacyVideoExecutionRequest{
-            .encoder_backend = opts.encoder.encoder_backend,
-            .hardware_encoder = opts.encoder.hardware_encoder,
-            .codec = opts.encoder.codec,
-            .hot_path = opts.gpu_hot_path_mode,
-            .has_gop_source = !opts.gop_source.empty(),
-            .gop_copy_only = opts.gop_copy_only,
-            .allow_hybrid_gop = !opts.gop_source.empty() && !opts.gop_copy_only});
-
-    if (path_decision.path == media::VideoExecutionPath::BitstreamCopy && path_decision.valid) {
-        const double fps_val = opts.output.fps_value();
-        const double start_sec = static_cast<double>(start.integral()) /
-            (fps_val > 0.0 ? fps_val : 30.0);
-        const double end_sec = static_cast<double>(end.integral()) /
-            (fps_val > 0.0 ? fps_val : 30.0);
-        const auto analysis = inspect_gop_source(
-            opts.gop_source, make_bitstream_target_contract(opts, compiled, opts.gop_source),
-            start_sec, end_sec);
-        if (!analysis || !analysis->all_copy_eligible) {
-            spdlog::warn("[bitstream-copy] compatibility preflight failed; falling back to DirectYuv before renderer setup");
-            auto fallback_opts = opts;
-            fallback_opts.gop_copy_only = false;
-            fallback_opts.resolved_execution_path =
-                FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
-            fallback_opts.resolved_execution_plan = media::detail::resolve_legacy_video_execution(
-                media::detail::LegacyVideoExecutionRequest{
-                    .encoder_backend = opts.encoder.encoder_backend,
-                    .hardware_encoder = opts.encoder.hardware_encoder,
-                    .codec = opts.encoder.codec,
-                    .hot_path = opts.gpu_hot_path_mode}).plan;
-            auto fallback = render_and_encode_ffmpeg_pipe(
-                registry, compiled, composition_id, settings,
-                start, end, fallback_opts, cpu_budget,
-                nullptr, nullptr, std::move(execution));
-            return fallback.return_code;
+    // Ingress contract: a supplied compressed source must be readable before
+    // any resolver downgrade can silently replace the requested copy/re-encode
+    // lane with a different plan (see gop_copy_preflight_unavailable).
+    if (!opts.gop_source.empty()) {
+        std::error_code ec;
+        const bool readable = std::filesystem::is_regular_file(opts.gop_source, ec)
+            && !ec;
+        if (!readable) {
+            spdlog::error("[video] gop_source '{}' is not a readable regular file (ec={})",
+                          opts.gop_source, ec ? ec.message() : "none");
+            return 1;
         }
+    }
 
+    const double fps_val = opts.output.fps_value();
+    const double safe_fps = fps_val > 0.0 ? fps_val : 30.0;
+    const double start_sec = static_cast<double>(start.integral()) / safe_fps;
+    const double end_sec = static_cast<double>(end.integral()) / safe_fps;
+
+    // ── ONE final, immutable plan ──────────────────────────────────────────
+    // Requirements + capabilities + GOP pre-analysis → resolver → final plan.
+    // The executor below only dispatches on the plan axes; it never decides
+    // policy and never downgrades at runtime (audit Wave 1 closeout).
+    auto render_opts = opts;
+    if (opts.gop_source.empty()) {
+        const auto decision = media::resolve_video_execution(
+            cli_execution_requirements(opts), media::OutputSpec{},
+            cli_effective_capabilities(opts));
+        render_opts.resolved_execution_plan = decision.plan;
+        render_opts.resolved_execution_reason = std::string{decision.reason};
+        render_opts.resolved_execution_valid = decision.valid;
+        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
+                     decision.reason,
+                     static_cast<int>(decision.plan.decode),
+                     static_cast<int>(decision.plan.composite),
+                     static_cast<int>(decision.plan.encode),
+                     static_cast<int>(decision.plan.interop),
+                     static_cast<int>(decision.plan.handoff));
+    } else {
+        const media::GopAnalysisSummary summary = inspect_source_once(
+            opts, compiled, start_sec, end_sec);
+        if (summary.available) {
+            spdlog::info("[video] gop preflight: {} GOPs ({} copy-eligible, {} re-encode{}), splice_safe={}",
+                         summary.total_gops, summary.copy_gops,
+                         summary.reencode_gops,
+                         summary.all_copy ? ", all-copy" :
+                             (summary.hybrid ? ", hybrid" : ""),
+                         summary.safe_to_splice);
+        }
+        const auto decision = media::resolve_video_execution_with_gop_analysis(
+            cli_execution_requirements(opts), media::OutputSpec{},
+            cli_effective_capabilities(opts),
+            opts.gop_copy_only,
+            !opts.gop_copy_only,
+            summary);
+        render_opts.resolved_execution_plan = decision.plan;
+        render_opts.resolved_execution_reason = std::string{decision.reason};
+        render_opts.resolved_execution_valid = decision.valid;
+        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
+                     decision.reason,
+                     static_cast<int>(decision.plan.decode),
+                     static_cast<int>(decision.plan.composite),
+                     static_cast<int>(decision.plan.encode),
+                     static_cast<int>(decision.plan.interop),
+                     static_cast<int>(decision.plan.handoff));
+    }
+
+    // ── Enforce the resolver validity contract ─────────────────────────────
+    // `valid=false` covers two different situations that the dispatcher must
+    // distinguish:
+    //   * capability-denied reasons: the requested lane cannot execute on this
+    //     host at all (no NVDEC/NVENC/Vulkan/CUDA, CPU fallback forbidden).
+    //     Fail fast here instead of dispatching a plan that can only fail
+    //     after renderer/encoder setup.
+    //   * structured downgrade reasons (gop_*): the downgraded plan IS the
+    //     intended executable outcome; run it, but surface the downgrade at
+    //     warn level so it is not a silent re-encode.
+    if (render_opts.resolved_execution_valid == false) {
+        const auto& reason = render_opts.resolved_execution_reason;
+        const bool capability_denied =
+            reason == "required_gpu_capability_unavailable" ||
+            reason == "cpu_fallback_forbidden" ||
+            reason == "direct_yuv_requires_native_nvenc";
+        if (capability_denied) {
+            spdlog::error(
+                "[video] FAIL_CLOSED: requested execution cannot run on this host "
+                "(resolver reason: {}); aborting before setup", reason);
+            return 1;
+        }
+        spdlog::warn(
+            "[video] final plan is a structured downgrade (resolver reason: {}); "
+            "executing the downgraded axes", reason);
+    }
+
+    // ── Whole-clip packet copy (final plan: PacketCopy both ways) ─────────
+    // Reached only when the GOP preflight proved every packet is
+    // copy-eligible and splice-safe; no runtime downgrade exists on this
+    // lane anymore.
+    if (render_opts.resolved_execution_plan &&
+        render_opts.resolved_execution_plan->decode ==
+            media::DecodePath::PacketCopy &&
+        render_opts.resolved_execution_plan->encode ==
+            media::EncodePath::PacketCopy &&
+        render_opts.resolved_execution_valid) {
         spdlog::info("[bitstream-copy] path selected (reason: {}); bypassing NVDEC/CUDA/NVENC entirely",
-                     path_decision.reason);
+                     render_opts.resolved_execution_reason);
         const auto copy_t0 = profiling::now();
         if (const auto parent = std::filesystem::path(opts.output.output).parent_path();
             !parent.empty()) {
@@ -186,84 +320,20 @@ int render_and_encode_ffmpeg(
         return 0;
     }
 
-    if (path_decision.path == media::VideoExecutionPath::SmartGopCopy && path_decision.valid) {
-        const double fps_val = opts.output.fps_value();
-        const double start_sec = static_cast<double>(start.integral()) /
-            (fps_val > 0.0 ? fps_val : 30.0);
-        const double end_sec = static_cast<double>(end.integral()) /
-            (fps_val > 0.0 ? fps_val : 30.0);
-        spdlog::info("[smart-gop] inspecting source '{}' [{:.2f}s, {:.2f}s)",
-                     opts.gop_source, start_sec, end_sec);
-        auto analysis = inspect_gop_source(
-            opts.gop_source, make_bitstream_target_contract(opts, compiled, opts.gop_source),
-            start_sec, end_sec);
-
-        if (analysis && analysis->all_copy_eligible) {
-            spdlog::info("[smart-gop] all {} GOPs copy-eligible; routing to whole-clip copy",
-                         analysis->plans.size());
-            auto final_path = std::filesystem::path(opts.output.output);
-            auto partial_path = final_path;
-            const auto ext = final_path.extension();
-            if (ext.empty()) partial_path += ".partial";
-            else partial_path.replace_filename(
-                final_path.stem().string() + ".partial" + ext.string());
-            if (const auto parent = final_path.parent_path(); !parent.empty()) {
-                std::error_code ec;
-                std::filesystem::create_directories(parent, ec);
-            }
-            const auto copy_t0 = profiling::now();
-            auto copy_result = copy_gop_source(
-                opts.gop_source, partial_path.string(), start_sec, end_sec);
-            const double copy_ms = profiling::duration_ms(copy_t0, profiling::now());
-            if (!copy_result) {
-                std::error_code rm_ec;
-                std::filesystem::remove(partial_path, rm_ec);
-                spdlog::error("[smart-gop] copy_gop_source failed");
-                return 1;
-            }
-            std::error_code rename_ec;
-            std::filesystem::rename(partial_path, final_path, rename_ec);
-            if (rename_ec) {
-                spdlog::error("[smart-gop] rename failed: {}", rename_ec.message());
-                return 1;
-            }
-            spdlog::info("[smart-gop] whole-clip copy: {} video packets, {} audio packets in {:.1f}ms",
-                         copy_result->video_packets, copy_result->audio_packets, copy_ms);
-            return 0;
-        }
-
-        if (analysis && analysis->is_hybrid()) {
-            bool all_safe = true;
-            for (const auto& plan : analysis->plans) {
-                if (plan.copy_packets() && !plan.compatibility.safe_to_splice()) {
-                    all_safe = false;
-                    spdlog::warn("[smart-gop] GOP [{}, {}] copy-eligible but BitstreamCompatibility gate FAILED — splicing source+NVENC would corrupt",
-                                 plan.first_pts, plan.last_pts);
-                    break;
-                }
-            }
-            if (!all_safe) {
-                spdlog::info("[smart-gop] BitstreamCompatibility gate failed; downgrading to DirectYuv for the entire clip (fail-closed)");
-            } else {
-                spdlog::info("[smart-gop] hybrid plan: {}/{} GOPs copy, {}/{} re-encode; splice_safe=true; downgrading to DirectYuv (hybrid pipeline TBD)",
-                             analysis->copy_count, analysis->plans.size(),
-                             analysis->reencode_count, analysis->plans.size());
-            }
-        } else {
-            spdlog::info("[smart-gop] no copy-eligible GOPs; routing to DirectYuv");
-        }
+    // ── Render path: dispatch purely on the final plan's composite axis ───
+    // DirectYuv ↔ CompositePath::DirectYuv; every other composite (software
+    // or Vulkan graph) runs the full render-graph pipeline.  There is no
+    // render_fallback view to consult anymore.
+    if (render_opts.resolved_execution_plan &&
+        render_opts.resolved_execution_plan->composite ==
+            media::CompositePath::DirectYuv) {
+        render_opts.resolved_execution_path =
+            FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
+    } else {
+        render_opts.resolved_execution_path =
+            FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
     }
 
-    auto render_opts = opts;
-    const auto render_path =
-        path_decision.path == media::VideoExecutionPath::DirectYuv
-            ? media::VideoExecutionPath::DirectYuv
-            : path_decision.render_fallback;
-    render_opts.resolved_execution_path =
-        render_path == media::VideoExecutionPath::DirectYuv
-            ? FfmpegExportOptions::ResolvedExecutionPath::DirectYuv
-            : FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
-    render_opts.resolved_execution_plan = path_decision.plan;
     auto result = render_and_encode_ffmpeg_pipe(
         registry, compiled, composition_id,
         settings, start, end, render_opts, cpu_budget,

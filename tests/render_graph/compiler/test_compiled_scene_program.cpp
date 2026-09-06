@@ -30,6 +30,9 @@
 // =============================================================================
 
 #include <doctest/doctest.h>
+#ifndef GLM_ENABLE_EXPERIMENTAL
+#define GLM_ENABLE_EXPERIMENTAL
+#endif
 #include <glm/gtx/quaternion.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
@@ -113,7 +116,7 @@ TEST_CASE("scene_program: same structure for different effect parameter values")
     // Modify Exposure/Blur values — should NOT change structure key.
     auto& layers_b = scene_b.layers();
     if (layers_b.size() >= 2) {
-        for (auto& effect : layers_b[1].effects) {
+        for (auto& effect : layers_b[1].effects()) {
             if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
                 blur->radius = 20.0f;  // different blur radius
             }
@@ -196,7 +199,7 @@ TEST_CASE("scene_program: different structure when effect added") {
             effects::EffectDescriptor{.id = "exposure"},
             BrightnessParams{0.5f}
         };
-        layers_b[1].effects.push_back(std::move(e));
+        layers_b[1].effects().push_back(std::move(e));
     }
 
     auto key_a = make_key(scene_a);
@@ -210,8 +213,11 @@ TEST_CASE("scene_program: different structure when effect removed") {
     auto scene_b = make_test_scene();
 
     auto& layers_b = scene_b.layers();
-    if (layers_b.size() >= 2 && !layers_b[1].effects.empty()) {
-        layers_b[1].effects.erase(layers_b[1].effects.begin());
+    // The base scene carries exactly one effect; EffectStack exposes the
+    // container protocol (no single-erase), so removing effects clears the
+    // stack — structure must differ from the scene that keeps its blur.
+    if (layers_b.size() >= 2 && !layers_b[1].effects().empty()) {
+        layers_b[1].effects().clear();
     }
 
     auto key_a = make_key(scene_a);
@@ -224,21 +230,30 @@ TEST_CASE("scene_program: different structure when effect order changed") {
     auto scene_a = make_test_scene();
     auto scene_b = make_test_scene();
 
+    // Give both scenes a second, distinct effect so the order swap below
+    // has two distinguishable entries ([blur, exposure] vs [exposure, blur]).
+    const auto append_exposure = [](Scene& scene) {
+        auto& layers = scene.layers();
+        if (layers.size() >= 2) {
+            effects::EffectInstance e{
+                effects::EffectDescriptor{.id = "exposure"},
+                BrightnessParams{0.5f}};
+            layers[1].effects().push_back(std::move(e));
+        }
+    };
+    append_exposure(scene_a);
+    append_exposure(scene_b);
+
     auto& layers_b = scene_b.layers();
-    if (layers_b.size() >= 2 && layers_b[1].effects.size() >= 2) {
-        std::swap(layers_b[1].effects[0], layers_b[1].effects[1]);
+    if (layers_b.size() >= 2 && layers_b[1].effects().size() >= 2) {
+        std::swap(layers_b[1].effects()[0], layers_b[1].effects()[1]);
     }
 
     auto key_a = make_key(scene_a);
     auto key_b = make_key(scene_b);
 
-    // Only check if the scene actually has 2+ effects.
-    // If not, hash should still be the same (edge case handled).
-    if (layers_b[1].effects.size() >= 2) {
-        CHECK(key_a != key_b);
-    } else {
-        CHECK(key_a == key_b);
-    }
+    // Both scenes now carry blur+exposure; only the order differs.
+    CHECK(key_a != key_b);
 }
 
 TEST_CASE("scene_program: different structure when resolution changed") {
@@ -468,14 +483,14 @@ TEST_CASE("scene_program: same pointer stable across 100 frames "
     };
 
     // Frame 1: first compile.
-    auto* p1 = cache.find_or_compile(key, compiler);
+    auto p1 = cache.find_or_compile(key, compiler);
     REQUIRE(p1 != nullptr);
     CHECK(compile_count == 1);
 
     // Frames 2–100: same key → same pointer, no recompilation.
     for (int frame = 2; frame <= 100; ++frame) {
-        auto* p = cache.find_or_compile(key, compiler);
-        CHECK(p == p1);
+        auto p = cache.find_or_compile(key, compiler);
+        CHECK(p.get() == p1.get());
     }
     CHECK(compile_count == 1);
 
@@ -509,11 +524,11 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
     SceneHasher hasher;
 
     // Scene at frame 0: identity transform.
-    auto scene_0 = base_scene;
+    auto scene_0 = base_scene.clone();
     auto key_0 = make_key(scene_0);
 
     // Scene at frame 50: different position/opacity (animated).
-    auto scene_50 = base_scene;
+    auto scene_50 = base_scene.clone();
     auto& layers_50 = scene_50.layers();
     REQUIRE(layers_50.size() >= 2);
     layers_50[1].transform.position = Vec3{500.0f, 300.0f, 0.0f};
@@ -545,14 +560,14 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
     };
 
     // Frame 0: compiles once.
-    auto* p0 = cache.find_or_compile(key_0, compiler);
+    auto p0 = cache.find_or_compile(key_0, compiler);
     REQUIRE(p0 != nullptr);
     CHECK(compile_count == 1);
 
     // Frames 1–99: same structure key → cache hits, no recompilation.
     for (int frame = 1; frame < 100; ++frame) {
         // Simulate different transform values at each frame.
-        auto scene_frame = base_scene;
+        auto scene_frame = base_scene.clone();
         auto& layers = scene_frame.layers();
         if (layers.size() >= 2) {
             layers[1].transform.position = Vec3{
@@ -565,8 +580,8 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
         // Structure key must equal key_0 (transforms excluded).
         CHECK(key_frame == key_0);
 
-        auto* p = cache.find_or_compile(key_frame, compiler);
-        CHECK(p == p0);
+        auto p = cache.find_or_compile(key_frame, compiler);
+        CHECK(p.get() == p0.get());
     }
 
     // Only 1 compilation total across all 100 frames.

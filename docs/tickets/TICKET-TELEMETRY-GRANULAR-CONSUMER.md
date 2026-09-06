@@ -2,8 +2,18 @@
 
 **Area:** runtime telemetry / render-graph executor
 **Pri:** P2
-**Stato:** OPEN (finding verificato 2026-09-05, su `main` HEAD)
+**Stato:** CODE DONE (2026-09-05; build/CI verification pending)
 **Owner:** telemetry (single-authority)
+
+## Closeout (refer to TICKET-AUDIT-ROADMAP-WAVES, Wave 2)
+
+- Capture gate: `telemetry_capture_level()` in `core/telemetry/render_telemetry.hpp`;
+  single-writer = `TelemetryManager::configure()/set_level()`. `Summary` ⇒
+  `emit_node_records()` early-outs (zero string/shards) e il culling emitter
+  è gated allo stesso modo; solo `Detailed/Trace` popolano gli store.
+- Gli store orfani avevano già drain a questo HEAD
+  (`render_job_finalize.cpp` + `pipe_export_finalize_telemetry.cpp` →
+  `TelemetryRunSnapshot` → SQLite) + `clear_telemetry_stores()` in setup/warmup.
 
 ## Finding (verificato sul codice, non doc-claim)
 

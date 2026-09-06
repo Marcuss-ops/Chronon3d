@@ -93,8 +93,7 @@ constexpr std::uint64_t kRefVRScaleExtreme   = kUncapturedSentinel;
 // ── ScenarioMetrics (8-metric canon from docs/01-baseline-green.md §2.4-2.5)  // drift-allow: stale-ref
 
 // ── RectF POD (TXT-00 forbids cross-package aliasing of canonical types;
-// each test TU declares a 4-float POD locally.  Same convention as
-// tests/text/visual/text_visual_metrics.cpp::RectF.)
+// each test TU declares a 4-float POD locally.)
 struct RectF {
     float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
 };
