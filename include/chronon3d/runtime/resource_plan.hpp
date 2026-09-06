@@ -129,7 +129,18 @@ public:
     void add(ResourceRequest request) {
         if (request.desc.kind == ResourceKind::Color &&
             is_rgb_surface_format(request.desc.format)) {
+            // Enter the one render domain.  When `bytes` still carries the
+            // tight size derived from the ORIGINAL (pre-canonical) format
+            // by ResourceDesc::make, re-derive it from the canonical
+            // format so the allocation stays coherent.  An explicit
+            // override (bytes != tight of the incoming format) is left
+            // untouched — it is the documented authority for
+            // padded/imported/external layouts.
+            const auto legacy_tight = request.desc.tight_bytes();
             request.desc.format = canonical_render_format();
+            if (request.desc.bytes == legacy_tight) {
+                request.desc.bytes = request.desc.tight_bytes();
+            }
         }
         m_requests.push_back(std::move(request));
     }
