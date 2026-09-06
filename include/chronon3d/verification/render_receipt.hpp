@@ -68,6 +68,13 @@ struct ReceiptVerification {
     std::string resolution{"skip"};
     std::string fps{"skip"};
     std::string audio{"skip"};
+    // Verification policy recorded on the receipt so consumers never infer
+    // the executed policy from the presence/absence of decode timings.
+    // requested_policy is the raw CHRONON_RECEIPT_VERIFY value ("" when
+    // unset); resolved_policy is the level that actually ran
+    // ("fast" | "normal" | "certify").
+    std::string requested_policy;
+    std::string resolved_policy;
 };
 
 /// Wall-clock cost of the post-render verification, in milliseconds.  Values
@@ -76,9 +83,11 @@ struct ReceiptVerification {
 /// part of the verification verdicts.
 struct ReceiptTiming {
     double sha256_ms{-1.0};
-    double probe_ms{-1.0};   // whole ffprobe call (metadata + optional count decode)
-    double decode_ms{-1.0};  // certify-only independent decode smoke
-    double total_ms{-1.0};   // whole build_render_receipt wall clock
+    double probe_ms{-1.0};       // ffprobe metadata-only probe
+    double count_frames_ms{-1.0};
+                                // certify-only ffprobe -count_frames decode
+    double decode_ms{-1.0};      // full-decode smoke (normal and certify)
+    double total_ms{-1.0};       // whole build_render_receipt wall clock
 };
 
 /// Deterministic identity + render contract for one output.  Callers map
