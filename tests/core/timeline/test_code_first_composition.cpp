@@ -137,18 +137,21 @@ TEST_CASE("Composition adapter compiles its authored camera descriptor") {
 TEST_CASE("Composition fingerprint includes explicit scene content identity") {
     auto make_definition = [](int captured_value,
                               std::uint64_t content_fingerprint) {
-        CompositionDefinition definition;
-        definition.composition.name = "captured-scene";
-        definition.composition.width = 320;
-        definition.composition.height = 180;
-        definition.composition.duration = 10;
-        definition.scene = [captured_value](const FrameContext&) {
-            Scene scene;
-            scene.set_assets_root(std::to_string(captured_value));
-            return scene;
-        };
-        definition.scene_content_fingerprint = content_fingerprint;
-        return definition;
+        // Canonical model: compile_composition() takes a Composition (the
+        // deprecated CompositionDefinition overload was removed).
+        CompositionSpec spec;
+        spec.name = "captured-scene";
+        spec.width = 320;
+        spec.height = 180;
+        spec.duration = 10;
+        return Composition(
+            spec,
+            [captured_value](const FrameContext&) {
+                Scene scene;
+                scene.set_assets_root(std::to_string(captured_value));
+                return scene;
+            },
+            content_fingerprint);
     };
 
     const auto first = compile_composition(make_definition(1, 101), {});
