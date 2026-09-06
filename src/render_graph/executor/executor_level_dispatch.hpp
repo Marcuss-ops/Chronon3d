@@ -27,7 +27,6 @@ void dispatch_level_nodes(
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
-    LevelTimings& timings,
     const CompiledFrameGraph& compiled);
 
 } // namespace graph

@@ -50,15 +50,12 @@ public:
         return *this;
     }
 
-    NodeCacheIdentityBuilder& versions(
-        ContentVersion params,
-        ContentVersion source,
-        ContentVersion input = 0) {
-        m_key.params_version = params;
-        m_key.source_version = source;
-        m_key.input_version = input;
-        return *this;
-    }
+    // NOTE: no `versions(...)` builder method. The NodeCacheKey *_version
+    // fields remain (their digest participation is contract-locked by
+    // tests/cache/test_node_cache.cpp), but no production caller ever set
+    // them through the builder, so the dead fluent surface is removed per
+    // the no-dead-API invariant. Direct field assignment on a built key
+    // remains available for future version-based invalidation work.
 
     NodeCacheIdentityBuilder& hashes(u64 params_hash, u64 source_hash, u64 input_hash = 0) {
         m_key.params_hash = params_hash;

@@ -18,7 +18,9 @@ EvaluatedCompositionFrame PreparedRenderJob::Impl::evaluate_frame(
         .duration = spec.duration,
         .width = spec.width,
         .height = spec.height,
-        .assets_root = runtime.resolver().mount_root().string(),
+        // Job-lifetime stable value captured in RenderEngine::prepare();
+        // no per-frame path→string materialization.
+        .assets_root = assets_root,
         .resource = arena.resource(),
         .shape_registry = &engine->m_impl->m_shape_registry,
         .font_engine = &runtime.font_engine(),
