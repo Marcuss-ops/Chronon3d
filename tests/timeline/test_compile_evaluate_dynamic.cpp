@@ -143,7 +143,15 @@ TEST_CASE("ConditionalLayerByFrame") {
     CHECK(f1.value().scene.layers()[0].name == "odd_layer");
 }
 
-TEST_CASE("StaticSceneExecutionMode: explicit scene_is_frame_invariant activates StaticScene fast path") {
+TEST_CASE("Frame-invariant definition evaluates deterministically via DynamicCallback") {
+    // Authoring-side frame-invariance hint: scene_is_frame_invariant is a
+    // CompositionDefinition-only authoring hint.  The canonical compile path
+    // takes a Composition (the deprecated CompositionDefinition overload was
+    // removed), and Composition intentionally does not carry the hint, so
+    // compilation is correct-by-default DynamicCallback — the StaticScene
+    // fast-path is not wired into the canonical model.  The frame-invariant
+    // content must still evaluate to the same scene at every frame through
+    // the dynamic callback.
     CompositionDefinition def;
     def.composition.name = "static-scene";
     def.composition.width = 1920;
@@ -159,11 +167,15 @@ TEST_CASE("StaticSceneExecutionMode: explicit scene_is_frame_invariant activates
         return sb.build();
     };
 
-    auto compiled_res = compile_composition(def, CompositionCompileContext{});
+    Composition definition_composition(
+        def.composition, def.scene, def.scene_content_fingerprint);
+    auto compiled_res = compile_composition(
+        definition_composition, CompositionCompileContext{});
     REQUIRE(compiled_res.has_value());
     const auto& compiled = compiled_res.value();
-    CHECK(compiled.execution_mode == SceneExecutionMode::StaticScene);
-    REQUIRE(compiled.static_scene != nullptr);
+    CHECK(compiled.execution_mode == SceneExecutionMode::DynamicCallback);
+    CHECK(compiled.static_scene == nullptr);
+    CHECK_FALSE(compiled.is_static_topology);
 
     CompositionEvaluateContext eval_ctx;
     eval_ctx.frame_context = make_frame_context({

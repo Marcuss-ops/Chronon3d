@@ -125,7 +125,13 @@ TEST_CASE("compiled composition preserves fractional evaluation time") {
         return chronon3d::Scene{};
     };
 
-    const auto compiled = chronon3d::compile_composition(definition, {});
+    // Canonical path: the deprecated compile_composition(CompositionDefinition)
+    // overload was removed — project onto a Composition first.
+    const chronon3d::Composition definition_composition(
+        definition.composition, definition.scene,
+        definition.scene_content_fingerprint);
+    const auto compiled =
+        chronon3d::compile_composition(definition_composition, {});
     REQUIRE(compiled);
 
     const auto base_context = chronon3d::make_frame_context({

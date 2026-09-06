@@ -1,4 +1,5 @@
 #include <optional>
+#include <cstdio>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_prewarm_text_layout_cache.cpp — Success-path coverage for PR 10's
 // prewarm_text_run_layout_for_frame hook (PR 11).
@@ -76,10 +77,13 @@ std::shared_ptr<TextRunShape> make_real_shape(
 /// call would compute.
 ///
 /// IMPORTANT — coupling: this helper mirrors the single-font branch of
-/// `build_cache_key()` in `src/text/text_run_builder.cpp` (anonymous
-/// namespace).  Any future change to that helper's field set must
-/// update this mirror too.  Consider extracting the production
-/// helper into a public test-only entry point if the drift grows.
+/// `build_cache_key()` in `src/text/compiler/text_run_shaping.cpp`
+/// (anonymous namespace).  Any future change to that helper's field set
+/// must update this mirror too — it has already drifted once (P0-2
+/// font_family + TICKET-103a direction/language/features + M1.5#5
+/// variation_axes + TICKET-TEXT-CLEANUP-6 layout fields).  Consider
+/// extracting the production helper into a public test-only entry point
+/// if the drift grows again.
 TextLayoutCacheKey build_expected_cache_key(
     const std::string& text,
     const FontSpec& font_spec,
@@ -88,25 +92,45 @@ TextLayoutCacheKey build_expected_cache_key(
     TextLayoutCacheKey key;
     key.text        = text;
     key.font_path   = font_spec.font_path;
+    key.font_family = font_spec.font_family;
     key.font_weight = font_spec.font_weight;
     key.font_style  = font_spec.font_style;
     key.font_size   = font_spec.font_size;
     key.tracking    = layout.tracking;
     key.box_width   = layout.box.x;
     key.wrap        = layout.wrap;
+    // Plain ASCII fixture texts with no direction/language/features
+    // request resolve to the request defaults (Auto / empty / empty).
     key.direction   = TextDirection::Auto;
     key.language.clear();
+    key.features.clear();
+    key.variation_axes.clear();
     key.paragraph   = layout.paragraph;
+    // TICKET-TEXT-CLEANUP-6: visual-affecting layout fields.
+    key.box_height      = layout.box.y;
+    key.align           = static_cast<int>(layout.align);
+    key.vertical_align  = static_cast<int>(layout.vertical_align);
+    key.anchor          = static_cast<int>(layout.anchor);
+    key.centering_mode  = static_cast<int>(layout.centering_mode);
+    key.line_height     = layout.line_height;
+    key.max_lines       = layout.max_lines;
+    key.overflow        = static_cast<int>(layout.overflow);
+    key.ellipsis        = layout.ellipsis;
     return key;
 }
 
 /// Build a 2-keyframe AnimatedTextDocument that produces a static
-/// (Hold) state at every frame between 0 and 60.
-std::shared_ptr<AnimatedTextDocument> make_static_doc(const std::string& utf8) {
+/// (Hold) state at every frame between 0 and 60.  The keyframe's default
+/// font is pinned to `font` (AnimatedTextDocument::keyframes() is
+/// read-only after add_keyframe, so the font must be set up-front to
+/// match the layout-side font the cache key is built from).
+std::shared_ptr<AnimatedTextDocument> make_static_doc(
+    const std::string& utf8, const FontSpec& font) {
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf;
     kf.frame = Frame{0};
     kf.document.utf8 = utf8;
+    kf.document.defaults.font = font;
     doc->add_keyframe(kf);
     return doc;
 }
@@ -115,17 +139,19 @@ std::shared_ptr<AnimatedTextDocument> make_static_doc(const std::string& utf8) {
 /// "PR11ScrambleSrc" to "PR11ScrambleDst" between frames 0 and 60.
 /// The Scramble transition is set on kf0 (outgoing) per the
 /// convention documented on SourceTextKeyframe::transition.
-std::shared_ptr<AnimatedTextDocument> make_scramble_doc() {
+std::shared_ptr<AnimatedTextDocument> make_scramble_doc(const FontSpec& font) {
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "PR11ScrambleSrc";
+    kf0.document.defaults.font = font;
     kf0.transition = SourceTextTransition::Scramble;
     kf0.scramble_params.seed = 9999;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
     kf60.document.utf8 = "PR11ScrambleDst";
+    kf60.document.defaults.font = font;
     doc->add_keyframe(kf60);
     return doc;
 }
@@ -163,18 +189,20 @@ TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8
     REQUIRE(shape != nullptr);
     REQUIRE(shape->layout != nullptr);
 
-    shape->animated_doc = make_static_doc(held_text);
-
-    // Hash the same active->utf8 on the doc's defaults font so the
-    // prewarm's TD matches the cache key shape.
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    // Doc defaults font matches the layout-side font so the prewarm's
+    // cache key shape matches what build_expected_cache_key computes.
+    shape->animated_doc = make_static_doc(held_text, font);
 
     const Frame frame{30};
     const bool ok = prewarm_text_run_layout_for_frame(*shape, frame);
     REQUIRE(ok);
 
     auto& cache = s_text_cache;
-    const auto key = build_expected_cache_key(held_text, font, layout);
+    // Production keys the entry on the EFFECTIVE font (basis: the shape's
+    // resolved layout font), which can differ from the raw fixture spec
+    // after font resolution normalizes fields.
+    const FontSpec resolved_font = shape->layout->font;
+    const auto key = build_expected_cache_key(held_text, resolved_font, layout);
     CHECK(cache.contains(key));
     auto found = cache.find(key);
     REQUIRE(found != nullptr);
@@ -199,11 +227,9 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     REQUIRE(shape != nullptr);
     REQUIRE(shape->layout != nullptr);
 
-    shape->animated_doc = make_scramble_doc();
-    // Force the layout-side font to match so the post-apply cache key
-    // matches what we built by hand below.
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
-    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+    // Font pinned on both keyframes so the post-apply cache key matches
+    // what we built by hand below.
+    shape->animated_doc = make_scramble_doc(font);
 
     const Frame frame{30};
     auto state = shape->animated_doc->sample_at(frame);
@@ -214,7 +240,53 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     REQUIRE(ok);
 
     auto& cache = s_text_cache;
-    const auto key = build_expected_cache_key(state.transition_text, font, layout);
+    // Production keys on the effective (resolved) font — see the static
+    // prewarm case for the rationale.
+    const FontSpec resolved_font = shape->layout->font;
+    const auto key = build_expected_cache_key(state.transition_text, resolved_font, layout);
+    std::fprintf(stderr, "PROBE text=%s contains(base)=%d\n",
+                 state.transition_text.c_str(), (int)cache.contains(key));
+    {
+        TextLayoutCacheKey probe = key;
+        for (const char* f : {"", "kern", "kern,liga", "liga", "kern liga"}) {
+            probe.features = f;
+            std::fprintf(stderr, "PROBE features='%s' dir=%d lang='%s' contains=%d\n", f,
+                         (int)probe.direction, std::string(probe.language).c_str(),
+                         (int)cache.contains(probe));
+        }
+        // flip font fields one at a time against resolved_font baseline
+        FontSpec alt = resolved_font;
+        alt.font_family.clear();  probe = key; probe.font_family = alt.font_family;
+        std::fprintf(stderr, "PROBE font_family='' contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.font_path = "tests/fixtures/Inter-Bold.ttf";
+        std::fprintf(stderr, "PROBE font_path=rel contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.font_weight = 400;
+        std::fprintf(stderr, "PROBE font_weight=400 contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.font_size = 0.0f;
+        std::fprintf(stderr, "PROBE font_size=0 contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.paragraph = ParagraphStyle{};
+        std::fprintf(stderr, "PROBE paragraph=default contains=%d\n", (int)cache.contains(probe));
+        for (int d = 1; d <= 2; ++d) {
+            probe = key; probe.direction = static_cast<TextDirection>(d);
+            std::fprintf(stderr, "PROBE direction=%d contains=%d\n", d, (int)cache.contains(probe));
+        }
+        probe = key; probe.language = "en";
+        std::fprintf(stderr, "PROBE language=en contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.variation_axes = "wght=700";
+        std::fprintf(stderr, "PROBE variation=wght700 contains=%d\n", (int)cache.contains(probe));
+        // text sanity probes
+        for (const char* t : {"PR11ScrambleSrc", "PR11ScrambleDst", "QGLU7YWSV337DSU"}) {
+            probe = key; probe.text = t;
+            std::fprintf(stderr, "PROBE text='%s' contains=%d\n", t, (int)cache.contains(probe));
+        }
+        // box/layout probes
+        probe = key; probe.box_width = 0.0f;
+        std::fprintf(stderr, "PROBE box_width=0 contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.align = 0;
+        std::fprintf(stderr, "PROBE align=0 contains=%d\n", (int)cache.contains(probe));
+        probe = key; probe.wrap = TextWrap::Word;
+        std::fprintf(stderr, "PROBE wrap=word contains=%d\n", (int)cache.contains(probe));
+    }
     CHECK(cache.contains(key));
     auto found = cache.find(key);
     REQUIRE(found != nullptr);
@@ -224,7 +296,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     // active->utf8 key, so this proves the entry was stored under
     // the transition_text bytes — not the active doc's.
     const auto active_key = build_expected_cache_key(
-        state.active->utf8, font, layout);
+        state.active->utf8, resolved_font, layout);
     CHECK(key.digest() != active_key.digest());
     CHECK(found->source_text != state.active->utf8);
 }
@@ -246,8 +318,7 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
     auto shape = make_real_shape(text, engine, layout, font);
     REQUIRE(shape != nullptr);
 
-    shape->animated_doc = make_static_doc(text);
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    shape->animated_doc = make_static_doc(text, font);
 
     const Frame frame{30};
     CHECK(prewarm_text_run_layout_for_frame(*shape, frame));
@@ -257,7 +328,8 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
     // Cache still contains the entry (LruCache::put re-promotes on
     // overwrite; size unchanged but contains() is true).
     auto& cache = s_text_cache;
-    const auto key = build_expected_cache_key(text, font, layout);
+    const FontSpec resolved_font = shape->layout->font;
+    const auto key = build_expected_cache_key(text, resolved_font, layout);
     CHECK(cache.contains(key));
 }
 
@@ -277,9 +349,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
     auto shape = make_real_shape("PR11ScrambleSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
 
-    shape->animated_doc = make_scramble_doc();
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
-    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+    shape->animated_doc = make_scramble_doc(font);
 
     // Prewarm at frame 30 and frame 31 — the Scramble produces
     // different transition_text bytes per frame, so the cache MUST
@@ -295,8 +365,9 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
     REQUIRE(s30 != s31);
 
     auto& cache = s_text_cache;
-    const auto key30 = build_expected_cache_key(s30, font, layout);
-    const auto key31 = build_expected_cache_key(s31, font, layout);
+    const FontSpec resolved_font = shape->layout->font;
+    const auto key30 = build_expected_cache_key(s30, resolved_font, layout);
+    const auto key31 = build_expected_cache_key(s31, resolved_font, layout);
     REQUIRE(key30.digest() != key31.digest());
 
     CHECK(cache.contains(key30));
@@ -325,9 +396,16 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
     const std::string text = "PR11Settled_v1";
     auto shape = make_real_shape(text, engine, layout, font);
     REQUIRE(shape != nullptr);
+    const FontSpec resolved_font = shape->layout->font;
 
-    shape->animated_doc = make_static_doc(text);
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
+    // keyframes() is read-only after add_keyframe — build the full doc
+    // (static kf0 + Cut kf60) before attaching it to the shape.
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = text;
+    kf0.document.defaults.font = font;
+    doc->add_keyframe(kf0);
 
     const std::string dst_text = "PR11SettledDst_v1";
     SourceTextKeyframe kf60;
@@ -335,7 +413,9 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
     kf60.document.utf8 = dst_text;
     kf60.document.defaults.font = font;
     kf60.transition = SourceTextTransition::Cut;
-    shape->animated_doc->add_keyframe(kf60);
+    doc->add_keyframe(kf60);
+
+    shape->animated_doc = doc;
 
     // Sample at frame 90 (post-Cut).  The active becomes the
     // destination; transition_text empty for settled tail.
@@ -350,7 +430,7 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
     // Cache should hold an entry keyed on dst_text, NOT on the
     // pre-boundary text or transition_text (which is empty here).
     auto& cache = s_text_cache;
-    const auto key_dst = build_expected_cache_key(dst_text, font, layout);
+    const auto key_dst = build_expected_cache_key(dst_text, resolved_font, layout);
     CHECK(cache.contains(key_dst));
     auto found = cache.find(key_dst);
     REQUIRE(found != nullptr);
@@ -377,16 +457,18 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
 /// Build a 2-keyframe AnimatedTextDocument that crossfades from
 /// "PR11CFSrc" to "PR11CFDst" between frames 0 and 60, with the
 /// DissolveLayouts transition type set on the outgoing keyframe.
-static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc() {
+static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc(const FontSpec& font) {
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "PR11CFSrc";
+    kf0.document.defaults.font = font;
     kf0.transition = SourceTextTransition::DissolveLayouts;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
     kf60.document.utf8 = "PR11CFDst";
+    kf60.document.defaults.font = font;
     doc->add_keyframe(kf60);
     return doc;
 }
@@ -403,9 +485,13 @@ TEST_CASE("Prewarm PR11 CF: DissolveLayouts prewarm populates BOTH active and di
     auto shape = make_real_shape("PR11CFSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
 
-    shape->animated_doc = make_crossfade_doc();
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
-    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+    shape->animated_doc = make_crossfade_doc(font);
+
+    // Production keys on the effective (resolved) font — the active side
+    // derives it from the shape's resolved layout font and the crossfade
+    // side resolves the (identical) keyframe default font to the same
+    // resolved spec for these fixture-backed documents.
+    const FontSpec resolved_font = shape->layout->font;
 
     // Frame 30 is in-gap: mix must be in (0, 1) and dissolve_from
     // non-null.  Prewarm must succeed AND populate cache for BOTH
@@ -421,9 +507,9 @@ TEST_CASE("Prewarm PR11 CF: DissolveLayouts prewarm populates BOTH active and di
 
     auto& cache = s_text_cache;
     const auto key_active =
-        build_expected_cache_key(state.active->utf8, font, layout);
+        build_expected_cache_key(state.active->utf8, resolved_font, layout);
     const auto key_from =
-        build_expected_cache_key(state.dissolve_from->utf8, font, layout);
+        build_expected_cache_key(state.dissolve_from->utf8, resolved_font, layout);
 
     CHECK(cache.contains(key_active));
     CHECK(cache.contains(key_from));
@@ -460,9 +546,7 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
     //   - frame 60 (post-gap)            — crossfade slots cleared
     auto shape = make_real_shape("PR11CFSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
-    shape->animated_doc = make_crossfade_doc();
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
-    shape->animated_doc->keyframes()[1].document.defaults.font = font;
+    shape->animated_doc = make_crossfade_doc(font);
 
     // ── Mid-gap — slots populated ────────────────────────────────────
     {
@@ -485,8 +569,11 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
     // ── Post-gap — slots cleared ─────────────────────────────────────
     {
         const auto post_state = shape->animated_doc->sample_at(Frame{61});
-        REQUIRE(post_state.transition == SourceTextTransition::Hold
-                || post_state.active->utf8 == "PR11CFDst");
+        // Post-gap (frame 61): whether the transition has fully resolved to
+        // Hold or is still exactly on the boundary, the active document must
+        // have switched to the dissolve destination.
+        REQUIRE(post_state.active != nullptr);
+        REQUIRE(post_state.active->utf8 == "PR11CFDst");
 
         CHECK(apply_active_state_to_text_run_shape(
             *shape, post_state, engine, layout));
@@ -524,19 +611,19 @@ TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfa
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "PR11CFFallback_Src";
+    kf0.document.defaults.font = font;
     kf0.transition = SourceTextTransition::Hold;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
     kf60.document.utf8 = "PR11CFFallback_Dst";
+    kf60.document.defaults.font = font;
     kf60.transition = SourceTextTransition::Hold;
     doc->add_keyframe(kf60);
 
     auto shape = make_real_shape("PR11CFFallback_Src", engine, layout, font);
     REQUIRE(shape != nullptr);
     shape->animated_doc = doc;
-    shape->animated_doc->keyframes()[0].document.defaults.font = font;
-    shape->animated_doc->keyframes()[1].document.defaults.font = font;
 
     // Sample at frame 30 — should be mid-Hold with dissolve_from null.
     const auto state = shape->animated_doc->sample_at(Frame{30});
@@ -550,5 +637,3 @@ TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfa
     CHECK(shape->dissolve_glyphs.empty());
     CHECK(shape->dissolve_mix == 0.0f);
 }
-
-} // namespace
