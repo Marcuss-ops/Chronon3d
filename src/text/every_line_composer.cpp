@@ -17,6 +17,10 @@ constexpr float INF = 1e12f;
 constexpr float HYPHEN_PENALTY = 50.0f;
 constexpr float CONSECUTIVE_HYPHEN_PENALTY = 100.0f;
 constexpr float TIGHT_LINE_PENALTY = 25.0f;
+// Penalty for an under-full line that Full justification demands be
+// stretched but which has no stretchable glue (kept feasible so the DP
+// never fails to lay out non-empty text).
+constexpr float kNoStretchPenalty = 500.0f;
 
 struct BreakOpportunity {
     size_t cluster_index{0};
@@ -50,15 +54,42 @@ struct BreakOpportunity {
     float natural_width,
     float target_width,
     float stretch_cap,
-    float shrink_cap
+    float shrink_cap,
+    TextJustification justification,
+    bool is_last_line
 ) {
     float delta = target_width - natural_width;
     if (std::abs(delta) < 0.01f) return 0.0f;
 
     float ratio;
     if (delta > 0.0f) {
-        if (stretch_cap <= 0.0f) return INF;
-        ratio = delta / stretch_cap;
+        // Under-full line.  Full justification stretches every line
+        // (including the last — that is the semantic difference vs the
+        // FullLastLine* variants, which relax the final line); ragged
+        // alignments (Left / Center / Right) never stretch.  Ragged/final
+        // lines stay feasible with slack-proportional badness; a justified
+        // line that must stretch but has no glue is penalised heavily
+        // rather than rejected outright — rejecting it would make the DP
+        // return an empty layout for any text that does not exactly fill
+        // the box.
+        const bool is_full = (justification == TextJustification::Full);
+        const bool is_full_last =
+            (justification == TextJustification::FullLastLineLeft
+             || justification == TextJustification::FullLastLineCenter
+             || justification == TextJustification::FullLastLineRight);
+        const bool must_stretch = is_full || (is_full_last && !is_last_line);
+        if (must_stretch) {
+            if (stretch_cap <= 0.0f) {
+                // No stretchable glue: keep the candidate feasible with a
+                // strong penalty so the DP can still lay the text out.
+                ratio = delta / std::max(target_width, 1.0f);
+                return 100.0f * std::pow(std::abs(ratio), 3.0f)
+                     + kNoStretchPenalty;
+            }
+            ratio = delta / stretch_cap;
+        } else {
+            ratio = delta / std::max(target_width, 1.0f);
+        }
     } else {
         if (shrink_cap <= 0.0f) return INF;
         ratio = delta / shrink_cap;
@@ -118,7 +149,10 @@ struct DpState {
 
                 float stretch = stretch_capacity(clusters, from, to, style.spacing);
                 float shrink = shrink_capacity(clusters, from, to, style.spacing);
-                float badness = compute_badness(nat, available_width, stretch, shrink);
+                const bool is_last_line = (to >= clusters.size());
+                float badness = compute_badness(
+                    nat, available_width, stretch, shrink,
+                    style.justification, is_last_line);
                 if (badness >= INF) continue;
 
                 float penalty = 0.0f;
@@ -147,7 +181,10 @@ struct DpState {
             float nat = line_natural_width(clusters, from, to);
             float stretch = stretch_capacity(clusters, from, to, style.spacing);
             float shrink = shrink_capacity(clusters, from, to, style.spacing);
-            float badness = compute_badness(nat, available_width, stretch, shrink);
+            const bool is_last_line = (to >= clusters.size());
+            float badness = compute_badness(
+                nat, available_width, stretch, shrink,
+                style.justification, is_last_line);
             if (badness >= INF) continue;
 
             float penalty = 0.0f;
@@ -268,6 +305,21 @@ ParagraphLayout compose_every_line_impl(
         line.cluster_count = to - from;
         line.natural_width = line_natural_width(clusters, from, to);
         result.lines.push_back(line);
+    }
+
+    // Emergency fallback: the DP could not find any feasible break path
+    // (e.g. a single unbreakable word wider than the box, or plain runs
+    // with no break opportunities that overflow).  Never return an empty
+    // layout for non-empty input — split every cluster onto its own line,
+    // mirroring the greedy composer's overflow behaviour.
+    if (result.lines.empty()) {
+        for (size_t ci = 0; ci < clusters.size(); ++ci) {
+            ComposedLine line;
+            line.first_cluster = ci;
+            line.cluster_count = 1;
+            line.natural_width = line_natural_width(clusters, ci, ci + 1);
+            result.lines.push_back(line);
+        }
     }
 
     finalize_lines(result, clusters, available_width, style, source_text, shaped);

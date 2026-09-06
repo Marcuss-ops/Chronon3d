@@ -162,6 +162,14 @@ PlacedTextOnPath compose_text_on_path(
         // Rotation.
         if (spec.perpendicular_to_path) {
             pc.rotation_deg = rad2deg(std::atan2(tangent.y, tangent.x));
+            // Canonical angle range: (-180, 180].  A reversed horizontal
+            // tangent is (-1, -0.0), and atan2(-0.0, -1.0) yields -π which
+            // rad2deg rounds to -180.  That is the same orientation as
+            // +180 (upside-down text), so map the boundary to +180 for a
+            // single canonical value.
+            if (pc.rotation_deg <= -180.0f) {
+                pc.rotation_deg += 360.0f;
+            }
         } else {
             pc.rotation_deg = 0.0f;
         }
