@@ -21,7 +21,9 @@ gli errori e restituisce l'output finale.
 ownership non sovrapposta: rispettivamente orchestrazione per-node, scheduling
 dei livelli e primitive `RenderGraphNode::execute`/ownership framebuffer.
 
-`command_plan_executor.cpp` è un **test-only adapter** per parity/readiness test:
+Il vecchio adapter di `CommandPlan` è stato rimosso; i parity/readiness test
+passano ora dall'overload `GraphExecutor::execute()` e condividono il dispatch
+canonico verso `RenderBackend`.
 ha zero caller produttivi in `apps/`, `src/` e `tools/`. La sua dichiarazione è
 confinata a `tests/helpers/command_plan_executor.hpp`; il simbolo
 `execute_command_plan` resta compilato come ABI-compatibility shim perché è

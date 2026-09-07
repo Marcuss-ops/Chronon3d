@@ -25,7 +25,7 @@
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include <tests/helpers/command_plan_executor.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
@@ -190,7 +190,7 @@ TEST_CASE("command plan executor dispatches passes through the canonical backend
     const auto plan = planner.build();
 
     const auto submissions_before = backend.stats().submissions;
-    REQUIRE(execute_command_plan(backend, registry, plan));
+    REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     // The executor opens + closes one frame batch: every plan pass coalesces
     // into a single queue submission.
     CHECK(backend.stats().submissions == submissions_before + 1);
