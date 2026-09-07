@@ -14,7 +14,7 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          std::uint64_t end_frame,
                          bool frame_range_explicit,
                          const std::string& receipt_verify,
-                         std::optional<runtime::job::ResolvedRenderJob> normalized_request) {
+                         std::optional<runtime::job::NormalizedRenderJob> normalized_request) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
