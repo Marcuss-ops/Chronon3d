@@ -397,7 +397,7 @@ hint = "Public render_graph headers must not depend on concrete software backend
 name = "cli_cannot_own_media_decoder_impl"
 description = "CLI cannot own media decoder or CUDA/Vulkan compositor"
 scan_paths = ["apps/chronon3d_cli"]
-forbidden_patterns = ['utils/video/(native_video_frame_decoder|cuda_nv12_surface_compositor)']
+forbidden_patterns = ['utils/video/native_video_frame_decoder']
 hint = "Media decoder implementations belong in src/media/, not in CLI."
 
 [[boundary]]

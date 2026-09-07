@@ -3,7 +3,7 @@
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
 
 #include <cuda.h>

@@ -2,7 +2,10 @@
 
 **Area:** runtime telemetry / render-graph executor
 **Pri:** P2
-**Stato:** CODE DONE (2026-09-05; build/CI verification pending)
+**Stato:** SUPERSEDED — Wave 1D (2026-09-07): gli emettitori granulari gated
+su `CHRONON3D_ENABLE_SQLITE_TELEMETRY` (node/culling/image) sono stati
+rimossi col consumer SQLite; resta l'API eventi in-memory
+(`record_*` / capture level) per un eventuale store host.
 **Owner:** telemetry (single-authority)
 
 ## Closeout (refer to TICKET-AUDIT-ROADMAP-WAVES, Wave 2)

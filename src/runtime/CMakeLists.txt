@@ -2,10 +2,9 @@
 # src/runtime/CMakeLists.txt — chronon3d_runtime
 # ==============================================================================
 #
-# SQLite telemetry is optional (CHRONON3D_ENABLE_TELEMETRY).
-# When OFF a NullTelemetryStore is compiled instead; when ON the full
-# SQLite-backed store is built and CHRONON3D_ENABLE_SQLITE_TELEMETRY
-# is propagated to consumers.
+# Wave 1D (SQLite demolition): no database/persistence layer in the engine.
+# The runtime keeps an events-only telemetry boundary (NullTelemetryStore
+# default); hosts/collectors observe Chronon out-of-band. No SQLite dependency.
 
 set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
@@ -50,26 +49,10 @@ set(CHRONON3D_RUNTIME_SOURCES
     #    encoder if any required asset cannot be resolved.
     resource_preparation.cpp
     resource_preparation_media.cpp
+    telemetry/null/null_telemetry_store.cpp
 )
-
-if(CHRONON3D_ENABLE_TELEMETRY)
-    list(APPEND CHRONON3D_RUNTIME_SOURCES
-        telemetry/sqlite/sqlite_telemetry_store.cpp
-        telemetry/sqlite/sqlite_telemetry_store_events.cpp
-        telemetry/sqlite/sqlite_telemetry_store_schema.cpp
-    )
-else()
-    list(APPEND CHRONON3D_RUNTIME_SOURCES
-        telemetry/null/null_telemetry_store.cpp
-    )
-endif()
 
 add_library(chronon3d_runtime OBJECT ${CHRONON3D_RUNTIME_SOURCES})
-set_target_properties(chronon3d_runtime PROPERTIES UNITY_BUILD OFF)
-set_source_files_properties(
-    telemetry/sqlite/sqlite_telemetry_store.cpp
-    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
-)
 target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d
     chronon3d_graph
@@ -99,17 +82,3 @@ target_compile_definitions(chronon3d_runtime PRIVATE
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
 )
 target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
-
-if(CHRONON3D_ENABLE_TELEMETRY)
-    # Generate telemetry schema header from canonical .sql file.
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/telemetry/sqlite/telemetry_schema.sql" TELEMETRY_SCHEMA_CONTENT)
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/telemetry/sqlite/telemetry_schema.hpp.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/telemetry_schema.hpp"
-        @ONLY
-    )
-    target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-
-    target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()

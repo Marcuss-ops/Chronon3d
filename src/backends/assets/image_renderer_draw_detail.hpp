@@ -225,18 +225,6 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
             static_cast<uint64_t>(std::llround(draw_us)), std::memory_order_relaxed);
         profiling::g_current_counters->image_draw_count.fetch_add(1, std::memory_order_relaxed);
     }
-    const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
-    record_image_telemetry(
-        state,
-        image.path,
-        img_w,
-        img_h,
-        (cached && cached->valid() && !using_placeholder) ? "hit" : "miss_decode",
-        decode_ms,
-        sample_ms,
-        sampled_pixels
-    );
-
     return true;
 }
 
@@ -265,16 +253,6 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         || cached->bl_img.empty()
 #endif
     ) {
-        record_image_telemetry(
-            state,
-            image.path,
-            cached ? cached->width : 0,
-            cached ? cached->height : 0,
-            "miss_decode",
-            decode_ms,
-            0.0,
-            0
-        );
         return false;
     }
 
@@ -324,17 +302,6 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
             static_cast<uint64_t>(std::llround(draw_us)), std::memory_order_relaxed);
         profiling::g_current_counters->image_draw_count.fetch_add(1, std::memory_order_relaxed);
     }
-    record_image_telemetry(
-        state,
-        image.path,
-        cached->width,
-        cached->height,
-        "hit",
-        decode_ms,
-        sample_ms,
-        static_cast<uint64_t>(cached->width) * static_cast<uint64_t>(cached->height)
-    );
-
     return true;
 }
 

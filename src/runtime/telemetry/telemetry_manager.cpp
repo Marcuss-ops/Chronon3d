@@ -1,13 +1,8 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-#include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
-#else
 #include <chronon3d/runtime/telemetry/null_telemetry_store.hpp>
-#endif
 #include <spdlog/spdlog.h>
 #include <atomic>
-#include <filesystem>
 #include <thread>
 #include <chrono>
 #include <sstream>
@@ -22,19 +17,6 @@
 namespace chronon3d::telemetry {
 
 namespace {
-
-std::filesystem::path telemetry_directory(const TelemetryRuntimeConfig& config) {
-    if (!config.path_override.empty()) {
-        const auto ext = config.path_override.extension();
-        if (ext == ".db" || ext == ".sqlite") {
-            const auto parent = config.path_override.parent_path();
-            return parent.empty() ? std::filesystem::path{"."} : parent;
-        }
-        return config.path_override;
-    }
-    if (!config.default_directory.empty()) return config.default_directory;
-    return "/tmp/.chronon3d/telemetry";
-}
 
 struct PeakMemoryCache {
     std::atomic<bool> stop{false};
@@ -130,69 +112,12 @@ void TelemetryManager::initialize_default_stores() {
         return;
     }
 
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    const auto apply_retention = [this](const std::shared_ptr<TelemetryStore>& store) {
-        // Janitor for Detailed/Trace rows left behind by earlier runs. Runs
-        // at any current level clean stale granular history; Summary rows are
-        // durable and are never passed to the janitor.
-        if (m_config.detail_ttl_days > 0) {
-            store->apply_retention(m_config.detail_ttl_days);
-        }
-    };
-
-    const std::filesystem::path base_dir = telemetry_directory(m_config);
-    spdlog::info("[telemetry] Initializing default stores in base directory: {}",
-                 base_dir.string());
-
-    std::error_code ec;
-    std::filesystem::create_directories(base_dir, ec);
-
-    const std::filesystem::path sqlite_path = resolve_sqlite_telemetry_path(m_config);
-    spdlog::info("[telemetry] Resolving SQLite path to: {}", sqlite_path.string());
-
-    auto sqlite_store = std::make_shared<SqliteTelemetryStore>();
-    if (sqlite_store->initialize(sqlite_path.string())) {
-        spdlog::info("[telemetry] Successfully initialized SQLite store at {}",
-                     sqlite_path.string());
-        apply_retention(sqlite_store);
-        add_store(std::move(sqlite_store));
-    } else {
-        spdlog::warn(
-            "[telemetry] Failed to initialize workspace SQLite store at {}; "
-            "falling back to default telemetry DB", sqlite_path.string());
-        TelemetryRuntimeConfig fallback_config;
-        fallback_config.default_directory = m_config.default_directory;
-        const std::filesystem::path fallback_path =
-            telemetry_directory(fallback_config) / "chronon3d_render_history.sqlite";
-        auto fallback_store = std::make_shared<SqliteTelemetryStore>();
-        if (fallback_store->initialize(fallback_path.string())) {
-            spdlog::info("[telemetry] Successfully initialized fallback SQLite store at {}",
-                         fallback_path.string());
-            apply_retention(fallback_store);
-            add_store(std::move(fallback_store));
-        } else {
-            spdlog::warn("[telemetry] Failed to initialize fallback SQLite store at {}",
-                         fallback_path.string());
-        }
-    }
-#else
-    spdlog::info("[telemetry] Telemetry support is disabled in this build.");
+    // Wave 1D — events only.  Chronon emits telemetry events and owns no
+    // persistence: database/aggregation live outside the engine (host store
+    // or observability collector).  A NullTelemetryStore keeps the drain
+    // boundary live so hosts that register their own store keep working.
+    spdlog::info("[telemetry] Default store: NullTelemetryStore (events only).");
     add_store(std::make_shared<NullTelemetryStore>());
-#endif
-}
-
-std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path(
-    const TelemetryRuntimeConfig& config) {
-    if (!config.path_override.empty()) {
-        const auto ext = config.path_override.extension();
-        if (ext == ".db" || ext == ".sqlite") return config.path_override;
-        return config.path_override / "chronon3d_render_history.sqlite";
-    }
-    return telemetry_directory(config) / "chronon3d_render_history.sqlite";
-}
-
-std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {
-    return resolve_sqlite_telemetry_path(instance().m_config);
 }
 
 bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {

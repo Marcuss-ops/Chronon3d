@@ -52,7 +52,6 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
 
         bool is_culled = false;
         std::string cull_reason;
-        uint64_t saved_pixels = 0;
 
         if (bbox.is_empty()) {
             is_culled = true;
@@ -63,8 +62,6 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if (!intersects) {
                 is_culled = true;
                 cull_reason = "frustum_culled";
-                saved_pixels = static_cast<uint64_t>(bbox.x1 - bbox.x0)
-                             * (bbox.y1 - bbox.y0);
             }
         }
 
@@ -84,42 +81,6 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                 rctx.node_exec.counters->layers_visible.fetch_add(1, std::memory_order_relaxed);
             }
         }
-
-        // Record culling telemetry — the event stores exist ONLY for the
-        // SQLite telemetry consumer (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT);
-        // in default builds the record would be drained and discarded, so the
-        // per-layer mutex + string cost is gated on the real consumer.
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-        // Same capture gate as emit_node_records: Summary (production
-        // default) never populates the per-event stores, so skip the
-        // per-layer string + shard-push cost entirely.
-        if (telemetry::telemetry_capture_level() >=
-            telemetry::TelemetryLevel::Detailed) {
-            telemetry::CullingTelemetryRecord cull_rec;
-            cull_rec.frame_number = static_cast<int>(rctx.frame_input.frame);
-            cull_rec.layer_id     = std::string(item.layer->name);
-            cull_rec.visible      = !is_culled;
-            cull_rec.reason       = cull_reason;
-            cull_rec.bbox_x       = static_cast<float>(bbox.x0);
-            cull_rec.bbox_y       = static_cast<float>(bbox.y0);
-            cull_rec.bbox_w       = static_cast<float>(bbox.x1 - bbox.x0);
-            cull_rec.bbox_h       = static_cast<float>(bbox.y1 - bbox.y0);
-            cull_rec.visible_x    = 0;
-            cull_rec.visible_y    = 0;
-            cull_rec.visible_w    = 0;
-            cull_rec.visible_h    = 0;
-            if (!is_culled) {
-                raster::BBox visible_bbox = bbox;
-                visible_bbox.clip_to(rctx.frame_input.width, rctx.frame_input.height);
-                cull_rec.visible_x = static_cast<float>(visible_bbox.x0);
-                cull_rec.visible_y = static_cast<float>(visible_bbox.y0);
-                cull_rec.visible_w = static_cast<float>(visible_bbox.x1 - visible_bbox.x0);
-                cull_rec.visible_h = static_cast<float>(visible_bbox.y1 - visible_bbox.y0);
-            }
-            cull_rec.saved_pixels = saved_pixels;
-            telemetry::record_culling_telemetry(std::move(cull_rec));
-        }
-#endif
 
         if (is_culled) return;
 

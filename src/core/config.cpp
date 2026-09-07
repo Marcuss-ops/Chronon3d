@@ -160,18 +160,13 @@ Config::Config() {
 
     // Observability environment belongs to the process/config boundary too.
     // TelemetryManager receives these resolved values and never re-reads env.
-    runtime_.telemetry_path_ = env_string("CHRONON3D_TELEMETRY_PATH");
+    // Wave 1D: the database path/retention env wiring (CHRONON3D_TELEMETRY_PATH,
+    // CHRONON3D_TELEMETRY_DEFAULT_DIR, CHRONON3D_TELEMETRY_DETAIL_TTL_DAYS)
+    // was removed with the SQLite store; only level + run-id override remain.
     runtime_.telemetry_run_id_ = env_string("CHRONON3D_RUN_ID");
     if (const std::string level = env_string("CHRONON3D_TELEMETRY_LEVEL"); !level.empty()) {
         runtime_.telemetry_level_ = level;
     }
-    if (const std::string ttl = env_string("CHRONON3D_TELEMETRY_DETAIL_TTL_DAYS"); !ttl.empty()) {
-        runtime_.telemetry_detailed_ttl_days_ = ttl;
-    }
-    const std::string home = env_string("HOME");
-    runtime_.telemetry_default_directory_ = home.empty()
-        ? std::string{"/tmp/.chronon3d/telemetry"}
-        : home + "/.chronon3d/telemetry";
 
     const char* hot_path_env = std::getenv("CHRONON3D_GPU_HOT_PATH_MODE");
     if (hot_path_env && *hot_path_env) {

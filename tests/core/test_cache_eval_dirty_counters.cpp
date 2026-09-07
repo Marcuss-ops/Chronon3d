@@ -9,7 +9,7 @@
 //
 //   1. The two fields exist in `RenderCounters`, are 64-byte aligned, and
 //      default to zero.  This proves that downstream readers (telemetry,
-//      SQLite, golden checks) see the slot consistently.
+//      golden checks) see the slot consistently.
 //   2. A simulated `evaluate_cache` workload (key digest + cache lookup
 //      decision + telemetry accumulation) drives `cache_eval_wall_ms > 0`.
 //   3. A simulated `compute_dirty_rect` workload (parallel bbox

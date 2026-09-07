@@ -5,20 +5,17 @@
 
 namespace chronon3d::telemetry {
 
-// ── Telemetry capture levels (TICKET-TELEMETRY-SQLITE-NORMALIZATION §5) ──
+// ── Telemetry capture levels ─────────────────────────────────────────────
 //
-//   Off       — persistence disabled (manager records nothing).
-//   Summary   — durable KPI only: render_runs, render_counters,
-//               render_phase_events, render_node_summary,
-//               render_memory_summary, render_artifacts.
-//               < 1.000 rows/run; this data is the long-term proprietary
-//               corpus and is NEVER auto-rotated.
-//   Detailed  — adds per-frame and per-event tables (render_frames,
-//               render_node_events, render_layer_events, render_cache_events,
-//               render_culling_events, render_image_events). High volume;
-//               subject to retention TTL.
+//   Off       — capture disabled (manager records nothing).
+//   Summary   — KPI-level events only (default; small bounded volume).
+//   Detailed  — per-frame/per-event detail events. High volume.
 //   Trace     — adds external trace pointers (Perfetto/Chrome trace
 //               artifacts registered as render_artifacts entries).
+//
+// Levels gate in-memory event capture only: Chronon emits events and owns
+// no persistence (Wave 1D). A host-registered TelemetryStore decides what
+// to do with the drained records.
 enum class TelemetryLevel : unsigned char {
     Off = 0,
     Summary = 1,
@@ -46,19 +43,6 @@ inline constexpr TelemetryLevel kDefaultTelemetryLevel = TelemetryLevel::Summary
     if (s == "detailed" || s == "2")   return TelemetryLevel::Detailed;
     if (s == "trace" || s == "3")      return TelemetryLevel::Trace;
     return TelemetryLevel::Summary;  // "summary", "1", empty, unknown
-}
-
-/// Parse the detailed-history retention window in days. 0 disables the janitor
-/// (detailed rows are then kept indefinitely, like Summary). Non-numeric or
-/// negative input falls back to `fallback`.
-[[nodiscard]] inline int parse_retention_days(std::string_view s, int fallback = 30) noexcept {
-    if (s.empty()) return fallback;
-    int value = -1;
-    const auto* begin = s.data();
-    const auto* end = s.data() + s.size();
-    const auto [ptr, ec] = std::from_chars(begin, end, value);
-    if (ec != std::errc{} || ptr != end || value < 0) return fallback;
-    return value;
 }
 
 } // namespace chronon3d::telemetry

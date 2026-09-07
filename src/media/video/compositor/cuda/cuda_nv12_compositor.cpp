@@ -1,10 +1,10 @@
-// cuda_nv12_surface_compositor.cpp — CudaNv12SurfaceCompositor NVRTC
+// cuda_nv12_compositor.cpp — CudaNv12Compositor NVRTC
 // compilation helpers and object lifecycle (construction, module loading,
 // destruction, synchronization).
 //
-// The embedded CUDA kernels live in cuda_nv12_composite_kernels.hpp, the
-// composite entry points in cuda_nv12_surface_compositor_paths.cpp and
-// cuda_nv12_surface_compositor_batch.cpp.
+// The embedded CUDA kernels live in cuda_nv12_kernels.hpp, the
+// composite entry points in cuda_nv12_compositor_paths.cpp and
+// cuda_nv12_compositor_batch.cpp.
 
 #include "cuda_nv12_compositor_detail.hpp"
 
@@ -14,7 +14,10 @@
 #include <spdlog/spdlog.h>
 
 #ifndef CHRONON3D_NVRTC_ARCHITECTURE
-#define CHRONON3D_NVRTC_ARCHITECTURE "compute_75"
+// Ampere (compute_86) is the canonical GPU target for this stack (RTX A4000).
+// Override via CMake CHRONON3D_NVRTC_ARCHITECTURE when building for a device
+// with a different compute capability.
+#define CHRONON3D_NVRTC_ARCHITECTURE "compute_86"
 #endif
 
 #include <chrono>
@@ -23,7 +26,7 @@
 #include <mutex>
 #include <system_error>
 
-namespace chronon3d::backends::vulkan {
+namespace chronon3d::media::video {
 
 namespace {
 
@@ -104,12 +107,12 @@ std::string get_compiled_nv12_ptx() {
 
 } // namespace cuda_nv12_detail
 
-void CudaNv12SurfaceCompositor::warm_up(CUcontext context) {
+void CudaNv12Compositor::warm_up(CUcontext context) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
     using cuda_nv12_detail::get_compiled_nv12_ptx;
 
-    if (!context) fail("CudaNv12SurfaceCompositor::warm_up", "null CUDA context");
+    if (!context) fail("CudaNv12Compositor::warm_up", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent(warm_up)");
     const std::string ptx = get_compiled_nv12_ptx();
     CUmodule module = nullptr;
@@ -118,14 +121,14 @@ void CudaNv12SurfaceCompositor::warm_up(CUcontext context) {
     check_cuda(cuModuleUnload(module), "cuModuleUnload(warm_up)");
 }
 
-CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
+CudaNv12Compositor::CudaNv12Compositor(
     const CudaExternalMemoryInfo& target, CUcontext context)
     : context_(context), surface_u8_(target.cuda_array_format == 2) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
     using cuda_nv12_detail::get_compiled_nv12_ptx;
 
-    if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
+    if (!context_) fail("CudaNv12Compositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
@@ -170,13 +173,13 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(
         target, context_, stream_);
 }
 
-CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(CUcontext context)
+CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     : context_(context), surface_u8_(false) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
     using cuda_nv12_detail::get_compiled_nv12_ptx;
 
-    if (!context_) fail("CudaNv12SurfaceCompositor", "null CUDA context");
+    if (!context_) fail("CudaNv12Compositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
     const std::string ptx = get_compiled_nv12_ptx();
@@ -189,7 +192,7 @@ CudaNv12SurfaceCompositor::CudaNv12SurfaceCompositor(CUcontext context)
                "cuModuleGetFunction(nv12_composite_layer_batch_2x2)");
 }
 
-CudaNv12SurfaceCompositor::~CudaNv12SurfaceCompositor() {
+CudaNv12Compositor::~CudaNv12Compositor() {
     if (context_) (void)cuCtxSetCurrent(context_);
     if (stream_) (void)cuStreamSynchronize(stream_);
     bridge_.reset();
@@ -198,12 +201,12 @@ CudaNv12SurfaceCompositor::~CudaNv12SurfaceCompositor() {
     if (stream_) (void)cuStreamDestroy(stream_);
 }
 
-bool CudaNv12SurfaceCompositor::synchronize() noexcept {
+bool CudaNv12Compositor::synchronize() noexcept {
     if (!stream_) return true;
     if (context_) (void)cuCtxSetCurrent(context_);
     return cuStreamSynchronize(stream_) == CUDA_SUCCESS;
 }
 
-} // namespace chronon3d::backends::vulkan
+} // namespace chronon3d::media::video
 
 #endif

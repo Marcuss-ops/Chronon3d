@@ -174,7 +174,8 @@ TEST_CASE("RenderJob planner selects Video from a case-insensitive extension") {
 TEST_CASE("RenderJob planner preserves canonical video settings") {
     auto registry = make_registry();
     auto args = args_for("0-30", "hero.mp4");
-    args.video_settings.fps = 60;
+    args.video_settings.fps_num = 60;
+    args.video_settings.fps_den = 1;
     args.video_settings.crf = 20;
     args.video_settings.codec = "custom_codec";
     args.video_settings.encode_preset = "medium";
@@ -196,7 +197,8 @@ TEST_CASE("RenderJob planner preserves canonical video settings") {
 
     REQUIRE(job.has_value());
     REQUIRE(job->mode == c3d::RenderMode::Video);
-    CHECK(job->video_settings.fps == 60);
+    CHECK(job->video_settings.fps_num == 60);
+    CHECK(job->video_settings.fps_den == 1);
     CHECK(job->video_settings.crf == 20);
     CHECK(job->video_settings.codec == "custom_codec");
     CHECK(job->video_settings.encode_preset == "medium");

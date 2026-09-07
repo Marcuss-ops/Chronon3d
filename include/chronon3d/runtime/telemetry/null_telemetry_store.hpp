@@ -7,9 +7,9 @@ namespace chronon3d::telemetry {
 
 /// NullTelemetryStore — no-op TelemetryStore implementation.
 ///
-/// Used when CHRONON3D_ENABLE_TELEMETRY=OFF.  All writes succeed silently;
-/// the contract is preserved so callers don't need #ifdef guards at every
-/// call site.
+/// Wave 1D: the runtime bundles no persistence; this is the default
+/// events-only store.  All writes succeed silently; the contract is
+/// preserved so callers don't need #ifdef guards at every call site.
 class NullTelemetryStore final : public TelemetryStore {
 public:
     NullTelemetryStore() = default;

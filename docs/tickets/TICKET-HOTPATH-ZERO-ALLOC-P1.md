@@ -79,7 +79,8 @@ motion-blur):
   state (verificabile con massif/ASan allocator counters); valori snapshot
   invariati sui test di contratto.
 - **Equivalence test/gate**: `tests/perf/test_node_memory_tracker.cpp` (4
-  TEST_CASE) + `tests/runtime/test_telemetry_sqlite.cpp` (persistenza exact)
+  TEST_CASE) + `tests/runtime/test_telemetry_policy.cpp` (store policy /
+  orchestrazione; Wave 1D: test_telemetry_sqlite rimossi col store SQLite)
   + `tests/renderer/perf/test_motion_blur_integration.cpp` (domini sample).
   **Status test: NOT RUN** in questa wave (nessuna compilazione eseguita per
   richiesta esplicita dell'utente).
@@ -166,8 +167,9 @@ ad ADR.**
   buffer-heap 64 byte → buffer stack).
 - Da eseguire alla prima build consentita: `backend_registry`, `compositor`,
   `render_job_contract`, `render_graph`, `test_node_memory_tracker`,
-  `test_telemetry_sqlite`, `test_motion_blur_integration` (target
-  `build/fast`, preset `linux-fast-dev`).
+  `test_motion_blur_integration` (target `build/fast`, preset
+  `linux-fast-dev`). `test_telemetry_sqlite` è stato demolito con lo store
+  SQLite (Wave 1D).
 
 ## Stato
 

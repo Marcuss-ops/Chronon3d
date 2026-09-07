@@ -309,7 +309,7 @@ TEST_CASE("C ABI v2 cancellation leaves no output or SDK temp sibling") {
     std::filesystem::remove(output, error);
 }
 #else
-TEST_CASE("C ABI v2 cancellation certification requires video support" * doctest::skip()) { // TICKET-CABI-V2-VIDEO-CERT
+TEST_CASE("C ABI v2 cancellation certification requires video support" * doctest::skip("TICKET-DOCTEST-SKIP-ROT SKIP-007: requires the video-enabled build host (was TICKET-CABI-V2-VIDEO-CERT)")) { // TICKET-CABI-V2-VIDEO-CERT
 }
 #endif
 

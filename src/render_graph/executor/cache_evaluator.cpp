@@ -80,19 +80,10 @@ CacheEvalResult evaluate_cache(
     // is true for every node that can perform a lookup itself or transitively
     // feeds a node that can — so when it is false, NO executed consumer will
     // ever fold this node's digest into a live cache key, and publishing the
-    // default-key constant digest is unobservable.  Telemetry consumption is
-    // OR-ed in here because the emitter (telemetry_emitter.cpp) reads key
-    // fields for every cacheable node in SQLite-enabled builds; this TU sees
-    // the same compile-time flag the emitter sees.
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    const bool telemetry_consumes_key = is_cacheable && ctx.services.node_cache;
-#else
-    const bool telemetry_consumes_key = false;
-#endif
-    const bool may_need_key = cache_key_required || telemetry_consumes_key;
-    if (!may_need_key) {
-        // No lookup path and no telemetry sink can read this key: skip
-        // construction (and any lookup that would need it).
+    // default-key constant digest is unobservable.
+    if (!cache_key_required) {
+        // No lookup path can read this key: skip construction (and any lookup
+        // that would need it).
         cr.use_cache = false;
     } else {
         cr.key = node.cache_key(ctx);

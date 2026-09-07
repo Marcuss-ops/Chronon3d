@@ -26,6 +26,9 @@ not a warning).
 | SKIP-005 | `tests/scene/camera/test_orient_along_path.cpp` :: 3 cases (tangent warning / keep-rotation) | Orphaned TICKET-120 scope: OrientAlongPath warning semantics not yet locked. | camera-v1 | 2026-09-30 | OrientAlongPath warning contract implemented |
 | SKIP-006 | `tests/scene/camera/test_temporal_samples_pr1.cpp` :: "PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" | Orphaned TICKET-007.i: frame-keyed jitter determinism check deferred. | temporal-core | 2026-09-30 | Jitter sampling contract implemented |
 | SKIP-007 | `tests/c_abi/test_c_api_v2.cpp` :: "C ABI v2 cancellation certification requires video support" | Orphaned TICKET-CABI-V2-VIDEO-CERT: C ABI cancellation certification requires the video-enabled build host. | sdk-abi | 2026-09-30 | Video-enabled certification host available in CI |
+| SKIP-008 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: single paragraph produces single layout" | Orphaned TICKET-007.m: pre-existing TextRunBuilder wrap-mode/paragraph-count rot (wrap != TextWrap::None contract assertion fails). | text-core | 2026-09-30 | TextRunBuilder single-paragraph contract implemented + test enabled |
+| SKIP-009 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: multiple paragraphs produce multiple layouts" | Orphaned TICKET-007.n: pre-existing multi-paragraph routing rot (paragraph-count assertion fails). | text-core | 2026-09-30 | TextRunBuilder multi-paragraph contract implemented + test enabled |
+| SKIP-010 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: empty paragraph produced by consecutive newlines" | Orphaned TICKET-007.o: pre-existing consecutive-newline handling rot (empty-paragraph count assertion fails). | text-core | 2026-09-30 | TextRunBuilder consecutive-newline contract implemented + test enabled |
 
 ## Rules
 

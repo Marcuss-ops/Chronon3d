@@ -27,7 +27,6 @@ void register_bench_commands(CLI::App& app, CliContext& ctx);
 // TICKET-V3-CLI-UNIFICATION-PREVIEW (Blocco 4.1)
 void register_preview_commands(CLI::App& app, CliContext& ctx);
 
-void register_telemetry_commands(CLI::App& app, CliContext& ctx);
 void register_bake_layer_commands(CLI::App& app, CliContext& ctx);
 
 } // namespace chronon3d::cli

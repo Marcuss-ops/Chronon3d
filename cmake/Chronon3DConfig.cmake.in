@@ -50,13 +50,9 @@ endif()
 # contract is also promoted from PRIVATE to PUBLIC.
 find_dependency(hwy CONFIG)
 
-# The runtime's telemetry implementation links SQLite publicly. The
-# installed static SDK therefore needs the imported SQLite target before
-# Chronon3DTargets.cmake is loaded; otherwise consumers fail at configure
-# time with an unresolved unofficial::sqlite3::sqlite3 interface target.
-if(@CHRONON3D_ENABLE_TELEMETRY@)
-    find_dependency(unofficial-sqlite3 CONFIG)
-endif()
+# Wave 1D: the telemetry runtime no longer links the removed telemetry
+# database package; no find_dependency for it is emitted.  Persistence and
+# aggregation are engine-external (host store or observability collector).
 
 # Stb and Taskflow are intentionally omitted: they are either
 # header-only (Stb) or referenced only via PRIVATE link interfaces

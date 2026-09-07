@@ -51,9 +51,3 @@ target_compile_definitions(chronon3d_cli_core PRIVATE
 target_compile_definitions(chronon3d_cli_render PRIVATE
     CHRONON3D_CLI_PROJECT_VERSION="${PROJECT_VERSION}"
 )
-
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_compile_definitions(chronon3d_cli_render PRIVATE
-        CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    )
-endif()
