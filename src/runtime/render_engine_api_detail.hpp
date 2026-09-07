@@ -162,12 +162,7 @@ PreparedRenderJob RenderEngine::prepare(
     auto impl = std::make_unique<PreparedRenderJob::Impl>();
     impl->engine = this;
     impl->job_session = std::make_unique<runtime::JobSession>(*m_impl->m_runtime);
-    impl->assets_root = m_impl->m_runtime->resolver().mount_root().string();
     impl->compiled = std::move(compiled);
-    impl->assets_root = m_impl->m_renderer->runtime().resolver().mount_root().string();
-    impl->count = impl->compiled->composition
-        ? impl->compiled->composition->duration()
-        : Frame{0};
     runtime::ResourcePlanner planner;
     if (const auto* graph = m_impl->m_renderer->graph_cache().peek(
             comp.width(), comp.height()); graph != nullptr) {
@@ -206,7 +201,7 @@ PreparedRenderJob RenderEngine::prepare(
             std::size_t{64},
             runtime::ResourceDesc{}});
     }
-    impl->resource_plan = planner.build();
+    impl->job_session->resource_plan() = planner.build();
     return PreparedRenderJob(std::move(impl));
 }
 
