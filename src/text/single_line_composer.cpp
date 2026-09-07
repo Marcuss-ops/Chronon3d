@@ -86,6 +86,18 @@ namespace {
                 // would fold the whole overflow suffix into one line.
                 line_end = std::min(last_break, cursor);
                 if (line_end <= line_start) line_end = line_start + 1;
+                // Kinsoku (TEXT-PLY-01): when the clamped rewind lands on a
+                // boundary explicitly forbidden by the opening-bracket rule
+                // (e.g. "「開" in a box narrower than the pair), keep the
+                // overflowing cluster attached to this line instead — the
+                // pair overflows together rather than splitting right after
+                // the opening bracket.  Ordinary unbreakable clusters (e.g.
+                // mid-word letters) keep the greedy force-break contract.
+                if (line_end == cursor
+                    && clusters[line_end - 1].kinsoku_no_break_after
+                    && clusters[cursor].allowed_break_after) {
+                    line_end = cursor + 1;
+                }
                 cursor = line_end;
             } else {
                 line_end = cursor == line_start ? cursor + 1 : cursor;

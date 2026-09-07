@@ -159,10 +159,17 @@ TEST_CASE("CoordinateContract: LayerBuilder unpinned Absolute uses Canvas-to-ren
         Vec2{400.0f, 100.0f});
     const auto& node = only_text_node(layer);
 
-    // Canvas origin (200,100) used directly as placement position.
-    CHECK(node.world_transform.position.x == doctest::Approx(200.0f));
-    CHECK(node.world_transform.position.y == doctest::Approx(100.0f));
+    // ADR-019 basis contract: the 2D graph basis is centered at (0,0), so
+    // the builder converts the Canvas pin exactly once (pin − canvas-half)
+    // and layer_resolver.cpp adds +canvas-half back for unpinned layers.
+    // Assert the centered-basis node position AND that the round trip
+    // through the layer shift restores the Canvas pin — catching both a
+    // missing conversion (double shift downstream) and a double one here.
+    CHECK(node.world_transform.position.x == doctest::Approx(200.0f - 960.0f));
+    CHECK(node.world_transform.position.y == doctest::Approx(100.0f - 540.0f));
     CHECK(node.world_transform.anchor == Vec3{0.0f, 0.0f, 0.0f});
+    CHECK(node.world_transform.position.x + 960.0f == doctest::Approx(200.0f));
+    CHECK(node.world_transform.position.y + 540.0f == doctest::Approx(100.0f));
 }
 
 TEST_CASE("CoordinateContract: LayerBuilder unpinned Center resolves anchor and box size") {

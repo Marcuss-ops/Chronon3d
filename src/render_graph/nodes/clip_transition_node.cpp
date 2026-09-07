@@ -385,7 +385,7 @@ NodeExecResult ClipTransitionNode::execute(
             // The visible leak is authored as animated scene layers. Keep
             // this framebuffer node as the inexpensive A/B dissolve beneath
             // them; a per-pixel procedural shader here is far too expensive
-            // for the CPU-first video renderer.
+            // for the software video renderer.
             const float one_minus_p = 1.0f - p;
             for (int y = 0; y < out_h; ++y) {
                 Color* row_out = out->pixels_row(y);

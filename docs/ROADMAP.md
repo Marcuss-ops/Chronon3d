@@ -35,7 +35,7 @@ plugin o sistemi sperimentali.
 | M4 — Pacchetti animazione | Altri programmi caricano animazioni Chronon3D senza compilare il core C++ | Interop |
 | M5 — Global text ed effetti premium | ICU opzionale, variable fonts | Solo dopo M0–M4 |
 | M6 — V3 tile-first | Evoluzione interna; non interrompe Text/Camera/SDK V1 né introduce pipeline parallela | |
-| M1.8 — Text Simplicity | Ergonomia Remotion-like, headless/CPU-first/deterministico/server-side | Piano: `docs/TEXT_SIMPLICITY_ACTION_PLAN.md` |
+| M1.8 — Text Simplicity | Ergonomia Remotion-like, headless/deterministico/server-side | Piano: `docs/TEXT_SIMPLICITY_ACTION_PLAN.md` |
 | M7 — Video Compiler Architecture | `SceneIR → CompiledTemplateProgram → PreparedJobProgram → DeviceProgram → hot loop` | Temporal analysis, static island baking, PhysicalResourcePlan, command replay, PixelProgram IR + fusion, daemon + template cache |
 
 ## Vincoli permanenti
