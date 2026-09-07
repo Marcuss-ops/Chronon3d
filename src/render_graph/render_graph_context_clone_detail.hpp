@@ -7,10 +7,25 @@
 namespace chronon3d::graph {
 
 RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
+    // OPT-CLONE-BORROW — the per-node clone is the executor's most repeated
+    // operation. Every shared_ptr field copied here costs an atomic refcount
+    // RMW on a cache line that parallel node workers then bounce between
+    // cores.
+    //
+    // `frame_input.static_context` has frame-scoped lifetime by contract: it
+    // is assigned ONCE at context setup (scene_context_setup.cpp) and never
+    // mutated per frame, and the parent context outlives every clone (node
+    // execution is synchronous inside execute_internal's frame scope). The
+    // executor's single-node path therefore repoints the clone's
+    // static_context to a borrowed view in node_runner_single_node_detail.hpp
+    // (FrameInput::static_context_ptr) instead of paying the refcount here.
+    // This generic clone keeps value semantics: it is also used by paths that
+    // outlive the parent frame scope (nested precomp execution).
     RenderGraphContext copy;
     copy.frame_input = frame_input;
     copy.policy      = policy;
     copy.services    = services;
+
     copy.node_exec.counters         = node_exec.counters;
     copy.node_exec.clip_rect        = node_exec.clip_rect;
     copy.node_exec.active_tile_clip = node_exec.active_tile_clip;
@@ -30,7 +45,7 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.node_exec.processor_snapshot = node_exec.processor_snapshot;
     copy.node_exec.processor_bindings_compiled = node_exec.processor_bindings_compiled;
     // Per-node scratch views intentionally remain default-initialized.
-    copy.frame_error = frame_error;
+    copy.frame_error = frame_error;  // non-owning: same frame-scoped slot
     return copy;
 }
 

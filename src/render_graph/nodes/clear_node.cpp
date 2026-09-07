@@ -9,6 +9,7 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
@@ -290,13 +291,17 @@ NodeExecResult ClearNode::execute(
                 // redundant clear in the shared block below.
                 owned->set_content_cleared(true);
                 fresh_cleared = true;
-                Framebuffer* raw = owned.release();
-                if (ctx.services.framebuffer_pool) {
-                    fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.services.framebuffer_pool});
-                } else {
-                    fb = std::shared_ptr<Framebuffer>(raw);
-                }
+                // F2.2 — canonical ownership conversion. The previous
+                // release()-and-rewrap built a fresh PoolFbDeleter around a
+                // pointer whose real policy was unknown: if acquire_owned_fb
+                // served a planned physical slot (RendererOwned view), the
+                // slot's own OwnedFB and this shared_ptr would both eventually
+                // return the same buffer to the pool — double-return, pool
+                // aliasing across two future acquires. promote_to_cached
+                // preserves the ORIGINAL deleter (single source of truth for
+                // reclamation), so a RendererOwned view publishes as a
+                // no-op-recycle shared view instead of a second pool owner.
+                fb = promote_to_cached(std::move(owned));
             } else {
                 // ── Dirty-region-aware restore for shared framebuffers ──
                 // Instead of full memcpy, copy only pixels outside the clip
@@ -356,13 +361,9 @@ NodeExecResult ClearNode::execute(
                 // (clip area was already zeroed in the loop above).
                 owned->set_content_cleared(true);
                 fresh_cleared = true;
-                Framebuffer* raw = owned.release();
-                if (ctx.services.framebuffer_pool) {
-                    fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.services.framebuffer_pool});
-                } else {
-                    fb = std::shared_ptr<Framebuffer>(raw);
-                }
+                // F2.2 — same canonical conversion as the full-clip path
+                // above: deleter-preserving promote, never a re-wrap.
+                fb = promote_to_cached(std::move(owned));
                 if (ctx.node_exec.counters) {
                     const auto t_restore1 = profiling::now();
                     const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_restore0, t_restore1));

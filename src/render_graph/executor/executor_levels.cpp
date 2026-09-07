@@ -4,7 +4,7 @@
 #include "framebuffer_lifetime.hpp"
 #include "input_resolver.hpp"
 #include "level_timings.hpp"
-
+#include <string>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
@@ -48,13 +48,10 @@ void execute_levels(
         const auto t_input1 = profiling::now();
         const auto t_schedule1 = profiling::now();
 
-        LevelTimings timings(res);
-        timings.resize(level.size());
-
         dispatch_level_nodes(
             graph, ctx, state, scheduler, level, level_resolved,
             consumer_remaining, parent_counters, parent_pool,
-            timings, compiled);
+            compiled);
 
         const auto t_dispatch1 = profiling::now();
 
@@ -69,7 +66,7 @@ void execute_levels(
         const auto t_fb1 = profiling::now();
 
         if (parent_counters) {
-            timings.roll_up(
+            roll_up_level_durations(
                 *parent_counters,
                 profiling::duration_ms(t_schedule1, t_dispatch1),
                 profiling::duration_ms(t_input0, t_input1),
