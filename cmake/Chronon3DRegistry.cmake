@@ -9,7 +9,6 @@
 
 set(CHRONON3D_REGISTRY_OBJECT_LIBS
     chronon3d_render_plan
-    chronon3d_render_plan_compiler
     chronon3d_compiler
 
     # Core
