@@ -10,7 +10,7 @@
 
 namespace chronon3d {
 
-namespace runtime { class RenderRuntime; }
+namespace runtime { class RuntimeContext; }
 namespace registry { class ShapeRegistry; }
 class AssetRegistry;
 class FontEngine;
@@ -30,7 +30,7 @@ struct FrameContextParams {
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     registry::ShapeRegistry* shape_registry{nullptr};
     FontEngine* font_engine{nullptr};
-    const chronon3d::runtime::RenderRuntime* runtime{nullptr};
+    const chronon3d::runtime::RuntimeContext* runtime{nullptr};
 
     std::optional<FrameTimeContext> frame_time{};
 };
@@ -48,7 +48,7 @@ public:
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     registry::ShapeRegistry* shape_registry{nullptr};
     FontEngine* font_engine{nullptr};
-    const chronon3d::runtime::RenderRuntime* runtime{nullptr};
+    const chronon3d::runtime::RuntimeContext* runtime{nullptr};
 
     [[nodiscard]] SampleTime global_time() const noexcept { return global_time_; }
     [[nodiscard]] SampleTime local_time() const noexcept { return local_time_; }

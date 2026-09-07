@@ -19,7 +19,7 @@
 //     video-metadata / audio-index / mesh-preparation / layout-preparation)
 //     into a single snapshot;
 //   * produces an immutable `PreparedAssets` readiness snapshot; concrete
-//     runtime caches remain owned by RenderRuntime and are populated by the
+//     runtime caches remain owned by RuntimeContext and are populated by the
 //     render-preparation orchestrator;
 //   * is deterministic: no PRNG, no time-based decisions, no thread-local
 //     state — all I/O is bounded by (manifest, resolver, options) and the

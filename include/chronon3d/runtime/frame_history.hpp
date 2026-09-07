@@ -5,8 +5,8 @@
 //
 // Per-frame camera + fingerprint history — canonical definition.
 //
-// Migrated out of `math/renderer_state.hpp` as part of the RenderSession
-// extraction (see "Spostare e separare RenderSession", section 8.4).
+// Migrated out of `math/renderer_state.hpp` as part of the runtime::JobSession
+// extraction (see "Spostare e separare runtime::JobSession", section 8.4).
 // Pre-Phase-2 this header was a `using` alias on top of
 // `RendererFrameHistory`; from Phase 2 onward the canonical struct lives
 // here, and `math/renderer_state.hpp` exposes a backward-compatibility

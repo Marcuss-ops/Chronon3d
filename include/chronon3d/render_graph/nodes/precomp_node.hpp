@@ -8,7 +8,7 @@
 // itself holds only its composition identity (comp_name, frame range,
 // cache frame), a `PrecompCachePolicy`, and a `FrameParameterBlock`.
 //
-// WP 5 PR-removals (now on RenderSession / SceneProgramStore via ctx):
+// WP 5 PR-removals (now on runtime::JobSession / SceneProgramStore via ctx):
 //   - SceneProgramCache   → ctx.services.session->program_store().acquire(...)
 //   - GraphExecutor        → borrowed from ctx.services.session->services.executor
 //   - Auto-tune counter    → SceneProgramStore drives record_execution()
@@ -167,7 +167,7 @@ private:
 
     // Review #3 — track the per-instance bucket pointer that `m_on_evict`
     // was last forwarded to.  When the SceneProgramStore drops + recreates
-    // the bucket (e.g. across a `RenderSession::reset_job()`), the next
+    // the bucket (e.g. across a `runtime::JobSession::reset_job()`), the next
     // acquire() yields a fresh `lease.bucket` that differs from this
     // pointer — the execute() path detects that and re-wires the callback
     // onto the new bucket.  Without this, a `clear()` would strand the

@@ -21,11 +21,11 @@ namespace {
 
 struct TextHealthEnvironment {
     Config config{};
-    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
+    std::unique_ptr<chronon3d::runtime::RuntimeContext> runtime;
     FontEngine font_engine;
 
     TextHealthEnvironment()
-        : runtime(chronon3d::runtime::RenderRuntime::create(
+        : runtime(chronon3d::runtime::RuntimeContext::create(
               chronon3d::runtime::RuntimeConfig{config, std::nullopt}).value()),
           font_engine(runtime->resolver()) {}
 };

@@ -12,6 +12,8 @@
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/frame_slot_payload.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -50,35 +52,28 @@ struct PreparedRenderJob::Impl {
     // filesystem-path -> std::string materialization for every frame.
     std::string assets_root;
 
-    // Canonical fixed-frame execution authorities. PreparedRenderJob owns
-    // orchestration only; slot storage/lifecycle, bounded handoff, and GPU
-    // completion state remain in their single-responsibility components.
-    runtime::GpuCompletionTracker gpu_completion{kPipelineDepth};
-    runtime::FrameSlotPool slot_pool{kPipelineDepth, gpu_completion};
-    runtime::FrameQueue evaluated_queue{kPipelineDepth};
-    runtime::FrameQueue rendered_queue{kPipelineDepth};
-
-    std::array<runtime::FrameSlotPayload, kPipelineDepth> payloads{};
-    std::uint64_t next_sequence{0};
+    // JobSession is the sole owner of job-lifetime queues, slots, payloads,
+    // cancellation and counters. PreparedRenderJob only orchestrates stages.
+    std::unique_ptr<runtime::JobSession> job_session;
 
     [[nodiscard]] runtime::FrameSlotPayload& payload(
         const runtime::FrameExecutionSlot& slot) noexcept {
-        return payloads[slot.slot_id];
+        return job_session->slots().payload(slot.slot_id);
     }
 
     [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_evaluation() noexcept {
-        return slot_pool.try_acquire(runtime::FrameSlotState::Evaluating);
+        return job_session->slots().try_acquire(runtime::FrameSlotState::Evaluating);
     }
 
     [[nodiscard]] bool publish_evaluated(runtime::FrameExecutionSlot& slot) noexcept {
-        if (!slot_pool.transition(
+        if (!job_session->slots().transition(
                 slot,
                 runtime::FrameSlotState::Evaluating,
                 runtime::FrameSlotState::Evaluated)) {
             return false;
         }
-        if (!evaluated_queue.try_push(slot.slot_id)) {
-            slot_pool.set_state(slot, runtime::FrameSlotState::Evaluating);
+        if (!job_session->evaluated_queue().try_push(slot.slot_id)) {
+            job_session->slots().set_state(slot, runtime::FrameSlotState::Evaluating);
             return false;
         }
         return true;
@@ -86,18 +81,19 @@ struct PreparedRenderJob::Impl {
 
     [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_render() noexcept {
         runtime::FrameSlotId slot_id = 0;
-        return evaluated_queue.try_pop(slot_id) ? &slot_pool.slot(slot_id) : nullptr;
+        return job_session->evaluated_queue().try_pop(slot_id)
+            ? &job_session->slots().slot(slot_id) : nullptr;
     }
 
     [[nodiscard]] bool publish_rendered(runtime::FrameExecutionSlot& slot) noexcept {
-        if (!slot_pool.transition(
+        if (!job_session->slots().transition(
                 slot,
                 runtime::FrameSlotState::Evaluated,
                 runtime::FrameSlotState::Rendered)) {
             return false;
         }
-        if (!rendered_queue.try_push(slot.slot_id)) {
-            slot_pool.set_state(slot, runtime::FrameSlotState::Evaluated);
+        if (!job_session->rendered_queue().try_push(slot.slot_id)) {
+            job_session->slots().set_state(slot, runtime::FrameSlotState::Evaluated);
             return false;
         }
         return true;
@@ -105,21 +101,22 @@ struct PreparedRenderJob::Impl {
 
     [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_encoding() noexcept {
         runtime::FrameSlotId slot_id = 0;
-        return rendered_queue.try_pop(slot_id) ? &slot_pool.slot(slot_id) : nullptr;
+        return job_session->rendered_queue().try_pop(slot_id)
+            ? &job_session->slots().slot(slot_id) : nullptr;
     }
 
     [[nodiscard]] bool begin_encoding(runtime::FrameExecutionSlot& slot) noexcept {
-        return slot_pool.transition(
+        return job_session->slots().transition(
             slot,
             runtime::FrameSlotState::Rendered,
             runtime::FrameSlotState::Encoding);
     }
 
     void release_slot(runtime::FrameExecutionSlot& slot) noexcept {
-        gpu_completion.recycle(slot.slot_id);
+        job_session->gpu_completion().recycle(slot.slot_id);
         slot.native_surface_ptr = 0;
         slot.gpu_ready_sync = 0;
-        slot_pool.release(slot);
+        job_session->slots().release(slot);
     }
 
     [[nodiscard]] bool release_encoded(runtime::FrameExecutionSlot& slot) noexcept {
@@ -139,15 +136,14 @@ struct PreparedRenderJob::Impl {
     }
 
     [[nodiscard]] std::size_t rendered_depth() const noexcept {
-        return rendered_queue.size();
+        return job_session->rendered_queue().size();
     }
 
     void reset_slots() noexcept {
-        for (auto& payload : payloads) payload.reset();
-        evaluated_queue.clear();
-        rendered_queue.clear();
-        gpu_completion.reset();
-        slot_pool.reset();
+        job_session->evaluated_queue().clear();
+        job_session->rendered_queue().clear();
+        job_session->gpu_completion().reset();
+        job_session->slots().reset();
     }
 
     [[nodiscard]] bool can_split_evaluation() const noexcept;
@@ -184,14 +180,14 @@ struct RenderEngine::Impl {
     AssetRegistry                             m_assets;
     registry::ShapeRegistry                   m_shape_registry{
         registry::make_default_shape_registry()};
-    std::unique_ptr<runtime::RenderRuntime>    m_runtime;
+    std::unique_ptr<runtime::RuntimeContext>    m_runtime;
     std::unique_ptr<SoftwareRenderer>          m_renderer;
     std::optional<runtime::RenderPipeline>     m_pipeline;
 
     explicit Impl(Config config, std::optional<std::filesystem::path> assets_root = std::nullopt)
         : m_config(std::move(config))
     {
-        auto runtime_result = runtime::RenderRuntime::create(
+        auto runtime_result = runtime::RuntimeContext::create(
             runtime::RuntimeConfig{.config = m_config, .assets_root = assets_root});
         if (!runtime_result) {
             throw std::runtime_error(

@@ -10,7 +10,7 @@
 // These facades never own or duplicate cache storage. They are ephemeral:
 // callers must not retain them beyond the lifetime of the referenced owner.
 // FrameHistoryState is declared separately in history_state.hpp because its
-// owner is RenderSession rather than RenderRuntime.
+// owner is runtime::JobSession rather than RuntimeContext.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/cache/node_cache.hpp>

@@ -6,7 +6,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 
 #include <memory>
 
@@ -22,7 +22,7 @@ struct TemporalRenderContext {
     SampleTime sample_time{};
     cache::NodeCache* value_cache{nullptr};
     CompiledGraphCache* topology_cache{nullptr};
-    RenderSession* session{nullptr};
+    runtime::JobSession* session{nullptr};
     TransformScratchBuffer* scratch{nullptr};
     RenderCounters* counters{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;

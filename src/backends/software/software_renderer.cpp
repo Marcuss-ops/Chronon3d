@@ -3,7 +3,7 @@
 //
 // M1.5#12 main — SoftwareRenderer thin orchestrator (lifecycle + dispatch
 // surface).  Long-lived state lives on `m_runtime` (chronon3d::runtime::
-// RenderRuntime); this TU holds ONLY the bits that MUST stay in one place:
+// RuntimeContext); this TU holds ONLY the bits that MUST stay in one place:
 //
 //   * Move ops (SoftwareRenderer&& / operator=) — destructor timing
 //     coordination across ImageRenderer, ImageBackend, FontEngine,
@@ -27,7 +27,7 @@
 //     update_dirty_telemetry) — all session.frame_history / dirty_telemetry
 //     writers; consolidated to keep the per-session invariant at one place.
 //
-//   * 14 RenderRuntime forwarders (software_registry / graph_node_registry /
+//   * 14 RuntimeContext forwarders (software_registry / graph_node_registry /
 //     effect_catalog / software_framebuffer_pool / framebuffer_pool /
 //     scheduler / runtime / graph_cache / backend / node_cache + font_engine
 //     CHRONON3D_ENABLE_TEXT path) — moved OOL from the header to keep
@@ -80,17 +80,10 @@ namespace {
 
 void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
     auto* runtime = &renderer.runtime();
-    // RenderSession owns the service back-pointers used by nested precomp
+    // runtime::JobSession owns the service back-pointers used by nested precomp
     // execution. Move operations transfer the session object, so refresh
     // those pointers together with the backend processor context; otherwise
     // a moved renderer silently loses its GraphExecutor/session wiring.
-    renderer.session().services = runtime::SessionServices{
-        .executor = &runtime->executor(),
-        .node_cache = &runtime->node_cache(),
-        .framebuffer_pool = &runtime->framebuffer_pool(),
-        .graph_cache = &runtime->graph_cache(),
-        .asset_registry = &runtime->assets(),
-    };
     if (!runtime->backend_attached()) return;
 
     auto* backend = dynamic_cast<SoftwareBackend*>(&runtime->backend());
@@ -311,11 +304,11 @@ void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<r
     m_session.common.dirty_telemetry.last_execution_path = path;
 }
 
-// ── RenderRuntime forwarders (OOL — avoids pulling runtime/* headers) ────────
+// ── RuntimeContext forwarders (OOL — avoids pulling runtime/* headers) ────────
 //
 // 06 R3b — implementations moved out-of-line; their inline bodies would
 // dereference `m_runtime->X()` / `*m_runtime` which require the complete
-// `runtime::RenderRuntime` type.  Pulling
+// `runtime::RuntimeContext` type.  Pulling
 // `<chronon3d/runtime/render_runtime.hpp>` into the header would exceed
 // the boundary-gate I3 ≤ 6-include budget, so the implementation lives
 // here where the type is complete (this TU already pulls the header via
@@ -337,8 +330,8 @@ std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { r
 // baseline-12c295be PR for the architectural rationale.
 chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept        { return m_runtime->scheduler(); }
 const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return m_runtime->scheduler(); }
-runtime::RenderRuntime& SoftwareRenderer::runtime() noexcept                  { return *m_runtime; }
-const runtime::RenderRuntime& SoftwareRenderer::runtime() const noexcept      { return *m_runtime; }
+runtime::RuntimeContext& SoftwareRenderer::runtime() noexcept                  { return *m_runtime; }
+const runtime::RuntimeContext& SoftwareRenderer::runtime() const noexcept      { return *m_runtime; }
 graph::CompiledGraphCache& SoftwareRenderer::graph_cache()                   { return m_runtime->graph_cache(); }
 const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const       { return m_runtime->graph_cache(); }
 graph::RenderBackend& SoftwareRenderer::backend()                             { return m_runtime->backend(); }

@@ -11,7 +11,7 @@ using namespace test_text_quality;
 
 TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
@@ -71,7 +71,7 @@ TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ"
 
 TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual forms") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
@@ -166,7 +166,7 @@ TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual fo
 
 TEST_CASE("TextQuality: Arabic — three positional forms use different glyphs") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {

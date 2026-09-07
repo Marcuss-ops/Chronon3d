@@ -4,7 +4,7 @@
 // Fase 4 — implementations moved from runtime/render_runtime.cpp.
 // M4 init-order closure — `attach_software_backend` is the canonical
 // helper for non-RenderEngine callers (i.e. the CLI) that bypass
-// `RenderEngine::Impl` and would otherwise hit `RenderRuntime::backend()
+// `RenderEngine::Impl` and would otherwise hit `RuntimeContext::backend()
 // called before attach_backend()`.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -26,33 +26,6 @@
 #include <utility>
 
 namespace chronon3d::backends::software {
-
-chronon3d::SoftwareRenderSession make_session(
-    chronon3d::runtime::RenderRuntime& runtime
-) {
-    chronon3d::SoftwareRenderSession session;
-    // P1-15 — use RenderRuntime's typed direct accessors (canonical
-    // surface; the `RenderServices` pointer bundle + `services()`
-    // accessor have been REMOVED wholesale from RenderRuntime).
-    // NOTE: the graph-context `SessionServices` type populated here
-    // is distinct from the (now-deleted) runtime `RenderServices`
-    // bundle — `SessionServices` is the per-`RenderSession` bridge,
-    // not the per-`RenderRuntime` pointer collection.
-    session.common.services = chronon3d::runtime::SessionServices{
-        .executor            = &runtime.executor(),
-        .node_cache          = &runtime.node_cache(),
-        .framebuffer_pool    = &runtime.framebuffer_pool(),
-        .graph_cache         = &runtime.graph_cache(),
-        .asset_registry      = &runtime.assets(),
-    };
-    return session;
-}
-
-const chronon3d::runtime::SessionServices& session_services(
-    const chronon3d::SoftwareRenderSession& session
-) {
-    return session.common.services;
-}
 
 void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg) {
     chronon3d::renderer::register_builtin_processors(reg);

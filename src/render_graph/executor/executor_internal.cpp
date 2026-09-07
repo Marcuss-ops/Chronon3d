@@ -21,7 +21,7 @@ namespace chronon3d::graph {
 std::shared_ptr<Framebuffer> execute_internal(
     CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
-    RenderSession& session,
+    runtime::JobSession& session,
     FrameArena& arena,
     ExecutionScheduler& scheduler)
 {

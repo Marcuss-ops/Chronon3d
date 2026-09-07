@@ -4,7 +4,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
-#include <chronon3d/runtime/context/runtime_context.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
@@ -20,9 +19,9 @@
 // ----------------------------------------------------------------------
 // runtime/render_runtime.hpp
 //
-// TICKET-011 — RenderRuntime is now the SOLE engine-lifetime owner of
+// TICKET-011 — RuntimeContext is now the SOLE engine-lifetime owner of
 // long-lived render infrastructure.  `SoftwareRenderer` no longer
-// holds any of these fields; it borrows everything via `RenderRuntime&`.
+// holds any of these fields; it borrows everything via `RuntimeContext&`.
 //
 // Owned slots:
 //   - Config                                       (engine config copy)
@@ -52,13 +51,13 @@
 //                                                    SoftwareRenderer)
 //
 // WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
-// runtime-owned.  Each `RenderSession` carries its own `scene_hasher`
+// runtime-owned.  Each `runtime::JobSession` carries its own `scene_hasher`
 // (by-value) and `program_store` (unique_ptr).  See the WP-3 PR 3.1 note and
-// the PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
+// the PR 3.0 doc-comment in `<chronon3d/runtime/job/job_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
 //
 // Fase C2 — Canonical construction sequence (RenderEngine::Impl unified ctor):
-//   1) RenderRuntime::create(RuntimeConfig) → populate() allocates all slots
+//   1) RuntimeContext::create(RuntimeConfig) → populate() allocates all slots
 //   2) m_renderer(m_runtime, cfg)           → renderer wires per-instance state
 //   3) SoftwareBackend constructed          → inside Impl ctor body, then
 //      m_runtime.attach_backend()           → runtime owns backend for engine lifetime
@@ -66,7 +65,7 @@
 //
 // @deprecated standalone paths (migrate to RenderEngine constructor):
 //   * SoftwareRenderer(Config) — creates its own runtime internally
-//   * RenderRuntime::attach_backend() — use RenderEngine::Impl unified ctor
+//   * RuntimeContext::attach_backend() — use RenderEngine::Impl unified ctor
 // ----------------------------------------------------------------------
 
 #include <cassert>
@@ -83,7 +82,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 // Fase 4 — software-registry and software-render-session includes removed.
 // SoftwareRegistry ownership moved to SoftwareRenderer; make_session /
-// session_services moved to backends/software/runtime_adapter.hpp.
+// Backend-specific wiring lives in backends/software/runtime_adapter.hpp.
 
 #include <filesystem>
 #include <memory>
@@ -98,14 +97,14 @@ namespace chronon3d {
     class FontEngine;       // WP-9 PR 9.0 — runtime FontEngine forward decl
     class RenderBackend;
     // P1-14 — forward decl for SoftwareRenderer (target of the
-    // attach_software_backend friend bridges declared inside RenderRuntime).
+    // attach_software_backend friend bridges declared inside RuntimeContext).
     class SoftwareRenderer;
 }
 
 // P1-14 — friend function forward declarations for `attach_software_backend`
 // in the production bridge (runtime_adapter) and the test bridge (test_utils).
 // Defined in their respective TUs; the friend declarations inside
-// RenderRuntime grant them access to the now-private attach_backend().
+// RuntimeContext grant them access to the now-private attach_backend().
 namespace chronon3d::backends::software {
     void attach_software_backend(::chronon3d::SoftwareRenderer*);
     void attach_software_backend(
@@ -127,7 +126,7 @@ namespace chronon3d::runtime {
 // Fase C2 — RuntimeBuildError + RuntimeConfig + create() factory
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Structured error returned by RenderRuntime::create() when construction fails.
+/// Structured error returned by RuntimeContext::create() when construction fails.
 struct RuntimeBuildError {
     enum class Code {
         InternalError,      ///< Unspecified failure during populate().
@@ -138,7 +137,7 @@ struct RuntimeBuildError {
     std::string message;
 };
 
-/// Configuration bundle for the unified RenderRuntime::create() factory.
+/// Configuration bundle for the unified RuntimeContext::create() factory.
 /// Wraps engine Config with an optional assets_root path (seeds the
 /// per-runtime resolver, replacing the process-wide global fallback).
 struct RuntimeConfig {
@@ -146,7 +145,7 @@ struct RuntimeConfig {
     std::optional<std::filesystem::path>        assets_root;
 };
 
-class RenderRuntime;
+class RuntimeContext;
 
 // P1-15 (DONE) — the `RenderServices` pointer bundle (struct +
 // `services()` accessor + `m_services` member) has been REMOVED
@@ -154,34 +153,35 @@ class RenderRuntime;
 // surface.  (graph::RenderServices in render_graph_context.hpp is
 // a distinct per-frame bundle — unaffected.)
 
-/// RenderRuntime — engine-lifetime container.
-class RenderRuntime : public RuntimeContext {
+/// RuntimeContext — engine-lifetime container.
+class RuntimeContext {
 public:
     // The default and direct Config constructors are intentionally not public:
-    // RenderRuntime::create(RuntimeConfig) is the sole construction boundary.
-    RenderRuntime() = delete;
-    ~RenderRuntime();
+    // RuntimeContext::create(RuntimeConfig) is the sole construction boundary.
+    RuntimeContext() = delete;
+    explicit RuntimeContext(chronon3d::Config config);
+    ~RuntimeContext();
 
     // ── Fase C2 — Unified factory (canonical construction path) ──────────
-    /// Static factory: constructs a fully-populated RenderRuntime from
+    /// Static factory: constructs a fully-populated RuntimeContext from
     /// a RuntimeConfig bundle.  Returns a heap-allocated runtime (unique_ptr)
-    /// on success, or RuntimeBuildError on failure.  RenderRuntime is not
+    /// on success, or RuntimeBuildError on failure.  RuntimeContext is not
     /// movable (contains non-movable mutex-guarded types like AssetRegistry,
     /// AssetResolver, ImageCache), so the factory returns ownership via
     /// unique_ptr — the canonical pattern for non-movable types.
     /// Backend attachment is handled by the higher-level RenderEngine layer.
-    [[nodiscard]] static Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
+    [[nodiscard]] static Result<std::unique_ptr<RuntimeContext>, RuntimeBuildError>
     create(RuntimeConfig cfg);
 
     // Non-copyable, non-movable (contains mutex-guarded types).
-    RenderRuntime(const RenderRuntime&) = delete;
-    RenderRuntime& operator=(const RenderRuntime&) = delete;
-    RenderRuntime(RenderRuntime&&) = delete;
-    RenderRuntime& operator=(RenderRuntime&&) = delete;
+    RuntimeContext(const RuntimeContext&) = delete;
+    RuntimeContext& operator=(const RuntimeContext&) = delete;
+    RuntimeContext(RuntimeContext&&) = delete;
+    RuntimeContext& operator=(RuntimeContext&&) = delete;
 
     // P1-14 — `populate()` and `attach_backend()` moved to PRIVATE (see
     // below). The canonical public entry is
-    // `RenderRuntime::create(RuntimeConfig)`; the factory's private
+    // `RuntimeContext::create(RuntimeConfig)`; the factory's private
     // constructor calls `populate()`, while `attach_backend()` is called
     // by the internal bridges (runtime_adapter + test_utils) listed as
     // `friend` declarations in the private section.
@@ -238,7 +238,7 @@ public:
     prepared_assets_for(const assets::AssetManifest& manifest) const;
 
     // ── WP-9 PR 9.0 / R1 — FontEngine slot ----------------------------
-    /// RenderRuntime now OWNS the per-runtime FontEngine.  The accessor
+    /// RuntimeContext now OWNS the per-runtime FontEngine.  The accessor
     /// returns a reference because the engine is constructed during
     /// populate() and is never null for the lifetime of the runtime.
     [[nodiscard]] chronon3d::FontEngine& font_engine() const noexcept { return *m_font_engine_owned; }
@@ -249,7 +249,7 @@ public:
     [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
 
     /// Formal compiled-topology domain facade. It is non-owning and returned
-    /// by value so RenderRuntime remains the sole owner of the storage.
+    /// by value so RuntimeContext remains the sole owner of the storage.
     /// Reset only compiled topology state. Frame values and temporal history
     /// remain untouched so callers can invalidate graph structure independently.
     void reset_compiled_cache();
@@ -287,9 +287,41 @@ public:
     // (or `session.common.scene_hasher()` / `program_store()` from a
     // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-class: historical (WP-3 design doc retired; rationale in render_session.hpp)
 
+protected:
+    // All members below are engine/process-lifetime infrastructure. Job and
+    // frame state is owned by runtime::JobSession and runtime::FrameExecution.
+    chronon3d::Config m_config;
+    chronon3d::graph::PipelineCatalogs m_catalogs;
+    chronon3d::AssetRegistry m_assets;
+    chronon3d::assets::AssetResolver m_resolver;
+    chronon3d::assets::MeshPreparationCache m_mesh_cache{};
+    RenderSurfaceRegistry m_surface_registry{};
+    mutable std::mutex m_prepared_assets_mutex;
+    std::shared_ptr<const PreparedAssets> m_prepared_assets{};
+    std::string m_prepared_mesh_manifest_key;
+
+    chronon3d::cache::CacheDiagnostics m_diagnostics{};
+    chronon3d::cache::NodeCache m_owned_node_cache{};
+    std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
+    chronon3d::graph::CompiledGraphCache m_owned_graph_cache{};
+    std::unique_ptr<chronon3d::graph::GraphExecutor> m_owned_executor;
+    std::unique_ptr<chronon3d::graph::GraphNodeCatalog> m_owned_graph_node_registry;
+    std::unique_ptr<chronon3d::effects::EffectCatalog> m_owned_effect_catalog;
+    std::unique_ptr<chronon3d::ExecutionScheduler> m_scheduler;
+
+    chronon3d::ImageCache m_image_cache;
+    chronon3d::CurveCache m_curve_cache;
+    std::unique_ptr<chronon3d::graph::RenderBackend> m_backend;
+    GpuAssetCache m_gpu_asset_cache{};
+    GpuGlyphAtlas m_gpu_glyph_atlas{};
+    GpuStyledGlyphCache m_gpu_styled_glyph_cache{};
+    OverlayTemplateCache m_overlay_template_cache{};
+    GpuRuntime m_gpu_runtime{};
+    MediaSessionPool m_media_sessions{};
+    std::unique_ptr<chronon3d::FontEngine> m_font_engine_owned;
+    bool m_populated{false};
+
 private:
-    // Solely callable by RenderRuntime::create(RuntimeConfig).
-    explicit RenderRuntime(chronon3d::Config config);
 
     // P1-14 — populate() + attach_backend() moved here from public.
     // populate() is called by the private Config constructor used by the
@@ -307,7 +339,7 @@ private:
     /// orchestration (RenderEngine::Impl, runtime_adapter) which has
     /// access to the per-instance state (counters, settings) that
     /// lives on SoftwareRenderer.  Production code uses
-    /// `RenderRuntime::create(RuntimeConfig)`; the backend is then
+    /// `RuntimeContext::create(RuntimeConfig)`; the backend is then
     /// attached via the internal bridges listed as `friend` below.
     void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
 
@@ -325,9 +357,12 @@ private:
 
 };
 
+/// Compatibility spelling only: there is one concrete runtime owner.
+
+
 // Fase B2 (DONE) — process_wide_assets_root() / process_wide_resolver() REMOVED.
 // Production code must pass AssetResolver& through the call chain
-// (RenderRuntime::resolver(), RenderSession, or dependency injection).
+// (RuntimeContext::resolver(), runtime::JobSession, or dependency injection).
 // Deep code without a runtime in scope should receive the resolver via
 // parameter rather than reading a process-wide global.
 

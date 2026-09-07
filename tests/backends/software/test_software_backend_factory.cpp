@@ -67,11 +67,11 @@ namespace {
 // ── helpers ─────────────────────────────────────────────────────────────
 
 struct RendererFixture {
-    std::unique_ptr<runtime::RenderRuntime> runtime;
+    std::unique_ptr<runtime::RuntimeContext> runtime;
     SoftwareRenderer renderer;
 
     RendererFixture()
-        : runtime(runtime::RenderRuntime::create(
+        : runtime(runtime::RuntimeContext::create(
               runtime::RuntimeConfig{Config{}, std::nullopt}).value())
         , renderer(*runtime, Config{}) {}
 };

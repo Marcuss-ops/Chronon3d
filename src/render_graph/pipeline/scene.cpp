@@ -386,11 +386,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // session + compiled-graph identity for the entire execute phase so
     // child scopes (tile / precomp) can walk the parent chain.  Arena
     // reset happens inside execute_tile_or_fallback at scope exit.
-    RenderSession fallback_session;   // for !sw_renderer test paths
+    runtime::JobSession fallback_session;   // for !sw_renderer test paths
     auto& session_ref = isolated_temporal_sample && temporal_context->session
-        ? static_cast<RenderSession&>(*temporal_context->session)
+        ? static_cast<runtime::JobSession&>(*temporal_context->session)
         : (sw_renderer
-            ? static_cast<RenderSession&>(sw_renderer->session())
+            ? static_cast<runtime::JobSession&>(sw_renderer->session())
             : fallback_session);
     ExecutionScope root_scope = ExecutionScope::make_root(
         session_ref, session_ref.arena(),

@@ -135,7 +135,18 @@ void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& cata
     // owning runtime's generation here would make scene and compiled-graph
     // fingerprints disagree after a catalog revision.
     if (ctx.services.registry_generation == 0) {
-        ctx.services.registry_generation = catalogs.registry_generation;
+        // Standalone graph callers may wire a backend without going through
+        // scene_context_setup(). The backend-owned processor snapshot is the
+        // canonical generation for compilation; using the pipeline catalog's
+        // independent generation here would make a valid snapshot look stale.
+        if (ctx.services.backend) {
+            if (const auto snapshot = ctx.services.backend->processor_snapshot()) {
+                ctx.services.registry_generation = snapshot->generation();
+            }
+        }
+        if (ctx.services.registry_generation == 0) {
+            ctx.services.registry_generation = catalogs.registry_generation;
+        }
     }
     ctx.services.node_catalog         = &catalogs.graph_nodes;
     ctx.services.effect_catalog       = &catalogs.effects;

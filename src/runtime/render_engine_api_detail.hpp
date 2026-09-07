@@ -149,6 +149,7 @@ PreparedRenderJob RenderEngine::prepare(
 
     auto impl = std::make_unique<PreparedRenderJob::Impl>();
     impl->engine = this;
+    impl->job_session = std::make_unique<runtime::JobSession>(*m_impl->m_runtime);
     impl->assets_root = m_impl->m_runtime->resolver().mount_root().string();
     impl->compiled = std::move(compiled);
     impl->assets_root = m_impl->m_renderer->runtime().resolver().mount_root().string();

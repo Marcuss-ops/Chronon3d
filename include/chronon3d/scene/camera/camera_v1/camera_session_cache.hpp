@@ -10,7 +10,7 @@
 // The cache is the SOURCE OF TRUTH for `CameraSession` instances on a
 // single worker (i.e. one render-job / one `std::thread`).  Two workers
 // (or two independent `CameraSessionCache` instances) NEVER share state
-// — the WP-3 isolation pattern from `RenderSession`/`SceneHasher`
+// — the WP-3 isolation pattern from `runtime::JobSession`/`SceneHasher`
 // (see tests/runtime/test_render_session_reset_and_isolation.cpp) lifts
 // directly here: each worker holds its own cache.
 //

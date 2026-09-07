@@ -125,7 +125,7 @@ void SoftwareBackend::attach_processor_context(SoftwareProcessorContext proc_ctx
 // Lifetime invariant for `m_proc_ctx.registry`: the orchestrating
 // SoftwareRenderer owns the registry via `unique_ptr<SoftwareRegistry>`;
 // that renderer outlives any backend created on its runtime because
-// `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.  We therefore
+// `~RuntimeContext()` runs BEFORE `~SoftwareRenderer()`.  We therefore
 // read `m_proc_ctx.registry` ONLY inside dispatch (never from
 // `~SoftwareBackend()`).
 
@@ -340,7 +340,7 @@ void SoftwareBackend::apply_per_pixel_dof(
 //
 // Boundary gate: this method's transient `SoftwareRenderer*` back-pointer
 // is a PR-9-compatible TEMPORARY bridge.  R3 (06-stabilization) will
-// source the context directly from `runtime::RenderRuntime` and drop
+// source the context directly from `runtime::RuntimeContext` and drop
 // `m_owner`.
 graph::RenderOpResult SoftwareBackend::draw_text_run(
     Framebuffer& fb,

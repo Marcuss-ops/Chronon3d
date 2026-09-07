@@ -65,13 +65,13 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     double* backend_init_ms) {
     const auto engine_t0 = profiling::now();
     Config cfg = config.has_value() ? std::move(*config) : Config::from_environment();
-    auto runtime_res = runtime::RenderRuntime::create(
+    auto runtime_res = runtime::RuntimeContext::create(
         runtime::RuntimeConfig{.config = cfg, .assets_root = assets_root});
     if (!runtime_res) {
-        throw std::runtime_error("create_renderer: RenderRuntime::create failed: " + runtime_res.error().message);
+        throw std::runtime_error("create_renderer: RuntimeContext::create failed: " + runtime_res.error().message);
     }
     struct CliRendererHolder {
-        std::unique_ptr<runtime::RenderRuntime> runtime;
+        std::unique_ptr<runtime::RuntimeContext> runtime;
         std::unique_ptr<SoftwareRenderer> renderer;
     };
     auto holder = std::make_shared<CliRendererHolder>();
@@ -88,7 +88,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     }
 
     // FIX (M4 init-order bug): SoftwareRenderer::backend() dereferences
-    // m_runtime->backend(), which throws `RenderRuntime::backend() called
+    // m_runtime->backend(), which throws `RuntimeContext::backend() called
     // before attach_backend()` if no SoftwareBackend has been attached to
     // the renderer's runtime.  The renderer's two ctors do NOT attach a
     // backend automatically (that step is documented in render_runtime.hpp
@@ -150,7 +150,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // After removal: callers that need the resolver mounted must
     //   (a) construct `SoftwareRenderer` with an explicit `Config`
     //       whose `assets_root` field is populated — this routes
-    //       through `RenderRuntime::create()`'s
+    //       through `RuntimeContext::create()`'s
     //       `runtime->resolver().mount(*cfg.assets_root)` canonical
     //       wiring (see src/runtime/render_runtime.cpp:85), OR
     //   (b) bridge through `sdk::RenderEngine` and call
@@ -164,9 +164,9 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // CWD" delisting).  No silent drift.
 
     // P1-14 — the vestigial `populate()` call was REMOVED. The canonical
-    // `RenderRuntime::create(RuntimeConfig)` factory invokes the private
+    // `RuntimeContext::create(RuntimeConfig)` factory invokes the private
     // construction path, which populates the runtime before this renderer
-    // factory returns. `populate()` is private on RenderRuntime, so this
+    // factory returns. `populate()` is private on RuntimeContext, so this
     // call site was vestigial.
 
     return renderer;

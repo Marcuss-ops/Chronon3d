@@ -31,7 +31,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace chronon3d::runtime { class RenderRuntime; }
+namespace chronon3d::runtime { class RuntimeContext; }
 
 namespace chronon3d::cache {
 
@@ -126,7 +126,7 @@ struct DomainSnapshot {
 
 class CacheDiagnostics {
 public:
-    // P1-10 — `instance()` singleton REMOVED.  Each `RenderRuntime` owns
+    // P1-10 — `instance()` singleton REMOVED.  Each `RuntimeContext` owns
     // its own per-instance `CacheDiagnostics` (`runtime.diagnostics()`).
     // Caches that need diagnostics receive a `CacheDiagnostics*` via
     // constructor injection (nullable observer pattern — nullptr = no-op

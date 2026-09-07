@@ -29,7 +29,7 @@ namespace {
 // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — allocation-free node id.
 //
 // memory_node_id() runs once per node × frame whenever a session memory
-// tracker is attached (which is always: RenderSession owns one eagerly).
+// tracker is attached (which is always: runtime::JobSession owns one eagerly).
 // The previous implementation paid two std::to_string calls plus three
 // operator+ concatenations per call: SSO covered the typical short ids, but
 // large (graph_instance, stable_node) values spilled to the heap several

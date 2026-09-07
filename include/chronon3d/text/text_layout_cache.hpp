@@ -146,7 +146,7 @@ private:
 // Production code must pass TextLayoutCache* via the driver functions
 // (update_text_run_shape_per_frame, apply_active_state_to_text_run_shape,
 // prewarm_text_run_layout_for_frame).  Tests may use a standalone
-// TextLayoutCache or RenderSession::layout_cache.  The former global
+// TextLayoutCache or runtime::JobSession::layout_cache.  The former global
 // still exists as an internal fallback (text_run.cpp file-scope static)
 // for backward compat during migration; Phase C removes it entirely.
 

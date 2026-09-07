@@ -331,7 +331,7 @@ TEST_CASE("random_access: retry same frame is idempotent") {
 // P3-H + sub-ticket C — two independent resolvers (one per render "job")
 // render the same timeline; each owns its own mutable CameraSessionCache
 // so the per-job session state is isolated (WP-3 per
-// RenderSession/SceneHasher pattern).  Both reach frame 100 with the
+// runtime::JobSession/SceneHasher pattern).  Both reach frame 100 with the
 // same surface (deterministic camera per frame).
 // ==============================================================================
 TEST_CASE("random_access: two simultaneous render jobs isolated") {

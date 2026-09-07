@@ -10,7 +10,7 @@
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
@@ -100,7 +100,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
         FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
-    RenderSession session;
+    runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     auto root_scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope, scheduler);
@@ -125,7 +125,7 @@ TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame fail
     auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
         FrameGraphCompileOptions{ .run_optimizer = false });
     GraphExecutor executor;
-    RenderSession session;
+    runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     auto scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto output = executor.execute(compiled, ctx, scope, scheduler);
@@ -159,7 +159,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
         FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
-    RenderSession session;
+    runtime::JobSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
     auto root_scope2 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope2, scheduler2);
@@ -190,7 +190,7 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
         FrameGraphCompileOptions{ .run_optimizer = false });
 
     GraphExecutor executor;
-    RenderSession session;
+    runtime::JobSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
     auto root_scope3 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope3, scheduler3);

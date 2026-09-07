@@ -3,8 +3,8 @@
 //
 // PR-5 — PrecompNode no longer owns SceneProgramCache, GraphExecutor,
 // topological-plan cache (retired as `runtime::ExecutionPlanCache`; see the
-// historical changelog R6), RenderSession, or auto-tune state.  All of those
-// are now centralised on the parent RenderSession / CompiledFrameGraph
+// historical changelog R6), runtime::JobSession, or auto-tune state.  All of those
+// are now centralised on the parent runtime::JobSession / CompiledFrameGraph
 // (accessed via `ctx.services.session` for the program_store, and via
 // `session->services().executor` for the borrowed GraphExecutor).
 //
@@ -34,7 +34,7 @@
 //      shared_ptr keeps program alive through the call (RAII order).
 // =============================================================================
 
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>  // WP 5.2 — ProgramLease holds shared_ptr<CompiledSceneProgram>; member access (`.empty()`, `.bindings`, `.frame_graph`) requires complete type
@@ -274,7 +274,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // `program->frame_graph.levels` (no legacy RenderGraph& overloads).
     // WP-0 PR 0.1 — PrecompNode MUST NOT construct a local GraphExecutor
     // inline; borrow `session.services.executor` from the parent
-    // SessionServices table.  Regression guard:
+    // JobSession dependency boundary. Regression guard:
     // `tools/check_architecture_boundaries.sh` check [9/12] blocks
     // reintroduction of `GraphExecutor <name>;` declarations in this TU.
     // WP-6 PR 6.3 — line-139-area legacy `inner_executor->execute(...,
@@ -282,7 +282,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // precomp_scope, ...)`.  Lease's `shared_ptr<CompiledSceneProgram>`
     // keeps the program alive throughout the call (RAII reverse-decl-
     // order means lease destructed LAST in this function frame).
-    const auto* inner_executor = session.services.executor;
+    const auto* inner_executor = session.executor();
     if (!inner_executor) {
         return NodeExecResult{ctx.acquire_owned_fb(
             ctx.frame_input.width, ctx.frame_input.height)};

@@ -6,7 +6,7 @@
 // TICKET-011a follow-up #1 — typed facade over the underlying graph
 // orchestration functions.
 //
-// RenderPipeline holds a `(SoftwareRenderer &, RenderRuntime&)` pair
+// RenderPipeline holds a `(SoftwareRenderer &, RuntimeContext&)` pair
 // constructed after the SoftwareBackend is attached in
 // `RenderEngine::Impl`.  Its member methods delegate 1:1 to the
 // existing free functions in `<chronon3d/render_graph/pipeline/
@@ -28,7 +28,7 @@
 //
 //        chronon3d::RenderEngine
 //          └── RenderEngine::Impl (PIMPL)
-//              ├── runtime::RenderRuntime    (engine-lifetime owner)
+//              ├── runtime::RuntimeContext    (engine-lifetime owner)
 //              ├── SoftwareRenderer          (per-instance orchestrator)
 //              └── runtime::RenderPipeline   (this class)
 //
@@ -56,7 +56,7 @@ namespace media { class MediaFrameProvider; }
 }
 
 namespace chronon3d::runtime {
-class RenderRuntime;
+class RuntimeContext;
 }
 
 namespace chronon3d::runtime {
@@ -77,7 +77,7 @@ public:
     /// `SoftwareRenderer &` to keep the public surface free of the
     /// boundary-gate I5 substring.  Pointer nullability is documented at
     /// the call site (the owning engine's renderer is always wired).
-    RenderPipeline(SoftwareRenderer* renderer, RenderRuntime& runtime) noexcept;
+    RenderPipeline(SoftwareRenderer* renderer, RuntimeContext& runtime) noexcept;
 
     // ── Canonical prepared-plan execution entry ────────────────────
     /// Executes only an immutable compiled composition. Authoring
@@ -121,7 +121,7 @@ public:
 
 private:
     SoftwareRenderer* m_renderer;
-    RenderRuntime&    m_runtime;
+    RuntimeContext&   m_runtime;
 };
 
 } // namespace chronon3d::runtime

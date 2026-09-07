@@ -45,7 +45,7 @@ FontSpec make_spec(const char* path, const char* family, int weight, float size)
 
 TEST_CASE("FontFallbackResolver: single font covers ASCII") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -68,7 +68,7 @@ TEST_CASE("FontFallbackResolver: single font covers ASCII") {
 
 TEST_CASE("FontFallbackResolver: Latin + Arabic splits by coverage") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -109,7 +109,7 @@ TEST_CASE("FontFallbackResolver: Latin + Arabic splits by coverage") {
 
 TEST_CASE("FontFallbackResolver: missing glyph is logged and counted") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -140,7 +140,7 @@ TEST_CASE("FontFallbackResolver: missing glyph is logged and counted") {
 
 TEST_CASE("FontFallbackResolver: resolved runs can be shaped") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -174,7 +174,7 @@ TEST_CASE("FontFallbackResolver: resolved runs can be shaped") {
 
 TEST_CASE("FontFallbackResolver: multilingual corpus certifies per-cluster fallback") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -269,7 +269,7 @@ TEST_CASE("FontFallbackResolver: multilingual corpus certifies per-cluster fallb
 
 TEST_CASE("FontFallbackResolver: shaping metrics corpus (AVATAR / office / CJK / Arabic / emoji)") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -362,7 +362,7 @@ TEST_CASE("FontFallbackResolver: shaping metrics corpus (AVATAR / office / CJK /
 
 TEST_CASE("FontFallbackResolver: emoji ZWJ family stays in a single run when uncovered") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -399,7 +399,7 @@ TEST_CASE("FontFallbackResolver: emoji ZWJ family stays in a single run when unc
 
 TEST_CASE("FontFallbackResolver: invisible-only cluster resolves to primary") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -427,7 +427,7 @@ TEST_CASE("FontFallbackResolver: invisible-only cluster resolves to primary") {
 
 TEST_CASE("FontFallbackResolver: combining mark cluster is not split from base") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -454,7 +454,7 @@ TEST_CASE("FontFallbackResolver: combining mark cluster is not split from base")
 
 TEST_CASE("FontFallbackResolver: whole-cluster fallback selects covering font") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -489,7 +489,7 @@ TEST_CASE("FontFallbackResolver: whole-cluster fallback selects covering font") 
 
 TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
@@ -623,7 +623,7 @@ bool family_contains(const std::string& family, std::string_view substring) {
 
 TEST_CASE("resolve_text_run_tree: bundled_fonts_root propagated through pipeline") {
     Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
         chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 

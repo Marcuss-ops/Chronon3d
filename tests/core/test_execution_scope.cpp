@@ -36,7 +36,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/core/execution/execution_scope_types.hpp>
 #include <chronon3d/core/memory/arena.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/core/types/result.hpp>
 
@@ -48,7 +48,7 @@
 #include <vector>
 
 using chronon3d::FrameArena;
-using chronon3d::RenderSession;
+using chronon3d::runtime::JobSession;
 using chronon3d::graph::ExecutionScope;
 using chronon3d::graph::ExecutionScopeKind;
 using chronon3d::graph::GraphInstanceId;
@@ -84,25 +84,25 @@ static_assert(!std::is_default_constructible_v<ExecutionScope>,
 static_assert(!std::is_constructible_v<
                   ExecutionScope,
                   ExecutionScopeKind,
-                  chronon3d::RenderSession&>,
+                  chronon3d::runtime::JobSession&>,
               "FASE 5: 3-arg root ctor is no longer publicly callable.");
 static_assert(!std::is_constructible_v<
                   ExecutionScope,
                   ExecutionScopeKind,
-                  chronon3d::RenderSession&,
+                  chronon3d::runtime::JobSession&,
                   GraphInstanceId>,
               "FASE 5: 3-arg root ctor (with graph_id) is no longer publicly callable.");
 static_assert(!std::is_constructible_v<
                   ExecutionScope,
                   ExecutionScopeKind,
-                  chronon3d::RenderSession&,
+                  chronon3d::runtime::JobSession&,
                   GraphInstanceId,
                   const ExecutionScope*>,
               "FASE 5: 4-arg deprecated child ctor is no longer publicly callable.");
 static_assert(!std::is_constructible_v<
                   ExecutionScope,
                   ExecutionScopeKind,
-                  chronon3d::RenderSession&,
+                  chronon3d::runtime::JobSession&,
                   FrameArena&,
                   GraphInstanceId,
                   const ExecutionScope*>,
@@ -124,7 +124,7 @@ struct ChainSlotBuilder {
     std::vector<std::unique_ptr<ExecutionScope>> slots;
 
     ExecutionScope& emplace_root(
-        RenderSession& session,
+        JobSession& session,
         GraphInstanceId gid = kInvalidGraphInstanceId
     ) {
         slots.push_back(std::make_unique<ExecutionScope>(
@@ -134,7 +134,7 @@ struct ChainSlotBuilder {
 
     ExecutionScope& emplace_child(
         ExecutionScopeKind kind,
-        RenderSession& session,
+        JobSession& session,
         FrameArena& arena,
         GraphInstanceId gid,
         const ExecutionScope& parent,
@@ -154,7 +154,7 @@ struct ChainSlotBuilder {
 // ── Foundation tests (existing — migrated to factory API) ───────────────────
 
 TEST_CASE("ExecutionScope: root construction — kind=Root, depth=0, parent=null") {
-    RenderSession session;
+    JobSession session;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
 
@@ -169,7 +169,7 @@ TEST_CASE("ExecutionScope: root construction — kind=Root, depth=0, parent=null
 }
 
 TEST_CASE("ExecutionScope: tile child — depth=1, parent links to root") {
-    RenderSession root_session;
+    JobSession root_session;
     FrameArena child_arena;
     auto root_res = ExecutionScope::make_root(
         root_session, root_session.arena(), GraphInstanceId{1});
@@ -190,7 +190,7 @@ TEST_CASE("ExecutionScope: tile child — depth=1, parent links to root") {
 }
 
 TEST_CASE("ExecutionScope: sibling scopes are NOT descendants of each other") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
@@ -213,7 +213,7 @@ TEST_CASE("ExecutionScope: sibling scopes are NOT descendants of each other") {
 }
 
 TEST_CASE("ExecutionScope: deeper chain — grandchild depth=2") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
@@ -242,7 +242,7 @@ TEST_CASE("ExecutionScope: recursion detection — direct precomp loop rejected"
     // a pre-existing Precomp scope with the same owner_key.  We construct
     // pc1 with owner_key=0xDEADBEEF, then attempt to nest pc2 INSIDE pc1
     // with the same key — make_child must return Err(RecursiveOwner).
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
@@ -278,7 +278,7 @@ TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ance
     // ROOT → PC1(0x456) → PC2(0x123) → attempt to make PC3(0x456).
     // From PC2's perspective, walking the parent chain (PC2 → PC1 → ROOT)
     // finds PC1 with key 0x456 — must reject.
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b, arena_c;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
@@ -307,7 +307,7 @@ TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ance
 }
 
 TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
-    RenderSession parent_session;
+    JobSession parent_session;
     FrameArena child_arena;
     ExecutionScope parent = ExecutionScope::make_root(
         parent_session, parent_session.arena(), GraphInstanceId{1});
@@ -331,7 +331,7 @@ TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
 }
 
 TEST_CASE("ExecutionScope: kind() round-trips all three kinds") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{0});
@@ -354,7 +354,7 @@ TEST_CASE("ExecutionScope: kind() round-trips all three kinds") {
 }
 
 TEST_CASE("ExecutionScope: chain depth grows by one per nested child") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b, arena_c, arena_d, arena_e;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{0});
@@ -397,7 +397,7 @@ TEST_CASE("ExecutionScope: anthrilinear (ancestor-then-sibling) — RecursiveOwn
     //
     // ROOT → TILE_A(owner_key=0) → PRECOMP_PA(0xABCDEF) → TILE_B → attempt
     // PRECOMP inside TILE_B with key 0xABCDEF — must fail RecursiveOwner.
-    RenderSession session;
+    JobSession session;
     FrameArena a[5];
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{0});
@@ -439,7 +439,7 @@ TEST_CASE("ExecutionScope: kMaxScopeChainLength — make_child Err at boundary")
     // The deepest has chain_length kMaxScopeChainLength (=16).  A 16th
     // child attempt must return Err(ChainLimitExceeded) — make_child is
     // the canonical gate, no silent clamp.
-    RenderSession session;
+    JobSession session;
     ChainSlotBuilder chain;
     ExecutionScope& root = chain.emplace_root(session, GraphInstanceId{0});
     std::array<FrameArena, kMaxScopeChainLength> child_arenas;
@@ -470,7 +470,7 @@ TEST_CASE("ExecutionScope: kMaxScopeChainLength — make_child Err at boundary")
 }
 
 TEST_CASE("ExecutionScope: make_child — Root kind rejected (InvalidChildKind)") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
@@ -482,7 +482,7 @@ TEST_CASE("ExecutionScope: make_child — Root kind rejected (InvalidChildKind)"
 }
 
 TEST_CASE("ExecutionScope FASE 5: make_child — parent=nullptr rejected (ParentRequired)") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena;
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena,
@@ -495,7 +495,7 @@ TEST_CASE("ExecutionScope FASE 5: make_child — arena aliasing rejected (ArenaA
     // Pass the SAME arena as the parent — make_child rejects aliasing because
     // child teardown (ArenaGuard reset) would invalidate pointers the parent
     // still holds.  This was a silent acceptance pre-FASE-5.
-    RenderSession session;
+    JobSession session;
     ExecutionScope root = ExecutionScope::make_root(
         session, session.arena(), GraphInstanceId{1});
     auto bad = ExecutionScope::make_child(
@@ -520,7 +520,7 @@ struct TestArenaGuard {
 } // namespace
 
 TEST_CASE("ExecutionScope PR 6.6: ArenaGuard — child scope reset does not touch parent arena") {
-    RenderSession parent_session;
+    JobSession parent_session;
     FrameArena child_arena;
 
     auto* parent_resource = parent_session.arena().resource();
@@ -547,7 +547,7 @@ TEST_CASE("ExecutionScope PR 6.6: ArenaGuard — child scope reset does not touc
 }
 
 TEST_CASE("ExecutionScope PR 6.6: tile scope reset does not touch root arena") {
-    RenderSession session;
+    JobSession session;
     FrameArena tile_arena;
 
     auto* root_resource = session.arena().resource();
@@ -569,7 +569,7 @@ TEST_CASE("ExecutionScope PR 6.6: tile scope reset does not touch root arena") {
 }
 
 TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child arena") {
-    RenderSession session;
+    JobSession session;
     FrameArena tile_arena, precomp_arena;
 
     auto* root_res = session.arena().resource();
@@ -605,7 +605,7 @@ TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child are
 }
 
 TEST_CASE("ExecutionScope PR 6.6: two sibling tile scopes use independent arenas") {
-    RenderSession session;
+    JobSession session;
     FrameArena tile_a_arena, tile_b_arena;
 
     auto* res_a = tile_a_arena.resource();
@@ -634,7 +634,7 @@ TEST_CASE("ExecutionScope PR 6.6: two sibling tile scopes use independent arenas
 }
 
 TEST_CASE("ExecutionScope PR 6.6: tile scopes share the same session by reference") {
-    RenderSession session;
+    JobSession session;
     FrameArena arena_a, arena_b;
 
     ExecutionScope root = ExecutionScope::make_root(

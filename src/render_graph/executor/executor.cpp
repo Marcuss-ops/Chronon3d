@@ -3,7 +3,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
@@ -20,7 +20,7 @@ namespace chronon3d::graph {
 namespace {
 
 [[nodiscard]] runtime::FrameExecutionResult frame_result_from_session(
-    const RenderSession& session) {
+    const runtime::JobSession& session) {
     const auto error = session.last_frame_error();
     if (runtime::gpu_worker_poisoned()) {
         std::string reason = "GPU worker is poisoned after a terminal device-loss failure";

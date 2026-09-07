@@ -67,8 +67,10 @@ PreparedRenderJobTelemetry PreparedRenderJob::telemetry() const noexcept {
     snapshot.cache_entries = cache_stats.current_size;
     snapshot.cache_bytes = cache_stats.current_weight;
     snapshot.cache_capacity_bytes = renderer.node_cache().capacity();
-    snapshot.pipeline_depth = m_impl->slot_pool.capacity();
-    snapshot.pipeline_in_flight = m_impl->slot_pool.busy_count();
+    snapshot.pipeline_depth = m_impl->job_session
+        ? m_impl->job_session->slots().capacity() : 0;
+    snapshot.pipeline_in_flight = m_impl->job_session
+        ? m_impl->job_session->slots().busy_count() : 0;
     return snapshot;
 }
 
@@ -82,6 +84,11 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
     }
     evaluated->frame_index = frame.integral();
     auto& evaluated_payload = m_impl->payload(*evaluated);
+    const auto frame_time = SampleTime::from_frame_int(
+        frame, m_impl->compiled->composition
+            ? m_impl->compiled->composition->frame_rate() : FrameRate{});
+    runtime::FrameExecution frame_execution(
+        *m_impl->job_session, frame, frame_time, evaluated, &evaluated_payload);
     evaluated_payload.reset();
     if (!m_impl->publish_evaluated(*evaluated)) {
         (void)m_impl->abort(*evaluated);
@@ -124,6 +131,7 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
         }
         return output;
     } catch (...) {
+        frame_execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) != runtime::FrameSlotState::Free) {
             (void)m_impl->abort(*render_slot);
         }

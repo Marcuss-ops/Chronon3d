@@ -22,7 +22,7 @@
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/types/types.hpp>
@@ -31,7 +31,7 @@
 #include <string>
 #include <thread>
 
-using chronon3d::RenderSession;
+using chronon3d::runtime::JobSession;
 using chronon3d::FrameHistory;
 using chronon3d::DirtyHistory;
 using chronon3d::LayerBBoxState;
@@ -80,7 +80,7 @@ inline bool operator==(const BBox& a, const BBox& b) noexcept {
 
 namespace {
 
-void seed_frame_history(RenderSession& s, uint64_t marker) {
+void seed_frame_history(JobSession& s, uint64_t marker) {
     // Canonical `FrameHistory` field set (WP-3 PR 3.2).  The seed
     // intentionally drives `prev_graph_structure_fingerprint` because
     // that is the byte the lattice's persistence assertions key off; the
@@ -90,7 +90,7 @@ void seed_frame_history(RenderSession& s, uint64_t marker) {
     s.frame_history.prev_graph_structure_fingerprint = marker;
 }
 
-void seed_dirty_telemetry(RenderSession& s, uint64_t marker) {
+void seed_dirty_telemetry(JobSession& s, uint64_t marker) {
     // WP-3 PR 3.2 — `DirtyHistory` canonical fields.  The pre-3.2
     // `total_pixels` / `dirty_pixels` fields are gone (that schema was
     // the legacy `RendererDirtyTelemetry` table; the canonical fields
@@ -109,7 +109,7 @@ void seed_dirty_telemetry(RenderSession& s, uint64_t marker) {
 // WP-3 PR 3.2 — seed previous_layers with a non-default map.  This is
 // what UNBLOCKED the test-pin limitation: `LayerBBoxState` is now a
 // public-field struct so tests can stamp non-default entries directly.
-void seed_previous_layers(RenderSession& s, uint64_t marker) {
+void seed_previous_layers(JobSession& s, uint64_t marker) {
     s.dirty_telemetry.previous_layers.clear();
     s.dirty_telemetry.previous_layers["bg"]  = LayerBBoxState{
         .bbox = BBox{0, 0,
@@ -156,28 +156,28 @@ bool dirty_history_default(const DirtyHistory& d) noexcept {
 // ============================================================================
 
 TEST_CASE("WP-3 PR 3.1: default-constructed scene_hasher() succeeds without throwing") {
-    RenderSession session;
+    JobSession session;
     CHECK_NOTHROW((void)session.scene_hasher());
-    CHECK_NOTHROW((void)static_cast<const RenderSession&>(session).scene_hasher());
+    CHECK_NOTHROW((void)static_cast<const JobSession&>(session).scene_hasher());
 }
 
 TEST_CASE("WP-3 PR 3.1: default-constructed program_store() succeeds without throwing") {
-    RenderSession session;
+    JobSession session;
     CHECK_NOTHROW((void)session.program_store());
-    CHECK_NOTHROW((void)static_cast<const RenderSession&>(session).program_store());
+    CHECK_NOTHROW((void)static_cast<const JobSession&>(session).program_store());
 }
 
 TEST_CASE("WP-3 PR 3.1: default-constructed program_store() is non-null and apis reachable") {
-    RenderSession session;
+    JobSession session;
     auto& ps = session.program_store();
     CHECK(&ps != nullptr);
     CHECK_NOTHROW((void)ps.aggregate_stats());
 }
 
 TEST_CASE("WP-3 PR 3.0 → 3.1: arena() remains noexcept (negative regression guard)") {
-    RenderSession session;
-    const auto& ca = static_cast<const RenderSession&>(session).arena();
-    CHECK(&ca == &static_cast<const RenderSession&>(session).arena());
+    JobSession session;
+    const auto& ca = static_cast<const JobSession&>(session).arena();
+    CHECK(&ca == &static_cast<const JobSession&>(session).arena());
 }
 
 // ============================================================================
@@ -186,7 +186,7 @@ TEST_CASE("WP-3 PR 3.0 → 3.1: arena() remains noexcept (negative regression gu
 
 TEST_CASE("WP-3 PR 3.3: reset_frame_temporaries preserves frame_history"
           " (and does NOT touch scene_hasher / program_store)") {
-    RenderSession session;
+    JobSession session;
     seed_frame_history(session, 0xAABBCCDD);
     seed_dirty_telemetry(session, 0xAABBCCDD);
 
@@ -212,7 +212,7 @@ TEST_CASE("WP-3 PR 3.2 + 3.3: reset_frame_temporaries PRESERVES"
     // dirty-rect diffs remain accurate.  This test pins the new
     // invariant (replaces the pre-3.2 "default state unchanged"
     // tautology).
-    RenderSession session;
+    JobSession session;
     seed_previous_layers(session, 0xC0FFEE);
     REQUIRE(!session.dirty_telemetry.previous_layers.empty());
 
@@ -234,7 +234,7 @@ TEST_CASE("WP-3 PR 3.2 + 3.3: reset_frame_temporaries PRESERVES"
 
 TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job clears frame_history, dirty_telemetry,"
           " previous_layers, scene_hasher; zero program_store without aborting") {
-    RenderSession session;
+    JobSession session;
     seed_frame_history(session, 0xCAFEBABE);
     seed_dirty_telemetry(session, 0xCAFEBABE);
     seed_previous_layers(session, 0xCAFEBABE);    CHECK_NOTHROW(session.reset_job());
@@ -246,7 +246,7 @@ TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job clears frame_history, dirty_teleme
 }
 
 TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job on a default-constructed session does NOT abort") {
-    RenderSession session;
+    JobSession session;
     seed_frame_history(session, 0xDEADBEEF);
     seed_dirty_telemetry(session, 0xDEADBEEF);
     seed_previous_layers(session, 0xDEADBEEF);
@@ -268,7 +268,7 @@ TEST_CASE("WP-3 PR 3.3 + 3.1: concurrent sessions' local state is independently 
 
     auto worker = [&](uint64_t tag) {
         for (int i = 0; i < kIters; ++i) {
-            RenderSession s;
+            JobSession s;
             seed_frame_history(s, tag);
             seed_dirty_telemetry(s, tag);
             seed_previous_layers(s, tag);
@@ -299,7 +299,7 @@ TEST_CASE("WP-3 PR 3.3 + 3.1 + 3.2: reset_frame_temporaries called concurrently 
 
     std::thread a([&]() {
         for (int i = 0; i < 2000; ++i) {
-            RenderSession s;
+            JobSession s;
             seed_dirty_telemetry(s, 0x1111);
             seed_previous_layers(s, 0x1111);
             s.reset_frame_temporaries();
@@ -311,7 +311,7 @@ TEST_CASE("WP-3 PR 3.3 + 3.1 + 3.2: reset_frame_temporaries called concurrently 
     });
     std::thread b([&]() {
         for (int i = 0; i < 2000; ++i) {
-            RenderSession s;
+            JobSession s;
             seed_dirty_telemetry(s, 0x2222);
             seed_previous_layers(s, 0x2222);
             s.reset_frame_temporaries();
@@ -332,22 +332,22 @@ TEST_CASE("WP-3 PR 3.3 + 3.1 + 3.2: reset_frame_temporaries called concurrently 
 // ============================================================================
 
 TEST_CASE("WP-3 PR 3.1: two default-constructed sessions have DISTINCT scene_hasher addresses") {
-    RenderSession a;
-    RenderSession b;
+    JobSession a;
+    JobSession b;
     CHECK(&a.scene_hasher() != &b.scene_hasher());
-    CHECK(&static_cast<const RenderSession&>(a).scene_hasher() !=
-          &static_cast<const RenderSession&>(b).scene_hasher());
+    CHECK(&static_cast<const JobSession&>(a).scene_hasher() !=
+          &static_cast<const JobSession&>(b).scene_hasher());
 }
 
 TEST_CASE("WP-3 PR 3.1: two default-constructed sessions have DISTINCT program_store addresses") {
-    RenderSession a;
-    RenderSession b;
+    JobSession a;
+    JobSession b;
     CHECK(&a.program_store() != &b.program_store());
 }
 
 TEST_CASE("WP-3 PR 3.1: reset_job on session A does NOT clear session B's per-session state") {
-    RenderSession a;
-    RenderSession b;
+    JobSession a;
+    JobSession b;
 
     seed_frame_history(a, 0xBEEF0001);
     seed_frame_history(b, 0xBEEF0002);

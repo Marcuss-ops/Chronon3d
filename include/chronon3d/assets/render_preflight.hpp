@@ -99,7 +99,7 @@ public:
     // longer depend on the `runtime::typed_resolver_for_deep_code()`
     // service-locator bridge (which is REMOVED in PR 8.1 — this slice
     // is the required plumbing precursor).  Callers that hold a
-    // RenderRuntime pull `rt.resolver()`; standalone callers (CLI,
+    // RuntimeContext pull `rt.resolver()`; standalone callers (CLI,
     // tests) instantiate a local resolver and mount it at the project
     // root.
     [[nodiscard]] std::vector<PreflightIssue> validate(

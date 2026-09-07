@@ -307,7 +307,7 @@ TEST_CASE("TextLayoutEngine bounds: per-line metrics") {
 
 TEST_CASE("TextLayoutEngine bounds: FontEngine real metrics") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
@@ -423,7 +423,7 @@ TEST_CASE("TextLayoutEngine bounds: edge cases") {
 
 TEST_CASE("FontEngine glyph bounds: per-glyph bbox correctness") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
@@ -484,4 +484,3 @@ TEST_CASE("FontEngine glyph bounds: per-glyph bbox correctness") {
         CHECK(together <= separate);
     }
 }
-

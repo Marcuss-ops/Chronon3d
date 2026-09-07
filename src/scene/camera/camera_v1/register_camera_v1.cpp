@@ -21,7 +21,7 @@
 //
 // The migration (CAM-05 PR1):
 //   1. The catalog is now owned BY THE RENDER JOB (typically held inside
-//      `RenderRuntime::m_owned_transition_catalog` or passed as an
+//      `RuntimeContext::m_owned_transition_catalog` or passed as an
 //      explicit constructor argument to `ShotTimelineResolver`).
 //   2. The bootstrap is `register_camera_v1_builtins_into(catalog)` below:
 //      callers pass their own catalog reference, no global state involved.
@@ -44,7 +44,7 @@ namespace chronon3d::camera_v1 {
 /// `register_camera_v1_builtins()` (removed in CAM-05).
 ///
 /// The caller is responsible for the lifetime of `catalog` — typically
-/// `RenderRuntime` owns it as `std::unique_ptr<CameraTransitionCatalog>` and
+/// `RuntimeContext` owns it as `std::unique_ptr<CameraTransitionCatalog>` and
 /// passes `&*m_owned_transition_catalog` here at engine bootstrap.  After
 /// this call the catalog is frozen and reads are concurrent-safe.
 ///

@@ -94,9 +94,9 @@ TEST_CASE("ProcessorRegistrySnapshot survives full engine shutdown and isolates 
     std::shared_ptr<const renderer::ProcessorRegistrySnapshot> snapshot_b;
 
     {
-        auto runtime_a_result = runtime::RenderRuntime::create(
+        auto runtime_a_result = runtime::RuntimeContext::create(
             runtime::RuntimeConfig{Config{}, std::nullopt});
-        auto runtime_b_result = runtime::RenderRuntime::create(
+        auto runtime_b_result = runtime::RuntimeContext::create(
             runtime::RuntimeConfig{Config{}, std::nullopt});
         REQUIRE(runtime_a_result.has_value());
         REQUIRE(runtime_b_result.has_value());

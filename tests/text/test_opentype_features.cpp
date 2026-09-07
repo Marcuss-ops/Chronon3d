@@ -42,7 +42,7 @@ std::vector<std::uint32_t> glyph_ids(const PlacedGlyphRun& placed) {
 
 TEST_CASE("OpenType: liga=0 prevents fi ligature") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -75,7 +75,7 @@ TEST_CASE("OpenType: liga=0 prevents fi ligature") {
 
 TEST_CASE("OpenType: liga=0 prevents ffi ligature") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -105,7 +105,7 @@ TEST_CASE("OpenType: liga=0 prevents ffi ligature") {
 
 TEST_CASE("OpenType: smcp=1 changes glyph IDs when supported") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -139,7 +139,7 @@ TEST_CASE("OpenType: smcp=1 changes glyph IDs when supported") {
 
 TEST_CASE("OpenType: onum=1 changes glyph IDs when supported") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -173,7 +173,7 @@ TEST_CASE("OpenType: onum=1 changes glyph IDs when supported") {
 
 TEST_CASE("OpenType: multiple features are applied together") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -203,7 +203,7 @@ TEST_CASE("OpenType: multiple features are applied together") {
 
 TEST_CASE("OpenType: resolve_and_shape forwards features") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -239,7 +239,7 @@ TEST_CASE("OpenType: resolve_and_shape forwards features") {
 
 TEST_CASE("OpenType: TextLayoutSpec::features forwarded through build_text_run") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -277,7 +277,7 @@ TEST_CASE("OpenType: TextLayoutSpec::features forwarded through build_text_run")
 
 TEST_CASE("OpenType: cache discriminates on features") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;

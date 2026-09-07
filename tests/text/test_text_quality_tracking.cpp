@@ -54,7 +54,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits e+combining acute"
     CHECK(input_clusters == 5);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -86,7 +86,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
     CHECK(input_clusters == 5);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -115,7 +115,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
 
 TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking between tokens") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -138,7 +138,7 @@ TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking betw
 
 TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -161,7 +161,7 @@ TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
 
 TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -184,7 +184,7 @@ TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
 
 TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no gaps") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -207,7 +207,7 @@ TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no 
 
 TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token gaps") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -235,7 +235,7 @@ TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token
 
 TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -263,7 +263,7 @@ TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking")
 
 TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasures correctly") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -292,7 +292,7 @@ TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasur
 
 TEST_CASE("TextQuality: inter-token tracking — no tracking with zero value") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -319,7 +319,7 @@ namespace ct = chronon3d::content::text;
 
 TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -349,7 +349,7 @@ TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
 
 TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -378,7 +378,7 @@ TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
 
 TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -406,7 +406,7 @@ TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total")
 
 TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-count") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -440,7 +440,7 @@ TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-c
 
 TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
@@ -472,7 +472,7 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
 
 TEST_CASE("TextQuality: typewriter tracking — different tracking values scale correctly") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;

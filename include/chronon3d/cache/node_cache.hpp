@@ -225,7 +225,7 @@ public:
                        CacheDiagnostics* diag = nullptr);
     ~NodeCache();
     /// P1-10 — re-registers with the new diagnostics.  Used by
-    /// `RenderRuntime` to wire its per-instance diagnostics into the
+    /// `RuntimeContext` to wire its per-instance diagnostics into the
     /// value-member caches after default construction.  Replaces the
     /// no-op handle (the old handle is RAII-destroyed; since the old
     /// handle was default-constructed with no entry, the destroy is a

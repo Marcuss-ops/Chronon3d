@@ -14,7 +14,7 @@
 // global registry.
 //
 // Pre-PR-6.0 path: tile / precomp inner execution constructed a local
-// RenderSession and reset it on return.  The parent session's arena was
+// runtime::JobSession and reset it on return.  The parent session's arena was
 // at risk of being invalidated when the child phase ran reset_job()
 // while the parent still held pointers into the same arena.  Post-PR-
 // 6.0 path: child scopes own a stable reference (not a copy) to the
@@ -56,7 +56,7 @@
 #include <chronon3d/core/execution/execution_scope_types.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/memory/arena.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 
 #include <cstdint>
 
@@ -107,7 +107,7 @@ public:
     // existing ctor default — the executor overwrites it post-construction
     // when the compiled graph identity is known (see executor.cpp).
     static ExecutionScope make_root(
-        chronon3d::RenderSession&           session,
+        chronon3d::runtime::JobSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id = kInvalidGraphInstanceId
     ) noexcept;
@@ -131,7 +131,7 @@ public:
     // post-construction call.
     static chronon3d::Result<ExecutionScope, ScopeError> make_child(
         ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
+        chronon3d::runtime::JobSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent,
@@ -139,7 +139,7 @@ public:
     ) noexcept;
 
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
-    [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
+    [[nodiscard]] chronon3d::runtime::JobSession&    session()   const noexcept { return m_session; }
     [[nodiscard]] FrameArena&                  arena()     const noexcept { return m_arena; }
     [[nodiscard]] GraphInstanceId              graph_id()  const noexcept { return m_graph_id; }
     [[nodiscard]] const ExecutionScope*        parent()    const noexcept { return m_parent; }
@@ -176,7 +176,7 @@ private:
     // compile error after FASE 5.
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
+        chronon3d::runtime::JobSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent
@@ -214,7 +214,7 @@ private:
     }
 
     ExecutionScopeKind              m_kind;
-    chronon3d::RenderSession&       m_session;
+    chronon3d::runtime::JobSession&       m_session;
     FrameArena&                     m_arena;
     GraphInstanceId                 m_graph_id{kInvalidGraphInstanceId};
     const ExecutionScope*           m_parent{nullptr};
@@ -225,7 +225,7 @@ private:
 // ── Inline factory definitions (kept out-of-class for readability) ─────
 
 inline ExecutionScope ExecutionScope::make_root(
-    chronon3d::RenderSession&           session,
+    chronon3d::runtime::JobSession&           session,
     FrameArena&                         arena,
     GraphInstanceId                     graph_id
 ) noexcept {
@@ -236,7 +236,7 @@ inline ExecutionScope ExecutionScope::make_root(
 
 inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
     ExecutionScopeKind                  kind,
-    chronon3d::RenderSession&           session,
+    chronon3d::runtime::JobSession&           session,
     FrameArena&                         arena,
     GraphInstanceId                     graph_id,
     const ExecutionScope*               parent,

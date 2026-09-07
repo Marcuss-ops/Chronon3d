@@ -5,15 +5,15 @@
 //
 // Combined renderer + software-backend session for a single render job.
 //
-// Per design ("Spostare e separare RenderSession", section 8.5):
+// Per design ("Spostare e separare runtime::JobSession", section 8.5):
 //
 //   struct SoftwareRenderSession {
-//       RenderSession            common;       // renderer-agnostic
+//       runtime::JobSession            common;       // renderer-agnostic
 //       SoftwareSessionResources software;     // CPU-specific
 //   };
 //
 // This wrapper composes:
-//   - `common`  (`<chronon3d/internal/runtime/render_session.hpp>`) holds the
+//   - `common`  (`<chronon3d/runtime/job/job_session.hpp>`) holds the
 //               renderer-agnostic state: FrameArena, frame_history,
 //               dirty_history, layer_history, telemetry.
 //   - `software` (`<chronon3d/backends/software/software_session_resources.hpp>`)
@@ -27,11 +27,11 @@
 //   - reset_job() forwards to BOTH halves for a full job reset.
 //
 // `SoftwareRenderer::m_session` IS this wrapper — the migration to
-// `SoftwareRenderSession` (composition of `RenderSession common` +
+// `SoftwareRenderSession` (composition of `runtime::JobSession common` +
 // `SoftwareSessionResources software`) is complete.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <memory>
@@ -60,7 +60,7 @@ struct TextRunAuditSnapshot {
 /// `SoftwareRenderer`'s defaulted move constructor.
 struct SoftwareRenderSession {
     // ── Renderer-agnostic part ──────────────────────────────────────────
-    RenderSession            common;
+    runtime::JobSession      common;
 
     // ── Diagnostic text-run snapshots (last rendered frame) ─────────────
     std::vector<TextRunAuditSnapshot> text_audit_snapshots;
@@ -69,6 +69,8 @@ struct SoftwareRenderSession {
     SoftwareSessionResources software;
 
     SoftwareRenderSession() = default;
+    explicit SoftwareRenderSession(runtime::RuntimeContext& runtime)
+        : common(runtime) {}
     SoftwareRenderSession(const SoftwareRenderSession&) = delete;
     SoftwareRenderSession& operator=(const SoftwareRenderSession&) = delete;
     SoftwareRenderSession(SoftwareRenderSession&&) noexcept = default;
@@ -123,7 +125,7 @@ struct SoftwareRenderSession {
     }
 
     /// Full per-job reset. Runtime-owned caches are reset independently by
-    /// RenderRuntime's domain-specific APIs and remain untouched here.
+    /// RuntimeContext's domain-specific APIs and remain untouched here.
     void reset_job() {
         reset_frame_values();
         reset_temporal_history();

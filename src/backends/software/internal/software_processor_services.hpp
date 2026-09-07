@@ -43,7 +43,7 @@ namespace chronon3d::backends::software::internal {
 ///
 /// All fields are non-owning raw pointers; lifetime is managed by
 /// the orchestrating `SoftwareRenderer` (which outlives the backend
-/// by way of `~RenderRuntime()` running before `~SoftwareRenderer()`).
+/// by way of `~RuntimeContext()` running before `~SoftwareRenderer()`).
 ///
 /// ABI / layout invariant: the conditional `font_engine` field is
 /// `#ifdef`-gated by `CHRONON3D_HAS_BACKEND_TEXT` and MUST be visible

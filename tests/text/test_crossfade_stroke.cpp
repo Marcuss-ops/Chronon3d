@@ -138,7 +138,7 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
 
 TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB-precondition without crash") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -210,7 +210,7 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 
 TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doesn't leak forward") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;

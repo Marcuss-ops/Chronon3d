@@ -22,7 +22,7 @@
 // Per-worker invariant: the `CameraSessionCache` is owned by exactly one
 // worker; cross-worker sharing is a programmer error.  No mutex is taken
 // inside the cache itself; thread safety is enforced by the WP-3
-// `RenderSession` ownership convention.
+// `runtime::JobSession` ownership convention.
 // ==============================================================================
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>

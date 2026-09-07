@@ -6,12 +6,12 @@
 #include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 // TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
-// RenderRuntime (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
+// RuntimeContext (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
 // owner of GraphExecutor per TICKET-011.  Calling
 // sw_renderer->runtime().executor().execute_with_scope(...) below at the
-// fallback path needs the FULL type of RenderRuntime (the .executor()
+// fallback path needs the FULL type of RuntimeContext (the .executor()
 // accessor + the GraphExecutor& return — only declared in the full
-// type).  `render_session.hpp` alone forward-declares RenderRuntime via
+// type).  `render_session.hpp` alone forward-declares RuntimeContext via
 // transitive include; the explicit include here resolves the type for
 // this TU.  See commit 91debc36 (TXT-00 closure of ROT 1 on
 // src/render_graph/pipeline/) for the duplicate-fix precedent — the
@@ -19,7 +19,7 @@
 // .cpp file `scene_tile_execution.cpp` carries the symmetric fix.
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
@@ -151,7 +151,7 @@ TileExecutionResult execute_tile_or_fallback(
         // ── Traditional single-pass execution ───────────────────────────
         {
             CHRONON_TRACE_SCOPE("chronon.graph", "graph_execute");
-            // Section 5 violation fix: executor is engine-owned by RenderRuntime,
+            // Section 5 violation fix: executor is engine-owned by RuntimeContext,
             // not by SoftwareRenderer.  Reach it via runtime().executor().
             if (!sw_renderer || !sw_renderer->has_runtime()) {
                 // Direct graph-pipeline tests may provide a backend without

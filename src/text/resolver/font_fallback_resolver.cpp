@@ -31,7 +31,7 @@ namespace {
 
 // Scan `bundled_fonts_root` (e.g. `<assets_root>/fonts`) for loadable
 // TrueType/OpenType faces. The path is supplied by the caller — typically the
-// `RenderRuntime::config().assets_root` (or similar) — so behaviour is
+// `RuntimeContext::config().assets_root` (or similar) — so behaviour is
 // independent of the current working directory.
 //
 // Fail-loud: missing directory or enumeration failure is logged via

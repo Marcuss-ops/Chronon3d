@@ -91,7 +91,7 @@ struct GpuAssetCacheStats {
 class GpuAssetCache {
 public:
     // F4.3 — the DEFAULT budget is bounded (512 MB): both production
-    // instances (RenderRuntime::m_gpu_asset_cache and the styled-glyph cache
+    // instances (RuntimeContext::m_gpu_asset_cache and the styled-glyph cache
     // inside GpuGlyphAtlas) default-construct, so a default of 0 meant
     // "unbounded" — VRAM growth without limit in a long-lived daemon as
     // distinct assets accumulate. Callers that genuinely want unbounded

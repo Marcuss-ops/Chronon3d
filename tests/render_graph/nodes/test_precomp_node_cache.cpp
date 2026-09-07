@@ -2,7 +2,7 @@
 // test_precomp_node_cache.cpp — PrecompNode + SceneProgramStore integration
 //
 // PR-5 — PrecompNode no longer owns SceneProgramCache.  Tests now verify
-// cache behavior through the centralized SceneProgramStore on RenderSession.
+// cache behavior through the centralized SceneProgramStore on runtime::JobSession.
 //
 // Test cases:
 //   1. Cache hit on repeated execution — same key → same program, compile=1
@@ -23,7 +23,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
@@ -58,8 +58,8 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
     );
 }
 
-// ── Helper: minimal RenderGraphContext + RenderSession for PrecompNode tests ──
-// PR-5 — the TestContext now owns a RenderSession with a SceneProgramStore,
+// ── Helper: minimal RenderGraphContext + runtime::JobSession for PrecompNode tests ──
+// PR-5 — the TestContext now owns a runtime::JobSession with a SceneProgramStore,
 // and wires session + scheduler into ctx.services.
 // WP-0 PR 0.1 — the TestContext now ALSO wires `session.services.executor`
 // to a local GraphExecutor instance, matching the new PrecompNode contract
@@ -69,7 +69,7 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
 // empty framebuffer instead of the cached one the test expects.
 struct TestContext {
     // Hold the FULL TestRenderer (not a sliced SoftwareRenderer):
-    // TestRenderer owns the RenderRuntime in a separate base
+    // TestRenderer owns the RuntimeContext in a separate base
     // (TestRuntimeOwner); assigning a SoftwareRenderer value member from
     // test::make_renderer() slices the derived object away and destroys
     // the runtime, leaving SoftwareRenderer::m_runtime dangling.
@@ -79,7 +79,7 @@ struct TestContext {
     CompositionRegistry         registry;
     GraphExecutor               local_executor;
     DefaultPrecompBuilder       precomp_builder_service;
-    RenderSession               session;
+    runtime::JobSession               session;
     ExecutionScheduler          scheduler;
     RenderGraphContext          ctx;
 
@@ -91,7 +91,7 @@ struct TestContext {
         // WP-0 PR 0.1 — wire the local GraphExecutor into the session
         // service bundle so the new PrecompNode::execute() borrow path
         // reaches a real executor instead of nullptr.
-        session.services.executor   = &local_executor;
+        session.bind_executor(local_executor);
 
         ctx.services.backend = &backend.backend();
         ctx.services.node_cache      = &node_cache;

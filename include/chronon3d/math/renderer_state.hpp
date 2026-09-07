@@ -25,7 +25,7 @@
 // Backward-compat aliases (`using RendererFrameHistory = FrameHistory;`
 // etc.) were removed in WP-3 PR 3.2 because:
 //   - No external SDK consumer holds the legacy names (the public API
-//     surface is Gated through `RenderSession`'s methods, not raw field
+//     surface is Gated through `runtime::JobSession`'s methods, not raw field
 //     references).
 //   - Internal call-sites are all transitioned to canonical names in
 //     this PR.
