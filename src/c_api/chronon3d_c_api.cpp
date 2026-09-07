@@ -1,6 +1,7 @@
 #include <chronon3d/c_api/chronon3d.h>
 
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
@@ -152,12 +153,16 @@ chronon3d::render_plan::PreparedRenderPlan compile_plan(
     fingerprint_options.render_settings.height = decoded->canvas.height;
     fingerprint_options.render_settings.deterministic = false;
     fingerprint_options.render_settings.force_scalar_normal_blend = false;
-    const auto compiled = chronon3d::render_plan::compile_render_plan(
-        decoded.value(), resolver, fingerprint_options);
+    chronon3d::compiler::CompileOptions compile_options;
+    compile_options.fingerprint = fingerprint_options;
+    const auto compiled = chronon3d::compiler::compile(
+        decoded.value(), resolver, compile_options);
     if (!compiled)
-        throw PlanCompileError(compiled.error().path, compiled.error().message,
-                               compiled.error().code, compiled.error().component);
-    return compiled.value();
+        throw PlanCompileError(compiled.error().path,
+                               compiled.error().message,
+                               "compile_error",
+                               compiled.error().component);
+    return compiled.value().prepared_plan();
 }
 
 chronon_status render_error_status(const chronon3d::sdk::RenderError& error);
