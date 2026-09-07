@@ -7,7 +7,7 @@
 // `wire_precomp_build_factory` (register_pipeline_nodes.cpp):
 //
 //   1. GraphBuildPipeline::build(scene, nested_ctx) → RenderGraph
-//   2. FrameGraphCompiler::compile(graph,  nested_ctx, compile_opts)
+//   2. compiler::compile_graph(graph, nested_ctx, compile_opts)
 //
 // The compiler takes the context by reference and may mutate
 // `nested_ctx.node_exec.counters` / `nested_ctx.policy.*` to surface

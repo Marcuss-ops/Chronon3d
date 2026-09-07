@@ -115,7 +115,7 @@ SceneGraphStats analyze_scene_graph(
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    // PR-2 rewire — compile the raw graph through FrameGraphCompiler first
+    // PR-2 rewire — compile the raw graph through the compiler root
     // (single source of truth for topological plans after WP-8 close-out).
     auto compiled = chronon3d::compiler::compile_graph(std::move(graph), ctx);
     std::shared_ptr<Framebuffer> fb_shared;

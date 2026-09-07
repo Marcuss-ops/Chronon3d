@@ -76,7 +76,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 
     // Execute the graph for just the selected layer.
     // PR-2 rewire close-out (WP-8 followup) — retarget the graph's output
-    // to the selected layer node, then compile through FrameGraphCompiler
+    // to the selected layer node, then compile through the compiler root
     // (single source of truth for topological plans after WP-8 close-out).
     //
     // Section 5 fix: route the executor via the renderer's runtime — the
