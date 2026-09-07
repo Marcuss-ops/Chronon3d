@@ -42,6 +42,7 @@
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/core/types/time.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -119,7 +120,12 @@ struct PreparedVideoMetadata {
     std::string   owner;
     std::int32_t  width{0};
     std::int32_t  height{0};
-    float         fps{0.0f};
+    // F3.1 — the frame rate is a RATIONAL authority (numerator/denominator),
+    // never a float. 30000/1001 must survive preparation exactly; a float
+    // collapses it to 29.970029... and re-imports drift into every consumer
+    // that derives timing from this field. Presentation/measurement code can
+    // call frame_rate.fps() (double, derived) — the authority stays exact.
+    FrameRate     frame_rate{0, 1};
     std::int64_t  frame_count{0};
 };
 

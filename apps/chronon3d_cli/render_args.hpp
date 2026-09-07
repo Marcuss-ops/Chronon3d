@@ -60,6 +60,10 @@ struct RenderPipelineArgs {
 struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"};
+    // True when --frames/--frame was present on the command line (CLI11
+    // option count), so an explicit "0" (single-frame chunk at frame 0) is
+    // distinguishable from the default "0" (whole plan for video).
+    bool frames_explicit{false};
     std::string output;
     std::string assets_root;
     graph::BackendPreference backend{graph::BackendPreference::Auto};

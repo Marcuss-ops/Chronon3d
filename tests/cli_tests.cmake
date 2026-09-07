@@ -19,6 +19,7 @@ set(_cli_tests_link_targets
 set(_cli_test_sources
     cli/test_cli_mappers.cpp
     cli/test_frame_range_parser.cpp
+    cli/test_pipe_export_queue.cpp
     cli/test_render_job_planning.cpp
     cli/test_render_error_formatter.cpp
     cli/bench_json_tests.cpp

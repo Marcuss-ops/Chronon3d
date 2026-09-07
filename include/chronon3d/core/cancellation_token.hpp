@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <cstddef>
+#include <thread>
 #include <vector>
 
 namespace chronon3d {
@@ -75,10 +76,52 @@ private:
     mutable std::vector<std::pair<CallbackId, std::function<void()>>> m_on_cancel;
 };
 
-/// Install global SIGINT/SIGTERM handler that cancels the given token.
+/// F5.1 — SignalCancellationBridge: the single authority that turns POSIX
+/// termination signals into a CancellationToken::cancel() executed on a
+/// NORMAL thread.
+///
+/// The signal handler itself is async-signal-safe ONLY: it flips one
+/// lock-free atomic flag and writes one byte to a self-pipe fd. No mutex,
+/// no allocation, no spdlog, no callbacks in signal context — the previous
+/// design called CancellationToken::cancel() directly from the handler,
+/// which takes a mutex, copies a vector of std::function and runs arbitrary
+/// callbacks (all undefined behavior in signal context; worst case deadlock
+/// or corruption exactly when teardown must be clean).
+///
+/// cancel() runs exactly once per install: repeated signals only drain the
+/// flag (re-running on_cancel callbacks was possible before and is unsafe).
+class SignalCancellationBridge {
+public:
+    SignalCancellationBridge() = default;
+    ~SignalCancellationBridge();  // restore() if still installed
+    SignalCancellationBridge(const SignalCancellationBridge&) = delete;
+    SignalCancellationBridge& operator=(const SignalCancellationBridge&) = delete;
+
+    /// Install SIGINT/SIGTERM handlers bound to `token` and spawn the watcher
+    /// thread that performs the real cancel(). Returns false if already
+    /// installed (idempotent, no double watcher).
+    bool install(CancellationToken& token);
+
+    /// Non-blocking poll for event-loop callers: true exactly once per
+    /// observed signal (the watcher thread already ran cancel()).
+    [[nodiscard]] bool poll() noexcept;
+
+    /// Restore default handlers, stop and join the watcher thread. Safe to
+    /// call more than once.
+    void restore() noexcept;
+
+private:
+    std::atomic<bool> m_installed{false};
+    std::atomic<bool> m_stop_requested{false};
+    std::atomic<bool> m_signal_seen{false};
+    std::thread m_watcher;
+};
+
+/// Install global SIGINT/SIGTERM handler that cancels the given token
+/// (delegates to the process-wide SignalCancellationBridge).
 void install_signal_cancellation(CancellationToken& token);
 
-/// Restore default signal handlers.
+/// Restore default signal handlers and stop the bridge watcher.
 void restore_default_signal_handlers();
 
 } // namespace chronon3d

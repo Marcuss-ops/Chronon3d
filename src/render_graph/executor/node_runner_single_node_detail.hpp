@@ -230,15 +230,15 @@ void execute_single_node(
     if (ctx.frame_input.temporal_key != TemporalSampleKey{}) {
         sample_key = ctx.frame_input.temporal_key;
     }
-    // The scope below borrows this storage until execute_single_node returns.
-    // Keep it outside the conditional that constructs ScopedNodeMemory.
-    char node_id_buffer[kMemoryNodeIdCapacity]{};
+    // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — canonical allocation-free
+    // id: memory_node_id() formats "g<n>:n<m>" into a stack buffer and returns
+    // an SSO string; ScopedNodeMemory stores its own copy (see
+    // node_memory_tracker.hpp), so the temporary does not dangle.
     std::optional<ScopedNodeMemory> node_memory_scope;
     if (state.node_memory_tracker) {
-        // OPT-TRACKER-LOOKUP — id formatted into a stack buffer (no heap).
         node_memory_scope.emplace(
             *state.node_memory_tracker,
-            format_memory_node_id(node_id_buffer, compiled, id, node.name()),
+            memory_node_id(compiled, id, node.name()),
             sample_key,
             0);
     }

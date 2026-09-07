@@ -173,6 +173,23 @@ struct FramebufferPoolStats {
     size_t evicted_bytes{0};            // total bytes evicted
     size_t pressure_count{0};           // number of eviction events
     size_t size_class_count{0};         // distinct size classes in the pool
+
+    // Wave-2 contention/rotation telemetry (aggregate sums, lifetime since
+    // reset).  Every acquire/release/set_arena crosses the SAME m_mutex, so
+    // lock_wait_us isolates the mutex-contention cost from the work itself:
+    //   lock_wait_us       — sum of time threads waited to acquire m_mutex
+    //   lock_hold_wall_us  — sum of time m_mutex was held by the caller
+    //   acquire_count      — pool acquire entries (all acquire_* wrappers)
+    //   release_count      — pool release() entries
+    //   arena_set_count    — set_arena() calls (job-scoped arena association;
+    //                        the Wave-4 target is ~1/job, never frames/job)
+    //   arena_set_wait_us  — sum of mutex wait inside set_arena()
+    uint64_t lock_wait_us{0};
+    uint64_t lock_hold_wall_us{0};
+    uint64_t acquire_count{0};
+    uint64_t release_count{0};
+    uint64_t arena_set_count{0};
+    uint64_t arena_set_wait_us{0};
 };
 
 // ---------------------------------------------------------------------------
@@ -193,6 +210,21 @@ public:
 
     /// Set a static arena to be used for new allocations.
     void set_arena(std::shared_ptr<chronon3d::FramebufferArena> arena);
+
+    /// Wave 4 — job-scoped arena association. Attach ONE provider for the
+    /// lifetime of a job; the provider returns the job's current frame arena
+    /// (the rotating slot). Association is therefore a job-lifetime event
+    /// (~1 attach/job) instead of a per-frame pool reconfiguration. The
+    /// provider is invoked under the pool mutex from worker threads; it must
+    /// return a pointer that stays valid for the whole frame (the rotating
+    /// arena container owns the slots). Detach at the end of the job — a
+    /// daemon reuses the pool across jobs, so a stale provider would dangle
+    /// past the job that installed it.
+    void attach_arena_provider(std::function<chronon3d::FramebufferArena*()> provider);
+
+    /// Drop a job-scoped arena provider (safe after the render loop ends;
+    /// idempotent when none is installed).
+    void detach_arena_provider();
 
     /// Dynamically update the retention budget (0 = unlimited).
     void set_budget_bytes(size_t max_retained_bytes);
@@ -378,6 +410,9 @@ private:
     size_t m_peak_retained_bytes{0};
     uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
+    // Wave 4 — job-scoped arena provider (see attach_arena_provider).
+    // Preferred over m_arena when installed; both are read under m_mutex.
+    std::function<chronon3d::FramebufferArena*()> m_arena_provider;
     // P1-21: clear policy (default TrimAfterJob matches pre-P1-21
     // production behavior: pipe_export_loop.cpp unconditionally
     // called clear() at the end of every job.  LRU eviction handles
@@ -394,6 +429,15 @@ private:
     std::atomic<size_t> m_total_reuses{0};
     std::atomic<size_t> m_total_returns{0};
     std::atomic<size_t> m_total_clears{0};
+
+    // Wave-2 contention telemetry (lifetime since reset; written from the
+    // hot acquire/release paths).
+    std::atomic<uint64_t> m_lock_wait_us{0};
+    std::atomic<uint64_t> m_lock_hold_wall_us{0};
+    std::atomic<uint64_t> m_acquire_count{0};
+    std::atomic<uint64_t> m_release_count{0};
+    std::atomic<uint64_t> m_arena_set_count{0};
+    std::atomic<uint64_t> m_arena_set_wait_us{0};
 
     std::unordered_map<
         FramebufferPoolKey,

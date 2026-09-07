@@ -1,9 +1,11 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
+#include <chronon3d/core/memory/framebuffer_copy.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
+#include <chrono>
 #include <cstdlib>
 #include <limits>
 #include <optional>
@@ -38,6 +40,40 @@ void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
 
 namespace chronon3d::cache {
 
+namespace {
+
+// Wave-2 contention meters. Every acquire/release/set_arena crosses the same
+// m_mutex, so the WAIT time (measured before the lock is acquired) isolates
+// mutex contention from the pool work itself, and the HOLD time (measured by
+// the RAII meter below) attributes the actual critical-section cost. The
+// meter's destructor runs at every return, so no locked scope needs to be
+// re-shaped to report its hold time.
+std::uint64_t pool_lock_wait_us(std::chrono::steady_clock::time_point t0) noexcept {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - t0).count());
+}
+
+class PoolLockHoldMeter {
+public:
+    explicit PoolLockHoldMeter(std::atomic<std::uint64_t>& sink) noexcept
+        : sink_(sink), t0_(std::chrono::steady_clock::now()) {}
+    ~PoolLockHoldMeter() {
+        sink_.fetch_add(static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - t0_).count()),
+            std::memory_order_relaxed);
+    }
+    PoolLockHoldMeter(const PoolLockHoldMeter&) = delete;
+    PoolLockHoldMeter& operator=(const PoolLockHoldMeter&) = delete;
+
+private:
+    std::atomic<std::uint64_t>& sink_;
+    std::chrono::steady_clock::time_point t0_;
+};
+
+} // namespace
+
 // NOTE (FASE 18): the anonymous round_up_bucket() intra-pixel step helper
 // and all eviction / preallocation / warm-up methods are now in
 // framebuffer_pool_evict.cpp, included by the parent cache CMakeLists.
@@ -55,10 +91,36 @@ FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config)
 FramebufferPool::~FramebufferPool() = default;
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
+    const auto lock_t0 = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(m_mutex);
+    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    m_arena_set_count.fetch_add(1, std::memory_order_relaxed);
+    m_arena_set_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    PoolLockHoldMeter hold(m_lock_hold_wall_us);
     if (m_arena != arena) {
         m_arena = std::move(arena);
     }
+}
+
+void FramebufferPool::attach_arena_provider(
+    std::function<FramebufferArena*()> provider) {
+    const auto lock_t0 = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    // One arena-association event per job (Wave-4 acceptance: the pool's
+    // arena association is job-lifetime, arena rotation is frame-lifetime).
+    m_arena_set_count.fetch_add(1, std::memory_order_relaxed);
+    m_arena_set_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    PoolLockHoldMeter hold(m_lock_hold_wall_us);
+    m_arena_provider = std::move(provider);
+}
+
+void FramebufferPool::detach_arena_provider() {
+    const auto lock_t0 = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    PoolLockHoldMeter hold(m_lock_hold_wall_us);
+    m_arena_provider = {};
 }
 
 void FramebufferPool::set_budget_bytes(size_t max_retained_bytes) {
@@ -121,7 +183,11 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool* out_fresh_alloc) {
     if (out_fresh_alloc) *out_fresh_alloc = false;
 
+    const auto lock_t0 = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(m_mutex);
+    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    m_acquire_count.fetch_add(1, std::memory_order_relaxed);
+    PoolLockHoldMeter hold(m_lock_hold_wall_us);
 
     auto [rounded_w, rounded_h] = round_to_bucket(width, height);
 
@@ -181,6 +247,12 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);
+            // P3 — an arena allocation is an allocation, not a reuse: the
+            // caller's clear decision and the allocation telemetry must
+            // classify it as fresh. Previously this path left the flag false,
+            // so arena-backed buffers were counted as pool reuses (and
+            // pointlessly cleared on the "reuse" path).
+            if (out_fresh_alloc) *out_fresh_alloc = true;
             return fb;
         }
     }
@@ -257,16 +329,12 @@ OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(other.width(), other.height(), &fresh_alloc);
     if (fb && other.data() && fb->data() && other.data() != fb->data()) {
-        // Framebuffer storage is cache-line padded: logical rows are not
-        // necessarily contiguous at `width * sizeof(Color)`.  Copying the
-        // whole logical area as one block shifts every row after the first
-        // when the two strides differ, producing striped/corrupted effects.
-        const i32 copy_width = std::min(other.width(), fb->width());
-        const i32 copy_height = std::min(other.height(), fb->height());
-        const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
-        for (i32 y = 0; y < copy_height; ++y) {
-            std::memcpy(fb->pixels_row(y), other.pixels_row(y), row_bytes);
-        }
+        // F2.4 — single copy authority. Framebuffer storage is cache-line
+        // padded and pool storage is size-class rounded: logical rows are
+        // not contiguous at `width * sizeof(Color)`.  Copying the whole
+        // logical area as one block shifts every row after the first when
+        // the two strides differ, producing striped/corrupted effects.
+        FramebufferCopyAuthority::copy_rows(*fb, other);
     }
     // Pixel storage alone is not the framebuffer contract. Cropped graph
     // nodes carry a canvas-space origin, and downstream compositors use it
@@ -316,6 +384,7 @@ void FramebufferPool::release(Framebuffer* fb) {
     }
 
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
+    m_release_count.fetch_add(1, std::memory_order_relaxed);
 
     std::unique_ptr<Framebuffer> owned(fb);
 
@@ -324,7 +393,10 @@ void FramebufferPool::release(Framebuffer* fb) {
         return;
     }
 
+    const auto lock_t0 = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(m_mutex);
+    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+    PoolLockHoldMeter hold(m_lock_hold_wall_us);
 
     // Restore full allocated size so the Framebuffer is perfectly standardized in the pool
     const int alloc_w = owned->allocated_width();
@@ -476,6 +548,12 @@ FramebufferPoolStats FramebufferPool::stats() const {
         .evicted_bytes = m_evicted_bytes.load(std::memory_order_relaxed),
         .pressure_count = m_pressure_count.load(std::memory_order_relaxed),
         .size_class_count = m_free.size(),
+        .lock_wait_us = m_lock_wait_us.load(std::memory_order_relaxed),
+        .lock_hold_wall_us = m_lock_hold_wall_us.load(std::memory_order_relaxed),
+        .acquire_count = m_acquire_count.load(std::memory_order_relaxed),
+        .release_count = m_release_count.load(std::memory_order_relaxed),
+        .arena_set_count = m_arena_set_count.load(std::memory_order_relaxed),
+        .arena_set_wait_us = m_arena_set_wait_us.load(std::memory_order_relaxed),
     };
 }
 
@@ -484,6 +562,12 @@ void FramebufferPool::reset_counters() {
     m_total_reuses.store(0, std::memory_order_relaxed);
     m_total_returns.store(0, std::memory_order_relaxed);
     m_total_clears.store(0, std::memory_order_relaxed);
+    m_lock_wait_us.store(0, std::memory_order_relaxed);
+    m_lock_hold_wall_us.store(0, std::memory_order_relaxed);
+    m_acquire_count.store(0, std::memory_order_relaxed);
+    m_release_count.store(0, std::memory_order_relaxed);
+    m_arena_set_count.store(0, std::memory_order_relaxed);
+    m_arena_set_wait_us.store(0, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(m_mutex);
     m_peak_retained_bytes = m_current_bytes;
     m_evicted_count.store(0, std::memory_order_relaxed);

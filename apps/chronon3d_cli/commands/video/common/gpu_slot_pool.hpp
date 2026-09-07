@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/cancellation_token.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
@@ -30,8 +31,10 @@ using runtime::FrameSlotPool;
 /// invariants):
 ///   - FrameSlotPool: fixed slot storage and CPU lifecycle state.
 ///   - GpuCompletionTracker: encoder completion tokens + interop state cells.
-/// (Frame handoff to the writer thread stays in BoundedChannel; no second
-/// queue primitive is introduced here.)
+/// (Frame handoff to the writer thread is the fixed-capacity SPSC
+/// RenderFrameQueue — a BoundedSpscRing data path, see pipe_export_queue.hpp.
+/// No third queue primitive is introduced here; MPSC/MPMC stays on
+/// BoundedChannel.)
 ///
 /// Lease discipline (B4/B7 closure):
 ///   - Every state change is a CAS transition from FrameSlotPool; an aborted
@@ -99,6 +102,17 @@ public:
                 if (auto waited_us = elapsed_us(wait_start); waited_us != 0) {
                     wait_count_.fetch_add(1, std::memory_order_relaxed);
                     wait_us_.fetch_add(waited_us, std::memory_order_relaxed);
+                    // Wave 2 — mirror the producer-side frame-slot wait onto
+                    // the shared render counters (frame_slot_wait_ms KPI).
+                    // The guard keeps this a no-op on threads without a
+                    // counters context (the pool's own wait counters still
+                    // record it).
+                    if (auto* counters = profiling::g_current_counters) {
+                        counters->frame_slot_wait_count.fetch_add(
+                            1, std::memory_order_relaxed);
+                        counters->frame_slot_wait_us.fetch_add(
+                            waited_us, std::memory_order_relaxed);
+                    }
                 }
                 return Lease(this, slot);
             }

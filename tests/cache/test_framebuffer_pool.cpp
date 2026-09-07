@@ -2,6 +2,7 @@
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <cstring>
@@ -614,4 +615,35 @@ TEST_CASE("Config: framebuffer_pool_clear_policy accessor + setter") {
     cfg.set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob);
     CHECK(cfg.cache().framebuffer_pool_clear_policy() ==
           chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob);
+}
+
+// Wave 2 — contention/rotation telemetry. acquire/release/set_arena all cross
+// the same pool mutex; the pool must account every one of them and report the
+// aggregate wait/hold microseconds so the render loop can tell lock
+// contention apart from pool work (fb_pool_lock_wait_ms / arena_set_count
+// acceptance: arena_set_count is a per-call meter that the Wave-4 job-scoped
+// association must drive toward ~1/job instead of frames/job).
+TEST_CASE("FramebufferPool wave-2 contention counters advance") {
+    // Shared-ownership pool: acquire()'s shared deleter returns buffers via
+    // pool->release(), which is exactly the release path being accounted.
+    auto pool = FramebufferPool::create_shared(256ULL * 1024ULL * 1024ULL);
+    const auto arena = std::make_shared<FramebufferArena>(4ULL * 1024ULL * 1024ULL);
+
+    const auto before = pool->stats();
+    pool->set_arena(arena);
+    pool->set_arena(arena);  // second association is still one tracked call
+    for (int i = 0; i < 100; ++i) {
+        auto fb = pool->acquire(32, 32);
+        REQUIRE(fb != nullptr);
+        // fb released at scope end -> pool->release()
+    }
+    const auto after = pool->stats();
+
+    CHECK(after.acquire_count >= before.acquire_count + 100);
+    CHECK(after.release_count >= before.release_count + 100);
+    CHECK(after.arena_set_count == before.arena_set_count + 2);
+    // Locking overhead is never negative.
+    CHECK(after.lock_wait_us >= before.lock_wait_us);
+    CHECK(after.lock_hold_wall_us >= before.lock_hold_wall_us);
+    CHECK(after.arena_set_wait_us >= before.arena_set_wait_us);
 }

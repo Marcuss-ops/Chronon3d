@@ -6,6 +6,8 @@
 
 #include "../nodes/native_surface.hpp"
 
+#include <chronon3d/core/memory/framebuffer_copy.hpp>
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -72,17 +74,16 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->clear_surface_handle();
         return;
     }
-    if (framebuffer->stride() == framebuffer->width()) {
-        std::memcpy(framebuffer->data(), rgba.data(),
-                    static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() * sizeof(Color));
-    } else {
-        const std::size_t row_bytes = static_cast<std::size_t>(framebuffer->width()) * sizeof(Color);
-        for (int y = 0; y < framebuffer->height(); ++y) {
-            std::memcpy(framebuffer->pixels_row(y),
-                        rgba.data() + static_cast<std::size_t>(y) * framebuffer->width() * 4,
-                        row_bytes);
-        }
-    }
+    // Single copy authority: the download payload is packed (stride ==
+    // width), while the framebuffer may be stride-padded; copy_rows() uses
+    // each buffer's own stride so no row is shifted. Both the previously
+    // flat fast path (stride == width) and the row-wise fallback are exactly
+    // this operation.
+    FramebufferCopyAuthority::copy_rows(
+        framebuffer->pixels_row(0), framebuffer->stride(),
+        reinterpret_cast<const Color*>(rgba.data()),
+        framebuffer->width() /* packed source has no padding */,
+        framebuffer->width(), framebuffer->height());
     if (ctx.services.surface_registry) {
         (void)ctx.services.backend->release_surface(framebuffer->surface_handle());
         (void)ctx.services.surface_registry->release(framebuffer->surface_handle());

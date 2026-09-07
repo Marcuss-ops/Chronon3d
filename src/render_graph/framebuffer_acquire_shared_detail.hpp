@@ -6,11 +6,13 @@
 
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_copy.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <memory>
 
 namespace chronon3d::graph {
@@ -80,9 +82,12 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         // because the pool's bucket may have a re-used allocation.
         out = pool->acquire_shared(other.width(), other.height(), false);
         if (out && out->data() != other.data()) {
-            std::copy(other.data(),
-                      other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
-                      out->data());
+            // F2.4 — single copy authority. The pooled destination's storage
+            // is size-class rounded and the source may carry its own stride,
+            // so a flat [data, data+w*h) copy would shift every row after the
+            // first. copy_rows() uses each buffer's own row stride (see
+            // FramebufferCopyAuthority).
+            FramebufferCopyAuthority::copy_rows(*out, other);
             if (node_exec.counters) {
                 node_exec.counters->full_frame_copies.fetch_add(1, std::memory_order_relaxed);
                 node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
@@ -90,16 +95,8 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         }
     } else {
         out = std::make_shared<Framebuffer>(other.width(), other.height(), false);
-        // R3 — row-wise stride-aware copy. Framebuffer storage is cache-line
-        // padded: logical rows are NOT contiguous at width*sizeof(Color), so
-        // a flat [data, data+w*h) copy shifts every row after the first
-        // (striped/corrupted output). Mirrors FramebufferPool::acquire_from.
-        const i32 copy_width = std::min(other.width(), out->width());
-        const i32 copy_height = std::min(other.height(), out->height());
-        const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
-        for (i32 y = 0; y < copy_height; ++y) {
-            std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
-        }
+        // R3 — row-wise stride-aware copy through the single copy authority.
+        FramebufferCopyAuthority::copy_rows(*out, other);
         if (node_exec.counters) {
             node_exec.counters->full_frame_copies.fetch_add(1, std::memory_order_relaxed);
             node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
