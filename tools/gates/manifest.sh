@@ -9,6 +9,7 @@ DEVELOPER_GATES=(
     check_conflict_markers.sh
     check_doc_sha_dedup.sh
     check_commit_subject_length.sh
+    check_no_sqlite.sh
     check_architecture.py
 )
 

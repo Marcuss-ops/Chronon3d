@@ -119,15 +119,29 @@ zero-copy path activates (`node_runner_single_node_detail.hpp`); counters
 `alias_saved_bytes`/`alias_reuse_count` reach SQLite.  No further change
 made in this wave.
 
-## Wave 4 — NV12 CUDA authority (NOT DONE in this session)
+## Wave 4 — NV12 CUDA authority (unified in Wave 1D; GPU evidence pending)
 
-Two NV12 implementations remain (`CudaNv12SurfaceCompositor` in
-backends/vulkan vs `CudaDirectNv12Compositor` in media/video) with duplicated
-NVRTC/JIT scaffolding.  Audit ordering requires baseline measurement of both
-lanes first (GPU renders), then one shared JIT/kernel authority with
-FullGraph + DirectYuv adapters.  GPU-baseline renders + unification are
-deferred to a GPU-host session; counters for the GPU copy gates are already
-instrumented (see `docs/ZERO_COPY_GATES.md`).
+The two NV12 implementations (`CudaNv12SurfaceCompositor` in backends/vulkan
+vs `CudaDirectNv12Compositor` in media/video) with duplicated NVRTC/JIT
+scaffolding were unified in Wave 1D (commit `f0cb4b6e`): the Vulkan-side
+compositor TUs and the media-side direct compositor now live as ONE authority
+— `media::video::CudaNv12Compositor` under `src/media/video/compositor/` —
+consumed by the Vulkan frame importer and the native encoder.  A
+`VideoCompositor` contract + registry/resolver facade was added as the
+backend-neutral entry point.
+
+The dual-lane equivalence baseline the audit originally ordered is no longer
+measurable (only one lane exists).  The equivalence harness was therefore
+rewritten as a determinism + contract matrix for the unified authority: every
+corpus request runs through two INDEPENDENT compositor instances and must be
+bit-exact (determinism), with documented per-case outcomes (foreground
+composite / zero-contribution background passthrough / rejection of
+NV12-kind overlay resources).  It is registered as
+`chronon3d_nv12_compositor_contract_tests` (CUDA/NVRTC-gated) and runs with
+`CHRONON3D_RUN_CUDA_TESTS=1`; GPU-host certification is still pending.  The
+shared JIT/kernel authority and FullGraph + DirectYuv adapters remain the
+follow-up once a GPU-host session produces the render evidence; counters for
+the GPU copy gates are already instrumented (see `docs/ZERO_COPY_GATES.md`).
 
 ## Grid / audit finding #11 (native path-fill ≤ 8 vertices)
 
