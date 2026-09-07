@@ -58,20 +58,15 @@ int main(int argc, char** argv) {
 
     // P2.11 — environment is resolved once at the application boundary.
     // TelemetryManager receives immutable values and does not call getenv()
-    // from record/store code or any render-adjacent path.
+    // from record/store code or any render-adjacent path.  Wave 1D: the
+    // database path / retention env wiring was removed with the SQLite
+    // store; only the capture level and run-id override remain.
     const chronon3d::Config process_config =
         chronon3d::Config::from_environment(cpu_budget);
     chronon3d::telemetry::TelemetryManager::instance().configure({
-        .path_override = process_config.runtime().telemetry_path(),
-        .default_directory = process_config.runtime().telemetry_default_directory(),
         .run_id_override = process_config.runtime().telemetry_run_id(),
-        // Boundary-resolved capture level + Detailed/Trace retention window.
-        // Summary (default) persists only durable rows; Detailed/Trace rows
-        // older than the TTL are purged by the janitor at store init.
         .level = chronon3d::telemetry::parse_telemetry_level(
             process_config.runtime().telemetry_level()),
-        .detail_ttl_days = chronon3d::telemetry::parse_retention_days(
-            process_config.runtime().telemetry_detailed_ttl_days()),
     });
 
     tbb::global_control tbb_control(
@@ -101,8 +96,8 @@ int main(int argc, char** argv) {
     // Explicit group registration — only linked groups get registered.
     // Build profiles control which groups are compiled/linked:
     //   fast:        core only (list, info, doctor, verify)
-    //   dev:         core + render + telemetry + dev
-    //   dev-video:   core + render + telemetry + video + dev
+    //   dev:         core + render + dev
+    //   dev-video:   core + render + video + dev
     //   full:        all groups
     chronon3d::cli::register_all_groups(app, ctx);
 

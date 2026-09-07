@@ -61,7 +61,7 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — wrap mode returns != TextWrap::None and
 // multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) { // TICKET-007.m
+TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip("TICKET-DOCTEST-SKIP-ROT SKIP-008: single-paragraph layout contract disabled (was TICKET-007.m)")) { // TICKET-007.m
     auto doc = make_doc("Hello world");
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
@@ -98,7 +98,7 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — multi-paragraph count assertion fails.
 // TODO(chronon3d): fix text run builder and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) { // TICKET-007.n
+TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip("TICKET-DOCTEST-SKIP-ROT SKIP-009: multi-paragraph routing disabled (was TICKET-007.n)")) { // TICKET-007.n
     auto doc = make_doc("Line one\nLine two\nLine three");
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
@@ -122,7 +122,7 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — empty paragraph count assertion fails.
 // TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) { // TICKET-007.o
+TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip("TICKET-DOCTEST-SKIP-ROT SKIP-010: consecutive-newline handling disabled (was TICKET-007.o)")) { // TICKET-007.o
     auto doc = make_doc("A\n\nC");
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(

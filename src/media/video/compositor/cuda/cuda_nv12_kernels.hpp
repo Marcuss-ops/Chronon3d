@@ -1,13 +1,13 @@
-// cuda_nv12_composite_kernels.hpp — embedded CUDA source compiled at runtime
+// cuda_nv12_kernels.hpp — embedded CUDA source compiled at runtime
 // with NVRTC. Data-only header: the kernels implement NV12/P010→RGBA
 // conversion, RGBA overlay blending and RGBA→NV12/P010 staging conversion.
-// Split out of cuda_nv12_surface_compositor.cpp.
+// Split out of cuda_nv12_compositor.cpp.
 
 #pragma once
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
-namespace chronon3d::backends::vulkan::cuda_nv12_detail {
+namespace chronon3d::media::video::cuda_nv12_detail {
 
 inline constexpr char kNv12Kernel[] = R"CUDA(
 extern "C" __global__ void nv12_to_rgba(
@@ -379,6 +379,6 @@ extern "C" __global__ void rgba_u8_surface_to_nv12_2x2(
 }
 )CUDA";
 
-} // namespace chronon3d::backends::vulkan::cuda_nv12_detail
+} // namespace chronon3d::media::video::cuda_nv12_detail
 
 #endif // CHRONON3D_ENABLE_CUDA_INTEROP

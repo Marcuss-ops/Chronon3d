@@ -4,7 +4,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
-#include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
 #include <chronon3d/runtime/telemetry/null_telemetry_store.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <nlohmann/json.hpp>
@@ -180,7 +179,7 @@ TEST_CASE("Telemetry: Off level records nothing") {
 
 // ── NullTelemetryStore tests (telemetry OFF path) ────────────────────────
 
-TEST_CASE("NullTelemetryStore: all writes succeed without SQLite") {
+TEST_CASE("NullTelemetryStore: all writes succeed without a database store") {
     NullTelemetryStore null_store;
 
     CHECK(null_store.initialize("any/path.db"));

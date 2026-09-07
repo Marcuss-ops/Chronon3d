@@ -6,10 +6,8 @@
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#include <chronon3d/runtime/telemetry/telemetry_run_snapshot.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
@@ -180,65 +178,11 @@ bool finalize_render_job(
     }
     phases.push_back({"rendering_loop", profiling::duration_ms(loop_t0, loop_t1)});
 
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    auto telemetry = chronon3d::telemetry::collect_all_telemetry();
-#endif
-
+    // Wave 1D — events only.  Chronon no longer persists telemetry to a
+    // bundled store; persistence/aggregation are engine-external (host store
+    // or observability collector).  The run/counters/phases above remain the
+    // events surface for the render report below.
     cli::telemetry::populate_run_host_attribs(run);
-
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    auto& tm = chronon3d::telemetry::TelemetryManager::instance();
-    tm.initialize_default_stores();
-
-    // Stage 2/3 — build the end-of-run snapshot: run + phases + counters +
-    // frame detail, plus memory projections drained from the session's
-    // NodeMemoryTracker (the sole measurement authority for node memory).
-    // The drained per-event bundle is folded into the snapshot instead of
-    // being discarded, so it reaches the SQLite consumer.
-    chronon3d::telemetry::TelemetryRunSnapshot snapshot;
-    snapshot.run = run;
-    snapshot.frames = telemetry_frames;
-    snapshot.phases = phases;
-    snapshot.counters = counters_list;
-    snapshot.node_events = std::move(telemetry.node_events);
-    snapshot.layer_events = std::move(telemetry.layer_events);
-    snapshot.cache_events = std::move(telemetry.cache_events);
-    snapshot.culling_events = std::move(telemetry.culling_events);
-    snapshot.image_events = std::move(telemetry.image_events);
-    if (auto* renderer = setup.renderer.get()) {
-        const auto memory_report = renderer->session().memory_tracker->snapshot();
-        for (const auto& node : memory_report.nodes) {
-            auto& s = snapshot.node_summaries.emplace_back();
-            s.node_id = node.node_id;
-            s.pixels_read = node.pixels_read;
-            s.pixels_written = node.pixels_written;
-            s.bytes_read = node.bytes_read;
-            s.bytes_written = node.bytes_written;
-            s.allocations = node.allocations;
-            s.allocated_bytes = node.allocated_bytes;
-            s.temporary_buffers = node.temporary_buffers;
-            s.peak_live_bytes = node.peak_live_bytes;
-            s.framebuffer_copies = node.framebuffer_copies;
-            s.framebuffer_clears = node.framebuffer_clears;
-        }
-        auto& mem = snapshot.memory_summary;
-        mem.peak_rss_bytes = memory_report.peak_rss_bytes;
-        mem.current_live_bytes = memory_report.current_live_bytes;
-        mem.peak_live_bytes = memory_report.peak_live_bytes;
-        mem.framebuffer_current_bytes = memory_report.framebuffer_pool.current_bytes;
-        mem.framebuffer_retained_bytes = memory_report.framebuffer_pool.retained_bytes;
-        mem.framebuffer_peak_retained_bytes = memory_report.framebuffer_pool.peak_retained_bytes;
-        mem.framebuffer_allocations = memory_report.framebuffer_pool.total_allocations;
-        mem.framebuffer_reuses = memory_report.framebuffer_pool.total_reuses;
-        mem.framebuffer_returns = memory_report.framebuffer_pool.total_returns;
-        mem.framebuffer_evicted_bytes = memory_report.framebuffer_pool.evicted_bytes;
-    }
-    if (!tm.record_run(snapshot)) {
-        spdlog::warn(
-            "[report] TelemetryManager::record_run reported failure for run {}",
-            snapshot.run.run_id);
-    }
-#endif
 
     RenderReportContext ctx;
     ctx.run = run;

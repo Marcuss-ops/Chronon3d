@@ -5,7 +5,6 @@
 #include "node_skip_policy.hpp"
 #include "node_state_commit.hpp"
 #include "tile_pruning.hpp"
-#include "telemetry_emitter.hpp"
 #include "text_bbox_reconcile.hpp"
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

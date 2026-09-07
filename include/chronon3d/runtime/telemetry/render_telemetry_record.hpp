@@ -362,7 +362,7 @@ struct CounterTelemetryRecord {
     uint64_t counter_value{0};
 };
 
-// ── End-of-run memory persistence (Stage 3, TICKET-TELEMETRY-SQLITE-NORMALIZATION) ──
+// ── End-of-run memory projections ────────────────────────────────────────
 // Projections built once at end-of-run by joining NodeMemoryTracker snapshots
 // with node telemetry. Not measurement authorities; never written from the
 // hot path.

@@ -41,18 +41,12 @@ chronon3d_add_test_suite(
         runtime/test_telemetry.cpp
         # Split from runtime/test_telemetry.cpp (each part ≤ 400 LOC):
         runtime/test_telemetry_policy.cpp
-        runtime/test_telemetry_sqlite.cpp
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
         runtime/test_media_session_pool.cpp
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_compile_definitions(chronon3d_renderer_core_tests PRIVATE
-        CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    )
-endif()
 if(CHRONON3D_USE_BLEND2D)
     target_sources(chronon3d_renderer_core_tests PRIVATE
         renderer/test_blend_pixel_nan.cpp

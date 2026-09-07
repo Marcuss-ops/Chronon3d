@@ -4,11 +4,8 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 // TelemetryManager::get_os_name()/get_cpu_model()/etc. are static helpers
-// available unconditionally (both SqliteTelemetryStore and NullTelemetryStore
-// builds expose them) and are needed by `populate_run_host_attribs()` which
-// runs regardless of CHRONON3D_ENABLE_SQLITE_TELEMETRY.  Keep the include
-// unconditional.  `record_output_run()` below additionally requires the
-// SQLite build; its block is still gated by the same #ifdef.
+// available unconditionally and are needed by `populate_run_host_attribs()`
+// and `populate_run_metrics()`, which run in every build.
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include "telemetry_capture.hpp"
@@ -21,12 +18,11 @@ namespace chronon3d::cli::telemetry {
 /// Populates host-system attributes on a RenderTelemetryRecord.
 ///
 /// Each attribute is filled only when currently empty (idempotent: callers may
-/// pre-populate fields from setup-time data).  SQLite is the only persistence
-/// channel, but keeping the population here (rather than relying solely on
-/// TelemetryManager::record_run() back-fill) lets setup-time callers describe
-/// host context exactly once.  Centralize here so adding a new host attribute
-/// (e.g. architecture, NUMA topology, distro version) only needs editing one
-/// place.
+/// pre-populate fields from setup-time data).  Keeping the population here
+/// (rather than relying solely on TelemetryManager::record_run() back-fill)
+/// lets setup-time callers describe host context exactly once.  Centralize
+/// here so adding a new host attribute (e.g. architecture, NUMA topology,
+/// distro version) only needs editing one place.
 ///
 /// `bytes_allocated_peak` is set unconditionally because it is a process-wide
 /// gauge (not a missing-field situation): the value is taken at finalize time
@@ -177,185 +173,5 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.llc_references = counters.llc_references.load(std::memory_order_relaxed);
     run.llc_misses = counters.llc_misses.load(std::memory_order_relaxed);
 }
-
-/// Records a complete output run to the telemetry database.
-/// This overload accepts all event types.
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-inline void record_output_run(const std::string& composition_id,
-                              const std::string& output_path,
-                              bool success,
-                              int frames_total,
-                              int frames_written,
-                              double wall_time_ms,
-                              double render_ms,
-                              double encode_ms,
-                              const std::string& started_at_iso = {},
-                              const std::vector<chronon3d::telemetry::PhaseTelemetryRecord>& phases = {},
-                              const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters = {},
-                              const std::vector<chronon3d::telemetry::NodeTelemetryRecord>& node_events = {},
-                              const chronon3d::RenderCounters* counters_src = nullptr,
-                              const std::vector<chronon3d::telemetry::FrameTelemetry>& frames = {},
-                              const std::vector<chronon3d::telemetry::LayerTelemetryRecord>& layer_events = {},
-                              const std::vector<chronon3d::telemetry::CacheTelemetryRecord>& cache_events = {},
-                              const std::vector<chronon3d::telemetry::CullingTelemetryRecord>& culling_events = {},
-                              const std::vector<chronon3d::telemetry::ImageTelemetryRecord>& image_events = {},
-                              const std::vector<chronon3d::telemetry::RenderArtifactRecord>& artifacts = {}) {
-    chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
-
-    chronon3d::telemetry::RenderTelemetryRecord run;
-    run.run_id = chronon3d::telemetry::TelemetryManager::generate_uuid();
-    run.composition_id = composition_id;
-    run.output_path = output_path;
-    run.success = success;
-    run.frames_total = frames_total;
-    // A successfully validated video has encoded every requested frame.  A
-    // few encoder paths do not expose their final counter, so use the
-    // validated total instead of publishing a misleading zero.
-    run.frames_written = (success && frames_written == 0 && frames_total > 0)
-        ? frames_total
-        : frames_written;
-    run.wall_time_ms = wall_time_ms;
-    run.render_ms = render_ms;
-    run.encode_ms = encode_ms;
-    run.effective_fps = wall_time_ms > 0.0
-        ? (static_cast<double>(run.frames_written) * 1000.0 / wall_time_ms)
-        : 0.0;
-    run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
-    run.started_at_iso = started_at_iso;
-    run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-    // Idempotent w.r.t. TelemetryManager::record_run() (which also fills these
-    // fields internally): calling here means any caller of record_output_run
-    // sees a fully-populated record on return, even if they never persist at
-    // all — preserving the helper's no-drift invariant for future host attribs.
-    populate_run_host_attribs(run);
-
-    // Derive chronon render throughput and FFmpeg breakdown from phases
-    for (const auto& phase : phases) {
-        if (phase.phase_name == "chronon_render_only_ms") {
-            run.chronon_render_only_ms = phase.duration_ms;
-        } else if (phase.phase_name == "chronon_conversion_copy_ms") {
-            run.chronon_conversion_copy_ms = phase.duration_ms;
-        } else if (phase.phase_name == "chronon_queue_wait_ms") {
-            run.chronon_queue_wait_ms = phase.duration_ms;
-        } else if (phase.phase_name == "ffmpeg_flush_close_ms") {
-            run.ffmpeg_flush_close_ms = phase.duration_ms;
-        } else if (phase.phase_name == "ffmpeg_encode_total_ms") {
-            run.ffmpeg_encode_total_ms = phase.duration_ms;
-        } else if (phase.phase_name == "e2e_wall_ms") {
-            run.e2e_wall_ms = phase.duration_ms;
-        } else if (phase.phase_name == "scene_eval_ms") {
-            run.phase_scene_eval_ms = phase.duration_ms;
-        } else if (phase.phase_name == "gpu_render_ms") {
-            run.phase_gpu_render_ms = phase.duration_ms;
-        } else if (phase.phase_name == "gpu_readback_ms") {
-            run.phase_gpu_readback_ms = phase.duration_ms;
-        } else if (phase.phase_name == "encode_ms") {
-            run.phase_encode_ms = phase.duration_ms;
-        } else if (phase.phase_name == "disk_io_ms") {
-            run.phase_disk_io_ms = phase.duration_ms;
-        }
-    }
-    // Compute chronon_render_throughput_ms as sum of the three Chronon phases
-    run.chronon_render_throughput_ms = run.chronon_render_only_ms + run.chronon_conversion_copy_ms + run.chronon_queue_wait_ms;
-
-    if (counters_src) {
-        populate_run_metrics(run, *counters_src);
-    }
-    // Derived per-frame allocation rate (never estimated): the framebuffer
-    // allocation event count over the frames actually rendered.
-    run.framebuffer_allocations_per_frame = run.frames_total > 0
-        ? static_cast<double>(run.framebuffer_allocations) / static_cast<double>(run.frames_total)
-        : 0.0;
-
-    const auto resolved_counters = counters.empty() && counters_src
-        ? capture_counters(*counters_src)
-        : counters;
-
-    // Pool configuration is supplied as a resolved counter by the video
-    // exporter.  Mirror it onto the run row so the summary does not report a
-    // zero budget when the pool was explicitly bounded.
-    for (const auto& counter : resolved_counters) {
-        if (counter.counter_name == "gpu_submissions")
-            run.gpu_submissions = counter.counter_value;
-        else if (counter.counter_name == "passes_executed")
-            run.passes_executed = counter.counter_value;
-        else if (counter.counter_name == "gpu_submit_cpu_us") {
-            run.gpu_submit_cpu_us = counter.counter_value;
-            run.gpu_submit_cpu_ms = static_cast<double>(counter.counter_value) / 1000.0;
-        } else if (counter.counter_name == "gpu_wait_cpu_us") {
-            run.gpu_wait_cpu_us = counter.counter_value;
-            run.gpu_wait_cpu_ms = static_cast<double>(counter.counter_value) / 1000.0;
-        } else if (counter.counter_name == "gpu_execute_us") {
-            run.gpu_execute_ms = static_cast<double>(counter.counter_value) / 1000.0;
-        } else if (counter.counter_name == "readback_us") {
-            run.gpu_readback_ms = static_cast<double>(counter.counter_value) / 1000.0;
-        } else if (counter.counter_name == "gpu_upload_bytes") {
-            run.gpu_upload_bytes = counter.counter_value;
-        } else if (counter.counter_name == "gpu_readback_bytes") {
-            run.gpu_readback_bytes = counter.counter_value;
-        } else if (counter.counter_name == "physical_surfaces_peak") {
-            run.physical_surfaces_peak = counter.counter_value;
-        } else if (counter.counter_name == "barrier_count") {
-            run.barrier_count = counter.counter_value;
-        }
-        else if (counter.counter_name == "framebuffer_pool_budget_bytes")
-            run.framebuffer_pool_budget_bytes = counter.counter_value;
-        else if (counter.counter_name == "framebuffer_pool_retained_bytes")
-            run.framebuffer_pool_retained_bytes = counter.counter_value;
-        else if (counter.counter_name == "framebuffer_pool_evicted_count")
-            run.framebuffer_pool_evicted_count = counter.counter_value;
-        else if (counter.counter_name == "framebuffer_pool_evicted_bytes")
-            run.framebuffer_pool_evicted_bytes = counter.counter_value;
-        else if (counter.counter_name == "framebuffer_pool_pressure_count")
-            run.framebuffer_pool_pressure_count = counter.counter_value;
-        else if (counter.counter_name == "framebuffer_pool_size_class_count")
-            run.framebuffer_pool_size_class_count = counter.counter_value;
-    }
-
-    chronon3d::telemetry::TelemetryRunSnapshot snapshot;
-    snapshot.run = run;
-    snapshot.frames = frames;
-    snapshot.phases = phases;
-    snapshot.counters = resolved_counters;
-    snapshot.node_events = node_events;
-    snapshot.layer_events = layer_events;
-    snapshot.cache_events = cache_events;
-    snapshot.culling_events = culling_events;
-    snapshot.image_events = image_events;
-    snapshot.artifacts = artifacts;
-    chronon3d::telemetry::TelemetryManager::instance().record_run(snapshot);
-}
-
-/// Convenience overload with fewer parameters (backward-compatible).
-inline void record_output_run(const std::string& composition_id,
-                              const std::string& output_path,
-                              bool success,
-                              int frames_total,
-                              int frames_written,
-                              double wall_time_ms,
-                              double render_ms,
-                              double encode_ms,
-                              const std::string& started_at_iso,
-                              const std::vector<chronon3d::telemetry::PhaseTelemetryRecord>& phases,
-                              const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters,
-                              const chronon3d::RenderCounters* counters_src,
-                              const std::vector<chronon3d::telemetry::FrameTelemetry>& frames) {
-    record_output_run(composition_id,
-                      output_path,
-                      success,
-                      frames_total,
-                      frames_written,
-                      wall_time_ms,
-                      render_ms,
-                      encode_ms,
-                      started_at_iso,
-                      phases,
-                      counters,
-                      {},
-                      counters_src,
-                      frames,
-                      {}, {}, {}, {}, {});
-}
-#endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY
 
 } // namespace chronon3d::cli::telemetry

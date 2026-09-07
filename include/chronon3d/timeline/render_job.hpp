@@ -36,9 +36,10 @@ enum class RenderMode : std::uint8_t {
 
 /// Video-specific plain settings carried through the canonical request/job.
 struct VideoSettings {
-    int         fps{30};
-    // Canonical media clock. `fps` remains only as a CLI compatibility alias
-    // until command parsing is fully rational; execution must use these.
+    // Canonical media clock. fps_num/fps_den are the SINGLE authority for the
+    // output frame rate; the legacy scalar CLI alias (`--fps`) is normalised
+    // into this rational at the CLI boundary (F3.1) and no second scalar fps
+    // field exists anywhere on this struct or on the export options.
     int         fps_num{30};
     int         fps_den{1};
     std::string rate_control_mode{"crf"};

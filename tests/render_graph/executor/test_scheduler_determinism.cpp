@@ -434,7 +434,7 @@ TEST_CASE(
     * doctest::skip(
         "TICKET-013: layer-mode composite-node path SIGSEGVs under FakeBackend's "
         "no-op composite_layer.  Deferred until FakeBackend blits src onto dst "
-        "OR a real SoftwareBackend fixture is wired up.")
+        "OR a real SoftwareBackend fixture is wired up.")  // TICKET-DOCTEST-SKIP-ROT SKIP-001
 ) {
     CHECK(true);
 }
@@ -450,7 +450,7 @@ TEST_CASE(
     * doctest::skip(
         "TICKET-013: layer-mode blur path lands in apply_blur no-op under "
         "FakeBackend; same fix path as composite (deterministic blit OR real "
-        "SoftwareBackend fixture).")
+        "SoftwareBackend fixture).")  // TICKET-DOCTEST-SKIP-ROT SKIP-002
 ) {
     CHECK(true);
 }
@@ -536,7 +536,7 @@ TEST_CASE(
     "WP1 PR 1.4 — tile execution: Sequential == TbbAutomatic (bit-for-bit) — deferred to TICKET-012"
     * doctest::skip(
         "TICKET-012 follow-up: tile-execution determinism needs a higher-level "
-        "fixture (dirty rects + tile-enabled settings); out of scope for this PR.")
+        "fixture (dirty rects + tile-enabled settings); out of scope for this PR.")  // TICKET-DOCTEST-SKIP-ROT SKIP-003
 ) {
     // Stub kept so the test lattice remains complete once the fixture lands.
     CHECK(true);

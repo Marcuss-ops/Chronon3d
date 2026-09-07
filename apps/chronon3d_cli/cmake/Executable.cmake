@@ -17,11 +17,6 @@ target_link_libraries(chronon3d_cli PRIVATE
     fmt::fmt
 )
 
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_compile_definitions(chronon3d_cli_core PRIVATE
-        CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    )
-endif()
 if(TARGET chronon3d_c)
     target_link_libraries(chronon3d_cli PRIVATE chronon3d_c)
     target_compile_definitions(chronon3d_cli_core PRIVATE CHRONON3D_HAS_C_API)
@@ -30,7 +25,6 @@ foreach(_target IN ITEMS
     chronon3d_cli_render
     chronon3d_cli_video_export
     chronon3d_cli_dev
-    chronon3d_cli_telemetry
 )
     if(TARGET ${_target})
         target_link_libraries(chronon3d_cli PRIVATE ${_target})
@@ -47,9 +41,6 @@ if(TARGET chronon3d_cli_render)
 endif()
 if(TARGET chronon3d_cli_video_export)
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_VIDEO_EXPORT)
-endif()
-if(TARGET chronon3d_cli_telemetry)
-    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_TELEMETRY)
 endif()
 if(TARGET chronon3d_cli_dev)
     target_compile_definitions(chronon3d_cli PRIVATE
@@ -86,10 +77,6 @@ target_precompile_headers(chronon3d_cli PRIVATE
     <CLI/CLI.hpp>
 )
 
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
-endif()
-
 set_target_properties(chronon3d_cli_core chronon3d_cli PROPERTIES
     UNITY_BUILD OFF
 )
@@ -97,7 +84,6 @@ foreach(_target IN ITEMS
     chronon3d_cli_render
     chronon3d_cli_video_export
     chronon3d_cli_dev
-    chronon3d_cli_telemetry
 )
     if(TARGET ${_target})
         set_target_properties(${_target} PROPERTIES UNITY_BUILD OFF)

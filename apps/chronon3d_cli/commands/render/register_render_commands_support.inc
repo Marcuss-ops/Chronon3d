@@ -142,7 +142,16 @@ void mark_video_option_explicitness(CLI::App& cmd, RenderArgs& args) {
 
 void add_video_options(CLI::App& cmd, RenderArgs& args) {
     auto* video = cmd.add_option_group("Video output", "Encoder controls used when the output extension selects video mode");
-    video->add_option("--fps", args.video_settings.fps, "Output frame rate")->check(CLI::Range(1, 240));
+    // F3.1 — the frame rate has ONE representation: the rational
+    // fps_num/fps_den pair (VideoSettings carries no scalar fps field). The
+    // legacy integer --fps flag is normalised into that rational HERE, at the
+    // CLI boundary, so no downstream component ever sees a second scalar fps
+    // authority that could override the rational media clock.
+    video->add_option_function<int>("--fps", [&args](int value) {
+        args.video_settings.fps_num = value;
+        args.video_settings.fps_den = 1;
+    }, "Output frame rate (frames per second; normalised to fps_num/fps_den)")
+        ->check(CLI::Range(1, 240));
     video->add_option("--rate-control", args.video_settings.rate_control_mode, "Rate control: crf, qp, or bitrate")->check(CLI::IsMember({"crf", "qp", "bitrate"}));
     video->add_option("--crf", args.video_settings.crf, "Encoder CRF quality (0-51)")->check(CLI::Range(0, 51));
     video->add_option("--qp", args.video_settings.qp, "Encoder constant QP quality (0-63)")->check(CLI::Range(0, 63));

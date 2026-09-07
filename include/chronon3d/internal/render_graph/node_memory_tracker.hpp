@@ -65,9 +65,8 @@ struct NodeMemoryReport {
 ///   * 2–4 std::map<std::string, …> red-black-tree lookups with full string
 ///     comparisons and pointer chasing.
 /// The restructure keeps every externally observable value IDENTICAL
-/// (contract-verified against tests/perf/test_node_memory_tracker.cpp,
-/// tests/runtime/test_telemetry_sqlite.cpp and the motion-blur sample-domain
-/// test):
+/// (contract-verified against tests/perf/test_node_memory_tracker.cpp and
+/// the motion-blur sample-domain test):
 ///   1. The reporter's node table and the two live/peak maps are folded into
 ///      ONE map with a transparent (std::less<>) comparator: the steady-state
 ///      path performs a single std::string_view-keyed find with ZERO string

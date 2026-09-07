@@ -1,4 +1,4 @@
-// cuda_nv12_surface_compositor_paths.cpp — CudaNv12SurfaceCompositor
+// cuda_nv12_compositor_paths.cpp — CudaNv12Compositor
 // composite entry points: decoded YUV import, direct RGBA overlay and the
 // RGBA-surface staging conversion for the encoder.
 
@@ -10,9 +10,9 @@
 
 #include <chrono>
 
-namespace chronon3d::backends::vulkan {
+namespace chronon3d::media::video {
 
-bool CudaNv12SurfaceCompositor::composite(
+bool CudaNv12Compositor::composite(
     CUdeviceptr y, int y_pitch, CUdeviceptr uv, int uv_pitch,
     std::uint32_t width, std::uint32_t height, CUstream stream,
     CudaYuvFormat format, YuvToRgbParams params) {
@@ -58,7 +58,7 @@ bool CudaNv12SurfaceCompositor::composite(
     return true;
 }
 
-bool CudaNv12SurfaceCompositor::composite_direct_nv12(
+bool CudaNv12Compositor::composite_direct_nv12(
     CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
     std::uint32_t width, std::uint32_t height, CUstream stream) {
@@ -95,7 +95,7 @@ bool CudaNv12SurfaceCompositor::composite_direct_nv12(
     return true;
 }
 
-bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
+bool CudaNv12Compositor::composite_surface_to_nv12(
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
     std::uint32_t width, std::uint32_t height, CUstream stream) {
     using cuda_nv12_detail::check_cuda;
@@ -131,6 +131,6 @@ bool CudaNv12SurfaceCompositor::composite_surface_to_nv12(
     return true;
 }
 
-} // namespace chronon3d::backends::vulkan
+} // namespace chronon3d::media::video
 
 #endif

@@ -12,7 +12,7 @@ public:
     virtual bool initialize(const std::string& db_path) = 0;
 
     // Transaction boundary: begin_transaction()/end_transaction() bracket a batch of writes.
-    // For SQL stores this wraps all writes in a single BEGIN/COMMIT.
+    // Host-registered stores may wrap all writes in a single atomic unit.
     virtual void begin_transaction() {}
     virtual void end_transaction(bool commit) {}
 
@@ -35,10 +35,8 @@ public:
                                       const MemorySummaryTelemetryRecord& summary) { return true; }
 
     // Retention janitor for Detailed/Trace data ONLY (per-frame/per-event
-    // tables). Durable Summary rows (render_runs, render_counters, phase
-    // events, node/memory summaries, artifacts) are never touched: they are
-    // the long-term proprietary corpus. Default no-op; the SQLite store
-    // implements the purge. detail_ttl_days <= 0 disables the janitor.
+    // tables). Host stores own retention policy (the bundled runtime no
+    // longer persists); detail_ttl_days <= 0 disables the janitor.
     virtual void apply_retention(int detail_ttl_days) { (void)detail_ttl_days; }
 };
 

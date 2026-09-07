@@ -61,10 +61,9 @@
         "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_DAEMON": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;svg;exr;telemetry;tests;benchmarks;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;svg;exr;tests;benchmarks;ipc"
       }
     },
     {
@@ -83,7 +82,6 @@
         "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_BUILD_C_API": "OFF",
@@ -115,7 +113,6 @@
         "CHRONON3D_ENABLE_SVG": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_BUILD_DAEMON": "OFF",
         "CHRONON3D_BUILD_C_API": "OFF",
@@ -147,7 +144,6 @@
         "CHRONON3D_ENABLE_EXR": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_VULKAN": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_ENABLE_IPC": "ON",
         "CHRONON3D_BUILD_DAEMON": "OFF",

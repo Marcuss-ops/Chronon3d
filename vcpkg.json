@@ -2,12 +2,7 @@
   "name": "chronon3d",
   "version": "0.1.0",
   "builtin-baseline": "cb2981c4e03d421fa03b9bb5044cd1986180e7e4",
-  "overrides": [
-    {
-      "name": "sqlite3",
-      "version": "3.52.0"
-    }
-  ],
+  "overrides": [],
   "dependencies": [
     "spdlog",
     "fmt",
@@ -61,10 +56,6 @@
     "exr": {
       "description": "OpenEXR image format support (CHRONON3D_ENABLE_EXR)",
       "dependencies": ["openexr"]
-    },
-    "telemetry": {
-      "description": "SQLite telemetry persistence (CHRONON3D_ENABLE_TELEMETRY)",
-      "dependencies": ["sqlite3"]
     },
     "tests": {
       "description": "Build tests (requires doctest)",
