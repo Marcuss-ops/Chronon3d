@@ -61,6 +61,12 @@ struct ShapedCluster {
     /// Whitespace clusters and certain punctuation allow break-after.
     bool allowed_break_after{false};
 
+    /// True if a break after this cluster is forbidden by the kinsoku
+    /// (TEXT-PLY-01) opening-bracket rule specifically — distinct from
+    /// allowed_break_after == false, which also covers ordinary mid-word
+    /// clusters where greedy force-breaking remains the documented fallback.
+    bool kinsoku_no_break_after{false};
+
     /// True if this cluster contains a hyphenation point (soft hyphen U+00AD
     /// or a hyphenation dictionary match).  PR 2 ignores this; PR 3+
     /// (hyphenation) uses it.

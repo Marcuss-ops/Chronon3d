@@ -260,8 +260,69 @@ public:
         if (notify) fire_removed(all_removed);
     }
 
-    void resize(size_t new_capacity_weight) {
+    /// Recompute the total budget. A non-zero `new_shard_count` that differs
+    /// from the current count also rebuilds the shard array; resident entries
+    /// are RE-HOMED into the new shards, except entries that would be
+    /// oversized for the new per-shard capacity, which are dropped and
+    /// reported via the removal callback (Resize reason). Passing 0 keeps the
+    /// current shard count and only redistributes capacity across it.
+    /// Like the historical single-shard-count resize, this is a control-plane
+    /// operation: it is not synchronized against concurrent get/put callers.
+    void resize(size_t new_capacity_weight, size_t new_shard_count = 0) {
         if (new_capacity_weight == 0) return;
+        if (new_shard_count != 0 && new_shard_count != m_shards.size()) {
+            if (new_shard_count == 0) {
+                throw std::invalid_argument("LruCache::resize requires at least one shard");
+            }
+            // Entries cannot stay in place: the key→shard mapping changes with
+            // the shard count. Drain, rebuild, re-home, drop the overflow.
+            struct Survivor { Key key; Value value; size_t weight; };
+            std::vector<Survivor> survivors;
+            std::vector<RemovedEntry> dropped;
+            for (auto& shard : m_shards) {
+                auto lock = timed_lock(shard->mutex);
+                const auto mutate_start = timed_start();
+                survivors.reserve(survivors.size() + shard->entries.size());
+                for (auto& [k, entry] : shard->entries) {
+                    survivors.push_back(
+                        Survivor{k, std::move(entry.value), entry.weight});
+                }
+                // Mirror Shard::clear(): invalidate in-flight loaders and
+                // weights so stale waiters can never repopulate the old map.
+                ++shard->generation;
+                shard->entries.clear();
+                shard->lru_list.clear();
+                shard->inflight.clear();
+                shard->current_weight = 0;
+                add_ns_if_enabled(m_lru_mutation_time_ns, mutate_start);
+            }
+            const size_t shard_cap =
+                std::max(size_t{1}, new_capacity_weight / new_shard_count);
+            m_shards.clear();
+            m_shards.reserve(new_shard_count);
+            for (size_t i = 0; i < new_shard_count; ++i) {
+                m_shards.push_back(std::make_unique<Shard>(shard_cap, this));
+            }
+            for (auto& s : survivors) {
+                if (s.weight > shard_cap) {
+                    // Was resident under the old sharding; cannot fit a new
+                    // shard. Report exactly once, like an eviction.
+                    m_evictions.fetch_add(1, std::memory_order_relaxed);
+                    dropped.push_back(RemovedEntry{
+                        std::move(s.key), std::move(s.value),
+                        CacheRemovalReason::Resize});
+                    continue;
+                }
+                auto removed = get_shard(s.key).put(
+                    std::move(s.key), std::move(s.value), s.weight);
+                dropped.insert(dropped.end(),
+                               std::make_move_iterator(removed.begin()),
+                               std::make_move_iterator(removed.end()));
+            }
+            reset_counters();
+            fire_removed(dropped);
+            return;
+        }
         const size_t shard_cap =
             std::max(size_t{1}, new_capacity_weight / m_shards.size());
         for (auto& shard : m_shards) {

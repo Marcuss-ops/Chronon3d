@@ -271,7 +271,7 @@ hint = "Shape-type text API was retired; use canonical TextRunShape."
 
 [[forbidden_include]]
 name = "msdfgen_libtess2_unicode_deny"
-description = "CPU-first deny: msdfgen, libtess2, unicode includes — PR-A10 + AGENTS.md. ADR-009 carves out the canonical ICU boundary authority."
+description = "Headless deny: msdfgen, libtess2, unicode includes — PR-A10 + AGENTS.md. ADR-009 carves out the canonical ICU boundary authority."
 patterns = ['#include\s*[<"]msdfgen', '#include\s*[<"]libtess2', '#include\s*[<"]unicode(?:/|")']
 hint = "These headers are deny-everywhere per AGENTS.md Gate 5 Check 11. Exceptions require an ADR: ADR-009 authorises <unicode/...> only in src/text/unicode (IcuBoundaryResolver) and src/text/boundary_resolver."
 skip_comments = true
@@ -411,6 +411,20 @@ forbidden_patterns = [
 ]
 scan_paths = ["apps", "src", "include", "docs/CURRENT_STATUS.md", "CMakeLists.txt"]
 hint = "CUDA discovery must be environment/toolchain based, not hard-coded paths."
+
+[[boundary]]
+name = "compiler_is_backend_free"
+description = "Compiler facade cannot depend on runtime or concrete backends"
+scan_paths = ["include/chronon3d/compiler", "src/compiler"]
+forbidden_patterns = [
+    '#include .*chronon3d/runtime/',
+    '#include .*chronon3d/backends/',
+    '#include .*chronon3d/media/video/',
+    '#include .*<vulkan/',
+    '#include .*<cuda',
+    '#include .*libav',
+]
+hint = "Compiler output must cross into runtime through immutable CompiledProgram."
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONTRACT — required patterns that MUST exist in specific files

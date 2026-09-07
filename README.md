@@ -1,6 +1,6 @@
 # Chronon3D
 
-Code-first, headless, CPU-first motion graphics and compositing engine in C++20.
+Code-first, headless, performance-oriented motion graphics and compositing engine in C++20.
 
 Lo stato corrente del progetto è [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md);
 i requisiti di release sono [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).

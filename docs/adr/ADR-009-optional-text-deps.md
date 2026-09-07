@@ -18,7 +18,7 @@ during the audit on 2026-06-23:
 | 11 — Text 3D extrusion + bevel | `libtess2` | polygon tessellation with holes (the inside of "O"); without it the hand-rolled ear-clipper must handle multi-contour outlines |
 | 12 — MSDF atlas + scale-estreme glow + morph | `msdfgen` | reference industry MSDF generator (Unreal/Unity dependency) |
 
-The CPU-first / headless posture (`AGENTS.md` §Regole di lavoro,
+The headless posture (`AGENTS.md` §Regole di lavoro,
 `docs/MIGRATION_TEXT_SPEC.md` §9) is currently enforced as a
 **deny-everywhere** deny-list by Gate 5 Check 11 in
 `tools/check_architecture_boundaries.sh`:
@@ -26,8 +26,7 @@ The CPU-first / headless posture (`AGENTS.md` §Regole di lavoro,
 | Header           | Currently |
 | ---------------- | --------- |
 | `<msdfgen>`      | DENIED everywhere |
-| `<libtess2>`     | DENIED everywhere |
-| `<unicode/...>`  | DENIED everywhere |
+| `<libtess2>`     | DENIED everywhere |   | `<unicode/...>`    | DENIED everywhere |
 
 Hand-rolling the three libraries is years of work and a bug surface
 that would always trail the Unicode Consortium spec; for phases
@@ -41,7 +40,8 @@ part of the `text` feature in `vcpkg.json`, while `libtess2` and
    pulls `icu` directly. `IcuBoundaryResolver` is the sole authority
    for grapheme / word / line segmentation in Phase 9, including CJK /
    Thai / Lao / Khmer / Burmese line-breaking. The CMake text target
-   requires ICU whenever `CHRONON3D_ENABLE_TEXT=ON`; there is no custom    line-break fallback or separate optional ICU feature.
+   requires ICU whenever `CHRONON3D_ENABLE_TEXT=ON`; there is no custom
+   line-break fallback or separate optional ICU feature.
 
    - **`text-3d`** *(profile `extended`)* — pulls `libtess2`.
      Powers `GlyphMeshBuilder` in Phase 11 — front / back / side
@@ -62,7 +62,7 @@ part of the `text` feature in `vcpkg.json`, while `libtess2` and
    - `boost::locale` — shells out to libicu anyway and adds a Boost
      layer; upstream ICU is more direct.
    - `skia` / `SkShaper` — pulls the entire Skia tree (MB-scale binary,
-     GPU-leaning). Conflicts with CPU-first headless posture and
+     GPU-leaning). Conflicts with headless posture and
      duplicates the existing `FontEngine` pipeline.
    - `freetype-gl` — already drive `FreeType` headlessly via
      `src/text/font_engine.cpp`; `freetype-gl` is a GLUT-side helper,
@@ -79,8 +79,8 @@ part of the `text` feature in `vcpkg.json`, while `libtess2` and
 4. **Scoped Gate-5 exemptions.** Update
    `tools/check_architecture_boundaries.sh` Check 11 to allow the
    new `#include`s **ONLY within their adapter directories**; the
-   deny-everywhere posture is preserved everywhere else (CPU-first,
-   headless, self-contained text canon). Any future leak trips Gate
+   deny-everywhere posture is preserved everywhere else (headless,
+   self-contained text canon). Any future leak trips Gate
    5 and fails the PR:
 
    | Header             | Allowed adapter path                       |
@@ -125,8 +125,7 @@ part of the `text` feature in `vcpkg.json`, while `libtess2` and
   always trail Unicode Consortium releases and lack the
   industry-tested colour-emoji fallback.
 - **Skia module (`SkShaper`).** Rejected: pulls entire Skia tree
-  (multi-MB binary, GPU-leaning); integrates poorly with our
-  CPU-first pipeline and would duplicate `FontEngine` + `Placed`.
+  (multi-MB binary, GPU-leaning); integrates poorly with our   headless pipeline and would duplicate `FontEngine` + `Placed`.
 - **`boost::locale`.** Rejected in favour of upstream ICU — adds a
   Boost layer for no functional gain.
 - **`freetype-gl`.** Rejected — only applicable to GLUT contexts;

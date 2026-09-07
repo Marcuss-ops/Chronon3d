@@ -30,10 +30,13 @@ using namespace chronon3d;
 
 namespace {
 namespace glow_rg_impl {
-SoftwareRenderer make_glow_rg_renderer() {
+test::TestRenderer make_glow_rg_renderer() {
     auto r = test::make_renderer();
     RenderSettings s;
         r.set_settings(s);
+    // Return the concrete TestRenderer: returning a sliced SoftwareRenderer
+    // would destroy the TestRenderer-owned RenderRuntime at the return
+    // boundary, leaving the renderer's runtime pointer dangling.
     return r;
 }
 }  // namespace glow_rg_impl

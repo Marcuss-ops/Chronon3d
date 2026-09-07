@@ -40,6 +40,7 @@ inline void apply_kinsoku(
         if (is_cjk_opening_bracket(
                 decode_codepoint_at(source_text, cluster.source_byte_start))) {
             cluster.allowed_break_after = false;
+            cluster.kinsoku_no_break_after = true;
         }
     }
 }
