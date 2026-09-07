@@ -25,3 +25,9 @@ add_test(
     COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_graph_executor_authority.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+add_test(
+    NAME chronon3d_render_session_migration_gate
+    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_render_session_migration.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

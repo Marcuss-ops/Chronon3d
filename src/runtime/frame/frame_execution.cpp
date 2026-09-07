@@ -7,9 +7,8 @@ namespace chronon3d::runtime {
 FrameExecution::FrameExecution(JobSession& job, Frame frame, SampleTime time,
                                FrameExecutionSlot* slot) noexcept
     : job_(job), frame_(frame), time_(time), slot_(slot) {
-    job_.render_session().reset_frame_temporaries();
-    job_.render_session().prepared_composition =
-        &job_.program().compiled_composition();
+    job_.reset_frame_counters();
+    ++job_.counters().frames_started;
     if (slot_) {
         slot_->frame_index = static_cast<std::uint64_t>(frame_.integral());
     }
@@ -25,7 +24,11 @@ bool FrameExecution::cancelled() const noexcept {
 
 void FrameExecution::complete() noexcept {
     if (completed_) return;
-    job_.render_session().prepared_composition = nullptr;
+    if (failed_) {
+        ++job_.counters().frames_failed;
+    } else {
+        ++job_.counters().frames_completed;
+    }
     completed_ = true;
 }
 
