@@ -26,6 +26,7 @@ namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
 
 struct CompiledComposition;
+namespace compiler { class CompiledProgram; }
 struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel; struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
 struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOperator : unsigned char;
 
@@ -38,6 +39,8 @@ public:
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_compiled(
         const CompiledComposition& compiled, Frame frame);
+    std::shared_ptr<Framebuffer> render_program(
+        const compiler::CompiledProgram& program, Frame frame);
 
     /// @deprecated scene authoring adapter.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,

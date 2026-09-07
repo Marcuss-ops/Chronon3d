@@ -51,6 +51,7 @@
 namespace chronon3d {
 class SoftwareRenderer;
 struct CompiledComposition;
+namespace compiler { class CompiledProgram; }
 namespace media { class MediaFrameProvider; }
 }
 
@@ -83,6 +84,9 @@ public:
     /// Composition values must be compiled before reaching this facade.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
         const CompiledComposition& compiled, Frame frame);
+
+    [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
+        const compiler::CompiledProgram& program, Frame frame);
 
     /// Execute a frame that has already passed the immutable composition
     /// evaluation stage. This is the stage boundary used by PreparedRenderJob

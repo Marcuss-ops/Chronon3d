@@ -136,12 +136,12 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
     std::shared_ptr<const CompiledComposition> compiled = std::move(request.compiled_composition);
-    if (!compiled && request.compiled_program) {
+    if (!compiled && request.compiled_program && request.mode == RenderMode::Video) {
         compiled = std::make_shared<const CompiledComposition>(
             request.compiled_program->compiled_composition());
     }
     std::optional<ResolvedCompositionSpec> resolved;
-    if (!compiled) {
+    if (!compiled && !request.compiled_program) {
         auto registry_result = registry.resolve(composition_id, request.input);
         if (!registry_result) {
             return RenderJobError{RenderJobErrorCode::ValidationFailed,
@@ -155,7 +155,7 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     }
 
     try {
-        if (!compiled) {
+        if (!compiled && !request.compiled_program) {
             Composition comp = resolved->construct();
             auto compiled_result = chronon3d::compile_composition(comp, CompositionCompileContext{});
             if (!compiled_result) {
@@ -170,12 +170,25 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     job.comp_id = std::move(request.comp_id);
     job.compiled = std::move(compiled);
     job.program = std::move(request.compiled_program);
-        job.metadata = CompositionMetadata{
-            .width = job.compiled->composition->width(),
-            .height = job.compiled->composition->height(),
-            .fps = job.compiled->composition->frame_rate(),
-            .duration = job.compiled->composition->duration(),
-        };
+        if (job.program) {
+            const auto& metadata = job.program->metadata();
+            job.metadata = CompositionMetadata{
+                .width = static_cast<int>(metadata.width),
+                .height = static_cast<int>(metadata.height),
+                .fps = FrameRate{metadata.fps_numerator, metadata.fps_denominator},
+                .duration = Frame{metadata.duration_frames},
+            };
+        } else if (job.compiled && job.compiled->composition) {
+            job.metadata = CompositionMetadata{
+                .width = job.compiled->composition->width(),
+                .height = job.compiled->composition->height(),
+                .fps = job.compiled->composition->frame_rate(),
+                .duration = job.compiled->composition->duration(),
+            };
+        } else {
+            return RenderJobError{RenderJobErrorCode::InvalidJob,
+                "RenderJob has neither a compiled program nor a compiled composition"};
+        }
         if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
         job.mode = request.mode;
         job.still_frame = request.still_frame;
