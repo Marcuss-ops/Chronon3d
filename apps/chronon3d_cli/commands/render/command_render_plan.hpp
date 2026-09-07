@@ -30,23 +30,11 @@ struct RenderPlanVideoOverrides {
     bool gop_copy_only{false};
 };
 
-int run_render_plan_file(const CompositionRegistry& registry,
-                         const std::string& input,
-                         const std::string& output = {},
-                         const std::string& assets_root = {},
-                         bool report = false,
-                         std::shared_ptr<SoftwareRenderer> warm_renderer = {},
-                         const std::string& backend = "auto",
-                         RenderPlanVideoOverrides video = {},
-                         const std::string& trace_output = {},
-                         const std::string& trace_level = "pipeline",
-                         const std::string& gpu_hot_path_mode = "auto",
-                         std::shared_ptr<media::VideoJobExecutionContext> video_execution = {},
-                         std::uint64_t start_frame = 0,
-                         std::uint64_t end_frame = 0,
-                         bool frame_range_explicit = false,
-                         const std::string& receipt_verify = {},
-                         std::optional<runtime::job::NormalizedRenderJob> normalized_request = {});
+int run_render_plan_file(
+    const CompositionRegistry& registry,
+    runtime::job::RenderJobRequest request,
+    std::shared_ptr<SoftwareRenderer> warm_renderer = {},
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload

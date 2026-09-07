@@ -58,8 +58,8 @@ public:
 /// Behaviour-equivalent implementation of the legacy
 /// `wire_precomp_build_factory` lambda:
 ///
-///   GraphBuilder::build(scene, ctx)
-///     -> FrameGraphCompiler::compile(graph, ctx, FrameGraphCompileOptions)
+///   GraphBuildPipeline::build(scene, ctx)
+///     -> compiler graph-lowering seam(graph, ctx, FrameGraphCompileOptions)
 ///        -> std::make_unique<CompiledSceneProgram>(compile_scene_program(...))
 ///
 /// This is the default installed into `PipelineCatalogs::precomp_builder`
