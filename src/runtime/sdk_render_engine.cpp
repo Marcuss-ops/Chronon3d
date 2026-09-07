@@ -153,8 +153,17 @@ struct RenderEngine::Impl {
     // and serializes concurrent renders on one engine instance.  Keep the
     // synchronization at the SDK boundary so the internal OPP adapter does
     // not need to expose or duplicate a second ownership protocol.
-    std::mutex                state_mutex;
+    //
+    // A recursive mutex is intentional: host callbacks (log / progress /
+    // cancellation) may legally call back into the same engine instance from
+    // the same thread (e.g. set_settings() inside a log callback).  Cross-
+    // thread mutual exclusion is unchanged — a recursive_mutex is still
+    // exclusive across threads — so only the self-deadlock hazard is removed.
+    std::recursive_mutex      state_mutex;
     std::vector<std::uint8_t> pixel_buffer;
+    // Reused scratch for canvas→RGBA8 conversion on the render() hot path so
+    // a resize does not allocate a fresh temporary vector per frame.
+    std::vector<std::uint8_t> frame_scratch;
     // Reuse the prepared barrier for sequential render() calls on the same
     // composition. The public convenience API must not compile, warm up and
     // rebuild caches once per frame.
@@ -204,14 +213,19 @@ struct RenderEngine::Impl {
                 return result;
             }
 
-            std::vector<std::uint8_t> rendered_pixels;
-            framebuffer_to_rgba8(*framebuffer, rendered_pixels);
             if (framebuffer->width() == settings.width &&
                 framebuffer->height() == settings.height) {
-                pixel_buffer = std::move(rendered_pixels);
+                // Convert straight into the persistent output buffer: no
+                // temporary allocation on the per-frame path.
+                framebuffer_to_rgba8(*framebuffer, pixel_buffer);
             } else {
+                // Convert into the persistent scratch buffer, then nearest-
+                // resize into the persistent output buffer.  Both allocations
+                // are amortized across frames instead of re-allocated once
+                // per render() call.
+                framebuffer_to_rgba8(*framebuffer, frame_scratch);
                 resize_rgba8_nearest(
-                    rendered_pixels, framebuffer->width(), framebuffer->height(),
+                    frame_scratch, framebuffer->width(), framebuffer->height(),
                     settings.width, settings.height, pixel_buffer);
             }
 

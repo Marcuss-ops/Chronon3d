@@ -443,14 +443,18 @@ bool NativeAvSink::drain_packets(bool flushing) {
                         "avcodec_receive_packet failed: " + ffmpeg_error(receive_result));
         }
 
-        AVPacket* cloned = av_packet_clone(packet_);
-        av_packet_unref(packet_);
-        if (!cloned) {
+        // Move the encoder output into a dedicated owned packet instead of
+        // av_packet_clone + shared_ptr: MuxSession consumes the packet
+        // synchronously inside submit_video and never retains it, so a
+        // move-only owner is the correct protocol (audit: AVPacket
+        // move/ref over clone + control block).  av_packet_move_ref also
+        // empties the reusable receive packet for the next iteration.
+        OwnedAVPacket owned(av_packet_alloc());
+        if (!owned) {
             return fail(VideoSinkError::EncoderFailed,
-                        "av_packet_clone failed");
+                        "av_packet_alloc failed");
         }
-        std::shared_ptr<AVPacket> owned(
-            cloned, [](AVPacket* packet) { av_packet_free(&packet); });
+        av_packet_move_ref(owned.get(), packet_);
         const bool keyframe = (owned->flags & AV_PKT_FLAG_KEY) != 0;
         if (!mux_ || !mux_->submit_video(chronon3d::media::EncodedPacket{
                 .packet = std::move(owned),

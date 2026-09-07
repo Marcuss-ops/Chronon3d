@@ -96,9 +96,7 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
     CHECK(mux.has_audio());
 
     auto packet = [](int stream, int64_t pts, int duration, int size) {
-        auto owned = std::shared_ptr<AVPacket>(av_packet_alloc(), [](AVPacket* p) {
-            av_packet_free(&p);
-        });
+        auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
         REQUIRE(owned != nullptr);
         REQUIRE(av_new_packet(owned.get(), size) >= 0);
         owned->pts = pts;
@@ -110,9 +108,9 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
 
     for (int64_t pts = 0; pts < 10; ++pts) {
         auto video = packet(0, pts, 1, 4);
-        REQUIRE(mux.submit_video({video, AVRational{1, 10}, pts == 0}));
+        REQUIRE(mux.submit_video({std::move(video), AVRational{1, 10}, pts == 0}));
         auto audio_packet = packet(1, pts * 800, 800, 2);
-        REQUIRE(mux.submit_audio({audio_packet, AVRational{1, 8000}, true}));
+        REQUIRE(mux.submit_audio({std::move(audio_packet), AVRational{1, 8000}, true}));
     }
     REQUIRE(mux.finalize());
 

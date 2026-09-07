@@ -23,7 +23,7 @@
 |---|---|---|---|
 | FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
-| PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | [PERSISTENT-FB-STORE-REMOVAL](tickets/TICKET-PERSISTENT-FB-STORE-REMOVAL.md) — codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato) |
+| PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato); record: ADR-024 + git history |
 
 ## Backlog P2/P3 (non bloccante)
 
@@ -41,8 +41,8 @@
 
 ## Recently Closed (ultimi 3)
 
-- `PERF-BASELINE-V1` — DONE; baseline software/CPU lockata e blur_band riabilitato in BENCH-3 → [ticket](tickets/TICKET-PERF-BASELINE-V1.md)
-- `NODE-CACHE-KEY-COLLAPSE-ROT` — DONE 2026-09-04 after re-census: `run_node`, `emit_node_records` and `cache_evaluator` all carry the canonical `NodeCacheKey`; historical forward-points already landed → [ticket](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md)
-- IPC heap-buffer-overflow in `decode_reply` — fuzzer (libFuzzer) → fix (Verifier) in `eabb6713a` → [TICKET-130](tickets/TICKET-130-IPC-HEAP-OVERFLOW-DECODE-REPLY.md)
+- `PERF-BASELINE-V1` — DONE; baseline software/CPU lockata e blur_band riabilitato in BENCH-3; evidenza archiviata in `docs/baselines/`, gate vivo come `tools/check_common_performance_gate.py`
+- `NODE-CACHE-KEY-COLLAPSE-ROT` — DONE 2026-09-04 after re-census: `run_node`, `emit_node_records` and `cache_evaluator` all carry the canonical `NodeCacheKey`; historical forward-points already landed
+- IPC heap-buffer-overflow in `decode_reply` — fuzzer (libFuzzer) → fix (Verifier) in `eabb6713a` (git history)
 
 > Storico completo dei ticket chiusi: `git log --follow docs/tickets/` (archive cartella rimossa 2026-09-05; la git history è l'unico archivio).  <!-- drift-class: historical -->

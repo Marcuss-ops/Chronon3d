@@ -169,9 +169,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         }
     }
     timings.job_wall_ms = wall_time_ms;
-    timings.process_wall_ms = profiling::duration_ms(process_start_time(), wall_t0);
+    // Job-relative, never process-relative: for a single-shot CLI render the
+    // session anchor IS the process start, so CLI semantics are unchanged;
+    // for a persistent daemon it is the RENDER_JOB arrival, so the recorded
+    // pre-job gap can never be daemon uptime.
+    timings.process_wall_ms = profiling::duration_ms(session->job_started_at, wall_t0);
     timings.measurement_kind = chronon3d::cli::startup_measurement_kind_name(
-        chronon3d::cli::startup_trace().measurement_kind);
+        session->warm_process
+            ? chronon3d::cli::StartupMeasurementKind::WarmProcess
+            : chronon3d::cli::startup_trace().measurement_kind);
     timings.prepare_ms = profiling::duration_ms(setup_t0, warmup_t1);
     timings.engine_init_ms = session->engine_init_ms;
     timings.backend_init_ms = session->backend_init_ms;
@@ -468,7 +474,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         }
     }
 
-    const auto proc_start = process_start_time();
     const double startup_ms = session->startup_ms;
     const double input_open_ms = session->input_open_ms;
     const double prepare_exclusive_ms = session->setup_prepare_ms + profiling::duration_ms(warmup_t0, warmup_t1);
@@ -479,7 +484,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const double ffprobe_exclusive_ms = result.ffprobe_ms;
     const double sha256_exclusive_ms = result.sha256_ms;
     const double output_finalize_exclusive_ms = result.output_finalize_ms;
-    const double sidecar_report_ms = 2.0;
 
     pipe_timing::ExclusiveWallTimeline tl;
     tl.startup_ms = startup_ms;
@@ -492,17 +496,26 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     tl.ffprobe_ms = ffprobe_exclusive_ms;
     tl.sha256_ms = sha256_exclusive_ms;
     tl.output_finalize_ms = output_finalize_exclusive_ms;
-    tl.sidecar_report_ms = sidecar_report_ms;
+    // sidecar_report_ms is deliberately absent (null on the wire): the
+    // sidecar cannot measure its own write from inside the document it is
+    // writing. The write happens after this snapshot, so its real duration
+    // shows up in unaccounted_ms instead of a fabricated constant.
 
     const double accounted_sum = startup_ms + input_open_ms + prepare_exclusive_ms +
         render_loop_exclusive_ms + encoder_drain_exclusive_ms + mux_finalize_ms +
         validation_exclusive_ms + ffprobe_exclusive_ms + sha256_exclusive_ms +
-        output_finalize_exclusive_ms + sidecar_report_ms;
+        output_finalize_exclusive_ms;
 
-    const double proc_wall_ms = profiling::duration_ms(proc_start, profiling::now()) + sidecar_report_ms;
+    // The exclusive wall is job-anchored: for CLI single-shot renders the
+    // anchor is the process start (unchanged semantics); for a persistent
+    // daemon it is the RENDER_JOB arrival, so startup/process walls never
+    // include daemon uptime.
+    const double proc_wall_ms =
+        profiling::duration_ms(session->job_started_at, profiling::now());
     tl.process_wall_ms = proc_wall_ms;
     tl.unaccounted_ms = std::max(0.0, proc_wall_ms - accounted_sum);
-    tl.accounted_percent = (accounted_sum / proc_wall_ms) * 100.0;
+    tl.accounted_percent = proc_wall_ms > 0.0
+        ? (accounted_sum / proc_wall_ms) * 100.0 : 0.0;
     timings.exclusive_wall = tl;
 
     session->startup_breakdown.total_startup_ms = startup_ms;

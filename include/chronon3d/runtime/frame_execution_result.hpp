@@ -18,6 +18,11 @@ enum class ExecutionFailure : std::uint8_t {
     DeviceLost,
     EncodeFailure,
     MuxFailure,
+    // A RenderBackend operation failed at runtime (shaping, raster, surface
+    // or device call).  Distinct from InvalidResource so an upstream caller
+    // can tell "malformed input" from "real execution fault"; appended last
+    // to keep existing enumerator values stable.
+    BackendFailure,
 };
 
 /// Canonical frame/job failure boundary. It is intentionally a value type: no

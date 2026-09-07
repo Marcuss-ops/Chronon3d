@@ -41,7 +41,6 @@ new release/tag, not a rewritten v0.1 tag.
 ## Authority map
 
 - `RELEASE_V0_1_CONTRACT.md`: this contract and release identity;
-- `RELEASE_V0_1.md`: user-facing scope and limitations;
 - `RELEASE_GATE.md`: executable acceptance procedure;
 - `CURRENT_STATUS.md`: observed current state;
 - `ROADMAP.md`: future work only;

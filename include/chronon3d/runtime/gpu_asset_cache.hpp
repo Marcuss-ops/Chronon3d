@@ -16,6 +16,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <list>
@@ -23,6 +24,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace chronon3d::runtime {
 
@@ -69,11 +71,23 @@ struct GpuAssetCacheStats {
     std::size_t initial_uploads{0};
     std::size_t initial_upload_bytes{0};
     std::size_t evicted_bytes{0};
+    /// Backend release_surface() failures observed while evicting.  When
+    /// non-zero the device may still hold memory that the cache can no
+    /// longer account for through resident_bytes.
+    std::size_t release_failures{0};
 };
 
 /// Engine-local cache for decoded assets promoted to device-local surfaces.
 /// The cache owns logical handles and releases backend storage on eviction;
 /// it does not duplicate the RenderSurfaceRegistry or asset resolver.
+///
+/// Thread-safety model: `m_mutex` protects only the cache bookkeeping and
+/// the RenderSurfaceRegistry (which is not internally synchronized).  Device
+/// calls on the RenderBackend (create/upload/release) are deliberately made
+/// OUTSIDE the cache mutex — every backend already serializes its own surface
+/// API internally — so a slow upload or eviction never blocks cache lookups
+/// for other assets.  Concurrent population of the same key is deduplicated
+/// through `m_inflight` + `m_inflight_cv`.
 class GpuAssetCache {
 public:
     explicit GpuAssetCache(std::size_t budget_bytes = 0) : m_budget_bytes(budget_bytes) {}
@@ -101,16 +115,41 @@ private:
         std::list<GpuAssetKey>::iterator lru_position;
     };
 
-    void release_handle(RenderSurfaceHandle handle) noexcept;
-    void evict_to_budget_locked();
+    /// Tracks a key whose surface is being created/uploaded or released
+    /// outside the cache mutex.  Other threads acquiring the same key wait on
+    /// `m_inflight_cv` until the entry disappears, so one logical surface per
+    /// key is always guaranteed.
+    struct InflightUpload {
+        bool releasing{false};
+        RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
+    };
+
+    /// Releases `handle` through the backend.  Must be called WITHOUT
+    /// `m_mutex` held.  Returns true when the device allocation is no longer
+    /// owned by this cache (backend reported success, or the backend never
+    /// supports native surface storage for this handle).
+    [[nodiscard]] bool release_backend_surface(RenderSurfaceHandle handle) noexcept;
+
+    /// Evicts one already-removed cache entry: releases the backend surface
+    /// outside the lock, then re-locks to update residency accounting and to
+    /// drop the logical handle from the registry.  `physical_already_gone`
+    /// signals that is_native_surface_valid() already reported the surface
+    /// dead, so the release result cannot be trusted to decide accounting.
+    void release_and_account(
+        RenderSurfaceHandle handle, std::size_t bytes, bool physical_already_gone);
+
+    /// LRU eviction loop.  Must be called WITHOUT `m_mutex` held.
+    void evict_to_budget();
 
     mutable std::mutex m_mutex;
+    std::condition_variable m_inflight_cv;
     RenderSurfaceRegistry* m_registry{nullptr};
     graph::RenderBackend* m_backend{nullptr};
     std::size_t m_budget_bytes{0};
     std::size_t m_resident_bytes{0};
     std::unordered_map<GpuAssetKey, Entry, GpuAssetKeyHash> m_entries;
     std::list<GpuAssetKey> m_lru;
+    std::unordered_map<GpuAssetKey, InflightUpload, GpuAssetKeyHash> m_inflight;
     GpuAssetCacheStats m_stats{};
 };
 

@@ -246,6 +246,10 @@ public:
     /// Draw a single RenderNode using the backend's rasteriser.
     ///
     /// Draw a single RenderNode and propagate backend failures to the graph.
+    /// The default is NOT a silent success: a backend that cannot honour the
+    /// request reports UnsupportedCapability so an unhandled node can never
+    /// produce a transparent/incomplete frame without an error.  Backends
+    /// that implement the node contract override this method.
     virtual RenderOpResult draw_node(
         Framebuffer& /*fb*/,
         const RenderNode& /*node*/,
@@ -254,7 +258,9 @@ public:
         int /*width*/,
         int /*height*/
     ) {
-        return RenderOpResult(RenderOpOutcome{});
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::draw_node: node drawing is not supported by this backend"});
     }
 
     /// Validate a renderable shape before the graph reaches execution.

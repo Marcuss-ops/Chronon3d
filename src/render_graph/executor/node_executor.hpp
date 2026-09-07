@@ -66,7 +66,6 @@ double run_node(
     const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    FramebufferPool* parent_pool,
     const StableNodeId* stable_node_id = nullptr  // trace annotation (plan §7)
 );
 

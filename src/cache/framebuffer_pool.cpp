@@ -140,6 +140,8 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                 profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
             }
             entry.fb->resize_logical(width, height);
+            // F2.3 — storage left the pool: no longer swap-transferable.
+            entry.fb->set_storage_transferable(false);
             return std::move(entry.fb);
         }
     }
@@ -169,6 +171,8 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
         }
         entry.fb->resize_logical(width, height);
+        // F2.3 — storage left the pool: no longer swap-transferable.
+        entry.fb->set_storage_transferable(false);
         return std::move(entry.fb);
     }
 
@@ -358,6 +362,10 @@ void FramebufferPool::release(Framebuffer* fb) {
     // Insert into pool
     m_current_bytes += weight;
     m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
+    // F2.3 — mark pool provenance on the way in. This is the single place
+    // storage becomes swap-transferable; every other ownership path keeps
+    // the flag false (default). Cleared on the way out by acquire_unique.
+    owned->set_storage_transferable(true);
     m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
 
     if (profiling::g_current_counters) {

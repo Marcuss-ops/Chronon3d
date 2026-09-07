@@ -109,7 +109,13 @@ std::shared_ptr<Framebuffer> execute_internal(
             std::memory_order_relaxed);
     }
 
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — the frame error slot is
+    // frame-scoped stack storage instead of a per-frame make_shared control
+    // block.  Clones share the non-owning pointer, so error writes from node
+    // executions remain visible to this executor, and the storage dies with
+    // this call — node executions never outlive execute_internal.
+    std::optional<NodeExecutionError> frame_error_storage;
+    ctx.frame_error = &frame_error_storage;
 
     if (compiled.program.fully_recorded) {
         execute_compiled_program(compiled.program, ctx, state, parent_counters);

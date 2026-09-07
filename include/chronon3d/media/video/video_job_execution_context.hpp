@@ -3,6 +3,7 @@
 #include <chronon3d/runtime/device_scheduler.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 
+#include <chrono>
 #include <memory>
 #include <optional>
 
@@ -16,6 +17,12 @@ struct VideoJobExecutionContext {
     runtime::DeviceId device_id{0};
     std::uint32_t physical_device_index{0};
     std::int32_t cuda_device_ordinal{-1};
+    /// Wall anchor of the render request inside a persistent daemon: the
+    /// exclusive-wall startup/process timings are measured from here so a
+    /// long-lived process never reports "startup = daemon uptime". CLI
+    /// single-shot invocations leave it at the default epoch and keep the
+    /// process-start anchor.
+    std::chrono::steady_clock::time_point job_started_at{};
 };
 
 } // namespace chronon3d::media

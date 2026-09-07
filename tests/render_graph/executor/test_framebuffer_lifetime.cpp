@@ -317,7 +317,7 @@ TEST_CASE("InputLifetime: single consumer releases on last use") {
     std::array<size_t, 2> counts = {1, 0}; // n0=1 consumer, n1=0 consumers
     auto remaining = init_consumer_remaining(2, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(2);
     state.resolved_key_digest.resize(2);
     state.resolved_frame_dependent.resize(2);
@@ -356,7 +356,7 @@ TEST_CASE("InputLifetime: multiple consumers only release on last consumer") {
     std::array<size_t, 3> counts = {2, 0, 0}; // n0=2 consumers, n1=0, n2=0
     auto remaining = init_consumer_remaining(3, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(3);
     state.resolved_key_digest.resize(3);
     state.resolved_frame_dependent.resize(3);
@@ -393,7 +393,7 @@ TEST_CASE("InputLifetime: framebuffer held while consumers remain") {
     std::array<size_t, 3> counts = {2, 0, 0};
     auto remaining = init_consumer_remaining(3, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(3);
     state.resolved_key_digest.resize(3);
     state.resolved_frame_dependent.resize(3);
@@ -431,7 +431,7 @@ TEST_CASE("InputLifetime: node with no consumers is never released") {
     std::array<size_t, 1> counts = {0}; // n0 has 0 consumers
     auto remaining = init_consumer_remaining(1, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(1);
     state.resolved_key_digest.resize(1);
     state.resolved_frame_dependent.resize(1);
@@ -457,7 +457,7 @@ TEST_CASE("InputLifetime: unknown inputs are safely ignored") {
     std::array<size_t, 1> counts = {0};
     auto remaining = init_consumer_remaining(1, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(1);
     state.resolved_key_digest.resize(1);
     state.resolved_frame_dependent.resize(1);
@@ -585,7 +585,7 @@ TEST_CASE("InputLifetime: state metadata is reset on release") {
     std::array<size_t, 2> counts = {1, 0};
     auto remaining = init_consumer_remaining(2, counts, arena.resource());
 
-    ExecutionState state(arena.resource());
+    ExecutionState state;
     state.temp.resize(2);
     state.resolved_key_digest.resize(2);
     state.resolved_frame_dependent.resize(2);

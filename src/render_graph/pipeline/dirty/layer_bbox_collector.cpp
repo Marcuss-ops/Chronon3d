@@ -5,6 +5,7 @@
 #include "layer_bbox_collector.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -17,6 +18,9 @@
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
+
+#include <utility>
+#include <vector>
 
 namespace chronon3d::graph::detail {
 
@@ -92,6 +96,16 @@ void populate_layer_semantic_fingerprints(
     state.semantic_fingerprints_valid = true;
 }
 
+// Data-oriented per-worker accumulation: workers emit dense (index, state)
+// entries instead of per-thread unordered_map<string, LayerBBoxState> nodes.
+// The layer-name key is materialized exactly once per layer when the final
+// name-keyed map (the caller contract) is built — no per-thread hash/node
+// churn and no second merged map on the way out.
+struct PendingLayerBBox {
+    std::size_t resolved_index;
+    LayerBBoxState state;
+};
+
 std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     const RenderGraphContext& ctx,
     const LayerResolutionResult& resolved,
@@ -102,21 +116,35 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
     i32 height,
     Frame frame
 ) {
+    // The processor registry is immutable for the whole frame: capture one
+    // snapshot shared by every active layer instead of rebuilding the
+    // (sorted, shared-owned) snapshot per visible node / per layer.
+    const auto registry_snapshot = sw_renderer
+        ? sw_renderer->software_registry().snapshot()
+        : nullptr;
+
     auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl) -> raster::BBox {
         const LayerGraphItem item = resolve_layer_graph_item(rl, ctx);
         if (!item.visible) {
             return raster::BBox{0, 0, 0, 0};
         }
-        return detail::compute_layer_bbox(item, ctx, sw_renderer);
+        // compute_layer_bboxes_parallel is only ever reached with a live
+        // software renderer (compute_dirty_rect early-outs otherwise), so the
+        // frame snapshot above is normally available here.  Defensive
+        // fallback mirrors the legacy renderer-less full-frame behavior.
+        if (!registry_snapshot) {
+            return detail::compute_layer_bbox(item, ctx, sw_renderer);
+        }
+        return detail::compute_layer_bbox(item, ctx, *registry_snapshot);
     };
 
     (void)cam25d;
-    tbb::enumerable_thread_specific<std::unordered_map<std::string, LayerBBoxState>> tls_bboxes;
+    tbb::enumerable_thread_specific<std::vector<PendingLayerBBox>> tls_entries;
 
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, resolved.layers.size()),
         [&](const tbb::blocked_range<size_t>& r) {
-            auto& local_map = tls_bboxes.local();
+            auto& pending = tls_entries.local();
             for (size_t i = r.begin(); i < r.end(); ++i) {
                 const auto& rl = resolved.layers[i];
                 if (rl.layer && rl.layer->active_at(frame)) {
@@ -148,7 +176,9 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                         }
                     }
 
-                    LayerBBoxState state;
+                    PendingLayerBBox entry;
+                    entry.resolved_index = i;
+                    LayerBBoxState& state = entry.state;
                     state.bbox = bbox;
                     state.world_matrix = rl.world_matrix;
                     state.opacity = rl.world_transform.opacity;
@@ -167,16 +197,26 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     state.content_hash = content_h;
                     populate_layer_semantic_fingerprints(
                         *rl.layer, ctx.frame_input.sample_time, state);
-                    local_map[std::string(rl.layer->name)] = state;
+                    pending.push_back(std::move(entry));
                 }
             }
         }
     );
 
+    // Single serial build of the name-keyed result map (the caller contract).
+    // Per-worker chunk ranges are disjoint and iterated in resolved-index
+    // order, so the final map content no longer depends on TBB worker
+    // scheduling for the normal case (one active entry per layer name).
     std::unordered_map<std::string, LayerBBoxState> merged;
-    for (auto& local_map : tls_bboxes) {
-        for (auto&& [name, state] : local_map) {
-            merged[name] = std::move(state);
+    merged.reserve(resolved.layers.size());
+    for (auto& entries : tls_entries) {
+        for (auto& entry : entries) {
+            const auto& rl = resolved.layers[entry.resolved_index];
+            // Layer::name is PMR-backed; the result map owns std::string
+            // keys, so materialize the key exactly once per active layer
+            // (previously once per layer per worker plus a second merged
+            // map with its own keys on the way out).
+            merged[std::string(rl.layer->name)] = std::move(entry.state);
         }
     }
     return merged;
