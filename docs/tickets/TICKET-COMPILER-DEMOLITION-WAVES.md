@@ -28,6 +28,8 @@ sono coerenti.
 - [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
   `CompiledComposition` come payload dell’executor.
+- [x] Wave 3 — il runtime passa dal `ProgramSampler` canonico; l’accesso alla
+  composizione legacy è confinato all’implementazione transitoria del sampler.
 - [x] Wave 4 — target CMake separati di render-plan/graph builder/graph
   compiler assorbiti nel target `chronon3d_compiler`.
 - [x] Wave 4 — `graph_compile.hpp` pubblico e free facade rimossi; il graph
