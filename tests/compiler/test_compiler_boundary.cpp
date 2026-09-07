@@ -102,21 +102,32 @@ TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
     config.job_id = 42;
     chronon3d::runtime::JobSession job(runtime, std::move(config));
 
+    CHECK(job.slots().capacity() == chronon3d::runtime::JobSession::kPipelineDepth);
+    CHECK(job.gpu_completion().capacity() == chronon3d::runtime::JobSession::kPipelineDepth);
+    CHECK(job.evaluated_queue().size() == 0);
+    CHECK(job.rendered_queue().size() == 0);
+    CHECK(job.frame_history().prev_frame == chronon3d::Frame{-1});
+    CHECK(job.dirty_history().previous_layers.empty());
+
     const auto time = chronon3d::SampleTime::from_frame_int(
         chronon3d::Frame{0}, chronon3d::FrameRate{});
     {
         chronon3d::runtime::FrameExecution frame(job, chronon3d::Frame{0}, time);
         CHECK(frame.job().job_id() == 42);
-        CHECK(job.render_session().prepared_composition ==
-              &program->compiled_composition());
+        CHECK(job.counters().frames_started == 1);
         CHECK_FALSE(frame.cancelled());
         frame.complete();
-        CHECK(job.render_session().prepared_composition == nullptr);
+        CHECK(job.counters().frames_completed == 1);
+        CHECK(job.counters().frames_failed == 0);
     }
 
     job.cancellation().cancel();
     chronon3d::runtime::FrameExecution cancelled(job, chronon3d::Frame{1}, time);
     CHECK(cancelled.cancelled());
+    cancelled.fail();
+    CHECK(cancelled.counters().errors == 1);
+    cancelled.complete();
+    CHECK(job.counters().frames_failed == 1);
 }
 
 TEST_CASE("JobSession rejects invalid ownership ranges") {
