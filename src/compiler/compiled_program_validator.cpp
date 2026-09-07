@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace chronon3d::compiler {
-std::vector<CompileError> validate_compiled_program(const CompiledProgram& program) {
+std::vector<CompileError> validate_compiled_program(const CompiledProgramData& program) {
     std::vector<CompileError> errors;
     for (const auto& node : program.nodes) {
         if (node.input_count > std::numeric_limits<std::uint32_t>::max() - node.input_begin) {
