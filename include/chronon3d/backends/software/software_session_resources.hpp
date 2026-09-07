@@ -26,13 +26,14 @@
 // da reset_job — le risorse di sessione sono solo ciò che è elencato
 // sopra.
 //
-// WP-3 PR 3.1 — the `graph::SceneHasher scene_hasher` member was
-// REMOVED.  The canonical scene hasher is now a per-session value
-// member on `runtime::JobSession::scene_hasher`.  `SoftwareRenderSession`
-// (which composes `runtime::JobSession common + SoftwareSessionResources
-// software`) reaches the scene hasher through
-// `session.common.scene_hasher()`.  This struct no longer needs an
-// include of `<chronon3d/internal/render_graph/core/scene_hasher.hpp>`
+// WP-3 PR 3.1 — the `graph::SceneHasher` / `graph::SceneProgramStore`
+// members were REMOVED.  Scene-hash and scene-program state is canonical
+// per-session state on `runtime::JobSession` (`scene_hasher()` /
+// `program_store()`); `SoftwareRenderSession` (which composes
+// `runtime::JobSession common + SoftwareSessionResources software`)
+// reaches them through `session.common.scene_hasher()` /
+// `session.common.program_store()`.  This struct therefore needs no
+// include of the internal scene-hash / scene-program-store headers
 // (TICKET-013 boundary invariant restored for this header).
 // ---------------------------------------------------------------------------
 
@@ -66,10 +67,6 @@
 namespace chronon3d {
 
 struct CompiledComposition;
-namespace graph {
-class SceneHasher;
-class SceneProgramStore;
-}
 
 /// One shared transient workspace for scalar effect processors. Sequential
 /// effects reuse these buffers; no effect-specific pool is introduced.
@@ -146,12 +143,6 @@ struct SoftwareSessionResources {
     std::uint64_t authoring_composition_identity{0};
     std::shared_ptr<const CompiledComposition> authoring_compiled_composition;
 
-    // Scene/timeline compatibility state is backend-session owned in the
-    // production software path. JobSession keeps only a standalone fixture
-    // bridge until the remaining non-software callers are migrated.
-    std::unique_ptr<graph::SceneHasher> scene_hasher_state;
-    std::unique_ptr<graph::SceneProgramStore> program_store_state;
-
     // M1.5#7 — TextRenderResources aggregated value member.  This is
     // the CANONICAL OWNER of all text-backend caches (font face +
     // FreeType face + glyph atlas + raster cache + scratch pool).  It
@@ -174,11 +165,6 @@ struct SoftwareSessionResources {
     SoftwareSessionResources& operator=(const SoftwareSessionResources&) = delete;
     SoftwareSessionResources(SoftwareSessionResources&&) noexcept = default;
     SoftwareSessionResources& operator=(SoftwareSessionResources&&) noexcept = default;
-
-    [[nodiscard]] graph::SceneHasher& scene_hasher() noexcept { return *scene_hasher_state; }
-    [[nodiscard]] const graph::SceneHasher& scene_hasher() const noexcept { return *scene_hasher_state; }
-    [[nodiscard]] graph::SceneProgramStore& program_store() noexcept { return *program_store_state; }
-    [[nodiscard]] const graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
 
     /// Reset per-frame temporaries ONLY: the transform scratch buffer is
     /// INTENTIONALLY PRESERVED across frames so its rounded bucket size

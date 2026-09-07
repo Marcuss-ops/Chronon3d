@@ -13,15 +13,11 @@
 #include <chronon3d/backends/software/software_session_resources.hpp>
 
 #include <chronon3d/backends/text/text_render_resources.hpp>
-#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
-#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 
 namespace chronon3d {
 
 SoftwareSessionResources::SoftwareSessionResources()
-    : text_resources(std::make_unique<TextRenderResources>()),
-      scene_hasher_state(std::make_unique<graph::SceneHasher>()),
-      program_store_state(std::make_unique<graph::SceneProgramStore>())
+    : text_resources(std::make_unique<TextRenderResources>())
 {}
 
 // M1.5#7: unique_ptr auto-deletes the TextRenderResources on
@@ -31,8 +27,6 @@ SoftwareSessionResources::~SoftwareSessionResources() = default;
 
 void SoftwareSessionResources::reset_job() {
     reset_temporal_history();
-    scene_hasher_state = std::make_unique<graph::SceneHasher>();
-    program_store_state->clear();
     prepared_composition = nullptr;
     authoring_composition_name.clear();
     authoring_composition_identity = 0;
