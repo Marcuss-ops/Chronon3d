@@ -120,6 +120,15 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
     // catalogs.precomp_builder is left at its default (DefaultPrecompBuilder).
 }
 
+const PipelineCatalogs& builtin_pipeline_catalogs() {
+    static const PipelineCatalogs catalogs = [] {
+        PipelineCatalogs value;
+        init_graph_pipeline_catalogs(value);
+        return value;
+    }();
+    return catalogs;
+}
+
 void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
     // Preserve an already-wired runtime generation. This helper is also used
     // with the shared builtin catalogs by the graph builder; overwriting the
