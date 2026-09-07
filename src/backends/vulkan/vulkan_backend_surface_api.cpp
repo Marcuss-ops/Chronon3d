@@ -32,9 +32,11 @@ graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
     try {
         std::lock_guard lock(m_impl->api_mutex);
         const bool owns_batch = !m_impl->frame_batch.active;
-        if (owns_batch) begin_frame_batch();
+        // P1-7: single-owner unlocked hot path. The mutex is held exactly
+        // once for the whole operation; the batch cores never re-enter it.
+        if (owns_batch) begin_frame_batch_unlocked();
         fn();
-        if (owns_batch) end_frame_batch();
+        if (owns_batch) end_frame_batch_unlocked();
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::RenderBackendError{

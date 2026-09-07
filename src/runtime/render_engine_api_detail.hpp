@@ -151,6 +151,7 @@ PreparedRenderJob RenderEngine::prepare(
     impl->engine = this;
     impl->assets_root = m_impl->m_runtime->resolver().mount_root().string();
     impl->compiled = std::move(compiled);
+    impl->assets_root = m_impl->m_renderer->runtime().resolver().mount_root().string();
     impl->count = impl->compiled->composition
         ? impl->compiled->composition->duration()
         : Frame{0};

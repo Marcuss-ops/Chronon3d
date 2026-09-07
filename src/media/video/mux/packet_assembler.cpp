@@ -1,5 +1,6 @@
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
@@ -13,6 +14,8 @@
 #include <vector>
 
 extern "C" {
+#include <libavcodec/version.h>
+#include <libavutil/channel_layout.h>
 #include <libavutil/error.h>
 #include <libavutil/hash.h>
 #include <libavutil/mem.h>
@@ -91,8 +94,12 @@ bool compatible_codec_parameters(const AVCodecParameters* a,
         reason = "video resolution or pixel format mismatch"; return false;
     }
     if (a->codec_type == AVMEDIA_TYPE_AUDIO &&
-        (         a->sample_rate != b->sample_rate || a->format != b->format ||
+        (a->sample_rate != b->sample_rate || a->format != b->format ||
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+         av_channel_layout_compare(&a->ch_layout, &b->ch_layout) != 0)) {
+#else
          a->channel_layout != b->channel_layout || a->channels != b->channels)) {
+#endif
         reason = "audio sample rate, format, or channel layout mismatch"; return false;
     }
     if (!same_bytes(a->extradata, a->extradata_size, b->extradata, b->extradata_size)) {
@@ -155,7 +162,7 @@ struct MuxAvioHashWriter {
         return true;
     }
 
-    static int write_packet(void* opaque, std::uint8_t* buffer, int buffer_size) noexcept {
+    static int write_packet(void* opaque, const std::uint8_t* buffer, int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
         if (buffer_size == 0) return 0;
@@ -201,10 +208,30 @@ struct MuxAvioHashWriter {
             if (close_result < 0) return false;
 
             used_reread = needs_reread;
-            if (needs_reread) return hash_final_file(path, checksum);
+            if (needs_reread) {
+                // ERR-RAISE — a non-append write pattern invalidated the
+                // incremental hash and forced a full-file re-read for the
+                // verification checksum. This is a silent-cost fallback:
+                // an extra O(file) pass over the muxed output. It stays a
+                // fallback (the checksum is still authoritative), but it is
+                // now observable instead of invisible.
+                spdlog::warn(
+                    "[packet-assembler] incremental sha256 invalid for '{}' — "
+                    "falling back to full-file re-read",
+                    path);
+                return hash_final_file(path, checksum);
+            }
             checksum = std::move(streaming_checksum);
             return true;
         } catch (...) {
+            // ERR-RAISE — the audit flagged this catch-all as fully silent.
+            // A crash here used to be indistinguishable from an ordinary
+            // verification failure. Keep the noexcept-safe `return false`
+            // contract, but leave an error trace with the failing path.
+            spdlog::error(
+                "[packet-assembler] close_and_checksum failed with an "
+                "unknown exception for '{}'",
+                path);
             return false;
         }
     }
@@ -385,7 +412,9 @@ MuxSession::~MuxSession() {
     if (format_->pb && format_->oformat && !(format_->oformat->flags & AVFMT_NOFILE)) {
         if (writer_) {
             avio_flush(format_->pb);
+            auto* buffer = format_->pb->buffer;
             avio_context_free(&format_->pb);
+            av_free(buffer);
         } else {
             avio_closep(&format_->pb);
         }
@@ -497,6 +526,18 @@ bool MuxSession::submit_video(EncodedPacket encoded) noexcept {
     return ok;
 }
 
+bool MuxSession::submit_video(AVPacket& packet,
+                              AVRational source_time_base) noexcept {
+    if (!format_ || !video_stream_) return false;
+    const auto started = std::chrono::steady_clock::now();
+    av_packet_rescale_ts(&packet, source_time_base, video_stream_->time_base);
+    packet.stream_index = video_stream_->index;
+    const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
+    packet_write_ms_ += std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
+    return ok;
+}
+
 bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
     if (!format_ || !audio_stream_ || !encoded.packet) return false;
     const auto started = std::chrono::steady_clock::now();
@@ -523,7 +564,9 @@ bool MuxSession::finalize() noexcept {
     if (writer_) {
         if (format_->pb) {
             avio_flush(format_->pb);
+            auto* buffer = format_->pb->buffer;
             avio_context_free(&format_->pb);
+            av_free(buffer);
         }
         checksum_ok = writer_->close_and_checksum(output_path_, output_checksum_,
                                                    checksum_used_reread_);

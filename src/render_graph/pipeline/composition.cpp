@@ -147,6 +147,14 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
     std::shared_ptr<Framebuffer> render_fb = nullptr;
 
+    // assets_root is engine-lifetime stable; materialize the mount-root
+    // string once per frame instead of once per scene evaluation (the
+    // motion-blur path evaluates N sub-frame scenes and would otherwise
+    // rebuild the same string N times per frame).
+    const std::string frame_assets_root = frame_runtime
+        ? frame_runtime->resolver().mount_root().string()
+        : std::string{};
+
     double evaluate_ms = 0.0;
     double scene_ms = 0.0;
     double motion_blur_ms = 0.0;
@@ -242,9 +250,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 .duration = spec.duration,
                 .width = spec.width,
                 .height = spec.height,
-                .assets_root = frame_runtime
-                    ? frame_runtime->resolver().mount_root().string()
-                    : std::string{},
+                .assets_root = frame_assets_root,
                 .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
                 .runtime = frame_runtime,
             });
@@ -363,9 +369,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                     .duration = spec.duration,
                     .width = spec.width,
                     .height = spec.height,
-                    .assets_root = frame_runtime
-                        ? frame_runtime->resolver().mount_root().string()
-                        : std::string{},
+                    .assets_root = frame_assets_root,
                     .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
                     .runtime = frame_runtime,
                 });

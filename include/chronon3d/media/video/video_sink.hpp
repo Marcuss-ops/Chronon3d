@@ -172,6 +172,16 @@ public:
         double   total_submit_ms{0.0};  // cumulative wall time in submit()
         double   total_flush_ms{0.0};   // cumulative wall time in flush()
         uint64_t submit_count{0};       // number of submit() calls
+        double   frame_prepare_ms{0.0};
+        double   frame_copy_ms{0.0};
+        double   pixel_conversion_ms{0.0};
+        double   sws_scale_ms{0.0};
+        double   avcodec_send_ms{0.0};
+        double   avcodec_receive_ms{0.0};
+        double   packet_mux_ms{0.0};
+        double   encoder_flush_ms{0.0};
+        double   mux_trailer_ms{0.0};
+        double   file_close_ms{0.0};
     };
 
     /// Returns cumulative statistics since the last open().

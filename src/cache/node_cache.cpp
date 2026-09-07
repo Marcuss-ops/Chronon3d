@@ -8,6 +8,13 @@
 
 namespace chronon3d::cache {
 
+// OPT-SHARD-COUNT — the per-frame node-cache lookups of all parallel node
+// workers used to funnel into 2 shards; with typical level widths the shard
+// mutex was the next contention point after the framebuffer pool. 8 shards
+// keeps per-shard capacity well above zero at default budgets while cutting
+// same-shard collisions ~4x on 8+ core renders.
+constexpr std::size_t kNodeCacheShards = 8;
+
 u64 NodeCacheKey::digest() const {
     // HOT-PATH TAX D — finalized keys read the memo; everything else falls
     // back to the pure computation so semantics never change.
@@ -60,7 +67,7 @@ NodeCache::NodeCache(size_t capacity_bytes, CacheDiagnostics* diag)
               }
               return p;
           }().capacity,
-          2,
+          kNodeCacheShards,
           capacity_mode_for(CacheDomain::Nodes))
 {}
 
