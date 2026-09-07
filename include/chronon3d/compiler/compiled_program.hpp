@@ -3,6 +3,7 @@
 #include <chronon3d/compiler/compiled_node.hpp>
 #include <chronon3d/compiler/compiled_pass.hpp>
 #include <chronon3d/compiler/compiled_resource.hpp>
+#include <chronon3d/render_plan/render_budget.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -12,8 +13,6 @@
 namespace chronon3d {
 struct CompiledComposition;
 namespace render_plan {
-struct CanvasSpec;
-struct OutputSpec;
 struct PreparedRenderPlan;
 }
 }
@@ -34,6 +33,7 @@ struct ProgramMetadata {
     std::int64_t duration_frames{0};
     std::int32_t fps_numerator{0};
     std::int32_t fps_denominator{1};
+    render_plan::RenderBudget render_budget{};
 };
 
 struct ProgramFingerprint {
@@ -72,9 +72,6 @@ public:
 
     [[nodiscard]] const render_plan::PreparedRenderPlan& prepared_plan() const noexcept;
     [[nodiscard]] const CompiledComposition& compiled_composition() const noexcept;
-    [[nodiscard]] const render_plan::CanvasSpec& canvas() const noexcept;
-    [[nodiscard]] const render_plan::OutputSpec& output() const noexcept;
-    [[nodiscard]] const std::string& job_id() const noexcept;
     [[nodiscard]] std::uint64_t fingerprint() const noexcept { return data_->fingerprint_data.digest; }
 
 private:

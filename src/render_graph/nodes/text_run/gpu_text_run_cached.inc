@@ -66,9 +66,9 @@ graph::RenderOpResult draw_cached_text_run(
             layout.font.font_path, state.glyph_id,
             static_cast<u32>(font_size));
         if ((!entry || !entry->image || entry->image->empty()) &&
-            ctx.services.asset_resolver) {
+            ctx.asset_resolver) {
             auto warmed = rasterize_missing_glyph(
-                *ctx.services.text_render_resources, *ctx.services.asset_resolver,
+                *ctx.services.text_render_resources, *ctx.asset_resolver,
                 layout.font.font_path, state.glyph_id,
                 static_cast<u32>(font_size), state.fill);
             if (warmed) {
@@ -125,8 +125,10 @@ graph::RenderOpResult draw_cached_text_run(
             append_key(shadow.opacity);
             append_key(shadow.color);
         }
-        auto styled = ctx.services.gpu_text_atlas_cache
-            ? ctx.services.gpu_text_atlas_cache->find_styled(style_key)
+        auto* styled_cache = ctx.runtime
+            ? &ctx.runtime->gpu_styled_glyph_cache() : nullptr;
+        auto styled = styled_cache
+            ? styled_cache->find_styled(style_key)
             : std::shared_ptr<const runtime::GpuStyledGlyphCache::StyledGlyphBitmap>{};
         if (profiling::g_current_counters) {
             auto& counter = styled
@@ -226,8 +228,8 @@ graph::RenderOpResult draw_cached_text_run(
                 }
             }
             auto pixels = std::make_shared<const std::vector<float>>(std::move(rgba));
-            if (ctx.services.gpu_text_atlas_cache) {
-                ctx.services.gpu_text_atlas_cache->store_styled(
+            if (styled_cache) {
+                styled_cache->store_styled(
                     style_key, static_cast<std::uint32_t>(output_width),
                     static_cast<std::uint32_t>(output_height), pixels);
             }

@@ -117,13 +117,14 @@ RenderPreparationResult prepare_render(
             renderer, Scene{}, CompositionSpec{}, options);
     }
     const auto& runtime = renderer->runtime();
-    const auto& canvas = program.canvas();
+    const auto& metadata = program.metadata();
+    const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     const auto context = make_frame_context({
         .global_time = SampleTime::from_frame_int(
-            options.reference_frame, canvas.fps),
-        .duration = canvas.duration,
-        .width = canvas.width,
-        .height = canvas.height,
+            options.reference_frame, canvas_fps),
+        .duration = Frame{metadata.duration_frames},
+        .width = static_cast<i32>(metadata.width),
+        .height = static_cast<i32>(metadata.height),
         .assets_root = runtime.resolver().mount_root().string(),
         .font_engine = &runtime.font_engine(),
         .runtime = &runtime,
@@ -146,11 +147,11 @@ RenderPreparationResult prepare_render(
     auto result = detail::prepare_render_scene(
         renderer, scene,
         CompositionSpec{
-            .name = program.job_id(),
-            .width = canvas.width,
-            .height = canvas.height,
-            .frame_rate = canvas.fps,
-            .duration = canvas.duration},
+            .name = metadata.job_id,
+            .width = static_cast<i32>(metadata.width),
+            .height = static_cast<i32>(metadata.height),
+            .frame_rate = canvas_fps,
+            .duration = Frame{metadata.duration_frames}},
         options);
     if (result.ok() && options.warmup_renderer) {
         result.warmup = warmup_renderer(*renderer, program, options.warmup);

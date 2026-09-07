@@ -91,7 +91,7 @@ namespace chronon3d {
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
     class RendererBufferRing;
-    namespace runtime { class JobSession; }
+    namespace runtime { class JobSession; class RuntimeContext; }
     class TextRenderResources;
     class ImageCache;
 }
@@ -117,7 +117,7 @@ namespace chronon3d::effects {
 
 // WP-8 PR 8.0 — typed engine-local asset resolver lives on the per-
 // engine RuntimeContext.  Forward-declared at FILE SCOPE here so the
-// `RenderServices::asset_resolver` pointer below can hold a non-owning
+// `RenderGraphContext::asset_resolver` pointer below can hold a non-owning
 // reference; the full definition is in <chronon3d/assets/asset_resolver.hpp>.
 // Callers that dereference the pointer MUST include that header
 // themselves; the SDK header stays lightweight.
@@ -283,8 +283,10 @@ struct RenderPolicy {
     bool tile_execution_enabled{false};
 };
 
-// ── Service locator: long-lived backends, caches, catalogs, builder ─────────
-// Replaces RenderResourceContext.  The legacy std::function field
+// ── Graph-only dependencies: backend, graph caches, catalogs, builder ──────
+// Runtime-owned caches are reached through RenderGraphContext::runtime;
+// they are deliberately not copied into this per-frame dependency set.
+// Replaces RenderResourceContext. The legacy std::function field
 // `precomp_build` is replaced by a typed `precomp_builder*` pointer to a
 // `PrecompBuilderService` (typically DefaultPrecompBuilder) owned by
 // `PipelineCatalogs`.
@@ -292,14 +294,9 @@ struct RenderPolicy {
 struct RenderServices {
     RenderBackend* backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
-    runtime::GpuAssetCache* gpu_asset_cache{nullptr};
-    runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
-    runtime::GpuStyledGlyphCache* gpu_text_atlas_cache{nullptr};  // deprecated name, kept for ABI
-    ImageCache* image_cache{nullptr};
     TextRenderResources* text_render_resources{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
-    CompiledGraphCache* compiled_graph_cache{nullptr};
     const CompositionRegistry* registry{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
 
@@ -327,38 +324,11 @@ struct RenderServices {
     std::uint64_t registry_generation{0};
 
     /// TICKET-010 / TICKET-011 — PR-B scheduler accessor.  PrecompNode
-    /// dereferences `*ctx.services.scheduler` to route its inner execute()
+    /// dereferences `*ctx.scheduler` to route its inner execute()
     /// through the same arena as the parent graph.  Set by
     /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
     /// (which forwards to `RuntimeContext::scheduler()`).  Lifetime is
     /// pinned to the owning runtime; never dereference past shutdown.
-    chronon3d::ExecutionScheduler* scheduler{nullptr};
-
-    /// PR-5 / PR-2-rewire — parent job-session pointer (the typed seam of
-    /// the FrameExecution → JobSession → RuntimeContext chain).  PrecompNode
-    /// borrows the session's arena (via `session->arena()`) for inner graph
-    /// execution PMR allocations, the executor, and the scene program store
-    /// (via `session->program_store()`) for cache lookups.  Set by
-    /// scene.cpp / scene_context_setup.cpp when a SoftwareRenderer is
-    /// available.  Null in test paths without a wired session.
-    chronon3d::runtime::JobSession* session{nullptr};
-
-    /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
-    /// pointer into the owning RuntimeContext's resolver).  Set by
-    /// `preflight.cpp::debug_preflight_render_graph` (and any future
-    /// graph-building surface that needs to resolve relative asset
-    /// paths through the same instance the renderer uses).  Null when
-    /// no resolver has been wired into the context — callers MUST
-    /// null-check before dereferencing.
-    /// NOTE: callers that dereference `asset_resolver` MUST
-    /// `#include <chronon3d/assets/asset_resolver.hpp>` themselves;
-    /// the SDK header stays lightweight (forward decl only above).
-    chronon3d::assets::AssetResolver* asset_resolver{nullptr};
-
-    /// Runtime-owned prepared mesh cache used by the graph build boundary.
-    /// The graph borrows this cache; it never creates a second cache.
-    chronon3d::assets::MeshPreparationCache* mesh_cache{nullptr};
-
     /// Immutable resource-preparation snapshot for this render invocation.
     /// Graph construction consumes it; it never performs asset I/O.
     std::shared_ptr<const chronon3d::runtime::PreparedAssets> prepared_assets;
@@ -551,6 +521,23 @@ struct RenderGraphContext {
     RenderPolicy         policy{};
     RenderServices       services{};
     NodeExecutionContext node_exec{};
+
+    /// Borrowed engine-lifetime owner for runtime-owned caches and resources.
+    /// These dependencies are intentionally not duplicated in RenderServices.
+    runtime::RuntimeContext* runtime{nullptr};
+    /// Graph cache selected for this invocation. Temporal samples may borrow
+    /// an isolated cache while normal frames use RuntimeContext::graph_cache.
+    CompiledGraphCache* compiled_graph_cache{nullptr};
+    /// Scheduler selected for this invocation. Nested graph execution and
+    /// tile work borrow the same scheduler as the parent frame.
+    chronon3d::ExecutionScheduler* scheduler{nullptr};
+
+    /// Resolver dependency is explicit because preflight may run without a
+    /// RuntimeContext. Production scene setup wires RuntimeContext::resolver;
+    /// standalone preflight wires its supplied resolver directly.
+    chronon3d::assets::AssetResolver* asset_resolver{nullptr};
+    /// Borrowed job owner for nested scene execution and frame history.
+    chronon3d::runtime::JobSession* session{nullptr};
 
     /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a
     /// frame-scoped optional (stack storage, zero per-frame heap churn) and

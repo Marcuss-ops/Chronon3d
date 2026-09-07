@@ -117,8 +117,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         // catalogs, processor snapshot), but no sample state is published to
         // the main session.
         ctx.services.node_cache = active_node_cache;
-        ctx.services.compiled_graph_cache = temporal_context->topology_cache;
-        ctx.services.session = temporal_context->session;
+        ctx.compiled_graph_cache = temporal_context->topology_cache;
+        ctx.session = temporal_context->session;
         ctx.node_exec.buffer_ring = nullptr;
         ctx.frame_input.sample_time = temporal_context->sample_time;
         ctx.frame_input.temporal_key = temporal_context->sample_key;

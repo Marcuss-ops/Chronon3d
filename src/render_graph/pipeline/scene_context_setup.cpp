@@ -53,6 +53,8 @@ SoftwareRenderer* setup_render_graph_context(
     // shared immutable FrameStaticContext: per-node context clones copy a
     // shared_ptr instead of deep-copying the string (hot-path tax C).
     if (sw_renderer) {
+        ctx.runtime = &sw_renderer->runtime();
+        ctx.asset_resolver = &sw_renderer->runtime().resolver();
         if (const auto root = sw_renderer->runtime().resolver().mount_root();
             !root.empty()) {
             ctx.frame_input.static_context =
@@ -92,7 +94,7 @@ SoftwareRenderer* setup_render_graph_context(
     // PrecompNode creation, and dirty/tile policies can access them
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
-        ctx.services.compiled_graph_cache = &sw_renderer->graph_cache();
+        ctx.compiled_graph_cache = &sw_renderer->graph_cache();
         // The processor snapshot captured by SoftwareBackend is owned by
         // SoftwareRegistry and carries that registry's generation. Use the
         // same canonical generation for graph compilation; hashing it with
@@ -106,27 +108,19 @@ SoftwareRenderer* setup_render_graph_context(
         ctx.services.node_catalog = &sw_renderer->graph_node_registry();
         ctx.services.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────
-        // PrecompNode dereferences `*ctx.services.scheduler` to route its
+        // PrecompNode dereferences `*ctx.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
-        ctx.services.scheduler = &sw_renderer->scheduler();
+        ctx.scheduler = &sw_renderer->scheduler();
         // PR-5 — propagate the job-session pointer so PrecompNode borrows
-        // the scene program store through the typed JobSession seam
-        // (ctx.services.session->program_store()).  RenderServices carries
-        // no separate store pointer: the session is the single owner.
-        ctx.services.session = &sw_renderer->session();
-        ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
-        ctx.services.gpu_asset_cache = &sw_renderer->runtime().gpu_asset_cache();
-        ctx.services.gpu_glyph_atlas = &sw_renderer->runtime().gpu_glyph_atlas();
-        ctx.services.gpu_text_atlas_cache = &sw_renderer->runtime().gpu_styled_glyph_cache();
-        ctx.services.image_cache = &sw_renderer->runtime().image_cache();
+        // the scene program store through the typed JobSession seam.
+        ctx.session = &sw_renderer->session();
         ctx.services.text_render_resources = sw_renderer->text_render_resources();
-        ctx.services.mesh_cache = &sw_renderer->runtime().mesh_cache();
         ctx.services.prepared_assets =
             sw_renderer->runtime().prepared_assets_for(scene.asset_manifest());
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.
-        assert(ctx.services.scheduler != nullptr);
+        assert(ctx.scheduler != nullptr);
     }
 
     return sw_renderer;
