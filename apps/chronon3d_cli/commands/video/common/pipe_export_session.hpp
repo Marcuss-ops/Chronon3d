@@ -19,6 +19,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -124,7 +125,11 @@ struct PipeExportSession {
         return full_graph_session ? full_graph_session->renderer.get() : nullptr;
     }
 
-    runtime::BoundedChannel<RenderFramePackage> queue;
+    // SPSC render→writer handoff: fixed-capacity lock-free ring (Wave 3).
+    // The render/DirectYUV loop is the single producer; the writer thread is
+    // the single consumer. See pipe_export_queue.hpp for the lifecycle
+    // (Open/Closed/Failed) and backpressure semantics.
+    RenderFrameQueue queue;
     std::atomic<bool> writer_failed{false};
     std::unique_ptr<WriterThreadContext> writer_ctx;
     std::thread writer_thread;
@@ -133,8 +138,19 @@ struct PipeExportSession {
 
     std::vector<chronon3d::telemetry::FrameTelemetry> frame_encoder_telemetry;
 
-    explicit PipeExportSession(size_t queue_capacity)
-        : queue(queue_capacity) {
+    // queue_capacity is retained for source compatibility and its non-zero
+    // contract (F8.1 — the video pipeline REQUIRES bounded backpressure: an
+    // unbounded queue would buffer whole frames until OOM under encoder
+    // stall). The SPSC ring capacity is a compile-time constant
+    // (RenderFrameQueue::kCapacity); the argument only guards the historic
+    // 0 = unbounded misuse.
+    explicit PipeExportSession(size_t queue_capacity) {
+        if (queue_capacity == 0) {
+            throw std::invalid_argument(
+                "PipeExportSession requires a bounded queue capacity (> 0)");
+        }
+        static_assert(RenderFrameQueue::kCapacity == 4,
+                      "SPSC ring capacity must match the historic 4-slot handoff");
     }
 
     ~PipeExportSession() {

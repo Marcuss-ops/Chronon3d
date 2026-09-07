@@ -6,6 +6,12 @@ struct RenderPlanState {
     std::string assets_root;
     std::uint64_t start_frame{0};
     std::uint64_t end_frame{0};
+    // start_frame/end_frame explicitness: only an EXPLICIT --start-frame /
+    // --end-frame pair (or daemon range_enabled) makes an end value of 0 a
+    // real inclusive last frame 0. When end was never requested, the legacy
+    // end==0 sentinel still means "through the last frame".
+    bool start_frame_explicit{false};
+    bool end_frame_explicit{false};
     std::uint32_t fps_num{30};
     std::uint32_t fps_den{1};
     int crf{-1};
@@ -17,6 +23,7 @@ struct RenderPlanState {
     std::string trace_output;
     std::string trace_level{"pipeline"};
     std::string gpu_hot_path_mode{"auto"};
+    std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
 };
 
@@ -62,9 +69,16 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
 
         const auto output = args.output.empty() ? prepared.output.path : args.output;
         const auto first = static_cast<std::int64_t>(args.start_frame);
-        const auto last = args.end_frame == 0
-            ? prepared.canvas.duration.integral() - 1
-            : static_cast<std::int64_t>(args.end_frame);
+        // Explicit frame-range semantics: when --end-frame (or the daemon
+        // range_end) was explicitly requested, an end value of 0 is a real
+        // inclusive last frame 0 (single-frame chunk at frame 0). Without an
+        // explicit end the legacy end==0 sentinel means "through the last
+        // frame of the plan".
+        const std::int64_t last = args.end_frame_explicit
+            ? static_cast<std::int64_t>(args.end_frame)
+            : (args.end_frame == 0
+                ? prepared.canvas.duration.integral() - 1
+                : static_cast<std::int64_t>(args.end_frame));
         RenderRequest request;
         request.comp_id = prepared.job_id;
         request.compiled_composition = std::make_shared<const CompiledComposition>(
@@ -147,6 +161,12 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.video_settings.encode_preset_explicit =
             !args.video.encode_preset.empty() || !args.encode_preset.empty();
         request.video_settings.tune_explicit = false;
+        // The (0,0) frame pair only re-expands to the whole plan when NO
+        // range was requested. Explicit --start/--end or daemon range_enabled
+        // keeps 0..0 as a real single-frame chunk (see RenderRequest docs).
+        request.frame_range_explicit =
+            args.start_frame_explicit || args.end_frame_explicit;
+
         if (video_output(output)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
@@ -197,6 +217,11 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
                 receipt_input.frames = prepared.canvas.duration.integral();
                 receipt_input.requested_codec = codec_name(prepared.output.codec);
                 receipt_input.has_audio_tracks = false;
+                // Explicit per-job verification policy (daemon RENDER_JOB
+                // payload / render-plan boundary). Empty falls back to the
+                // process environment (CHRONON_RECEIPT_VERIFY), preserving
+                // the CLI subprocess contract.
+                receipt_input.receipt_verify_policy = args.receipt_verify;
 
                 const auto receipt = verification::build_render_receipt(
                     receipt_input, output, video_output(output));

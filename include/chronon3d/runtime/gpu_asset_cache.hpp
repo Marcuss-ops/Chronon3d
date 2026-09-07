@@ -90,7 +90,15 @@ struct GpuAssetCacheStats {
 /// through `m_inflight` + `m_inflight_cv`.
 class GpuAssetCache {
 public:
-    explicit GpuAssetCache(std::size_t budget_bytes = 0) : m_budget_bytes(budget_bytes) {}
+    // F4.3 — the DEFAULT budget is bounded (512 MB): both production
+    // instances (RenderRuntime::m_gpu_asset_cache and the styled-glyph cache
+    // inside GpuGlyphAtlas) default-construct, so a default of 0 meant
+    // "unbounded" — VRAM growth without limit in a long-lived daemon as
+    // distinct assets accumulate. Callers that genuinely want unbounded
+    // residency (tests, explicit policy) still pass 0 explicitly.
+    static constexpr std::size_t kDefaultBudgetBytes = 512ULL * 1024ULL * 1024ULL;
+    explicit GpuAssetCache(std::size_t budget_bytes = kDefaultBudgetBytes)
+        : m_budget_bytes(budget_bytes) {}
     ~GpuAssetCache();
 
     GpuAssetCache(const GpuAssetCache&) = delete;

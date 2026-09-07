@@ -57,7 +57,7 @@ struct PipeExportTelemetry {
 };
 
 struct WriterThreadContext {
-    runtime::BoundedChannel<RenderFramePackage>& queue;
+    RenderFrameQueue& queue;
     std::atomic<bool>& writer_failed;
     TripleBufferArena* triple_arena{nullptr};
     IVideoEncoder& encoder;
@@ -84,7 +84,7 @@ struct RenderLoopContext {
     const FfmpegExportOptions& opts;
     std::optional<media::VideoExecutionPlan> execution_plan;
     SoftwareRenderer* sw_renderer;
-    runtime::BoundedChannel<RenderFramePackage>& queue;
+    RenderFrameQueue& queue;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
     runtime::GpuSlotPool& execution_slots;

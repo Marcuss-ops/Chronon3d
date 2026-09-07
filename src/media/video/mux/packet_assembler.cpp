@@ -162,7 +162,7 @@ struct MuxAvioHashWriter {
         return true;
     }
 
-    static int write_packet(void* opaque, const std::uint8_t* buffer, int buffer_size) noexcept {
+    static int write_packet(void* opaque, std::uint8_t* buffer, int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
         if (buffer_size == 0) return 0;
@@ -490,7 +490,7 @@ bool MuxSession::write_header(const std::string& output_path,
             return false;
         }
         format_->pb = avio_alloc_context(buffer, kMuxAvioBufferSize, 1, writer_.get(),
-                                         nullptr, &MuxAvioHashWriter::write_packet,
+                                         nullptr, +MuxAvioHashWriter::write_packet,
                                          &MuxAvioHashWriter::seek);
         if (!format_->pb) {
             av_free(buffer);

@@ -53,7 +53,7 @@ CapturedOutput run_capture_checked(const std::string& command) {
     return result;
 }
 
-/// Post-render verification policy.  Controlled by CHRONON_RECEIPT_VERIFY:
+/// Post-render verification policy.
 ///   "fast"    — container/stream metadata only; the freshly-muxed output is
 ///               NOT re-decoded.  Default: the encoder + muxer just succeeded
 ///               in-process and no consumer gates on the receipt's decode
@@ -65,22 +65,24 @@ CapturedOutput run_capture_checked(const std::string& command) {
 ///               (frame count) PLUS the independent `ffmpeg -f null -` smoke.
 enum class VerifyLevel { Fast, Normal, Certify };
 
-VerifyLevel verify_level() {
-    static const VerifyLevel level = [] {
-        if (const char* raw = std::getenv("CHRONON_RECEIPT_VERIFY")) {
-            const std::string value(raw);
-            if (value == "normal") return VerifyLevel::Normal;
-            if (value == "certify") return VerifyLevel::Certify;
-        }
-        return VerifyLevel::Fast;
-    }();
-    return level;
+/// Resolve the verification level from a raw policy string.  The raw policy
+/// is the per-job requested value (daemon RENDER_JOB payload / IPC) or the
+/// CHRONON_RECEIPT_VERIFY environment value; "" and unknown values resolve
+/// to Fast (the production hot path).
+VerifyLevel verify_level_from(const std::string& raw) {
+    if (raw == "normal") return VerifyLevel::Normal;
+    if (raw == "certify") return VerifyLevel::Certify;
+    return VerifyLevel::Fast;
 }
 
-/// Raw requested policy from the environment ("" when unset).  Recorded on
-/// the receipt so consumers can distinguish "no policy requested" from the
+/// Raw requested policy: explicit per-job policy first, then the
+/// CHRONON_RECEIPT_VERIFY environment ("" when unset).  Recorded on the
+/// receipt so consumers can distinguish "no policy requested" from the
 /// resolved default.
-std::string requested_verify_policy() {
+std::string requested_verify_policy(const std::string& explicit_policy) {
+    if (!explicit_policy.empty()) {
+        return explicit_policy;
+    }
     if (const char* raw = std::getenv("CHRONON_RECEIPT_VERIFY")) {
         return std::string(raw);
     }
@@ -88,8 +90,8 @@ std::string requested_verify_policy() {
 }
 
 /// Canonical name of the policy level that will actually run.
-std::string resolved_verify_policy_name() {
-    switch (verify_level()) {
+std::string resolved_verify_policy_name(VerifyLevel level) {
+    switch (level) {
         case VerifyLevel::Normal: return "normal";
         case VerifyLevel::Certify: return "certify";
         default: return "fast";
@@ -253,9 +255,14 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.frames = input.frames;
 
     // Record the verification policy that was requested and the level that
-    // will actually run, before any output-dependent work.
-    receipt.verification.requested_policy = requested_verify_policy();
-    receipt.verification.resolved_policy = resolved_verify_policy_name();
+    // will actually run, before any output-dependent work.  The explicit
+    // per-job policy (when supplied) wins over the environment so a daemon
+    // job can never silently drift from the policy the caller requested.
+    const std::string policy_raw = requested_verify_policy(
+        input.receipt_verify_policy);
+    const VerifyLevel level = verify_level_from(policy_raw);
+    receipt.verification.requested_policy = policy_raw;
+    receipt.verification.resolved_policy = resolved_verify_policy_name(level);
 
     std::error_code ec;
     const bool exists = std::filesystem::exists(output_path, ec) && !ec &&
@@ -274,7 +281,6 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     }
 
     if (is_video) {
-        const VerifyLevel level = verify_level();
         const bool probed = probe_media(
             output_path, receipt.media,
             /*require_exit_ok=*/level != VerifyLevel::Certify,
