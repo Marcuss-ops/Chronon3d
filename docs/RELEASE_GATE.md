@@ -20,6 +20,8 @@ Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **st
 | 3 | Build lean | Compilazione senza contenuti opzionali |
 | 4 | Test lean | Test senza contenuti, nessun fallimento |
 | 5 | Architecture gate | `tools/check_architecture.py` (regole in `tools/architecture_rules.toml`) bloccante |
+| 5a | Architecture gate selftest | `tools/architecture_gate_selftest.sh` (10 fixture negative + mirror wave9) — certifica il certificatore |
+| 5b | CMake DAG gate | regole `cmake_dag` (target demoliti + edge leaf→aggregate) nello stesso engine, sopra i CMake source-of-truth |
 | 6 | Renderer boundary gate | Gate renderer/backend bloccante |
 | 7 | No-content build/test | Build e test senza moduli content |
 | 8 | Scene/camera test | Link + run di `chronon3d_scene_tests` |

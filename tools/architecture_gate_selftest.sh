@@ -146,6 +146,40 @@ EOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# Cases 9/10 — cmake_dag rule kind (Phase 11/12): forbidden_target fires on a
+# recreated facade, forbidden_edge fires on a leaf -> aggregate link.
+# ─────────────────────────────────────────────────────────────────────────
+case9_cmake_forbidden_target() {
+    write_file "$1" "rules.toml" <<'EOF'
+[[cmake_dag]]
+name = "selftest_cmake_forbidden_target"
+kind = "forbidden_target"
+targets = ["chronon3d_software"]
+EOF
+    write_file "$1" "CMakeLists.txt" <<'EOF'
+# regression: recreating the demolished aggregate (even as ALIAS)
+add_library(chronon3d_software ALIAS chronon3d_pipeline)
+EOF
+}
+
+case10_cmake_forbidden_edge() {
+    write_file "$1" "rules.toml" <<'EOF'
+[[cmake_dag]]
+name = "selftest_cmake_forbidden_edge"
+kind = "forbidden_edge"
+source = "chronon3d_media_direct_yuv"
+forbidden_deps = ["chronon3d_pipeline"]
+EOF
+    write_file "$1" "src/media/video/direct_yuv/CMakeLists.txt" <<'EOF'
+# regression: leaf depending on the whole-pipeline aggregate
+add_library(chronon3d_media_direct_yuv STATIC)
+target_link_libraries(chronon3d_media_direct_yuv PRIVATE
+    chronon3d_pipeline
+)
+EOF
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # Wave-9 compliant mirror tree — exercises the REAL architecture_rules_wave9
 # fragment on a miniature Phase-9-clean tree (rules.toml is a byte copy of
 # the canonical fragment so the selftest can never drift from it).
@@ -263,6 +297,8 @@ expect_pass case5_wave9_compliant wave9_mirror
 expect_fail case6_wave9_reforward wave9_broken_reforward
 expect_fail case7_wave9_second_normalize wave9_broken_second_normalize
 expect_fail case8_wave9_warm_dispatcher wave9_broken_warm_dispatcher
+expect_fail case9_cmake_forbidden_target case9_cmake_forbidden_target
+expect_fail case10_cmake_forbidden_edge case10_cmake_forbidden_edge
 
 echo
 if [[ "$FAIL" == "0" ]]; then

@@ -87,26 +87,26 @@ if(CHRONON3D_ENABLE_IPC)
     add_subdirectory(ipc)
 endif()
 
-# Logical aggregate targets consumed by the CLI, tests, and SDK facade.
-add_library(chronon3d_software INTERFACE)
-target_link_libraries(chronon3d_software INTERFACE
+# Phase 12 (CMake DAG demolition): the former `chronon3d_software` INTERFACE
+# aggregate was semantically dishonest — a target named "software" that pulled
+# in the Vulkan backend and the GPU video backends whenever they were enabled.
+# It has been demolished: the pipeline aggregate now lists the semantic backend
+# capability boundaries directly. A `chronon3d_software` facade must not be
+# recreated (enforced by the cmake_dag forbidden_target rule).
+add_library(chronon3d_pipeline INTERFACE)
+target_link_libraries(chronon3d_pipeline INTERFACE
+    chronon3d_core
     chronon3d_backend_software
     chronon3d_backend_assets
     chronon3d_backend_image
 )
 if(CHRONON3D_ENABLE_VULKAN)
-    target_link_libraries(chronon3d_software INTERFACE chronon3d_backend_vulkan)
+    target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_backend_vulkan)
 endif()
 if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_software INTERFACE
+    target_link_libraries(chronon3d_pipeline INTERFACE
         chronon3d_backend_video chronon3d_media_video)
 endif()
-
-add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE
-    chronon3d_core
-    chronon3d_software
-)
 
 # `chronon3d_assets` is an OBJECT library, so its private OpenSSL dependency
 # does not reach final consumers through the SDK aggregate.  Publish the

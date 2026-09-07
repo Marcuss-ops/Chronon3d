@@ -10,9 +10,13 @@ NVDEC → native surface → CUDA/Vulkan compose → NVENC
 
 Senza copie CPU, senza conversioni di formato, senza intermedi.
 
-## I 8 Gate Obbligatori
+## I 13 Gate Mandatori (Phase 13)
 
-Tutti i gate devono essere **= 0** per `ZERO_COPY_PASS`:
+**Non esistono gate opzionali** (Phase 13): ogni gate sottostante è mandatory.
+Un gate il cui valore non può essere verificato produce `ZERO_COPY_BLOCKED`,
+mai un PASS. Gli otto contatori di copia devono essere **= 0**, i due
+contatori di identità nativa devono essere **> 0**, e le tre identità di
+esecuzione devono corrispondere esattamente:
 
 | # | Gate | Metrica | Target | Cosa misura |
 |---|---|---|---|---|
@@ -24,15 +28,19 @@ Tutti i gate devono essere **= 0** per `ZERO_COPY_PASS`:
 | 6 | **gpu_surface_copy_frames** | `gpu_surface_copy_frames` | = 0 | Frame con copie superficie GPU |
 | 7 | **cpu_pixel_readback_bytes** | `cpu_pixel_readback_bytes` | = 0 | Byte pixel letti da CPU |
 | 8 | **video_surface_upload_bytes** | `video_surface_upload_bytes` | = 0 | Byte superficie video caricati |
-
-## I 2 Gate Opzionali
-
-Informativi, non bloccano la certificazione:
-
-| # | Gate | Metrica | Target | Cosa misura |
-|---|---|---|---|---|
 | 9 | **native_surface_frames** | `gpu_native_surface_frames` | > 0 | Frame con superfici GPU native |
 | 10 | **native_encode_frames** | `gpu_native_encode_frames` | > 0 | Frame codificati nativamente via NVENC |
+| 11 | **effective_backend** | `effective_backend` | = `vulkan` | Il backend effettivo di rendering |
+| 12 | **encoder_backend** | `encoder_backend` | = `nvenc` | L'autorità encoder nativa |
+| 13 | **surface_handoff_path** | `surface_handoff_path` | = `direct` | Handoff superficie senza indirezione |
+
+### Autorità: il timing sidecar, non il log
+
+Il `*.timing.json` sidecar è l'autorità dei contatori. In modalità
+certificazione (`tools/verify_zero_copy_end_to_end.sh`) un sidecar mancante
+produce **`ZERO_COPY_BLOCKED`** — mai un fallback verso il parsing del
+`render.log`. Il log resta diagnostico; la certificazione richiede il
+sidecar.
 
 ## Gate 1 — due lane, stessa semantica (Z-wave F5/F7)
 

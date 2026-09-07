@@ -440,6 +440,81 @@ class Runner:
             if toks:
                 yield match.group(1).lower(), toks
 
+    def cmake_cmake_files(self):
+        """Yield every CMake build file (CMakeLists.txt and *.cmake) under the
+        root, excluding build trees, newest first is irrelevant — pruned walk."""
+        seen: set[Path] = set()
+        for pattern in ("CMakeLists.txt", "*.cmake"):
+            for path in pruned_rglob(self.root, pattern):
+                if any(part in EXCLUDED_DIRS or part.startswith("build-")
+                       for part in path.parts):
+                    continue
+                if path not in seen:
+                    seen.add(path)
+                    yield path
+
+    def check_cmake_dag_rule(self, rule: dict[str, Any]) -> None:
+        """Phase 11/12 CMake DAG gates, read from the same declarative registry.
+
+        Two rule kinds are supported:
+          * forbidden_target — a demolished target name must not be (re)created
+            by add_library/add_executable (plain or ALIAS); mentioning it in a
+            comment or documentation is fine, defining it is a gate failure.
+          * forbidden_edge — a source target must not list the forbidden
+            dependencies in target_link_libraries (leaf -> whole-aggregate
+            inverted dependencies and facade fallbacks).
+        This is a source-of-truth check over the CMakeLists/*.cmake files; CI
+        re-runs the same invariants on the configured codemodel.
+        """
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        kind = rule.get("kind")
+        violations: list[str] = []
+        for path in self.cmake_cmake_files():
+            rel = relpath(self.root, path)
+            text = read_text(path)
+            # CMake comments are '#...'; keep string literals intact.
+            text = re.sub(r'"(?:\\.|[^"\\])*"|#[^\n]*',
+                          lambda m: m.group(0) if m.group(0).startswith('"') else re.sub(r"[^\n]", " ", m.group(0)),
+                          text)
+            if kind == "forbidden_target":
+                for target in rule.get("targets", []):
+                    rx = re.compile(
+                        r"\b(?:add_library|add_executable)\s*\(\s*" + re.escape(target) + r"(?:\s+ALIAS)?\b",
+                        re.I)
+                    for m in rx.finditer(text):
+                        line_no = text.count("\n", 0, m.start()) + 1
+                        violations.append(f"{rel}:{line_no}: defines demolished target {target}")
+            elif kind == "forbidden_edge":
+                source = rule.get("source")
+                forbidden = rule.get("forbidden_deps", [])
+                command_re = re.compile(r"\btarget_link_libraries\s*\(", re.I)
+                for match in command_re.finditer(text):
+                    depth, i = 1, match.end()
+                    while i < len(text) and depth:
+                        depth += (text[i] == "(") - (text[i] == ")")
+                        i += 1
+                    if depth:
+                        continue
+                    raw = text[match.end():i - 1]
+                    toks = [a or b for a, b in re.findall(r'"([^"]+)"|([^\s]+)', raw)]
+                    if toks and toks[0] == source:
+                        for dep in forbidden:
+                            if dep in toks:
+                                line_no = text.count("\n", 0, match.start()) + 1
+                                violations.append(
+                                    f"{rel}:{line_no}: {source} links {dep} (forbidden edge)")
+            else:
+                self.fail(name, f"unknown cmake_dag kind: {kind}")
+                return
+        if violations:
+            self.fail(name, f"{len(violations)} violation(s)")
+            for item in violations[:10]:
+                print(f"         {item}")
+        else:
+            self.ok(name, f"clean ({len(list(self.cmake_cmake_files()))} cmake files)")
+
     def check_cmake_ownership(self) -> None:
         cfg = self.rules.get("cmake_ownership")
         name = "cmake_ownership"
@@ -686,6 +761,8 @@ class Runner:
         for rule in self.rules.get("loc_bound", []):
             self.check_loc_bound(rule)
         self.check_effect_processor_coverage()
+        for rule in self.rules.get("cmake_dag", []):
+            self.check_cmake_dag_rule(rule)
         self.check_cmake_ownership()
         self.check_test_registration()
         self.check_cmake_registry()

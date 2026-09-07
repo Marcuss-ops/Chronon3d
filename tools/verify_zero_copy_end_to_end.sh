@@ -5,19 +5,22 @@
 # Validates that the video pipeline achieves true zero-copy end-to-end:
 #   NVDEC → native surface → CUDA/Vulkan compose → NVENC
 #
-# Required gates (ALL must pass for ZERO_COPY_PASS):
-#   1. host_upload_bytes = 0         (no CPU→GPU uploads)
-#   2. host_readback_bytes = 0       (no GPU→CPU readbacks)
-#   3. nv12_to_rgba_frames = 0       (no NV12→RGBA conversions)
-#   4. rgba_to_nv12_frames = 0       (no RGBA→NV12 conversions)
-#   5. encoder_staging_copy_bytes = 0 (no encoder staging copies)
-#   6. gpu_surface_copy_frames = 0   (no GPU surface copies)
-#   7. cpu_pixel_readback_bytes = 0  (no CPU pixel readbacks)
-#   8. video_surface_upload_bytes = 0 (no video surface uploads)
-#
-# Optional gates (reported but don't block):
-#   - gpu_native_surface_frames > 0  (frames using native GPU surfaces)
-#   - gpu_native_encode_frames > 0   (frames encoded natively via NVENC)
+# 13 MANDATORY gates (Phase 13: no "optional" gates — every gate below must
+# pass for ZERO_COPY_PASS; a gate whose value cannot be verified is a BLOCKED
+# verdict, never a pass):
+#   1.  host_upload_bytes = 0         (no CPU→GPU uploads)
+#   2.  host_readback_bytes = 0       (no GPU→CPU readbacks)
+#   3.  nv12_to_rgba_frames = 0       (no NV12→RGBA conversions)
+#   4.  rgba_to_nv12_frames = 0       (no RGBA→NV12 conversions)
+#   5.  encoder_staging_copy_bytes = 0 (no encoder staging copies)
+#   6.  gpu_surface_copy_frames = 0   (no GPU surface copies)
+#   7.  cpu_pixel_readback_bytes = 0  (no CPU pixel readbacks)
+#   8.  video_surface_upload_bytes = 0 (no video surface uploads)
+#   9.  gpu_native_surface_frames > 0  (frames using native GPU surfaces)
+#   10. gpu_native_encode_frames > 0   (frames encoded natively via NVENC)
+#   11. effective_backend identity    (must match the requested backend)
+#   12. encoder_backend identity      (must be the native/NVENC authority)
+#   13. surface_handoff_path = direct (no indirect surface handoff)
 #
 # Usage:
 #   bash tools/verify_zero_copy_end_to_end.sh

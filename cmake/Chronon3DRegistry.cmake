@@ -78,7 +78,6 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
     chronon3d_sdk_impl
     chronon3d_pipeline
     chronon3d_core
-    chronon3d_software
     chronon3d_graph
     chronon3d_media_interface
     chronon3d

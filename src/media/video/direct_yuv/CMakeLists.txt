@@ -12,8 +12,12 @@ target_include_directories(chronon3d_media_direct_yuv
         ${CMAKE_SOURCE_DIR}
 )
 
+# Phase 12 (CMake DAG demolition): this leaf/specialization target used to
+# depend on the whole `chronon3d_pipeline` aggregate (a leaf → whole-engine
+# inverted dependency). It depends on the media subsystem boundary only;
+# native FFmpeg/CUDA authorities are declared below where they are enabled.
 target_link_libraries(chronon3d_media_direct_yuv PRIVATE
-    chronon3d_pipeline
+    chronon3d_media_interface
     spdlog::spdlog_header_only
 )
 
