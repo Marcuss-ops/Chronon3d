@@ -53,9 +53,7 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     chronon3d_backend_vulkan
 
     # Render graph
-    chronon3d_graph_builder
     chronon3d_graph_cache
-    chronon3d_graph_compiler
     chronon3d_graph_core
     chronon3d_graph_executor
     chronon3d_graph_nodes

@@ -79,55 +79,6 @@ target_precompile_headers(chronon3d_graph_nodes PRIVATE
     <fmt/core.h>
 )
 
-# ── Builder: graph construction ─────────────────────────────────────────────
-add_library(chronon3d_graph_builder OBJECT
-    builder/graph_builder_pipeline.cpp
-    builder/graph_builder_static_analysis.cpp
-    builder/graph_builder_bbox.cpp
-    builder/graph_builder_matte.cpp
-    builder/graph_builder_layer_pipeline.cpp
-    builder/graph_build_pipeline.cpp
-    builder/passes/graph_builder_layer_passes.cpp
-    builder/passes/graph_builder_lighting_passes.cpp
-    builder/passes/graph_builder_source_pass.cpp
-    builder/passes/graph_builder_resolve_pass.cpp
-    builder/passes/graph_builder_root_sources_pass.cpp
-    builder/passes/graph_builder_layer_pipeline_pass.cpp
-    builder/passes/graph_builder_output_pass.cpp
-    builder/passes/graph_builder_validation_pass.cpp
-    builder/graph_build_registry.cpp
-    builder/precomp_builder_service.cpp
-)
-set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_graph_builder PUBLIC
-    chronon3d_graph_core
-    chronon3d_graph_nodes
-)
-target_precompile_headers(chronon3d_graph_builder PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-    <fmt/core.h>
-)
-
-# ── Compiler: graph compilation & optimization ──────────────────────────────
-add_library(chronon3d_graph_compiler OBJECT
-    compiler/frame_graph_compiler.cpp
-    compiler/frame_graph_builder.cpp    # FASE 16 - extracted private builders
-    compiler/scene_binding_compiler.cpp
-    compiler/fused_pixel_program.cpp    # F3.1 (TICKET-FUSION-PASS-COMPILER-V1)
-    compiler/compiled_template_program.cpp  # Fase A (TICKET-VIDEO-COMPILER-ARCH-V1)
-    optimizer/graph_optimizer.cpp
-)
-set_target_properties(chronon3d_graph_compiler PROPERTIES UNITY_BUILD OFF)
-set_source_files_properties(
-    compiler/frame_graph_builder.cpp
-    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
-)
-target_link_libraries(chronon3d_graph_compiler PUBLIC
-    chronon3d_graph_core
-    chronon3d_graph_nodes
-)
-
 # ── Executor: graph execution ───────────────────────────────────────────────
 add_library(chronon3d_graph_executor OBJECT
     executor/executor.cpp
@@ -156,7 +107,7 @@ set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_executor PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
-    chronon3d_graph_compiler
+    chronon3d_compiler
 )
 target_precompile_headers(chronon3d_graph_executor PRIVATE
     <glm/glm.hpp>
@@ -205,8 +156,7 @@ endif()
 set_target_properties(chronon3d_graph_preflight PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_preflight PUBLIC
     chronon3d_graph_core
-    chronon3d_graph_builder
-    chronon3d_graph_compiler
+    chronon3d_compiler
     chronon3d_path_cache  # TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: analysis_diagnostics.cpp:82 consumes PathExistenceMap*
 )
 
@@ -220,7 +170,7 @@ add_library(chronon3d_graph_cache OBJECT
 set_target_properties(chronon3d_graph_cache PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_cache PUBLIC
     chronon3d_graph_core
-    chronon3d_graph_compiler
+    chronon3d_compiler
 )
 
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
@@ -258,9 +208,8 @@ set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_pipeline
     PUBLIC
         chronon3d_graph_core
-        chronon3d_graph_builder
+        chronon3d_compiler
         chronon3d_graph_executor
-        chronon3d_graph_compiler
         chronon3d_graph_preflight
         chronon3d_graph_cache
     PRIVATE
@@ -285,9 +234,8 @@ add_library(chronon3d_graph INTERFACE)
 target_link_libraries(chronon3d_graph INTERFACE
     chronon3d_graph_core
     chronon3d_graph_nodes
-    chronon3d_graph_builder
+    chronon3d_compiler
     chronon3d_graph_executor
-    chronon3d_graph_compiler
     chronon3d_graph_preflight
     chronon3d_graph_pipeline
     chronon3d_graph_cache
@@ -300,9 +248,8 @@ target_link_libraries(chronon3d_graph INTERFACE
 target_sources(chronon3d_graph INTERFACE
     $<TARGET_OBJECTS:chronon3d_graph_core>
     $<TARGET_OBJECTS:chronon3d_graph_nodes>
-    $<TARGET_OBJECTS:chronon3d_graph_builder>
+    $<TARGET_OBJECTS:chronon3d_compiler>
     $<TARGET_OBJECTS:chronon3d_graph_executor>
-    $<TARGET_OBJECTS:chronon3d_graph_compiler>
     $<TARGET_OBJECTS:chronon3d_graph_preflight>
     $<TARGET_OBJECTS:chronon3d_graph_pipeline>
     $<TARGET_OBJECTS:chronon3d_graph_cache>
@@ -325,7 +272,6 @@ target_sources(chronon3d_graph INTERFACE
 target_include_directories(chronon3d_graph_nodes PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
 # Tight projected-surface geometry is an internal render-graph contract.
 # Builder and node TUs include it through the same src-only boundary.
-target_include_directories(chronon3d_graph_builder PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
 # Backend implementations own their private include paths. Render-graph
 # targets consume only the public render contracts and do not receive backend
 # private include directories transitively.
