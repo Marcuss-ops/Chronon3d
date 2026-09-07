@@ -26,6 +26,21 @@ printf 'command=' > "$out_dir/command.txt"
 printf '%q ' "$@" >> "$out_dir/command.txt"
 printf '\n' >> "$out_dir/command.txt"
 
+# Prefer repository-local profiler bundles, then fall back to system installs.
+# This keeps profiling reproducible on workstations where sudo is unavailable.
+tool_root="${CHRONON3D_PROFILERS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/profilers" 2>/dev/null && pwd || true)}"
+if [[ ! -d "$tool_root/nsight-systems" && -d "/home/pierone/.local/share/chronon3d/profilers" ]]; then
+  tool_root="/home/pierone/.local/share/chronon3d/profilers"
+fi
+nsys_tool=""
+tracy_capture_tool=""
+if [[ -n "$tool_root" ]]; then
+  nsys_tool="$(find "$tool_root/nsight-systems" -type f -name nsys -perm -111 -print -quit 2>/dev/null || true)"
+  tracy_capture_tool="$(find "$tool_root" -type f -name tracy-capture -perm -111 -print -quit 2>/dev/null || true)"
+fi
+[[ -n "$nsys_tool" ]] || nsys_tool="$(command -v nsys 2>/dev/null || true)"
+[[ -n "$tracy_capture_tool" ]] || tracy_capture_tool="$(command -v tracy-capture 2>/dev/null || true)"
+
 run_capture() {
   local name="$1"; shift
   echo "[profile] $name"
@@ -48,16 +63,17 @@ else
   printf '%s\n' 'NOT_AVAILABLE: perf' > "$out_dir/perf.status"
 fi
 
-if command -v nsys >/dev/null 2>&1; then
-  run_capture nsight nsys profile --trace=vulkan,nvml,osrt --sample=process-tree \
+if [[ -n "$nsys_tool" ]]; then
+  # Nsight Systems 2026 no longer accepts the legacy nvml trace selector.
+  run_capture nsight "$nsys_tool" profile --trace=vulkan,osrt --sample=process-tree \
     --output "$out_dir/nsys" --force-overwrite true -- "$@"
 else
   printf '%s\n' 'NOT_AVAILABLE: nsys' > "$out_dir/nsys.status"
 fi
 
-if command -v tracy-capture >/dev/null 2>&1; then
+if [[ -n "$tracy_capture_tool" ]]; then
   if [[ -n "${TRACY_HOST:-}" ]]; then
-    run_capture tracy tracy-capture -a "$TRACY_HOST" -o "$out_dir/render.tracy" -f
+    run_capture tracy "$tracy_capture_tool" -a "$TRACY_HOST" -o "$out_dir/render.tracy" -f
   else
     printf '%s\n' 'NOT_RUN: set TRACY_HOST to capture a running Tracy instrumented process' > "$out_dir/tracy.status"
   fi

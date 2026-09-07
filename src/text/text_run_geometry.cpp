@@ -112,7 +112,15 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                 // padding (rotation × layout_position tangent). No heuristic
                 // safety margin is added; the ink bbox is derived from the
                 // FreeType outline bboxes populated during shaping.
-                const float pad = g.blur + g.stroke_width
+                // Per-glyph animated stroke width lives on the glyph state;
+                // when the glyph has none, the shape-level paint stroke (in
+                // render pixels) must pad the box instead — otherwise a real
+                // pixel-wide paint stroke would be clipped at the raster
+                // surface edge.
+                const float glyph_stroke = g.stroke_width > 0.0f
+                    ? g.stroke_width
+                    : (shape.paint.stroke_enabled ? shape.paint.stroke_width : 0.0f);
+                const float pad = g.blur + glyph_stroke
                     + shear_x_extra + shear_y_extra;
                 // Per-axis scale combines local (x,y) axes with the
                 // 2.5D depth scale (scale.z acts as a uniform expansion

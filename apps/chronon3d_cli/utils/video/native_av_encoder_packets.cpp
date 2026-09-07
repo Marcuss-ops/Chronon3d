@@ -36,9 +36,10 @@ bool NativeAvEncoder::drain_packets() {
         }
 
         const auto t_mux0 = Clock::now();
-        auto owned_packet = std::shared_ptr<AVPacket>(av_packet_alloc(), [](AVPacket* value) {
-            if (value) av_packet_free(&value);
-        });
+        // Move-only packet ownership: MuxSession consumes the packet inside
+        // submit() and never retains it, so no shared_ptr control block is
+        // needed on this path.
+        media::OwnedAVPacket owned_packet(av_packet_alloc());
         if (!owned_packet || av_packet_ref(owned_packet.get(), packet_) < 0) {
             ret = AVERROR(ENOMEM);
         } else {
@@ -86,9 +87,16 @@ bool NativeAvEncoder::mux_source_audio() {
                 (end_pts == AV_NOPTS_VALUE || pts < end_pts)) {
                 if (packet->pts != AV_NOPTS_VALUE) packet->pts -= start_pts;
                 if (packet->dts != AV_NOPTS_VALUE) packet->dts -= start_pts;
-                if (!mux_->submit_audio({
-                        std::shared_ptr<AVPacket>(packet, [](AVPacket*) {}),
-                        time_base, false})) {
+                AVPacket* copy = av_packet_alloc();
+                if (!copy || av_packet_ref(copy, packet) < 0) {
+                    if (copy) av_packet_free(&copy);
+                    ok = false;
+                    av_packet_unref(packet);
+                    break;
+                }
+                media::OwnedAVPacket owned(copy);
+                if (!mux_->submit_audio(media::EncodedPacket{
+                        std::move(owned), time_base, false})) {
                     ok = false;
                     av_packet_unref(packet);
                     break;

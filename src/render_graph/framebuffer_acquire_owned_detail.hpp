@@ -71,8 +71,13 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
+    // F2.3 — the swap-transfer requires pool-provenance storage. Scratch,
+    // arena and renderer-owned (planned physical slot) buffers must never be
+    // re-wrapped with a pool deleter. Fall through to the explicit-copy path
+    // instead of swapping.
     if (node_exec.reusable_bottom.get() == &other &&
-        node_exec.reusable_bottom.use_count() <= 2)
+        node_exec.reusable_bottom.use_count() <= 2 &&
+        other.storage_transferable())
     {
         const auto orig_surface_handle = other.surface_handle();
         auto* placeholder = new Framebuffer(1, 1, false);
@@ -148,7 +153,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
         }
         return OwnedFB(placeholder, PoolFbDeleter(DeleteFramebuffer{}));
     }
-    if (src.use_count() == 1) {
+    if (src.use_count() == 1 && src->storage_transferable()) {
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(*src);
         PoolFbDeleter placeholder_deleter;

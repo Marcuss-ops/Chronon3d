@@ -18,7 +18,9 @@ EvaluatedCompositionFrame PreparedRenderJob::Impl::evaluate_frame(
         .duration = spec.duration,
         .width = spec.width,
         .height = spec.height,
-        .assets_root = runtime.resolver().mount_root().string(),
+        // Materialized once per job at prepare(); the mount root is immutable
+        // for the lifetime of a prepared job (see Impl::assets_root).
+        .assets_root = assets_root,
         .resource = arena.resource(),
         .shape_registry = &engine->m_impl->m_shape_registry,
         .font_engine = &runtime.font_engine(),

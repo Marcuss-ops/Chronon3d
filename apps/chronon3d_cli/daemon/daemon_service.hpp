@@ -8,6 +8,7 @@
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include "chronon_ipc.hpp"
 #include <functional>
+#include <map>
 #include <string>
 #include <memory>
 #include <mutex>
@@ -125,7 +126,22 @@ private:
     std::shared_ptr<media::VideoRuntimeRegistry> m_video_runtimes;
     std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
-    mutable std::mutex m_ipc_state_mutex;                 // warm session ownership
+    // Short shared-state operations only (status/prepare/overlay). The
+    // RENDER_JOB path must NOT hold this mutex across the render: that
+    // global serialization made every GPU lane the worker configured execute
+    // one-at-a-time on the daemon.
+    mutable std::mutex m_ipc_state_mutex;
+    // One RENDER_JOB per device executes at a time. Execution stays
+    // serialized per device because the full-graph warm SoftwareRenderer and
+    // the per-device VideoDeviceRuntime (CUDA context, FFmpeg hwdevice,
+    // shared image cache) are process-wide; true same-device session
+    // parallelism requires isolating those per session first. Different
+    // devices may render concurrently.
+    mutable std::mutex m_device_locks_mutex;
+    std::map<runtime::DeviceId, std::unique_ptr<std::mutex>>
+        m_device_execution_locks;
+    /// Returns the execution mutex for `device`, creating it on first use.
+    std::mutex& render_execution_lock_for(runtime::DeviceId device);
     bool m_running{true};
     int m_render_count{0};
     double m_total_render_ms{0.0};

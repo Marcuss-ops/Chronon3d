@@ -55,6 +55,12 @@ struct PreparedRenderJob::Impl {
     bool finished{false};
     runtime::ResourcePlan resource_plan;
 
+    // Per-job assets root, materialized once at prepare().  The render
+    // runtime resolver's mount root is immutable while a prepared job lives;
+    // reading mount_root().string() inside the per-frame evaluate path paid a
+    // filesystem-path -> std::string materialization for every frame.
+    std::string assets_root;
+
     // Canonical fixed-frame execution authorities. PreparedRenderJob owns
     // orchestration only; slot storage/lifecycle, bounded handoff, and GPU
     // completion state remain in their single-responsibility components.

@@ -252,7 +252,6 @@ void execute_single_node(
         cache_eval.key,
         cache_eval.result,
         ctx,
-        parent_pool,
         &compiled.nodes[id].stable_node_id
     );
     if (state.node_memory_tracker && cache_eval.result) {
