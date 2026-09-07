@@ -10,6 +10,7 @@
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/runtime/frame/frame_queue.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
+#include <chronon3d/runtime/frame/frame_slot_payload.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
@@ -37,18 +38,6 @@ namespace chronon3d {
 struct PreparedRenderJob::Impl {
     static constexpr std::size_t kPipelineDepth = 3;
 
-    struct SlotPayload {
-        FrameArena arena{4u * 1024u * 1024u, true};
-        std::optional<EvaluatedCompositionFrame> evaluated{};
-        std::shared_ptr<Framebuffer> rendered{};
-
-        void reset() noexcept {
-            evaluated.reset();
-            rendered.reset();
-            arena.reset();
-        }
-    };
-
     RenderEngine* engine{nullptr};
     std::shared_ptr<const CompiledComposition> compiled;
     Frame count{0};
@@ -69,10 +58,11 @@ struct PreparedRenderJob::Impl {
     runtime::FrameQueue evaluated_queue{kPipelineDepth};
     runtime::FrameQueue rendered_queue{kPipelineDepth};
 
-    std::array<SlotPayload, kPipelineDepth> payloads{};
+    std::array<runtime::FrameSlotPayload, kPipelineDepth> payloads{};
     std::uint64_t next_sequence{0};
 
-    [[nodiscard]] SlotPayload& payload(const runtime::FrameExecutionSlot& slot) noexcept {
+    [[nodiscard]] runtime::FrameSlotPayload& payload(
+        const runtime::FrameExecutionSlot& slot) noexcept {
         return payloads[slot.slot_id];
     }
 

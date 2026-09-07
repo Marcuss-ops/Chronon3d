@@ -112,8 +112,12 @@ TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
     const auto time = chronon3d::SampleTime::from_frame_int(
         chronon3d::Frame{0}, chronon3d::FrameRate{});
     {
-        chronon3d::runtime::FrameExecution frame(job, chronon3d::Frame{0}, time);
+        chronon3d::runtime::FrameSlotPayload payload;
+        chronon3d::runtime::FrameExecution frame(
+            job, chronon3d::Frame{0}, time, nullptr, &payload);
         CHECK(frame.job().job_id() == 42);
+        CHECK(frame.payload() == &payload);
+        CHECK(frame.arena() == &payload.arena);
         CHECK(job.counters().frames_started == 1);
         CHECK_FALSE(frame.cancelled());
         frame.complete();
