@@ -41,7 +41,13 @@ Informativi, non bloccano la certificazione:
 bash tools/verify_zero_copy_end_to_end.sh
 
 # Con parametri specifici
-bash tools/verify_zero_copy_end_to_end.sh --scene TextPlaceAnimatedCenter --frames 60
+bash tools/verify_zero_copy_end_to_end.sh --scene DarkGridBackground --frames 60
+
+> **Scene note (2026-09-07):** il default storico `TextPlaceAnimatedCenter`
+> non è più registrato in questo repository (la tree content/ è stata
+> esternalizzata); il default ora è la builtin `DarkGridBackground`,
+> registrata sempre e senza asset esterni. `CHRONON3D_BENCH_SCENE` resta
+> l'override per host con content pack.
 
 # Da report JSON esistente
 bash tools/verify_zero_copy_end_to_end.sh --report-json /path/to/report.json
