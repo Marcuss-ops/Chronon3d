@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/memory/framebuffer_copy.hpp>
+#include <chronon3d/cache/framebuffer_copy.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 

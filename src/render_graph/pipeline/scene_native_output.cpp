@@ -6,7 +6,7 @@
 
 #include "../nodes/native_surface.hpp"
 
-#include <chronon3d/core/memory/framebuffer_copy.hpp>
+#include <chronon3d/cache/framebuffer_copy.hpp>
 
 #include <spdlog/spdlog.h>
 

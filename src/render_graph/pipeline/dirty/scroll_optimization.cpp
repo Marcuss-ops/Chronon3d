@@ -8,7 +8,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/memory/framebuffer_copy.hpp>
+#include <chronon3d/cache/framebuffer_copy.hpp>
 #include <cstring>
 #include <memory>
 
