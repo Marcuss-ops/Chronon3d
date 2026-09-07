@@ -368,6 +368,18 @@ namespace chronon3d::backends::vulkan {
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan download size does not match surface");
         ++stats.readback_calls;
         stats.readback_bytes += bytes;
+        // Gate 7 (cpu_pixel_readback_bytes) canary — this function is the
+        // single GPU→CPU pixel download authority on the Vulkan backend.
+        // Instrumented here (2026-09-07, Z0 census) so the zero-copy gate is
+        // measured instead of passing vacuously; the native video lane never
+        // reaches download() (mark_gpu_authoritative + refusal paths), so a
+        // non-zero value is an honest video regression canary.
+        if (auto* counters = profiling::g_current_counters) {
+            counters->cpu_pixel_readback_count.fetch_add(
+                1, std::memory_order_relaxed);
+            counters->cpu_pixel_readback_bytes.fetch_add(
+                static_cast<std::uint64_t>(bytes), std::memory_order_relaxed);
+        }
         ensure_staging(bytes);
         begin_command_buffer();
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_GENERAL,
