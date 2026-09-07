@@ -23,10 +23,13 @@ void dispatch_level_nodes(
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
-    LevelTimings& timings,
     const CompiledFrameGraph& compiled)
 {
-    (void)timings; // Stage 3: detailed per-node clocks are diagnostic-only.
+    // OPT-DEAD-TIMINGS — the LevelTimings per-node accumulator surface was
+    // retired with Stage 3 (per-node fine timing); the dead 7-vector heap
+    // object and the 7 dead out-param pointers on execute_single_node are
+    // gone. Whole-level phase durations (dispatch/input/schedule/framebuffer)
+    // are still folded into RenderCounters by execute_levels().
     const bool use_parallel = should_execute_level_in_parallel(
         level.size(), scheduler.concurrency());
 
@@ -70,7 +73,6 @@ void dispatch_level_nodes(
             execute_single_node(
                 state, graph, ctx, level_resolved, level[level_index], level_index,
                 parent_counters, parent_pool, consumer_remaining,
-                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
                 compiled);
 
             active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
@@ -93,7 +95,6 @@ void dispatch_level_nodes(
         execute_single_node(
             state, graph, ctx, level_resolved, level[level_index], level_index,
             parent_counters, parent_pool, consumer_remaining,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
             compiled);
     }
     if (parent_counters) {
