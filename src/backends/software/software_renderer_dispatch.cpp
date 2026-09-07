@@ -19,6 +19,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
@@ -144,6 +145,12 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
     return graph::render_compiled_composition_frame(
         m_runtime->backend(), node_cache(), m_settings, m_registry,
         m_video_decoder.get(), compiled, frame, this);
+}
+
+std::shared_ptr<Framebuffer> SoftwareRenderer::render_program(
+    const compiler::CompiledProgram& program, Frame frame) {
+    m_session.common.clear_last_frame_error();
+    return runtime::RenderPipeline(this, *m_runtime).render_program(program, frame);
 }
 
 /// @deprecated Fase C3 — use render(Composition, Frame) instead.

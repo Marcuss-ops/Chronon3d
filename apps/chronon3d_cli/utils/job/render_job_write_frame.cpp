@@ -100,21 +100,21 @@ bool write_text_layout_json(SoftwareRenderer& renderer,
     return true;
 }
 
-} // namespace
-
-bool write_render_frame(const CompiledComposition& compiled,
-                        SoftwareRenderer& renderer,
-                        Frame frame,
-                        const FrameRange& range,
-                        const std::string& output_pattern,
-                        bool& ok,
-                        std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
-                        double& total_render_ms,
-                        double& total_encode_ms,
-                        int& frames_written) {
+template <typename RenderFn>
+bool write_render_frame_impl(const std::string& composition_name,
+                             RenderFn&& render,
+                             SoftwareRenderer& renderer,
+                             Frame frame,
+                             const FrameRange& range,
+                             const std::string& output_pattern,
+                             bool& ok,
+                             std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
+                             double& total_render_ms,
+                             double& total_encode_ms,
+                             int& frames_written) {
     const auto hits_before = renderer.node_cache().stats().hits;
     const auto t0 = profiling::now();
-    auto fb = renderer.render_compiled(compiled, frame);
+    auto fb = render();
     const auto t1 = profiling::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();
@@ -123,7 +123,7 @@ bool write_render_frame(const CompiledComposition& compiled,
         const auto structured = renderer.session().last_frame_error();
         if (structured) {
             print_render_error(*structured,
-                               compiled.composition->name(), frame);
+                               composition_name, frame);
         } else {
             print_render_error(
                 graph::NodeExecutionError{
@@ -131,7 +131,7 @@ bool write_render_frame(const CompiledComposition& compiled,
                     "render",
                     "renderer returned a null framebuffer without a structured node error"
                 },
-                compiled.composition->name(),
+                composition_name,
                 frame);
         }
         ok = false;
@@ -154,11 +154,47 @@ bool write_render_frame(const CompiledComposition& compiled,
 
     const double encode_ms = write_frame_to_disk(
         fb, frame, range, output_pattern,
-        compiled.composition->name(), cache_hit, dirty_ratio,
+        composition_name, cache_hit, dirty_ratio,
         render_ms, prog_cache_cap, ok, telemetry_frames, total_encode_ms,
         frames_written);
 
     return encode_ms >= 0.0;
+}
+
+} // namespace
+
+bool write_render_frame(const CompiledComposition& compiled,
+                        SoftwareRenderer& renderer,
+                        Frame frame,
+                        const FrameRange& range,
+                        const std::string& output_pattern,
+                        bool& ok,
+                        std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
+                        double& total_render_ms,
+                        double& total_encode_ms,
+                        int& frames_written) {
+    return write_render_frame_impl(
+        compiled.composition->name(),
+        [&] { return renderer.render_compiled(compiled, frame); },
+        renderer, frame, range, output_pattern, ok, telemetry_frames,
+        total_render_ms, total_encode_ms, frames_written);
+}
+
+bool write_render_frame(const compiler::CompiledProgram& program,
+                        SoftwareRenderer& renderer,
+                        Frame frame,
+                        const FrameRange& range,
+                        const std::string& output_pattern,
+                        bool& ok,
+                        std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
+                        double& total_render_ms,
+                        double& total_encode_ms,
+                        int& frames_written) {
+    return write_render_frame_impl(
+        program.job_id(),
+        [&] { return renderer.render_program(program, frame); },
+        renderer, frame, range, output_pattern, ok, telemetry_frames,
+        total_render_ms, total_encode_ms, frames_written);
 }
 
 double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
