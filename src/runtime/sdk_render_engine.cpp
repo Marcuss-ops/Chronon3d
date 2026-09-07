@@ -18,6 +18,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <nlohmann/json.hpp>
