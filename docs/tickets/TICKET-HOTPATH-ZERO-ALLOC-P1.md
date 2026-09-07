@@ -119,8 +119,7 @@ submission/queue).
 Per ogni fused batch per frame venivano ricostruiti `std::vector<GlyphStatic>`,
 `std::vector<TextRunDynamic>`, `std::vector<RenderSurfaceHandle>`,
 `std::unordered_map` (percorso testo) e un `unordered_map` (percorso immagine).
-Ora 5 scratch `thread_local` (pattern già canonico in
-`command_plan_executor.cpp::tls_instances`): `clear()` conserva la capacità ⇒
+Ora 5 scratch `thread_local`; `clear()` conserva la capacità ⇒
 frame steady-state a zero allocazioni. Il thread_local garantisce isolamento
 fra worker TBB dell'esecuzione parallela a livelli.
 

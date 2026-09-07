@@ -18,6 +18,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     render_runtime.cpp
     context/runtime_context.cpp
     job/job_session.cpp
+    job/render_job_normalizer.cpp
     frame/frame_execution.cpp
     gpu_runtime.cpp
     gpu_asset_cache.cpp

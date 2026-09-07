@@ -229,7 +229,7 @@ public:
     /// batch, submitting them all with exactly one queue submission at
     /// end_command_batch().  This is the "N overlays in one command batch"
     /// primitive: the caller wraps N begin_frame_batch()/end_frame_batch()
-    /// (or N execute_command_plan() calls) between begin_command_batch() and
+    /// (or N plan executions) between begin_command_batch() and
     /// end_command_batch().  The default is a no-op so single-pass/software
     /// backends are unaffected (each frame submits immediately as before).
     virtual void begin_command_batch() {}

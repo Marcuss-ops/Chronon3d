@@ -8,7 +8,7 @@
 //   1. on a scalar CPU reference that mirrors the GPU compute kernels exactly
 //      (transform / blur / composite / color_adjust), producing the oracle;
 //   2. on a surface-capable RenderBackend (VulkanBackend) via
-//      execute_command_plan().
+//      graph::GraphExecutor::execute().
 // Then it compares the output pixels (max/mean delta) and reports wall-clock
 // timings + speedup.
 //
@@ -21,7 +21,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include "command_plan_executor.hpp"
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
@@ -156,7 +156,7 @@ inline void cpu_color_adjust(std::vector<float>& dst, const std::vector<float>& 
 /// pixels for input surfaces.  Returns the pixels of `output_handle`, or an
 /// empty vector when a pass kind is unsupported or a referenced surface is
 /// missing from `surfaces`.
-inline std::vector<float> execute_command_plan_cpu(
+inline std::vector<float> execute_plan_cpu_reference(
     const runtime::CommandPlan& plan,
     const std::unordered_map<runtime::RenderSurfaceHandle, runtime::SurfaceDesc>& surfaces,
     const std::unordered_map<runtime::RenderSurfaceHandle, std::vector<float>>& input_pixels,
@@ -224,7 +224,7 @@ inline CpuGpuParityResult run_cpu_gpu_parity(
     CpuGpuParityResult result;
 
     const auto t0 = std::chrono::steady_clock::now();
-    const auto reference = execute_command_plan_cpu(plan, surfaces, input_pixels, output_handle);
+    const auto reference = execute_plan_cpu_reference(plan, surfaces, input_pixels, output_handle);
     result.cpu_ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (reference.empty()) {
@@ -239,7 +239,7 @@ inline CpuGpuParityResult run_cpu_gpu_parity(
         static_cast<std::size_t>(out_it->second.width) * out_it->second.height * 4;
 
     const auto g0 = std::chrono::steady_clock::now();
-    const bool executed = runtime::execute_command_plan(gpu_backend, registry, plan);
+    const bool executed = graph::GraphExecutor{}.execute(gpu_backend, registry, plan);
     std::vector<float> gpu_pixels(out_floats, 0.0f);
     const bool downloaded = executed &&
         gpu_backend.download_surface(output_handle, gpu_pixels).ok();

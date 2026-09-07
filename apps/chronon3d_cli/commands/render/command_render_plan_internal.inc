@@ -25,7 +25,42 @@ struct RenderPlanState {
     std::string gpu_hot_path_mode{"auto"};
     std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
+    std::optional<runtime::job::ResolvedRenderJob> normalized_request;
 };
+
+runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& args) {
+    runtime::job::RenderJobRequest request;
+    request.plan_path = args.input;
+    request.output_path = args.output;
+    request.assets_root = args.assets_root;
+    request.report = args.report;
+    request.backend = args.backend;
+    request.trace.output = args.trace_output;
+    request.trace.level = args.trace_level;
+    request.receipt_verification = args.receipt_verify;
+    request.output.codec = args.video.codec;
+    request.output.hardware_encoder = args.video.hardware_encoder;
+    request.output.encoder_backend = args.video.encoder_backend;
+    request.output.ffmpeg_mode = args.video.ffmpeg_mode;
+    request.output.gpu_hot_path_mode = args.gpu_hot_path_mode;
+    request.output.encode_preset = !args.video.encode_preset.empty()
+        ? args.video.encode_preset : args.encode_preset;
+    request.output.rate_control_mode = args.video.rate_control_mode;
+    request.output.crf = args.video.crf >= 0 ? args.video.crf : args.crf;
+    request.output.qp = args.video.qp;
+    request.output.bitrate = args.video.bitrate;
+    request.output.audio_source_path = args.video.gop_source;
+    request.output.gop_copy_only = args.video.gop_copy_only;
+    request.output.fps_num = args.fps_num == 30 && args.fps_den == 1
+        ? 0U : args.fps_num;
+    request.output.fps_den = args.fps_den;
+    if (args.start_frame_explicit || args.end_frame_explicit) {
+        request.frame_range = runtime::job::FrameRange{
+            static_cast<std::int64_t>(args.start_frame),
+            static_cast<std::int64_t>(args.end_frame)};
+    }
+    return request;
+}
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
     if (value == "software") return graph::BackendPreference::Software;
@@ -50,11 +85,23 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
-int execute_render_plan(const CompositionRegistry& registry, const RenderPlanState& args) {
+int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
     try {
+        if (!args.normalized_request) {
+            auto normalized = runtime::job::normalize_render_job(
+                make_render_job_request(args));
+            if (!normalized) {
+                spdlog::error("Render job request normalization failed: {}",
+                              normalized.error().message);
+                return 1;
+            }
+            args.normalized_request = std::move(normalized).value();
+        }
+        const auto& normalized_job = *args.normalized_request;
+
         RenderPlanPreparationOptions options;
-        options.input = args.input;
-        options.assets_root = args.assets_root;
+        options.input = normalized_job.plan_path.string();
+        options.assets_root = normalized_job.assets_root.string();
         auto preparation = prepare_render_plan(options);
         if (!preparation) {
             spdlog::error("Render plan preparation failed: {}",
@@ -67,18 +114,18 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
 
-        const auto output = args.output.empty() ? prepared.output.path : args.output;
-        const auto first = static_cast<std::int64_t>(args.start_frame);
+        const auto output = normalized_job.output_path.empty()
+            ? prepared.output.path : normalized_job.output_path.string();
+        const auto first = normalized_job.frame_range
+            ? normalized_job.frame_range->first : std::int64_t{0};
         // Explicit frame-range semantics: when --end-frame (or the daemon
         // range_end) was explicitly requested, an end value of 0 is a real
         // inclusive last frame 0 (single-frame chunk at frame 0). Without an
         // explicit end the legacy end==0 sentinel means "through the last
         // frame of the plan".
-        const std::int64_t last = args.end_frame_explicit
-            ? static_cast<std::int64_t>(args.end_frame)
-            : (args.end_frame == 0
-                ? prepared.canvas.duration.integral() - 1
-                : static_cast<std::int64_t>(args.end_frame));
+        const std::int64_t last = normalized_job.frame_range
+            ? normalized_job.frame_range->last
+            : prepared.canvas.duration.integral() - 1;
         RenderRequest request;
         request.comp_id = prepared.job_id;
         request.compiled_composition = std::make_shared<const CompiledComposition>(
@@ -90,19 +137,19 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.settings = effective_settings;
         Config renderer_config = Config::from_environment();
         renderer_config.set_backend_preference(
-            backend_preference_from_name(args.backend));
-        if (!args.gpu_hot_path_mode.empty()) {
+            backend_preference_from_name(normalized_job.backend));
+        if (!normalized_job.output.gpu_hot_path_mode.empty()) {
             renderer_config.set_gpu_hot_path_mode(
-                parse_gpu_hot_path_mode(args.gpu_hot_path_mode));
+                parse_gpu_hot_path_mode(normalized_job.output.gpu_hot_path_mode));
         }
         request.execution.config = std::move(renderer_config);
-        request.execution.report = args.report;
-        request.execution.trace_output = std::filesystem::path(args.trace_output);
-        request.execution.trace_level = args.trace_level;
-        request.video_settings.fps_num = args.fps_num == 30 && args.fps_den == 1
-            ? prepared.canvas.fps.num() : args.fps_num;
-        request.video_settings.fps_den = args.fps_num == 30 && args.fps_den == 1
-            ? prepared.canvas.fps.den() : args.fps_den;
+        request.execution.report = normalized_job.report;
+        request.execution.trace_output = normalized_job.trace.output;
+        request.execution.trace_level = normalized_job.trace.level;
+        request.video_settings.fps_num = normalized_job.output.fps_num == 0
+            ? prepared.canvas.fps.num() : normalized_job.output.fps_num;
+        request.video_settings.fps_den = normalized_job.output.fps_num == 0
+            ? prepared.canvas.fps.den() : normalized_job.output.fps_den;
         request.video_settings.fps = static_cast<int>(std::lround(
             static_cast<double>(request.video_settings.fps_num) /
             request.video_settings.fps_den));
@@ -111,34 +158,32 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
         request.video_settings.qp = prepared.output.qp;
         request.video_settings.bitrate = prepared.output.bitrate;
-        if (!args.video.codec.empty()) request.video_settings.codec = args.video.codec;
-        if (!args.video.hardware_encoder.empty())
-            request.video_settings.hardware_encoder = args.video.hardware_encoder;
-        if (!args.video.encoder_backend.empty())
-            request.video_settings.encoder_backend = args.video.encoder_backend;
+        if (!normalized_job.output.codec.empty()) request.video_settings.codec = normalized_job.output.codec;
+        if (!normalized_job.output.hardware_encoder.empty())
+            request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
+        if (!normalized_job.output.encoder_backend.empty())
+            request.video_settings.encoder_backend = normalized_job.output.encoder_backend;
         // Preserve the optional source media path through the render-plan
         // adapter. The native encoder uses it to mux the master audio stream;
         // dropping it here produces a valid video-only MP4 silently.
-        request.video_settings.gop_source = args.video.gop_source;
-        request.video_settings.gop_copy_only = args.video.gop_copy_only;
-        if (!args.video.ffmpeg_mode.empty())
-            request.video_settings.ffmpeg_mode = args.video.ffmpeg_mode;
-        if (!args.video.rate_control_mode.empty()) {
-            request.video_settings.rate_control_mode = args.video.rate_control_mode;
-            request.video_settings.crf = args.video.crf;
-            request.video_settings.qp = args.video.qp;
-            request.video_settings.bitrate = args.video.bitrate;
-        } else if (args.crf >= 0) {
+        request.video_settings.gop_source = normalized_job.output.audio_source_path;
+        request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
+        if (!normalized_job.output.ffmpeg_mode.empty())
+            request.video_settings.ffmpeg_mode = normalized_job.output.ffmpeg_mode;
+        if (!normalized_job.output.rate_control_mode.empty()) {
+            request.video_settings.rate_control_mode = normalized_job.output.rate_control_mode;
+            request.video_settings.crf = normalized_job.output.crf;
+            request.video_settings.qp = normalized_job.output.qp;
+            request.video_settings.bitrate = normalized_job.output.bitrate;
+        } else if (normalized_job.output.crf >= 0) {
             request.video_settings.rate_control_mode = "crf";
-            request.video_settings.crf = args.crf;
+            request.video_settings.crf = normalized_job.output.crf;
         } else if (prepared.output.crf > 0 && prepared.output.crf <= 51) {
             request.video_settings.rate_control_mode = "crf";
             request.video_settings.crf = prepared.output.crf;
         }
-        if (!args.video.encode_preset.empty()) {
-            request.video_settings.encode_preset = args.video.encode_preset;
-        } else if (!args.encode_preset.empty()) {
-            request.video_settings.encode_preset = args.encode_preset;
+        if (!normalized_job.output.encode_preset.empty()) {
+            request.video_settings.encode_preset = normalized_job.output.encode_preset;
         }
         // Explicitness markers: only CLI/API overrides and values that the
         // render plan itself decoded as explicit configuration count as user
@@ -148,24 +193,23 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         // deterministic per-backend engine default instead of rejecting an
         // NVENC job that simply never mentioned rate control.
         request.video_settings.rate_control_mode_explicit =
-            !args.video.rate_control_mode.empty() ||
+            !normalized_job.output.rate_control_mode.empty() ||
             prepared.output.rate_control != render_plan::RateControlMode::Crf ||
             (prepared.output.crf > 0 && prepared.output.crf <= 51);
         request.video_settings.crf_explicit =
-            args.video.crf >= 0 || args.crf >= 0 ||
+            normalized_job.output.crf >= 0 ||
             (prepared.output.crf > 0 && prepared.output.crf <= 51);
         request.video_settings.qp_explicit =
-            args.video.qp >= 0 || prepared.output.qp >= 0;
+            normalized_job.output.qp >= 0 || prepared.output.qp >= 0;
         request.video_settings.bitrate_explicit =
-            args.video.bitrate > 0 || prepared.output.bitrate > 0;
+            normalized_job.output.bitrate > 0 || prepared.output.bitrate > 0;
         request.video_settings.encode_preset_explicit =
-            !args.video.encode_preset.empty() || !args.encode_preset.empty();
+            !normalized_job.output.encode_preset.empty();
         request.video_settings.tune_explicit = false;
         // The (0,0) frame pair only re-expands to the whole plan when NO
         // range was requested. Explicit --start/--end or daemon range_enabled
         // keeps 0..0 as a real single-frame chunk (see RenderRequest docs).
-        request.frame_range_explicit =
-            args.start_frame_explicit || args.end_frame_explicit;
+        request.frame_range_explicit = normalized_job.frame_range.has_value();
 
         if (video_output(output)) {
             request.mode = RenderMode::Video;
@@ -174,7 +218,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             const bool gpu_native =
                 request.video_settings.hardware_encoder == "nvenc" &&
                 request.video_settings.encoder_backend == "native" &&
-                args.backend == "vulkan";
+                normalized_job.backend == "vulkan";
             request.execution.warmup_renderer = !gpu_native;
             request.execution.warmup_dummy_frame = !gpu_native;
         } else if (first == last) {
@@ -197,7 +241,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        if (args.report) {
+        if (normalized_job.report) {
             try {
                 verification::RenderReceiptInput receipt_input;
                 receipt_input.job_id = prepared.job_id;
@@ -209,7 +253,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
                 receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
 #endif
                 receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
-                receipt_input.backend = args.backend;
+                receipt_input.backend = normalized_job.backend;
                 receipt_input.width = prepared.canvas.width;
                 receipt_input.height = prepared.canvas.height;
                 receipt_input.fps_num = prepared.canvas.fps.num();
@@ -221,7 +265,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
                 // payload / render-plan boundary). Empty falls back to the
                 // process environment (CHRONON_RECEIPT_VERIFY), preserving
                 // the CLI subprocess contract.
-                receipt_input.receipt_verify_policy = args.receipt_verify;
+                receipt_input.receipt_verify_policy = normalized_job.receipt_verification;
 
                 const auto receipt = verification::build_render_receipt(
                     receipt_input, output, video_output(output));

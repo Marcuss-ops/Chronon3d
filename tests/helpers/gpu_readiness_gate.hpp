@@ -21,7 +21,6 @@
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include "command_plan_executor.hpp"
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
@@ -84,7 +83,7 @@ inline GpuReadinessGate certify_gpu_readiness(
 
     // 1–2. CPU reference (timed) → oracle pixels.
     const auto t0 = std::chrono::steady_clock::now();
-    const auto reference = execute_command_plan_cpu(plan, surfaces, input_pixels, output_handle);
+    const auto reference = execute_plan_cpu_reference(plan, surfaces, input_pixels, output_handle);
     gate.cpu_ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (reference.empty()) {
@@ -93,7 +92,7 @@ inline GpuReadinessGate certify_gpu_readiness(
 
     // GPU: execute the plan WITHOUT the final readback yet.
     const auto g0 = std::chrono::steady_clock::now();
-    const bool executed = runtime::execute_command_plan(backend, registry, plan);
+    const bool executed = graph::GraphExecutor{}.execute(backend, registry, plan);
     gate.gpu_ms =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - g0).count();
     if (!executed) {

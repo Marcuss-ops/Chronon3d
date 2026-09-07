@@ -13,7 +13,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          std::uint64_t start_frame,
                          std::uint64_t end_frame,
                          bool frame_range_explicit,
-                         const std::string& receipt_verify) {
+                         const std::string& receipt_verify,
+                         std::optional<runtime::job::ResolvedRenderJob> normalized_request) {
     RenderPlanState state;
     state.input = input;
     state.output = output;
@@ -33,6 +34,18 @@ int run_render_plan_file(const CompositionRegistry& registry,
     state.end_frame_explicit = frame_range_explicit;
     state.receipt_verify = receipt_verify;
     state.video_execution = std::move(video_execution);
+    if (normalized_request) {
+        state.normalized_request = std::move(normalized_request);
+    } else {
+        auto normalized = runtime::job::normalize_render_job(
+            make_render_job_request(state));
+        if (!normalized) {
+            spdlog::error("Render job request normalization failed: {}",
+                          normalized.error().message);
+            return 1;
+        }
+        state.normalized_request = std::move(normalized).value();
+    }
     return execute_render_plan(registry, state);
 }
 
@@ -46,79 +59,91 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
                           std::shared_ptr<SoftwareRenderer> warm_renderer,
                           std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
     try {
-        const auto request = nlohmann::json::parse(payload);
-        const std::string plan_path = request.value("plan_path", "");
-        const std::string assets_root = request.value("assets_root", "");
-        const std::string output = request.value("output", "");
-        std::string backend = request.value("backend", "auto");
-        std::string gpu_hot_path_mode = request.value(
-            "gpu_hot_path_mode", "auto");
-        const bool report = request.value("report", false);
+        const auto payload_json = nlohmann::json::parse(payload);
+        runtime::job::RenderJobRequest request;
+        request.plan_path = payload_json.value("plan_path", "");
+        request.output_path = payload_json.value("output", "");
+        request.assets_root = payload_json.value("assets_root", "");
+        request.backend = payload_json.value("backend", "auto");
+        request.report = payload_json.value("report", false);
+        request.trace.output = payload_json.value("trace_output", "");
+        request.trace.level = payload_json.value("trace_level", "pipeline");
+        request.receipt_verification = payload_json.value("receipt_verify", "");
+
+        const bool range_enabled = payload_json.value("range_enabled", false);
+        const std::int64_t first_frame = payload_json.value(
+            "first_frame", std::int64_t{0});
+        const std::int64_t last_frame = payload_json.value(
+            "last_frame", std::int64_t{0});
+        if (range_enabled) {
+            request.frame_range = runtime::job::FrameRange{first_frame, last_frame};
+        }
+
         RenderPlanVideoOverrides video;
-        video.codec = request.value("codec", "");
-        video.hardware_encoder = request.value("hardware_encoder", "");
-        video.encoder_backend = request.value("encoder_backend", "");
-        video.ffmpeg_mode = request.value("ffmpeg_mode", "");
-        video.encode_preset = request.value("encode_preset", "");
-        video.rate_control_mode = request.value("rate_control_mode", "");
-        video.crf = request.value("crf", -1);
-        video.qp = request.value("qp", -1);
-        video.bitrate = request.value("bitrate", std::int64_t{0});
+        request.output.codec = payload_json.contains("output_spec")
+            ? payload_json["output_spec"].value("codec", "")
+            : payload_json.value("codec", "");
+        request.output.hardware_encoder = payload_json.value("hardware_encoder", "");
+        request.output.encoder_backend = payload_json.value("encoder_backend", "");
+        request.output.ffmpeg_mode = payload_json.value("ffmpeg_mode", "");
+        request.output.gpu_hot_path_mode = payload_json.value(
+            "gpu_hot_path_mode", "");
+        request.output.encode_preset = payload_json.value("encode_preset", "");
+        request.output.rate_control_mode = payload_json.value("rate_control_mode", "");
+        request.output.crf = payload_json.value("crf", -1);
+        request.output.qp = payload_json.value("qp", -1);
+        request.output.bitrate = payload_json.value("bitrate", std::int64_t{0});
         // Parity fields (see RenderingGen renderJobPayload / wave 1B): the
         // daemon contract carries the source audio stream (muxed through the
         // GOP source path) and the optional native encode preset exactly like
         // the CLI subprocess flags --gop-source / --encode-preset.
-        video.gop_source = request.value("audio_source_path", "");
-        const bool range_enabled = request.value("range_enabled", false);
-        const std::int64_t first_frame = request.value("first_frame", std::int64_t{0});
-        const std::int64_t last_frame = request.value("last_frame", std::int64_t{0});
-        const std::string receipt_verify = request.value("receipt_verify", "");
-        if (range_enabled &&
-            (first_frame < 0 || last_frame < 0 || last_frame < first_frame)) {
-            return ipc::Reply{ipc::Status::BadRequest,
-                              "RENDER_JOB invalid frame range (range_enabled=" +
-                              std::string(first_frame < 0 ? "first<0" : last_frame < 0 ? "last<0" : "last<first") + ")"};
-        }
+        request.output.audio_source_path = payload_json.value("audio_source_path", "");
+        request.output.gop_copy_only = payload_json.value("gop_copy_only", false);
 
-        if (request.contains("execution_requirements")) {
+        if (payload_json.contains("execution_requirements")) {
             media::ExecutionRequirements exec_reqs;
-            const auto& sr = request["execution_requirements"];
+            const auto& sr = payload_json["execution_requirements"];
             exec_reqs.gpu_required = sr.value("gpu_required", false);
             exec_reqs.cpu_fallback_allowed = sr.value("cpu_fallback_allowed", true);
             exec_reqs.composition_required = sr.value("composition_required", true);
             exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
-            const std::string req_codec = request.contains("output_spec")
-                ? request["output_spec"].value("codec", "")
-                : request.value("codec", "");
-            const auto canon = media::resolve_canonical_execution_parameters(
-                exec_reqs, req_codec, backend, "auto");
-            if (backend == "auto") backend = canon.backend;
-            if (video.hardware_encoder.empty()) video.hardware_encoder = canon.hardware_encoder;
-            if (video.encoder_backend.empty()) video.encoder_backend = canon.encoder_backend;
-            if (gpu_hot_path_mode == "auto") gpu_hot_path_mode = canon.gpu_hot_path_mode;
-            if (video.codec.empty()) video.codec = canon.codec;
-        }
-        if (plan_path.empty()) {
-            return ipc::Reply{ipc::Status::BadRequest,
-                              "RENDER_JOB requires a plan_path"};
-        }
-        if (backend != "auto" && backend != "software" && backend != "vulkan") {
-            return ipc::Reply{ipc::Status::BadRequest,
-                              "RENDER_JOB backend must be auto, software, or vulkan"};
+            request.requirements = exec_reqs;
+        } else {
+            const std::string hw = payload_json.value(
+                "hardware_encoder", payload_json.value("hardware", "none"));
+            request.requirements.gpu_required = hw == "nvenc";
         }
 
-        const int rc = run_render_plan_file(registry, plan_path, output, assets_root,
-                                            report, std::move(warm_renderer), backend,
-                                            std::move(video), /*trace_output=*/"",
-                                            /*trace_level=*/"pipeline",
-                                            gpu_hot_path_mode,
-                                            std::move(video_execution),
-                                            range_enabled
-                                                ? static_cast<std::uint64_t>(first_frame) : 0,
-                                            range_enabled
-                                                ? static_cast<std::uint64_t>(last_frame) : 0,
-                                            range_enabled,
-                                            receipt_verify);
+        const auto normalized = runtime::job::normalize_render_job(request);
+        if (!normalized) {
+            return ipc::Reply{ipc::Status::BadRequest,
+                              "RENDER_JOB normalization failed: " +
+                                  normalized.error().message};
+        }
+        const auto& resolved = normalized.value();
+        video.codec = resolved.output.codec;
+        video.hardware_encoder = resolved.output.hardware_encoder;
+        video.encoder_backend = resolved.output.encoder_backend;
+        video.ffmpeg_mode = resolved.output.ffmpeg_mode;
+        video.encode_preset = resolved.output.encode_preset;
+        video.rate_control_mode = resolved.output.rate_control_mode;
+        video.crf = resolved.output.crf;
+        video.qp = resolved.output.qp;
+        video.bitrate = resolved.output.bitrate;
+        video.gop_source = resolved.output.audio_source_path;
+
+        const int rc = run_render_plan_file(
+            registry, resolved.plan_path.string(), resolved.output_path.string(),
+            resolved.assets_root.string(), resolved.report,
+            std::move(warm_renderer), resolved.backend,
+            std::move(video), resolved.trace.output.string(), resolved.trace.level,
+            resolved.output.gpu_hot_path_mode, std::move(video_execution),
+            resolved.frame_range
+                ? static_cast<std::uint64_t>(resolved.frame_range->first) : 0,
+            resolved.frame_range
+                ? static_cast<std::uint64_t>(resolved.frame_range->last) : 0,
+            resolved.frame_range.has_value(), resolved.receipt_verification,
+            resolved);
         if (rc != 0) {
             return ipc::Reply{ipc::Status::Error,
                               "render job failed with exit code " + std::to_string(rc)};
@@ -126,7 +151,7 @@ ipc::Reply ipc_render_job(const CompositionRegistry& registry,
 
         nlohmann::json reply = {
             {"status", "ok"},
-            {"output", output},
+            {"output", resolved.output_path.string()},
         };
         return ipc::Reply{ipc::Status::Ok, reply.dump()};
     } catch (const std::exception& e) {
