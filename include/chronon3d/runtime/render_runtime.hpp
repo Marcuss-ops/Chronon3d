@@ -4,6 +4,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
+#include <chronon3d/runtime/context/runtime_context.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
@@ -154,7 +155,7 @@ class RenderRuntime;
 // a distinct per-frame bundle — unaffected.)
 
 /// RenderRuntime — engine-lifetime container.
-class RenderRuntime {
+class RenderRuntime : public RuntimeContext {
 public:
     // The default and direct Config constructors are intentionally not public:
     // RenderRuntime::create(RuntimeConfig) is the sole construction boundary.
@@ -187,6 +188,8 @@ public:
 
     // ── Configuration ────────────────────────────────────────────────
     [[nodiscard]] const chronon3d::Config& config() const noexcept { return m_config; }
+    [[nodiscard]] RuntimeContext& context() noexcept { return *this; }
+    [[nodiscard]] const RuntimeContext& context() const noexcept { return *this; }
 
     // ── Backend access (populated after attach_backend()) ────────────
     // WP-0 PR 0.1 — `noexcept` was REMOVED from the declaration: the
@@ -319,54 +322,7 @@ private:
         ::chronon3d::graph::BackendPreference);
     friend void ::chronon3d::test::attach_software_backend(::chronon3d::SoftwareRenderer*);
 
-    chronon3d::Config                                   m_config;
-    chronon3d::graph::PipelineCatalogs                  m_catalogs;
-    chronon3d::AssetRegistry                            m_assets;
-    /// WP-8 PR 8.0 — typed asset resolver, sibling of m_assets; value
-    /// member so lifetime is the runtime's, deterministic per engine.
-    chronon3d::assets::AssetResolver                    m_resolver;
-    chronon3d::assets::MeshPreparationCache              m_mesh_cache{};
-    RenderSurfaceRegistry                                 m_surface_registry{};
-    mutable std::mutex                                  m_prepared_assets_mutex;
-    std::shared_ptr<const PreparedAssets>                m_prepared_assets{};
-    std::string                                         m_prepared_mesh_manifest_key;
 
-    // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
-    // at object-init time so even pre-populate() callers can use diagnostics() directly.
-    // The friend declaration in cache_diagnostics.hpp gives RenderRuntime access to the
-    // private default ctor.)
-    // PLACEMENT: declared BEFORE every cache that registers with it so that
-    // CacheDiagnostics outlives all registered caches during destruction.
-    chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
-    chronon3d::cache::NodeCache                         m_owned_node_cache{};
-    std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
-    chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
-    std::unique_ptr<chronon3d::graph::GraphExecutor>         m_owned_executor;
-    std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
-    std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
-    std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
-    // WP-3 PR 3.1 — `m_owned_scene_hasher` and `m_owned_program_store`
-    // were REMOVED.  Both are now per-session owned (see
-    // `RenderSession::scene_hasher` / `RenderSession::program_store`).
-    // The runtime no longer reaches into them; if a future feature
-    // genuinely needs cross-session reach, the right place is via
-    // an `ExecutionScope` abstraction (WP-6 scope) or a service helper
-    // — not a free-floating runtime-owned instance.
-
-    // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
-    chronon3d::ImageCache                           m_image_cache;
-    chronon3d::CurveCache                           m_curve_cache;
-
-    std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
-    GpuAssetCache                                      m_gpu_asset_cache{};
-    GpuGlyphAtlas                                      m_gpu_glyph_atlas{};
-    GpuStyledGlyphCache                                m_gpu_styled_glyph_cache{};
-    OverlayTemplateCache                               m_overlay_template_cache{};
-    GpuRuntime                                         m_gpu_runtime{};
-    MediaSessionPool                                   m_media_sessions{};
-    /// WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
-    std::unique_ptr<chronon3d::FontEngine>            m_font_engine_owned;
-    bool                                              m_populated{false};
 };
 
 // Fase B2 (DONE) — process_wide_assets_root() / process_wide_resolver() REMOVED.

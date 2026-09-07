@@ -16,6 +16,9 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
     motion_graph_prewarm.cpp
     render_runtime.cpp
+    context/runtime_context.cpp
+    job/job_session.cpp
+    frame/frame_execution.cpp
     gpu_runtime.cpp
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
