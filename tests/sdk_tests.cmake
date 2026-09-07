@@ -16,7 +16,7 @@ target_compile_definitions(chronon3d_sdk_tests PRIVATE
 # C ABI / render-plan schema validator coverage belongs to the SDK/ABI domain.
 set(_chronon3d_c_abi_links
     chronon3d_render_plan
-    chronon3d_render_plan_compiler
+    chronon3d_compiler
     nlohmann_json::nlohmann_json)
 set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_decoder.cpp

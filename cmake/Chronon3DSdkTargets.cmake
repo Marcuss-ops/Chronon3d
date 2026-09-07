@@ -62,7 +62,7 @@ if(CHRONON3D_BUILD_C_API)
         # standalone linkage.  In-tree tests link chronon3d_render_plan
         # directly via tests/c_abi_tests.cmake LINK_TARGETS.
         chronon3d_render_plan
-        chronon3d_render_plan_compiler
+        chronon3d_compiler
     )
     # Windows export contract: define CHRONON3D_BUILD_DLL only while building
     # the shared library so chronon3d.h expands CHRONON3D_API to
