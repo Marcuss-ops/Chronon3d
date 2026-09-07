@@ -20,8 +20,9 @@
 //     Bridges `AnimatedTextDocument` into the text pipeline.  Rebuilds
 //     `shape->layout` (and re-seeds `shape.glyphs`) when the active
 //     document or transition_text changes, using `build_text_run` and
-//     the shared `TextLayoutCache`.  Used by the scene-side builder
-//     when an AnimatedTextDocument is attached to a layer.
+//     an engine/session-owned `TextLayoutCache` (Wave 6 — no process-
+//     wide cache exists).  Used by the scene-side builder when an
+//     AnimatedTextDocument is attached to a layer.
 //
 // Color/font styling (paint, material, shadows) is preserved across
 // layout swaps — only the immutable layout slot is swapped, and the
@@ -163,7 +164,8 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 // prewarm_text_run_layout_for_frame — PR 10 pre-warm hook
 // ──────────────────────────────────────────────────────────────────────────
 
-/// Eagerly populate `shared_text_layout_cache()` with the layout that
+/// Eagerly populate the engine/session-owned `TextLayoutCache` (the
+/// `cache` parameter — never a process-global cache) with the layout that
 /// `shape` will produce at `frame` if its attached AnimatedTextDocument
 /// follows a Scramble / Morph / DissolveLayouts path.
 ///
@@ -177,10 +179,16 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 /// layout cache and pays the full shaping cost.
 ///
 /// When called just before frame `frame`, prewarm puts the upcoming
-/// transition_text's layout into the shared cache so the running
+/// transition_text's layout into the supplied cache so the running
 /// frame's `apply_active_state_to_text_run_shape` finds it on the
 /// first lookup.  The hook is idempotent: storing the same key twice
 /// is a no-op (or, depending on LRU, a fresh LRU promotion).
+///
+/// Wave 6 (Text cache SSOT): there is no process-wide layout cache and no
+/// JobSession-owned cache.  The cache is owned by the runtime and reaches
+/// the driver through `cache`; when `cache` is null the function falls back
+/// to `shape.cache` (per-shape throwaway), exactly like the other two
+/// driver entry points in this header.
 ///
 /// Implementation (M1.5#2): delegates to text_state_sampler +
 /// text_font_state + text_layout_rebuild::prewarm_for_frame, symmetric
@@ -193,7 +201,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 ///   * `shape.engine`      must be non-null — otherwise no-op.
 ///   * `frame` must be a valid integral frame.
 ///
-/// Returns `true` when a new layout was inserted into the shared
+/// Returns `true` when a new layout was inserted into the supplied
 /// cache.  Returns `false` for no-op (static shape, no engine,
 /// empty target_text, or layout already cached).
 ///

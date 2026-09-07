@@ -37,7 +37,7 @@ struct GraphBuildResult {
 ///
 /// The compiled graph cache is accessed via ctx.compiled_graph_cache.
 ///
-/// Otherwise, performs a full build via compiler passes + FrameGraphCompiler.
+/// Otherwise, performs a full build via the compiler-owned graph pipeline.
 [[nodiscard]] GraphBuildResult build_or_reuse_graph(
     RenderGraphContext& ctx,
     const Scene& scene,

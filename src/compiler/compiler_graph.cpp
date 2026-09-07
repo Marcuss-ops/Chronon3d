@@ -1,6 +1,6 @@
 #include "compiler_graph.hpp"
 
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/compiler/detail/graph_compile_pipeline.hpp>
 
 #include <utility>
 
@@ -10,7 +10,7 @@ graph::CompiledFrameGraph compile_graph(
     graph::RenderGraph graph,
     graph::RenderGraphContext& context,
     const graph::FrameGraphCompileOptions& options) {
-    graph::FrameGraphCompiler implementation;
+    graph::GraphCompilePipeline implementation;
     return implementation.compile(std::move(graph), context, options);
 }
 

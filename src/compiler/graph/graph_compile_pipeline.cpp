@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// frame_graph_compiler.cpp — public compile surface (FASE 16)
+// graph_compile_pipeline.cpp — compiler-owned graph lowering pipeline
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Build phases live in frame_graph_builder.cpp. This TU hosts the public
+// Build phases live in graph_build_pipeline.cpp. This TU hosts the compiler
 // compile surfaces and the canonical topology hash.
 
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/compiler/detail/graph_compile_pipeline.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
@@ -41,7 +41,7 @@ void report_optimization_result(
 
 } // namespace
 
-CompiledFrameGraph FrameGraphCompiler::compile(
+CompiledFrameGraph GraphCompilePipeline::compile(
     RenderGraph graph,
     RenderGraphContext& ctx,
     const FrameGraphCompileOptions& options
@@ -131,7 +131,7 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     return compiled;
 }
 
-void FrameGraphCompiler::compute_cache_key_requirement(
+void GraphCompilePipeline::compute_cache_key_requirement(
     CompiledFrameGraph& compiled
 ) const {
     // Base set: nodes that can perform a cache lookup in some frame.  This
@@ -169,7 +169,7 @@ void FrameGraphCompiler::compute_cache_key_requirement(
     }
 }
 
-std::uint64_t FrameGraphCompiler::compute_structure_hash(
+std::uint64_t GraphCompilePipeline::compute_structure_hash(
     const RenderGraph& graph,
     GraphNodeId output,
     std::uint64_t registry_generation
@@ -233,7 +233,7 @@ std::uint64_t FrameGraphCompiler::compute_structure_hash(
     return sig;
 }
 
-CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
+CompiledFrameGraph GraphCompilePipeline::compile_with_reuse(
     RenderGraph graph,
     RenderGraphContext& ctx,
     const CompiledFrameGraph& prior_compiled,

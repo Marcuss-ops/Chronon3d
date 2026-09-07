@@ -1,4 +1,4 @@
-void FrameGraphCompiler::build_node_metadata(
+void GraphCompilePipeline::build_node_metadata(
     RenderGraph& graph,
     RenderGraphContext& ctx,
     CompiledFrameGraph& compiled,
@@ -30,14 +30,14 @@ void FrameGraphCompiler::build_node_metadata(
     if (compiled.processor_snapshot &&
         compiled.processor_snapshot->generation() != compiled.registry_generation) {
         throw std::runtime_error(
-            "FrameGraphCompiler: processor snapshot generation does not match "
+            "GraphCompilePipeline: processor snapshot generation does not match "
             "RenderGraphContext registry generation");
     }
 
     const auto require_snapshot = [&]() -> const renderer::ProcessorRegistrySnapshot& {
         if (!compiled.processor_snapshot) {
             throw std::runtime_error(
-                "FrameGraphCompiler: backend must provide an owning processor snapshot");
+                "GraphCompilePipeline: backend must provide an owning processor snapshot");
         }
         return *compiled.processor_snapshot;
     };
@@ -118,7 +118,7 @@ void FrameGraphCompiler::build_node_metadata(
                         : renderer::ShapeProcessorHandle{};
                     if (requires_snapshot && !node_info.shape_processor.valid()) {
                         throw std::runtime_error(
-                            "FrameGraphCompiler: missing compiled shape processor for node '" +
+                            "GraphCompilePipeline: missing compiled shape processor for node '" +
                             std::string(node.name()) + "'");
                     }
                     node_info.shape_processors_offset = static_cast<std::uint32_t>(
@@ -136,7 +136,7 @@ void FrameGraphCompiler::build_node_metadata(
                     for (const auto& item : multi->items()) {
                         if (!item.node) {
                             throw std::runtime_error(
-                                "FrameGraphCompiler: multi-source node '" +
+                                "GraphCompilePipeline: multi-source node '" +
                                 std::string(node.name()) +
                                 "' contains a null renderable item");
                         }
@@ -150,7 +150,7 @@ void FrameGraphCompiler::build_node_metadata(
                                 : renderer::ShapeProcessorHandle{};
                             if (requires_snapshot && !handle.valid()) {
                                 throw std::runtime_error(
-                                    "FrameGraphCompiler: missing compiled shape processor for multi-source node '" +
+                                    "GraphCompilePipeline: missing compiled shape processor for multi-source node '" +
                                     std::string(node.name()) + "'");
                             }
                             compiled.shape_processor_table.push_back(handle);
@@ -171,7 +171,7 @@ void FrameGraphCompiler::build_node_metadata(
                             : renderer::EffectProcessorHandle{};
                         if (instance.enabled && requires_snapshot && !handle.valid()) {
                             throw std::runtime_error(
-                                "FrameGraphCompiler: missing compiled effect processor for node '" +
+                                "GraphCompilePipeline: missing compiled effect processor for node '" +
                                 std::string(node.name()) + "'");
                         }
                         compiled.effect_processor_table.push_back(handle);
@@ -188,7 +188,7 @@ void FrameGraphCompiler::build_node_metadata(
                             : renderer::EffectProcessorHandle{};
                         if (instance.enabled && requires_snapshot && !handle.valid()) {
                             throw std::runtime_error(
-                                "FrameGraphCompiler: missing compiled effect processor for node '" +
+                                "GraphCompilePipeline: missing compiled effect processor for node '" +
                                 std::string(node.name()) + "'");
                         }
                         compiled.effect_processor_table.push_back(handle);
@@ -200,7 +200,7 @@ void FrameGraphCompiler::build_node_metadata(
                         : renderer::EffectProcessorHandle{};
                     if (requires_snapshot && !handle.valid()) {
                         throw std::runtime_error(
-                            "FrameGraphCompiler: missing compiled effect processor for node '" +
+                            "GraphCompilePipeline: missing compiled effect processor for node '" +
                             std::string(node.name()) + "'");
                     }
                     node_info.effect_processors_offset = static_cast<std::uint32_t>(
@@ -321,7 +321,7 @@ void FrameGraphCompiler::build_node_metadata(
                     return text.empty() ? std::string{"-"} : text;
                 };
                 throw std::runtime_error(
-                    "FrameGraphCompiler: stable_node_id collision between nodes "
+                    "GraphCompilePipeline: stable_node_id collision between nodes "
                     + std::to_string(it->second) + " (layer='"
                     + compiled.nodes[it->second].layer_id + "', name='"
                     + compiled.nodes[it->second].name + "', kind="

@@ -63,7 +63,7 @@
 #include <chronon3d/core/memory/arena.hpp>
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include "../compiler/graph_compile_test_compat.hpp"
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>

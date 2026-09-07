@@ -62,7 +62,7 @@ struct CompiledNodeInfo {
     /// consumers' input_hash via ExecutionState::resolved_key_digest, so
     /// skipping a key whose digest a lookup path may read would collapse
     /// consumer keys across frames (NODE-CACHE-KEY-COLLAPSE-ROT).  Computed
-    /// by FrameGraphCompiler after node metadata; conservative default true
+    /// by the compiler-owned graph pipeline after node metadata; conservative default true
     /// keeps graphs compiled without the pass byte-identical to today.
     bool cache_key_required{true};
     ExecutionOwner execution_owner{ExecutionOwner::None};
