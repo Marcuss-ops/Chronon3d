@@ -98,12 +98,12 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         return o;  // dst_x1/y1 patched by the caller with the canvas dims
     };
 
-    const char* range_note =
-        "DOCUMENTED deliberate difference: A encodes limited-range YCbCr "
-        "(Y 16..235 @219, Cb/Cr 16..240 @224); B encodes full-range "
-        "(0..255 @255). Matrices/rounding otherwise identical, so any "
-        "foreground contribution must differ within the range-policy bound "
-        "and background passthrough must stay bit-exact.";
+    const char* determinism_note =
+        "Post-unification contract (Wave 1D): the direct NV12 batch path is "
+        "the single authority (media::video::CudaNv12Compositor). Two "
+        "independent instances of that authority must produce bit-identical "
+        "planes for the same request (determinism is the retained "
+        "equivalence property once the second authority was deleted).";
 
     // ── 1920x1080 / 1280x720 full-frame single overlays ────────────────
     {
@@ -113,8 +113,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         auto o = full_overlay(320, 240, 0);
         o.dst_x1 = 1920.0f; o.dst_y1 = 1080.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
     {
@@ -125,8 +125,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         o.opacity = 0.5f;
         o.dst_x1 = 1280.0f; o.dst_y1 = 720.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
 
@@ -139,8 +139,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         o.dst_x0 = 300.0f; o.dst_y0 = 180.0f;
         o.dst_x1 = 940.0f; o.dst_y1 = 540.0f;   // 640x360 target (scale)
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
     {
@@ -153,8 +153,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         o.dst_x0 = 900.0f; o.dst_y0 = 90.0f;    // translated into the canvas
         o.dst_x1 = 1180.0f; o.dst_y1 = 370.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
 
@@ -166,8 +166,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         auto o = full_overlay(257, 240, 2);
         o.dst_x1 = 1919.0f; o.dst_y1 = 1080.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
     {
@@ -177,8 +177,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         auto o = full_overlay(320, 241, 2);
         o.dst_x1 = 1920.0f; o.dst_y1 = 1079.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
 
@@ -204,8 +204,8 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         add.dst_x1 = 1000.0f; add.dst_y1 = 800.0f;
         c.overlays.push_back(add);
 
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
 
@@ -218,37 +218,38 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         o.dst_x0 = -120.0f; o.dst_y0 = -40.0f;   // negative origin (edge guard)
         o.dst_x1 = 500.0f;  o.dst_y1 = 400.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::RangePolicyDiff;
-        c.rationale = range_note;
+        c.expect = Nv12Case::Expect::DeterministicComposite;
+        c.rationale = determinism_note;
         cases.push_back(std::move(c));
     }
 
-    // ── transparent foreground: must be bit-exact passthrough ───────────
+    // ── zero-contribution foreground: must be bit-exact bg passthrough ──
     {
         Nv12Case c;
-        c.name = "transparent_foreground_bg_passthrough_1280x720";
+        c.name = "zero_contribution_bg_passthrough_1280x720";
         c.width = 1280; c.height = 720;
         auto o = full_overlay(320, 240, 0);
         o.opacity = 0.0f;
         o.dst_x1 = 1280.0f; o.dst_y1 = 720.0f;
         c.overlays.push_back(o);
-        auto o2 = full_overlay(160, 120, 0);
-        o2.opacity = 1.0f;
-        o2.dst_x0 = 100.0f; o2.dst_y0 = 100.0f;   // resource is fully transparent
+        auto o2 = full_overlay(160, 120, 1);
+        o2.opacity = 0.0f;
+        o2.dst_x0 = 100.0f; o2.dst_y0 = 100.0f;
         o2.dst_x1 = 400.0f; o2.dst_y1 = 300.0f;
         c.overlays.push_back(o2);
         c.expect = Nv12Case::Expect::BitExactPassthrough;
         c.rationale =
-            "No foreground contribution (opacity 0 + fully transparent "
-            "resource): both authorities must copy the legal-range background "
-            "unchanged and therefore agree bit-exactly.";
+            "Zero foreground contribution (both overlays at opacity 0): the "
+            "unified direct-batch path must copy the legal-range background "
+            "unchanged, so output equals background bit-exactly and the two "
+            "independent instances agree byte-for-byte.";
         cases.push_back(std::move(c));
     }
 
-    // ── NV12-kind overlay: media-only capability ────────────────────────
+    // ── NV12-kind overlay: outside the unified direct-batch contract ────
     {
         Nv12Case c;
-        c.name = "nv12_source_overlay_media_only_1280x720";
+        c.name = "nv12_source_overlay_rejected_1280x720";
         c.width = 1280; c.height = 720;
         OverlaySpec o;
         o.resource_width = 320;
@@ -257,13 +258,13 @@ std::vector<Nv12Case> nv12_equivalence_corpus() {
         o.src_x0 = 0.0f; o.src_y0 = 0.0f; o.src_x1 = 1.0f; o.src_y1 = 1.0f;
         o.dst_x0 = 0.0f; o.dst_y0 = 0.0f; o.dst_x1 = 1280.0f; o.dst_y1 = 720.0f;
         c.overlays.push_back(o);
-        c.expect = Nv12Case::Expect::MediaOnlyCapability;
+        c.expect = Nv12Case::Expect::RejectedLayer;
         c.rationale =
-            "Capability gap (documented deliberate difference): Authority B "
-            "(media/CudaDirectNv12Compositor) accepts NV12-kind overlay "
-            "resources and decodes them in-kernel; Authority A's batch path "
-            "(vulkan/CudaNv12SurfaceCompositor) accepts RGBA resources only "
-            "and rejects this request (returns false).";
+            "Post-unification contract: the direct NV12 batch path accepts "
+            "RGBA-kind linear overlay resources only (resource.rgba must be "
+            "non-null). An NV12-kind overlay resource carries y/uv planes "
+            "instead and is rejected (returns false) by both independent "
+            "instances of the unified compositor.";
         cases.push_back(std::move(c));
     }
 
