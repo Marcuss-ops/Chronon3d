@@ -105,9 +105,9 @@ void SoftwareRenderer::preflight_images(const Scene& scene) {
 /// `render_scene()` overloads are @deprecated thin wrappers.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                      Frame frame) {
-    if (!m_session.common.authoring_compiled_composition ||
-        m_session.common.authoring_composition_identity != comp.identity() ||
-        m_session.common.authoring_composition_name != comp.name()) {
+    if (!m_session.software.authoring_compiled_composition ||
+        m_session.software.authoring_composition_identity != comp.identity() ||
+        m_session.software.authoring_composition_name != comp.name()) {
         auto compiled = chronon3d::compile_composition(
             comp, CompositionCompileContext{});
         if (!compiled) {
@@ -115,18 +115,18 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                 "Composition compilation failed for '" + comp.name() +
                 "': " + compiled.error().message);
         }
-        m_session.common.authoring_composition_name = comp.name();
-        m_session.common.authoring_composition_identity = comp.identity();
-        m_session.common.authoring_compiled_composition =
+        m_session.software.authoring_composition_name = comp.name();
+        m_session.software.authoring_composition_identity = comp.identity();
+        m_session.software.authoring_compiled_composition =
             std::make_shared<const CompiledComposition>(std::move(compiled).value());
     }
-    return render_compiled(*m_session.common.authoring_compiled_composition, frame);
+    return render_compiled(*m_session.software.authoring_compiled_composition, frame);
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
     const CompiledComposition& compiled, Frame frame) {
     m_session.common.clear_last_frame_error();
-    if (m_session.common.prepared_composition != &compiled) {
+    if (m_session.software.prepared_composition != &compiled) {
         const auto preparation = runtime::prepare_render(
             this, compiled,
             runtime::RenderPreparationOptions{
@@ -138,7 +138,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
                 "Render preparation failed for compiled composition: " +
                 preparation.diagnostic());
         }
-        m_session.common.prepared_composition = &compiled;
+        m_session.software.prepared_composition = &compiled;
     }
 
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());

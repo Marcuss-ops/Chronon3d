@@ -15,6 +15,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
 #include <chronon3d/effects/curves.hpp>
+#include <chronon3d/text/text_layout_cache.hpp>
 
 // ----------------------------------------------------------------------
 // runtime/render_runtime.hpp
@@ -242,6 +243,8 @@ public:
     /// returns a reference because the engine is constructed during
     /// populate() and is never null for the lifetime of the runtime.
     [[nodiscard]] chronon3d::FontEngine& font_engine() const noexcept { return *m_font_engine_owned; }
+    [[nodiscard]] chronon3d::TextLayoutCache& text_layout_cache() noexcept { return m_text_layout_cache; }
+    [[nodiscard]] const chronon3d::TextLayoutCache& text_layout_cache() const noexcept { return m_text_layout_cache; }
 
     [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
     [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
@@ -319,6 +322,7 @@ protected:
     GpuRuntime m_gpu_runtime{};
     MediaSessionPool m_media_sessions{};
     std::unique_ptr<chronon3d::FontEngine> m_font_engine_owned;
+    chronon3d::TextLayoutCache m_text_layout_cache{};
     bool m_populated{false};
 
 private:

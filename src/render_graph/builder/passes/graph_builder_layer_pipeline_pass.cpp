@@ -40,14 +40,6 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     // Per-layer: culling, matte sub-pipeline, then full layer pipeline.
     auto append_item = [&](LayerGraphItem item,
                            std::span<const ShadowCasterInfo> casters = {}) {
-        // 06 R3b — surface the typed SoftwareRenderer sidecar pointer
-        // (when present) by static_cast from the bundle.  No
-        // runtime RTTI on the backend ref is not used because the
-        // caller pipeline already populates `sw_renderer_sidecar`
-        // uniformly.
-        auto* renderer =
-            static_cast<chronon3d::SoftwareRenderer*>(rctx.services.sw_renderer_sidecar);
-        (void)renderer;
         raster::BBox bbox = detail::compute_layer_bbox(item, rctx, nullptr);
 
         bool is_culled = false;

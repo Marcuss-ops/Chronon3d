@@ -32,20 +32,19 @@ SoftwareRenderer* setup_render_graph_context(
     const Scene& scene,
     SoftwareRenderer* sw_sidecar)
 {
-    // ── Thread SoftwareRenderer sidecar from upstream callers ─────────
+    // ── Thread the narrow software frame resource ─────────────────────
     // Source: render_composition_frame, SoftwareRenderer::render, etc.
-    // Downstream phases (fingerprints, dirty rects, tile execution)
-    // reach per-instance state via ctx.services.sw_renderer_sidecar
-    // — no global lookup needed.
+    // Graph nodes only need the buffer ring for framebuffer reuse; keeping
+    // that typed dependency on the node workspace avoids a renderer
+    // service-locator/opaque-sidecar escape hatch.
     if (sw_sidecar) {
-        ctx.services.sw_renderer_sidecar = sw_sidecar;
+        ctx.node_exec.buffer_ring = &sw_sidecar->buffer_ring();
         if (!ctx.node_exec.counters && sw_sidecar->counters()) {
             ctx.node_exec.counters = sw_sidecar->counters();
         }
     }
 
-    SoftwareRenderer* sw_renderer =
-        static_cast<SoftwareRenderer*>(ctx.services.sw_renderer_sidecar);
+    SoftwareRenderer* sw_renderer = sw_sidecar;
 
     // ── Runtime assets root ──────────────────────────────────────────
     // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root().
@@ -113,9 +112,7 @@ SoftwareRenderer* setup_render_graph_context(
         // PR-5 — propagate session pointer so PrecompNode can borrow the
         // program_store for cache lookups.
         ctx.services.session = &sw_renderer->session();
-        // PR-9 — populate software sidecar so nodes can reach
-        // cpu-specific resources (buffer_ring) via static_cast.
-        ctx.services.sw_renderer_sidecar = sw_renderer;
+        ctx.services.program_store = &sw_renderer->software_session().software.program_store();
         ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
         ctx.services.gpu_asset_cache = &sw_renderer->runtime().gpu_asset_cache();
         ctx.services.gpu_glyph_atlas = &sw_renderer->runtime().gpu_glyph_atlas();

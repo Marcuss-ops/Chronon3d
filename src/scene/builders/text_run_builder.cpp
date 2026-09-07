@@ -433,7 +433,7 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     TextCompileServices services{
         use_engine,
         prepared_with_font.animation.cache_layout
-            ? &use_engine->text_layout_cache() : nullptr,
+            ? use_engine->text_layout_cache() : nullptr,
         bundled_font_root_for(prepared_with_font.style.font),
     };
 

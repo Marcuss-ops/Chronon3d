@@ -14,7 +14,6 @@
 #include <chronon3d/internal/runtime/history_state.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
-#include <chronon3d/text/text_run.hpp>
 
 #include <cstdint>
 #include <cstddef>
@@ -147,7 +146,6 @@ public:
     void reset_frame_values() {
         reset_frame_temporaries();
         program_store_state->clear();
-        layout_cache.clear();
         memory_tracker->reset();
     }
     void reset_scene_state() noexcept { scene_hasher_state = graph::SceneHasher{}; }
@@ -171,16 +169,10 @@ public:
     graph::SceneHasher scene_hasher_state{};
     std::unique_ptr<graph::SceneProgramStore> program_store_state{
         std::make_unique<graph::SceneProgramStore>()};
-    TextLayoutCache layout_cache{};
     std::unique_ptr<graph::NodeMemoryTracker> memory_tracker{
         std::make_unique<graph::NodeMemoryTracker>()};
     std::unique_ptr<RenderErrorSlot> frame_error_slot{
         std::make_unique<RenderErrorSlot>()};
-    const CompiledComposition* prepared_composition{nullptr};
-    std::string authoring_composition_name{};
-    std::uint64_t authoring_composition_identity{0};
-    std::shared_ptr<const CompiledComposition> authoring_compiled_composition{nullptr};
-
     void reset_job();
 
 private:

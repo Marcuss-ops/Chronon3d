@@ -44,6 +44,8 @@
 #include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
 #include <algorithm>
 #include <vector>
+#include <cstdint>
+#include <string>
 
 // M1.5#7 — `TextRenderResources` is the per-session aggregator of
 // font + glyph + raster + scratch caches.  Forward-declared here so
@@ -62,6 +64,12 @@
 // the include provides the complete type.
 
 namespace chronon3d {
+
+struct CompiledComposition;
+namespace graph {
+class SceneHasher;
+class SceneProgramStore;
+}
 
 /// One shared transient workspace for scalar effect processors. Sequential
 /// effects reuse these buffers; no effect-specific pool is introduced.
@@ -130,6 +138,20 @@ struct SoftwareSessionResources {
     renderer::DofScratchBuffers dof_scratch;
     EffectScratchResources effect_scratch;
 
+    // Authoring adapters are software-renderer compatibility state, not
+    // generic JobSession state. The compiled-program path does not consult
+    // these fields.
+    const CompiledComposition* prepared_composition{nullptr};
+    std::string authoring_composition_name{};
+    std::uint64_t authoring_composition_identity{0};
+    std::shared_ptr<const CompiledComposition> authoring_compiled_composition;
+
+    // Scene/timeline compatibility state is backend-session owned in the
+    // production software path. JobSession keeps only a standalone fixture
+    // bridge until the remaining non-software callers are migrated.
+    std::unique_ptr<graph::SceneHasher> scene_hasher_state;
+    std::unique_ptr<graph::SceneProgramStore> program_store_state;
+
     // M1.5#7 — TextRenderResources aggregated value member.  This is
     // the CANONICAL OWNER of all text-backend caches (font face +
     // FreeType face + glyph atlas + raster cache + scratch pool).  It
@@ -152,6 +174,11 @@ struct SoftwareSessionResources {
     SoftwareSessionResources& operator=(const SoftwareSessionResources&) = delete;
     SoftwareSessionResources(SoftwareSessionResources&&) noexcept = default;
     SoftwareSessionResources& operator=(SoftwareSessionResources&&) noexcept = default;
+
+    [[nodiscard]] graph::SceneHasher& scene_hasher() noexcept { return *scene_hasher_state; }
+    [[nodiscard]] const graph::SceneHasher& scene_hasher() const noexcept { return *scene_hasher_state; }
+    [[nodiscard]] graph::SceneProgramStore& program_store() noexcept { return *program_store_state; }
+    [[nodiscard]] const graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
 
     /// Reset per-frame temporaries ONLY: the transform scratch buffer is
     /// INTENTIONALLY PRESERVED across frames so its rounded bucket size
@@ -182,9 +209,7 @@ struct SoftwareSessionResources {
     /// framebuffer pool) are NOT touched here — those belong to the runtime.
     /// WP-3 PR 3.1: scene_hasher reset no longer happens here (canonical
     /// scene_hasher is on runtime::JobSession).
-    void reset_job() {
-        reset_temporal_history();
-    }
+    void reset_job();
 };
 
 } // namespace chronon3d
