@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
+#include <chronon3d/runtime/frame/frame_slot_payload.hpp>
 
 #include <cstdint>
 
@@ -25,7 +26,8 @@ struct FrameCounters {
 class FrameExecution final {
 public:
     FrameExecution(JobSession& job, Frame frame, SampleTime time,
-                   FrameExecutionSlot* slot = nullptr) noexcept;
+                   FrameExecutionSlot* slot = nullptr,
+                   FrameSlotPayload* payload = nullptr) noexcept;
     ~FrameExecution();
 
     FrameExecution(const FrameExecution&) = delete;
@@ -37,6 +39,10 @@ public:
     [[nodiscard]] Frame frame() const noexcept { return frame_; }
     [[nodiscard]] const SampleTime& time() const noexcept { return time_; }
     [[nodiscard]] FrameExecutionSlot* slot() const noexcept { return slot_; }
+    [[nodiscard]] FrameSlotPayload* payload() const noexcept { return payload_; }
+    [[nodiscard]] FrameArena* arena() const noexcept {
+        return payload_ ? &payload_->arena : nullptr;
+    }
     [[nodiscard]] FrameCounters& counters() noexcept { return counters_; }
     [[nodiscard]] const FrameCounters& counters() const noexcept { return counters_; }
     [[nodiscard]] bool cancelled() const noexcept;
@@ -53,6 +59,7 @@ private:
     Frame frame_{0};
     SampleTime time_{};
     FrameExecutionSlot* slot_{nullptr};
+    FrameSlotPayload* payload_{nullptr};
     FrameCounters counters_{};
     bool failed_{false};
     bool completed_{false};
