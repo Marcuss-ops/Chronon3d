@@ -1,6 +1,8 @@
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
-#include <chronon3d/render_graph/builder/graph_build_registry.hpp>
+#include <chronon3d/compiler/compiler_pass_registry.hpp>
+#include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
+#include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include "passes/graph_builder_passes.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -22,13 +24,15 @@ void GraphBuildPipeline::add_default_passes() {
     // Phase 5: delegate to GraphBuildRegistry which holds the canonical
     // pass sequence.  This allows feature modules to register additional
     // passes without modifying this file.
-    auto& registry = GraphBuildRegistry::instance();
+    auto& registry = chronon3d::compiler::CompilerPassRegistry::instance();
     registry.register_default_passes();
     registry.apply_to_pipeline(*this);
 }
 
 RenderGraph GraphBuildPipeline::build(const Scene& scene, RenderGraphContext& ctx) {
     CHRONON_TRACE_SCOPE("chronon.graph", "GraphBuildPipeline::build");
+
+    wire_catalog_pointers(ctx, builtin_pipeline_catalogs());
 
     RenderGraph graph;
     GraphBuildContext build_ctx;
@@ -50,6 +54,8 @@ RenderGraph GraphBuildPipeline::build_with_resolved(
     const GraphBuildContext::ResolvedData& resolved)
 {
     CHRONON_TRACE_SCOPE("chronon.graph", "GraphBuildPipeline::build_with_resolved");
+
+    wire_catalog_pointers(ctx, builtin_pipeline_catalogs());
 
     RenderGraph graph;
     GraphBuildContext build_ctx;

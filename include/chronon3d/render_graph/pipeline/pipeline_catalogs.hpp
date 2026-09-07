@@ -78,6 +78,10 @@ void populate_builtin_pipeline_catalogs(PipelineCatalogs& catalogs,
 /// Registers pipeline graph-node factories and freezes catalogs.
 void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs);
 
+/// Shared immutable built-in catalogs for callers that do not own a host
+/// catalog bundle (debug/preflight and the default graph compiler path).
+[[nodiscard]] const PipelineCatalogs& builtin_pipeline_catalogs();
+
 /// Wire catalog pointers (graph_nodes + effects) and the typed
 /// `PrecompBuilderService*` into `ctx.services`.  TICKET-010 replaces
 /// the legacy `wire_precomp_build_factory(ctx, catalogs)` lambda wiring

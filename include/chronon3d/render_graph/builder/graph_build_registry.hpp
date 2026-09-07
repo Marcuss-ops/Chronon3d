@@ -49,13 +49,14 @@ struct GraphBuildPassEntry {
 /// Features and modules can register passes into specific phases without
 /// modifying the core builder pipeline.
 ///
-/// Singleton — use `GraphBuildRegistry::instance()`.
-class GraphBuildRegistry {
+/// Canonical registry for compiler passes. The historical header path is
+/// retained only as a source-compatibility adapter during the migration.
+class CompilerPassRegistry {
 public:
-    static GraphBuildRegistry& instance();
+    static CompilerPassRegistry& instance();
 
-    GraphBuildRegistry();
-    ~GraphBuildRegistry();
+    CompilerPassRegistry();
+    ~CompilerPassRegistry();
 
     /// Register a pass into a given phase.  The `id` must be unique.
     void register_pass(std::string id,
@@ -88,5 +89,9 @@ public:
 private:
     std::vector<GraphBuildPassEntry> m_entries;
 };
+
+// Temporary adapter for callers that still include the old render_graph
+// builder surface. New compiler code must use CompilerPassRegistry.
+using GraphBuildRegistry = CompilerPassRegistry;
 
 } // namespace chronon3d::graph
