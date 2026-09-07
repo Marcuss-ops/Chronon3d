@@ -36,7 +36,7 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     stages::build_dependencies(program);
     stages::build_passes(program);
     stages::optimize(program);
-    program.fingerprint_data.value = stages::fingerprint(plan, program);
+    program.fingerprint_data.digest = stages::fingerprint(plan, program);
     const auto validation_errors = validate_compiled_program(program);
     if (!validation_errors.empty()) return validation_errors.front();
     return program;
