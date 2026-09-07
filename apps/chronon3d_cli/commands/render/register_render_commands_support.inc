@@ -12,6 +12,11 @@ struct RenderState {
     std::string backend{"auto"};
     std::string gpu_hot_path_mode{"auto"};
     std::string fb_pool_clear_policy;
+    // Explicit frame range for the --plan route (render --plan ...
+    // --start-frame N --end-frame M). Kept on the CLI boundary state, not in
+    // RenderArgs, because composition renders express ranges via --frames.
+    std::uint64_t start_frame{0};
+    std::uint64_t end_frame{0};
     int motion_blur_mode{0};
     int motion_blur_pattern{1};
     int motion_blur_filter{0};

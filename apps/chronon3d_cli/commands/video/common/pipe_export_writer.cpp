@@ -34,13 +34,19 @@ private:
 // The writer owns the encoder-facing side of the queue. Keeping it separate
 // from the render loop makes the GPU-surface lifetime and fallback policy
 // auditable without mixing them with frame evaluation.
+//
+// Wave 3 — the handoff is the fixed-capacity SPSC RenderFrameQueue
+// (BoundedSpscRing data path, explicit Open/Closed/Failed lifecycle). The
+// render loop is the single producer; this thread is the single consumer.
+// Blocking is producer-side backpressure (retry-until-slot) plus this
+// consumer's ~1 ms pop_for cadence, which doubles as the interop-poll tick.
 
 // F5.2 — single exception boundary for the writer thread. An exception that
 // escapes a std::thread's callable calls std::terminate and kills the whole
 // process OUTSIDE the fail-closed finalize path (no .partial removal, no
 // structured error, meaningless exit code). The boundary must publish the
 // failure through the SAME channel the encoder error paths already use
-// (writer_failed + queue.close()) so the render loop observes it per-frame,
+// (writer_failed + queue.fail()) so the render loop observes it per-frame,
 // finalize refuses to publish, and the .partial artifact is removed. It must
 // NOT swallow silently: the reason is logged with the failing frame when the
 // package is identifiable.
@@ -53,11 +59,11 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     } catch (const std::exception& e) {
         spdlog::error("[video] writer thread exception: {}", e.what());
         ctx.writer_failed.store(true);
-        ctx.queue.close();
+        ctx.queue.fail();
     } catch (...) {
         spdlog::error("[video] writer thread exception: unknown");
         ctx.writer_failed.store(true);
-        ctx.queue.close();
+        ctx.queue.fail();
     }
 }
 
@@ -113,7 +119,7 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                         1, std::memory_order_relaxed);
                 }
                 ctx.writer_failed.store(true);
-                ctx.queue.close();
+                ctx.queue.fail();
                 return;
             }
             if (ctx.counters) {
@@ -178,7 +184,7 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 // No encoder contact happened for this slot: the lease
                 // destructor performs the guarded Encoding→Free recycle.
                 ctx.writer_failed.store(true);
-                ctx.queue.close();
+                ctx.queue.fail();
                 return;
             }
 
@@ -204,7 +210,7 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                         ctx.encoder, *slot->backend, slot->native_surface));
                 }
                 ctx.writer_failed.store(true);
-                ctx.queue.close();
+                ctx.queue.fail();
                 return;
             }
             if (gpu_frame && !slot->transition_interop_state(
@@ -217,7 +223,7 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 full->slot.retire(std::make_shared<EncoderGpuCompletion>(
                     ctx.encoder, *slot->backend, slot->native_surface));
                 ctx.writer_failed.store(true);
-                ctx.queue.close();
+                ctx.queue.fail();
                 return;
             }
             const bool surface_ready = !gpu_frame || ctx.encoder.poll_native_surface(
@@ -237,7 +243,7 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                         full->slot.retire(std::make_shared<EncoderGpuCompletion>(
                             ctx.encoder, *slot->backend, slot->native_surface));
                         ctx.writer_failed.store(true);
-                        ctx.queue.close();
+                        ctx.queue.fail();
                         return;
                     }
                 }

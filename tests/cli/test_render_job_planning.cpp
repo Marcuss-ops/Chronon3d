@@ -155,6 +155,19 @@ TEST_CASE("RenderJob planner selects Video from a case-insensitive extension") {
         CHECK(job->first_frame == c3d::Frame{12});
         CHECK(job->last_frame == c3d::Frame{12});
     }
+
+    SUBCASE("an explicit single-frame chunk at frame 0 stays one frame") {
+        // --frames 0 on a video output must mean "exactly frame 0", never
+        // the whole plan: the (0,0) sentinel only expands when the range was
+        // NOT explicitly requested.
+        auto args = args_for("0", "hero.mp4");
+        args.frames_explicit = true;
+        auto job = cli::make_render_job(registry, args);
+        REQUIRE(job.has_value());
+        CHECK(job->mode == c3d::RenderMode::Video);
+        CHECK(job->first_frame == c3d::Frame{0});
+        CHECK(job->last_frame == c3d::Frame{0});
+    }
 }
 
 TEST_CASE("RenderJob planner preserves canonical video settings") {

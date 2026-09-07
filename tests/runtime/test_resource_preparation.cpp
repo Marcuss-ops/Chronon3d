@@ -218,7 +218,9 @@ TEST_CASE("ResourcePreparation::prepare propagates probed video/audio metadata")
     const auto video = result.value().video_metadata.at("owner/video-real");
     CHECK(video.width == 2);
     CHECK(video.height == 2);
-    CHECK(video.fps == doctest::Approx(30.0f));
+    // F3.1 — rational authority: exact num/den round-trip, no float compare.
+    CHECK(video.frame_rate.numerator == 30);
+    CHECK(video.frame_rate.denominator == 1);
     CHECK(video.frame_count >= 1);
 
     const auto audio = result.value().audio_index.at("owner/audio-real");

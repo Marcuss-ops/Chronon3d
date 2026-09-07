@@ -152,6 +152,14 @@ struct RenderRequest {
     VideoSettings video_settings;
     RenderExecutionOptions execution;
     RenderDiagnostics diagnostics{};
+
+    /// True when first_frame/last_frame were EXPLICITLY requested by the
+    /// caller (CLI --frames / render-plan --start-frame --end-frame / daemon
+    /// range_enabled). When false, a Video request whose bounds are (0, 0) is
+    /// the legacy whole-plan render (the CLI default when no range is given).
+    /// When true, (0, 0) is a real single-frame chunk starting at frame 0 and
+    /// must never be re-expanded into "whole plan" by resolution.
+    bool frame_range_explicit{false};
 };
 
 /// Single resolved execution value covering still, sequence, and video.

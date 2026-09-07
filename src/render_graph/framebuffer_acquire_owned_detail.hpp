@@ -5,6 +5,7 @@
 
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_copy.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 
@@ -94,12 +95,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     if (node_exec.planned_physical_slot) {
         auto out = acquire_owned_fb(other.width(), other.height(), false);
         if (out && out->data() != other.data()) {
-            const i32 copy_width = std::min(other.width(), out->width());
-            const i32 copy_height = std::min(other.height(), out->height());
-            const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
-            for (i32 y = 0; y < copy_height; ++y) {
-                std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
-            }
+            FramebufferCopyAuthority::copy_rows(*out, other);
             out->set_origin(other.origin_x(), other.origin_y());
             out->set_opaque(other.is_opaque());
             out->set_content_cleared(other.is_content_cleared());
@@ -127,10 +123,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         auto* fresh = new Framebuffer(other.width(), other.height(), false);
         out = OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
         if (other.data()) {
-            const auto row_bytes = static_cast<std::size_t>(other.width()) * sizeof(Color);
-            for (i32 y = 0; y < other.height(); ++y) {
-                std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
-            }
+            FramebufferCopyAuthority::copy_rows(*out, other);
         }
         out->set_surface_handle(other.surface_handle());
         if (!other.is_cpu_authoritative()) {

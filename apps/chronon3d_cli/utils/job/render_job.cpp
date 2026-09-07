@@ -96,6 +96,13 @@ std::optional<RenderRequest> make_render_request(
     const auto range = parse_frames(args.frames);
     request.frame_step = Frame{range.step};
 
+    // A range that the user EXPLICITLY requested (--frames/--frame present)
+    // is carried as such. The legacy CLI default (no --frames) stays
+    // non-explicit, so resolution can keep expanding the (0,0) default to the
+    // whole plan for video while an explicit single-frame chunk at frame 0
+    // ("--frames 0") resolves to exactly one frame.
+    request.frame_range_explicit = args.frames_explicit;
+
     if (is_video_output(args.output)) {
         request.mode = RenderMode::Video;
         request.first_frame = Frame{range.start};
@@ -176,7 +183,12 @@ Result<RenderJob, RenderJobError> resolve_render_request(
         job.execution = std::move(request.execution);
         job.diagnostics = request.diagnostics;
 
-        if (job.mode == RenderMode::Video && job.first_frame == Frame{0} && job.last_frame == Frame{0}) {
+        // The (0,0) sentinel means "whole plan" ONLY for the legacy default
+        // (no explicit range). An explicit single-frame chunk starting at
+        // frame 0 (first=0, last=0, frame_range_explicit=true) must survive
+        // resolution as exactly one frame — see RenderRequest docs.
+        if (job.mode == RenderMode::Video && !request.frame_range_explicit &&
+            job.first_frame == Frame{0} && job.last_frame == Frame{0}) {
             const auto duration_last = std::max<std::int64_t>(0, job.metadata.duration.integral() - 1);
             job.last_frame = Frame{duration_last};
         }

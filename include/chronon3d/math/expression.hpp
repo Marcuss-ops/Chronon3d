@@ -48,16 +48,37 @@ public:
 
     bool error() const { return m_error; }
 
+    /// F11.1 — true when parsing aborted because the recursion budget was
+    /// exhausted (distinct from a syntax error; callers can surface
+    /// "expression too complex" instead of a generic parse failure).
+    bool depth_exceeded() const { return m_depth_exceeded; }
+
 private:
     double parse_ternary() {
+        // F11.1 — recursion budget. parse_ternary is the entry point of the
+        // mutually-recursive descent cycle (ternary → … → unary → atom →
+        // ternary): paren nesting, nested function arguments and
+        // right-associative `a ? b : (c ? d : …)` chains all pass through
+        // here exactly once per level, so one counter bounds them all.
+        // Failure uses the parser's existing error contract (m_error → the
+        // evaluate_expression wrappers return the fallback): a pathological
+        // expression must surface as a structured parse failure, never as
+        // stack exhaustion / SIGSEGV.
+        if (++m_depth > kMaxParseDepth) {
+            --m_depth;
+            m_error = true;
+            m_depth_exceeded = true;
+            return 0.0;
+        }
         double cond = parse_logical_or();
         skip_ws();
         if (match('?')) {
             double true_val = parse_ternary();  // right-associative
             expect(':');
             double false_val = parse_ternary();
+            --m_depth;
             return cond != 0.0 ? true_val : false_val;
-        }
+        }        --m_depth;
         return cond;
     }
 
@@ -178,14 +199,28 @@ private:
     }
 
     double parse_unary() {
-        skip_ws();
-        if (match('+')) return parse_unary();
-        if (match('-')) return -parse_unary();
-        if (match('!')) {
-            double val = parse_unary();
-            return (val == 0.0) ? 1.0 : 0.0;
+        // F11.1 — operator-chain budget. `!!!!!…x` / `----…x` recurse once
+        // per operator with no token consumed between frames of the
+        // recursion, so the depth counter is the only bound. Bounded by the
+        // same error contract as the ternary depth.
+        if (++m_unary_depth > kMaxParseDepth) {
+            --m_unary_depth;
+            m_error = true;
+            m_depth_exceeded = true;
+            return 0.0;
         }
-        return parse_atom();
+        skip_ws();
+        double value;
+        if (match('+')) value = parse_unary();
+        else if (match('-')) value = -parse_unary();
+        else if (match('!')) {
+            double val = parse_unary();
+            value = (val == 0.0) ? 1.0 : 0.0;
+        } else {
+            value = parse_atom();
+        }
+        --m_unary_depth;
+        return value;
     }
 
     double parse_atom() {
@@ -509,6 +544,14 @@ private:
 
     size_t m_pos{0};
     bool m_error{false};
+
+    // F11.1 — recursion budgets (single authority per recursion axis).
+    // kMaxParseDepth bounds BOTH axes; the two counters exist because the
+    // axes nest independently (paren depth × operator chains).
+    static constexpr size_t kMaxParseDepth = 128;
+    size_t m_depth{0};        // ternary/paren/nested-argument recursion
+    size_t m_unary_depth{0};  // prefix-operator chains (+/-/!)
+    bool m_depth_exceeded{false};
 
     // Dot-notation tracking
     std::string m_current_object;        // "thisComp", "thisLayer", "__layer__", etc.
