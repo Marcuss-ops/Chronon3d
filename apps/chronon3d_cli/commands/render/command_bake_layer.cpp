@@ -3,7 +3,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/compiler/graph_compile.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
@@ -83,8 +83,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     // executor is engine-lifetime owned by RenderRuntime (per AGENTS.md +
     // STATUS.md).  No local executor instantiation in CLI TUs.
     graph.retarget_output(selection.selected_output);
-    graph::FrameGraphCompiler compiler;
-    auto compiled = compiler.compile(std::move(graph), graph_ctx);
+    auto compiled = chronon3d::compiler::compile_graph(std::move(graph), graph_ctx);
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // FASE 5 — ExecutionScope public direct-ctor is closed; route

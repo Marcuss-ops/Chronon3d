@@ -18,7 +18,7 @@
 
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/compiler/graph_compile.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 
@@ -33,13 +33,13 @@ DefaultPrecompBuilder::build(
     graph_pipeline.add_default_passes();
     RenderGraph nested_graph = graph_pipeline.build(scene, nested_ctx);
 
-    FrameGraphCompiler compiler;
     FrameGraphCompileOptions compile_opts;
     compile_opts.run_optimizer     = true;
     compile_opts.compute_lifetimes  = true;
     compile_opts.compute_bboxes     = true;
 
-    auto compiled = compiler.compile(std::move(nested_graph), nested_ctx, compile_opts);
+    auto compiled = chronon3d::compiler::compile_graph(
+        std::move(nested_graph), nested_ctx, compile_opts);
     return std::make_unique<CompiledSceneProgram>(
         compile_scene_program(std::move(compiled)));
 }
