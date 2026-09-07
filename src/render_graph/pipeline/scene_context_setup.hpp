@@ -26,15 +26,15 @@ namespace chronon3d::graph::detail {
 //   * ctx.frame_input.static_context (shared assets_root; tax C)
 //   * ctx.frame_input.light_context, camera_2_5d, has_camera_2_5d, projection_ctx
 //   * ctx.policy.debug_config  (when an actual SoftwareRenderer is wired)
-//   * ctx.services.sw_renderer_sidecar  (threading from upstream callers)
+//   * ctx.node_exec.buffer_ring (typed software framebuffer-reuse resource)
 //   * ctx.services.compiled_graph_cache / node_catalog / effect_catalog
 //   * ctx.services.scheduler / session
 //
 // `sw_sidecar` is the optional SoftwareRenderer pointer propagated by upstream
 // orchestrators (render_composition_frame, SoftwareRenderer::render, etc.).
 //
-// Returns the SoftwareRenderer* derived from ctx.services.sw_renderer_sidecar
-// AFTER the catalog/scheduler/session wiring block.  May return nullptr
+// Returns the SoftwareRenderer* supplied by the caller after the
+// catalog/scheduler/session wiring block. May return nullptr
 // when no SoftwareRenderer is wired (test paths, non-software backends).
 //
 // Pre-existing tag: PR 6.2 (root ExecutionScope per render invocation),

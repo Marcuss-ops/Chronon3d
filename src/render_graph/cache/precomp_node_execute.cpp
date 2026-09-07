@@ -213,7 +213,9 @@ NodeExecResult PrecompNode::execute_with_scope(
     //      the entire function frame — RAII reverse-decl-order keeps
     //      `lease`'s shared_ptr<CompiledSceneProgram> alive past the
     //      `execute_with_scope` call below + the function's tail return).
-    auto lease = session.program_store().acquire(
+    auto* program_store = ctx.services.program_store
+        ? ctx.services.program_store : &session.program_store();
+    auto lease = program_store->acquire(
         precomp_key, key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
@@ -226,7 +228,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // Forward eviction callback to the store's per-instance cache if one
     // is set and the instance was just created (or on first call).
     if (m_on_evict) {
-        session.program_store().set_on_evict(precomp_key, m_on_evict);
+        program_store->set_on_evict(precomp_key, m_on_evict);
     }
 
     // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>;

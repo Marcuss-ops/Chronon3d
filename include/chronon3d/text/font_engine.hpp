@@ -409,7 +409,9 @@ public:
     /// resolution.  This is the canonical ctor; the default ctor below is
     /// a thin transitional wrapper kept for PR 8.0 only and scheduled
     /// for deletion in PR 8.1.
-    explicit FontEngine(const chronon3d::assets::AssetResolver& resolver);
+    explicit FontEngine(
+        const chronon3d::assets::AssetResolver& resolver,
+        TextLayoutCache* layout_cache = nullptr);
 
     FontEngine() = delete;
 
@@ -463,7 +465,9 @@ public:
     [[nodiscard]] chronon3d::content::text::TypewriterLayoutCache& typewriter_layout_cache();
 
     /// Runtime-owned cache for compiled text layouts.
-    [[nodiscard]] TextLayoutCache& text_layout_cache() noexcept;
+    /// Return the cache borrowed from the owning RuntimeContext. Standalone
+    /// engines may have no cache and must use uncached compilation paths.
+    [[nodiscard]] TextLayoutCache* text_layout_cache() noexcept;
 
     /// Return true if the given font file can be loaded.
     [[nodiscard]] bool can_load(const FontSpec& spec);
@@ -484,7 +488,10 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;
-    std::unique_ptr<TextLayoutCache> m_text_layout_cache;
+    // Compatibility-only cache for standalone FontEngine users. Runtime
+    // engines borrow the single RuntimeContext-owned cache instead.
+    std::unique_ptr<TextLayoutCache> m_compat_layout_cache;
+    TextLayoutCache* m_text_layout_cache{nullptr};
 };
 
 // ── Cat-5: font engine internal namespace forward decls ──────────────

@@ -13,7 +13,6 @@
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include "format.hpp"
 #include <chronon3d/backends/software/software_backend.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
@@ -56,15 +55,6 @@ GraphPreflightReport debug_preflight_render_graph(
         ctx.frame_input.has_camera_2_5d  = true;
         ctx.frame_input.projection_ctx   = renderer::make_projection_context(ctx.frame_input.camera_2_5d, width, height);
         ctx.frame_input.projection_ctx.ready = true;
-    }
-
-    // 06 R3b — when callers populate the renderer sidecar bundle
-    // (`ctx.services.sw_renderer_sidecar`), we surface the typed
-    // SoftwareRenderer pointer.  The pre-flight caller provides the
-    // typed channel; no runtime RTTI on the backend reference required.
-    if (auto* sw_renderer =
-            static_cast<chronon3d::SoftwareRenderer*>(ctx.services.sw_renderer_sidecar)) {
-        (void)sw_renderer;
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────
