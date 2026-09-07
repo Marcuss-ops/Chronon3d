@@ -37,7 +37,7 @@ struct ProgramMetadata {
 };
 
 struct ProgramFingerprint {
-    std::uint64_t value{0};
+    std::uint64_t digest{0};
     std::uint32_t algorithm_version{1};
 };
 
@@ -63,7 +63,7 @@ public:
     [[nodiscard]] const render_plan::CanvasSpec& canvas() const noexcept;
     [[nodiscard]] const render_plan::OutputSpec& output() const noexcept;
     [[nodiscard]] const std::string& job_id() const noexcept;
-    [[nodiscard]] std::uint64_t fingerprint() const noexcept { return fingerprint_data.value; }
+    [[nodiscard]] std::uint64_t fingerprint() const noexcept { return fingerprint_data.digest; }
 
 private:
     explicit CompiledProgram(
