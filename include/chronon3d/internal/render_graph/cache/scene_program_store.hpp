@@ -8,7 +8,7 @@
 // (vended directly through the owning JobSession
 // populated by `runtime::make_session()`).  PrecompNode instances no longer
 // hold their own SceneProgramCache / GraphExecutor / auto-tune counter.
-// Instead they call `ctx.services.session->program_store().acquire(...)`
+// Instead they call `ctx.session->program_store().acquire(...)`
 // for cache lookup and borrow the session's executor for inner execution.
 //
 // Thread-safety:

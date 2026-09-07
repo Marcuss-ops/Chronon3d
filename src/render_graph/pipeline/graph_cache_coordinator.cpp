@@ -343,7 +343,7 @@ GraphBuildResult build_or_reuse_graph(
     bool scene_structure_unchanged,
     bool diagnostics_enabled)
 {
-    auto* graph_cache = ctx.services.compiled_graph_cache;
+    auto* graph_cache = ctx.compiled_graph_cache;
 
     GraphBuildResult result;
 

@@ -45,8 +45,11 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     data->fingerprint_data.digest = stages::fingerprint(plan, *data);
     const auto validation_errors = validate_compiled_program(*data);
     if (!validation_errors.empty()) return validation_errors.front();
+    auto prepared_plan = std::make_shared<const render_plan::PreparedRenderPlan>(
+        std::move(prepared).value());
+    data->metadata.render_budget = prepared_plan->compiled_composition.render_budget;
     auto program = CompiledProgram{
-        std::make_shared<const render_plan::PreparedRenderPlan>(std::move(prepared).value()),
+        std::move(prepared_plan),
         std::shared_ptr<const CompiledProgramData>(std::move(data))};
     return program;
 }

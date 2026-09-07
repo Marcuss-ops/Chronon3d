@@ -46,7 +46,7 @@ GraphPreflightReport debug_preflight_render_graph(
         backend, node_cache, camera, width, height,
         frame, frame_time, settings, registry, video_decoder, fps
     );
-    ctx.services.asset_resolver = asset_resolver;
+    ctx.asset_resolver = asset_resolver;
     ctx.policy.diagnostics_enabled = true;
     ctx.frame_input.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
@@ -85,19 +85,19 @@ GraphPreflightReport debug_preflight_render_graph(
 
     // ── 7–10. Further analysis phases ────────────────────────────────────
     check_topological_warnings(graph, report);
-    if (ctx.services.asset_resolver) {
+    if (ctx.asset_resolver) {
         // Local-reference guard: when the SoftwareRenderer branch above
-        // populated ctx.services.asset_resolver, asset integrity runs
+        // populated ctx.asset_resolver, asset integrity runs
         // through that exact resolver instance.  When no
         // SoftwareRenderer backend was wired (test fixtures, hypothetical
         // non-SWR backends, etc.) we skip MISSING_ASSET checks with a
         // clear warning so the report isn't fully silent.  Closes the
         // CRITICAL null-pointer deref flagged by the PR-8.0 review.
-        chronon3d::assets::AssetResolver& resolver = *ctx.services.asset_resolver;
+        chronon3d::assets::AssetResolver& resolver = *ctx.asset_resolver;
         check_asset_integrity(graph, resolver, report);
     } else {
         report.warnings.push_back(
-            "ASSET_RESOLVER_UNAVAILABLE: ctx.services.asset_resolver is null; "
+            "ASSET_RESOLVER_UNAVAILABLE: ctx.asset_resolver is null; "
             "skipping MISSING_ASSET checks. Wire a SoftwareRenderer-backed "
             "preflight call site (or supply an AssetResolver) to enable "
             "asset integrity.");

@@ -9,6 +9,7 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
@@ -283,9 +284,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
         atlas_desc = runtime::SurfaceDesc::make(
             dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
-            ctx.services.gpu_asset_cache
-                ? runtime::LifetimeClass::JobPersistent
-                : runtime::LifetimeClass::FrameTransient);
+            ctx.runtime != nullptr ? runtime::LifetimeClass::JobPersistent
+                                   : runtime::LifetimeClass::FrameTransient);
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
             const auto& place = packed[i];
@@ -327,7 +327,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
     // Keep the packed atlas in the runtime-owned asset cache when available.
     // The bitmap bytes are the canonical identity: equal glyph pixels share
     // one device-local surface across frames and warm daemon jobs.
-    if (!cached_atlas && ctx.services.gpu_asset_cache) {
+    if (!cached_atlas && ctx.runtime) {
         const std::string_view bytes(
             reinterpret_cast<const char*>(atlas_buffer.data()),
             atlas_buffer.size() * sizeof(float));
@@ -336,7 +336,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
             runtime::PixelFormat::Rgba32Float,
             atlas_desc.width,
             atlas_desc.height};
-        const auto acquired = ctx.services.gpu_asset_cache->acquire(
+        const auto acquired = ctx.runtime->gpu_asset_cache().acquire(
             key, atlas_desc, atlas_buffer);
         atlas_handle = acquired.handle;
         cached_atlas = acquired.ok();

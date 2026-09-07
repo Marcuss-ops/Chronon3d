@@ -143,11 +143,10 @@ private:
 };
 
 // Fase B3 (DONE) — shared_text_layout_cache() REMOVED from public API.
-// Production code must pass TextLayoutCache* via the driver functions
+// Production code passes TextLayoutCache* via the driver functions
 // (update_text_run_shape_per_frame, apply_active_state_to_text_run_shape,
-// prewarm_text_run_layout_for_frame).  Tests may use a standalone
-// TextLayoutCache or runtime::JobSession::layout_cache.  The former global
-// still exists as an internal fallback (text_run.cpp file-scope static)
-// for backward compat during migration; Phase C removes it entirely.
+// prewarm_text_run_layout_for_frame), normally sourced from the owning
+// RuntimeContext. Tests may use a standalone TextLayoutCache. There is no
+// process-wide cache and no JobSession-owned cache.
 
 } // namespace chronon3d

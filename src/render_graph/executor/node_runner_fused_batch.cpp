@@ -15,6 +15,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
@@ -197,14 +198,11 @@ void execute_fused_batch_impl(
         if (img.path.empty()) {
             throw std::runtime_error("image batch source has an empty asset path");
         }
-        if (!ctx.services.image_cache) {
-            throw std::runtime_error("image batch requires image_cache");
-        }
-        if (!ctx.services.gpu_asset_cache) {
-            throw std::runtime_error("image batch requires gpu_asset_cache");
+        if (!ctx.runtime) {
+            throw std::runtime_error("image batch requires RuntimeContext");
         }
 
-        const auto cached = ctx.services.image_cache->find(img.path, img.decode_options);
+        const auto cached = ctx.runtime->image_cache().find(img.path, img.decode_options);
         if (!cached || !cached->valid() || cached->gpu_rgba.empty() || !cached->fb_img) {
             throw std::runtime_error("image asset unavailable for GPU batch: " + img.path);
         }
@@ -215,7 +213,7 @@ void execute_fused_batch_impl(
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
             cached->gpu_rgba.size() * sizeof(float)};
-        const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
+        const auto acquired = ctx.runtime->gpu_asset_cache().acquire(key, desc, cached->gpu_rgba);
         if (!acquired.ok()) {
             throw std::runtime_error("unable to acquire GPU image surface '" +
                                      img.path + "': " + acquired.error);

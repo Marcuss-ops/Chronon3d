@@ -5,6 +5,7 @@
 // ===========================================================================
 
 #include <chronon3d/api/render_engine.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
@@ -38,8 +39,6 @@
 namespace chronon3d {
 
 struct PreparedRenderJob::Impl {
-    static constexpr std::size_t kPipelineDepth = 3;
-
     RenderEngine* engine{nullptr};
     std::shared_ptr<const CompiledComposition> compiled;
     Frame count{0};
@@ -55,96 +54,6 @@ struct PreparedRenderJob::Impl {
     // JobSession is the sole owner of job-lifetime queues, slots, payloads,
     // cancellation and counters. PreparedRenderJob only orchestrates stages.
     std::unique_ptr<runtime::JobSession> job_session;
-
-    [[nodiscard]] runtime::FrameSlotPayload& payload(
-        const runtime::FrameExecutionSlot& slot) noexcept {
-        return job_session->slots().payload(slot.slot_id);
-    }
-
-    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_evaluation() noexcept {
-        return job_session->slots().try_acquire(runtime::FrameSlotState::Evaluating);
-    }
-
-    [[nodiscard]] bool publish_evaluated(runtime::FrameExecutionSlot& slot) noexcept {
-        if (!job_session->slots().transition(
-                slot,
-                runtime::FrameSlotState::Evaluating,
-                runtime::FrameSlotState::Evaluated)) {
-            return false;
-        }
-        if (!job_session->evaluated_queue().try_push(slot.slot_id)) {
-            job_session->slots().set_state(slot, runtime::FrameSlotState::Evaluating);
-            return false;
-        }
-        return true;
-    }
-
-    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_render() noexcept {
-        runtime::FrameSlotId slot_id = 0;
-        return job_session->evaluated_queue().try_pop(slot_id)
-            ? &job_session->slots().slot(slot_id) : nullptr;
-    }
-
-    [[nodiscard]] bool publish_rendered(runtime::FrameExecutionSlot& slot) noexcept {
-        if (!job_session->slots().transition(
-                slot,
-                runtime::FrameSlotState::Evaluated,
-                runtime::FrameSlotState::Rendered)) {
-            return false;
-        }
-        if (!job_session->rendered_queue().try_push(slot.slot_id)) {
-            job_session->slots().set_state(slot, runtime::FrameSlotState::Evaluated);
-            return false;
-        }
-        return true;
-    }
-
-    [[nodiscard]] runtime::FrameExecutionSlot* acquire_for_encoding() noexcept {
-        runtime::FrameSlotId slot_id = 0;
-        return job_session->rendered_queue().try_pop(slot_id)
-            ? &job_session->slots().slot(slot_id) : nullptr;
-    }
-
-    [[nodiscard]] bool begin_encoding(runtime::FrameExecutionSlot& slot) noexcept {
-        return job_session->slots().transition(
-            slot,
-            runtime::FrameSlotState::Rendered,
-            runtime::FrameSlotState::Encoding);
-    }
-
-    void release_slot(runtime::FrameExecutionSlot& slot) noexcept {
-        job_session->gpu_completion().recycle(slot.slot_id);
-        slot.native_surface_ptr = 0;
-        slot.gpu_ready_sync = 0;
-        job_session->slots().release(slot);
-    }
-
-    [[nodiscard]] bool release_encoded(runtime::FrameExecutionSlot& slot) noexcept {
-        if (slot.state.load(std::memory_order_acquire) != runtime::FrameSlotState::Encoding) {
-            return false;
-        }
-        release_slot(slot);
-        return true;
-    }
-
-    [[nodiscard]] bool abort(runtime::FrameExecutionSlot& slot) noexcept {
-        if (slot.state.load(std::memory_order_acquire) == runtime::FrameSlotState::Free) {
-            return false;
-        }
-        release_slot(slot);
-        return true;
-    }
-
-    [[nodiscard]] std::size_t rendered_depth() const noexcept {
-        return job_session->rendered_queue().size();
-    }
-
-    void reset_slots() noexcept {
-        job_session->evaluated_queue().clear();
-        job_session->rendered_queue().clear();
-        job_session->gpu_completion().reset();
-        job_session->slots().reset();
-    }
 
     [[nodiscard]] bool can_split_evaluation() const noexcept;
     [[nodiscard]] EvaluatedCompositionFrame evaluate_frame(

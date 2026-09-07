@@ -9,8 +9,8 @@
 // cache frame), a `PrecompCachePolicy`, and a `FrameParameterBlock`.
 //
 // WP 5 PR-removals (now on runtime::JobSession / SceneProgramStore via ctx):
-//   - SceneProgramCache   → ctx.services.session->program_store().acquire(...)
-//   - GraphExecutor        → borrowed from ctx.services.session->services.executor
+//   - SceneProgramCache   → ctx.session->program_store().acquire(...)
+//   - GraphExecutor        → borrowed from ctx.session->executor()
 //   - Auto-tune counter    → SceneProgramStore drives record_execution()
 //                            every acquire() and the per-bucket
 //                            cache auto_tunes at policy.tuning.interval.
@@ -73,10 +73,10 @@ public:
     }
 
     /// Execute the nested composition.  Uses:
-    ///   - ctx.services.session->program_store()    for cache lookup
-    ///   - ctx.services.session->services.executor  for inner execution
+    ///   - ctx.session->program_store()    for cache lookup
+    ///   - ctx.session->executor()         for inner execution
     ///     (BORROWED — no local GraphExecutor instance)
-    ///   - ctx.services.session->arena()            for inner graph PMR allocs
+    ///   - ctx.session->arena()            for inner graph PMR allocs
     ///
     /// WP-6 PR 6.3 — legacy path delegates to `execute_with_scope(...)`
     /// after synthesizing a Root parent scope; the lease-held +

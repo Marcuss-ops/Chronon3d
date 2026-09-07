@@ -284,7 +284,13 @@ void check_same_semantics(const JobRequest& cli, const JobRequest& ipc) {
     CHECK(ipc.plan_path == cli.plan_path);
     CHECK(ipc.output_path == cli.output_path);
     CHECK(ipc.assets_root == cli.assets_root);
-    CHECK(ipc.backend == cli.backend);
+    // The IPC wire may omit `backend` (the daemon resolves it against its own
+    // capability, so it decodes to "auto"), while the CLI boundary spells the
+    // resolved value explicitly. Raw spelling is transport-specific and NOT
+    // part of the parity contract: the resolved backend is asserted by the
+    // normalized fingerprint below. Only a payload-authored backend must
+    // agree verbatim.
+    CHECK(ipc.backend == cli.backend || ipc.backend == "auto");
     CHECK(ipc.report == cli.report);
     CHECK(ipc.frame_range.has_value() == cli.frame_range.has_value());
     if (ipc.frame_range && cli.frame_range) {
@@ -380,6 +386,16 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
             vulkan_host);
     }
 
+    // The GPU-semantic subcases below assert the VIDEO resolver's canonical
+    // back-fill (nvenc/native/require_gpu_native from gpu_required + codec).
+    // That decision exists only where CHRONON3D_ENABLE_VIDEO is compiled; in
+    // video-off matrix builds normalize_render_job deliberately keeps the
+    // non-video defaults (none/pipe/auto) and cannot reproduce an explicitly
+    // authored nvenc request from semantic requirements alone. Transport/
+    // range/output/trace parity (the subcases above and below the gate) stays
+    // live in every build; the GPU-resolution axis is exercised where the
+    // canonical resolver it pins is compiled.
+#if defined(CHRONON3D_ENABLE_VIDEO)
     SUBCASE("NVENC source-video composition on a Vulkan host") {
         // CLI spells nvenc/native/require_gpu_native; the IPC payload carries
         // only semantics — normalize must back-fill the same resolution.
@@ -424,6 +440,7 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
             R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"hevc","rate_control_mode":"crf","crf":18}})",
             vulkan_host);
     }
+#endif  // CHRONON3D_ENABLE_VIDEO
 
     SUBCASE("trace + explicit verification policy survive the daemon") {
         JobRequest cli = cli_request_for("auto", "none", "pipe", "auto");

@@ -27,9 +27,9 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
 
     REQUIRE(result);
     auto program = std::move(result).value();
-    CHECK(program.job_id() == "compiler-boundary");
-    CHECK(program.canvas().width == 1920);
-    CHECK(program.canvas().height == 1080);
+    CHECK(program.metadata().job_id == "compiler-boundary");
+    CHECK(program.metadata().width == 1920);
+    CHECK(program.metadata().height == 1080);
     CHECK(program.compiled_composition().composition != nullptr);
     CHECK(program.metadata().job_id == "compiler-boundary");
     CHECK(program.nodes().empty());
@@ -112,9 +112,12 @@ TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
     const auto time = chronon3d::SampleTime::from_frame_int(
         chronon3d::Frame{0}, chronon3d::FrameRate{});
     {
-        chronon3d::runtime::FrameSlotPayload payload;
+        auto* slot = job.slots().try_acquire(
+            chronon3d::runtime::FrameSlotState::Evaluating);
+        REQUIRE(slot != nullptr);
+        auto& payload = job.slots().payload(slot->slot_id);
         chronon3d::runtime::FrameExecution frame(
-            job, chronon3d::Frame{0}, time, nullptr, &payload);
+            job, chronon3d::Frame{0}, time, *slot, payload);
         CHECK(frame.job().job_id() == 42);
         CHECK(frame.payload() == &payload);
         CHECK(frame.arena() == &payload.arena);
@@ -123,15 +126,22 @@ TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
         frame.complete();
         CHECK(job.counters().frames_completed == 1);
         CHECK(job.counters().frames_failed == 0);
+        job.slots().release(*slot);
     }
 
     job.cancellation().cancel();
-    chronon3d::runtime::FrameExecution cancelled(job, chronon3d::Frame{1}, time);
+    auto* cancelled_slot = job.slots().try_acquire(
+        chronon3d::runtime::FrameSlotState::Evaluating);
+    REQUIRE(cancelled_slot != nullptr);
+    auto& cancelled_payload = job.slots().payload(cancelled_slot->slot_id);
+    chronon3d::runtime::FrameExecution cancelled(
+        job, chronon3d::Frame{1}, time, *cancelled_slot, cancelled_payload);
     CHECK(cancelled.cancelled());
     cancelled.fail();
     CHECK(cancelled.counters().errors == 1);
     cancelled.complete();
     CHECK(job.counters().frames_failed == 1);
+    job.slots().release(*cancelled_slot);
 }
 
 TEST_CASE("JobSession rejects invalid ownership ranges") {

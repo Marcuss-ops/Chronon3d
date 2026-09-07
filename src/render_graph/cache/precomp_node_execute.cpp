@@ -5,7 +5,7 @@
 // topological-plan cache (retired as `runtime::ExecutionPlanCache`; see the
 // historical changelog R6), runtime::JobSession, or auto-tune state.  All of those
 // are now centralised on the parent runtime::JobSession / CompiledFrameGraph
-// (accessed via `ctx.services.session->program_store()` for the scene program
+// (accessed via `ctx.session->program_store()` for the scene program
 // store, and via `session->services().executor` for the borrowed GraphExecutor).
 //
 // WP-6 PR 6.3 — Body consolidation.  Legacy `OwnedFB execute(ctx, ...)`
@@ -23,7 +23,7 @@
 //   1. Calculate nested frame time.
 //   2. Evaluate nested composition → Scene.
 //   3. Compute SceneStructureKey.
-//   4. ctx.services.session->program_store().acquire(precomp_key, ...)
+//   4. ctx.session->program_store().acquire(precomp_key, ...)
 //      → cache HIT: reuse; cache MISS: compile via PrecompBuilderService.
 //   5. Refresh per-frame payloads, warm up param block.
 //   6. Construct child Precomp ExecutionScope + FrameArena distinct from
@@ -120,7 +120,7 @@ NodeExecResult PrecompNode::execute(
     std::span<const FramebufferRef> fbs,
     std::span<const std::optional<raster::BBox>> clips)
 {
-    auto* session = ctx.services.session;
+    auto* session = ctx.session;
     if (!session) {
         return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
@@ -292,7 +292,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     }
     auto nested_result = inner_executor->execute(
         program->frame_graph, nested_ctx, precomp_scope,
-        *ctx.services.scheduler).framebuffer;
+        *ctx.scheduler).framebuffer;
 
     if (nested_result) {
         return NodeExecResult{ctx.acquire_owned_fb(std::move(nested_result))};

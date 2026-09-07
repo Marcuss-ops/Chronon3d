@@ -191,7 +191,7 @@ bool write_render_frame(const compiler::CompiledProgram& program,
                         double& total_encode_ms,
                         int& frames_written) {
     return write_render_frame_impl(
-        program.job_id(),
+        program.metadata().job_id,
         [&] { return renderer.render_program(program, frame); },
         renderer, frame, range, output_pattern, ok, telemetry_frames,
         total_render_ms, total_encode_ms, frames_written);

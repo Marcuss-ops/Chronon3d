@@ -24,6 +24,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <spdlog/spdlog.h>
@@ -47,7 +48,7 @@ namespace {
                      node.world_transform.anchor.x, node.world_transform.anchor.y,
                      image.opacity, state.opacity);
     }
-    if (!ctx.services.image_cache || !ctx.services.gpu_asset_cache ||
+    if (!ctx.runtime ||
         !ctx.services.backend || !ctx.services.surface_registry ||
         image.path.empty() || image.radius > 0.0f ||
         native_promotion::has_active_mask(state) ||
@@ -55,10 +56,12 @@ namespace {
         return false;
     }
 
-    auto cached = ctx.services.image_cache->find(
+    auto& image_cache = ctx.runtime->image_cache();
+    auto& gpu_asset_cache = ctx.runtime->gpu_asset_cache();
+    auto cached = image_cache.find(
         image.path, image.decode_options);
     if (!cached) {
-        cached = ctx.services.image_cache->get_or_load(
+        cached = image_cache.get_or_load(
             image.path, image.decode_options);
     }
     if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) return false;
@@ -71,7 +74,7 @@ namespace {
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::JobPersistent,
         cached->gpu_rgba.size() * sizeof(float)};
-    const auto acquired = ctx.services.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
+    const auto acquired = gpu_asset_cache.acquire(key, desc, cached->gpu_rgba);
     if (!acquired.ok()) return false;
     if (ctx.policy.diagnostics_enabled && acquired.cache_hit) {
         spdlog::debug("[gpu-asset-cache] static image '{}' reused resident handle={}",

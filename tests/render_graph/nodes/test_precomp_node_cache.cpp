@@ -97,8 +97,8 @@ struct TestContext {
         ctx.services.node_cache      = &node_cache;
         ctx.services.framebuffer_pool = pool;
         ctx.services.registry        = &registry;
-        ctx.services.session         = &session;
-        ctx.services.scheduler       = &scheduler;
+        ctx.session                  = &session;
+        ctx.scheduler               = &scheduler;
         // TICKET-010 — PrecompNode delegates compilation to the typed
         // PrecompBuilderService. Without this pointer the cache-miss
         // path returns nullptr and the program never gets stored.
