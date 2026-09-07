@@ -119,8 +119,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ctx.services.node_cache = active_node_cache;
         ctx.services.compiled_graph_cache = temporal_context->topology_cache;
         ctx.services.session = temporal_context->session;
-        ctx.services.program_store = temporal_context->session
-            ? &temporal_context->session->program_store() : nullptr;
         ctx.node_exec.buffer_ring = nullptr;
         ctx.frame_input.sample_time = temporal_context->sample_time;
         ctx.frame_input.temporal_key = temporal_context->sample_key;

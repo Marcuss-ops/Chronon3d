@@ -5,8 +5,8 @@
 // topological-plan cache (retired as `runtime::ExecutionPlanCache`; see the
 // historical changelog R6), runtime::JobSession, or auto-tune state.  All of those
 // are now centralised on the parent runtime::JobSession / CompiledFrameGraph
-// (accessed via `ctx.services.session` for the program_store, and via
-// `session->services().executor` for the borrowed GraphExecutor).
+// (accessed via `ctx.services.session->program_store()` for the scene program
+// store, and via `session->services().executor` for the borrowed GraphExecutor).
 //
 // WP-6 PR 6.3 — Body consolidation.  Legacy `OwnedFB execute(ctx, ...)`
 // is a 13-line wrapper that synthesises a Root `ExecutionScope` from
@@ -209,13 +209,14 @@ NodeExecResult PrecompNode::execute_with_scope(
     key.height             = nested_ctx.frame_input.height;
     key.ssaa_factor        = static_cast<int>(nested_ctx.policy.ssaa_factor);
 
-    // ── 5. Acquire program from the centralized store (lease held for
+    // ── 5. Acquire program from the job-session store (lease held for
     //      the entire function frame — RAII reverse-decl-order keeps
     //      `lease`'s shared_ptr<CompiledSceneProgram> alive past the
     //      `execute_with_scope` call below + the function's tail return).
-    auto* program_store = ctx.services.program_store
-        ? ctx.services.program_store : &session.program_store();
-    auto lease = program_store->acquire(
+    //      The store is reached through the typed JobSession seam only:
+    //      RenderServices does not carry a second store pointer.
+    auto& program_store = session.program_store();
+    auto lease = program_store.acquire(
         precomp_key, key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
@@ -228,7 +229,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // Forward eviction callback to the store's per-instance cache if one
     // is set and the instance was just created (or on first call).
     if (m_on_evict) {
-        program_store->set_on_evict(precomp_key, m_on_evict);
+        program_store.set_on_evict(precomp_key, m_on_evict);
     }
 
     // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>;
