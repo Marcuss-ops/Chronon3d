@@ -1,6 +1,7 @@
 add_library(chronon3d_compiler OBJECT
     compiler.cpp
     compiler_graph.cpp
+    program_sampler.cpp
     compiled_program.cpp
     compiled_program_validator.cpp
     frontend/json_decoder.cpp
