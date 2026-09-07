@@ -111,6 +111,7 @@ OutputVerificationResult verify_output_contract(
     std::size_t video_streams = 0;
     std::size_t audio_streams = 0;
     const MediaStreamProbe* video_stream = nullptr;
+    const MediaStreamProbe* audio_stream = nullptr;
 
     for (const auto& stream : media.streams) {
         if (stream.kind == MediaStreamKind::Video) {
@@ -120,6 +121,9 @@ OutputVerificationResult verify_output_contract(
             }
         } else if (stream.kind == MediaStreamKind::Audio) {
             ++audio_streams;
+            if (audio_stream == nullptr) {
+                audio_stream = &stream;
+            }
         }
     }
     result.audio_streams = audio_streams;
@@ -176,6 +180,28 @@ OutputVerificationResult verify_output_contract(
     if (result.duration_seconds <= 0.0) {
         result.failure = "duration is not positive";
         return result;
+    }
+
+    // F3.5 — A/V duration parity. When the contract requires audio, the muxed
+    // artifact must carry an audio stream whose duration matches the video
+    // stream: a truncated/early-finalized audio tail or a video that ends
+    // before the audio both present as A/V drift in players. The tolerance is
+    // derived from the media itself (one video frame + a small muxer slack),
+    // not a magic constant in seconds.
+    if (contract.audio_required && audio_stream != nullptr &&
+        audio_stream->duration.has_value() && video_duration.has_value()) {
+        const double audio_seconds = audio_stream->duration->seconds();
+        const double video_seconds = video_duration->seconds();
+        const double frame_seconds = result.fps > 0.0 ? 1.0 / result.fps : 0.0;
+        const double tolerance = frame_seconds + 0.05;  // one frame + muxer slack
+        if (frame_seconds > 0.0 &&
+            std::abs(video_seconds - audio_seconds) > tolerance) {
+            result.failure = "A/V duration mismatch: video " +
+                             std::to_string(video_seconds) + "s, audio " +
+                             std::to_string(audio_seconds) + "s (tolerance " +
+                             std::to_string(tolerance) + "s)";
+            return result;
+        }
     }
 
     // ── Media contract (`copy_eligible`) ──────────────────────────────────

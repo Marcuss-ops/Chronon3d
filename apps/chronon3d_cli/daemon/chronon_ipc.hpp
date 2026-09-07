@@ -22,8 +22,17 @@
 //   RENDER_OVERLAY  "<frame> [output-path]"   render + save a frame
 //   RENDER_JOB      <json>                    render a chronon.render-plan.v1
 //                                            file: {"plan_path", "assets_root",
-//                                            "output", "backend", "report"}; replies JSON
+//                                            "output", "backend", "report",
+//                                            "range_enabled", "first_frame",
+//                                            "last_frame", "audio_source_path",
+//                                            "encode_preset", "receipt_verify",
+//                                            "execution_requirements",
+//                                            "output_spec"}; replies JSON
 //                                            {"status":"ok","output":"..."}
+//
+// RENDER_JOB range parity: first/last are honored ONLY when range_enabled is
+// true, and an explicit first=0/last=0 pair is a single-frame chunk at frame
+// 0 — never an absent range (whole-plan render).
 //   STATUS          (empty)                   engine statistics
 //   SHUTDOWN        (empty)                   stop serving
 //
@@ -75,7 +84,7 @@ enum class Command : std::uint32_t {
     RenderOverlay = 3,   ///< payload: "<frame> [output]" → render + save
     Status        = 4,   ///< no payload → engine statistics
     Shutdown      = 5,   ///< no payload → stop serving
-    RenderJob     = 6,   ///< payload: JSON {plan_path, assets_root, output}
+    RenderJob     = 6,   ///< payload: JSON render-plan request (full parity fields)
     AssembleSegments = 7, ///< payload: JSON {input_paths, output_path}
 };
 

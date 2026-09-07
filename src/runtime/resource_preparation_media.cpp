@@ -94,14 +94,17 @@ ResourcePreparation::probe_video_metadata(
     AVStream* stream = context->streams[stream_index];
     const AVCodecParameters* codec = stream->codecpar;
     const AVRational rate = av_guess_frame_rate(context, stream, nullptr);
-    const double fps = rate.den != 0 ? av_q2d(rate) : 0.0;
+    // F3.1 — carry the rate as an exact rational; no float authority.
+    const FrameRate frame_rate = rate.den != 0
+        ? FrameRate{rate.num, rate.den} : FrameRate{0, 1};
     const std::int64_t frame_count = stream->nb_frames > 0 ? stream->nb_frames : 0;
     PreparedVideoMetadata metadata{
         .path = ref.path, .owner = ref.owner,
         .width = codec->width, .height = codec->height,
-        .fps = static_cast<float>(fps), .frame_count = frame_count};
+        .frame_rate = frame_rate, .frame_count = frame_count};
     avformat_close_input(&context);
-    if (metadata.width <= 0 || metadata.height <= 0 || metadata.fps <= 0.0f) {
+    if (metadata.width <= 0 || metadata.height <= 0 ||
+        metadata.frame_rate.numerator <= 0 || metadata.frame_rate.denominator <= 0) {
         return media_make_error(PreparationError::Code::CorruptedAsset,
                           "video stream has invalid metadata", &ref, "video");
     }

@@ -8,6 +8,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_copy.hpp>
 #include <cstring>
 #include <memory>
 
@@ -59,8 +60,10 @@ std::optional<raster::BBox> try_scroll_optimization(
         if (pool) {
             auto fresh = pool->acquire_shared(width, height, false);
             if (fresh->data() != prev->data()) {
-                std::memcpy(fresh->data(), prev->data(),
-                            static_cast<size_t>(width) * height * sizeof(Color));
+                // F2.4 — single copy authority: pooled storage may be
+                // stride-padded (cache-line + size-class rounding), so the
+                // copy must be row-wise, not a flat width*height memcpy.
+                FramebufferCopyAuthority::copy_rows(*fresh, *prev);
             }
             prev = std::move(fresh);
         } else {

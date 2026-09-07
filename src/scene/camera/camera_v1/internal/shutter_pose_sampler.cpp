@@ -102,8 +102,15 @@ Camera2_5D ShutterPoseSampler::evaluate(
             params, N, Frame{static_cast<i64>(std::floor(frame))});
 
     // ── Convert normalised [0,1] sample times → absolute sub-frame ────────
-    const double fps = (frame_rate.fps() > 0.0) ? frame_rate.fps() : 30.0;
-    const double frame_duration = 1.0 / fps;
+    // F3.2 — no silent 30 fps fallback. An invalid frame rate is a
+    // temporally-invalid input, not "probably 30": the sampler must not
+    // carry timing policy. The boundary validates FrameRate before this
+    // point; here we only fail loudly if the invariant is violated.
+    if (frame_rate.numerator <= 0 || frame_rate.denominator <= 0) {
+        return evaluator(SampleTime::from_frame(frame, frame_rate));
+    }
+    const double frame_duration = frame_rate.denominator /
+        static_cast<double>(frame_rate.numerator);
 
     std::vector<SampleTime> times;
     times.reserve(static_cast<std::size_t>(N));

@@ -19,6 +19,12 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--plan", state->plan_file, "Render a chronon.render-plan.v1 file through the canonical executor");
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("--frame", args.frames, "Single frame number (alias for --frames)");
+    // Explicit chunk range for the --plan route (mirrors the render-plan
+    // subcommand). Only the presence of both bounds makes 0..0 a real
+    // single-frame chunk at frame 0; an absent --end-frame keeps the legacy
+    // "render through the last frame" default.
+    auto* start_frame_opt = cmd->add_option("--start-frame", state->start_frame, "First frame (render --plan route)");
+    auto* end_frame_opt = cmd->add_option("--end-frame", state->end_frame, "Last frame, inclusive (render --plan route)");
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
     cmd->add_option("--assets-root", args.assets_root, "Root directory for resolving relative assets");
     cmd->add_option("--backend", state->backend, "Render backend: auto, software, or vulkan (strict)")
@@ -79,11 +85,17 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->callback([
         cmd, state, &ctx, tile_size, no_dirty_rects, motion_blur,
         motion_blur_mode, motion_blur_samples, warmup_framebuffers,
-        diagnostic, program_cache_tune
+        diagnostic, program_cache_tune, start_frame_opt, end_frame_opt
     ]() {
         auto& render_args = *state->args;
         commit_typed_runtime_options(*state);
         mark_video_option_explicitness(*cmd, render_args);
+        // An explicit --frames/--frame range is carried as explicit so a
+        // single-frame chunk at frame 0 ("--frames 0") is never re-expanded
+        // into a whole-plan render (legacy default when the flag is absent).
+        render_args.frames_explicit =
+            (cmd->get_option("--frames")->count() > 0) ||
+            (cmd->get_option("--frame")->count() > 0);
         if (auto* pipe_pixfmt = cmd->get_option("--pipe-pixfmt")) {
             render_args.pipe_pixfmt_explicit = pipe_pixfmt->count() > 0;
         }
@@ -126,7 +138,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     auto execution = std::make_shared<media::VideoJobExecutionContext>();
                     execution->video_runtimes = ctx.video_runtimes;
                     return execution;
-                }());
+                }(),
+                state->start_frame, state->end_frame,
+                /*frame_range_explicit=*/end_frame_opt->count() > 0,
+                /*receipt_verify=*/std::string{});
             return;
         }
         if (render_args.comp_id.empty()) {

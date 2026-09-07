@@ -121,6 +121,13 @@ struct RenderReceiptInput {
     // output contract
     std::string requested_codec{"auto"};  // "auto" = any codec accepted
     bool has_audio_tracks{false};
+
+    // Explicit per-job verification policy ("fast" | "normal" | "certify")
+    // forwarded from the request boundary (daemon RENDER_JOB payload / IPC).
+    // Empty falls back to the process environment (CHRONON_RECEIPT_VERIFY),
+    // preserving the CLI-subprocess contract where RenderingGen sets the env
+    // on the child process.
+    std::string receipt_verify_policy;
 };
 
 /// The receipt payload written as `<output>.receipt.json`.

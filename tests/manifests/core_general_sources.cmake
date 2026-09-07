@@ -91,6 +91,7 @@ set(CORE_TEST_SOURCES
     core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
+    render_graph/executor/test_framebuffer_copy_authority.cpp
     render_graph/executor/test_text_bbox_reconcile.cpp
     render_graph/executor/test_executor_levels_parallel.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
