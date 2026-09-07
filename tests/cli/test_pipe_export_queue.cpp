@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+using namespace chronon3d;
 using namespace chronon3d::cli;
 
 namespace {

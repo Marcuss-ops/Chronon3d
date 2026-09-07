@@ -105,16 +105,6 @@ void execute_single_node(
 
     if (cache_hit_fast_path) {
         commit_node_state(state, id, cache_eval, predicted_bbox);
-        emit_node_records(
-            ctx, node,
-            cache_eval.key,
-            cache_eval.result,
-            predicted_bbox,
-            cache_eval.cache_status,
-            cache_eval.is_cacheable,
-            static_cast<int>(input_ids.size()),
-            0.0
-        );
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
         }
@@ -243,9 +233,7 @@ void execute_single_node(
             0);
     }
 
-    // Keep exactly one node-execute duration for telemetry. The six auxiliary
-    // timing regions were removed from the production hot path above.
-    const double duration_ms = run_node(
+    run_node(
         node, node_ctx,
         pr.inputs, pr.input_bboxes,
         cache_eval.use_cache,
@@ -271,17 +259,6 @@ void execute_single_node(
             }
         }
     }
-
-    emit_node_records(
-        ctx, node,
-        cache_eval.key,
-        cache_eval.result,
-        predicted_bbox,
-        cache_eval.cache_status,
-        cache_eval.is_cacheable,
-        static_cast<int>(input_ids.size()),
-        duration_ms
-    );
 
     commit_node_state(state, id, cache_eval, predicted_bbox);
 }

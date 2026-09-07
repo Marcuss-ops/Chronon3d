@@ -92,9 +92,9 @@ SDK_PREFIX="$(cd "$SDK_PREFIX" && pwd)"
 
 # In FAST mode the caller may reuse a build produced by a different preset.
 # Use the dependency root recorded by that build before falling back to the
-# preset-derived path; otherwise an installed SDK built with telemetry can
-# advertise unofficial::sqlite3 while the consumer is pointed at a vcpkg
-# tree that never installed the telemetry feature.
+# preset-derived path; otherwise the installed SDK can advertise optional
+# vcpkg features while the consumer is pointed at a tree that never
+# installed them.
 if [[ -z "${VCPKG_INSTALLED_DIR:-}" && -f "$SDK_BUILD/CMakeCache.txt" ]]; then
     SDK_VCPKG_INSTALLED_DIR="$(sed -n 's/^VCPKG_INSTALLED_DIR:.*=//p' "$SDK_BUILD/CMakeCache.txt" | head -n 1)"
     if [[ -n "$SDK_VCPKG_INSTALLED_DIR" && -d "$SDK_VCPKG_INSTALLED_DIR" ]]; then

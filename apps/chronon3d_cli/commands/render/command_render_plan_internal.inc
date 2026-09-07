@@ -99,13 +99,13 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         request.execution.report = args.report;
         request.execution.trace_output = std::filesystem::path(args.trace_output);
         request.execution.trace_level = args.trace_level;
+        // F3.1 — fps_num/fps_den are the single frame-rate authority: the
+        // canvas rational is inherited when the CLI did not override it, and
+        // the (removed) scalar fps mirror never existed on VideoSettings.
         request.video_settings.fps_num = args.fps_num == 30 && args.fps_den == 1
             ? prepared.canvas.fps.num() : args.fps_num;
         request.video_settings.fps_den = args.fps_num == 30 && args.fps_den == 1
             ? prepared.canvas.fps.den() : args.fps_den;
-        request.video_settings.fps = static_cast<int>(std::lround(
-            static_cast<double>(request.video_settings.fps_num) /
-            request.video_settings.fps_den));
         request.video_settings.codec = codec_name(prepared.output.codec);
         request.video_settings.rate_control_mode = prepared.output.rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
             (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");

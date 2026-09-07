@@ -51,7 +51,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     const bool has_overlay = !direct.program->batch.instances.empty();
     if (has_overlay && !direct_yuv_compositor_) {
         try {
-            direct_yuv_compositor_ = std::make_unique<media::CudaDirectNv12Compositor>(
+            direct_yuv_compositor_ = std::make_unique<media::video::CudaNv12Compositor>(
                 reinterpret_cast<CUcontext>(cuda_context_));
         } catch (const std::exception& error) {
             spdlog::error("[native_av] DirectCudaYuv compositor init failed: {}", error.what());

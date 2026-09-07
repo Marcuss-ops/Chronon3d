@@ -16,10 +16,10 @@
 #include <vector>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-#include <chronon3d/media/video/cuda_direct_nv12_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #endif
 #endif
 
@@ -146,10 +146,10 @@ private:
     static constexpr std::size_t kCudaEncodeRingSlots = 6;
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::unordered_map<std::uint64_t,
-        std::unique_ptr<backends::vulkan::CudaNv12SurfaceCompositor>>
+        std::unique_ptr<media::video::CudaNv12Compositor>>
         cuda_nv12_compositors_;
 #endif
-    std::unique_ptr<media::CudaDirectNv12Compositor>
+    std::unique_ptr<media::video::CudaNv12Compositor>
         direct_yuv_compositor_;
     std::deque<AVFrame*> reusable_cuda_frames_;
     struct PendingCudaFrame {

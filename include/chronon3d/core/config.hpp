@@ -111,35 +111,23 @@ private:
 
 // Process-boundary values that are allowed to originate from environment
 // variables. Runtime subsystems receive these immutable strings and must not
-// call getenv() again. telemetry_path() remains the explicit override; the
-// default directory is separate so callers can distinguish override vs fallback.
+// call getenv() again.
 class RuntimePathConfig {
 public:
     [[nodiscard]] const std::string& assets_root() const noexcept { return assets_root_; }
-    [[nodiscard]] const std::string& telemetry_path() const noexcept { return telemetry_path_; }
-    [[nodiscard]] const std::string& telemetry_default_directory() const noexcept {
-        return telemetry_default_directory_;
-    }
     [[nodiscard]] const std::string& telemetry_run_id() const noexcept {
         return telemetry_run_id_;
     }
     [[nodiscard]] const std::string& telemetry_level() const noexcept { return telemetry_level_; }
-    [[nodiscard]] const std::string& telemetry_detailed_ttl_days() const noexcept {
-        return telemetry_detailed_ttl_days_;
-    }
     [[nodiscard]] const std::string& cli_assets_root() const noexcept { return cli_assets_root_; }
 
 private:
     friend class Config;
     std::string assets_root_;
-    std::string telemetry_path_;
-    std::string telemetry_default_directory_;
     std::string telemetry_run_id_;
-    // Boundary-resolved capture level + Detailed/Trace retention window
-    // (parsed to TelemetryLevel / days at the CLI startup boundary, never by
-    // telemetry runtime code). Defaults mirror TelemetryRuntimeConfig.
+    // Boundary-resolved capture level (parsed to TelemetryLevel at the CLI
+    // startup boundary, never by telemetry runtime code). Default: Summary.
     std::string telemetry_level_{std::string{"summary"}};
-    std::string telemetry_detailed_ttl_days_{std::string{"30"}};
     std::string cli_assets_root_;
 };
 

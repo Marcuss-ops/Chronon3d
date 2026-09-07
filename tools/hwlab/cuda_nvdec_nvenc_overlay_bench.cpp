@@ -120,7 +120,8 @@ int main(int argc, char** argv) {
     }
     if (ptx.empty()) {
       nvrtcProgram prog{}; nv_ok(nvrtcCreateProgram(&prog,kKernel,"composite.cu",0,nullptr,nullptr),"nvrtcCreateProgram");
-      const char* opts[] = {"--gpu-architecture=compute_75"};
+      // Canonical target for this stack is Ampere (compute_86, RTX A4000).
+      const char* opts[] = {"--gpu-architecture=compute_86"};
       const nvrtcResult compile_result = nvrtcCompileProgram(prog,1,opts);
       if (compile_result != NVRTC_SUCCESS) {
         size_t log_size{}; nvrtcGetProgramLogSize(prog,&log_size); std::string log(log_size,'\0');

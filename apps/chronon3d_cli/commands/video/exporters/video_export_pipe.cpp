@@ -134,10 +134,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     auto* counters = session->renderer_ptr()
         ? session->renderer_ptr()->counters() : &session->direct_yuv_session->counters;
 
-    record_pipe_telemetry(composition_id, *session, loop_output.loop_result,
-                          close_result, loop_output.telemetry_frames,
-                          wall_time_ms, loop_output.render_ms, encode_ms, result);
-
+    // Wave 1D — events only.  Telemetry persistence (record_pipe_telemetry)
+    // is removed: Chronon owns no database; hosts/collectors observe
+    // Chronon out-of-band and RenderingGen receives only the bounded result.
     const bool is_native = (session->opts.encoder.encoder_backend == "native");
     pipe_timing::JobTimings timings;
     if (session->direct_yuv_selected()) {

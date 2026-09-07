@@ -7,8 +7,8 @@
 // had 0 production call sites after the 0d1854a6 rename, so this test
 // guards against silent regressions in:
 //   * The factory's identity/mode/frame/output field population
-//   * The VideoSettings default values (fps, crf, codec, encode_preset,
-//     tune, keep_frames, frames_dir, chunks)
+//   * The VideoSettings default values (fps_num/fps_den, crf, codec,
+//     encode_preset, tune, keep_frames, frames_dir, chunks)
 //   * The RenderJob::frame_count() edge cases (normal, inverted, equal,
 //     negative)
 //   * The RenderJob::operator bool() composition-bound probe
@@ -69,16 +69,16 @@ std::shared_ptr<const CompiledComposition> make_test_composition() {
 // takes a shared_ptr<const CompiledComposition> and returns a RenderJob — the
 // helper then:
 //   1. Snapshots identity (comp_id, output) from the factory result.
-//   2. Mutates ALL 8 video_settings fields on the original (fps, crf,
-//      codec, encode_preset, tune, keep_frames, frames_dir, chunks) —
-//      this closes code-reviewer item 3 from the prior round (the
-//      previous tests only mutated fps + codec, leaving 6 fields
-//      unverified through the copy path).
+//   2. Mutates the frame rate (fps_num) and the other video_settings
+//      fields (crf, codec, encode_preset, tune, keep_frames, frames_dir,
+//      chunks) on the original — this closes code-reviewer item 3 from
+//      the prior round (the previous tests only mutated fps + codec,
+//      leaving the rest unverified through the copy path).
 //   3. Copy-constructs `copy = original` and verifies every field
-//      (identity, mode, frame fields, output, all 8 video_settings
+//      (identity, mode, frame fields, output, all video_settings
 //      fields) plus the shared_ptr<Composition> sharing contract.
-//   4. Mutates ALL 8 video_settings fields on the copy and verifies
-//      the original is unchanged (independence).
+//   4. Mutates the frame rate and the other video_settings fields on the
+//      copy and verifies the original is unchanged (independence).
 //   5. Copy-assigns `assigned = original` and re-runs all 3 / 4
 //      verifications on the assigned copy.
 //
@@ -108,7 +108,7 @@ void run_copy_semantics_test(
     const std::string expected_output  = original.output;
 
     // ── Mutate ALL 8 video_settings fields on the original ──────
-    original.video_settings.fps           = 60;
+    original.video_settings.fps_num       = 60;
     original.video_settings.crf           = 23;
     original.video_settings.codec         = "libx264";
     original.video_settings.encode_preset = "fast";
@@ -138,7 +138,7 @@ void run_copy_semantics_test(
     CHECK(copy.last_frame  == expected_last_frame);
 
     // All 8 video_settings fields preserved (referenced via snapshot).
-    CHECK(copy.video_settings.fps           == expected.fps);
+    CHECK(copy.video_settings.fps_num       == expected.fps_num);
     CHECK(copy.video_settings.crf           == expected.crf);
     CHECK(copy.video_settings.codec         == expected.codec);
     CHECK(copy.video_settings.encode_preset == expected.encode_preset);
@@ -151,7 +151,7 @@ void run_copy_semantics_test(
     CHECK(copy.compiled == original.compiled);
 
     // Mutate ALL 8 video_settings on the copy; original is unaffected.
-    copy.video_settings.fps           = 30;
+    copy.video_settings.fps_num       = 30;
     copy.video_settings.crf           = 18;
     copy.video_settings.codec         = "auto";
     copy.video_settings.encode_preset = "slow";
@@ -161,7 +161,7 @@ void run_copy_semantics_test(
     copy.video_settings.chunks        = 1;
 
     // original is unaffected (verified against the snapshot).
-    CHECK(original.video_settings.fps           == expected.fps);
+    CHECK(original.video_settings.fps_num       == expected.fps_num);
     CHECK(original.video_settings.crf           == expected.crf);
     CHECK(original.video_settings.codec         == expected.codec);
     CHECK(original.video_settings.encode_preset == expected.encode_preset);
@@ -182,7 +182,7 @@ void run_copy_semantics_test(
     CHECK(assigned.first_frame == expected_first_frame);
     CHECK(assigned.last_frame  == expected_last_frame);
 
-    CHECK(assigned.video_settings.fps           == 60);
+    CHECK(assigned.video_settings.fps_num       == 60);
     CHECK(assigned.video_settings.crf           == 23);
     CHECK(assigned.video_settings.codec         == "libx264");
     CHECK(assigned.video_settings.encode_preset == "fast");
@@ -194,7 +194,7 @@ void run_copy_semantics_test(
 
     // Mutate ALL 8 video_settings on the assigned copy; original is
     // unaffected.
-    assigned.video_settings.fps           = 24;
+    assigned.video_settings.fps_num       = 24;
     assigned.video_settings.crf           = 20;
     assigned.video_settings.codec         = "hevc";
     assigned.video_settings.encode_preset = "ultrafast";
@@ -204,7 +204,7 @@ void run_copy_semantics_test(
     assigned.video_settings.chunks        = 8;
 
     // original is unaffected (verified against the snapshot).
-    CHECK(original.video_settings.fps           == expected.fps);
+    CHECK(original.video_settings.fps_num       == expected.fps_num);
     CHECK(original.video_settings.crf           == expected.crf);
     CHECK(original.video_settings.codec         == expected.codec);
     CHECK(original.video_settings.encode_preset == expected.encode_preset);
@@ -221,7 +221,8 @@ void run_copy_semantics_test(
 // ANY factory branch (Still / Sequence / Video).  The factory lambda
 // takes a shared_ptr<const CompiledComposition> and returns a RenderJob — the
 // helper then:
-//   1. Mutates ALL 8 video_settings fields on the original.
+//   1. Mutates the frame rate (fps_num) and the other video_settings
+//      fields on the original.
 //   2. Snapshots the mutated values into `expected` (same pattern as
 //      the copy helper).
 //   3. Move-constructs `moved = std::move(original)` and verifies every
@@ -261,7 +262,7 @@ void run_move_semantics_test(
         const std::string expected_comp_id = original.comp_id;
         const std::string expected_output  = original.output;
 
-        original.video_settings.fps           = 60;
+        original.video_settings.fps_num       = 60;
         original.video_settings.crf           = 23;
         original.video_settings.codec         = "libx264";
         original.video_settings.encode_preset = "fast";
@@ -281,7 +282,7 @@ void run_move_semantics_test(
         CHECK(moved.still_frame == expected_still_frame);
         CHECK(moved.first_frame == expected_first_frame);
         CHECK(moved.last_frame  == expected_last_frame);
-        CHECK(moved.video_settings.fps           == expected.fps);
+        CHECK(moved.video_settings.fps_num       == expected.fps_num);
         CHECK(moved.video_settings.crf           == expected.crf);
         CHECK(moved.video_settings.codec         == expected.codec);
         CHECK(moved.video_settings.encode_preset == expected.encode_preset);
@@ -308,7 +309,7 @@ void run_move_semantics_test(
         const std::string expected_comp_id = original.comp_id;
         const std::string expected_output  = original.output;
 
-        original.video_settings.fps           = 60;
+        original.video_settings.fps_num       = 60;
         original.video_settings.crf           = 23;
         original.video_settings.codec         = "libx264";
         original.video_settings.encode_preset = "fast";
@@ -329,7 +330,7 @@ void run_move_semantics_test(
         CHECK(move_assigned.still_frame == expected_still_frame);
         CHECK(move_assigned.first_frame == expected_first_frame);
         CHECK(move_assigned.last_frame  == expected_last_frame);
-        CHECK(move_assigned.video_settings.fps           == expected.fps);
+        CHECK(move_assigned.video_settings.fps_num       == expected.fps_num);
         CHECK(move_assigned.video_settings.crf           == expected.crf);
         CHECK(move_assigned.video_settings.codec         == expected.codec);
         CHECK(move_assigned.video_settings.encode_preset == expected.encode_preset);
@@ -407,7 +408,7 @@ TEST_CASE("RenderJob::video_job: video_settings default-initialization contract"
     // values.  Each field is locked by a CHECK so a future change to
     // the struct's default value (or a future factory that pre-fills
     // some field) is caught deterministically.
-    CHECK(job.video_settings.fps           == 30);
+    CHECK(job.video_settings.fps_num       == 30);
     CHECK(job.video_settings.crf           == 16);
     CHECK(job.video_settings.codec         == "auto");
     CHECK(job.video_settings.encode_preset == "slow");
@@ -425,7 +426,7 @@ TEST_CASE("RenderJob::video_job: video_settings is mutable post-construction") {
     // The D1 video commands populate video_settings after the factory
     // call (e.g. command_video.cpp sets fps from plan->output.fps,
     // crf from plan->encoder.crf, etc.).  Lock that mutation works.
-    job.video_settings.fps           = 60;
+    job.video_settings.fps_num       = 60;
     job.video_settings.crf           = 23;
     job.video_settings.codec         = "libx264";
     job.video_settings.encode_preset = "fast";
@@ -434,7 +435,7 @@ TEST_CASE("RenderJob::video_job: video_settings is mutable post-construction") {
     job.video_settings.frames_dir    = "chronon_comp_gamma";
     job.video_settings.chunks        = 4;
 
-    CHECK(job.video_settings.fps           == 60);
+    CHECK(job.video_settings.fps_num       == 60);
     CHECK(job.video_settings.crf           == 23);
     CHECK(job.video_settings.codec         == "libx264");
     CHECK(job.video_settings.encode_preset == "fast");
@@ -699,7 +700,7 @@ TEST_CASE("RenderJob::still: factory sets identity, mode, still_frame, output") 
     CHECK(job.last_frame.integral()  == 0);
 
     // video_settings defaults (same contract as video_job).
-    CHECK(job.video_settings.fps  == 30);
+    CHECK(job.video_settings.fps_num == 30);
     CHECK(job.video_settings.crf  == 16);
     CHECK(job.video_settings.codec == "auto");
 
@@ -742,7 +743,7 @@ TEST_CASE("RenderJob::sequence: factory sets identity, mode, first/last_frame, o
     CHECK(job.still_frame.integral() == 0);
 
     // video_settings defaults (same contract as video_job).
-    CHECK(job.video_settings.fps  == 30);
+    CHECK(job.video_settings.fps_num == 30);
     CHECK(job.video_settings.crf  == 16);
     CHECK(job.video_settings.codec == "auto");
 

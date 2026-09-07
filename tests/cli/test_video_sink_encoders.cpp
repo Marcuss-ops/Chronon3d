@@ -52,7 +52,8 @@ namespace {
     return FfmpegPipeOptions{
         .width          = w,
         .height         = h,
-        .fps            = 30,
+        .fps_num        = 30,
+        .fps_den        = 1,
         .crf            = 18,
         .preset         = "medium",
         .codec          = "libx264",

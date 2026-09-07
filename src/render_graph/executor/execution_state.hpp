@@ -99,7 +99,7 @@ struct PreResolvedNode {
 // Cache evaluation outcome.  The status is an enum on the hot path so the
 // per-node/frame evaluation never allocates a heap std::string just to feed a
 // "hit"/"miss" comparison and telemetry/logging; the legacy token set is
-// preserved verbatim by cache_status_name() so SQLite/telemetry text and
+// preserved verbatim by cache_status_name() so telemetry text and
 // diagnostics output are unchanged.
 enum class CacheEvaluationStatus : std::uint8_t {
     Hit,

@@ -1,7 +1,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
-#include <chronon3d/core/memory/framebuffer_copy.hpp>
+#include <chronon3d/core/framebuffer_copy.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -242,8 +242,23 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         return std::move(entry.fb);
     }
 
-    if (m_arena) {
-        void* ptr = m_arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
+    // Wave 4 — job-scoped arena association. When a provider is installed it
+    // is the authority for "which arena does the CURRENT frame allocate from":
+    // the provider (installed once per job) returns the rotating slot that is
+    // active for the frame being rendered, so association is a job-lifetime
+    // event (~1 attach/job) while rotation stays frame-lifetime. The provider
+    // is invoked under m_mutex and must not re-enter the pool. Fall back to
+    // the static m_arena when no provider is installed (or it returns null),
+    // preserving the legacy set_arena() path for non-job callers.
+    FramebufferArena* arena = nullptr;
+    if (m_arena_provider) {
+        arena = m_arena_provider();
+    }
+    if (arena == nullptr) {
+        arena = m_arena.get();
+    }
+    if (arena) {
+        void* ptr = arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);

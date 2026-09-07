@@ -13,7 +13,11 @@
 #include <memory>
 #include <span>
 
-namespace chronon3d::backends::vulkan {
+namespace chronon3d::media::video {
+
+using CudaExternalMemoryInfo = ::chronon3d::backends::vulkan::CudaExternalMemoryInfo;
+using CudaVulkanSurfaceBridge = ::chronon3d::backends::vulkan::CudaVulkanSurfaceBridge;
+using YuvToRgbParams = ::chronon3d::backends::vulkan::YuvToRgbParams;
 
 enum class CudaYuvFormat : std::uint8_t {
     Nv12,
@@ -29,23 +33,23 @@ using CudaLayerResource = ::chronon3d::media::CudaLayerResource;
 /// Owns CUDA kernels for NV12/RGBA interop without host staging. The bridge
 /// imports one Vulkan RGBA surface and owns the external memory/semaphore
 /// handles; the compositor writes CUDA NV12 planes directly when requested.
-class CudaNv12SurfaceCompositor final {
+class CudaNv12Compositor final {
 public:
     /// Compiles and loads the NVRTC module once on the supplied CUDA
     /// context. This validates the driver/context before NVENC is opened.
     static void warm_up(CUcontext context);
 
-    CudaNv12SurfaceCompositor(
+    CudaNv12Compositor(
         const CudaExternalMemoryInfo& target,
         CUcontext context);
     /// Direct-YUV-only variant.  It owns the CUDA module/stream but no
     /// Vulkan external surface; direct NV12 batch kernels use linear CUDA
     /// overlay resources and therefore do not need an RGBA bridge.
-    explicit CudaNv12SurfaceCompositor(CUcontext context);
-    ~CudaNv12SurfaceCompositor();
+    explicit CudaNv12Compositor(CUcontext context);
+    ~CudaNv12Compositor();
 
-    CudaNv12SurfaceCompositor(const CudaNv12SurfaceCompositor&) = delete;
-    CudaNv12SurfaceCompositor& operator=(const CudaNv12SurfaceCompositor&) = delete;
+    CudaNv12Compositor(const CudaNv12Compositor&) = delete;
+    CudaNv12Compositor& operator=(const CudaNv12Compositor&) = delete;
 
     /// Completes CUDA work associated with this imported surface before its
     /// external memory and semaphore handles are retired.
@@ -98,6 +102,6 @@ private:
     std::unique_ptr<CudaVulkanSurfaceBridge> bridge_;
 };
 
-} // namespace chronon3d::backends::vulkan
+} // namespace chronon3d::media::video
 
 #endif

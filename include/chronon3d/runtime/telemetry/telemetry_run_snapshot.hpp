@@ -15,9 +15,10 @@ namespace chronon3d::telemetry {
 /// are drained once at the end-of-run barrier into this struct; the only
 /// permitted direction afterwards is
 ///
-///     snapshot → TelemetryManager → TelemetryStore → SQLite
+///     snapshot → TelemetryManager → host TelemetryStore(s)
 ///
-/// (TICKET-TELEMETRY-SQLITE-NORMALIZATION, Stage 2.)
+/// (Wave 1D: the runtime bundles no store; persistence and aggregation are
+/// engine-external — host store or observability collector.)
 struct TelemetryRunSnapshot {
     RenderTelemetryRecord run;
 

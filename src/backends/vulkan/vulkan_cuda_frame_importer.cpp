@@ -4,7 +4,7 @@
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 extern "C" {
 #include <libavutil/avutil.h>
@@ -96,7 +96,7 @@ public:
                 return nullptr;
             }
             try {
-                slot.compositor = std::make_unique<CudaNv12SurfaceCompositor>(
+                slot.compositor = std::make_unique<media::video::CudaNv12Compositor>(
                     backend_.export_cuda_external_memory(slot.surface), context_);
             } catch (const std::exception& error) {
                 spdlog::error("[native-import] CUDA compositor creation failed: {}",
@@ -108,7 +108,7 @@ public:
             }
         }
         const auto format = view.format == runtime::PixelFormat::P010
-            ? CudaYuvFormat::P010 : CudaYuvFormat::Nv12;
+            ? media::video::CudaYuvFormat::P010 : media::video::CudaYuvFormat::Nv12;
         const auto params = make_yuv_to_rgb_params(view.color, view.format);
         if (!slot.compositor) {
             spdlog::error("[native-import] CUDA compositor unavailable");
@@ -136,7 +136,7 @@ private:
     struct Slot {
         std::size_t index{0};
         runtime::RenderSurfaceHandle surface{runtime::kInvalidRenderSurfaceHandle};
-        std::unique_ptr<CudaNv12SurfaceCompositor> compositor;
+        std::unique_ptr<media::video::CudaNv12Compositor> compositor;
         std::uint64_t generation{0};
         bool pending{false};
     };

@@ -13,7 +13,6 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/exporters/pipe_timing_sidecar_summary.cpp
     commands/video/exporters/pipe_timing_sidecar_diagnostics.cpp
     commands/video/exporters/pipe_export_finalize_encoder.cpp
-    commands/video/exporters/pipe_export_finalize_telemetry.cpp
     commands/video/common/pipe_export_profile.cpp
     commands/video/common/pipe_export_stages.cpp
     commands/video/common/pipe_export_render_loop.cpp
@@ -45,12 +44,6 @@ target_link_libraries(chronon3d_cli_video_export PRIVATE
     fmt::fmt
 )
 
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_compile_definitions(chronon3d_cli_video_export PRIVATE
-        CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    )
-endif()
-
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
         utils/video/native_av_encoder_common.cpp
@@ -71,8 +64,10 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    set(CHRONON3D_NVRTC_ARCHITECTURE "compute_75" CACHE STRING
-        "NVRTC virtual architecture for the CUDA video compositor (for example compute_86)")
+    # Ampere (compute_86) is the canonical GPU target for this stack
+    # (RTX A4000). Override for devices with a different compute capability.
+    set(CHRONON3D_NVRTC_ARCHITECTURE "compute_86" CACHE STRING
+        "NVRTC virtual architecture for the CUDA video compositor (canonical target: compute_86)")
     if(NOT CHRONON3D_NVRTC_ARCHITECTURE MATCHES "^compute_[0-9]+$")
         message(FATAL_ERROR
             "CHRONON3D_NVRTC_ARCHITECTURE must be compute_<capability>, got: "
@@ -111,6 +106,10 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
         CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
     if(TARGET chronon3d_media_native)
         target_compile_definitions(chronon3d_media_native PRIVATE
+            CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
+    endif()
+    if(TARGET chronon3d_backend_vulkan)
+        target_compile_definitions(chronon3d_backend_vulkan PRIVATE
             CHRONON3D_NVRTC_ARCHITECTURE=\"${CHRONON3D_NVRTC_ARCHITECTURE}\")
     endif()
 endif()

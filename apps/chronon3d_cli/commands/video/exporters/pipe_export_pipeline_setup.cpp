@@ -11,9 +11,7 @@
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#endif
 
 #include <spdlog/spdlog.h>
 #include <chrono>
@@ -130,11 +128,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->trace_job_id = static_cast<std::uint64_t>(
         std::hash<std::string>{}(session->original_output_path)) ^ profiling::timestamp_ns();
     session->started_at_iso =
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
         chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-#else
-        "";
-#endif
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);

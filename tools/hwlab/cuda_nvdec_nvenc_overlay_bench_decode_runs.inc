@@ -76,7 +76,8 @@ int run_gpu_overlay_only(int count, int W, int H, const char* wm_path, int ww, i
   CUstream stream{}; cu_ok(cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING), "stream");
 
   nvrtcProgram prog{}; nv_ok(nvrtcCreateProgram(&prog, kKernel, "composite.cu", 0, nullptr, nullptr), "createProg");
-  const char* opts[] = {"--gpu-architecture=compute_75"};
+  // Canonical target for this stack is Ampere (compute_86, RTX A4000).
+  const char* opts[] = {"--gpu-architecture=compute_86"};
   nv_ok(nvrtcCompileProgram(prog, 1, opts), "compileProg");
   size_t ptx_size{}; nv_ok(nvrtcGetPTXSize(prog, &ptx_size), "ptxSize");
   std::vector<char> ptx(ptx_size); nv_ok(nvrtcGetPTX(prog, ptx.data()), "getPTX"); nvrtcDestroyProgram(&prog);
@@ -188,7 +189,8 @@ int run_gpu_only(int count, int W, int H) {
   CUstream stream{}; cu_ok(cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING), "stream");
 
   nvrtcProgram prog{}; nv_ok(nvrtcCreateProgram(&prog, kKernel, "composite.cu", 0, nullptr, nullptr), "createProg");
-  const char* opts[] = {"--gpu-architecture=compute_75"};
+  // Canonical target for this stack is Ampere (compute_86, RTX A4000).
+  const char* opts[] = {"--gpu-architecture=compute_86"};
   nv_ok(nvrtcCompileProgram(prog, 1, opts), "compileProg");
   size_t ptx_size{}; nv_ok(nvrtcGetPTXSize(prog, &ptx_size), "ptxSize");
   std::vector<char> ptx(ptx_size); nv_ok(nvrtcGetPTX(prog, ptx.data()), "getPTX"); nvrtcDestroyProgram(&prog);

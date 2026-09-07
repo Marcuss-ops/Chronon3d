@@ -12,7 +12,6 @@
       "description": "Release validation base for the external-content architecture. Keeps the core dependency surface lean while enabling tests and IPC explicitly for release verification.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",

@@ -5,6 +5,7 @@
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <atomic>
 #include <cstring>
 using namespace chronon3d;
 
@@ -623,6 +624,97 @@ TEST_CASE("Config: framebuffer_pool_clear_policy accessor + setter") {
 // contention apart from pool work (fb_pool_lock_wait_ms / arena_set_count
 // acceptance: arena_set_count is a per-call meter that the Wave-4 job-scoped
 // association must drive toward ~1/job instead of frames/job).
+// Wave 4 — job-scoped arena association (see attach_arena_provider). The
+// render loop attaches ONE provider per job and publishes the rotating
+// triple-buffer slot before each frame; the pool consults the provider (under
+// its own mutex) only when a fresh allocation misses the free list. Acceptance:
+//   * association is a job-lifetime event  → arena_set_count ≈ 1/job, NOT
+//     frames/job (per-frame publish must never reconfigure the pool)
+//   * allocations for the current frame come from the published slot
+//   * detach restores the static/heap fallback (daemon reuses the pool across
+//     jobs; a stale provider must never outlive the job that installed it)
+TEST_CASE("FramebufferPool wave-4 job-scoped arena provider drives per-frame slots") {
+    // Shared-ownership pool so acquire()'s deleter returns FBs through
+    // pool->release() exactly like production.
+    auto pool = FramebufferPool::create_shared(256ULL * 1024ULL * 1024ULL);
+    auto slot_a = std::make_shared<FramebufferArena>(4ULL * 1024ULL * 1024ULL);
+    auto slot_b = std::make_shared<FramebufferArena>(4ULL * 1024ULL * 1024ULL);
+    REQUIRE(slot_a->used_bytes() == 0);
+    REQUIRE(slot_b->used_bytes() == 0);
+
+    // Mirrors JobArenaAssociation in pipe_export_render_loop.cpp: the pool
+    // association is a job-scoped provider and per-frame rotation is a plain
+    // atomic publish (no pool call, no mutex, no arena_set_count growth).
+    std::atomic<FramebufferArena*> current_slot{nullptr};
+
+    pool->reset_counters();
+    pool->attach_arena_provider([&current_slot]() {
+        return current_slot.load(std::memory_order_acquire);
+    });
+
+    // Association is exactly one tracked event per job.
+    auto after_attach = pool->stats();
+    CHECK(after_attach.arena_set_count == 1);
+
+    // Frame 1: publish slot A, allocate → storage must come from slot A.
+    current_slot.store(slot_a.get(), std::memory_order_release);
+    {
+        auto fb = pool->acquire(64, 64);
+        REQUIRE(fb != nullptr);
+        CHECK(fb->is_arena_allocated());
+        CHECK(fb->data() != nullptr);
+    }
+    CHECK(slot_a->used_bytes() > 0);
+    CHECK(slot_b->used_bytes() == 0);
+
+    // Frame 2: publish slot B, allocate → storage must come from slot B
+    // (proving the pool re-reads the provider per frame instead of caching
+    // the first arena).
+    current_slot.store(slot_b.get(), std::memory_order_release);
+    {
+        auto fb = pool->acquire(64, 64);
+        REQUIRE(fb != nullptr);
+        CHECK(fb->is_arena_allocated());
+    }
+    CHECK(slot_b->used_bytes() > 0);
+    const auto slot_a_after = slot_a->used_bytes();
+    const auto slot_b_after = slot_b->used_bytes();
+    CHECK(slot_a_after > 0);
+    CHECK(slot_b_after > 0);
+
+    // Per-frame rotation is NOT a pool reconfiguration: two frames allocated
+    // but the pool was associated exactly once (arena_set_count stays 1).
+    auto after_frames = pool->stats();
+    CHECK(after_frames.arena_set_count == 1);
+    CHECK(after_frames.acquire_count == 2);
+    CHECK(after_frames.release_count == 2);  // arena FBs drop on release
+
+    // Detach restores the fallback: a daemon reuses the pool across jobs, so
+    // after the job ends, allocations must no longer consult the provider's
+    // (now-dangling) slot. detach itself is not an association event.
+    pool->detach_arena_provider();
+    auto after_detach = pool->stats();
+    CHECK(after_detach.arena_set_count == 1);
+    {
+        current_slot.store(slot_a.get(), std::memory_order_release);
+        auto fb = pool->acquire(64, 64);
+        REQUIRE(fb != nullptr);
+        // No provider, no static arena → heap-backed fallback, exactly the
+        // legacy behavior for callers that never installed an arena.
+        CHECK(!fb->is_arena_allocated());
+    }
+
+    // Idempotent detach is safe.
+    pool->detach_arena_provider();
+
+    // A second job attaches fresh and pays exactly one more association.
+    pool->attach_arena_provider([&current_slot]() {
+        return current_slot.load(std::memory_order_acquire);
+    });
+    CHECK(pool->stats().arena_set_count == after_detach.arena_set_count + 1);
+    pool->detach_arena_provider();
+}
+
 TEST_CASE("FramebufferPool wave-2 contention counters advance") {
     // Shared-ownership pool: acquire()'s shared deleter returns buffers via
     // pool->release(), which is exactly the release path being accounted.
