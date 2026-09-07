@@ -20,11 +20,14 @@ sono coerenti.
   lista legacy di parametri e senza il passaggio IPC policy → overrides.
 - [x] Wave 2 — `RenderPlanState` resta solo DTO CLI; la policy non è più
   risolta da questo adapter e il job executor riceve il risultato normalizzato.
+- [x] Wave 2 — il percorso render-plan trasporta un solo `CompiledProgram`;
+  la `CompiledComposition` legacy viene materializzata una sola volta nel
+  resolver per gli executor ancora non migrati.
 - [x] Wave 3 — `CompiledProgram` immutable con topology, parameters e
   fingerprint esposti dalla compiler boundary.
-- [x] Wave 3 — il render-plan job porta `CompiledProgram` fino a
-  `runtime::prepare_render`; `PreparedRenderPlan`/`CompiledComposition` resta
-  soltanto compatibility payload dell’executor corrente.
+- [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
+  programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
+  `CompiledComposition` come payload dell’executor.
 - [x] Wave 4 — target CMake separati di render-plan/graph builder/graph
   compiler assorbiti nel target `chronon3d_compiler`.
 - [x] Wave 4 — `graph_compile.hpp` pubblico e free facade rimossi; il graph

@@ -136,6 +136,10 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
     std::shared_ptr<const CompiledComposition> compiled = std::move(request.compiled_composition);
+    if (!compiled && request.compiled_program) {
+        compiled = std::make_shared<const CompiledComposition>(
+            request.compiled_program->compiled_composition());
+    }
     std::optional<ResolvedCompositionSpec> resolved;
     if (!compiled) {
         auto registry_result = registry.resolve(composition_id, request.input);

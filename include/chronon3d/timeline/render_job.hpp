@@ -143,8 +143,10 @@ struct RenderRequest {
     /// compiled composition below remains a compatibility view for the
     /// current graph executor and is not a second compiler authority.
     std::shared_ptr<const compiler::CompiledProgram> compiled_program;
-    /// Optional canonical compiled plan. When present, resolution does not
-    /// re-enter the composition registry or construct a second composition.
+    /// Legacy executor view. Plan-originated requests carry only
+    /// `compiled_program`; the resolver materializes this view once at the
+    /// compatibility boundary until the executor consumes the numeric
+    /// program directly.
     std::shared_ptr<const CompiledComposition> compiled_composition;
     CompositionInput input;
     RenderMode mode{RenderMode::Still};
@@ -171,9 +173,9 @@ struct RenderRequest {
 /// Single resolved execution value covering still, sequence, and video.
 ///
 /// `registry` is a non-owning execution dependency pinned by the CLI/host.
-/// Execution owns only the immutable compiled composition. Metadata resolved
-/// from its definition is retained on the same value; no direct Composition
-/// execution path is present.
+/// Execution owns the immutable compiler program plus one compatibility view
+/// for the current composition-based executor. The latter is never carried by
+/// the request alongside the program.
 struct RenderJob {
     const CompositionRegistry* registry{nullptr};
     std::string comp_id;
