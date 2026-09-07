@@ -101,12 +101,12 @@ int execute_normalized_render_job(
         }
 
         auto context = std::move(preparation).value();
-        const auto& prepared = context.program->prepared_plan();
+        const auto& program = *context.program;
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
 
         const auto output = normalized_job.output_path.empty()
-            ? prepared.output.path : normalized_job.output_path.string();
+            ? program.output().path : normalized_job.output_path.string();
         const auto first = normalized_job.frame_range
             ? normalized_job.frame_range->first : std::int64_t{0};
         // Explicit frame-range semantics: when --end-frame (or the daemon
@@ -116,12 +116,10 @@ int execute_normalized_render_job(
         // frame of the plan".
         const std::int64_t last = normalized_job.frame_range
             ? normalized_job.frame_range->last
-            : prepared.canvas.duration.integral() - 1;
+            : program.canvas().duration.integral() - 1;
         RenderRequest request;
-        request.comp_id = prepared.job_id;
+        request.comp_id = program.job_id();
         request.compiled_program = context.program;
-        request.compiled_composition = std::make_shared<const CompiledComposition>(
-            prepared.compiled_composition);
         request.output = output;
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt
@@ -139,14 +137,14 @@ int execute_normalized_render_job(
         request.execution.trace_output = normalized_job.trace.output;
         request.execution.trace_level = normalized_job.trace.level;
         request.video_settings.fps_num = normalized_job.output.fps_num == 0
-            ? prepared.canvas.fps.num() : normalized_job.output.fps_num;
+            ? program.canvas().fps.num() : normalized_job.output.fps_num;
         request.video_settings.fps_den = normalized_job.output.fps_num == 0
-            ? prepared.canvas.fps.den() : normalized_job.output.fps_den;
-        request.video_settings.codec = codec_name(prepared.output.codec);
-        request.video_settings.rate_control_mode = prepared.output.rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
-            (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
-        request.video_settings.qp = prepared.output.qp;
-        request.video_settings.bitrate = prepared.output.bitrate;
+            ? program.canvas().fps.den() : normalized_job.output.fps_den;
+        request.video_settings.codec = codec_name(program.output().codec);
+        request.video_settings.rate_control_mode = program.output().rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
+            (program.output().rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
+        request.video_settings.qp = program.output().qp;
+        request.video_settings.bitrate = program.output().bitrate;
         if (!normalized_job.output.codec.empty()) request.video_settings.codec = normalized_job.output.codec;
         if (!normalized_job.output.hardware_encoder.empty())
             request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
@@ -167,9 +165,9 @@ int execute_normalized_render_job(
         } else if (normalized_job.output.crf >= 0) {
             request.video_settings.rate_control_mode = "crf";
             request.video_settings.crf = normalized_job.output.crf;
-        } else if (prepared.output.crf > 0 && prepared.output.crf <= 51) {
+        } else if (program.output().crf > 0 && program.output().crf <= 51) {
             request.video_settings.rate_control_mode = "crf";
-            request.video_settings.crf = prepared.output.crf;
+            request.video_settings.crf = program.output().crf;
         }
         if (!normalized_job.output.encode_preset.empty()) {
             request.video_settings.encode_preset = normalized_job.output.encode_preset;
@@ -183,15 +181,15 @@ int execute_normalized_render_job(
         // NVENC job that simply never mentioned rate control.
         request.video_settings.rate_control_mode_explicit =
             !normalized_job.output.rate_control_mode.empty() ||
-            prepared.output.rate_control != render_plan::RateControlMode::Crf ||
-            (prepared.output.crf > 0 && prepared.output.crf <= 51);
+            program.output().rate_control != render_plan::RateControlMode::Crf ||
+            (program.output().crf > 0 && program.output().crf <= 51);
         request.video_settings.crf_explicit =
             normalized_job.output.crf >= 0 ||
-            (prepared.output.crf > 0 && prepared.output.crf <= 51);
+            (program.output().crf > 0 && program.output().crf <= 51);
         request.video_settings.qp_explicit =
-            normalized_job.output.qp >= 0 || prepared.output.qp >= 0;
+            normalized_job.output.qp >= 0 || program.output().qp >= 0;
         request.video_settings.bitrate_explicit =
-            normalized_job.output.bitrate > 0 || prepared.output.bitrate > 0;
+            normalized_job.output.bitrate > 0 || program.output().bitrate > 0;
         request.video_settings.encode_preset_explicit =
             !normalized_job.output.encode_preset.empty();
         request.video_settings.tune_explicit = false;
@@ -232,6 +230,7 @@ int execute_normalized_render_job(
         }
         if (normalized_job.report) {
             try {
+                const auto& prepared = program.prepared_plan();
                 verification::RenderReceiptInput receipt_input;
                 receipt_input.job_id = prepared.job_id;
                 receipt_input.content_digest = prepared.fingerprint.content_digest.hex();
