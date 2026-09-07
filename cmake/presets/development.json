@@ -21,7 +21,6 @@
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_ENABLE_IPC": "OFF",
         "CHRONON3D_BUILD_DAEMON": "OFF",
@@ -47,7 +46,6 @@
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
@@ -118,7 +116,7 @@
       "name": "linux-dev",
       "inherits": "base-linux",
       "displayName": "Linux Dev (daily inner loop)",
-      "description": "Daily developer preset: CLI + telemetry + tests, Debug build, unity enabled. Bundled compositions are external.",
+      "description": "Daily developer preset: CLI + tests, Debug build, unity enabled. Bundled compositions are external.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -128,10 +126,9 @@
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;telemetry;tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
     },
     {
@@ -148,7 +145,6 @@
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;video;ipc"

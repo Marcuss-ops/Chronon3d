@@ -12,7 +12,6 @@
       "description": "Shared hidden base for PGO, ThinLTO and BOLT release optimization. Floating-point contraction remains controlled by the root deterministic-build policy.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_PROFILE_DATA_PATH": "${sourceDir}/build/chronon/${presetName}/merged.profdata",

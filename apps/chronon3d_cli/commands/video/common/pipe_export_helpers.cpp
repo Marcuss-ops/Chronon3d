@@ -86,7 +86,8 @@ FfmpegPipeOptions make_pipe_options(
     FfmpegPipeOptions pipe_options{
         .width = compiled.composition->width(),
         .height = compiled.composition->height(),
-        .fps = opts.output.fps,
+        // F3.1 — rational-only: fps_num/fps_den are copied verbatim (the
+        // scalar fps member was removed from both options structs).
         .fps_num = opts.output.fps_num,
         .fps_den = opts.output.fps_den,
         .rate_control_mode = opts.encoder.rate_control_mode,

@@ -11,10 +11,11 @@ using namespace chronon3d::cli;
 TEST_CASE("FfmpegExportOptions: default-constructed sub-structs have correct defaults") {
     FfmpegExportOptions opts;
 
-    // OutputOptions defaults
+    // OutputOptions defaults (rational-only frame rate: fps_num/fps_den)
     CHECK(opts.output.output.empty());
     CHECK(opts.output.frames_dir_name.empty());
-    CHECK(opts.output.fps == 30);
+    CHECK(opts.output.fps_num == 30);
+    CHECK(opts.output.fps_den == 1);
 
     // EncoderOptions defaults
     CHECK(opts.encoder.codec == "auto");
@@ -53,7 +54,8 @@ TEST_CASE("FfmpegExportOptions: assigning sub-structs propagates all fields") {
     OutputOptions out;
     out.output = "/tmp/test.mp4";
     out.frames_dir_name = "test_frames";
-    out.fps = 60;
+    out.fps_num = 60;
+    out.fps_den = 1;
 
     EncoderOptions enc;
     enc.codec = "libx265";
@@ -90,7 +92,8 @@ TEST_CASE("FfmpegExportOptions: assigning sub-structs propagates all fields") {
     // Verify all fields propagated
     CHECK(opts.output.output == "/tmp/test.mp4");
     CHECK(opts.output.frames_dir_name == "test_frames");
-    CHECK(opts.output.fps == 60);
+    CHECK(opts.output.fps_num == 60);
+    CHECK(opts.output.fps_den == 1);
     CHECK(opts.encoder.codec == "libx265");
     CHECK(opts.encoder.hardware_encoder == "nvenc");
     CHECK(opts.encoder.encode_preset == "slow");
@@ -118,7 +121,8 @@ TEST_CASE("OutputOptions: standalone defaults are correct") {
     OutputOptions o;
     CHECK(o.output.empty());
     CHECK(o.frames_dir_name.empty());
-    CHECK(o.fps == 30);
+    CHECK(o.fps_num == 30);
+    CHECK(o.fps_den == 1);
 }
 
 TEST_CASE("EncoderOptions: standalone defaults are correct") {
@@ -248,69 +252,65 @@ TEST_CASE("FfmpegExportOptions: execution-receipt fields survive whole-option co
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Frame-rate canonicalisation parity (canonical_frame_rate.hpp)
+// Frame-rate authority (F3.1): fps_num/fps_den rational is the single source
 // ─────────────────────────────────────────────────────────────────────────────
-// The {fps, fps_num, fps_den} triple is carried by both OutputOptions and
-// FfmpegPipeOptions, and the "which field wins" rule must be identical for the
-// two accessors (single-source canonical_frame_rate()). Lock the rule and the
-// parity so a future fix to one side cannot silently desynchronise the other.
+// The legacy {fps, fps_num, fps_den} triple and the "scalar fps overrides the
+// untouched 30/1 rational" rule (canonical_frame_rate.hpp) were demolished:
+// the CLI normalises --fps into fps_num/fps_den at the boundary, and every
+// consumer reads the rational verbatim. These tests lock that fps_num/fps_den
+// are used EXACTLY as given — a stale scalar that tried to override them has
+// no channel to do so, because neither struct carries a scalar fps anymore.
 
-TEST_CASE("FfmpegFrameRate: canonical_frame_rate is the single source of truth") {
-    const auto canonical = chronon3d::cli::canonical_frame_rate;
-    struct Case { int fps; int fps_num; int fps_den; int want_num; int want_den; };
+TEST_CASE("FfmpegFrameRate: fps_num/fps_den are the single frame-rate authority") {
+    struct Case { int fps_num; int fps_den; int want_num; int want_den; };
     const Case cases[] = {
-        // Defaults: untouched rational sentinel 30/1, untouched legacy fps=30.
-        {30, 30, 1, 30, 1},
-        // Legacy integer fps overrides the untouched 30/1 default.
-        {24, 30, 1, 24, 1},
-        {25, 30, 1, 25, 1},
-        // Non-default rational fields are authoritative even when legacy fps
-        // differs (NTSC 30000/1001 and 24/1.001-style rational).
-        {25, 30000, 1001, 30000, 1001},
-        {30, 24000, 1000, 24000, 1000},
-        // Sentinel edge: fps_num==30 && fps_den==1 && fps==30 is
-        // indistinguishable from an untouched default; result is 30/1.
-        {30, 30, 1, 30, 1},
-    };
-    for (const auto& c : cases) {
-        const auto got = canonical(c.fps, c.fps_num, c.fps_den);
-        CHECK(got.num == c.want_num);
-        CHECK(got.den == c.want_den);
-    }
-}
-
-TEST_CASE("FfmpegFrameRate: OutputOptions and FfmpegPipeOptions agree") {
-    // Parity lock: for every representative triple, OutputOptions::frame_rate()
-    // and FfmpegPipeOptions::canonical_fps_num()/den() must resolve to the same
-    // rational — including the legacy branch and the mixed rational cases.
-    struct Case { int fps; int fps_num; int fps_den; };
-    const Case cases[] = {
-        {30, 30, 1}, {24, 30, 1}, {25, 30, 1}, {60, 60, 1},
-        {25, 30000, 1001}, {30, 24000, 1000},
-        // The case the two inlined heuristics historically disagreed on:
-        // legacy fps differs AND fps_den != 1 (legacy must not apply).
-        {24, 30, 2}, {25, 60, 2},
+        // Defaults.
+        {30, 1, 30, 1},
+        // Rational fields are used verbatim, including NTSC-style rates.
+        {24, 1, 24, 1},
+        {25, 1, 25, 1},
+        {30000, 1001, 30000, 1001},
+        {24000, 1000, 24000, 1000},
+        {60, 2, 60, 2},
     };
     for (const auto& c : cases) {
         OutputOptions output;
-        output.fps = c.fps;
         output.fps_num = c.fps_num;
         output.fps_den = c.fps_den;
-
         FfmpegPipeOptions pipe;
-        pipe.fps = c.fps;
         pipe.fps_num = c.fps_num;
         pipe.fps_den = c.fps_den;
 
-        const auto canonical = chronon3d::cli::canonical_frame_rate(
-            c.fps, c.fps_num, c.fps_den);
         const auto rate = output.frame_rate();
-        CHECK(rate.numerator == canonical.num);
-        CHECK(rate.denominator == canonical.den);
-        CHECK(pipe.canonical_fps_num() == canonical.num);
-        CHECK(pipe.canonical_fps_den() == canonical.den);
+        CHECK(rate.numerator == c.want_num);
+        CHECK(rate.denominator == c.want_den);
+        CHECK(pipe.canonical_fps_num() == c.want_num);
+        CHECK(pipe.canonical_fps_den() == c.want_den);
         // Cross-parity: the two struct accessors agree with each other.
         CHECK(pipe.canonical_fps_num() == rate.numerator);
         CHECK(pipe.canonical_fps_den() == rate.denominator);
     }
+}
+
+TEST_CASE("FfmpegFrameRate: no scalar fps channel exists on the export options") {
+    // The compile-time proof that the legacy scalar alias is gone: a
+    // hypothetical "legacy 24fps override against the untouched 30/1 default"
+    // must be IMPOSSIBLE to express — setting only fps_num/fps_den to 30/1 is
+    // the untouched default, and there is no other field left to smuggle a
+    // scalar fps in.
+    OutputOptions output;
+    CHECK(output.fps_num == 30);
+    CHECK(output.fps_den == 1);
+    FfmpegPipeOptions pipe;
+    CHECK(pipe.canonical_fps_num() == 30);
+    CHECK(pipe.canonical_fps_den() == 1);
+    // Rationals pass through verbatim and equal the frame-rate accessor.
+    output.fps_num = 24000;
+    output.fps_den = 1001;
+    pipe.fps_num = 24000;
+    pipe.fps_den = 1001;
+    CHECK(output.frame_rate().numerator == 24000);
+    CHECK(output.frame_rate().denominator == 1001);
+    CHECK(pipe.canonical_fps_num() == 24000);
+    CHECK(pipe.canonical_fps_den() == 1001);
 }

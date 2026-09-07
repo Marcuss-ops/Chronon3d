@@ -8,9 +8,12 @@
 ///
 /// Extracted from FfmpegExportOptions — these are the most basic settings
 /// that every video export job needs regardless of sink type.
+///
+/// F3.1 — frame rate is rational-only: fps_num/fps_den are the SINGLE
+/// authority. The legacy scalar `fps` alias was demolished (it used to
+/// override the rational 30/1 default through canonical_frame_rate); the
+/// `--fps` CLI flag now normalises into this rational at the CLI boundary.
 // ---------------------------------------------------------------------------
-
-#include "canonical_frame_rate.hpp"
 
 #include <string>
 #include <chronon3d/core/types/time.hpp>
@@ -25,24 +28,18 @@ struct OutputOptions {
     /// Directory name for temporary/intermediate frames.
     std::string frames_dir_name;
 
-    /// Output frame rate (frames per second).
-    int fps{30};
+    /// Output frame rate as an exact rational (numerator/denominator).
+    /// fps_num/fps_den are the single authority — there is no scalar fps.
     int fps_num{30};
     int fps_den{1};
 
     [[nodiscard]] chronon3d::FrameRate frame_rate() const noexcept {
-        // Single canonicalisation rule shared with FfmpegPipeOptions (see
-        // canonical_frame_rate.hpp) — the legacy 30/1 sentinel semantics and
-        // the parity between the two accessors are locked by test
-        // "FfmpegFrameRate: OutputOptions and FfmpegPipeOptions agree".
-        const auto canonical = canonical_frame_rate(fps, fps_num, fps_den);
-        return chronon3d::FrameRate{canonical.num, canonical.den};
+        return chronon3d::FrameRate{fps_num, fps_den};
     }
 
     [[nodiscard]] double fps_value() const noexcept {
-        const auto rate = frame_rate();
-        return rate.denominator > 0
-            ? static_cast<double>(rate.numerator) / rate.denominator : 0.0;
+        return fps_den > 0
+            ? static_cast<double>(fps_num) / fps_den : 0.0;
     }
 };
 

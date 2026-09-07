@@ -41,7 +41,7 @@ namespace {
 // libc++ ≤22) and costs at most ONE allocation for pathological ids (the
 // original paid up to four). The emitted format is byte-identical to the
 // previous "g" + std::to_string(graph) + ":n" + std::to_string(node), so
-// NodeMemoryTracker report keys and the SQLite telemetry join are unchanged.
+// NodeMemoryTracker report keys and the telemetry record joins are unchanged.
 [[nodiscard]] std::string memory_node_id(
     const CompiledFrameGraph& compiled,
     GraphNodeId id,

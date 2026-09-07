@@ -126,7 +126,8 @@ do_render() {
     local cli="$1" png="$2" json="$3" threads="$4"
 
     # Wipe ~/.chronon3d/cache/ before each cold run (per D).  Preserve the
-    # ~/.chronon3d/telemetry/ parent dir (that's the canonical SQLite + JSONL).
+    # ~/.chronon3d/telemetry/ parent dir (Chronon emits events; persistence
+    # and aggregation are engine-external).
     if [ "${CACHE_MODE_INHERITED:-cold}" = "cold" ]; then
         rm -rf "${HOME}/.chronon3d/cache/" 2>/dev/null || true
     fi

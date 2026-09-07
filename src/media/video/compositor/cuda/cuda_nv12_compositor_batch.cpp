@@ -1,4 +1,4 @@
-// cuda_nv12_surface_compositor_batch.cpp — CudaNv12SurfaceCompositor
+// cuda_nv12_compositor_batch.cpp — CudaNv12Compositor
 // GpuLayerBatch -> direct NV12/P010 precursor path.
 
 #include "cuda_nv12_compositor_detail.hpp"
@@ -10,9 +10,9 @@
 #include <span>
 #include <vector>
 
-namespace chronon3d::backends::vulkan {
+namespace chronon3d::media::video {
 
-bool CudaNv12SurfaceCompositor::composite_direct_nv12_batch(
+bool CudaNv12Compositor::composite_direct_nv12_batch(
     const runtime::GpuLayerBatch& batch,
     std::span<const CudaLayerResource> resources,
     CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
@@ -91,6 +91,6 @@ bool CudaNv12SurfaceCompositor::composite_direct_nv12_batch(
     return true;
 }
 
-} // namespace chronon3d::backends::vulkan
+} // namespace chronon3d::media::video
 
 #endif

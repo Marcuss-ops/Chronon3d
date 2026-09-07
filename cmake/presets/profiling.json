@@ -21,7 +21,6 @@
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
@@ -46,7 +45,6 @@
         "CHRONON3D_ENABLE_VIDEO": "OFF",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
@@ -58,8 +56,8 @@
       "name": "linux-profile-video",
       "hidden": true,
       "inherits": "base-linux",
-      "displayName": "Linux Profile Video (native ffmpeg + telemetry)",
-      "description": "Hidden profile matrix preset with native FFmpeg, telemetry, Blend2D and text enabled.",
+      "displayName": "Linux Profile Video (native ffmpeg)",
+      "description": "Hidden profile matrix preset with native FFmpeg, Blend2D and text enabled.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -71,20 +69,19 @@
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
-        "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
         "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;telemetry;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
       }
     },
     {
       "name": "linux-profile-extended",
       "hidden": true,
       "inherits": "base-linux",
-      "displayName": "Linux Profile Extended (mesh, EXR, telemetry, benchmarks, tracing)",
-      "description": "Hidden extended feature envelope with mesh, EXR, telemetry, benchmarks and tracing enabled.",
+      "displayName": "Linux Profile Extended (mesh, EXR, benchmarks, tracing)",
+      "description": "Hidden extended feature envelope with mesh, EXR, benchmarks and tracing enabled.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -96,11 +93,10 @@
         "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_MESH": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
-        "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_TRACING": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks;tracing"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;tests;benchmarks;tracing"
       }
     }
   ],

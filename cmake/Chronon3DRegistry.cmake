@@ -44,6 +44,8 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
 
     # Media execution
     chronon3d_media_execution
+    # NV12/GPU video compositor SSOT (media/video/compositor)
+    chronon3d_video_compositor
 
     # Backends
     chronon3d_backend_assets

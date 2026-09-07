@@ -70,9 +70,10 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     const char* fmt_str = "rgba";
     if (options.input_format == PipePixelFormat::YUV420P) fmt_str = "yuv420p";
     else if (options.input_format == PipePixelFormat::NV12) fmt_str = "nv12";
-    spdlog::info("[video_adapter] Opened {} sink: {}x{} @ {}fps, format={}, codec={}",
+    spdlog::info("[video_adapter] Opened {} sink: {}x{} @ {}/{}fps, format={}, codec={}",
                  (sink_type_ == VideoSinkType::RawFile) ? "raw" : "ffmpeg-pipe",
-                 width_, height_, options.fps, fmt_str, options.codec);
+                 width_, height_, options.canonical_fps_num(),
+                 options.canonical_fps_den(), fmt_str, options.codec);
     return true;
 }
 

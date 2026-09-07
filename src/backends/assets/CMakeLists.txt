@@ -13,11 +13,8 @@
 # symbols (one-way edge, no cycle).
 # ==============================================================================
 
-# Image telemetry writer records only when the SQLite consumer exists
-# (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); default builds skip the per-draw
-# mutex/string cost entirely.  The definition must be applied AFTER the
-# add_library() below (target_compile_definitions on a not-yet-created
-# target is a configure error in telemetry-enabled builds).
+# Wave 1D (SQLite demolition): the image telemetry writer gated on the
+# SQLite consumer is removed; per-draw record construction no longer exists.
 add_library(chronon3d_backend_assets OBJECT
     image_cache.cpp
     image_renderer.cpp
@@ -27,10 +24,6 @@ add_library(chronon3d_backend_assets OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/../software/utils/blend2d_bridge_core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../software/utils/blend2d_bridge_transforms_fb.cpp
 )
-
-if(CHRONON3D_ENABLE_TELEMETRY)
-    target_compile_definitions(chronon3d_backend_assets PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()
 
 if(CHRONON3D_USE_BLEND2D)
     # 'target_sources' only accepts PRIVATE/PUBLIC/INTERFACE — not OBJECT.

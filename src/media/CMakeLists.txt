@@ -9,6 +9,8 @@
 add_library(chronon3d_media_execution OBJECT
     video/video_execution_resolver.cpp
 )
+
+add_subdirectory(video/compositor)
 set_target_properties(chronon3d_media_execution PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_media_execution PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -47,7 +49,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         set_target_properties(chronon3d_media_native PROPERTIES UNITY_BUILD OFF)
         if(CHRONON3D_ENABLE_CUDA_INTEROP)
             target_sources(chronon3d_media_native PRIVATE
-                video/cuda_direct_nv12_compositor.cpp)
+                $<TARGET_OBJECTS:chronon3d_video_compositor>)
             target_include_directories(chronon3d_media_native PRIVATE
                 "${CHRONON3D_CUDA_INCLUDE_DIR}"
                 "${CHRONON3D_NVRTC_INCLUDE_DIR}")

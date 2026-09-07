@@ -1,9 +1,49 @@
 # TICKET-TELEMETRY-SQLITE-NORMALIZATION — Architettura Unificata Telemetria & SQLite Store
 
-**Stato:** OPEN (In Progress)  
+**Stato:** CLOSED — Wave 1D (SQLite demolition, 2026-09-07)  
 **Priorità:** P1  
 **Data:** 2026-09-05  
 **Owner:** Core Runtime / Telemetry Working Session  
+
+---
+
+## Wave 1D — Demolizione SQLite (chiusura del ticket in-repo)
+
+Il runtime Chronon non possiede più alcuno store di persistenza né dipendenza
+sqlite3: **Chronon misura se stesso ed emette eventi strutturati (events only)**;
+la persistenza/aggregazione vive fuori dall'engine (host store o collector di
+osservabilità). RenderingGen orchestra Chronon e riceve soltanto il
+`RenderResult` bounded — non è il trasportatore della telemetria interna.
+Questo ticket chiude con lo scope in-repo eseguito e rimosso.
+
+### Scheda di Demolition Debt: `SqliteTelemetryStore` + emettitori granulari gated
+- **Owner**: Core Runtime / Telemetry Working Session
+- **Reason**: la persistenza SQLite in-engine non è più giustificata
+  (strumentazione → raccolta → persistenza separate); il runtime deve restare
+  events-only senza dipendenza sqlite3.
+- **Exit condition**: Chronon senza database/store/schema SQL; strumentazione
+  in-memory + boundary host/collector.
+- **Equivalence test/gate**: suite `chronon3d_renderer_core_tests`
+  (policy/manager/null-store) invariata + contract render/counters invariati
+  (render output byte-identico).
+- **Removal scope**:
+  - `src/runtime/telemetry/sqlite/` (7 file: schema .sql/.hpp.in, store,
+    events, impl)
+  - `include/chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp`
+  - `src/render_graph/executor/telemetry_emitter.{hpp,cpp}` + call sites
+    (`node_runner_single_node_detail.hpp`)
+  - blocchi gated culling/image/cache-emitter e macro
+    `CHRONON3D_ENABLE_SQLITE_TELEMETRY` (tutti i CMake: runtime, pipeline,
+    render_graph, backends/assets, CLI)
+  - CLI reader SQLite: `commands/telemetry/`, `group_telemetry.cpp`,
+    `cmake/Telemetry.cmake`, decl/args nel registry, link sqlite3 da
+    Executable/Render/VideoExport
+  - drain di fine run (`render_job_finalize.cpp`, `pipe_export_finalize_telemetry.cpp`,
+    `record_output_run` in `utils/telemetry/telemetry_record.hpp`)
+  - `tests/runtime/test_telemetry_sqlite.cpp` + sezioni sqlite di
+    `test_telemetry.cpp`; feature vcpkg `telemetry`; preset/vcpkg/arch-gate
+    references; `resolve_sqlite_telemetry_path()`
+- **Status**: `REMOVED`
 
 ---
 

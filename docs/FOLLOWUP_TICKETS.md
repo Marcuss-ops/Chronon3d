@@ -16,13 +16,13 @@
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 | Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
-| Telemetry SQLite normalization | P1 | OPEN | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — consolidamento authority (RAM/TLS -> snapshot -> SQLite), tabelle node/memory summary, rimozione dual schema |
 
 ## Demolition Debt (exit-condition driven)
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
+| SQLite telemetry (store + emitters + CLI readers) | P1 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — Wave 1D: runtime events-only (NullTelemetryStore default), zero dipendenza sqlite3 in src/include/apps; persistenza/aggregazione engine-external |
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
 | PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato); record: ADR-024 + git history |
 
@@ -31,14 +31,14 @@
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
-| Telemetry granular emitter | P2 | CODE DONE (build pending) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — capture-level gate: Summary = zero granular emission (node/culling), Detailed/Trace only; drains verified present → [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) |
+| Telemetry granular emitter | P2 | SUPERSEDED (Wave 1D) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emettitori granulari gated su SQLite rimossi; resta l'API eventi in-memory (`record_*`) per store host |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
 
 ## Audit roadmap waves 1-6 (working session)
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| Video execution authority + easy cleanup + surface tests + telemetry gate | P1 | CODE DONE (build/CI pending) | [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) — Waves 1/2/3/5/6 code landed; Wave 4 (NV12 unification) + downgrade-reason→SQLite receipt deferred to GPU-host session |
+| Video execution authority + easy cleanup + surface tests + telemetry gate | P1 | CODE DONE (build/CI pending) | [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) — Waves 1/2/3/5/6 code landed; Wave 4 (NV12 unification) deferred to GPU-host session; downgrade-reason receipt deferred (telemetry persistence engine-external) |
 
 ## Recently Closed (ultimi 3)
 

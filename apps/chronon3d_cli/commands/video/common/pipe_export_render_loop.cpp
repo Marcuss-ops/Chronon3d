@@ -1,14 +1,62 @@
 #include "pipe_export_session_internal.hpp"
 
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <exception>
+#include <memory>
 
 namespace chronon3d::cli {
+
+namespace {
+
+// Wave 4 — job-scoped arena association guard. The pool's arena source is
+// attached ONCE per job (arena_set_count ≈ 1/job, never frames/job): the
+// provider returns the rotating slot that is active for the frame currently
+// being rendered (published by run_render_loop per frame), and the pool
+// consults it under its own mutex when a fresh allocation misses the free
+// list. Detach is mandatory at the end of the job — the daemon reuses the
+// pool across jobs, so a stale provider would dangle past the job that
+// installed it.
+class JobArenaAssociation {
+public:
+    explicit JobArenaAssociation(cache::FramebufferPool* pool) : pool_(pool) {
+        if (pool_) {
+            pool_->attach_arena_provider([this]() {
+                return current_frame_arena_.load(std::memory_order_acquire);
+            });
+            attached_ = true;
+        }
+    }
+    ~JobArenaAssociation() {
+        if (pool_ && attached_) {
+            pool_->detach_arena_provider();
+        }
+    }
+    JobArenaAssociation(const JobArenaAssociation&) = delete;
+    JobArenaAssociation& operator=(const JobArenaAssociation&) = delete;
+
+    /// Publish the frame-scoped rotating arena slot BEFORE the frame's graph
+    /// executes: every pool allocation for this frame must come from the same
+    /// slot (release-store so worker threads that acquire under the pool mutex
+    /// observe it).
+    void publish(FramebufferArena* arena) {
+        current_frame_arena_.store(arena, std::memory_order_release);
+    }
+
+private:
+    cache::FramebufferPool* pool_{nullptr};
+    bool attached_{false};
+    std::atomic<FramebufferArena*> current_frame_arena_{nullptr};
+};
+
+} // namespace
 
 RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     using namespace detail;
@@ -18,6 +66,18 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     const int total = static_cast<int>(ctx.end - ctx.start);
     Frame current_frame = ctx.start;
     const auto loop_t0 = profiling::now();
+
+    // Wave 4 — pool association is a JOB-lifetime event. The software
+    // renderer's pool is attached to a job-scoped provider; per-frame arena
+    // rotation (acquire/release of triple-buffer slots) is published through
+    // the provider instead of reconfiguring the pool every frame. Guard
+    // detaches on every exit (success, cancel, render/writer failure,
+    // exception) so a daemon-reused pool never keeps a dangling provider.
+    // The shared_ptr is kept alive for the whole job so the raw pointer the
+    // association guard holds never dangles before its destructor detaches.
+    std::shared_ptr<cache::FramebufferPool> arena_pool_owner =
+        ctx.sw_renderer ? ctx.sw_renderer->framebuffer_pool() : nullptr;
+    JobArenaAssociation job_arena(arena_pool_owner.get());
 
     try {
         for (; current_frame < ctx.end; ++current_frame) {
@@ -37,7 +97,12 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             auto current_arena = ctx.triple_arena->acquire();
-            ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
+            // Wave 4 — per-frame rotation is a publish to the job-scoped
+            // provider (a single atomic store), NOT a pool reconfiguration
+            // (no mutex hold, no arena_set_count growth per frame).
+            if (current_arena) {
+                job_arena.publish(current_arena.get());
+            }
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             NativeSurfacePrep prep = prepare_frame(ctx, ctx.settings, current_frame);

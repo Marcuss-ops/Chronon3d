@@ -1,14 +1,14 @@
 // cuda_nv12_compositor_detail.hpp — internal declarations shared by the
-// cuda_nv12_surface_compositor_*.cpp translation units. Not installed and
+// cuda_nv12_compositor_*.cpp translation units. Not installed and
 // not part of any public API.
 
 #pragma once
 
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
-#include "cuda_nv12_composite_kernels.hpp"
+#include "cuda_nv12_kernels.hpp"
 
 #include <nvrtc.h>
 
@@ -17,7 +17,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace chronon3d::backends::vulkan::cuda_nv12_detail {
+namespace chronon3d::media::video::cuda_nv12_detail {
 
 struct alignas(8) DirectYuvLayerHost {
     CUdeviceptr rgba{0};
@@ -31,12 +31,12 @@ struct alignas(8) DirectYuvLayerHost {
 };
 static_assert(sizeof(DirectYuvLayerHost) == 64);
 
-// Defined in cuda_nv12_surface_compositor.cpp.
+// Defined in cuda_nv12_compositor.cpp.
 [[noreturn]] void fail(const char* operation, const std::string& detail);
 void check_cuda(CUresult result, const char* operation);
 void check_nvrtc(nvrtcResult result, const char* operation);
 std::string get_compiled_nv12_ptx();
 
-} // namespace chronon3d::backends::vulkan::cuda_nv12_detail
+} // namespace chronon3d::media::video::cuda_nv12_detail
 
 #endif // CHRONON3D_ENABLE_CUDA_INTEROP

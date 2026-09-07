@@ -13,7 +13,7 @@
 #include <cuda.h>
 #include <libavutil/hwcontext_cuda.h>
 #ifdef CHRONON3D_ENABLE_VULKAN
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #endif
 #endif
 
@@ -57,8 +57,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     open_complete_ = false;
 
     if (!validate_encoder_options(options)) {
-        spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}, path='{}')",
-                      options.width, options.height, options.fps, options.output_path);
+        spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}/{}, path='{}')",
+                      options.width, options.height,
+                      options.canonical_fps_num(), options.canonical_fps_den(),
+                      options.output_path);
         return false;
     }
 
@@ -224,7 +226,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 #ifdef CHRONON3D_ENABLE_VULKAN
             const auto warmup_t0 = Clock::now();
             try {
-                backends::vulkan::CudaNv12SurfaceCompositor::warm_up(
+                media::video::CudaNv12Compositor::warm_up(
                     reinterpret_cast<CUcontext>(cuda_context_));
             } catch (const std::exception& error) {
                 spdlog::error("[native_av] CUDA compositor warm-up failed before NVENC: {}",
@@ -403,7 +405,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     spdlog::info(
         "[native_av] Opened native encoder: {}x{} @ {}fps, codec={}, rc={}, preset={}, output='{}'",
-        options_.width, options_.height, options_.fps,
+        options_.width, options_.height,
+        static_cast<double>(options_.fps_num) / options_.fps_den,
         resolved.encoder_name(), resolved.rate_control_label(),
         resolved.preset_label(), filename);
     open_complete_ = true;

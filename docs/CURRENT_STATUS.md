@@ -20,10 +20,10 @@
 | FFmpeg subprocess | DEMOLITION DEBT (scope redefined 2026-09-04) | Negative census: `FfmpegPipeSink`/`ProcessRunner` files and symbols are already gone from src/apps/include. Residual scope is the CLI pipe *encoder* fallback (`VideoSinkEncoderAdapter(Ffmpeg)` + silent native→pipe downgrade in `create_video_encoder`), tracked in `TICKET-FFMPEG-PIPE-SINK-DEMOLITION`. |
 | DeviceScheduler | DONE | Runtime implementation and focused tests exist; no second scheduler introduced. |
 | CLI typed config / RenderPlan | DONE (focused) | CLI V3 / `PreparedRenderPlan -> CompiledComposition` remains the canonical typed route. |
-| Telemetry | PARTIAL / CONTAINED | Default-path recording was gated behind the real SQLite consumer; physical deletion of remaining compatibility stores is deferred cleanup, not a reason to add another telemetry authority. |
+| Telemetry | DONE (Wave 1D) | Runtime SQLite store + granular emitters + CLI DB readers demolished (2026-09-07): events-only boundary, NullTelemetryStore default, zero sqlite3 dependency in src/include/apps; persistence/aggregation engine-external (host store / observability collector). Record: [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md). |
 | Docs | RECONCILED HERE | `CURRENT_STATUS.md`, `CHRONON_PLAN.md`, `FOLLOWUP_TICKETS.md` and the Stage 1/2 ticket now describe the same ordering and blockers. |
 
-**Stage 2 verdict:** structural Wave 0 closeout is complete for the authority migrations already landed. Physical FFmpeg subprocess demolition remains a separate exit-condition-driven ticket; telemetry compatibility deletion remains deferred. Neither is allowed to trigger a parallel subsystem.
+**Stage 2 verdict:** structural Wave 0 closeout is complete for the authority migrations already landed. Physical FFmpeg subprocess demolition remains a separate exit-condition-driven ticket. Telemetry compatibility deletion was executed as Wave 1D (2026-09-07): the runtime SQLite store, its gated emitters and the CLI database readers are physically removed; Chronon is events-only and owns no persistence — instrumentation/collection/persistence are separated and engine-external.
 
 ## Release / certification state
 

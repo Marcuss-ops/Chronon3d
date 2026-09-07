@@ -9,7 +9,8 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     OutputOptions output;
     output.output = job.output;
     output.frames_dir_name = job.video_settings.frames_dir;
-    output.fps = job.video_settings.fps;
+    // F3.1 — rational-only frame rate: fps_num/fps_den are copied verbatim
+    // (the scalar fps alias was removed from VideoSettings and OutputOptions).
     output.fps_num = job.video_settings.fps_num;
     output.fps_den = job.video_settings.fps_den;
 

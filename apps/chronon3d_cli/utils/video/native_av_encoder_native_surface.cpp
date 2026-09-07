@@ -7,7 +7,7 @@
 
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/backends/vulkan/cuda_nv12_surface_compositor.hpp>
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #include <cuda.h>
 #endif
 
@@ -60,7 +60,7 @@ bool NativeAvEncoder::write_native_surface_impl(
         auto compositor_it = cuda_nv12_compositors_.find(key);
         if (compositor_it == cuda_nv12_compositors_.end()) {
             const auto info = vulkan->export_cuda_external_memory(destination);
-            auto compositor = std::make_unique<backends::vulkan::CudaNv12SurfaceCompositor>(
+            auto compositor = std::make_unique<media::video::CudaNv12Compositor>(
                 info, reinterpret_cast<CUcontext>(cuda_context_));
             compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
         }

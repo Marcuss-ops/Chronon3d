@@ -32,44 +32,6 @@ std::string rounded_cache_key(const std::string& path, int width, int height,
     return key.str();
 }
 
-void record_image_telemetry(
-    const RenderState& state,
-    const std::string& image_path,
-    int image_width,
-    int image_height,
-    const char* cache_status,
-    double decode_ms,
-    double sample_ms,
-    uint64_t sampled_pixels
-) {
-    // The event stores exist ONLY for the SQLite telemetry consumer
-    // (TICKET-TELEMETRY-STORE-CONSUMER-AUDIT); in default builds the records
-    // would be drained and discarded, so the per-draw mutex + string cost is
-    // gated on the real consumer.
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    telemetry::ImageTelemetryRecord rec;
-    rec.frame_number = state.frame_number;
-    rec.layer_id = state.layer_id;
-    rec.image_path = image_path;
-    rec.image_width = image_width;
-    rec.image_height = image_height;
-    rec.cache_status = cache_status ? cache_status : "";
-    rec.decode_ms = decode_ms;
-    rec.sample_ms = sample_ms;
-    rec.sampled_pixels = sampled_pixels;
-    telemetry::record_image_telemetry(std::move(rec));
-#else
-    (void)state;
-    (void)image_path;
-    (void)image_width;
-    (void)image_height;
-    (void)cache_status;
-    (void)decode_ms;
-    (void)sample_ms;
-    (void)sampled_pixels;
-#endif
-}
-
 void apply_rounded_coverage(Framebuffer& fb, float radius) {
     const int w = fb.width();
     const int h = fb.height();
