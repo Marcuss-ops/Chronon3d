@@ -2,6 +2,7 @@
 set(CHRONON3D_TEST_DEFINITIONS
     backends_software_tests.cmake
     core_tests.cmake
+    compiler_tests.cmake
     shader_abi_tests.cmake
     ipc_tests.cmake
     scene_tests.cmake
