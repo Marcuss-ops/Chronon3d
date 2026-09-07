@@ -9,6 +9,7 @@
 #pragma once
 
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
@@ -138,6 +139,10 @@ struct RenderJobOutput {
 /// pointer, renderer, resolver, cache, or runtime state.
 struct RenderRequest {
     std::string comp_id;
+    /// Immutable compiler result carried through the plan route.  The
+    /// compiled composition below remains a compatibility view for the
+    /// current graph executor and is not a second compiler authority.
+    std::shared_ptr<const compiler::CompiledProgram> compiled_program;
     /// Optional canonical compiled plan. When present, resolution does not
     /// re-enter the composition registry or construct a second composition.
     std::shared_ptr<const CompiledComposition> compiled_composition;
@@ -173,6 +178,10 @@ struct RenderJob {
     const CompositionRegistry* registry{nullptr};
     std::string comp_id;
     std::shared_ptr<const CompiledComposition> compiled;
+    /// Canonical immutable compiler result when the job originated from a
+    /// render-plan request.  `compiled` is retained only as the executor's
+    /// compatibility view until the numeric program path is complete.
+    std::shared_ptr<const compiler::CompiledProgram> program;
     CompositionMetadata metadata{};
 
     RenderMode mode{RenderMode::Still};

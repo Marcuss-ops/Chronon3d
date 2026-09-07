@@ -25,7 +25,6 @@ struct RenderPlanState {
     std::string gpu_hot_path_mode{"auto"};
     std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
-    std::optional<runtime::job::NormalizedRenderJob> normalized_request;
 };
 
 runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& args) {
@@ -85,20 +84,12 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
-int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
+int execute_normalized_render_job(
+    const CompositionRegistry& registry,
+    const runtime::job::NormalizedRenderJob& normalized_job,
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
     try {
-        if (!args.normalized_request) {
-            auto normalized = runtime::job::normalize_render_job(
-                make_render_job_request(args));
-            if (!normalized) {
-                spdlog::error("Render job request normalization failed: {}",
-                              normalized.error().message);
-                return 1;
-            }
-            args.normalized_request = std::move(normalized).value();
-        }
-        const auto& normalized_job = *args.normalized_request;
-
         RenderPlanPreparationOptions options;
         options.input = normalized_job.plan_path.string();
         options.assets_root = normalized_job.assets_root.string();
@@ -128,6 +119,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             : prepared.canvas.duration.integral() - 1;
         RenderRequest request;
         request.comp_id = prepared.job_id;
+        request.compiled_program = context.program;
         request.compiled_composition = std::make_shared<const CompiledComposition>(
             prepared.compiled_composition);
         request.output = output;
@@ -150,9 +142,6 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             ? prepared.canvas.fps.num() : normalized_job.output.fps_num;
         request.video_settings.fps_den = normalized_job.output.fps_num == 0
             ? prepared.canvas.fps.den() : normalized_job.output.fps_den;
-        request.video_settings.fps = static_cast<int>(std::lround(
-            static_cast<double>(request.video_settings.fps_num) /
-            request.video_settings.fps_den));
         request.video_settings.codec = codec_name(prepared.output.codec);
         request.video_settings.rate_control_mode = prepared.output.rate_control == render_plan::RateControlMode::ConstantQp ? "qp" :
             (prepared.output.rate_control == render_plan::RateControlMode::Bitrate ? "bitrate" : "crf");
@@ -236,7 +225,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             return 1;
         }
         auto result = execute_render_job(
-            *job, std::move(args.warm_renderer), std::move(args.video_execution));
+            *job, std::move(warm_renderer), std::move(video_execution));
         if (!result) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;

@@ -21,7 +21,7 @@ void GraphBuildPipeline::add_pass(std::unique_ptr<GraphBuildPass> pass) {
 }
 
 void GraphBuildPipeline::add_default_passes() {
-    // Phase 5: delegate to GraphBuildRegistry which holds the canonical
+    // Phase 5: delegate to CompilerPassRegistry which holds the canonical
     // pass sequence.  This allows feature modules to register additional
     // passes without modifying this file.
     auto& registry = chronon3d::compiler::CompilerPassRegistry::instance();

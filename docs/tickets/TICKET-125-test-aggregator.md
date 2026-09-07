@@ -21,16 +21,10 @@ gli errori e restituisce l'output finale.
 ownership non sovrapposta: rispettivamente orchestrazione per-node, scheduling
 dei livelli e primitive `RenderGraphNode::execute`/ownership framebuffer.
 
-Il vecchio adapter di `CommandPlan` è stato rimosso; i parity/readiness test
-passano ora dall'overload `GraphExecutor::execute()` e condividono il dispatch
-canonico verso `RenderBackend`.
-ha zero caller produttivi in `apps/`, `src/` e `tools/`. La sua dichiarazione è
-confinata a `tests/helpers/command_plan_executor.hpp`; il simbolo
-`execute_command_plan` resta compilato come ABI-compatibility shim perché è
-presente nella baseline libabigail `tools/sdk/chronon3d_c.abi`.
-
-Non esistono quindi due executor produttivi che possiedono la stessa decisione.
-Dettaglio call graph e profiling compilazione: [`EXECUTOR_OWNERSHIP.md`](../EXECUTOR_OWNERSHIP.md).
+Aggiornamento Wave 1: il vecchio adapter, il test helper e il simbolo ABI
+`execute_command_plan` sono stati rimossi; il gate `check_graph_executor_authority.sh`
+verifica zero residue in `src/`, `include/` e `apps/`. `CommandPlan` resta il
+solo contratto dati backend-neutral.
 
 # Engine certification — Index 6 deliverable (Tests 10-16 core subset)
 

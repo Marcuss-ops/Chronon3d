@@ -107,41 +107,43 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                 ctx.exit_code = validate_render_plan(options);
                 return;
             }
+            runtime::job::RenderJobRequest request;
+            request.plan_path = state->plan_file;
+            request.output_path = render_args.output;
+            request.assets_root = render_args.assets_root;
+            request.backend = backend_cli_name(render_args.backend);
+            request.report = render_args.report;
+            request.trace.output = render_args.trace_output;
+            request.trace.level = render_args.trace_level;
+            request.output.codec = render_args.video_settings.codec;
+            request.output.hardware_encoder = render_args.video_settings.hardware_encoder;
+            request.output.encoder_backend = render_args.video_settings.encoder_backend;
+            request.output.ffmpeg_mode = render_args.video_settings.ffmpeg_mode;
+            request.output.gpu_hot_path_mode =
+                std::string(chronon3d::to_string(render_args.gpu_hot_path_mode));
+            request.output.encode_preset = render_args.video_settings.encode_preset_explicit
+                ? render_args.video_settings.encode_preset : std::string{};
+            request.output.rate_control_mode = render_args.video_settings.rate_control_mode_explicit
+                ? render_args.video_settings.rate_control_mode : std::string{};
+            request.output.crf = render_args.video_settings.crf_explicit
+                ? render_args.video_settings.crf : -1;
+            request.output.qp = render_args.video_settings.qp_explicit
+                ? render_args.video_settings.qp : -1;
+            request.output.bitrate = render_args.video_settings.bitrate_explicit
+                ? render_args.video_settings.bitrate : std::int64_t{0};
+            request.output.audio_source_path = render_args.video_settings.gop_source;
+            request.output.gop_copy_only = render_args.video_settings.gop_copy_only;
+            if (end_frame_opt->count() > 0) {
+                request.frame_range = runtime::job::FrameRange{
+                    static_cast<std::int64_t>(state->start_frame),
+                    static_cast<std::int64_t>(state->end_frame)};
+            }
+            request.requirements.gpu_required =
+                request.output.hardware_encoder == "nvenc";
+            auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
+            video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(
-                ctx.registry, state->plan_file, render_args.output, render_args.assets_root,
-                render_args.report, {}, backend_cli_name(render_args.backend),
-                RenderPlanVideoOverrides{
-                    .codec = render_args.video_settings.codec,
-                    .hardware_encoder = render_args.video_settings.hardware_encoder,
-                    .encoder_backend = render_args.video_settings.encoder_backend,
-                    .ffmpeg_mode = render_args.video_settings.ffmpeg_mode,
-                    // Only options explicitly requested on the command line
-                    // override the render plan: the engine placeholder
-                    // defaults (rate_control_mode="crf", crf, preset, ...)
-                    // must not be mistaken for explicit user requests when
-                    // the encoder-configuration resolver runs.
-                    .encode_preset = render_args.video_settings.encode_preset_explicit
-                        ? render_args.video_settings.encode_preset : std::string{},
-                    .rate_control_mode = render_args.video_settings.rate_control_mode_explicit
-                        ? render_args.video_settings.rate_control_mode : std::string{},
-                    .crf = render_args.video_settings.crf_explicit
-                        ? render_args.video_settings.crf : -1,
-                    .qp = render_args.video_settings.qp_explicit
-                        ? render_args.video_settings.qp : -1,
-                    .bitrate = render_args.video_settings.bitrate_explicit
-                        ? render_args.video_settings.bitrate : std::int64_t{0},
-                    .gop_source = render_args.video_settings.gop_source,
-                    .gop_copy_only = render_args.video_settings.gop_copy_only},
-                render_args.trace_output, render_args.trace_level,
-                std::string(chronon3d::to_string(render_args.gpu_hot_path_mode)),
-                [&ctx] {
-                    auto execution = std::make_shared<media::VideoJobExecutionContext>();
-                    execution->video_runtimes = ctx.video_runtimes;
-                    return execution;
-                }(),
-                state->start_frame, state->end_frame,
-                /*frame_range_explicit=*/end_frame_opt->count() > 0,
-                /*receipt_verify=*/std::string{});
+                ctx.registry, std::move(request), {}, std::move(video_execution));
             return;
         }
         if (render_args.comp_id.empty()) {

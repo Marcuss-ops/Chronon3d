@@ -28,6 +28,7 @@ add_library(chronon3d_cli_render STATIC
 target_include_directories(chronon3d_cli_render PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
+    ${CMAKE_SOURCE_DIR}/src/compiler
 )
 target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_cli_core

@@ -106,4 +106,11 @@ RenderPreparationResult prepare_render(
     return result;
 }
 
+RenderPreparationResult prepare_render(
+    SoftwareRenderer* renderer,
+    const compiler::CompiledProgram& program,
+    const RenderPreparationOptions& options) {
+    return prepare_render(renderer, program.compiled_composition(), options);
+}
+
 } // namespace chronon3d::runtime

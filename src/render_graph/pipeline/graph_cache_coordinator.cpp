@@ -1,7 +1,7 @@
 #include "graph_cache_coordinator.hpp"
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>
-#include <chronon3d/compiler/graph_compile.hpp>
+#include "../../compiler/compiler_graph.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
@@ -194,7 +194,7 @@ static void log_graph_cache_diagnostics(
     compile_options.compute_bboxes = true;
     compile_options.include_diagnostics = ctx.policy.diagnostics_enabled;
 
-    auto compiled = chronon3d::compiler::compile_graph(
+    auto compiled = chronon3d::compiler::detail::compile_graph(
         std::move(graph), ctx, compile_options);
     compiled.authored_structure_fingerprint =
         SceneHasher{}.compute_structure_fingerprint(
