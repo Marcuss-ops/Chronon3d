@@ -109,10 +109,11 @@ SoftwareRenderer* setup_render_graph_context(
         // PrecompNode dereferences `*ctx.services.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
         ctx.services.scheduler = &sw_renderer->scheduler();
-        // PR-5 — propagate session pointer so PrecompNode can borrow the
-        // program_store for cache lookups.
+        // PR-5 — propagate the job-session pointer so PrecompNode borrows
+        // the scene program store through the typed JobSession seam
+        // (ctx.services.session->program_store()).  RenderServices carries
+        // no separate store pointer: the session is the single owner.
         ctx.services.session = &sw_renderer->session();
-        ctx.services.program_store = &sw_renderer->software_session().software.program_store();
         ctx.services.asset_resolver = &sw_renderer->runtime().resolver();
         ctx.services.gpu_asset_cache = &sw_renderer->runtime().gpu_asset_cache();
         ctx.services.gpu_glyph_atlas = &sw_renderer->runtime().gpu_glyph_atlas();

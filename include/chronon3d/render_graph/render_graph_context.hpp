@@ -140,10 +140,6 @@ namespace chronon3d::runtime {
 struct PreparedAssets;
 }
 
-namespace chronon3d::graph {
-class SceneProgramStore;
-}
-
 namespace chronon3d::renderer {
 class ShapeProcessor;
 class EffectProcessor;
@@ -338,26 +334,14 @@ struct RenderServices {
     /// pinned to the owning runtime; never dereference past shutdown.
     chronon3d::ExecutionScheduler* scheduler{nullptr};
 
-    /// PR-5 / PR-2-rewire — parent render session pointer.  PrecompNode
-    /// borrows the session's arena (via `session->arena()`) for inner
-    /// graph execution PMR allocations, the session's `services.executor`
-    /// for inner executor calls, and the session's `program_store` for
-    /// cache lookups.  Set by scene.cpp when a SoftwareRenderer is
+    /// PR-5 / PR-2-rewire — parent job-session pointer (the typed seam of
+    /// the FrameExecution → JobSession → RuntimeContext chain).  PrecompNode
+    /// borrows the session's arena (via `session->arena()`) for inner graph
+    /// execution PMR allocations, the executor, and the scene program store
+    /// (via `session->program_store()`) for cache lookups.  Set by
+    /// scene.cpp / scene_context_setup.cpp when a SoftwareRenderer is
     /// available.  Null in test paths without a wired session.
     chronon3d::runtime::JobSession* session{nullptr};
-
-    /// Scene-program cache is a graph dependency in its own right. Keep the
-    /// JobSession pointer above for arena/executor lifetime, but do not make
-    /// scene cache access depend on a generic runtime job facade.
-    class SceneProgramStore* program_store{nullptr};
-
-    /// PR-9 — opaque sidecar pointer to the owning SoftwareRenderer.
-    /// Set by scene.cpp / composition.cpp alongside `session` so that
-    /// render-graph nodes (ClearNode, etc.) can reach software-specific
-    /// resources (buffer_ring) without pulling SoftwareRenderer into
-    /// the public SDK header.  Null when no software renderer is active.
-    /// Callers must static_cast to SoftwareRenderer* after including
-    /// the full software_renderer.hpp header.
 
     /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
     /// pointer into the owning RuntimeContext's resolver).  Set by
