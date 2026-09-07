@@ -1,4 +1,4 @@
-void FrameGraphCompiler::build_compiled_resource_table(
+void GraphCompilePipeline::build_compiled_resource_table(
     CompiledFrameGraph& compiled,
     const RenderGraphContext& ctx
 ) const {
@@ -124,7 +124,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
     const auto plan = planner.build();
     if (plan.slots.size() >= static_cast<std::size_t>(kInvalidPhysicalAllocationId)) {
         throw std::runtime_error(
-            "FrameGraphCompiler: compiled resource table exceeds physical allocation id range");
+            "GraphCompilePipeline: compiled resource table exceeds physical allocation id range");
     }
     table.slots = plan.slots;
     table.physical_slot_count = static_cast<std::uint32_t>(table.slots.size());
@@ -142,7 +142,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
         if (allocation->physical_slot >=
             static_cast<std::size_t>(kInvalidPhysicalAllocationId)) {
             throw std::runtime_error(
-                "FrameGraphCompiler: physical allocation id cannot be represented");
+                "GraphCompilePipeline: physical allocation id cannot be represented");
         }
         auto* resource = table.resource_for(planner_request_to_resource[request_index]);
         if (resource) {
@@ -161,7 +161,7 @@ void FrameGraphCompiler::build_compiled_resource_table(
     compiled.program.allocate_pass_queries();
 }
 
-void FrameGraphCompiler::validate_compiled_program_coverage(
+void GraphCompilePipeline::validate_compiled_program_coverage(
     const CompiledFrameGraph& compiled)
 {
     std::vector<std::uint32_t> standalone_count(compiled.nodes.size(), 0);
@@ -170,7 +170,7 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
     for (const auto& operation : compiled.program.operations) {
         if (operation.node >= compiled.nodes.size()) {
             throw std::runtime_error(
-                "FrameGraphCompiler: execution owner references invalid node " +
+                "GraphCompilePipeline: execution owner references invalid node " +
                 std::to_string(operation.node));
         }
         if (operation.is_fused) {
@@ -185,7 +185,7 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
         for (const auto node_id : batch.member_nodes) {
             if (node_id >= compiled.nodes.size()) {
                 throw std::runtime_error(
-                    "FrameGraphCompiler: fused batch references invalid node " +
+                "GraphCompilePipeline: fused batch references invalid node " +
                     std::to_string(node_id));
             }
             if (std::any_of(compiled.program.operations.begin(),
@@ -216,17 +216,17 @@ void FrameGraphCompiler::validate_compiled_program_coverage(
                                 static_cast<int>(legally_eliminated);
         if (owner_count != 1) {
             throw std::runtime_error(
-                "FrameGraphCompiler: reachable node lacks exactly one execution "
+                "GraphCompilePipeline: reachable node lacks exactly one execution "
                 "owner or legal elimination reason: node=" +
                 std::to_string(node_id) + " name='" + node.name + "'");
         }
     }
 }
 
-void FrameGraphCompiler::validate(
+void GraphCompilePipeline::validate(
     const CompiledFrameGraph& compiled
 ) const {
     if (compiled.output == k_invalid_node) {
-        throw std::runtime_error("FrameGraphCompiler: invalid output node");
+        throw std::runtime_error("GraphCompilePipeline: invalid output node");
     }
 }

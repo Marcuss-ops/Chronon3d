@@ -1,0 +1,15 @@
+# Compiler authority demolition: graph lowering belongs to the compiler target.
+
+[[forbidden_symbol]]
+name = "retired_frame_graph_compiler_authority"
+patterns = ['\bFrameGraphCompiler\b']
+scan_paths = ["include", "src"]
+skip_comments = true
+
+[[forbidden_path]]
+name = "retired_frame_graph_compiler_files"
+paths = [
+  "include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp",
+  "src/render_graph/compiler/frame_graph_compiler.cpp",
+  "src/render_graph/compiler/frame_graph_builder.cpp",
+]

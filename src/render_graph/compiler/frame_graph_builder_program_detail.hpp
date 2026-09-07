@@ -190,12 +190,12 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
     for (const auto& op : compiled.program.operations) {
         if (op.node >= operation_for_node.size()) {
             throw std::runtime_error(
-                "FrameGraphCompiler: execution program contains an invalid node " +
+                "GraphCompilePipeline: execution program contains an invalid node " +
                 std::to_string(op.node));
         }
         if (operation_for_node[op.node] != nullptr) {
             throw std::runtime_error(
-                "FrameGraphCompiler: execution program contains duplicate operations for node " +
+                "GraphCompilePipeline: execution program contains duplicate operations for node " +
                 std::to_string(op.node));
         }
         operation_for_node[op.node] = &op;
@@ -208,13 +208,13 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
         if (batch.root_node >= operation_for_node.size() ||
             operation_for_node[batch.root_node] == nullptr ||
             !operation_for_node[batch.root_node]->is_fused) {
-            throw std::runtime_error("FrameGraphCompiler: fused batch has no fused root operation");
+            throw std::runtime_error("GraphCompilePipeline: fused batch has no fused root operation");
         }
         fused_root[batch.root_node] = true;
         for (const auto member : batch.member_nodes) {
             if (member == batch.root_node) continue;
             if (member >= fused_owner.size() || fused_owner[member]) {
-                throw std::runtime_error("FrameGraphCompiler: node belongs to multiple fused batches");
+            throw std::runtime_error("GraphCompilePipeline: node belongs to multiple fused batches");
             }
             fused_owner[member] = true;
         }
@@ -229,30 +229,30 @@ void validate_operation_coverage(CompiledFrameGraph& compiled) {
         if (is_fused_root) {
             if (!standalone || fused) {
                 throw std::runtime_error(
-                    "FrameGraphCompiler: fused batch root has invalid execution representations: node=" +
+                    "GraphCompilePipeline: fused batch root has invalid execution representations: node=" +
                     std::to_string(node_id) + " name='" + info.name + "' kind=" +
                     std::string(to_string(info.kind)));
             }
             if (!info.lowered_into_batch) {
                 throw std::runtime_error(
-                    "FrameGraphCompiler: fused batch root was not lowered for node " +
+                "GraphCompilePipeline: fused batch root was not lowered for node " +
                     std::to_string(node_id));
             }
             continue;
         }
         if (standalone == fused) {
             throw std::runtime_error(
-                "FrameGraphCompiler: reachable node disappeared or has multiple execution representations: node=" +
+                "GraphCompilePipeline: reachable node disappeared or has multiple execution representations: node=" +
                 std::to_string(node_id) + " name='" + info.name + "' kind=" +
                 std::string(to_string(info.kind)));
         }
         if (info.lowered_into_batch != fused) {
             throw std::runtime_error(
-                "FrameGraphCompiler: lowered_into_batch metadata disagrees with execution program for node " +
+                "GraphCompilePipeline: lowered_into_batch metadata disagrees with execution program for node " +
                 std::to_string(node_id));
         }
     }
-    FrameGraphCompiler::validate_compiled_program_coverage(compiled);
+    GraphCompilePipeline::validate_compiled_program_coverage(compiled);
 }
 
 void compute_has_fused_passes(CompiledFrameGraph& compiled) {

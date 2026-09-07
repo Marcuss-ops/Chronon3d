@@ -1,4 +1,4 @@
-void FrameGraphCompiler::build_execution_levels(
+void GraphCompilePipeline::build_execution_levels(
     RenderGraph& graph,
     GraphNodeId output,
     CompiledFrameGraph& compiled
@@ -62,6 +62,6 @@ void FrameGraphCompiler::build_execution_levels(
         std::count(reachable.begin(), reachable.end(), static_cast<char>(1))
     );
     if (scheduled != reachable_count) {
-        throw std::runtime_error("FrameGraphCompiler: graph is not a DAG or contains unreachable dependency cycles");
+        throw std::runtime_error("GraphCompilePipeline: graph is not a DAG or contains unreachable dependency cycles");
     }
 }

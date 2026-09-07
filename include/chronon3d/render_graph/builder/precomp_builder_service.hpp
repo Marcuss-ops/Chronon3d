@@ -40,7 +40,7 @@ public:
     virtual ~PrecompBuilderService() = default;
 
     /// Build the render graph for `scene` via `GraphBuilder`, then compile it
-    /// via `FrameGraphCompiler`, returning a populated
+    /// via the compiler-owned graph pipeline, returning a populated
     /// `CompiledSceneProgram` ready for the inner precomp cache.
     ///
     /// `nested_ctx` is the per-frame context to use for the nested build.

@@ -13,7 +13,7 @@ namespace {
 
 } // namespace
 
-void FrameGraphCompiler::validate_renderable_shape(
+void GraphCompilePipeline::validate_renderable_shape(
     const ::chronon3d::RenderNode& render_node,
     const CompiledNodeInfo& node_info,
     const RenderGraphContext& ctx
@@ -21,23 +21,23 @@ void FrameGraphCompiler::validate_renderable_shape(
     const auto shape_type = render_node.shape.type();
     if (shape_type == ShapeType::None) {
         throw std::runtime_error(
-            "FrameGraphCompiler: renderable Shape node '" +
+            "GraphCompilePipeline: renderable Shape node '" +
             node_info.name + "' has ShapeType::None and cannot reach a shape processor");
     }
 
     if (!ctx.services.backend) {
         throw std::runtime_error(
-            "FrameGraphCompiler: renderable Shape node '" +
+            "GraphCompilePipeline: renderable Shape node '" +
             node_info.name + "' has no render backend");
     }
     if (const auto error = ctx.services.backend->validate_render_node(render_node)) {
         throw std::runtime_error(
-            "FrameGraphCompiler: renderable Shape node '" +
+            "GraphCompilePipeline: renderable Shape node '" +
             node_info.name + "' is invalid: " + error->message);
     }
 }
 
-void FrameGraphCompiler::validate_renderable_graph(
+void GraphCompilePipeline::validate_renderable_graph(
     const RenderGraph& graph,
     GraphNodeId output,
     const RenderGraphContext& ctx
@@ -77,7 +77,7 @@ void FrameGraphCompiler::validate_renderable_graph(
             for (const auto& item : multi->items()) {
                 if (!item.node) {
                     throw std::runtime_error(
-                        "FrameGraphCompiler: multi-source node '" +
+                        "GraphCompilePipeline: multi-source node '" +
                         std::string(node.name()) +
                         "' contains a null renderable item");
                 }
