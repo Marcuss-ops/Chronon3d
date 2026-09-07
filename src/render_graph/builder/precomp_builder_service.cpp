@@ -6,7 +6,7 @@
 // Behaviour-equivalent to the legacy std::function wired by
 // `wire_precomp_build_factory` (register_pipeline_nodes.cpp):
 //
-//   1. GraphBuildPipeline::build(scene, nested_ctx) → RenderGraph
+//   1. CompilerPassPipeline::build(scene, nested_ctx) → RenderGraph
 //   2. compiler's internal graph-lowering seam(graph, nested_ctx, compile_opts)
 //
 // The compiler takes the context by reference and may mutate
@@ -17,7 +17,7 @@
 // =============================================================================
 
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include "../../compiler/compiler_graph.hpp"
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
@@ -29,7 +29,7 @@ DefaultPrecompBuilder::build(
     const chronon3d::Scene& scene,
     RenderGraphContext& nested_ctx) const
 {
-    GraphBuildPipeline graph_pipeline;
+    compiler::CompilerPassPipeline graph_pipeline;
     graph_pipeline.add_default_passes();
     RenderGraph nested_graph = graph_pipeline.build(scene, nested_ctx);
 

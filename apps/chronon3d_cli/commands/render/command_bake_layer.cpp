@@ -2,7 +2,7 @@
 #include "../../command_registry.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include "compiler_graph.hpp"
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -57,7 +57,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph_ctx.node_exec.counters = renderer->counters();
     graph_ctx.services.registry = &registry;
 
-    graph::GraphBuildPipeline graph_pipeline;
+    compiler::CompilerPassPipeline graph_pipeline;
     graph_pipeline.add_default_passes();
     auto graph = graph_pipeline.build(scene, graph_ctx);
 

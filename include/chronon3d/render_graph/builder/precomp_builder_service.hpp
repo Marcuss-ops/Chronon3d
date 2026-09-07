@@ -58,7 +58,7 @@ public:
 /// Behaviour-equivalent implementation of the legacy
 /// `wire_precomp_build_factory` lambda:
 ///
-///   GraphBuildPipeline::build(scene, ctx)
+///   compiler::CompilerPassPipeline::build(scene, ctx)
 ///     -> compiler graph-lowering seam(graph, ctx, FrameGraphCompileOptions)
 ///        -> std::make_unique<CompiledSceneProgram>(compile_scene_program(...))
 ///
