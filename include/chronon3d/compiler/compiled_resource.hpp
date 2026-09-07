@@ -20,4 +20,12 @@ struct AnimationProgram {
     std::uint32_t data_offset{0};
 };
 
+/// Static parameter topology. Values are sampled per frame by the runtime;
+/// this object contains no frame-owned state.
+struct ParameterProgram {
+    std::uint32_t id{0};
+    std::uint32_t first_parameter{0};
+    std::uint32_t parameter_count{0};
+};
+
 }  // namespace chronon3d::compiler
