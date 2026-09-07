@@ -1,7 +1,7 @@
 #include "render_plan_preparation.hpp"
 
 #include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // is_motion_blur_active
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../../utils/process_start.hpp"
@@ -122,10 +122,12 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         apply_fingerprint_settings(fingerprint_options, settings, plan);
 
         const auto compile_t0 = profiling::now();
-        auto compiled = render_plan::compile_render_plan(
-            plan, resolver, fingerprint_options);
+        compiler::CompileOptions compile_options;
+        compile_options.fingerprint = fingerprint_options;
+        auto compiled = compiler::compile(plan, resolver, compile_options);
         if (!compiled) {
-            return std::move(compiled).error();
+            const auto error = std::move(compiled).error();
+            return render_plan::PlanDecodeError{error.path, error.message, "compile_error", error.component};
         }
         const double compile_ms = profiling::duration_ms(compile_t0, profiling::now());
         startup_trace().plan_compile_ms = compile_ms;
@@ -137,7 +139,8 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 
         PreparedRenderPlanContext context;
         context.decoded = std::move(plan);
-        context.prepared = std::move(compiled).value();
+        context.program = std::make_shared<const compiler::CompiledProgram>(
+            std::move(compiled).value());
         context.resolver = std::move(resolver);
         context.effective_assets_root = effective_assets_root;
         context.settings = settings;
@@ -165,14 +168,15 @@ int validate_render_plan(const RenderPlanPreparationOptions& options) {
     nlohmann::json js;
     js["valid"]           = true;
     js["plan"]            = options.input;
-    js["job_id"]          = context.prepared.job_id;
-    js["content_digest"]  = context.prepared.fingerprint.content_digest.hex();
-    js["request_digest"]  = context.prepared.fingerprint.request_digest.hex();
-    js["width"]           = context.prepared.canvas.width;
-    js["height"]          = context.prepared.canvas.height;
-    js["fps_num"]         = context.prepared.canvas.fps.num();
-    js["fps_den"]         = context.prepared.canvas.fps.den();
-    js["duration_frames"] = context.prepared.canvas.duration.integral();
+    const auto& prepared = context.program->prepared_plan();
+    js["job_id"]          = prepared.job_id;
+    js["content_digest"]  = prepared.fingerprint.content_digest.hex();
+    js["request_digest"]  = prepared.fingerprint.request_digest.hex();
+    js["width"]           = prepared.canvas.width;
+    js["height"]          = prepared.canvas.height;
+    js["fps_num"]         = prepared.canvas.fps.num();
+    js["fps_den"]         = prepared.canvas.fps.den();
+    js["duration_frames"] = prepared.canvas.duration.integral();
     js["layers"]          = context.decoded.layers.size();
     js["status"]          = "PASS";
     std::cout << js.dump(2) << "\n";
