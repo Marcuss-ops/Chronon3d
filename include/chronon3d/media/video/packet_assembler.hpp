@@ -120,6 +120,11 @@ public:
     /// encoder path. The MuxSession owns the timestamp authority — callers
     /// never rescale PTS themselves.
     [[nodiscard]] bool submit_video(EncodedPacket packet) noexcept;
+    /// Synchronous borrowed-packet path. The packet is consumed before this
+    /// call returns, so the caller can reuse it without cloning it into a
+    /// shared_ptr control block.
+    [[nodiscard]] bool submit_video(AVPacket& packet,
+                                    AVRational source_time_base) noexcept;
 
     /// Submit an audio packet. Same contract as submit_video: the MuxSession
     /// rescales the packet from the declared time_base into the audio
