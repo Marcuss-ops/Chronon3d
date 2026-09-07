@@ -1,13 +1,20 @@
-// nv12_equivalence_test.cpp — Wave 4 NV12 equivalence harness.
+// nv12_equivalence_test.cpp — NV12 compositor determinism + contract matrix.
 //
-// Runs the SAME composite request (identical NV12 background, identical
-// overlay resources/transforms/opacity/blend, identical canvas) through both
-// NV12 authorities and compares the resulting NV12 planes:
+// Wave 4 originally compared TWO coexisting NV12 authorities (Vulkan-side
+// CudaNv12SurfaceCompositor vs media-side CudaDirectNv12Compositor) to
+// produce equivalence evidence before unification.  Wave 1D unified them:
+// media::video::CudaNv12Compositor under src/media/video/compositor/ is now
+// the single authority.  This harness therefore runs the SAME request through
+// two INDEPENDENT instances of that unified compositor and asserts the
+// retained equivalence property — bit-exact determinism — plus the documented
+// per-case contract of the direct NV12 batch path:
 //
-//   Authority A — media::video::CudaNv12Compositor
-//                 (composite_direct_nv12_batch, batch path)
-//   Authority B — media::video::CudaNv12Compositor
-//                 (composite_direct_nv12_batch, batch path)
+//   * DeterministicComposite — foreground contributes: both instances
+//     succeed and their planes are bit-identical.
+//   * BitExactPassthrough    — zero foreground contribution: both succeed,
+//     outputs are bit-identical AND equal to the background input.
+//   * RejectedLayer          — layer outside the direct-batch contract
+//     (e.g. NV12-kind overlay resource): both instances reject (false).
 //
 // Comparison per plane (Y = w*h bytes; UV = w * ceil(h/2) bytes, interleaved):
 //   * bit-exact equality
@@ -15,16 +22,8 @@
 //   * max absolute difference
 //   * PSNR (dB, infinite when identical)
 //
-// Gate (Wave 4): every corpus case must be EQUIVALENT (bit-exact) or carry a
-// DOCUMENTED DELIBERATE DIFFERENCE, asserted here per expected class:
-//   * BitExactPassthrough  — A == B == background, byte-for-byte.
-//   * RangePolicyDiff      — both succeed, outputs differ (drift is real) but
-//     stay within the documented limited-vs-full-range bound
-//     (|ΔY| <= 25, |ΔUV| <= 25 for legal-range content).
-//   * MediaOnlyCapability  — B composites, A rejects (returns false).
-//
-// The matrix lines are printed unconditionally so GPU-host runs produce the
-// equivalence evidence the audit requires before any NV12 unification.
+// Matrix lines are printed unconditionally so GPU-host runs produce the
+// determinism/contract evidence the audit requires.
 //
 // Runtime opt-in (same convention as the P010 conversion tests):
 //   CHRONON3D_RUN_CUDA_TESTS=1 <binary>
@@ -36,7 +35,6 @@
 
 #include "nv12_test_vectors.hpp"
 
-#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 
@@ -151,11 +149,14 @@ struct CaseMetrics {
     bool ok_b{false};
     PlaneMetrics y;
     PlaneMetrics uv;
+    PlaneMetrics y_vs_bg;   // instance A output vs the background input
+    PlaneMetrics uv_vs_bg;  // (BitExactPassthrough contract only)
     int expected{0};  // static_cast<int>(Nv12Case::Expect)
 };
 
-// One full request lowered to both compositors. Returns metrics + PASS/FAIL
-// per the corpus expectation. bg/out device buffers are owned by the caller.
+// One full request lowered to both independent compositor instances.  Returns
+// metrics + PASS/FAIL per the corpus expectation.  bg/out device buffers are
+// owned by the caller.
 void run_case(const CudaSession& session,
               media::video::CudaNv12Compositor& comp_a,
               media::video::CudaNv12Compositor& comp_b,
@@ -167,6 +168,8 @@ void run_case(const CudaSession& session,
               CaseMetrics& out) {
     using namespace chronon3d;
     using namespace chronon3d::nv12_equiv;
+    using chronon3d::media::CudaLayerResource;
+    using chronon3d::media::CudaLayerResourceKind;
 
     out.name = test_case.name;
     out.expected = static_cast<int>(test_case.expect);
@@ -271,10 +274,14 @@ void run_case(const CudaSession& session,
 
     out.y = compare_plane(a_y.data(), b_y.data(), y_bytes);
     out.uv = compare_plane(a_uv.data(), b_uv.data(), uv_bytes);
+    // Background comparison (only meaningful when a request must not
+    // contribute foreground pixels; fills the passthrough contract).
+    out.y_vs_bg = compare_plane(a_y.data(), bg_y_host.data(), y_bytes);
+    out.uv_vs_bg = compare_plane(a_uv.data(), bg_uv_host.data(), uv_bytes);
 }
 
 void print_matrix_line(const CaseMetrics& m, bool pass) {
-    std::printf("[NV12-EQ] %-45s A=%d B=%d | Y: diff=%zu/%zu max=%.0f psnr=%6.2f | "
+    std::printf("[NV12-EQ] %-40s A=%d B=%d | A-B Y: diff=%zu/%zu max=%.0f psnr=%6.2f | "
                 "UV: diff=%zu/%zu max=%.0f psnr=%6.2f | expect=%d => %s\n",
                 m.name.c_str(), m.ok_a ? 1 : 0, m.ok_b ? 1 : 0,
                 m.y.differing, m.y.total, m.y.max_abs, m.y.psnr_db,
@@ -285,12 +292,15 @@ void print_matrix_line(const CaseMetrics& m, bool pass) {
 } // namespace
 
 // ═════════════════════════════════════════════════════════════════════════
-// Wave-4 equivalence matrix
+// Contract matrix: identical request through two independent instances of the
+// unified compositor must be bit-exact, with the documented per-class
+// outcome (composite / background passthrough / rejection).
 // ═════════════════════════════════════════════════════════════════════════
-TEST_CASE("NV12 equivalence: both compositor authorities, same request") {
+TEST_CASE("NV12 contract matrix: independent instances, unified compositor") {
     using namespace chronon3d::nv12_equiv;
+    using chronon3d::media::CudaLayerResourceKind;
     if (!gpu_tests_enabled()) {
-        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 equivalence tests");
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 contract tests");
         return;
     }
 
@@ -304,7 +314,7 @@ TEST_CASE("NV12 equivalence: both compositor authorities, same request") {
     const auto corpus = nv12_equivalence_corpus();
     REQUIRE_FALSE(corpus.empty());
 
-    std::printf("[NV12-EQ] Wave-4 equivalence matrix: %zu cases\n", corpus.size());
+    std::printf("[NV12-EQ] contract matrix: %zu cases\n", corpus.size());
     std::size_t passed = 0;
     for (const auto& test_case : corpus) {
         // Deterministic host inputs, one seed per case.
@@ -333,33 +343,35 @@ TEST_CASE("NV12 equivalence: both compositor authorities, same request") {
 
         bool pass = true;
         if (test_case.expect == Nv12Case::Expect::BitExactPassthrough) {
-            // Bit-exact passthrough: both succeed and both planes are identical.
-            if (!(metrics.ok_a && metrics.ok_b && metrics.y.identical && metrics.uv.identical)) {
+            // Zero foreground contribution: both succeed, instances agree
+            // bit-exactly AND the output equals the background input.
+            const bool passthrough =
+                metrics.y_vs_bg.identical && metrics.uv_vs_bg.identical;
+            if (!(metrics.ok_a && metrics.ok_b &&
+                  metrics.y.identical && metrics.uv.identical && passthrough)) {
                 pass = false;
             }
             CHECK(metrics.ok_a);
             CHECK(metrics.ok_b);
             CHECK(metrics.y.identical);
             CHECK(metrics.uv.identical);
-        } else if (test_case.expect == Nv12Case::Expect::RangePolicyDiff) {
-            // Both succeed; the two range policies must produce a REAL but
-            // BOUNDED difference (see corpus rationale). Zero difference here
-            // would mean the drift is not being exercised.
-            if (!(metrics.ok_a && metrics.ok_b && !metrics.y.identical)) {
+            CHECK(passthrough);
+        } else if (test_case.expect == Nv12Case::Expect::DeterministicComposite) {
+            // Foreground contributes: both succeed and must be bit-exact.
+            if (!(metrics.ok_a && metrics.ok_b &&
+                  metrics.y.identical && metrics.uv.identical)) {
                 pass = false;
             }
             CHECK(metrics.ok_a);
             CHECK(metrics.ok_b);
-            CHECK_FALSE(metrics.y.identical);
-            CHECK(metrics.y.max_abs <= 25.0);
-            CHECK(metrics.uv.max_abs <= 25.0);
-            if (metrics.y.max_abs > 25.0 || metrics.uv.max_abs > 25.0) pass = false;
-        } else {  // MediaOnlyCapability
-            if (!(!metrics.ok_a && metrics.ok_b)) {
+            CHECK(metrics.y.identical);
+            CHECK(metrics.uv.identical);
+        } else {  // RejectedLayer — outside the direct-batch contract
+            if (metrics.ok_a || metrics.ok_b) {
                 pass = false;
             }
             CHECK_FALSE(metrics.ok_a);
-            CHECK(metrics.ok_b);
+            CHECK_FALSE(metrics.ok_b);
         }
 
         print_matrix_line(metrics, pass);
@@ -371,12 +383,12 @@ TEST_CASE("NV12 equivalence: both compositor authorities, same request") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// Determinism: each authority is bit-exact across identical re-runs.
+// Determinism: each instance is bit-exact across identical re-runs.
 // ═════════════════════════════════════════════════════════════════════════
-TEST_CASE("NV12 equivalence: both authorities are bit-exact across identical re-runs") {
+TEST_CASE("NV12 compositor: instances are bit-exact across identical re-runs") {
     using namespace chronon3d::nv12_equiv;
     if (!gpu_tests_enabled()) {
-        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 equivalence tests");
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 determinism tests");
         return;
     }
 
@@ -400,15 +412,15 @@ TEST_CASE("NV12 equivalence: both authorities are bit-exact across identical re-
     DevBuffer overlay_d;
     overlay_d.alloc(rgba.size() * sizeof(float));
     overlay_d.upload_async(session.stream, rgba.data());
-    CudaLayerResource resource;
-    resource.kind = CudaLayerResourceKind::Rgba;
+    chronon3d::media::CudaLayerResource resource;
+    resource.kind = chronon3d::media::CudaLayerResourceKind::Rgba;
     resource.rgba = overlay_d.ptr;
     resource.pitch_bytes = 160 * 16;
     resource.width = 160;
     resource.height = 120;
 
-    runtime::LayerInstance instance;
-    instance.kind = runtime::PrimitiveKind::Image;
+    chronon3d::runtime::LayerInstance instance;
+    instance.kind = chronon3d::runtime::PrimitiveKind::Image;
     instance.resource_index = 0;
     instance.src_x0 = 0.0f; instance.src_y0 = 0.0f;
     instance.src_x1 = 1.0f; instance.src_y1 = 1.0f;
@@ -416,9 +428,9 @@ TEST_CASE("NV12 equivalence: both authorities are bit-exact across identical re-
     instance.dst_x1 = static_cast<float>(w); instance.dst_y1 = static_cast<float>(h);
     instance.opacity = 0.75f;
 
-    runtime::GpuLayerBatch batch;
+    chronon3d::runtime::GpuLayerBatch batch;
     batch.instances = {instance};
-    const std::vector<CudaLayerResource> resources = {resource};
+    const std::vector<chronon3d::media::CudaLayerResource> resources = {resource};
 
     DevBuffer bg_y_d, bg_uv_d;
     bg_y_d.alloc(y_bytes);
@@ -476,7 +488,7 @@ TEST_CASE("NV12 equivalence: both authorities are bit-exact across identical re-
 
 #else // !CHRONON3D_ENABLE_CUDA_INTEROP
 
-TEST_CASE("NV12 equivalence harness is unavailable without CUDA interop") {
+TEST_CASE("NV12 contract harness is unavailable without CUDA interop") {
     CHECK(true);
 }
 

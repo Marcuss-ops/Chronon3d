@@ -96,6 +96,22 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
             "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CHRONON3D_NVRTC_INCLUDE_DIR}")
         target_link_libraries(chronon3d_cuda_p010_conversion_tests PRIVATE
             "${CHRONON3D_CUDA_DRIVER_LIBRARY}" "${CHRONON3D_NVRTC_LIBRARY}")
+
+        # NV12 compositor authority (media::video::CudaNv12Compositor, the
+        # single post-unification lane): deterministic contract matrix + re-run
+        # determinism.  GPU-host opt-in at runtime (CHRONON3D_RUN_CUDA_TESTS=1);
+        # skips cleanly when no CUDA device is available.
+        chronon3d_add_test_suite(
+            NAME chronon3d_nv12_compositor_contract_tests
+            TIER INTEGRATION
+            LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
+            SOURCES media/nv12/nv12_equivalence_test.cpp
+                    media/nv12/nv12_test_vectors.cpp
+        )
+        target_include_directories(chronon3d_nv12_compositor_contract_tests PRIVATE
+            "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CHRONON3D_NVRTC_INCLUDE_DIR}")
+        target_link_libraries(chronon3d_nv12_compositor_contract_tests PRIVATE
+            "${CHRONON3D_CUDA_DRIVER_LIBRARY}" "${CHRONON3D_NVRTC_LIBRARY}")
     endif()
     if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
         target_include_directories(chronon3d_native_decoder_tests PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")

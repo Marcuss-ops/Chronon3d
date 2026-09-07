@@ -19,7 +19,6 @@
 #include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
-#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #endif
 #endif
 
