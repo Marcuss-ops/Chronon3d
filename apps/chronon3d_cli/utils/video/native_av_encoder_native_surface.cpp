@@ -22,6 +22,15 @@ bool NativeAvEncoder::write_native_surface_impl(
     (void)backend; (void)source; (void)destination; (void)surface_already_prepared;
     return false;
 #else
+    // Z1 typed-feed guard: GPU surface feeds belong to the FullGraph native
+    // session only. A native surface arriving on a DirectYUV session has no
+    // graph output behind it (the DirectYuv executor owns the frame loop).
+    if (options_.direct_yuv_mode) {
+        spdlog::error(
+            "[native_av] GPU surface feed refused on a DirectYUV session "
+            "(typed encoder capability mismatch)");
+        return false;
+    }
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         source == runtime::kInvalidRenderSurfaceHandle ||

@@ -3,6 +3,8 @@ int run_render_plan_file(
     runtime::job::RenderJobRequest request,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
     std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
+    // CLI boundary: parse happened at the flag layer, normalize happens here
+    // — exactly once per job, exactly like the IPC boundary.
     const auto normalized = runtime::job::normalize_render_job(request);
     if (!normalized) {
         spdlog::error("Render job request normalization failed: {}",
@@ -17,87 +19,25 @@ int run_render_plan_file(
 }
 
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
-                          const std::string& payload) {
-    return ipc_render_job(registry, payload, {});
-}
-
-ipc::Reply ipc_render_job(const CompositionRegistry& registry,
-                          const std::string& payload,
+                          const runtime::job::NormalizedRenderJob& job,
                           std::shared_ptr<SoftwareRenderer> warm_renderer,
                           std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
-    try {
-        const auto payload_json = nlohmann::json::parse(payload);
-        runtime::job::RenderJobRequest request;
-        request.plan_path = payload_json.value("plan_path", "");
-        request.output_path = payload_json.value("output", "");
-        request.assets_root = payload_json.value("assets_root", "");
-        request.backend = payload_json.value("backend", "auto");
-        request.report = payload_json.value("report", false);
-        request.trace.output = payload_json.value("trace_output", "");
-        request.trace.level = payload_json.value("trace_level", "pipeline");
-        request.receipt_verification = payload_json.value("receipt_verify", "");
-
-        const bool range_enabled = payload_json.value("range_enabled", false);
-        const std::int64_t first_frame = payload_json.value(
-            "first_frame", std::int64_t{0});
-        const std::int64_t last_frame = payload_json.value(
-            "last_frame", std::int64_t{0});
-        if (range_enabled) {
-            request.frame_range = runtime::job::FrameRange{first_frame, last_frame};
-        }
-
-        request.output.codec = payload_json.contains("output_spec")
-            ? payload_json["output_spec"].value("codec", "")
-            : payload_json.value("codec", "");
-        request.output.hardware_encoder = payload_json.value("hardware_encoder", "");
-        request.output.encoder_backend = payload_json.value("encoder_backend", "");
-        request.output.ffmpeg_mode = payload_json.value("ffmpeg_mode", "");
-        request.output.gpu_hot_path_mode = payload_json.value(
-            "gpu_hot_path_mode", "");
-        request.output.encode_preset = payload_json.value("encode_preset", "");
-        request.output.rate_control_mode = payload_json.value("rate_control_mode", "");
-        request.output.crf = payload_json.value("crf", -1);
-        request.output.qp = payload_json.value("qp", -1);
-        request.output.bitrate = payload_json.value("bitrate", std::int64_t{0});
-        // Parity fields (see RenderingGen renderJobPayload / wave 1B): the
-        // daemon contract carries the source audio stream (muxed through the
-        // GOP source path) and the optional native encode preset exactly like
-        // the CLI subprocess flags --gop-source / --encode-preset.
-        request.output.audio_source_path = payload_json.value("audio_source_path", "");
-        request.output.gop_copy_only = payload_json.value("gop_copy_only", false);
-
-        if (payload_json.contains("execution_requirements")) {
-            media::ExecutionRequirements exec_reqs;
-            const auto& sr = payload_json["execution_requirements"];
-            exec_reqs.gpu_required = sr.value("gpu_required", false);
-            exec_reqs.cpu_fallback_allowed = sr.value("cpu_fallback_allowed", true);
-            exec_reqs.composition_required = sr.value("composition_required", true);
-            exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
-            request.requirements = exec_reqs;
-        } else {
-            const std::string hw = payload_json.value(
-                "hardware_encoder", payload_json.value("hardware", "none"));
-            request.requirements.gpu_required = hw == "nvenc";
-        }
-
-        const auto output_path = request.output_path;
-        const int rc = run_render_plan_file(
-            registry, std::move(request), std::move(warm_renderer),
-            std::move(video_execution));
-        if (rc != 0) {
-            return ipc::Reply{ipc::Status::Error,
-                              "render job failed with exit code " + std::to_string(rc)};
-        }
-
-        nlohmann::json reply = {
-            {"status", "ok"},
-            {"output", output_path.string()},
-        };
-        return ipc::Reply{ipc::Status::Ok, reply.dump()};
-    } catch (const std::exception& e) {
-        return ipc::Reply{ipc::Status::BadRequest,
-                          std::string{"RENDER_JOB parse failed: "} + e.what()};
+    // Phase 9 (CLI/IPC parity): the job arrives already normalized from the
+    // daemon boundary. This function only executes; there is no JSON parse
+    // and no re-normalization anywhere in the render execution layer.
+    const auto output_path = job.output_path;
+    const int rc = execute_normalized_render_job(
+        registry, job, std::move(warm_renderer), std::move(video_execution));
+    if (rc != 0) {
+        return ipc::Reply{ipc::Status::Error,
+                          "render job failed with exit code " + std::to_string(rc)};
     }
+
+    nlohmann::json reply = {
+        {"status", "ok"},
+        {"output", output_path.string()},
+    };
+    return ipc::Reply{ipc::Status::Ok, reply.dump()};
 }
 
 void register_render_plan_command(CLI::App& app, CliContext& ctx) {

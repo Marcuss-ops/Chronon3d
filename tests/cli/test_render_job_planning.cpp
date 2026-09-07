@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include "commands.hpp"
+#include "daemon/daemon_render_job_payload.hpp"
 #include "utils/job/render_job.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -9,6 +10,7 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <string>
 
@@ -234,46 +236,299 @@ TEST_CASE("RenderJob planner fails cleanly for an unknown composition") {
     CHECK_FALSE(cli::make_render_job(registry, args).has_value());
 }
 
-TEST_CASE("CLI and IPC semantic requests normalize to the same resolved job") {
-    using chronon3d::runtime::job::FrameRange;
-    using chronon3d::runtime::job::RenderJobRequest;
-    using chronon3d::runtime::job::RuntimeCapabilities;
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 9 — CLI/IPC parity gate.
+//
+// One job, two canonical entry points, ONE normalization. The CLI boundary
+// builds a RenderJobRequest from flags; the IPC boundary decodes the daemon
+// wire JSON with decode_render_job_payload() (the single canonical mapper) and
+// builds a RenderJobRequest. Both must normalize to the SAME NormalizedRenderJob
+// — proven by render_job_fingerprint() equality over the full semantic matrix,
+// not by comparing JSON strings.
+// ═══════════════════════════════════════════════════════════════════════════
 
-    RenderJobRequest cli_request;
-    cli_request.plan_path = "plan.json";
-    cli_request.output_path = "hero.mp4";
-    cli_request.assets_root = "assets";
-    cli_request.backend = "auto";
-    cli_request.frame_range = FrameRange{0, 30};
-    cli_request.output.codec = "h264";
-    cli_request.output.encode_preset = "medium";
-    cli_request.output.gpu_hot_path_mode = "auto";
-    cli_request.trace.level = "pipeline";
+namespace {
 
-    RenderJobRequest ipc_request = cli_request;
-    ipc_request.output_path = "hero.mp4";
-    ipc_request.frame_range = FrameRange{0, 30};
+using JobRequest = c3d::runtime::job::RenderJobRequest;
+using JobCaps = c3d::runtime::job::RuntimeCapabilities;
+using c3d::runtime::job::FrameRange;
 
-    const RuntimeCapabilities capabilities{"auto"};
-    const auto cli_resolved = chronon3d::runtime::job::normalize_render_job(
-        cli_request, capabilities);
-    const auto ipc_resolved = chronon3d::runtime::job::normalize_render_job(
-        ipc_request, capabilities);
+// Mirror of the CLI entry mapping (register_render_commands_body.inc, the
+// `render --plan` route): the renderer is requested through explicit backend /
+// hardware / encoder / hot-path strings and requirements.gpu_required is
+// derived from the hardware selection exactly as the CLI does.
+JobRequest cli_request_for(
+    const std::string& backend, const std::string& hardware,
+    const std::string& encoder_backend, const std::string& hot_path,
+    bool report = false) {
+    JobRequest request;
+    request.plan_path = "plan.json";
+    request.output_path = "hero.mp4";
+    request.assets_root = "assets";
+    request.backend = backend;
+    request.report = report;
+    request.output.hardware_encoder = hardware;
+    request.output.encoder_backend = encoder_backend;
+    request.output.gpu_hot_path_mode = hot_path;
+    request.requirements.gpu_required = (hardware == "nvenc");
+    return request;
+}
 
+// Canonical wire-equality check between the decoded IPC request and the CLI
+// request for the fields both transports spell identically on the wire. The
+// hardware/encoder/hot-path strings are NOT compared here: the CLI spells
+// them explicitly while the IPC payload carries only semantic requirements,
+// so equality of the RESOLVED job is proven by the normalized fingerprint
+// (normalize_render_job back-fills the resolved decision on both sides).
+void check_same_semantics(const JobRequest& cli, const JobRequest& ipc) {
+    CHECK(ipc.plan_path == cli.plan_path);
+    CHECK(ipc.output_path == cli.output_path);
+    CHECK(ipc.assets_root == cli.assets_root);
+    CHECK(ipc.backend == cli.backend);
+    CHECK(ipc.report == cli.report);
+    CHECK(ipc.frame_range.has_value() == cli.frame_range.has_value());
+    if (ipc.frame_range && cli.frame_range) {
+        CHECK(ipc.frame_range->first == cli.frame_range->first);
+        CHECK(ipc.frame_range->last == cli.frame_range->last);
+    }
+    CHECK(ipc.requirements.gpu_required == cli.requirements.gpu_required);
+    CHECK(ipc.output.codec == cli.output.codec);
+    CHECK(ipc.output.encode_preset == cli.output.encode_preset);
+    CHECK(ipc.output.rate_control_mode == cli.output.rate_control_mode);
+    CHECK(ipc.output.crf == cli.output.crf);
+    CHECK(ipc.output.qp == cli.output.qp);
+    CHECK(ipc.output.bitrate == cli.output.bitrate);
+    CHECK(ipc.output.audio_source_path == cli.output.audio_source_path);
+    CHECK(ipc.output.gop_copy_only == cli.output.gop_copy_only);
+    CHECK(ipc.output.fps_num == cli.output.fps_num);
+    CHECK(ipc.output.fps_den == cli.output.fps_den);
+    CHECK(ipc.trace.output.string() == cli.trace.output.string());
+    CHECK(ipc.trace.level == cli.trace.level);
+    CHECK(ipc.receipt_verification == cli.receipt_verification);
+    CHECK(ipc.output.ffmpeg_mode == cli.output.ffmpeg_mode);
+}
+
+void check_normalized_parity(const JobRequest& cli, const std::string& payload,
+                             const JobCaps& capabilities) {
+    INFO("IPC payload: " << payload);
+    const auto ipc_request = cli::decode_render_job_payload(payload);
+    check_same_semantics(cli, ipc_request);
+
+    const auto cli_resolved =
+        c3d::runtime::job::normalize_render_job(cli, capabilities);
+    const auto ipc_resolved =
+        c3d::runtime::job::normalize_render_job(ipc_request, capabilities);
     REQUIRE(cli_resolved.has_value());
     REQUIRE(ipc_resolved.has_value());
-    const auto& cli = cli_resolved.value();
-    const auto& ipc = ipc_resolved.value();
-    CHECK(cli.plan_path == ipc.plan_path);
-    CHECK(cli.output_path == ipc.output_path);
-    CHECK(cli.frame_range->first == ipc.frame_range->first);
-    CHECK(cli.frame_range->last == ipc.frame_range->last);
-    CHECK(cli.backend == ipc.backend);
-    CHECK(cli.output.codec == ipc.output.codec);
-    CHECK(cli.output.encode_preset == ipc.output.encode_preset);
-    CHECK(cli.execution.backend == ipc.execution.backend);
-    CHECK(cli.execution.encoder_backend == ipc.execution.encoder_backend);
-    CHECK(cli.execution.gpu_hot_path_mode == ipc.execution.gpu_hot_path_mode);
+    const auto& cli_job = cli_resolved.value();
+    const auto& ipc_job = ipc_resolved.value();
+    const auto cli_fp = c3d::runtime::job::render_job_fingerprint(cli_job);
+    const auto ipc_fp = c3d::runtime::job::render_job_fingerprint(ipc_job);
+    if (cli_fp != ipc_fp) {
+        FAIL("CLI/IPC normalized fingerprints differ\n  CLI: " << cli_fp
+             << "\n  IPC: " << ipc_fp);
+    }
+}
+
+} // namespace
+
+TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") {
+    const JobCaps auto_host{"auto"};
+    const JobCaps vulkan_host{"vulkan"};
+
+    // Whole-plan default (no range): both transports render the whole plan.
+    SUBCASE("whole plan, software host") {
+        check_normalized_parity(cli_request_for("auto", "none", "pipe", "auto"),
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","report":false,"range_enabled":false,"first_frame":0,"last_frame":0,"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
+            auto_host);
+    }
+
+    SUBCASE("explicit single-frame chunk at frame 0 stays one frame") {
+        JobRequest cli = cli_request_for("auto", "none", "pipe", "auto");
+        cli.frame_range = FrameRange{0, 0};
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","range_enabled":true,"first_frame":0,"last_frame":0,"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
+            auto_host);
+    }
+
+    SUBCASE("chunk range + rational fps override") {
+        JobRequest cli = cli_request_for("auto", "none", "pipe", "auto");
+        cli.frame_range = FrameRange{40, 119};
+        cli.output.fps_num = 30000;
+        cli.output.fps_den = 1001;
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","range_enabled":true,"first_frame":40,"last_frame":119,"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"fps_num":30000,"fps_den":1001}})",
+            auto_host);
+    }
+
+    SUBCASE("source audio mux + gop copy intent") {
+        JobRequest cli = cli_request_for("auto", "none", "pipe", "auto");
+        cli.output.audio_source_path = "assets/master.wav";
+        cli.output.gop_copy_only = true;
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","audio_source_path":"assets/master.wav","gop_copy_only":true,"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
+            auto_host);
+    }
+
+    SUBCASE("software authored composition (pipe encoder)") {
+        // CLI adapter: --backend vulkan --encoder-backend pipe
+        // --gpu-hot-path-mode auto for a composition without source video.
+        JobRequest cli = cli_request_for("vulkan", "none", "pipe", "auto");
+        cli.requirements.composition_required = true;
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":false,"packet_copy_allowed":true},"output_spec":{"encoder_backend":"pipe"}})",
+            vulkan_host);
+    }
+
+    SUBCASE("NVENC source-video composition on a Vulkan host") {
+        // CLI spells nvenc/native/require_gpu_native; the IPC payload carries
+        // only semantics — normalize must back-fill the same resolution.
+        JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
+                                         "require_gpu_native", /*report=*/true);
+        cli.output.codec = "h264";
+        cli.output.encode_preset = "p3";
+        cli.receipt_verification = "normal";
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","report":true,"encode_preset":"p3","receipt_verify":"normal","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            vulkan_host);
+    }
+
+    SUBCASE("pure-video GPU job routes to DirectYUV") {
+        JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
+                                         "require_direct_yuv");
+        cli.output.codec = "h264";
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            vulkan_host);
+    }
+
+    SUBCASE("GPU-authored composition without source video falls to pipe") {
+        // CLI adapter mirror (render_args.go): composition + no source video
+        // can never feed the NVENC native surface, so the encoder is the pipe
+        // with automatic hot-path selection — the resolver must derive the
+        // same decision from execution_requirements.video_source_required.
+        JobRequest cli = cli_request_for("vulkan", "nvenc", "pipe", "auto");
+        cli.output.codec = "h264";
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":false,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            vulkan_host);
+    }
+
+    SUBCASE("rate control + codec carried through the wire exactly once") {
+        JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
+                                         "require_gpu_native");
+        cli.output.codec = "hevc";
+        cli.output.rate_control_mode = "crf";
+        cli.output.crf = 18;
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"hevc","rate_control_mode":"crf","crf":18}})",
+            vulkan_host);
+    }
+
+    SUBCASE("trace + explicit verification policy survive the daemon") {
+        JobRequest cli = cli_request_for("auto", "none", "pipe", "auto");
+        cli.report = true;
+        cli.trace.output = "render.pftrace";
+        cli.trace.level = "nodes";
+        cli.receipt_verification = "certify";
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","report":true,"trace_output":"render.pftrace","trace_level":"nodes","receipt_verify":"certify","execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
+            auto_host);
+    }
+
+    SUBCASE("top-level legacy keys keep decoding (pre-Phase-9 clients)") {
+        JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
+                                         "require_gpu_native");
+        cli.output.codec = "h264";
+        cli.output.ffmpeg_mode = "native";
+        cli.output.encode_preset = "p2";
+        cli.receipt_verification = "fast";
+        check_normalized_parity(cli,
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","backend":"vulkan","codec":"h264","hardware_encoder":"nvenc","encoder_backend":"native","ffmpeg_mode":"native","gpu_hot_path_mode":"require_gpu_native","encode_preset":"p2","receipt_verify":"fast","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
+            vulkan_host);
+    }
+}
+
+TEST_CASE("render_job_fingerprint discriminates semantic axes") {
+    const JobCaps vulkan_host{"vulkan"};
+    JobRequest base = cli_request_for("vulkan", "nvenc", "native",
+                                      "require_gpu_native");
+    base.requirements.composition_required = true;
+    base.requirements.video_source_required = true;
+    const auto base_job =
+        c3d::runtime::job::normalize_render_job(base, vulkan_host);
+    REQUIRE(base_job.has_value());
+    const auto base_fp =
+        c3d::runtime::job::render_job_fingerprint(base_job.value());
+
+    SUBCASE("frame range changes the fingerprint") {
+        JobRequest ranged = base;
+        ranged.frame_range = FrameRange{12, 34};
+        const auto job =
+            c3d::runtime::job::normalize_render_job(ranged, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+
+    SUBCASE("rate control changes the fingerprint") {
+        JobRequest rc = base;
+        rc.output.rate_control_mode = "crf";
+        rc.output.crf = 18;
+        const auto job =
+            c3d::runtime::job::normalize_render_job(rc, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+
+    SUBCASE("receipt policy changes the fingerprint") {
+        JobRequest with_receipt = base;
+        with_receipt.receipt_verification = "certify";
+        const auto job =
+            c3d::runtime::job::normalize_render_job(with_receipt, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+
+    SUBCASE("trace request changes the fingerprint") {
+        JobRequest traced = base;
+        traced.trace.output = "render.pftrace";
+        traced.trace.level = "nodes";
+        const auto job =
+            c3d::runtime::job::normalize_render_job(traced, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+
+    SUBCASE("source audio changes the fingerprint") {
+        JobRequest with_audio = base;
+        with_audio.output.audio_source_path = "assets/master.wav";
+        const auto job =
+            c3d::runtime::job::normalize_render_job(with_audio, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+
+    SUBCASE("identical requests produce identical fingerprints") {
+        const auto twin =
+            c3d::runtime::job::normalize_render_job(base, vulkan_host);
+        REQUIRE(twin.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(twin.value()) ==
+              base_fp);
+    }
+}
+
+TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {
+    CHECK_THROWS_AS(cli::decode_render_job_payload("{not json"),
+                    std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","execution_requirements":"nope","output_spec":{}})"),
+        std::exception);
 }
 
 #ifdef CHRONON3D_TEST_VIDEO_EXPORT_DISABLED

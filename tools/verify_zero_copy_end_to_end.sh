@@ -170,56 +170,16 @@ if [[ -z "$REPORT_JSON" ]]; then
         _info "Using authoritative timing sidecar: $TIMING_JSON"
     fi
 
-    # Fall back to the log only when no sidecar was produced.
     if [[ -f "$REPORT_JSON" ]]; then
         _info "Report found at $REPORT_JSON"
     else
-        # Fallback: extract counters from render log
-        _info "Extracting counters from render log..."
-        python3 -c "
-import json, re, sys
-
-counters = {}
-log_file = '$OUTPUT_DIR/render.log'
-
-# Extract counter values from log output
-patterns = {
-    'gpu_readback_bytes': r'gpu_readback_bytes[=:]\s*(\d+)',
-    'encoder_staging_copy_bytes': r'encoder_staging_copy_bytes[=:]\s*(\d+)',
-    'nv12_to_rgba_frames': r'nv12_to_rgba_frames[=:]\s*(\d+)',
-    'rgba_to_nv12_frames': r'rgba_to_nv12_frames[=:]\s*(\d+)',
-    'gpu_surface_copy_frames': r'gpu_surface_copy_frames[=:]\s*(\d+)',
-    'cpu_pixel_readback_bytes': r'cpu_pixel_readback_bytes[=:]\s*(\d+)',
-    'video_surface_upload_bytes': r'video_surface_upload_bytes[=:]\s*(\d+)',
-    'gpu_native_surface_frames': r'gpu_native_surface_frames[=:]\s*(\d+)',
-    'gpu_native_encode_frames': r'gpu_native_encode_frames[=:]\s*(\d+)',
-    'effective_backend': r'effective_backend[=:]\s*([A-Za-z0-9_-]+)',
-    'encoder_backend': r'encoder_backend[=:]\s*([A-Za-z0-9_-]+)',
-    'surface_handoff_path': r'surface_handoff_path[=:]\s*([A-Za-z0-9_-]+)',
-}
-
-try:
-    with open(log_file) as f:
-        content = f.read()
-    for name, pattern in patterns.items():
-        match = re.search(pattern, content)
-        if match:
-            counters[name] = int(match.group(1))
-except Exception as e:
-    print(f'Error reading log: {e}', file=sys.stderr)
-
-report = {
-    'schema': 'chronon3d.zero_copy.v1',
-    'scene': '$SCENE',
-    'frames': $FRAMES,
-    'counters': counters
-}
-
-with open('$REPORT_JSON', 'w') as f:
-    json.dump(report, f, indent=2)
-
-print(f'Report written to $REPORT_JSON')
-" 2>&1 || _warn "Failed to extract counters from log"
+        # Phase 13 (final certification): the timing sidecar is the AUTHORITY.
+        # A certification run never falls back to scraping render.log for
+        # counters — a missing sidecar is an unverifiable gate, so the verdict
+        # is ZERO_COPY_BLOCKED (never a log-derived PASS).
+        _warn "Zero-copy certification BLOCKED: timing sidecar $TIMING_JSON missing (no log fallback in certification mode)"
+        echo "ZERO_COPY_BLOCKED"
+        exit 2
     fi
 fi
 
@@ -243,6 +203,12 @@ CPU_READBACK_BYTES=$(extract_counter "$REPORT_JSON" "cpu_pixel_readback_bytes")
 VIDEO_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "video_surface_upload_bytes")
 NATIVE_SURFACE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_surface_frames")
 NATIVE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_encode_frames")
+# CUDA-lane half of gate 1 (host uploads): bytes pushed host→device by the
+# VideoDeviceRuntime image cache (cuMemcpyHtoD). Reported informationally;
+# the certified steady-state window is the job's render interval, while
+# asset/texture prewarm uploads land in the setup window (two-window
+# semantics, Z-wave F5/F7).
+CUDA_HOST_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "cuda_host_upload_bytes")
 
 EFFECTIVE_BACKEND=$(extract_counter "$REPORT_JSON" "effective_backend")
 ENCODER_BACKEND=$(extract_counter "$REPORT_JSON" "encoder_backend")
@@ -310,6 +276,9 @@ check_positive_gate "gpu_native_encode_frames" "$NATIVE_ENCODE_FRAMES"
 
 # ── Verdict ──────────────────────────────────────────────────────────────
 _info "── Summary ──"
+if [[ "$CUDA_HOST_UPLOAD_BYTES" != "" ]]; then
+    _info "  cuda_host_upload_bytes = $CUDA_HOST_UPLOAD_BYTES (CUDA-lane gate 1; informational, steady-state window)"
+fi
 _info "  PASS:     $PASS_COUNT"
 _info "  FAIL:     $FAIL_COUNT"
 _info "  BLOCKED:  $BLOCKED_COUNT"

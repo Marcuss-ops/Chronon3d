@@ -33,6 +33,15 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     (void)direct;
     return false;
 #else
+    // Z1 typed-feed guard: DirectYuv frames belong to a DirectYUV session
+    // only. A frame arriving on a FullGraph-native session would bypass the
+    // graph's encode path and re-enter the CUDA queue out-of-order.
+    if (!options_.direct_yuv_mode) {
+        spdlog::error(
+            "[native_av] DirectYuv frame feed refused on a non-DirectYUV "
+            "session (typed encoder capability mismatch)");
+        return false;
+    }
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto direct_submit_t0 = Clock::now();
     last_frame_telemetry_ = EncoderFrameTelemetry{};
