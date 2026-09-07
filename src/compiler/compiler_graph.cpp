@@ -1,10 +1,10 @@
-#include <chronon3d/compiler/graph_compile.hpp>
+#include "compiler_graph.hpp"
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 
 #include <utility>
 
-namespace chronon3d::compiler {
+namespace chronon3d::compiler::detail {
 
 graph::CompiledFrameGraph compile_graph(
     graph::RenderGraph graph,
@@ -14,4 +14,4 @@ graph::CompiledFrameGraph compile_graph(
     return implementation.compile(std::move(graph), context, options);
 }
 
-}  // namespace chronon3d::compiler
+}  // namespace chronon3d::compiler::detail

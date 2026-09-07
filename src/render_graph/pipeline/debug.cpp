@@ -3,7 +3,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
-#include <chronon3d/compiler/graph_compile.hpp>
+#include "../../compiler/compiler_graph.hpp"
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
@@ -117,7 +117,7 @@ SceneGraphStats analyze_scene_graph(
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // PR-2 rewire — compile the raw graph through the compiler root
     // (single source of truth for topological plans after WP-8 close-out).
-    auto compiled = chronon3d::compiler::compile_graph(std::move(graph), ctx);
+    auto compiled = chronon3d::compiler::detail::compile_graph(std::move(graph), ctx);
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_TRACE_SCOPE("chronon.graph", "execute_graph");

@@ -55,6 +55,7 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
@@ -207,7 +208,7 @@ inline ExecutionScheduler build_scheduler(
 // movable); the caller passes a temporary produced by `make_xxx_scene()`
 // below and the param move-constructs into the member.
 //
-// IMPORTANT: `ctx.services` is wired BEFORE `GraphBuilder::build(scene,
+// IMPORTANT: `ctx.services` is wired BEFORE `GraphBuildPipeline::build(scene,
 // ctx)`.  The builder reads services to decide which nodes to emit
 // (e.g. blur feature-gate, precomp-vs-runtime path).  Building with
 // half-wired ctx and then overwriting would risk a topology-vs-runtime
@@ -250,7 +251,9 @@ struct TestFixture {
 
         // ── Build the raw graph against the fully-wired ctx, ─────────
         // ── then compile it to CompiledFrameGraph for the executor.   ─
-        auto raw = GraphBuilder::build(scene, ctx);
+        GraphBuildPipeline graph_builder;
+        graph_builder.add_default_passes();
+        auto raw = graph_builder.build(scene, ctx);
         compiled = FrameGraphCompiler{}.compile(std::move(raw), ctx);
     }
 };

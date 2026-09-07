@@ -64,8 +64,26 @@ void setup_render_job(const CompositionRegistry& registry,
     }
 
     const auto warmup_t0 = profiling::now();
-    const auto preparation = runtime::prepare_render(
-        out.renderer.get(), *job.compiled,
+    const auto preparation = job.program
+        ? runtime::prepare_render(
+              out.renderer.get(), *job.program,
+              runtime::RenderPreparationOptions{
+                  .preflight_mode = PreflightMode::FullComposition,
+                  .resources = {},
+                  .warmup_renderer = job.execution.warmup_renderer,
+                  .warmup = runtime::RendererWarmupOptions{
+                      .width = job.metadata.width,
+                      .height = job.metadata.height,
+                      .framebuffer_count = job.execution.warmup_framebuffers,
+                      .preallocate_framebuffers = true,
+                      .touch_memory = true,
+                      .render_dummy_frame = job.execution.warmup_dummy_frame,
+                      .dummy_frame = 0,
+                      .quiet = (job.execution.log_level != "trace" &&
+                                job.execution.log_level != "debug")},
+                  .reference_frame = 0})
+        : runtime::prepare_render(
+              out.renderer.get(), *job.compiled,
         runtime::RenderPreparationOptions{
             .preflight_mode = PreflightMode::FullComposition,
             .resources = {},

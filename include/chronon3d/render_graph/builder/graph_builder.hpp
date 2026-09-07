@@ -31,9 +31,4 @@ struct LayerGraphItem {
     bool         is_static{false};
 };
 
-class GraphBuilder {
-public:
-    static RenderGraph build(const Scene& scene, const RenderGraphContext& ctx);
-};
-
 } // namespace chronon3d::graph

@@ -1,6 +1,6 @@
 add_library(chronon3d_compiler OBJECT
     compiler.cpp
-    graph_compilation.cpp
+    compiler_graph.cpp
     compiled_program.cpp
     compiled_program_validator.cpp
     frontend/json_decoder.cpp
@@ -17,7 +17,6 @@ add_library(chronon3d_compiler OBJECT
     ../render_plan/render_plan_compiler_animation.cpp
     ../render_plan/render_plan_compiler_text.cpp
     ../render_plan/render_plan_compiler_fingerprint.cpp
-    ../render_graph/builder/graph_builder_pipeline.cpp
     ../render_graph/builder/graph_builder_static_analysis.cpp
     ../render_graph/builder/graph_builder_bbox.cpp
     ../render_graph/builder/graph_builder_matte.cpp

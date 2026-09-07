@@ -161,10 +161,11 @@ Result<RenderJob, RenderJobError> resolve_render_request(
             compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
         }
 
-        RenderJob job;
-        job.registry = &registry;
-        job.comp_id = std::move(request.comp_id);
-        job.compiled = std::move(compiled);
+    RenderJob job;
+    job.registry = &registry;
+    job.comp_id = std::move(request.comp_id);
+    job.compiled = std::move(compiled);
+    job.program = std::move(request.compiled_program);
         job.metadata = CompositionMetadata{
             .width = job.compiled->composition->width(),
             .height = job.compiled->composition->height(),

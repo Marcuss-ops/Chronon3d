@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
@@ -128,6 +129,13 @@ struct RenderPreparationResult {
 [[nodiscard]] RenderPreparationResult prepare_render(
     SoftwareRenderer* renderer,
     const CompiledComposition& compiled,
+    const RenderPreparationOptions& options = {});
+
+/// Prepare the canonical immutable compiler result.  The legacy compiled
+/// composition overload remains as an executor compatibility seam only.
+[[nodiscard]] RenderPreparationResult prepare_render(
+    SoftwareRenderer* renderer,
+    const compiler::CompiledProgram& program,
     const RenderPreparationOptions& options = {});
 
 } // namespace runtime
