@@ -21,8 +21,17 @@
 #
 # Usage:
 #   bash tools/verify_zero_copy_end_to_end.sh
-#   bash tools/verify_zero_copy_end_to_end.sh --scene TextPlaceAnimatedCenter --frames 60
+#   bash tools/verify_zero_copy_end_to_end.sh --scene DarkGridBackground --frames 60
 #   bash tools/verify_zero_copy_end_to_end.sh --report-json /path/to/report.json
+#
+# Scene note (2026-09-07, Z0 census): the historical default
+# `TextPlaceAnimatedCenter` is no longer registered in this repository (the
+# content/ compositions tree was externalized; the CLI registers only
+# `DarkGridBackground` and `CameraImageClip` plus dev/content packs). The
+# default is now `DarkGridBackground` — a registered built-in procedural
+# composition with no external assets — so the certification gate is runnable
+# on current main without a content pack. CHRONON3D_BENCH_SCENE still
+# overrides it for hosts that provide a content pack.
 #
 # Exit codes:
 #   0 = ZERO_COPY_PASS
@@ -35,7 +44,7 @@ set -uo pipefail
 GATE_NAME="verify_zero_copy_end_to_end"
 
 # ── Defaults ─────────────────────────────────────────────────────────────
-SCENE="${CHRONON3D_BENCH_SCENE:-TextPlaceAnimatedCenter}"
+SCENE="${CHRONON3D_BENCH_SCENE:-DarkGridBackground}"
 FRAMES="${CHRONON3D_BENCH_FRAMES:-60}"
 WARMUP="${CHRONON3D_BENCH_WARMUP:-10}"
 REPORT_JSON=""

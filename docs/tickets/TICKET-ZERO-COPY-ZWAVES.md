@@ -1,0 +1,225 @@
+# TICKET-ZERO-COPY-ZWAVES — Zero-copy Z-wave census and execution plan
+
+Status: `ACTIVE` (Z0 census DONE; Z1–Z7 adapted plan, host-reachable slice landed 2026-09-07)
+Owner: media/video + rendering-core maintainers
+Created: 2026-09-07
+Baseline: `main@23108742a1d72bd9a6eb6ca208506965f4f40154`
+Gates: [`docs/ZERO_COPY_GATES.md`](../ZERO_COPY_GATES.md)
+
+This ticket executes the Z0–Z7 zero-copy plan (architecture working session,
+2026-09-07) against the *current* codebase. The plan's principle:
+
+> One backing allocation per output slot, many API views, one lifecycle, one
+> compositor authority, one encoder authority. Not "make the existing pipeline
+> zero-copy", but remove the natural place where a copy could happen.
+
+It also records the Z0 copy census (which waves deliberately change no
+behavior) and re-maps each wave onto the real, evolved code. The codebase has
+moved past several plan starting points (single `CudaNv12Compositor` authority
+exists; DirectYuv lane with `composite_direct_nv12_batch` exists;
+`FrameSlotPool`/`FrameExecutionSlot`/`GpuCompletionTracker` are the slot
+protocol), so each wave below states what is **already satisfied** and what
+**remains**.
+
+---
+
+## Z0 — Copy census (DONE, 2026-09-07)
+
+Every gate counter, its authoritative increment site, the lane that triggers
+it, and the wave that must zero it:
+
+| Gate | Counter | Instrumented at (authority) | Certified FullGraph native lane today | Zeroed by |
+|---|---|---|---|---|
+| 1 host_upload | `gpu_upload_bytes` | Vulkan backend `Impl::upload/upload_region` (`vulkan_surface_store_private.cpp`) → `vulkan_backend_stats.cpp` export | 0 in steady state (atlas/asset uploads are warmup or CUDA-side, see F5) | Z7 (two-window cert) |
+| 2 host_readback | `gpu_readback_bytes` | Vulkan backend `Impl::download` → stats export | 0 (video lane is `mark_gpu_authoritative`; silent readback refused) | — (already 0) |
+| 3 nv12_to_rgba | `nv12_to_rgba_frames` | `CudaNv12Compositor::composite()` (`compositor/cuda/cuda_nv12_compositor_paths.cpp`) | 0 on DirectYuv; >0 per decoded frame on VulkanGraph lanes (RGBA video texture) | Z4 (certified set via direct lane) |
+| 4 rgba_to_nv12 | `rgba_to_nv12_frames` | `CudaNv12Compositor::composite_surface_to_nv12()` (same file) | **>0 per frame** — `NativeAvEncoder::write_native_surface_impl` converts the slot's RGBA encode surface into a CUDA NV12 hwframe | Z4 |
+| 5 encoder_staging | `encoder_staging_copy_bytes` | CPU lanes only: `NativeAvSink` (`encode/native_av_sink.cpp`), `RawVideoSink` | 0 on CUDA lanes (kernels write directly); CPU fallback is refused under `require_native_gpu` | — (already 0 on certified lane) |
+| 6 gpu_surface_copy | `gpu_surface_copy_frames` | `VulkanBackend::Impl::copy_surface_to_cuda_encoder` (`vulkan_backend_cuda_export_private.cpp`) | **>0 per frame** — graph D2D copy source→encode surface in `scene_native_output.cpp` `finish_frame_encode` (and the writer's unprepared-handoff blit) | Z3 |
+| 7 cpu_pixel_readback | `cpu_pixel_readback_bytes` / `cpu_pixel_readback_count` | **was vacuous**; instrumented 2026-09-07 at the single Vulkan download authority (`Impl::download`) | 0 (lane never downloads) — now an honest canary | — (already 0; canary) |
+| 8 video_surface_upload | `video_surface_upload_bytes` | graph retained-source upload path (`scene_native_output.cpp` `NativeSourceResidency`) | 0 when the graph output is already native (no host upload) | — (already 0 on native lane) |
+| 9 native_surface_frames | `gpu_native_surface_frames` | writer (`pipe_export_writer.cpp`) | >0 on certified lane | — (positive gate) |
+| 10 native_encode_frames | `gpu_native_encode_frames` | writer | >0 on certified lane | — (positive gate) |
+
+### Findings (all code-referenced)
+
+1. **F1 — `require_gpu_native` plans `VulkanCopy` by design.** The resolver
+   (`src/media/video/video_execution_resolver.cpp`) maps
+   `GpuHotPathMode::RequireGpuNative` →
+   `{DecodePath::Nvdec, CompositePath::VulkanGraph, EncodePath::Nvenc,
+   InteropPath::VulkanCuda, SurfaceHandoffPath::VulkanCopy}` and the unit tests
+   pin that mapping (`tests/cli/test_packet_assembler_contract.cpp`,
+   `tests/cli/test_ffmpeg_export_options.cpp`). Therefore the certification
+   identity gate `surface_handoff_path == direct` **cannot pass on the FullGraph
+   lane as currently defined** — it is a plan-axis consequence, not a bug.
+2. **F2 — FullGraph native lane does two real GPU passes per frame** that the
+   gates measure: (a) a device-to-device copy of the rendered RGBA surface into
+   the slot's CUDA-exportable encode surface (`scene_native_output.cpp`
+   `finish_frame_encode` → `copy_surface_to_cuda_encoder`, gate 6), and
+   (b) an RGBA→NV12 CUDA conversion into a distinct FFmpeg hwframe
+   (`native_av_encoder_native_surface.cpp`, gate 4). Physical slots today hold
+   two allocations: the encode RGBA surface + the FFmpeg NV12 pool buffer
+   (`kCudaEncodeRingSlots = 6`). This is the plan's Z3/Z4 demolition target.
+3. **F3 — gates 7 was vacuous.** `cpu_pixel_readback_count` / `_bytes` were
+   declared and exported to the sidecar but never incremented. Fixed at the
+   single GPU→CPU pixel authority (`Impl::download`).
+4. **F4 — the certification scene is dead on current main.**
+   `TextPlaceAnimatedCenter` is not registered anywhere in this repository
+   (content/ compositions were externalized; the CLI always registers only
+   `DarkGridBackground` and `CameraImageClip`, see
+   `apps/chronon3d_cli/register_runtime_compositions.cpp`). The tool default was
+   re-pointed to the asset-free builtin `DarkGridBackground`
+   (`tools/verify_zero_copy_end_to_end.sh`, `docs/ZERO_COPY_GATES.md`);
+   `CHRONON3D_BENCH_SCENE` still overrides on hosts with a content pack.
+5. **F5 — gate 1 coverage gap on the CUDA lane.** `gpu_upload_bytes` is fed only
+   by the Vulkan backend upload stats; `cuMemcpyHtoD` uploads inside
+   `VideoDeviceRuntime`'s CUDA image cache (`get_or_upload_image`) are invisible
+   to gate 1. On the DirectYuv lane (overlay/watermark/subtitle images) these
+   uploads would not be measured. Z7 must either count them or formalize the
+   prewarm/steady-state windows (plan §9) without reclassifying the counter.
+6. **F6 — the DirectYuv lane already implements the plan's fused-direct write.**
+   `NativeAvEncoder::write_direct_yuv` runs
+   `CudaNv12Compositor::composite_direct_nv12_batch` (per-pixel YUV↔RGB math,
+   no full-frame RGBA intermediate, no separate conversion pass) straight into
+   an FFmpeg CUDA NV12 frame of the bounded queue — gates 3/4/6 stay 0 there by
+   construction. It requires an NV12/P010 decoded background, so it is the
+   zero-copy lane for decode+overlay compositions, not for arbitrary synthetic
+   scenes.
+7. **F7 — two-window semantics needed.** Atlas/asset uploads that occur during
+   the warmup frames are inside the measured job; the certification already
+   passes `--warmup-renderer --warmup-framebuffers 10`, but nothing separates
+   "setup/prewarm" from "steady-state" counters in the report. Plan §9's two
+   windows should be formalized without changing counter meaning.
+
+---
+
+## Z1 — Encode-output role + native backing/view contract (PARTIAL: present)
+
+The plan's abstract role vocabulary (`VideoEncodeOutput`, `PixelFormatClass`,
+`Lifetime`, `Access`, `InteropRequirement`) maps onto authorities that already
+exist and must **not** be duplicated:
+
+- output slots with one physical encode surface + lifecycle:
+  `runtime::FrameExecutionSlot` + `InteropFrameState` + `FrameSlotPool` +
+  `GpuCompletionTracker` (runtime/frame/);
+- one NV12 compositor authority: `media::video::CudaNv12Compositor` +
+  `VideoCompositor` registry/resolver facade (`src/media/video/compositor/`);
+- one encoder resolver/authority: `create_video_encoder` +
+  `NativeAvEncoder` (`apps/chronon3d_cli/utils/video/`), with
+  `IVideoEncoder::write_direct_yuv / write_native_surface / write_frame`
+  capability surface;
+- orthogonal plan axes already abstract:
+  `media::VideoExecutionPlan{decode, composite, encode, interop, handoff}`
+  (`video_execution_resolver.hpp`).
+
+Remaining Z1 work: **typed encoder capability split**. The plan forbids
+accidentally feeding CPU RGBA to the native endpoint and forbids a
+`maybe-CPU/maybe-CUDA/maybe-Vulkan` God interface. Today the capability surface
+is virtual-methods-with-defaults on one `IVideoEncoder`; the strict typed split
+(native-surface implementation vs host-frame fallback, chosen by the single
+resolver) is the follow-up, alongside the effect/compositor capability matrix
+(supports(effect, NativeYuvComposition), plan §5) feeding the canonical
+`VideoCompositor` resolver — no new resolver.
+
+## Z2 — Encoder consumes the output backing directly; per-slot persistent registration (MOSTLY PRESENT)
+
+Already satisfied on the certified lanes: external-memory import happens once
+per destination surface (`cuda_nv12_compositors_` map keyed by surface, reused
+for the whole job ⇒ `external_memory_import_count ≈ output_slots`), the CUDA
+encode queue is a bounded ring (`kCudaEncodeRingSlots = 6`), NVENC consumes
+FFmpeg CUDA hwframes from a reusable pool, and gate 5 (`encoder_staging_copy_bytes`)
+is 0 wherever the native path runs. The remaining delta is F2's *second
+allocation*: FFmpeg `av_hwframe_get_buffer` per frame pulls an NV12 buffer that
+is not the slot's own exportable allocation. Making FFmpeg represent the same
+allocation (or registering NVENC on the slot backing directly) is the deep
+interop follow-up; do not proceed until Z3's equivalence gate is defined.
+
+## Z3 — CudaNv12Compositor writes into the same encode backing; remove the per-frame D2D copy (OPEN)
+
+Target: gate 6 → 0 by removing the per-frame device-to-device copy in
+`NativeSourceResidency::finish_frame_encode`
+(`src/render_graph/pipeline/scene_native_output.cpp`) — the graph's final
+composite should target the slot's encode surface directly so no
+source→encode-surface copy exists. Concrete seam: the scene output path
+already carries `native_video_encode_surface` in policy; make the final output
+framebuffer bind that surface and drop the copy call. **Equivalence gate
+required** (GPU output parity for text/transition/precomposition/video plans)
+before landing; not executed in this session (single-build constraint, GPU
+iteration required).
+
+## Z4 — Certified effect set on direct NV12 via capability matrix (OPEN)
+
+Target: gates 3/4 → 0 for the certified corpus. The mechanism exists
+(`composite_direct_nv12_batch`, DirectYuv lane, F6). Remaining:
+1. the effect/compositor capability matrix feeding the canonical resolver —
+   `supports(effect, NativeYuvComposition)` with `RequireDirectYuv → hard fail`
+   vs `Auto → explicit fallback` (never silent), and
+2. a certified *corpus* (scene + expected gates) runnable in CI without a
+   content pack. Non-certified scenes keep the honest FullGraph lane with
+   counted conversions — never counter-gaming.
+
+## Z5 — Absorb DirectYuvExecutor into the normal execution path (OPEN)
+
+`DirectYuvExecutor` (`src/media/video/direct_yuv/`) is the second frame loop
+(prepare/run/cancellation/submit/progress/timing) starting from
+`CompiledComposition`. Plan Z5 migrates its semantics into the canonical
+`FrameSlotPool`/writer pipeline and deletes the executor + its second
+cancellation/timing/submit paths. Do not delete before Z4's certified corpus
+runs green on the absorbed path (equivalence: frame timing + gates identical).
+
+## Z6 — Per-slot async overlap and depth tuning (OPEN, measure-first)
+
+The queue depth is already bounded (`kCudaEncodeRingSlots = 6` encoder-side,
+`GpuSlotPool::kDefaultCapacity = 3` render-side, plus `io_queue`). Depth must
+be tuned from measured `slot_reuse_wait_ms / decode_wait_ms / compose_wait_ms /
+encode_submit_wait_ms / encoder_in_flight` (some already exported in the timing
+sidecar). No new ring/scheduler authority.
+
+## Z7 — Source gates + certification (PARTIAL, 2026-09-07)
+
+Landed in this session:
+- gate 7 instrumentation (F3) — canary, no behavior change;
+- certification tool default scene fixed (F4) so the gate is runnable on main.
+
+Remaining Z7:
+- CUDA-lane upload counters or two-window certification (F5/F7);
+- nightlies/CI zero-copy job with the registered scene on a GPU host;
+- keep all old-error counters as regression canaries after paths are removed.
+
+---
+
+## Demolition debt schedule
+
+1. **FullGraph native per-frame D2D copy** (`finish_frame_encode` →
+   `copy_surface_to_cuda_encoder` source→encode surface).
+   - Owner: rendering-core/video maintainers.
+   - Reason: FullGraph output is a transient RGBA surface copied into the slot
+     encode surface before the CUDA RGBA→NV12 handoff.
+   - Exit condition: `gpu_surface_copy_frames == 0` on the certified run with
+     identical output (Z3 equivalence gate green).
+   - Equivalence gate: GPU output parity + zero-copy certification run.
+   - Removal scope: `copy_surface_to_video_encode` per-frame callsite in
+     `scene_native_output.cpp`; the encode-surface alias binding replaces it.
+   - Status: `ACTIVE`.
+2. **FFmpeg NV12 pool as second per-slot allocation** (per-frame
+   `av_hwframe_get_buffer` in the native encoder).
+   - Owner: media/video maintainers.
+   - Reason: NVENC consumption goes through FFmpeg hwframes rather than the
+     slot's exportable backing.
+   - Exit condition: encoder consumes the slot backing (register count ≈
+     output slots, ≪ frames) with identical output.
+   - Equivalence gate: native encoder contract tests + output hash parity.
+   - Removal scope: per-frame hwframe acquire path / pool copy semantics.
+   - Status: `ACTIVE`.
+3. **`DirectYuvExecutor` second frame loop** — see Z5; removal only after the
+   absorbed path certifies.
+   - Status: `ACTIVE`.
+
+## Verification snapshot (2026-09-07)
+
+- Z0 census: complete; no render behavior changed (two measurement/tool
+  fixes only).
+- Certification run: pending the CUDA/Vulkan build of this SHA
+  (`build/chronon/linux-video-fast-dev`) on the GPU host; expected current
+  result per F1/F2: gates 4 and 6 non-zero, `surface_handoff_path = vulkan_copy`
+  → `ZERO_COPY_FAIL` until Z3/Z4 land. Not marked green.
