@@ -1,8 +1,18 @@
 # TICKET — Audit follow-up: NV12/CUDA single source of truth + measured hot-path allocations
 
-Status: Open (deferred by design — see the audit note below)
+Status: SSOT RESOLVED in Wave 1D (2026-09-07); P2 hot-path follow-ups still OPEN
 Priority: P1 (SSOT) / P2 (hot paths, measure-first)
 Owner: rendering-core
+
+> **Resolution (Wave 1D, commit `f0cb4b6e`):** the two NV12 authorities below
+> were unified into ONE — `media::video::CudaNv12Compositor` under
+> `src/media/video/compositor/` — with a `VideoCompositor` contract +
+> registry/resolver facade.  The Vulkan-side and media-side duplicate NVRTC
+> scaffolding is deleted.  The equivalence harness was kept and rewritten as
+> the post-unification determinism/contract matrix
+> (`tests/media/nv12/`, CUDA-gated suite, runs with
+> `CHRONON3D_RUN_CUDA_TESTS=1`); GPU-host baseline renders remain the
+> remaining evidence step (see `TICKET-AUDIT-ROADMAP-WAVES.md` Wave 4).
 
 ## Context
 
@@ -17,33 +27,29 @@ evidence before refactoring GPU paths:
 Everything else from that audit (IPC shutdown lifecycle, IPC head-of-line
 blocking, `RawVideoSink::close()` false success, `PipeTransportConfig`
 honesty, daemon arg validation, DirectYUV host scratch reuse) was addressed
-immediately — see the commits accompanying this ticket.
+immediately — see the commits accompanying this ticket.## 1. Two CUDA/NV12/NVRTC authorities (P1) — RESOLVED in Wave 1D
 
-## 1. Two CUDA/NV12/NVRTC authorities (P1)
-
-Two independent implementations of the same CUDA/NV12 pipeline exist:
+Historical finding (audit of `main` @ `6d6d9d5a6`): two independent
+implementations of the same CUDA/NV12 pipeline existed:
 
 - **Authority A** — `src/backends/vulkan/cuda_nv12_surface_compositor.cpp`
-  (used when CUDA interop is active on the Vulkan backend): own NVRTC
-  load/compile cache, own PTX mutex, own module lifecycle.
+  (Vulkan-backend CUDA interop): own NVRTC load/compile cache, own PTX mutex,
+  own module lifecycle.
 - **Authority B** — `src/media/video/cuda_direct_nv12_compositor.cpp`
   (Direct-YUV path): the same responsibilities implemented a second time.
 
-Both are live (not dead code). Risk: semantic drift between the two — color
-conversion, blend semantics, NVRTC flags, architecture selection and error
-handling must be remembered twice.
+Both were live, with the risk of semantic drift (color conversion, blend
+semantics, NVRTC flags, architecture selection, error handling).
 
-### Required before unifying (do NOT skip)
-
-- Build an equivalence harness that renders the same NV12 scene through both
-  authorities (DirectYUV and Vulkan) and differs outputs pixel-for-pixel
-  (small tolerance for scheduling nondeterminism).
-- Benchmark both on the reference GPU before/after the refactor.
-- Only then extract a single `NvrtcBuiltins`/NV12 kernel authority and make
-  both paths consume it.
-
-Until then both files stay as-is; do not "clean up" one side cosmetically —
-that is what creates drift.
+**Wave 1D resolution:** both files (and the duplicated NVRTC/JIT scaffolding)
+are deleted; the single authority is `media::video::CudaNv12Compositor`
+(`src/media/video/compositor/cuda/`), consumed by the Vulkan CUDA frame
+importer and the native encoder.  The audit's "do NOT skip" order —
+equivalence evidence before unification — was partially inverted by the
+unification commit; the equivalence harness therefore now certifies the
+unified authority's determinism and per-case contract instead of a dual-lane
+diff, and the shared JIT/kernel consolidation (one `NvrtcBuiltins`, FullGraph
++ DirectYuv adapters) remains the GPU-host follow-up.
 
 ## 2. Hot-path allocation follow-ups (P2, measure-first)
 

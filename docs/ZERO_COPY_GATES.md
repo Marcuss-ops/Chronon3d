@@ -108,10 +108,11 @@ strumentati: i contatori non esistevano e il gate 6 (`gpu_surface_copy_frames`)
 non veniva mai incrementato, quindi la certificazione passava senza misurare
 le conversioni reali. Ora:
 
-- `nv12_to_rgba_frames` — incrementato in `CudaNv12SurfaceCompositor::composite()`
-  (kernel `nv12_to_rgba` / `p010_to_rgba`).
+- `nv12_to_rgba_frames` — incrementato in `media::video::CudaNv12Compositor::composite()`
+  (kernel `nv12_to_rgba` / `p010_to_rgba`; Wave 1D ha unificato l'autorità
+  NV12 in `src/media/video/compositor/`, ex `CudaNv12SurfaceCompositor` Vulkan).
 - `rgba_to_nv12_frames` — incrementato in
-  `CudaNv12SurfaceCompositor::composite_surface_to_nv12()`
+  `media::video::CudaNv12Compositor::composite_surface_to_nv12()`
   (kernel `rgba_surface_to_nv12_2x2` / `rgba_u8_surface_to_nv12_2x2`).
 - `gpu_surface_copy_frames` — incrementato in
   `VulkanBackend::Impl::copy_surface_to_cuda_encoder()` (la blit D2D
@@ -131,7 +132,7 @@ l'overlay direttamente nel dominio NV12 senza passare da RGBA.
 Il percorso che azzera i gate 3/4/6 è già implementato nei kernel CUDA:
 
 ```
-NVDEC (NV12/P010) → CudaNv12SurfaceCompositor::composite_direct_nv12*
+NVDEC (NV12/P010) → media::video::CudaNv12Compositor::composite_direct_nv12*
     → Vulkan composita l'overlay direttamente nell'immagine YUV
     → NVENC (nessuna copia RGBA intermedia, nessuna blit D2D)
 ```
