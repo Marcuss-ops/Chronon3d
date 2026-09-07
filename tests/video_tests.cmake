@@ -50,3 +50,14 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_media_video
     SOURCES video/test_source_sample_table.cpp
 )
+
+# Zero-copy Z1/Z4 typed capability contracts (TICKET-ZERO-COPY-ZWAVES):
+# encoder feed capability set + effect/compositor capability matrix. Both
+# headers are CPU-safe and backend-neutral by design.
+chronon3d_add_test_suite(
+    NAME chronon3d_zero_copy_capability_tests
+    TIER UNIT
+    LINK_TARGETS chronon3d_media_video
+    SOURCES video/test_encoder_capability.cpp
+            video/test_composition_capability.cpp
+)

@@ -188,6 +188,7 @@ void build_summary_and_job_sections(
     put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
+    put_gpu_u64("cuda_host_upload_bytes", timings.gpu.cuda_host_upload_bytes);
     put_gpu_u64("gpu_upload_full_surface_bytes", timings.gpu.gpu_upload_full_surface_bytes);
     put_gpu_u64("gpu_upload_region_bytes", timings.gpu.gpu_upload_region_bytes);
     put_gpu_u64("native_surface_promotion_count", timings.gpu.native_surface_promotion_count);

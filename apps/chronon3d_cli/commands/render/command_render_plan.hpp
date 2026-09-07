@@ -37,14 +37,14 @@ int run_render_plan_file(
     std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
-/// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload
-/// is JSON {"plan_path", "assets_root", "output"}; on success the reply is
+/// RENDER_JOB (daemon IPC): execute an already-normalized render job. Phase 9
+/// (CLI/IPC parity): the daemon boundary decoded + normalized the wire JSON
+/// exactly once; the render group receives the immutable NormalizedRenderJob
+/// and never re-parses JSON nor re-normalizes. On success the reply is
 /// {"status":"ok","output":"..."}.
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,
-                          const std::string& payload);
-ipc::Reply ipc_render_job(const CompositionRegistry& registry,
-                          const std::string& payload,
-                          std::shared_ptr<SoftwareRenderer> warm_renderer,
+                          const runtime::job::NormalizedRenderJob& job,
+                          std::shared_ptr<SoftwareRenderer> warm_renderer = {},
                           std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
 
 }  // namespace chronon3d::cli

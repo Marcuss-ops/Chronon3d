@@ -7,6 +7,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -109,6 +110,24 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
     /// for null handles or a context mismatch; callers must fail closed.
     [[nodiscard]] bool context_matches(std::uintptr_t context) const noexcept;
 
+    /// Cumulative host→device bytes uploaded through the CUDA image cache
+    /// (`cuMemcpyHtoD` in get_or_upload_image). Persists for the lifetime of
+    /// this device runtime; the timing sidecar exports it as the CUDA-lane
+    /// half of zero-copy gate 1 (host uploads) — the Vulkan-lane half is the
+    /// backend's `gpu_upload_bytes`. Zero in non-CUDA builds.
+    [[nodiscard]] std::uint64_t cuda_host_upload_bytes() const noexcept {
+        return cuda_host_upload_bytes_.load(std::memory_order_relaxed);
+    }
+
+    /// Add to the cumulative CUDA host-upload byte counter. Called at the
+    /// single CUDA upload authority (get_or_upload_image) after a successful
+    /// host→device transfer; the RenderCounters mirror is bumped too when a
+    /// job counter context is live.
+    void add_cuda_host_upload_bytes(std::uint64_t bytes) noexcept {
+        if (bytes == 0) return;
+        cuda_host_upload_bytes_.fetch_add(bytes, std::memory_order_relaxed);
+    }
+
 private:
     VideoDeviceRuntime(runtime::DeviceId device,
                        std::shared_ptr<runtime::GpuRuntime> gpu,
@@ -125,6 +144,7 @@ private:
     AVBufferRef* cuda_hwdevice_{nullptr};
     bool initialized_{false};
     bool init_ok_{false};
+    std::atomic<std::uint64_t> cuda_host_upload_bytes_{0};
     std::mutex mutex_;
     ImageCache image_cache_;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

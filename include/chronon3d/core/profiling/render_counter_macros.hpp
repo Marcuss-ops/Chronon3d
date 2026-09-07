@@ -422,7 +422,8 @@ namespace chronon3d {
     X(cuda_frames_cache_hit) \
     X(cuda_frames_cache_miss) \
     X(cuda_image_cache_hit) \
-    X(cuda_image_cache_miss)
+    X(cuda_image_cache_miss) \
+    X(cuda_host_upload_bytes)
 
 #define CHRONON_COUNTERS_FRAME_WALL(X) \
     X(timeline_patch_wall_us) \

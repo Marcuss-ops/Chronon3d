@@ -69,6 +69,13 @@ struct ExecutionRequirements {
     bool gpu_required{false};
     bool cpu_fallback_allowed{true};
     bool composition_required{true};
+    // Mirrors RenderingGen's ExecutionRequirements.VideoSourceRequired (wire
+    // key execution_requirements.video_source_required). Distinguishes a
+    // source-video composition (native NVENC handoff) from an authored
+    // image/text-only composition that must fall back to the pipe encoder
+    // even when a GPU is requested (Phase 9 CLI/IPC parity axis). Defaults to
+    // true to preserve the legacy resolver behavior when the key is absent.
+    bool video_source_required{true};
     bool packet_copy_allowed{true};
 };
 

@@ -56,6 +56,11 @@ void write_frame_timing_sidecar(
     }
     file << out.dump(2) << '\n';
     spdlog::info("[video] Wrote exact per-frame timing sidecar: {}", sidecar);
+
+    // Observability ownership (phase 4): the bounded typed summary sidecar is
+    // the ONLY telemetry surface hosts/collectors may consume. The raw
+    // per-frame sidecar above stays a Chronon-owned deep profile.
+    detail::write_bounded_telemetry_summary_sidecar(video_path, out);
 }
 
 } // namespace chronon3d::cli
