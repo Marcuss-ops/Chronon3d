@@ -1,0 +1,58 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# architecture_rules_wave2.toml — Wave 2 (Pure CompiledProgram) enforcement.
+#
+# CompiledProgram is the frozen data-oriented compiler output.  It exposes NO
+# public accessor to the legacy prepared plan (`PreparedRenderPlan` /
+# `CompiledComposition`); the few execution seams still running on the legacy
+# artifact reach it exclusively through the internal compiler plan bridge
+# (`include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp`, which
+# carries the full Demolition Debt card).  These rules make each
+# reintroduction a GATE FAIL, not a review comment:
+#   * declaring `prepared_plan()` / `compiled_composition()` members on
+#     `CompiledProgram` is a forbidden symbol;
+#   * any member-call site (`x.prepared_plan(...)` / `p->compiled_composition(...)`)
+#     anywhere in the tree is an occurrence-cap failure (the bridge free
+#     functions are called WITHOUT a dot/arrow prefix, so they never match);
+#   * the canonical bridge header must keep existing with its friendship gate
+#     and debt card, and its out-of-line implementations must stay in
+#     src/compiler/compiled_program.cpp.
+# This file is loaded only through tools/architecture_rules.toml; the
+# canonical executor remains tools/check_architecture.py.
+# ═══════════════════════════════════════════════════════════════════════════
+
+[[forbidden_symbol]]
+name = "compiled_program_public_plan_accessors"
+description = "Wave 2: CompiledProgram must never re-expose prepared_plan()/compiled_composition() member accessors"
+patterns = ['\b(prepared_plan|compiled_composition)\s*\(']
+scan_paths = ["include/chronon3d/compiler/compiled_program.hpp"]
+skip_comments = true
+hint = "The legacy plan is retained privately on CompiledProgram and is reachable ONLY through compiler::detail::CompiledProgramPlanBridge (see compiler/detail/compiled_program_plan_bridge.hpp). Re-adding a public accessor recreates the Wave-2 dependency on the legacy execution artifact."
+
+[[occurrence_cap]]
+name = "compiled_program_plan_accessor_call_sites"
+description = "Wave 2: no tree-wide caller may invoke a .prepared_plan()/.compiled_composition() member (the accessors are deleted)"
+pattern = '(?:\.|->)(prepared_plan|compiled_composition)\s*\('
+max_count = 0
+scan_paths = ["include", "src", "apps", "tests"]
+skip_comments = true
+hint = "Callers needing the retained legacy plan use chronon3d::compiler::detail::prepared_plan(program) / detail::compiled_composition(program) — free-function form, no dot/arrow. Any dot/arrow call site is a reintroduced CompiledProgram accessor dependency."
+
+[[contract]]
+name = "compiled_program_plan_bridge_canonical"
+description = "Wave 2: the internal plan-bridge header must exist with its friendship gate and Demolition Debt card"
+file = "include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp"
+required_patterns = [
+  'class CompiledProgramPlanBridge',
+  'DEMOLITION DEBT CARD',
+]
+hint = "Canonical bridge header missing — the legacy plan would have no confined access path."
+
+[[contract]]
+name = "compiled_program_plan_bridge_impl_single_tu"
+description = "Wave 2: the bridge implementations are defined exactly once, in the compiler boundary TU"
+file = "src/compiler/compiled_program.cpp"
+required_patterns = [
+  'CompiledProgramPlanBridge::prepared_plan',
+  'CompiledProgramPlanBridge::compiled_composition',
+]
+hint = "Bridge out-of-line definitions missing from compiled_program.cpp (the one TU with the complete PreparedRenderPlan definition)."

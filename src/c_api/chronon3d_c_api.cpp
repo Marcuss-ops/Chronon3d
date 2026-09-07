@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
@@ -162,7 +163,10 @@ chronon3d::render_plan::PreparedRenderPlan compile_plan(
                                compiled.error().message,
                                "compile_error",
                                compiled.error().component);
-    return compiled.value().prepared_plan();
+    // Wave 2-9 seam: the legacy PreparedRenderPlan that this C ABI handle
+    // owns is copied out through the internal compiler plan bridge (see the
+    // bridge debt card).  CompiledProgram exposes no public plan accessor.
+    return chronon3d::compiler::detail::prepared_plan(compiled.value());
 }
 
 chronon_status render_error_status(const chronon3d::sdk::RenderError& error);

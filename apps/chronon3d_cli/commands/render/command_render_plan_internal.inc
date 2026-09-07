@@ -110,7 +110,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         }
 
         auto context = std::move(preparation).value();
-        const auto& prepared = context.program->prepared_plan();
+        // Wave 2: legacy plan view reached via the context bridge (see
+        // render_plan_preparation.hpp).
+        const auto& prepared = context.prepared();
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
 

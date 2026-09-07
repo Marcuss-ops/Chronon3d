@@ -13,9 +13,17 @@
 // render settings in one `PreparedRenderPlanContext`.  The CLI command layer
 // is a thin adapter over this value:
 //
-//   RENDER      → context.program->prepared_plan()
-//   VALIDATE    → context.program->prepared_plan().fingerprint
-//   INSPECT     → context.decoded / context.program->prepared_plan()
+//   RENDER      → context.prepared()          (Wave 2 bridge view)
+//   VALIDATE    → context.prepared().fingerprint
+//   INSPECT     → context.decoded / context.prepared()
+//
+// Wave 2 (Pure CompiledProgram): `CompiledProgram` exposes no public plan
+// accessor.  The legacy `PreparedRenderPlan` retained behind the compiler
+// boundary is reachable only through `context.prepared()`, which routes via
+// the internal compiler plan bridge
+// (`<chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>`, full
+// Demolition Debt card there).  New code must consume the numeric program
+// (metadata + nodes/passes) instead of widening this view.
 //
 // There is no second dry-run/validate engine: `chronon validate --plan` and
 // `chronon render --plan --dry-run` both call `validate_render_plan()`, which
@@ -25,6 +33,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
@@ -46,6 +55,14 @@ struct PreparedRenderPlanContext {
     chronon3d::assets::AssetResolver resolver;
     std::string effective_assets_root;
     chronon3d::RenderSettings settings;
+
+    /// Read-only access to the prepared legacy plan retained behind the
+    /// compiler-boundary bridge (Wave 2 demolition seam).  Precondition:
+    /// `program` is non-null — always true for contexts produced by
+    /// `prepare_render_plan()`.
+    [[nodiscard]] const render_plan::PreparedRenderPlan& prepared() const noexcept {
+        return chronon3d::compiler::detail::prepared_plan(*program);
+    }
 };
 
 /// Canonical render-plan preparation.  Throws nothing: file-read and JSON

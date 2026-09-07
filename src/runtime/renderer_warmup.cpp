@@ -1,5 +1,6 @@
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -115,7 +116,12 @@ RendererWarmupResult warmup_renderer(
     SoftwareRenderer & renderer,
     const compiler::CompiledProgram& program,
     const RendererWarmupOptions& options) {
-    return warmup_renderer(renderer, program.compiled_composition(), options);
+    // Wave 2-9 demolition seam: warmup still runs on the retained legacy
+    // CompiledComposition view (see the bridge debt card).
+    return warmup_renderer(
+        renderer,
+        chronon3d::compiler::detail::compiled_composition(program),
+        options);
 }
 
 } // namespace chronon3d::runtime

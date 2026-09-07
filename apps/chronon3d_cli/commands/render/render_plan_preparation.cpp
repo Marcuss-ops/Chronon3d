@@ -168,7 +168,9 @@ int validate_render_plan(const RenderPlanPreparationOptions& options) {
     nlohmann::json js;
     js["valid"]           = true;
     js["plan"]            = options.input;
-    const auto& prepared = context.program->prepared_plan();
+    // Wave 2: legacy plan view reached via the context bridge (see
+    // render_plan_preparation.hpp).
+    const auto& prepared = context.prepared();
     js["job_id"]          = prepared.job_id;
     js["content_digest"]  = prepared.fingerprint.content_digest.hex();
     js["request_digest"]  = prepared.fingerprint.request_digest.hex();

@@ -71,7 +71,7 @@ bool font_is_resolved(const PreparedRenderPlanContext& context,
     if (logical_path.empty()) {
         return false;
     }
-    for (const auto& asset : context.program->prepared_plan().assets.assets()) {
+    for (const auto& asset : context.prepared().assets.assets()) {
         if (asset.kind == chronon3d::assets::PreparedAssetKind::Font &&
             asset.logical_path == logical_path) {
             return true;
@@ -87,7 +87,9 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
     ResolvedRenderPlanInspection inspection;
 
     const auto& decoded = context.decoded;
-    const auto& prepared = context.program->prepared_plan();
+    // Wave 2: legacy plan view reached via the context bridge (see
+    // render_plan_preparation.hpp).
+    const auto& prepared = context.prepared();
 
     inspection.job.id = prepared.job_id;
     inspection.job.schema = "chronon.render-plan.v2";

@@ -1,5 +1,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
@@ -30,7 +31,10 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     CHECK(program.metadata().job_id == "compiler-boundary");
     CHECK(program.metadata().width == 1920);
     CHECK(program.metadata().height == 1080);
-    CHECK(program.compiled_composition().composition != nullptr);
+    // Wave 2: the retained legacy composition is reachable only through the
+    // internal compiler plan bridge (equivalence-baseline check).
+    CHECK(chronon3d::compiler::detail::compiled_composition(program).composition
+          != nullptr);
     CHECK(program.metadata().job_id == "compiler-boundary");
     CHECK(program.nodes().empty());
     CHECK(program.passes().size() == 1);
@@ -83,7 +87,8 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     CHECK(program.animations().size() == 1);
     CHECK(program.passes().size() == 1);
     CHECK(program.passes().front().node_count == 1);
-    CHECK(program.compiled_composition().fingerprint == prepared.compiled_composition.fingerprint);
+    CHECK(chronon3d::compiler::detail::compiled_composition(program).fingerprint
+          == prepared.compiled_composition.fingerprint);
 
     chronon3d::assets::AssetResolver repeat_resolver;
     auto repeat = chronon3d::compiler::compile(plan, repeat_resolver);

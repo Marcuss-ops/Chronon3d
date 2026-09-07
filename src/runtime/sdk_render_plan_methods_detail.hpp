@@ -24,7 +24,10 @@ RenderEngine::compile_plan_json(std::string_view json) {
         }
         auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
             std::move(compiled).value());
-        const auto& prepared = program->prepared_plan();
+        // Wave 2-9 seam: the legacy prepared plan is only reachable through
+        // the internal compiler plan bridge (see the bridge debt card).
+        const auto& prepared =
+            chronon3d::compiler::detail::prepared_plan(*program);
         // Apply the plan canvas to the engine output size so subsequent
         // render_compiled()/render_to_file() render at native resolution.
         RenderSettings settings = m_impl->settings;
@@ -86,7 +89,9 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             }
             auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
                 std::move(compiled).value());
-            const auto& prepared = program->prepared_plan();
+            // Wave 2-9 seam: internal plan bridge (see bridge debt card).
+            const auto& prepared =
+                chronon3d::compiler::detail::prepared_plan(*program);
             RenderSettings settings = m_impl->settings;
             settings.width = prepared.canvas.width;
             settings.height = prepared.canvas.height;

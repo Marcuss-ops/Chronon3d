@@ -23,6 +23,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
@@ -129,9 +130,11 @@ TEST_CASE("equivalence gate: compiled-program seam matches legacy "
             for (const auto frame : entry.frames) {
                 CAPTURE(frame.integral());
 
-                // Legacy seam — PreparedRenderJob materialises this payload.
+                // Legacy seam — PreparedRenderJob materialises this payload
+                // from the retained legacy view (Wave 2-9 internal bridge).
                 const auto legacy_frame = engine.render_compiled(
-                    program->compiled_composition(), frame);
+                    chronon3d::compiler::detail::compiled_composition(*program),
+                    frame);
                 REQUIRE(legacy_frame);
 
                 // Program seam — canonical ProgramSampler + graph pipeline.
