@@ -112,7 +112,7 @@ RendererWarmupResult warmup_renderer(
 }
 
 RendererWarmupResult warmup_renderer(
-    SoftwareRenderer& renderer,
+    SoftwareRenderer & renderer,
     const compiler::CompiledProgram& program,
     const RendererWarmupOptions& options) {
     return warmup_renderer(renderer, program.compiled_composition(), options);
