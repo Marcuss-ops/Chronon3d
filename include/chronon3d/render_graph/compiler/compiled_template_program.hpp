@@ -5,7 +5,7 @@
 //
 // A CompiledTemplateProgram is the resolution-independent, cacheable compiled
 // form of a RenderGraph.  The RenderGraph is the AST source-language; the
-// FrameGraphCompiler produces a CompiledFrameGraph; the template lift
+// The compiler-owned graph pipeline produces a CompiledFrameGraph; the template lift
 // (`compile_template_program`) packages it into a CompiledTemplateProgram
 // with fingerprint, parameter schema, resource manifest, static-region/batch
 // lists, materialization boundaries, and accessors for the backing resource

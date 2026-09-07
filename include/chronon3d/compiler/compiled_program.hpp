@@ -19,12 +19,23 @@ struct PreparedRenderPlan;
 
 namespace chronon3d::compiler {
 
+/// Internal plan bridge (Wave 2 demolition seam).  See
+/// `<chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>`.
+/// Declared here so `CompiledProgram` can grant friendship; defined only in
+/// the implementation (src/compiler/compiled_program.cpp).  Not part of the
+/// SDK public surface and never installed.
+namespace detail {
+class CompiledProgramPlanBridge;
+}  // namespace detail
+
 /// Immutable result of the compiler boundary.
 ///
 /// The concrete prepared plan is intentionally hidden behind a const shared
-/// object. This keeps compiler consumers independent from execution
-/// implementation headers that are transitively required by the legacy
-/// execution artifact.
+/// object and carries NO public accessor: compiler consumers stay
+/// independent from execution implementation headers that are transitively
+/// required by the legacy execution artifact.  The few execution seams that
+/// still run on the legacy plan reach it exclusively through the internal
+/// bridge above (demolition debt — see the bridge header's debt card).
 struct ProgramMetadata {
     std::string schema;
     std::string job_id;
@@ -70,8 +81,6 @@ public:
     [[nodiscard]] const std::vector<ParameterProgram>& parameters() const noexcept;
     [[nodiscard]] const ProgramFingerprint& fingerprint_data() const noexcept;
 
-    [[nodiscard]] const render_plan::PreparedRenderPlan& prepared_plan() const noexcept;
-    [[nodiscard]] const CompiledComposition& compiled_composition() const noexcept;
     [[nodiscard]] std::uint64_t fingerprint() const noexcept { return data_->fingerprint_data.digest; }
 
 private:
@@ -79,10 +88,16 @@ private:
         std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan,
         std::shared_ptr<const CompiledProgramData> data);
 
+    // Wave 2-9 migration debt: the legacy prepared plan is retained (and
+    // owned for the program's lifetime) so the equivalence/execution seams
+    // that still run on CompiledComposition keep working.  There is NO
+    // public accessor — reach it only via detail::CompiledProgramPlanBridge
+    // (see include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp).
     std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan_;
     std::shared_ptr<const CompiledProgramData> data_;
 
     friend class Compiler;
+    friend class detail::CompiledProgramPlanBridge;
 };
 
 }  // namespace chronon3d::compiler

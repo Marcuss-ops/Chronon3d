@@ -9,7 +9,7 @@ namespace chronon3d { struct RenderNode; }
 
 namespace chronon3d::graph {
 
-class FrameGraphCompiler {
+class GraphCompilePipeline {
 public:
     [[nodiscard]] CompiledFrameGraph compile(
         RenderGraph graph,

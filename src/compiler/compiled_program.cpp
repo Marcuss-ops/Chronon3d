@@ -1,5 +1,6 @@
 #include <chronon3d/compiler/compiled_program.hpp>
 
+#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <utility>
@@ -23,6 +24,22 @@ const std::vector<AnimationProgram>& CompiledProgram::animations() const noexcep
 const std::vector<ParameterProgram>& CompiledProgram::parameters() const noexcept { return data_->parameters; }
 const ProgramFingerprint& CompiledProgram::fingerprint_data() const noexcept { return data_->fingerprint_data; }
 
-const render_plan::PreparedRenderPlan& CompiledProgram::prepared_plan() const noexcept { return *prepared_plan_; }
-const CompiledComposition& CompiledProgram::compiled_composition() const noexcept { return prepared_plan_->compiled_composition; }
+// ── Internal plan bridge (Wave 2 demolition seam) ─────────────────────────
+// Defined here (and only here): the translation unit already holds the
+// complete `render_plan::PreparedRenderPlan` definition, so the internal
+// bridge header stays free of the heavyweight legacy execution types.
+
+namespace detail {
+
+const render_plan::PreparedRenderPlan&
+CompiledProgramPlanBridge::prepared_plan(const CompiledProgram& program) noexcept {
+    return *program.prepared_plan_;
+}
+
+const CompiledComposition&
+CompiledProgramPlanBridge::compiled_composition(const CompiledProgram& program) noexcept {
+    return program.prepared_plan_->compiled_composition;
+}
+
+}  // namespace detail
 }  // namespace chronon3d::compiler

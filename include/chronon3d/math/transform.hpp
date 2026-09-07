@@ -105,7 +105,7 @@ struct RenderState {
     f32  opacity{1.0f};
     std::shared_ptr<const renderer::ProcessorRegistrySnapshot> processor_snapshot;
 
-    // Processor handle resolved by FrameGraphCompiler for this renderable
+    // Processor handle resolved by the compiler-owned graph pipeline for this renderable
     // node. The owning snapshot is carried by the node execution context;
     // no processor pointer persists in RenderState.
     renderer::ShapeProcessorHandle shape_processor{};

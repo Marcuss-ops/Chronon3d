@@ -8,7 +8,7 @@
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include "../compiler/graph_compile_test_compat.hpp"
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>

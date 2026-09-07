@@ -14,7 +14,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include "../compiler/graph_compile_test_compat.hpp"
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>

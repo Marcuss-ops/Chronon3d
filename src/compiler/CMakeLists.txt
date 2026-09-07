@@ -33,7 +33,7 @@ add_library(chronon3d_compiler OBJECT
     ../render_graph/builder/passes/graph_builder_validation_pass.cpp
     ../render_graph/builder/graph_build_registry.cpp
     ../render_graph/builder/precomp_builder_service.cpp
-    ../render_graph/compiler/frame_graph_compiler.cpp
+    graph/graph_compile_pipeline.cpp
     ../render_graph/compiler/frame_graph_builder.cpp
     ../render_graph/compiler/scene_binding_compiler.cpp
     ../render_graph/compiler/fused_pixel_program.cpp

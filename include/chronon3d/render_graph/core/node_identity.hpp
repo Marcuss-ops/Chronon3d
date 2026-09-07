@@ -57,7 +57,7 @@
 //     `GraphNodeId` (which still tracks adjacency edges and
 //     `.nodes[*]` indexing for the hot loop).
 //
-// The collision policy is enforced by the FrameGraphCompiler helper
+// The collision policy is enforced by the compiler-owned graph pipeline helper
 // (PR 4.3) which throws when two distinct nodes in the same graph
 // produce the same `(layer_id, kind, name)` hash.
 // ---------------------------------------------------------------------------
@@ -164,7 +164,7 @@ struct std::hash<chronon3d::graph::GraphInstanceId> {
 // StableNodeId — use the wrapped uint64_t hash directly.  This is
 // the missing specialization that broke
 // `std::unordered_map<StableNodeId, …>` in
-// src/render_graph/compiler/frame_graph_compiler.cpp:269 (gcc
+// src/compiler/graph/graph_compile_pipeline.cpp:269 (gcc
 // "hash function must be copy constructible" — the std fallback
 // blocks the SFINAE dance because `StableNodeId`'s default ctor +
 // `operator==` are user-declared and the fallback's destructor is
@@ -178,7 +178,7 @@ struct std::hash<chronon3d::graph::StableNodeId> {
 
 namespace chronon3d::graph {
 
-/// Helper used by `FrameGraphCompiler` (PR 4.3) to derive a stable
+/// Helper used by the compiler-owned graph pipeline (PR 4.3) to derive a stable
 /// per-node id from a node's stable inputs.  The hash starts from the
 /// FNV-1a offset basis and mixes two 64-bit lanes (the hash of
 /// `layer_id` and the hash of `kind`+`name`) — chosen for collision

@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// frame_graph_builder.cpp — compiled frame graph builder aggregation
+// graph_build_pipeline.cpp — compiler-owned compiled frame graph pipeline
 // ═══════════════════════════════════════════════════════════════════════════
 // Implementation is split by compiler responsibility while remaining a
 // single translation unit, preserving the existing linkage/CMake boundary.
 
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/compiler/detail/graph_compile_pipeline.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
