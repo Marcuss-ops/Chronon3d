@@ -25,7 +25,7 @@
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include <tests/helpers/command_plan_executor.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
@@ -218,7 +218,7 @@ TEST_CASE("medium CommandPlan render certifies a correct frame through pass barr
     }
 
     const auto submissions_before = backend.stats().submissions;
-    REQUIRE(execute_command_plan(backend, registry, plan));
+    REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     // The 4-pass medium scene coalesces into exactly one queue submission.
     CHECK(backend.stats().submissions == submissions_before + 1);
 
@@ -278,7 +278,7 @@ TEST_CASE("physical slots back several logical handles with one VkImage (aliasin
     REQUIRE(plan.passes.size() == 3);
 
     const auto submissions_before = backend.stats().submissions;
-    REQUIRE(execute_command_plan(backend, registry, plan));
+    REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     CHECK(backend.stats().submissions == submissions_before + 1);
 
     // Backend-side aliasing proof: lifetime-disjoint transient surfaces are
@@ -361,7 +361,7 @@ TEST_CASE("N overlays coalesce into one command batch (single vkQueueSubmit)") {
     const auto submissions_before = backend.stats().submissions;
     backend.begin_command_batch();
     for (const auto& plan : plans) {
-        REQUIRE(execute_command_plan(backend, registry, plan));
+        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     }
     backend.end_command_batch();
     // All N overlays were recorded into one command batch: exactly one queue

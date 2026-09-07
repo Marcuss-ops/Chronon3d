@@ -42,7 +42,7 @@ namespace {
 // std::vector<RenderSurfaceHandle> + std::unordered_map (text path) and an
 // unordered_map (image path) from scratch every call. The containers are
 // thread_local so parallel level execution never shares state (same pattern
-// as command_plan_executor.cpp's tls_instances); clear() keeps capacity so
+// as the plan dispatcher's thread-local instance storage); clear() keeps
 // steady-state frames pay zero allocations.
 thread_local std::vector<runtime::GlyphStatic> tls_fused_glyphs;
 thread_local std::vector<runtime::TextRunDynamic> tls_fused_runs;

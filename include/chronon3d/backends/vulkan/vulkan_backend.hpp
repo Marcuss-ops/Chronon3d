@@ -257,7 +257,7 @@ public:
 
     /// Command-batch overrides.  While a command batch is active,
     /// end_frame_batch() no longer submits: it keeps recording into the
-    /// single batch command buffer, so N overlays (each an execute_command_plan
+    /// single batch command buffer, so N overlays (each a plan execution
     /// frame) accumulate.  end_command_batch() performs exactly one
     /// vkQueueSubmit for all of them.
     void begin_command_batch() override;

@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -78,19 +79,33 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             nlohmann::json request;
             try {
                 request = nlohmann::json::parse(req.payload);
-                const auto requested = request.value("backend", m_backend);
-                if (requested != m_backend &&
-                    !(requested == "auto" && m_backend == "auto")) {
-                    return ipc::Reply{ipc::Status::BadRequest,
-                                      "RENDER_JOB backend '" + requested +
-                                      "' does not match daemon backend '" +
-                                      m_backend + "'"};
-                }
             } catch (const std::exception& e) {
                 return ipc::Reply{ipc::Status::BadRequest,
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
-            const auto requested_backend = request.value("backend", m_backend);
+            runtime::job::RenderJobRequest job_request;
+            job_request.plan_path = request.value("plan_path", "");
+            job_request.output_path = request.value("output", "");
+            job_request.assets_root = request.value("assets_root", "");
+            job_request.backend = request.value("backend", "auto");
+            job_request.report = request.value("report", false);
+            job_request.output.codec = request.contains("output_spec")
+                ? request["output_spec"].value("codec", "")
+                : request.value("codec", "");
+            job_request.output.hardware_encoder = request.value(
+                "hardware_encoder", request.value("hardware", ""));
+            job_request.output.encoder_backend = request.value("encoder_backend", "");
+            job_request.output.gpu_hot_path_mode = request.value(
+                "gpu_hot_path_mode", "");
+            job_request.output.audio_source_path = request.value(
+                "audio_source_path", "");
+            job_request.output.gop_copy_only = request.value("gop_copy_only", false);
+            if (request.value("range_enabled", false)) {
+                job_request.frame_range = runtime::job::FrameRange{
+                    request.value("first_frame", std::int64_t{0}),
+                    request.value("last_frame", std::int64_t{0})};
+            }
+
             media::ExecutionRequirements exec_reqs;
             if (request.contains("execution_requirements")) {
                 const auto& sr = request["execution_requirements"];
@@ -99,19 +114,22 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                 exec_reqs.composition_required = sr.value("composition_required", true);
                 exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
             } else {
-                const std::string hw = request.value("hardware_encoder",
-                    request.value("hardware", std::string{"none"}));
+                const std::string hw = job_request.output.hardware_encoder;
                 exec_reqs.gpu_required = (hw == "nvenc");
             }
-            const std::string requested_codec = request.contains("output_spec")
-                ? request["output_spec"].value("codec", "")
-                : request.value("codec", "");
-
-            const auto canon = media::resolve_canonical_execution_parameters(
-                exec_reqs, requested_codec, requested_backend, m_backend);
+            job_request.requirements = exec_reqs;
+            const auto normalized = runtime::job::normalize_render_job(
+                job_request, runtime::job::RuntimeCapabilities{m_backend});
+            if (!normalized) {
+                return ipc::Reply{ipc::Status::BadRequest,
+                                  "RENDER_JOB normalization failed: " +
+                                      normalized.error().message};
+            }
+            const auto& resolved = normalized.value();
+            const auto& canon = resolved.execution;
             const bool native_nvenc = canon.native_nvenc;
-            const std::string hot_path = canon.gpu_hot_path_mode;
-            const std::string codec = canon.codec;
+            const std::string& hot_path = canon.gpu_hot_path_mode;
+            const std::string& codec = canon.codec;
             runtime::DeviceSelectionRequirements requirements;
             requirements.resources.compute_units = native_nvenc ? 0.5f : 0.0f;
             requirements.cuda = native_nvenc;

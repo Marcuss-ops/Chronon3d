@@ -6,6 +6,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
+#include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -229,6 +230,48 @@ TEST_CASE("RenderJob planner fails cleanly for an unknown composition") {
     args.comp_id = "MissingComposition";
 
     CHECK_FALSE(cli::make_render_job(registry, args).has_value());
+}
+
+TEST_CASE("CLI and IPC semantic requests normalize to the same resolved job") {
+    using chronon3d::runtime::job::FrameRange;
+    using chronon3d::runtime::job::RenderJobRequest;
+    using chronon3d::runtime::job::RuntimeCapabilities;
+
+    RenderJobRequest cli_request;
+    cli_request.plan_path = "plan.json";
+    cli_request.output_path = "hero.mp4";
+    cli_request.assets_root = "assets";
+    cli_request.backend = "auto";
+    cli_request.frame_range = FrameRange{0, 30};
+    cli_request.output.codec = "h264";
+    cli_request.output.encode_preset = "medium";
+    cli_request.output.gpu_hot_path_mode = "auto";
+    cli_request.trace.level = "pipeline";
+
+    RenderJobRequest ipc_request = cli_request;
+    ipc_request.output_path = "hero.mp4";
+    ipc_request.frame_range = FrameRange{0, 30};
+
+    const RuntimeCapabilities capabilities{"auto"};
+    const auto cli_resolved = chronon3d::runtime::job::normalize_render_job(
+        cli_request, capabilities);
+    const auto ipc_resolved = chronon3d::runtime::job::normalize_render_job(
+        ipc_request, capabilities);
+
+    REQUIRE(cli_resolved.has_value());
+    REQUIRE(ipc_resolved.has_value());
+    const auto& cli = cli_resolved.value();
+    const auto& ipc = ipc_resolved.value();
+    CHECK(cli.plan_path == ipc.plan_path);
+    CHECK(cli.output_path == ipc.output_path);
+    CHECK(cli.frame_range->first == ipc.frame_range->first);
+    CHECK(cli.frame_range->last == ipc.frame_range->last);
+    CHECK(cli.backend == ipc.backend);
+    CHECK(cli.output.codec == ipc.output.codec);
+    CHECK(cli.output.encode_preset == ipc.output.encode_preset);
+    CHECK(cli.execution.backend == ipc.execution.backend);
+    CHECK(cli.execution.encoder_backend == ipc.execution.encoder_backend);
+    CHECK(cli.execution.gpu_hot_path_mode == ipc.execution.gpu_hot_path_mode);
 }
 
 #ifdef CHRONON3D_TEST_VIDEO_EXPORT_DISABLED

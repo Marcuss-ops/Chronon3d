@@ -26,7 +26,7 @@
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
-#include <tests/helpers/command_plan_executor.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
@@ -103,7 +103,7 @@ TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry 
     REQUIRE(plan.passes.size() == 2);
 
     const auto before = backend.stats();
-    REQUIRE(execute_command_plan(backend, registry, plan));
+        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     const auto after = backend.stats();
     // One vkQueueSubmit for the 2-pass plan, and exactly two executed passes
     // (independent of how many submits the passes coalesced into).
@@ -192,7 +192,7 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     CHECK(physical_slots.size() < 5);
 
     const auto submissions_before = backend.stats().submissions;
-    REQUIRE(execute_command_plan(backend, registry, plan));
+        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
     // The whole 4-pass scene coalesces into exactly one queue submission.
     CHECK(backend.stats().submissions == submissions_before + 1);
 
@@ -266,7 +266,7 @@ TEST_CASE("minimal background + 1 overlay render produces a pixel-correct frame"
     const auto plan = planner.build();
     REQUIRE(plan.passes.size() == 2);
 
-    REQUIRE(execute_command_plan(backend, registry, plan));
+        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
 
     std::vector<float> actual(kFloatCount, 0.0f);
     REQUIRE(backend.download_surface(output, actual).ok());

@@ -3,10 +3,12 @@
 #include "../../cli_context.hpp"
 #include "../../daemon/chronon_ipc.hpp"
 #include <chronon3d/media/video/video_job_execution_context.hpp>
+#include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <optional>
 
 namespace chronon3d { class SoftwareRenderer; }
 
@@ -43,7 +45,8 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          std::uint64_t start_frame = 0,
                          std::uint64_t end_frame = 0,
                          bool frame_range_explicit = false,
-                         const std::string& receipt_verify = {});
+                         const std::string& receipt_verify = {},
+                         std::optional<runtime::job::ResolvedRenderJob> normalized_request = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload

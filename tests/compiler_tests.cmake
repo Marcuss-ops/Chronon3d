@@ -19,3 +19,9 @@ add_test(
     COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_runtime_ownership.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+add_test(
+    NAME chronon3d_graph_executor_authority_gate
+    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/ci/check_graph_executor_authority.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

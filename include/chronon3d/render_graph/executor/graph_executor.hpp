@@ -2,13 +2,17 @@
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/runtime/frame_execution_result.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 
 #include <memory>
 
 namespace chronon3d::graph {
+
+class RenderBackend;
 
 struct FrameExecutionOutput {
     std::shared_ptr<Framebuffer> framebuffer{};
@@ -39,6 +43,15 @@ public:
         RenderGraphContext& ctx,
         ExecutionScope& scope,
         ExecutionScheduler& scheduler
+    ) const;
+
+    /// Execute a pre-lowered CommandPlan through the same canonical backend
+    /// surface dispatch used by the graph executor. CommandPlan remains a
+    /// synchronization/data contract; GraphExecutor is the sole authority.
+    [[nodiscard]] bool execute(
+        RenderBackend& backend,
+        runtime::RenderSurfaceRegistry& registry,
+        const runtime::CommandPlan& plan
     ) const;
 };
 
