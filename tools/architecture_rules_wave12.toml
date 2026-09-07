@@ -1,0 +1,28 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# architecture_rules_wave12.toml — Phase 12 (CMake DAG demolition) enforcement.
+#
+# After the Phase 12 demolition it must be hard to recreate the old graph:
+#   * chronon3d_software was a semantically misleading aggregate ("software"
+#     that pulled in Vulkan + GPU video backends); its members now sit directly
+#     on chronon3d_pipeline. Recreating the facade is a GATE FAIL.
+#   * chronon3d_media_direct_yuv was a leaf/specialization target that linked
+#     the whole chronon3d_pipeline aggregate (leaf -> whole-engine inverted
+#     dependency); it now declares the media subsystem boundary only.
+# The checks run inside the single canonical engine (tools/check_architecture.py,
+# cmake_dag rule kind) over the source-of-truth CMake files.
+# ═══════════════════════════════════════════════════════════════════════════
+
+[[cmake_dag]]
+name = "software_aggregate_facade_forbidden"
+kind = "forbidden_target"
+description = "Phase 12: the demolished chronon3d_software aggregate must not be recreated (plain or ALIAS)"
+targets = ["chronon3d_software"]
+hint = "chronon3d_software was folded into chronon3d_pipeline (Phase 12). Backend capability boundaries are listed directly on the pipeline aggregate; an INTERFACE alias keeps the debt alive."
+
+[[cmake_dag]]
+name = "direct_yuv_pipeline_aggregate_edge_forbidden"
+kind = "forbidden_edge"
+description = "Phase 12: chronon3d_media_direct_yuv is a media leaf and must depend on the media subsystem boundary, not the whole pipeline aggregate"
+source = "chronon3d_media_direct_yuv"
+forbidden_deps = ["chronon3d_pipeline"]
+hint = "A leaf/specialization linking the whole-pipeline aggregate is an inverted dependency (Phase 12 demolition). Declare the real boundary (chronon3d_media_interface + native authorities)."
