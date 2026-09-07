@@ -16,7 +16,6 @@
 namespace chronon3d {
 
 struct TextRunAuditSnapshot; struct TextRenderResources; struct FontPreflightSummary;   // TICKET-078 fwd-decl; full def in text_render_resources.hpp
-
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
 class CompositionRegistry; namespace media { class MediaFrameProvider; }
 namespace image { class ImageBackend; } namespace runtime { class RenderRuntime; }
