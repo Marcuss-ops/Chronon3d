@@ -8,25 +8,25 @@
 
 namespace chronon3d::graph {
 
-GraphBuildRegistry& GraphBuildRegistry::instance() {
-    static GraphBuildRegistry s_instance;
+CompilerPassRegistry& CompilerPassRegistry::instance() {
+    static CompilerPassRegistry s_instance;
     return s_instance;
 }
 
-GraphBuildRegistry::GraphBuildRegistry() = default;
-GraphBuildRegistry::~GraphBuildRegistry() = default;
+CompilerPassRegistry::CompilerPassRegistry() = default;
+CompilerPassRegistry::~CompilerPassRegistry() = default;
 
-void GraphBuildRegistry::register_pass(std::string id,
+void CompilerPassRegistry::register_pass(std::string id,
                                        GraphBuildPhase phase,
                                        std::unique_ptr<GraphBuildPass> pass) {
     if (!pass) {
-        throw std::invalid_argument("GraphBuildRegistry::register_pass: null pass");
+        throw std::invalid_argument("CompilerPassRegistry::register_pass: null pass");
     }
     // Check for duplicate id.
     for (const auto& e : m_entries) {
         if (e.id == id) {
             throw std::invalid_argument(
-                "GraphBuildRegistry::register_pass: duplicate id '" + id + "'");
+                "CompilerPassRegistry::register_pass: duplicate id '" + id + "'");
         }
     }
     m_entries.push_back(GraphBuildPassEntry{
@@ -37,7 +37,7 @@ void GraphBuildRegistry::register_pass(std::string id,
     });
 }
 
-void GraphBuildRegistry::set_enabled(std::string_view id, bool enabled) {
+void CompilerPassRegistry::set_enabled(std::string_view id, bool enabled) {
     for (auto& e : m_entries) {
         if (e.id == id) {
             e.enabled = enabled;
@@ -45,20 +45,20 @@ void GraphBuildRegistry::set_enabled(std::string_view id, bool enabled) {
         }
     }
     throw std::invalid_argument(
-        std::string("GraphBuildRegistry::set_enabled: unknown id '") +
+                std::string("CompilerPassRegistry::set_enabled: unknown id '") +
         std::string(id) + "'");
 }
 
-bool GraphBuildRegistry::contains(std::string_view id) const {
+bool CompilerPassRegistry::contains(std::string_view id) const {
     return std::any_of(m_entries.begin(), m_entries.end(),
                        [id](const auto& e) { return e.id == id; });
 }
 
-std::size_t GraphBuildRegistry::size() const {
+std::size_t CompilerPassRegistry::size() const {
     return m_entries.size();
 }
 
-std::vector<std::string> GraphBuildRegistry::registered_ids() const {
+std::vector<std::string> CompilerPassRegistry::registered_ids() const {
     std::vector<std::string> ids;
     ids.reserve(m_entries.size());
     for (const auto& e : m_entries) {
@@ -67,7 +67,7 @@ std::vector<std::string> GraphBuildRegistry::registered_ids() const {
     return ids;
 }
 
-void GraphBuildRegistry::register_default_passes() {
+void CompilerPassRegistry::register_default_passes() {
     // Only register defaults if no passes exist yet (idempotent).
     if (!m_entries.empty()) return;
 
@@ -83,11 +83,11 @@ void GraphBuildRegistry::register_default_passes() {
                   std::make_unique<detail::OutputPass>());
 }
 
-void GraphBuildRegistry::clear() {
+void CompilerPassRegistry::clear() {
     m_entries.clear();
 }
 
-void GraphBuildRegistry::apply_to_pipeline(GraphBuildPipeline& pipeline) {
+void CompilerPassRegistry::apply_to_pipeline(GraphBuildPipeline& pipeline) {
     // Sort: first by phase, then by insertion order (stable).
     std::vector<const GraphBuildPassEntry*> sorted;
     sorted.reserve(m_entries.size());
@@ -103,7 +103,7 @@ void GraphBuildRegistry::apply_to_pipeline(GraphBuildPipeline& pipeline) {
 
     // Clone passes — the registry retains ownership of the originals.
     // This makes apply_to_pipeline idempotent: it can be called multiple
-       // times (e.g. once per GraphBuilder::build() call) without draining
+       // times (e.g. once per compiler pipeline call) without draining
     // the registry.
     for (const auto* entry : sorted) {
         pipeline.add_pass(entry->pass->clone());

@@ -2,7 +2,7 @@
 #include "../../command_registry.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
@@ -56,7 +56,9 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph_ctx.node_exec.counters = renderer->counters();
     graph_ctx.services.registry = &registry;
 
-    auto graph = graph::GraphBuilder::build(scene, graph_ctx);
+    graph::GraphBuildPipeline graph_pipeline;
+    graph_pipeline.add_default_passes();
+    auto graph = graph_pipeline.build(scene, graph_ctx);
 
     // Select only the nodes belonging to the requested layer
     auto selection = graph::find_layer_nodes(graph, args.layer_id);

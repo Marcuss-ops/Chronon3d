@@ -154,17 +154,6 @@ static void log_graph_cache_diagnostics(
     }
 }
 
-/// Shared built-in pipeline catalogs.  Initialized once and reused across
-/// graph builds.  Populates graph_nodes + effects + layer transitions.
-[[nodiscard]] static const PipelineCatalogs& builtin_pipeline_catalogs() {
-    static const PipelineCatalogs s_catalogs = []() {
-        PipelineCatalogs c;
-        init_graph_pipeline_catalogs(c);
-        return c;
-    }();
-    return s_catalogs;
-}
-
 /// Build a full render graph from scratch (when cached graph not available).
 [[nodiscard]] static CompiledFrameGraph build_fresh_graph(
     RenderGraphContext& ctx,

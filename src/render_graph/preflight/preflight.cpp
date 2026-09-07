@@ -15,7 +15,7 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
@@ -68,7 +68,9 @@ GraphPreflightReport debug_preflight_render_graph(
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────
-    RenderGraph graph = GraphBuilder::build(scene, ctx);
+    GraphBuildPipeline graph_pipeline;
+    graph_pipeline.add_default_passes();
+    RenderGraph graph = graph_pipeline.build(scene, ctx);
 
     const raster::BBox canvas{0, 0, width, height};
     const int64_t canvas_area = static_cast<int64_t>(width) * static_cast<int64_t>(height);
