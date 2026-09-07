@@ -71,7 +71,7 @@ bool font_is_resolved(const PreparedRenderPlanContext& context,
     if (logical_path.empty()) {
         return false;
     }
-    for (const auto& asset : context.prepared.assets.assets()) {
+    for (const auto& asset : context.program->prepared_plan().assets.assets()) {
         if (asset.kind == chronon3d::assets::PreparedAssetKind::Font &&
             asset.logical_path == logical_path) {
             return true;
@@ -87,7 +87,7 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
     ResolvedRenderPlanInspection inspection;
 
     const auto& decoded = context.decoded;
-    const auto& prepared = context.prepared;
+    const auto& prepared = context.program->prepared_plan();
 
     inspection.job.id = prepared.job_id;
     inspection.job.schema = "chronon.render-plan.v2";

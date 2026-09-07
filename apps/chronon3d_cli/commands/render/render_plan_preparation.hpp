@@ -13,9 +13,9 @@
 // render settings in one `PreparedRenderPlanContext`.  The CLI command layer
 // is a thin adapter over this value:
 //
-//   RENDER      → context.prepared
-//   VALIDATE    → context.prepared.fingerprint (via validate_render_plan)
-//   INSPECT     → context.decoded / context.prepared (read-only view)
+//   RENDER      → context.program->prepared_plan()
+//   VALIDATE    → context.program->prepared_plan().fingerprint
+//   INSPECT     → context.decoded / context.program->prepared_plan()
 //
 // There is no second dry-run/validate engine: `chronon validate --plan` and
 // `chronon render --plan --dry-run` both call `validate_render_plan()`, which
@@ -24,10 +24,12 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
+#include <memory>
 #include <string>
 
 namespace chronon3d::cli {
@@ -40,7 +42,7 @@ struct RenderPlanPreparationOptions {
 
 struct PreparedRenderPlanContext {
     render_plan::RenderPlan decoded;
-    render_plan::PreparedRenderPlan prepared;
+    std::shared_ptr<const compiler::CompiledProgram> program;
     chronon3d::assets::AssetResolver resolver;
     std::string effective_assets_root;
     chronon3d::RenderSettings settings;

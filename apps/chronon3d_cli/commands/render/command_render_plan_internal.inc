@@ -63,7 +63,7 @@ int execute_render_plan(const CompositionRegistry& registry, const RenderPlanSta
         }
 
         auto context = std::move(preparation).value();
-        const auto& prepared = context.prepared;
+        const auto& prepared = context.program->prepared_plan();
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
 

@@ -14,13 +14,17 @@ RenderEngine::compile_plan_json(std::string_view json) {
         fingerprint_options.render_settings.height = decoded->canvas.height;
         fingerprint_options.render_settings.deterministic = false;
         fingerprint_options.render_settings.force_scalar_normal_blend = false;
-        auto compiled = chronon3d::render_plan::compile_render_plan(
-            decoded.value(), m_impl->resolver, fingerprint_options);
+        chronon3d::compiler::CompileOptions compile_options;
+        compile_options.fingerprint = fingerprint_options;
+        auto compiled = chronon3d::compiler::compile(
+            decoded.value(), m_impl->resolver, compile_options);
         if (!compiled) {
             return RenderError{RenderErrorCode::InvalidPlan,
                                compiled.error().message, "render_plan"};
         }
-        auto prepared = std::move(compiled).value();
+        auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
+            std::move(compiled).value());
+        const auto& prepared = program->prepared_plan();
         // Apply the plan canvas to the engine output size so subsequent
         // render_compiled()/render_to_file() render at native resolution.
         RenderSettings settings = m_impl->settings;
@@ -31,7 +35,7 @@ RenderEngine::compile_plan_json(std::string_view json) {
         m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(convert_settings(settings));
         return std::make_shared<const chronon3d::CompiledComposition>(
-            std::move(prepared.compiled_composition));
+            prepared.compiled_composition);
     } catch (const std::exception& error) {
         return RenderError{RenderErrorCode::DecodeFailure,
             std::string{"render plan JSON parse failed: "} + error.what(),
@@ -72,13 +76,17 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             fingerprint_options.render_settings.height = decoded->canvas.height;
             fingerprint_options.render_settings.deterministic = false;
             fingerprint_options.render_settings.force_scalar_normal_blend = false;
-            auto compiled = chronon3d::render_plan::compile_render_plan(
-                decoded.value(), m_impl->resolver, fingerprint_options);
+            chronon3d::compiler::CompileOptions compile_options;
+            compile_options.fingerprint = fingerprint_options;
+            auto compiled = chronon3d::compiler::compile(
+                decoded.value(), m_impl->resolver, compile_options);
             if (!compiled) {
                 return RenderError{RenderErrorCode::InvalidPlan,
                                    compiled.error().message, "render_plan"};
             }
-            auto prepared = std::move(compiled).value();
+            auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
+                std::move(compiled).value());
+            const auto& prepared = program->prepared_plan();
             RenderSettings settings = m_impl->settings;
             settings.width = prepared.canvas.width;
             settings.height = prepared.canvas.height;
@@ -91,7 +99,7 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             const auto duration = prepared.canvas.duration.integral();
             compiled_holder =
                 std::make_shared<const chronon3d::CompiledComposition>(
-                    std::move(prepared.compiled_composition));
+                    prepared.compiled_composition);
 
             request.compiled_composition = compiled_holder.get();
             request.output_path = output_path.empty()
@@ -109,4 +117,3 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
 
     return render_to_file(request, {});
 }
-
