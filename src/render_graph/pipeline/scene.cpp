@@ -14,9 +14,7 @@
 //   n   scene_native_output.cpp      — native output sync + encode residency
 // ===========================================================================
 
-#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
-#include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
