@@ -69,7 +69,7 @@ struct RenderJobRequestError {
     std::string message;
 };
 
-struct ResolvedRenderJob {
+struct NormalizedRenderJob {
     std::filesystem::path plan_path;
     std::filesystem::path output_path;
     std::filesystem::path assets_root;
@@ -86,7 +86,7 @@ struct ResolvedRenderJob {
     media::ResolvedExecutionParameters execution{};
 };
 
-[[nodiscard]] Result<ResolvedRenderJob, RenderJobRequestError>
+[[nodiscard]] Result<NormalizedRenderJob, RenderJobRequestError>
 normalize_render_job(
     const RenderJobRequest& request,
     const RuntimeCapabilities& capabilities = {});
