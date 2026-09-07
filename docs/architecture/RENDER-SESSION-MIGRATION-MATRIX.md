@@ -21,8 +21,8 @@ copy of the state.
 | `prepared_composition` | `RenderSession` | immutable job program | 6 | removed from `JobSession` |
 | authoring name / identity | `RenderSession` | compiler metadata / fingerprint | 8 | pending authoring cleanup |
 | authoring compiled composition | `RenderSession` | `CompiledProgram` | 8 | compatibility bridge |
-| evaluated frame | prepared-job local payload | frame slot payload | 7 | canonical payload type |
-| rendered surface | prepared-job local payload | frame slot payload / handoff | 7 | canonical payload type |
+| evaluated frame | prepared-job local payload | frame slot payload | 7 | canonical payload type introduced |
+| rendered surface | prepared-job local payload | frame slot payload / handoff | 7 | canonical payload type introduced |
 
 ## Invariants
 
