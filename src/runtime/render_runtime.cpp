@@ -106,7 +106,7 @@ RenderRuntime::prepared_assets_for(const assets::AssetManifest& manifest) const 
 // RenderRuntime::resolver() or pass AssetResolver& through the call chain.
 
 RenderRuntime::RenderRuntime(chronon3d::Config config)
-    : m_config(std::move(config))
+    : RuntimeContext(std::move(config))
 {
     populate();
 }
