@@ -259,22 +259,33 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
     const std::shared_ptr<Framebuffer>& framebuffer, Frame frame) {
     if (!encode_batch_active_) return framebuffer;
+    const auto encode_surface = ctx_.policy.native_video_encode_surface;
     const auto source = ensure_native_source(framebuffer, frame);
     if (source == runtime::kInvalidRenderSurfaceHandle) {
         backend_.end_frame_batch();
         encode_batch_active_ = false;
         return std::shared_ptr<Framebuffer>{};
     }
-    const auto copy = backend_.copy_surface_to_video_encode(
-        source, ctx_.policy.native_video_encode_surface);
-    if (!copy.ok()) {
-        spdlog::error("[backend] native encode copy failed on reused frame {}: {}",
-                      static_cast<int>(frame), copy.error().message);
-        backend_.end_frame_batch();
-        encode_batch_active_ = false;
-        return std::shared_ptr<Framebuffer>{};
+    if (source == encode_surface) {
+        // Z3 encode-surface alias binding (TICKET-ZERO-COPY-ZWAVES): the
+        // reused frame is already resident in the slot's encode surface, so
+        // no source→encode D2D copy exists. Gate 6 stays 0 by construction;
+        // the encoder consumes this same surface through the prepared path.
+        spdlog::debug(
+            "[native-residency] encode-surface alias binding active: reused "
+            "frame {} needs no D2D copy", static_cast<int>(frame));
+    } else {
+        const auto copy = backend_.copy_surface_to_video_encode(
+            source, encode_surface);
+        if (!copy.ok()) {
+            spdlog::error("[backend] native encode copy failed on reused frame {}: {}",
+                          static_cast<int>(frame), copy.error().message);
+            backend_.end_frame_batch();
+            encode_batch_active_ = false;
+            return std::shared_ptr<Framebuffer>{};
+        }
+        release_temporary_native_output(ctx_, framebuffer, source);
     }
-    release_temporary_native_output(ctx_, framebuffer, source);
     backend_.end_frame_batch();
     encode_batch_active_ = false;
     return framebuffer;
@@ -283,32 +294,45 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
     std::shared_ptr<Framebuffer> exec_fb, Frame frame) {
     if (!encode_batch_active_) return exec_fb;
+    const auto encode_surface = ctx_.policy.native_video_encode_surface;
     runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
-    if (ctx_.policy.native_video_encode_surface !=
-            runtime::kInvalidRenderSurfaceHandle &&
-        exec_fb) {
+    if (encode_surface != runtime::kInvalidRenderSurfaceHandle && exec_fb) {
         source = ensure_native_source(exec_fb, frame);
         if (source == runtime::kInvalidRenderSurfaceHandle) {
             spdlog::error("[backend] native encode copy has no valid source surface for frame {}",
                           static_cast<int>(frame));
             exec_fb.reset();
+        } else if (source == encode_surface) {
+            // Z3 encode-surface alias binding (TICKET-ZERO-COPY-ZWAVES): the
+            // graph's final composite rendered DIRECTLY into the slot's
+            // encode surface, so the transient source→encode D2D copy does
+            // not exist for this frame. Gate 6 stays 0; the encoder consumes
+            // the same surface through the prepared native handoff. This is
+            // the certified no-copy path — reachable only when the executor
+            // binds the frame output to the slot encode surface.
+            spdlog::debug(
+                "[native-residency] encode-surface alias binding active: frame "
+                "{} rendered directly into encode surface; D2D skipped",
+                static_cast<int>(frame));
         } else {
+            // Degraded (non-bound) lane: the graph produced a transient
+            // output surface distinct from the encode surface. The counted
+            // D2D handoff below is the Z3 demolition target; on the certified
+            // lane it must never run once the executor binding lands.
             const auto copy = backend_.copy_surface_to_video_encode(
-                source, ctx_.policy.native_video_encode_surface);
+                source, encode_surface);
             if (!copy.ok()) {
                 spdlog::error("[backend] native encode copy failed for frame {}: {}",
                               static_cast<int>(frame), copy.error().message);
                 exec_fb.reset();
-            } else {
             }
+            release_temporary_native_output(ctx_, exec_fb, source);
         }
-    } else if (ctx_.policy.native_video_encode_surface !=
-               runtime::kInvalidRenderSurfaceHandle) {
+    } else if (encode_surface != runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[backend] native encode copy has no source surface for frame {}",
                       static_cast<int>(frame));
         exec_fb.reset();
     }
-    release_temporary_native_output(ctx_, exec_fb, source);
     backend_.end_frame_batch();
     encode_batch_active_ = false;
     return exec_fb;

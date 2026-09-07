@@ -34,6 +34,17 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
+    // Z1 typed-feed guard: host RGBA frames are not part of a DirectYUV
+    // session. Without this check a stray CPU feed would be staged and
+    // uploaded into the CUDA NV12 hwframe behind the DirectYuv executor's
+    // back, silently dropping every authored overlay of the session.
+    if (options_.direct_yuv_mode) {
+        spdlog::error(
+            "[native_av] host-frame feed refused on a DirectYUV session "
+            "(typed encoder capability mismatch)");
+        return false;
+    }
+
     // NVENC consumes CUDA frames, while the Chronon framebuffer converter
     // writes host YUV planes.  Trying to make the CUDA frame writable (or
     // writing its device pointers as if they were host memory) fails before

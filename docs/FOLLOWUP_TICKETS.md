@@ -30,7 +30,7 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| Zero-copy Z-waves | P2 | ACTIVE | [ZERO-COPY-ZWAVES](tickets/TICKET-ZERO-COPY-ZWAVES.md) — Z0 census done (gates 4/6 + `vulkan_copy` handoff non-zero by design su FullGraph; cert scene re-pointed a builtin; gate 7 canary instrumented); Z3/Z4 GPU-driven follow-up |
+| Zero-copy Z-waves | P2 | ACTIVE | [ZERO-COPY-ZWAVES](tickets/TICKET-ZERO-COPY-ZWAVES.md) — Z0 census done; Z1 typed encoder feed capability + Z4 capability matrix + Z7 CUDA-lane gate-1 counter landed 2026-09-07 (contract tests added); Z3/Z4-corpus/Z5 GPU-driven follow-up |
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
 | Telemetry granular emitter | P2 | SUPERSEDED (Wave 1D) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emettitori granulari gated su SQLite rimossi; resta l'API eventi in-memory (`record_*`) per store host |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |

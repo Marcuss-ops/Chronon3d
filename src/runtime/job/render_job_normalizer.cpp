@@ -1,5 +1,6 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
 
+#include <string>
 #include <utility>
 
 namespace chronon3d::runtime::job {
@@ -7,6 +8,25 @@ namespace {
 
 bool valid_backend(const std::string& value) {
     return value == "auto" || value == "software" || value == "vulkan";
+}
+
+void append_field(std::string& out, const char* key, const std::string& value) {
+    out += key;
+    out += '=';
+    out += value;
+    out += '|';
+}
+
+void append_flag(std::string& out, const char* key, bool value) {
+    out += key;
+    out += value ? "=1|" : "=0|";
+}
+
+void append_int(std::string& out, const char* key, std::int64_t value) {
+    out += key;
+    out += '=';
+    out += std::to_string(value);
+    out += '|';
 }
 
 } // namespace
@@ -88,6 +108,50 @@ normalize_render_job(
         resolved.output.gpu_hot_path_mode = resolved.execution.gpu_hot_path_mode;
     }
     return resolved;
+}
+
+std::string render_job_fingerprint(const NormalizedRenderJob& job) {
+    // Canonical equality key for the CLI↔IPC parity gate. The fingerprint
+    // covers exactly what the executor consumes from the normalized job — the
+    // boundary/resolution fields that normalize_render_job back-fills from the
+    // canonical execution decision (codec/hardware/encoder/hot path) plus the
+    // carried request semantics (paths, range, output spec, trace, receipt,
+    // report, backend). Raw requirement flags are deliberately NOT part of
+    // the key: they are resolution inputs with transport-specific spellings;
+    // two transports must agree on the RESOLVED job they execute, which is
+    // this fingerprint. Field order is the contract; append new axes at the
+    // END so existing fingerprints keep their meaning across extensions.
+    std::string fp;
+    append_field(fp, "plan", job.plan_path.string());
+    append_field(fp, "output", job.output_path.string());
+    append_field(fp, "assets", job.assets_root.string());
+    if (job.frame_range) {
+        append_int(fp, "range_first", job.frame_range->first);
+        append_int(fp, "range_last", job.frame_range->last);
+    } else {
+        fp += "range=none|";
+    }
+    append_field(fp, "backend", job.backend);
+    append_flag(fp, "report", job.report);
+    const auto& out = job.output;
+    append_field(fp, "out_codec", out.codec);
+    append_field(fp, "out_hardware", out.hardware_encoder);
+    append_field(fp, "out_encoder_backend", out.encoder_backend);
+    append_field(fp, "out_ffmpeg_mode", out.ffmpeg_mode);
+    append_field(fp, "out_hot_path", out.gpu_hot_path_mode);
+    append_field(fp, "out_encode_preset", out.encode_preset);
+    append_field(fp, "out_rate_control", out.rate_control_mode);
+    append_int(fp, "out_crf", out.crf);
+    append_int(fp, "out_qp", out.qp);
+    append_int(fp, "out_bitrate", out.bitrate);
+    append_field(fp, "out_audio_source", out.audio_source_path);
+    append_flag(fp, "out_gop_copy_only", out.gop_copy_only);
+    append_int(fp, "out_fps_num", out.fps_num);
+    append_int(fp, "out_fps_den", out.fps_den);
+    append_field(fp, "trace_output", job.trace.output.string());
+    append_field(fp, "trace_level", job.trace.level);
+    append_field(fp, "receipt_verify", job.receipt_verification);
+    return fp;
 }
 
 } // namespace chronon3d::runtime::job

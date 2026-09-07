@@ -134,18 +134,49 @@ is not the slot's own exportable allocation. Making FFmpeg represent the same
 allocation (or registering NVENC on the slot backing directly) is the deep
 interop follow-up; do not proceed until Z3's equivalence gate is defined.
 
-## Z3 — CudaNv12Compositor writes into the same encode backing; remove the per-frame D2D copy (OPEN)
+## Z3 — CudaNv12Compositor writes into the same encode backing; remove the per-frame D2D copy (SEAM + GATE LANDED; pixel binding PENDING GPU)
 
 Target: gate 6 → 0 by removing the per-frame device-to-device copy in
 `NativeSourceResidency::finish_frame_encode`
 (`src/render_graph/pipeline/scene_native_output.cpp`) — the graph's final
 composite should target the slot's encode surface directly so no
-source→encode-surface copy exists. Concrete seam: the scene output path
-already carries `native_video_encode_surface` in policy; make the final output
-framebuffer bind that surface and drop the copy call. **Equivalence gate
-required** (GPU output parity for text/transition/precomposition/video plans)
-before landing; not executed in this session (single-build constraint, GPU
-iteration required).
+source→encode-surface copy exists.
+
+Landed (code, no render-behavior change on the current lane):
+
+- **Encode-surface alias-binding seam.** `finish_frame_encode` and
+  `finish_reused_native_frame` now take the no-copy path when the frame's
+  output surface IS the slot's `native_video_encode_surface` (the graph
+  rendered directly into the encode surface): no `copy_surface_to_video_encode`
+  blit, gate 6 stays 0 by construction, and the encoder consumes that same
+  surface through the prepared handoff. The counted D2D blit remains only as
+  the explicit degraded lane for frames whose output surface is still a
+  distinct transient — the callsite Z3 must delete once the binding is live.
+- **Equivalence gate tool.** `tools/verify_z3_equivalence.sh` (reference/
+  candidate record + compare): per-scene rendered-frame RGBA parity on the
+  Vulkan graph lane AND candidate `gpu_surface_copy_frames == 0` with
+  `rgba_to_nv12_frames` invariance. Exit codes `EQUIVALENCE_PASS/FAIL/BLOCKED`.
+
+**Remaining (GPU host required — cannot be written correct blind):** the
+pixel-level binding itself. The graph's terminal composite currently renders
+into a frame-owned transient framebuffer surface; making it render into the
+slot encode surface means the executor/compiler must designate the slot's
+encode surface as the frame result's physical output for the certified lane
+(the node executor owns output-framebuffer allocation; a post-execution
+handle swap would not move pixels). Spec for the GPU session:
+
+1. In the frame-output path of `GraphExecutor::execute_internal` (or the
+   recorded-program pass executor), when `ctx.policy.native_video_encode_surface`
+   is valid, bind the terminal output's physical surface to that handle
+   before the terminal node executes (alias the compiled output slot to the
+   encode surface), and drop `copy_surface_to_video_encode` callsites in
+   `scene_native_output.cpp` entirely.
+2. Flip the plan axis: `require_gpu_native` maps to
+   `SurfaceHandoffPath::Direct` (today `VulkanCopy`, census F1) and re-pin
+   `test_packet_assembler_contract.cpp` / `test_ffmpeg_export_options.cpp`.
+3. Certify with `tools/verify_z3_equivalence.sh --record --video` on main
+   (reference) and on the Z3 branch (candidate), then `--compare`: rendered
+   parity + `gpu_surface_copy_frames == 0` is the landing gate.
 
 ## Z4 — Certified effect set on direct NV12 via capability matrix (OPEN)
 
@@ -197,10 +228,14 @@ Remaining Z7:
      encode surface before the CUDA RGBA→NV12 handoff.
    - Exit condition: `gpu_surface_copy_frames == 0` on the certified run with
      identical output (Z3 equivalence gate green).
-   - Equivalence gate: GPU output parity + zero-copy certification run.
+   - Equivalence gate: `tools/verify_z3_equivalence.sh` (reference vs
+     candidate: rendered-frame RGBA parity + candidate gate 6 == 0).
    - Removal scope: `copy_surface_to_video_encode` per-frame callsite in
-     `scene_native_output.cpp`; the encode-surface alias binding replaces it.
-   - Status: `ACTIVE`.
+     `scene_native_output.cpp` (alias-binding no-copy branch landed 2026-09-07;
+     delete the degraded-lane blit + `finish_reused_native_frame` blit once the
+     executor binds the frame output to the slot encode surface — spec in the
+     Z3 section); the encode-surface alias binding replaces it.
+   - Status: `ACTIVE` (seam + gate landed; pixel binding pending GPU).
 2. **FFmpeg NV12 pool as second per-slot allocation** (per-frame
    `av_hwframe_get_buffer` in the native encoder).
    - Owner: media/video maintainers.
@@ -215,10 +250,69 @@ Remaining Z7:
    absorbed path certifies.
    - Status: `ACTIVE`.
 
+## Wave code delta (2026-09-07, second session)
+
+Code landed in this session (no render-behavior change on the certified
+FullGraph lane; the Z3/Z4/Z5 GPU-equivalence deltas below stay gated on
+GPU iteration per the plan's own ordering):
+
+- **Z1 — typed encoder feed capability contract.**
+  `include/chronon3d/media/video/encoder_capability.hpp`
+  (`EncoderFeed`, `EncoderCapabilitySet`, `resolve_encoder_capabilities(plan)`)
+  maps the final plan onto exactly one feed kind. The single encoder
+authority enforces it: `NativeAvEncoder` now fails closed when a frame feed
+crosses lanes (`write_frame` on a DirectYUV session, `write_direct_yuv` on a
+non-DirectYUV session, `write_native_surface` on a DirectYUV session), and
+`setup_pipe_export_session` logs the resolved feed set per session. Tests:
+`tests/video/test_encoder_capability.cpp` (chronon3d_zero_copy_capability_tests).
+- **Z4 — effect/compositor capability matrix (declared authority).**
+  `include/chronon3d/media/video/composition_capability.hpp`
+  (`DirectYuvEffectClass`, `classify_direct_yuv`, `resolve_direct_yuv_support`
+  with `Auto → explicit fallback` vs `Require → hard fail`) states the
+  certified effect set behind the DirectYuv lane. The runtime enforcement
+  sites (`DirectYuvProgram::prepare`/`execute` fail-closed checks) mirror
+  this matrix; the certified *corpus* runnable in CI without a content pack
+  and the lane-level pre-screening consumer remain the GPU-step follow-up.
+  Tests: `tests/video/test_composition_capability.cpp` (same suite).
+- **Z7 — CUDA-lane gate-1 instrumentation (F5) + two-window semantics (F7).**
+  `cuda_host_upload_bytes` counter added (VIDEO counter domain); the single
+  CUDA upload authority (`VideoDeviceRuntime::get_or_upload_image`) counts
+  host→device bytes on `VideoDeviceRuntime` (device-cumulative) and mirrors
+  them into the job `RenderCounters`; the timing sidecar exports
+  `job.gpu.cuda_host_upload_bytes`; `tools/verify_zero_copy_end_to_end.sh`
+  reports it informationally; `docs/ZERO_COPY_GATES.md` documents the
+  Vulkan/CUDA lane split and setup vs steady-state windows. All old-error
+  counters remain as regression canaries (zero-forever).
+
+### Session closeout fixes (same wave, code only)
+
+Two coherence fixes landed on the same uncommitted delta before this ticket
+was recorded:
+
+1. **`ipc_render_job` executes the already-normalized job** (Phase 9 parity
+   refactor): verified the chain `ipc_render_job →
+   execute_normalized_render_job (command_render_plan_internal.inc) →
+   execute_render_plan` is coherent — the daemon-side `NormalizedRenderJob`
+   reaches `execute_render_plan` with no JSON parse and no second
+   normalization, exactly like `run_render_plan_file` after its single
+   normalize.
+2. **Encoder open deferred until after the DirectYuv candidate decision**
+   (`setup_pipe_export_session`): the Z1 typed-feed guards make
+   `direct_yuv_mode` a session-fixed capability, so an Auto-rejected DirectYuv
+   candidate that falls back to FullGraph must open the encoder AFTER the
+   fallback decision (feed = FullGraph), never with the stale DirectYuv flag
+   that would refuse every `write_frame`/`write_native_surface` on the
+   fallback lane. `track_pipe_encoder_process` stays after `open()` so the
+   pipe-encoder PID remains observable. `REQUIRE_DIRECT_YUV` rejection now
+   returns with the encoder never opened (no empty mux artifact).
+
 ## Verification snapshot (2026-09-07)
 
 - Z0 census: complete; no render behavior changed (two measurement/tool
   fixes only).
+- Z1 contract + Z4 matrix + Z7 CUDA-lane counter: code landed, CPU/unit
+  contract tests added; no render behavior change on the certified FullGraph
+  lane (guards fail closed only on impossible cross-lane feeds).
 - Certification run: pending the CUDA/Vulkan build of this SHA
   (`build/chronon/linux-video-fast-dev`) on the GPU host; expected current
   result per F1/F2: gates 4 and 6 non-zero, `surface_handoff_path = vulkan_copy`

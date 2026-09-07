@@ -54,6 +54,13 @@ public:
         return nullptr;
 #endif
     }
+    // Z1 typed encoder feed capability (TICKET-ZERO-COPY-ZWAVES): each
+    // session accepts exactly one feed kind, decided by the execution
+    // resolver. open() receives FfmpegPipeOptions::direct_yuv_mode (set from
+    // the resolved execution path), and the three write endpoints below fail
+    // closed when a frame feed does not match the session capability — a
+    // DirectYuvFrame must never reach the FullGraph native endpoint and host
+    // RGBA frames must never bypass the DirectYuv executor.
     bool write_frame(const Framebuffer& fb) override;
     bool write_direct_yuv(const media::video::DirectYuvFrame& frame) override;
     bool write_native_surface(

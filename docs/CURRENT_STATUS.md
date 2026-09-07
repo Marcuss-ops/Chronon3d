@@ -54,7 +54,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
-| Video pipeline | PASS (focused), zero-copy still partial |
+| Video pipeline | PASS (focused); zero-copy partial — Z1 typed feed capability + Z4 capability matrix + Z7 CUDA-lane gate-1 counter code landed (ZERO-COPY-ZWAVES), GPU certification pending |
 | CI infrastructure | NOT CERTIFIED on current SHA until workflows complete |
 | Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
 | Packaging | PASS (historical/local evidence) |

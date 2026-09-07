@@ -87,15 +87,15 @@ bool video_output(const std::string& path) {
 
 int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
     try {
+        // Phase 9 (CLI/IPC parity): normalization happens exactly once, at the
+        // two canonical entry boundaries (run_render_plan_file / daemon IPC
+        // decode). The execution layer never re-normalizes: every caller is
+        // required to hand in an already-normalized job.
         if (!args.normalized_request) {
-            auto normalized = runtime::job::normalize_render_job(
-                make_render_job_request(args));
-            if (!normalized) {
-                spdlog::error("Render job request normalization failed: {}",
-                              normalized.error().message);
-                return 1;
-            }
-            args.normalized_request = std::move(normalized).value();
+            spdlog::error(
+                "execute_render_plan requires a NormalizedRenderJob (Phase 9: "
+                "normalization happens exactly once at the CLI/IPC boundary)");
+            return 1;
         }
         const auto& normalized_job = *args.normalized_request;
 
@@ -287,6 +287,18 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         spdlog::error("Render plan error: {}", error.what());
         return 1;
     }
+}
+
+int execute_normalized_render_job(
+    const CompositionRegistry& registry,
+    runtime::job::NormalizedRenderJob job,
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
+    RenderPlanState state;
+    state.normalized_request = job;
+    state.warm_renderer = std::move(warm_renderer);
+    state.video_execution = std::move(video_execution);
+    return execute_render_plan(registry, state);
 }
 
 } // namespace

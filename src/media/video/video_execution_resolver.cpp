@@ -301,10 +301,22 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
             ? std::string{requested_backend}
             : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
         params.hardware_encoder = "nvenc";
-        params.encoder_backend = "native";
-        params.gpu_hot_path_mode = requirements.composition_required
-            ? "require_gpu_native"
-            : "require_direct_yuv";
+        // Phase 9 CLI/IPC parity: mirror the RenderingGen CLI adapter
+        // (render_args.go). A GPU-requested authored composition with no
+        // source video cannot feed the native NVENC surface path; it must use
+        // the pipe encoder with automatic hot-path selection, exactly like
+        // the CLI subprocess route does.
+        const bool authored_composition =
+            requirements.composition_required && !requirements.video_source_required;
+        if (authored_composition) {
+            params.encoder_backend = "pipe";
+            params.gpu_hot_path_mode = "auto";
+        } else {
+            params.encoder_backend = "native";
+            params.gpu_hot_path_mode = requirements.composition_required
+                ? "require_gpu_native"
+                : "require_direct_yuv";
+        }
         params.native_nvenc = true;
         params.direct_yuv = !requirements.composition_required;
         params.cpu_fallback_forbidden = !requirements.cpu_fallback_allowed;

@@ -272,6 +272,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.cuda_encode_event_wait_us = c->cuda_encode_event_wait_us.load(std::memory_order_relaxed);
         timings.gpu.encoder_staging_copy_bytes = c->encoder_staging_copy_bytes.load(std::memory_order_relaxed);
     }
+    if (session->device_runtime) {
+        // CUDA-lane half of zero-copy gate 1 (host uploads): bytes pushed by
+        // the VideoDeviceRuntime image cache (cuMemcpyHtoD). The Vulkan-lane
+        // half is the backend's gpu_upload_bytes above. Device-cumulative;
+        // certification separates the setup/prewarm window from steady state
+        // instead of reclassifying the counters.
+        timings.gpu.cuda_host_upload_bytes =
+            session->device_runtime->cuda_host_upload_bytes();
+    }
     if (counters) {
         auto* c = counters;
         timings.image_draw_ms = static_cast<double>(

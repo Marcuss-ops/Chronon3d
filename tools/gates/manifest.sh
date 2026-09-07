@@ -11,6 +11,7 @@ DEVELOPER_GATES=(
     check_commit_subject_length.sh
     check_no_sqlite.sh
     check_architecture.py
+    architecture_gate_selftest.sh
 )
 
 CI_PHASES=(

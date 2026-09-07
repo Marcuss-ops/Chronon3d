@@ -3,6 +3,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/device_scheduler.hpp>
+#include <chronon3d/runtime/job/render_job_request.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
@@ -28,13 +29,19 @@ namespace chronon3d::cli {
 /// linked into the executable. Unset by default so a render-less build
 /// answers RENDER_JOB with NotFound. Keeps chronon3d_cli_core free of any
 /// render-group link dependency.
+///
+/// Phase 9 (CLI/IPC parity): the dispatcher carries the ALREADY-NORMALIZED
+/// job, never a JSON string. The daemon parses the wire payload once,
+/// normalizes once, and hands the immutable `NormalizedRenderJob` to the
+/// render group; no transport layer may re-parse or re-normalize (the
+/// `NormalizedRenderJob.execution` fields are final by contract).
+/// `warm_renderer` is runtime state (null for the Direct-YUV path), not a
+/// second execution authority.
 using RenderJobDispatcher = std::function<ipc::Reply(
-    const std::string&, std::shared_ptr<media::VideoJobExecutionContext>)>;
-RenderJobDispatcher& render_job_dispatcher();
-using WarmRenderJobDispatcher = std::function<ipc::Reply(
-    const std::string&, std::shared_ptr<SoftwareRenderer>,
+    const runtime::job::NormalizedRenderJob&,
+    std::shared_ptr<SoftwareRenderer>,
     std::shared_ptr<media::VideoJobExecutionContext>)>;
-WarmRenderJobDispatcher& warm_render_job_dispatcher();
+RenderJobDispatcher& render_job_dispatcher();
 
 struct DaemonOptions {
     /// Root directory for asset resolution (fonts, images, etc.).
@@ -80,6 +87,9 @@ struct DaemonOptions {
  *   PREPARE_PLAN   <comp-id>      Compile + plan once (PreparedRenderJob)
  *   RENDER_OVERLAY <frame> [out]  Render a frame from the prepared plan
  *   RENDER_JOB     <json>         Render a chronon.render-plan.v1 file
+ *                                 (decoded once by daemon_render_job_payload;
+ *                                 normalized once; dispatched as
+ *                                 NormalizedRenderJob)
  *   STATUS                        Engine statistics
  *   SHUTDOWN                      Stop serving
  */

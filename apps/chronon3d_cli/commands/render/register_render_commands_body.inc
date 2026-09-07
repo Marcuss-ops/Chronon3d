@@ -2,16 +2,16 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<RenderState>();
     auto& args = *state->args;
 
+    // Phase 9 (CLI/IPC parity): ONE typed dispatcher over the normalized
+    // job. The daemon parsed the wire JSON once and normalized once; this
+    // registration only executes. `warm_renderer` is runtime state (null for
+    // Direct-YUV), never a second execution authority.
     render_job_dispatcher() = [registry = &ctx.registry](
-        const std::string& payload,
-        std::shared_ptr<media::VideoJobExecutionContext> video_execution) -> ipc::Reply {
-        return ipc_render_job(*registry, payload, {}, std::move(video_execution));
-    };
-    warm_render_job_dispatcher() = [registry = &ctx.registry](
-        const std::string& payload,
+        const runtime::job::NormalizedRenderJob& job,
         std::shared_ptr<SoftwareRenderer> renderer,
         std::shared_ptr<media::VideoJobExecutionContext> video_execution) -> ipc::Reply {
-        return ipc_render_job(*registry, payload, std::move(renderer), std::move(video_execution));
+        return ipc_render_job(*registry, job, std::move(renderer),
+                              std::move(video_execution));
     };
 
     auto* cmd = app.add_subcommand("render", "Render a composition");

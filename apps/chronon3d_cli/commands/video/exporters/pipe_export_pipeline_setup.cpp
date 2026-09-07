@@ -4,6 +4,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/encoder_capability.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -194,21 +195,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
     }
 
-    auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
-    pipe_options.direct_yuv_mode = direct_yuv_requested;
-    pipe_options.audio_start_seconds = static_cast<double>(start.integral()) /
-        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
-    pipe_options.audio_end_seconds = static_cast<double>(end.integral()) /
-        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
-    if (!session->encoder->open(pipe_options)) {
-        spdlog::error("[video] Failed to open encoder");
-        return session;
-    }
-    session->startup_breakdown.encoder_open_hw_ctx_ms = session->encoder->open_hw_ctx_ms();
-    session->startup_breakdown.cuda_compositor_warmup_ms = session->encoder->cuda_compositor_warmup_ms();
-    session->startup_breakdown.encoder_open_nvenc_ms = session->encoder->open_nvenc_ms();
-    session->startup_breakdown.encoder_open_mux_header_ms = session->encoder->open_mux_header_ms();
-
     if (direct_yuv_requested) {
         session->direct_yuv_session = std::make_unique<DirectYuvSession>();
         auto& direct = *session->direct_yuv_session;
@@ -220,10 +206,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             direct.asset_resolver->mount(std::filesystem::path{env_root});
         }
         session->device_runtime->image_cache().set_asset_resolver(direct.asset_resolver.get());
-    }
-
-    if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg) {
-        track_pipe_encoder_process(session->opts, *session->encoder, session->sys_metrics);
     }
 
     if (direct_yuv_requested) {
@@ -251,6 +233,41 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             spdlog::info("[direct-yuv] selected for video source '{}'",
                          session->direct_yuv_session->executor->video_path());
         }
+    }
+
+    // Z1 (TICKET-ZERO-COPY-ZWAVES): open the encoder only AFTER the DirectYuv
+    // candidate decision, so the typed feed capability (`direct_yuv_mode`) is
+    // the FINAL session feed. An Auto-rejected DirectYuv candidate falls back
+    // to FullGraph above and the encoder is opened for graph frames; a frame
+    // feed must never cross lanes, and the write endpoints fail closed on it.
+    // (A REQUIRE_DIRECT_YUV rejection returns earlier with no encoder open.)
+    if (session->execution_plan) {
+        const auto feed_cap =
+            media::resolve_encoder_capabilities(*session->execution_plan);
+        spdlog::info(
+            "[video] encoder feed capability: host_frame={} direct_yuv={} "
+            "native_surface={}",
+            feed_cap.host_frame, feed_cap.direct_yuv, feed_cap.native_surface);
+    }
+    auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
+    pipe_options.direct_yuv_mode = direct_yuv_requested;
+    pipe_options.audio_start_seconds = static_cast<double>(start.integral()) /
+        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
+    pipe_options.audio_end_seconds = static_cast<double>(end.integral()) /
+        (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
+    if (!session->encoder->open(pipe_options)) {
+        spdlog::error("[video] Failed to open encoder");
+        return session;
+    }
+    session->startup_breakdown.encoder_open_hw_ctx_ms = session->encoder->open_hw_ctx_ms();
+    session->startup_breakdown.cuda_compositor_warmup_ms = session->encoder->cuda_compositor_warmup_ms();
+    session->startup_breakdown.encoder_open_nvenc_ms = session->encoder->open_nvenc_ms();
+    session->startup_breakdown.encoder_open_mux_header_ms = session->encoder->open_mux_header_ms();
+
+    // The pipe-encoder subprocess (if any) is spawned inside open() above;
+    // only then is its PID available for system-metric tracking.
+    if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg) {
+        track_pipe_encoder_process(session->opts, *session->encoder, session->sys_metrics);
     }
 
     const auto renderer_t0 = profiling::now();

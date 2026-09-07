@@ -9,4 +9,5 @@ includes = [
   "architecture_rules_cleanup.toml",
   "architecture_rules_inc.toml",
   "architecture_rules_camera.toml",
+  "architecture_rules_wave9.toml",
 ]

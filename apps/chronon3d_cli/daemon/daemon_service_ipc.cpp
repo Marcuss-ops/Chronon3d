@@ -1,4 +1,5 @@
 #include "daemon_service.hpp"
+#include "daemon_render_job_payload.hpp"
 #include "daemon_service_internal.hpp"
 
 #include <chronon3d/api/render_engine.hpp>
@@ -14,18 +15,140 @@
 #include <cstring>
 #include <filesystem>
 #include <sstream>
+#include <string>
 #include <system_error>
 
 namespace chronon3d::cli {
+
+namespace {
+
+// Read a string field preferring the `output_spec` object, then the payload
+// root. Mirrors the historical daemon/render-group payload contract where a
+// client may nest encoder/rate-control intent under output_spec or keep it
+// flat (Phase 9: one canonical decode for both spellings).
+std::string spec_or_root(
+    const nlohmann::json& payload, const char* key) {
+    const auto it = payload.find("output_spec");
+    if (it != payload.end() && it->is_object() && it->contains(key) &&
+        !(*it)[key].is_null()) {
+        return (*it)[key].get<std::string>();
+    }
+    const auto root = payload.find(key);
+    if (root != payload.end() && !root->is_null()) {
+        return root->get<std::string>();
+    }
+    return {};
+}
+
+std::int64_t spec_or_root_int(
+    const nlohmann::json& payload, const char* key, std::int64_t fallback) {
+    const auto it = payload.find("output_spec");
+    if (it != payload.end() && it->is_object() && it->contains(key) &&
+        !(*it)[key].is_null()) {
+        return (*it)[key].get<std::int64_t>();
+    }
+    const auto root = payload.find(key);
+    if (root != payload.end() && !root->is_null()) {
+        return root->get<std::int64_t>();
+    }
+    return fallback;
+}
+
+bool spec_or_root_bool(
+    const nlohmann::json& payload, const char* key, bool fallback) {
+    const auto it = payload.find("output_spec");
+    if (it != payload.end() && it->is_object() && it->contains(key) &&
+        !(*it)[key].is_null()) {
+        return (*it)[key].get<bool>();
+    }
+    const auto root = payload.find(key);
+    if (root != payload.end() && !root->is_null()) {
+        return root->get<bool>();
+    }
+    return fallback;
+}
+
+} // namespace
 
 RenderJobDispatcher& render_job_dispatcher() {
     static RenderJobDispatcher dispatcher;
     return dispatcher;
 }
 
-WarmRenderJobDispatcher& warm_render_job_dispatcher() {
-    static WarmRenderJobDispatcher dispatcher;
-    return dispatcher;
+runtime::job::RenderJobRequest decode_render_job_payload(
+    const std::string& payload) {
+    const auto request = nlohmann::json::parse(payload);
+
+    runtime::job::RenderJobRequest job_request;
+    job_request.plan_path = request.value("plan_path", "");
+    job_request.output_path = request.value("output", "");
+    job_request.assets_root = request.value("assets_root", "");
+    job_request.report = request.value("report", false);
+    job_request.trace.output = request.value("trace_output", "");
+    job_request.trace.level = request.value("trace_level", "pipeline");
+    job_request.receipt_verification = request.value("receipt_verify", "");
+
+    const bool range_enabled = request.value("range_enabled", false);
+    if (range_enabled) {
+        job_request.frame_range = runtime::job::FrameRange{
+            request.value("first_frame", std::int64_t{0}),
+            request.value("last_frame", std::int64_t{0})};
+    }
+
+    auto& out = job_request.output;
+    out.codec = spec_or_root(request, "codec");
+    out.hardware_encoder = spec_or_root(request, "hardware_encoder");
+    if (out.hardware_encoder.empty()) {
+        // Legacy alias accepted by the pre-Phase-9 daemon payload.
+        out.hardware_encoder = request.value("hardware", "");
+    }
+    out.encoder_backend = spec_or_root(request, "encoder_backend");
+    out.ffmpeg_mode = spec_or_root(request, "ffmpeg_mode");
+    out.gpu_hot_path_mode = spec_or_root(request, "gpu_hot_path_mode");
+    out.encode_preset = spec_or_root(request, "encode_preset");
+    out.rate_control_mode = spec_or_root(request, "rate_control_mode");
+    out.crf = static_cast<int>(spec_or_root_int(request, "crf", -1));
+    out.qp = static_cast<int>(spec_or_root_int(request, "qp", -1));
+    out.bitrate = spec_or_root_int(request, "bitrate", 0);
+    out.audio_source_path = request.value("audio_source_path", "");
+    out.gop_copy_only = request.value("gop_copy_only", false);
+    out.fps_num = static_cast<std::uint32_t>(
+        spec_or_root_int(request, "fps_num", 0));
+    out.fps_den = static_cast<std::uint32_t>(
+        spec_or_root_int(request, "fps_den", 1));
+
+    media::ExecutionRequirements exec_reqs;
+    if (request.contains("execution_requirements")) {
+        const auto& sr = request["execution_requirements"];
+        if (!sr.is_object()) {
+            throw std::runtime_error(
+                "execution_requirements must be a JSON object");
+        }
+        const std::string requirements_backend = sr.value("backend", "");
+        if (job_request.backend == "auto" &&
+            !requirements_backend.empty() && requirements_backend != "auto") {
+            // Mirrors the CLI subprocess --backend flag the RenderingGen
+            // adapter emits from ExecutionRequirements.Backend.
+            job_request.backend = requirements_backend;
+        }
+        exec_reqs.gpu_required = sr.value("gpu_required", false);
+        exec_reqs.cpu_fallback_allowed =
+            sr.value("cpu_fallback_allowed", true);
+        exec_reqs.composition_required =
+            sr.value("composition_required", true);
+        exec_reqs.video_source_required =
+            sr.value("video_source_required", true);
+        exec_reqs.packet_copy_allowed =
+            sr.value("packet_copy_allowed", true);
+    } else {
+        // Legacy payload without a semantic requirements block: derive the
+        // GPU requirement from the encoder selection exactly like the
+        // pre-Phase-9 daemon did.
+        exec_reqs.gpu_required = out.hardware_encoder == "nvenc";
+    }
+    job_request.requirements = exec_reqs;
+    job_request.backend = request.value("backend", job_request.backend);
+    return job_request;
 }
 
 std::mutex& DaemonService::render_execution_lock_for(runtime::DeviceId device) {
@@ -76,48 +199,17 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             return ipc_render_overlay(req.payload);
         }
         case ipc::Command::RenderJob: {
-            nlohmann::json request;
+            // Phase 9: decode ONCE (canonical mapper), normalize ONCE, then
+            // hand the immutable NormalizedRenderJob to the render group.
+            // No payload re-serialization, no second parse, no second
+            // normalize anywhere on this path.
+            runtime::job::RenderJobRequest job_request;
             try {
-                request = nlohmann::json::parse(req.payload);
+                job_request = decode_render_job_payload(req.payload);
             } catch (const std::exception& e) {
                 return ipc::Reply{ipc::Status::BadRequest,
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
-            runtime::job::RenderJobRequest job_request;
-            job_request.plan_path = request.value("plan_path", "");
-            job_request.output_path = request.value("output", "");
-            job_request.assets_root = request.value("assets_root", "");
-            job_request.backend = request.value("backend", "auto");
-            job_request.report = request.value("report", false);
-            job_request.output.codec = request.contains("output_spec")
-                ? request["output_spec"].value("codec", "")
-                : request.value("codec", "");
-            job_request.output.hardware_encoder = request.value(
-                "hardware_encoder", request.value("hardware", ""));
-            job_request.output.encoder_backend = request.value("encoder_backend", "");
-            job_request.output.gpu_hot_path_mode = request.value(
-                "gpu_hot_path_mode", "");
-            job_request.output.audio_source_path = request.value(
-                "audio_source_path", "");
-            job_request.output.gop_copy_only = request.value("gop_copy_only", false);
-            if (request.value("range_enabled", false)) {
-                job_request.frame_range = runtime::job::FrameRange{
-                    request.value("first_frame", std::int64_t{0}),
-                    request.value("last_frame", std::int64_t{0})};
-            }
-
-            media::ExecutionRequirements exec_reqs;
-            if (request.contains("execution_requirements")) {
-                const auto& sr = request["execution_requirements"];
-                exec_reqs.gpu_required = sr.value("gpu_required", false);
-                exec_reqs.cpu_fallback_allowed = sr.value("cpu_fallback_allowed", true);
-                exec_reqs.composition_required = sr.value("composition_required", true);
-                exec_reqs.packet_copy_allowed = sr.value("packet_copy_allowed", true);
-            } else {
-                const std::string hw = job_request.output.hardware_encoder;
-                exec_reqs.gpu_required = (hw == "nvenc");
-            }
-            job_request.requirements = exec_reqs;
             const auto normalized = runtime::job::normalize_render_job(
                 job_request, runtime::job::RuntimeCapabilities{m_backend});
             if (!normalized) {
@@ -186,21 +278,12 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             } else {
                 spdlog::debug("[daemon] Direct-YUV job: renderer construction skipped");
             }
-            request["backend"] = canon.backend;
-            request["hardware_encoder"] = canon.hardware_encoder;
-            request["encoder_backend"] = canon.encoder_backend;
-            request["codec"] = canon.codec;
-            request["gpu_hot_path_mode"] = canon.gpu_hot_path_mode;
-            const std::string forward_payload = request.dump();
-
-            auto& warm_dispatcher = warm_render_job_dispatcher();
-            if (warm_dispatcher) {
-                return warm_dispatcher(forward_payload, std::move(warm_renderer),
-                                       std::move(video_execution));
-            }
+            // Warm renderer is runtime state of ONE execution authority, not a
+            // second dispatcher: null on the Direct-YUV path is a normal job.
             auto& dispatcher = render_job_dispatcher();
             if (dispatcher) {
-                return dispatcher(forward_payload, std::move(video_execution));
+                return dispatcher(resolved, std::move(warm_renderer),
+                                  std::move(video_execution));
             }
             return ipc::Reply{ipc::Status::NotFound,
                               "RENDER_JOB unavailable: render group not compiled"};
@@ -307,7 +390,7 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
     // at link time in video-enabled / native-ffmpeg-disabled presets.
 #if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     try {
-        const auto request = nlohmann::json::parse(payload);
+        const auto request = nlohmann::json::parse(payload.begin(), payload.end());
         const auto paths = request.value("input_paths", std::vector<std::string>{});
         const auto output = request.value("output_path", std::string{});
         std::string joined;

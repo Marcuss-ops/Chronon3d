@@ -91,4 +91,17 @@ normalize_render_job(
     const RenderJobRequest& request,
     const RuntimeCapabilities& capabilities = {});
 
+/// Deterministic single-line fingerprint of a normalized render job. The
+/// CLI↔IPC parity gate compares fingerprints of jobs produced by the two
+/// canonical entry points: equal fingerprint ⇔ identical render semantics
+/// (plan/output/range/output spec/trace/receipt/report/backend — the surface
+/// the executor consumes after normalization back-fills the resolved codec /
+/// hardware / encoder / hot-path decision). Raw requirement flags are not
+/// part of the key: transports may spell them differently, but they must
+/// agree on the resolved job. No transport layer may re-resolve `execution`
+/// after normalization. Deterministic per build; intended for equality
+/// checks, not durable storage.
+[[nodiscard]] std::string render_job_fingerprint(
+    const NormalizedRenderJob& job);
+
 } // namespace chronon3d::runtime::job

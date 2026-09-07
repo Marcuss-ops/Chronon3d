@@ -103,6 +103,10 @@ struct GpuMetrics {
     std::optional<std::uint64_t> frame_slot_wait_us;
     std::optional<std::uint64_t> gpu_readback_bytes;
     std::optional<std::uint64_t> gpu_upload_bytes;
+    // CUDA-lane host uploads (VideoDeviceRuntime image cache cuMemcpyHtoD),
+    // the other half of zero-copy gate 1; gpu_upload_bytes is the Vulkan
+    // backend half. Device-cumulative, same window semantics as backend stats.
+    std::optional<std::uint64_t> cuda_host_upload_bytes;
     std::optional<std::uint64_t> gpu_upload_full_surface_bytes;
     std::optional<std::uint64_t> gpu_upload_region_bytes;
     std::optional<std::uint64_t> native_surface_promotion_count;

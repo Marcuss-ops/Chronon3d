@@ -34,6 +34,25 @@ Informativi, non bloccano la certificazione:
 | 9 | **native_surface_frames** | `gpu_native_surface_frames` | > 0 | Frame con superfici GPU native |
 | 10 | **native_encode_frames** | `gpu_native_encode_frames` | > 0 | Frame codificati nativamente via NVENC |
 
+## Gate 1 — due lane, stessa semantica (Z-wave F5/F7)
+
+Il gate 1 (`host_upload_bytes`) misura gli upload CPU→GPU **senza
+riclassificare i contatori**. Ha due metà distinte, esportate nel timing
+sidecar sotto `job.gpu`:
+
+- `gpu_upload_bytes` — metà Vulkan: backend upload stats
+  (`vulkan_backend_stats.cpp`);
+- `cuda_host_upload_bytes` — metà CUDA: il CUDA image cache di
+  `VideoDeviceRuntime::get_or_upload_image` (`cuMemcpyHtoD`, counted at the
+  single upload authority).
+
+La certificazione usa **due finestre**: `setup/prewarm` (asset, atlas e
+upload di overlay caricati una volta) e `steady-state` (i frame certificati).
+Il report del job non nasconde gli upload di setup: la finestra certificata
+è quella di steady-state, e il tool riporta `cuda_host_upload_bytes` come
+informazione a fianco del gate 1. `tools/verify_zero_copy_end_to_end.sh`
+segue già questa semantica (warmup renderer + framebuffer prima del loop).
+
 ## Uso
 
 ```bash
@@ -155,6 +174,25 @@ sulla superficie CUDA-exportable).
 # .github/workflows/ci.yml
 - name: Zero-copy certification
   run: bash tools/verify_zero_copy_end_to_end.sh --frames 30
+```
+
+## Equivalence gate per Z3 (rimozione D2D per-frame)
+
+`tools/verify_z3_equivalence.sh` certifica che la rimozione della D2D copy
+per-frame (Z3: il grafo compone direttamente nella encode surface dello slot)
+non cambia i pixel resi.  Due registrazioni sulla stessa corpus di scene
+(render PNG frame-by-frame sul lane Vulkan + export `require_gpu_native` con
+`--video`), poi `--compare`: la parità dei frame resi DEVE essere byte-
+identica e sul candidate `gpu_surface_copy_frames == 0` con
+`rgba_to_nv12_frames` invariato.  Exit codes: `EQUIVALENCE_PASS` /
+`EQUIVALENCE_FAIL` / `EQUIVALENCE_BLOCKED`.  Il confronto usa hash dei pixel
+resi, mai l'MP4 codificato (NVENC non è bit-exact tra run).
+
+```bash
+# Reference (main pre-Z3) e candidate (branch Z3) sull'host GPU:
+bash tools/verify_z3_equivalence.sh --record /tmp/z3-ref --video
+bash tools/verify_z3_equivalence.sh --record /tmp/z3-cand --video
+bash tools/verify_z3_equivalence.sh --compare /tmp/z3-ref /tmp/z3-cand
 ```
 
 ## Confronto con Benchmark Separati

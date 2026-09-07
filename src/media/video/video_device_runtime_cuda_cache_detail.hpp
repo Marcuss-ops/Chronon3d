@@ -105,6 +105,17 @@ std::shared_ptr<const CudaImageResource> VideoDeviceRuntime::get_or_upload_image
         reason = "failed to upload image into CUDA resident cache";
         return nullptr;
     }
+    // Zero-copy gate 1 (host uploads), CUDA lane: count bytes pushed
+    // host→device here at the single upload authority (Z-wave census F5).
+    // The Vulkan lane is counted by the backend upload stats; certification
+    // separates setup/prewarm from steady state without reclassifying the
+    // counters, so warmup asset uploads land in setup, never in the
+    // certified steady-state window.
+    add_cuda_host_upload_bytes(static_cast<std::uint64_t>(expected));
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->cuda_host_upload_bytes.fetch_add(
+            static_cast<std::uint64_t>(expected), std::memory_order_relaxed);
+    }
     const auto finished = std::chrono::steady_clock::now();
     upload_ms = std::chrono::duration<double, std::milli>(finished - started).count();
     resource->width = width;
