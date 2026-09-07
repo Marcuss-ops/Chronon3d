@@ -48,7 +48,7 @@ void write_y4m(const std::filesystem::path& path, std::array<unsigned char, 6> p
 } // namespace
 
 TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") {
-    // The CUDA handoff (CudaNv12SurfaceCompositor::composite -> nv12_to_rgba)
+    // The CUDA handoff (CudaNv12Compositor::composite -> nv12_to_rgba)
     // writes RGBA float4 — 16 bytes per pixel — into the imported Vulkan
     // surface via surf2Dwrite, and the render graph samples that surface as
     // an RGBA float storage image.  If the surface were sized from the

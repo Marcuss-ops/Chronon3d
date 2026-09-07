@@ -1,12 +1,16 @@
-// nv12_test_vectors.hpp — deterministic NV12 equivalence corpus.
+// nv12_test_vectors.hpp — deterministic NV12 compositor contract corpus.
 //
-// Wave 4 (NV12 equivalence harness) — one shared corpus of identical
-// composite requests executed through BOTH NV12 authorities:
-//   * Authority A — backends::vulkan::CudaNv12SurfaceCompositor
-//   * Authority B — media::CudaDirectNv12Compositor
+// Wave 4 (NV12 equivalence harness) was originally authored against two
+// coexisting NV12 authorities. Wave 1D unified them into the single
+// media::video::CudaNv12Compositor authority under
+// src/media/video/compositor/.  The corpus below survives as the shared,
+// deterministic regression matrix for that unified compositor: every request
+// is executed through two INDEPENDENT compositor instances and must be
+// bit-exact across instances and re-runs (the post-unification determinism
+// contract), with documented per-case outcome classes.
 //
 // Every vector is generated deterministically (xorshift64 seeded per case),
-// so A/B comparisons are reproducible across hosts and runs.
+// so comparisons are reproducible across hosts and runs.
 
 #pragma once
 
@@ -32,19 +36,21 @@ struct OverlaySpec {
 
 struct Nv12Case {
     enum class Expect {
-        BitExactPassthrough,   // no foreground contribution: A == B == bg, bit-exact
-        RangePolicyDiff,       // fg contributes: outputs must match within the documented
-                               // limited-vs-full-range conversion bound, and must DIFFER
-                               // (the bound proves drift is bounded, not absent)
-        MediaOnlyCapability,   // NV12-kind overlay layer: B composites, A rejects (returns false)
+        DeterministicComposite,  // foreground contributes: both independent
+                                 // instances succeed and must be bit-exact
+        BitExactPassthrough,     // zero foreground contribution: both succeed,
+                                 // outputs bit-exact AND equal to the background
+        RejectedLayer,           // layer outside the direct-batch contract
+                                 // (e.g. NV12-kind resource, unsupported
+                                 // blend): both instances must reject
     };
 
     std::string name;
     int width{0};
     int height{0};
     std::vector<OverlaySpec> overlays;
-    Expect expect{Expect::RangePolicyDiff};
-    std::string rationale;  // documented deliberate difference / contract note
+    Expect expect{Expect::DeterministicComposite};
+    std::string rationale;  // documented contract note
 };
 
 struct HostNv12Planes {
@@ -55,9 +61,7 @@ struct HostNv12Planes {
 // float4 pixels, contiguous (pitch = width * 16).
 using HostRgba = std::vector<float>;
 
-// Legal limited-range background: Y in [16, 235], Cb/Cr in [16, 240].  Kept
-// inside the legal range so pure bg-passthrough pixels are bit-identical
-// between the two range policies and only true fg contribution differs.
+// Legal limited-range background: Y in [16, 235], Cb/Cr in [16, 240].
 HostNv12Planes make_background_nv12(int width, int height, std::uint64_t seed);
 
 // Strongly chromatic straight-alpha float4 content (never achromatic, so the
