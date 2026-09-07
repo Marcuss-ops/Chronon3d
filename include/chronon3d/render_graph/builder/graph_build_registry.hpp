@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+namespace chronon3d::compiler { class CompilerPassPipeline; }
+
 namespace chronon3d::graph {
 
 /// Ordering phases for graph build passes.  Passes within the same phase
@@ -81,7 +83,7 @@ public:
 
     /// Collect all enabled passes, sorted by phase then registration order,
     /// and move them into the given pipeline.
-    void apply_to_pipeline(class GraphBuildPipeline& pipeline);
+    void apply_to_pipeline(::chronon3d::compiler::CompilerPassPipeline& pipeline);
 
     /// Clear all registered passes (used in tests for clean reset).
     void clear();

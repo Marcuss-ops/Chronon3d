@@ -3,7 +3,7 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include "../../compiler/compiler_graph.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -162,10 +162,10 @@ static void log_graph_cache_diagnostics(
 {
     CHRONON_TRACE_SCOPE("chronon.graph", "build_graph");
 
-    // Full build path via GraphBuildPipeline.
+    // Full build path via the compiler-owned pass pipeline.
     // Uses build_with_resolved() to avoid redundant resolve_layers() call.
     auto mutable_ctx = ctx;
-    GraphBuildPipeline pipeline;
+    compiler::CompilerPassPipeline pipeline;
     pipeline.add_default_passes();
 
     GraphBuildContext::ResolvedData pre_resolved;

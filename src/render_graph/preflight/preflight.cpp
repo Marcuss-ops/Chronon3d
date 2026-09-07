@@ -15,7 +15,7 @@
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
@@ -68,7 +68,7 @@ GraphPreflightReport debug_preflight_render_graph(
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────
-    GraphBuildPipeline graph_pipeline;
+    compiler::CompilerPassPipeline graph_pipeline;
     graph_pipeline.add_default_passes();
     RenderGraph graph = graph_pipeline.build(scene, ctx);
 

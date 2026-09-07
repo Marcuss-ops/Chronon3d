@@ -7,7 +7,7 @@
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
@@ -92,7 +92,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
         .services = {.backend = &backend, .node_cache = &cache}
     };
     
-    GraphBuildPipeline graph_builder;
+    compiler::CompilerPassPipeline graph_builder;
     graph_builder.add_default_passes();
     RenderGraph graph = graph_builder.build(scene, ctx);
     // PR-2 rewire — compile through FrameGraphCompiler (sole topical-plan producer).
@@ -119,7 +119,7 @@ TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame fail
         .frame_input = {.width = 64, .height = 64},
         .services = {.backend = &backend, .node_cache = &cache}
     };
-    GraphBuildPipeline graph_builder;
+    compiler::CompilerPassPipeline graph_builder;
     graph_builder.add_default_passes();
     auto graph = graph_builder.build(scene, ctx);
     auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
@@ -152,7 +152,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
         .services = {.backend = &backend, .node_cache = &cache}
     };
     
-    GraphBuildPipeline graph_builder;
+    compiler::CompilerPassPipeline graph_builder;
     graph_builder.add_default_passes();
     RenderGraph graph = graph_builder.build(scene, ctx);
     auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
@@ -183,7 +183,7 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
         .services = {.backend = &backend, .node_cache = &cache}
     };
     
-    GraphBuildPipeline graph_builder;
+    compiler::CompilerPassPipeline graph_builder;
     graph_builder.add_default_passes();
     RenderGraph graph = graph_builder.build(scene, ctx);
     auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,

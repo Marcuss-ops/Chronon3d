@@ -36,6 +36,9 @@ sono coerenti.
   lowering passa da un seam interno al compiler.
 - [x] Wave 4 — wrapper `GraphBuilder::build` e relativo translation unit
   eliminati; i test usano direttamente la pipeline dei compiler pass.
+- [x] Wave 4 — `GraphBuildPipeline` è stato assorbito in
+  `compiler::CompilerPassPipeline`; header, source e simbolo/path legacy sono
+  stati rimossi.
 - [ ] Wave 4 — census finale: nessun caller production indipendente di
   `build_graph`, `compile_frame_graph` o `compile_render_plan`.
 

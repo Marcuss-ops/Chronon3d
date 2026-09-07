@@ -2,7 +2,7 @@
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include "../../compiler/compiler_graph.hpp"
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
@@ -46,7 +46,7 @@ std::string debug_scene_graph(
         ctx.frame_input.projection_ctx.ready = true;
     }
     
-    GraphBuildPipeline graph_pipeline;
+    compiler::CompilerPassPipeline graph_pipeline;
     graph_pipeline.add_default_passes();
     return graph_pipeline.build(scene, ctx).to_dot();
 }
@@ -82,7 +82,7 @@ SceneGraphStats analyze_scene_graph(
     }
 
     const auto t_build0 = profiling::now();
-    GraphBuildPipeline graph_pipeline;
+    compiler::CompilerPassPipeline graph_pipeline;
     graph_pipeline.add_default_passes();
     RenderGraph graph = graph_pipeline.build(scene, ctx);
     const auto t_build1 = profiling::now();

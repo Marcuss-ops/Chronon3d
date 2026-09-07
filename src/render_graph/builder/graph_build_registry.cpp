@@ -1,5 +1,5 @@
 #include <chronon3d/render_graph/builder/graph_build_registry.hpp>
-#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
+#include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include "passes/graph_builder_passes.hpp"
 #include "passes/graph_builder_validation_pass.hpp"
 
@@ -87,7 +87,8 @@ void CompilerPassRegistry::clear() {
     m_entries.clear();
 }
 
-void CompilerPassRegistry::apply_to_pipeline(GraphBuildPipeline& pipeline) {
+void CompilerPassRegistry::apply_to_pipeline(
+    ::chronon3d::compiler::CompilerPassPipeline& pipeline) {
     // Sort: first by phase, then by insertion order (stable).
     std::vector<const GraphBuildPassEntry*> sorted;
     sorted.reserve(m_entries.size());

@@ -20,7 +20,7 @@ namespace graph {
 
 /// Shared mutable state for the graph build pipeline.
 ///
-/// This struct is created once per `GraphBuildPipeline::build()` call and passed
+/// This struct is created once per `CompilerPassPipeline::build()` call and passed
 /// to every `GraphBuildPass::run()`.  Passes read from and write to this
 /// context so that later passes can see the results of earlier ones.
 struct GraphBuildContext {
