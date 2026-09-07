@@ -41,15 +41,7 @@ namespace chronon3d {
 struct PreparedRenderJob::Impl {
     RenderEngine* engine{nullptr};
     std::shared_ptr<const CompiledComposition> compiled;
-    Frame count{0};
     bool finished{false};
-    runtime::ResourcePlan resource_plan;
-
-    // Per-job assets root, materialized once at prepare().  The render
-    // runtime resolver's mount root is immutable while a prepared job lives;
-    // reading mount_root().string() inside the per-frame evaluate path paid a
-    // filesystem-path -> std::string materialization for every frame.
-    std::string assets_root;
 
     // JobSession is the sole owner of job-lifetime queues, slots, payloads,
     // cancellation and counters. PreparedRenderJob only orchestrates stages.
@@ -70,12 +62,14 @@ PreparedRenderJob::PreparedRenderJob(PreparedRenderJob&&) noexcept = default;
 PreparedRenderJob& PreparedRenderJob::operator=(PreparedRenderJob&&) noexcept = default;
 
 Frame PreparedRenderJob::frame_count() const noexcept {
-    return m_impl ? m_impl->count : Frame{0};
+    return m_impl && m_impl->compiled
+        ? m_impl->compiled->duration() : Frame{0};
 }
 
 const runtime::ResourcePlan& PreparedRenderJob::resource_plan() const noexcept {
     static const runtime::ResourcePlan empty;
-    return m_impl ? m_impl->resource_plan : empty;
+    return m_impl && m_impl->job_session
+        ? m_impl->job_session->resource_plan() : empty;
 }
 
 void PreparedRenderJob::finish() noexcept {

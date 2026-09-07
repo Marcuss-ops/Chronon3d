@@ -14,6 +14,7 @@
 #include <chronon3d/internal/runtime/history_state.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
+#include <chronon3d/runtime/resource_plan.hpp>
 
 #include <cstdint>
 #include <cstddef>
@@ -199,6 +200,8 @@ public:
     [[nodiscard]] const DirtyHistory& dirty_history() const noexcept {
         return dirty_telemetry;
     }
+    [[nodiscard]] ResourcePlan& resource_plan() noexcept { return resource_plan_state; }
+    [[nodiscard]] const ResourcePlan& resource_plan() const noexcept { return resource_plan_state; }
 
     void reset_frame_counters() noexcept {
         dirty_telemetry.reset_telemetry_counters();
@@ -235,6 +238,7 @@ public:
     // promotes only aggregate counters when its lease ends.
     FrameHistorySlot frame_history{};
     DirtyHistorySlot dirty_telemetry{};
+    ResourcePlan resource_plan_state{};
     std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
     std::unique_ptr<graph::ExecutionWorkspaceRing> execution_workspaces{
         std::make_unique<graph::ExecutionWorkspaceRing>()};
