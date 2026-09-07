@@ -68,7 +68,7 @@ void collect_backend_checks(DoctorReport& report) {
               registry.contains(graph::BackendType::Software)
                   ? DoctorStatus::Pass : DoctorStatus::Fail,
               registry.contains(graph::BackendType::Software)
-                  ? "CPU-first software backend registered"
+                  ? "software backend registered"
                   : "software backend not registered");
 
     if (registry.contains(graph::BackendType::Vulkan)) {

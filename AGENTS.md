@@ -79,7 +79,7 @@ sintetica (stato + link al ticket).
 - **No `#include <msdfgen>`, `<libtess2>`, `<unicode[/...]>`** senza ADR (gate architecture rules).
 - **No nuovi singleton/registry/resolver/cache** senza ADR.
 - **No stime percentuali**: usare `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.
-- No GUI, browser o dipendenze GPU nel core headless CPU-first.
+- No GUI, browser o dipendenze GPU nel core headless.
 - PR piccole e mirate.
 - Non committare build/, output/, artefatti, file generati.
 - Dopo ogni push: `git log -n 5 --oneline`.
