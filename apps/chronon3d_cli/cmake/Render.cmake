@@ -32,7 +32,7 @@ target_include_directories(chronon3d_cli_render PRIVATE
 target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_cli_core
     chronon3d_render_plan
-    chronon3d_render_plan_compiler
+    chronon3d_compiler
     chronon3d_pipeline
     chronon3d_backend_image
     CLI11::CLI11
