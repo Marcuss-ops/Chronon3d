@@ -41,35 +41,49 @@ struct ProgramFingerprint {
     std::uint32_t algorithm_version{1};
 };
 
-/// Immutable, data-oriented compiler output. The legacy execution artifact
-/// below is a temporary bridge and is not part of the IR graph.
-class CompiledProgram final {
-public:
+/// Mutable assembly buffer used only between compiler passes.
+struct CompiledProgramData {
     ProgramMetadata metadata;
     std::vector<CompiledNode> nodes;
     std::vector<CompiledPass> passes;
     std::vector<ResourceBindingSpec> resources;
     std::vector<AnimationProgram> animations;
+    std::vector<ParameterProgram> parameters;
     ProgramFingerprint fingerprint_data;
+};
 
+/// Frozen, data-oriented compiler output. Frame-varying values belong to the
+/// sampler/runtime, not to this object.
+class CompiledProgram final {
+public:
     ~CompiledProgram();
     CompiledProgram(CompiledProgram&&) noexcept;
     CompiledProgram& operator=(CompiledProgram&&) noexcept;
     CompiledProgram(const CompiledProgram&) = delete;
     CompiledProgram& operator=(const CompiledProgram&) = delete;
 
+    [[nodiscard]] const ProgramMetadata& metadata() const noexcept;
+    [[nodiscard]] const std::vector<CompiledNode>& nodes() const noexcept;
+    [[nodiscard]] const std::vector<CompiledPass>& passes() const noexcept;
+    [[nodiscard]] const std::vector<ResourceBindingSpec>& resources() const noexcept;
+    [[nodiscard]] const std::vector<AnimationProgram>& animations() const noexcept;
+    [[nodiscard]] const std::vector<ParameterProgram>& parameters() const noexcept;
+    [[nodiscard]] const ProgramFingerprint& fingerprint_data() const noexcept;
+
     [[nodiscard]] const render_plan::PreparedRenderPlan& prepared_plan() const noexcept;
     [[nodiscard]] const CompiledComposition& compiled_composition() const noexcept;
     [[nodiscard]] const render_plan::CanvasSpec& canvas() const noexcept;
     [[nodiscard]] const render_plan::OutputSpec& output() const noexcept;
     [[nodiscard]] const std::string& job_id() const noexcept;
-    [[nodiscard]] std::uint64_t fingerprint() const noexcept { return fingerprint_data.digest; }
+    [[nodiscard]] std::uint64_t fingerprint() const noexcept { return data_->fingerprint_data.digest; }
 
 private:
     explicit CompiledProgram(
-        std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan);
+        std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan,
+        std::shared_ptr<const CompiledProgramData> data);
 
     std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan_;
+    std::shared_ptr<const CompiledProgramData> data_;
 
     friend class Compiler;
 };

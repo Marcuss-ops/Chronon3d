@@ -11,7 +11,14 @@
 
 namespace chronon3d::compiler {
 
-std::vector<CompileError> validate_compiled_program(const CompiledProgram&);
+std::vector<CompileError> validate_compiled_program(const CompiledProgramData&);
+
+Result<CompiledProgram, CompileError> Compiler::compile(
+    const RenderJobSource& source,
+    assets::AssetResolver& resolver,
+    const CompileOptions& options) const {
+    return compile(source.plan, resolver, options);
+}
 
 Result<CompiledProgram, CompileError> Compiler::compile(
     const render_plan::RenderPlan& plan,
@@ -24,21 +31,23 @@ Result<CompiledProgram, CompileError> Compiler::compile(
         return CompileError{CompileErrorCode::InvalidInput, std::move(error.path),
                             std::move(error.message), std::move(error.component)};
     }
-    auto program = CompiledProgram{
-        std::make_shared<const render_plan::PreparedRenderPlan>(std::move(prepared).value())};
-    program.metadata = {plan.schema, plan.job_id, static_cast<std::uint32_t>(plan.canvas.width),
+    auto data = std::make_shared<CompiledProgramData>();
+    data->metadata = {plan.schema, plan.job_id, static_cast<std::uint32_t>(plan.canvas.width),
                         static_cast<std::uint32_t>(plan.canvas.height), plan.canvas.duration.integral(),
                         plan.canvas.fps.numerator, plan.canvas.fps.denominator};
-    stages::lower_scene(plan, program);
-    stages::lower_animation(plan, program);
-    stages::lower_timeline(plan, program);
-    stages::lower_text(plan, program);
-    stages::build_dependencies(program);
-    stages::build_passes(program);
-    stages::optimize(program);
-    program.fingerprint_data.digest = stages::fingerprint(plan, program);
-    const auto validation_errors = validate_compiled_program(program);
+    stages::lower_scene(plan, *data);
+    stages::lower_animation(plan, *data);
+    stages::lower_timeline(plan, *data);
+    stages::lower_text(plan, *data);
+    stages::build_dependencies(*data);
+    stages::build_passes(*data);
+    stages::optimize(*data);
+    data->fingerprint_data.digest = stages::fingerprint(plan, *data);
+    const auto validation_errors = validate_compiled_program(*data);
     if (!validation_errors.empty()) return validation_errors.front();
+    auto program = CompiledProgram{
+        std::make_shared<const render_plan::PreparedRenderPlan>(std::move(prepared).value()),
+        std::shared_ptr<const CompiledProgramData>(std::move(data))};
     return program;
 }
 

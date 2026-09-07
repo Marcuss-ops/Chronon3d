@@ -1,7 +1,7 @@
 #include "../compiler_stages.hpp"
 
 namespace chronon3d::compiler::stages {
-void lower_scene(const render_plan::RenderPlan& plan, CompiledProgram& out) {
+void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) {
     out.nodes.reserve(plan.layers.size());
     for (std::uint32_t i = 0; i < plan.layers.size(); ++i) {
         NodeKind kind = NodeKind::Color;

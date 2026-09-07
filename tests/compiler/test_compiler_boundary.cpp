@@ -31,10 +31,10 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     CHECK(program.canvas().width == 1920);
     CHECK(program.canvas().height == 1080);
     CHECK(program.compiled_composition().composition != nullptr);
-    CHECK(program.metadata.job_id == "compiler-boundary");
-    CHECK(program.nodes.empty());
-    CHECK(program.passes.size() == 1);
-    CHECK(program.fingerprint_data.algorithm_version == 1);
+    CHECK(program.metadata().job_id == "compiler-boundary");
+    CHECK(program.nodes().empty());
+    CHECK(program.passes().size() == 1);
+    CHECK(program.fingerprint_data().algorithm_version == 1);
 }
 
 namespace {
@@ -76,13 +76,13 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
 
     const auto program = std::move(compiled).value();
     const auto prepared = std::move(legacy).value();
-    CHECK(program.metadata.width == 1920);
-    CHECK(program.metadata.height == 1080);
-    CHECK(program.nodes.size() == 1);
-    CHECK(program.nodes.front().kind == chronon3d::compiler::NodeKind::Color);
-    CHECK(program.animations.size() == 1);
-    CHECK(program.passes.size() == 1);
-    CHECK(program.passes.front().node_count == 1);
+    CHECK(program.metadata().width == 1920);
+    CHECK(program.metadata().height == 1080);
+    CHECK(program.nodes().size() == 1);
+    CHECK(program.nodes().front().kind == chronon3d::compiler::NodeKind::Color);
+    CHECK(program.animations().size() == 1);
+    CHECK(program.passes().size() == 1);
+    CHECK(program.passes().front().node_count == 1);
     CHECK(program.compiled_composition().fingerprint == prepared.compiled_composition.fingerprint);
 
     chronon3d::assets::AssetResolver repeat_resolver;
