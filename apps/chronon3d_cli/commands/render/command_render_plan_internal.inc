@@ -25,7 +25,7 @@ struct RenderPlanState {
     std::string gpu_hot_path_mode{"auto"};
     std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
-    std::optional<runtime::job::ResolvedRenderJob> normalized_request;
+    std::optional<runtime::job::NormalizedRenderJob> normalized_request;
 };
 
 runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& args) {

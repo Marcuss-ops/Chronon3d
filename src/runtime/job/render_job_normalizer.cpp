@@ -11,7 +11,7 @@ bool valid_backend(const std::string& value) {
 
 } // namespace
 
-Result<ResolvedRenderJob, RenderJobRequestError>
+Result<NormalizedRenderJob, RenderJobRequestError>
 normalize_render_job(
     const RenderJobRequest& request,
     const RuntimeCapabilities& capabilities) {
@@ -40,7 +40,7 @@ normalize_render_job(
             "render job frame range is invalid"};
     }
 
-    ResolvedRenderJob resolved;
+    NormalizedRenderJob resolved;
     resolved.plan_path = request.plan_path;
     resolved.output_path = request.output_path;
     resolved.assets_root = request.assets_root;

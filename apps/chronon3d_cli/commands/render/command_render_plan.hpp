@@ -46,7 +46,7 @@ int run_render_plan_file(const CompositionRegistry& registry,
                          std::uint64_t end_frame = 0,
                          bool frame_range_explicit = false,
                          const std::string& receipt_verify = {},
-                         std::optional<runtime::job::ResolvedRenderJob> normalized_request = {});
+                         std::optional<runtime::job::NormalizedRenderJob> normalized_request = {});
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): render a chronon.render-plan.v1 file. The payload
