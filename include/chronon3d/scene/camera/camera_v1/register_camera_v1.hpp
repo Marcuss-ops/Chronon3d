@@ -15,7 +15,7 @@
 //
 // The new entry point is `register_camera_v1_builtins_into(catalog)` below:
 // callers own the catalog and pass it by reference.  Typical usage from
-// `RenderRuntime::initialise()`:
+// `RuntimeContext::initialise()`:
 //
 //   m_owned_transition_catalog = std::make_unique<CameraTransitionCatalog>();
 //   register_camera_v1_builtins_into(*m_owned_transition_catalog);

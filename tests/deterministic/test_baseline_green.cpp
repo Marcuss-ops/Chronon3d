@@ -202,7 +202,7 @@ inline bool is_reference_captured(std::uint64_t r) noexcept {
 TEST_CASE("Baseline green §1: 30 fresh renderers produce identical composite hashes") {
     // 30 distinct SoftwareRenderer instances, each rendering the same
     // composition once.  Each renderer is built `test::make_renderer()` which
-    // allocates a fresh RenderRuntime + session + buffer_ring.  Since
+    // allocates a fresh RuntimeContext + session + buffer_ring.  Since
     // the state is per-instance fresh, no cross-render state can leak
     // — and the FNV-1a framebuffer hash is identical for the identical
     // input.  This is the work-around path documented in TICKET-007

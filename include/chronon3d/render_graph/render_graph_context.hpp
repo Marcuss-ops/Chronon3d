@@ -90,7 +90,7 @@ namespace chronon3d {
     class Scene;
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
-    struct RenderSession;  // PR-5 — session ptr on RenderServices for PrecompNode inner exec
+    namespace runtime { class JobSession; }
     class TextRenderResources;
     class ImageCache;
 }
@@ -115,7 +115,7 @@ namespace chronon3d::effects {
 }
 
 // WP-8 PR 8.0 — typed engine-local asset resolver lives on the per-
-// engine RenderRuntime.  Forward-declared at FILE SCOPE here so the
+// engine RuntimeContext.  Forward-declared at FILE SCOPE here so the
 // `RenderServices::asset_resolver` pointer below can hold a non-owning
 // reference; the full definition is in <chronon3d/assets/asset_resolver.hpp>.
 // Callers that dereference the pointer MUST include that header
@@ -329,7 +329,7 @@ struct RenderServices {
     /// dereferences `*ctx.services.scheduler` to route its inner execute()
     /// through the same arena as the parent graph.  Set by
     /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
-    /// (which forwards to `RenderRuntime::scheduler()`).  Lifetime is
+    /// (which forwards to `RuntimeContext::scheduler()`).  Lifetime is
     /// pinned to the owning runtime; never dereference past shutdown.
     chronon3d::ExecutionScheduler* scheduler{nullptr};
 
@@ -339,7 +339,7 @@ struct RenderServices {
     /// for inner executor calls, and the session's `program_store` for
     /// cache lookups.  Set by scene.cpp when a SoftwareRenderer is
     /// available.  Null in test paths without a wired session.
-    chronon3d::RenderSession* session{nullptr};
+    chronon3d::runtime::JobSession* session{nullptr};
 
     /// PR-9 — opaque sidecar pointer to the owning SoftwareRenderer.
     /// Set by scene.cpp / composition.cpp alongside `session` so that
@@ -351,7 +351,7 @@ struct RenderServices {
     void* sw_renderer_sidecar{nullptr};
 
     /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
-    /// pointer into the owning RenderRuntime's resolver).  Set by
+    /// pointer into the owning RuntimeContext's resolver).  Set by
     /// `preflight.cpp::debug_preflight_render_graph` (and any future
     /// graph-building surface that needs to resolve relative asset
     /// paths through the same instance the renderer uses).  Null when
@@ -520,7 +520,7 @@ struct NodeExecutionContext {
     // ── TICKET-COUNTERS-NODE-MEMORY-V1-V2 — per-session stats reporter ────
     // Null-pointer typed access to the optional canonical
     // `NodeStatsReporter` (lives on a `std::unique_ptr` owned by the host
-    // `RenderSession`, wired at `RenderSession` init by a future V2.1 chore).
+    // `runtime::JobSession`, wired at `runtime::JobSession` init by a future V2.1 chore).
     //
     // Default nullptr (zero-static-state invariant preserved when no reporter
     // is constructed); forward-declared above so the SDK header stays

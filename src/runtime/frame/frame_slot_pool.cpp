@@ -61,12 +61,27 @@ void FrameSlotPool::release(FrameExecutionSlot& slot) noexcept {
 void FrameSlotPool::reset() noexcept {
     producer_cursor_ = 0;
     for (FrameSlotId slot_id = 0; slot_id < capacity_; ++slot_id) {
+        payloads_[slot_id].reset();
         auto& entry = slots_[slot_id];
         entry.frame_index = std::numeric_limits<std::uint64_t>::max();
         entry.native_surface_ptr = 0;
         entry.gpu_ready_sync = 0;
         entry.state.store(FrameSlotState::Free, std::memory_order_release);
     }
+}
+
+FrameSlotPayload& FrameSlotPool::payload(FrameSlotId slot_id) {
+    if (slot_id >= capacity_) {
+        throw std::out_of_range("FrameSlotPool: payload id out of range");
+    }
+    return payloads_[slot_id];
+}
+
+const FrameSlotPayload& FrameSlotPool::payload(FrameSlotId slot_id) const {
+    if (slot_id >= capacity_) {
+        throw std::out_of_range("FrameSlotPool: payload id out of range");
+    }
+    return payloads_[slot_id];
 }
 
 std::size_t FrameSlotPool::busy_count() const noexcept {

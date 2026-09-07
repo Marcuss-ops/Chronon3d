@@ -16,28 +16,13 @@
 // call here.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
-namespace chronon3d::runtime { class RenderRuntime; }
+namespace chronon3d::runtime { class RuntimeContext; }
 
 namespace chronon3d::backends::software {
-
-/// Vends a fresh per-render-job `SoftwareRenderSession` whose
-/// `common.services` field is populated with the runtime's catalogue
-/// back-pointers.  Lifetime invariant: `runtime` must outlive every
-/// session it vends.
-[[nodiscard]] chronon3d::SoftwareRenderSession make_session(
-    chronon3d::runtime::RenderRuntime& runtime
-);
-
-/// Read the back-pointers currently bound to a session.  Returns an
-/// empty record if the session was not produced by `make_session()`.
-[[nodiscard]] const chronon3d::runtime::SessionServices& session_services(
-    const chronon3d::SoftwareRenderSession& session
-);
 
 /// Register builtin shape processors into the software registry.
 /// Called once during software-renderer construction.

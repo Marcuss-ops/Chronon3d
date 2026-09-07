@@ -12,7 +12,7 @@
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
 #include "temporal_render_pipeline.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
@@ -111,14 +111,14 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             "compiled composition has no definition");
     }
     const auto& spec = compiled.composition->spec();
-    // Materialise the RenderRuntime* once at the entry point so both the
+    // Materialise the RuntimeContext* once at the entry point so both the
     // single-frame and the motion-blur sub-frame evaluation paths below
     // share the same pointer.  Primary source: sw_sidecar (the
     // SoftwareRenderer that owns the per-instance runtime).
     // When sw_sidecar is nullptr (CLI dry-run, test paths), frame_runtime
     // is null — the materializer's resolve_engine() provides a process-wide
     // fallback (F1.D) so text still renders.
-    const chronon3d::runtime::RenderRuntime* frame_runtime =
+    const chronon3d::runtime::RuntimeContext* frame_runtime =
         (sw_sidecar != nullptr) ? &sw_sidecar->runtime() : nullptr;
     const auto hits_before = node_cache.stats().hits;
     if (!std::isfinite(settings.ssaa_factor)) {
@@ -304,13 +304,13 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
         // Every temporal sample owns all mutable frame domains.  In
         // particular, do not reuse the main NodeCache, CompiledGraphCache,
-        // RenderSession, or transform scratch: those domains belong to the
+        // runtime::JobSession, or transform scratch: those domains belong to the
         // integer-frame render and its history.  Sample contexts are kept
         // alive for the complete accumulation window and are never published
         // through commit_frame_state().
         std::vector<std::unique_ptr<cache::NodeCache>> sample_value_caches;
         std::vector<std::unique_ptr<CompiledGraphCache>> sample_topology_caches;
-        std::vector<std::unique_ptr<RenderSession>> sample_sessions;
+        std::vector<std::unique_ptr<runtime::JobSession>> sample_sessions;
         std::vector<std::unique_ptr<TransformScratchBuffer>> sample_scratches;
         std::vector<std::shared_ptr<cache::FramebufferPool>> sample_framebuffer_pools;
         sample_value_caches.reserve(sample_plan.contexts.size());
@@ -341,7 +341,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             }
             sample_value_caches.push_back(std::move(sample_cache));
             sample_topology_caches.push_back(std::make_unique<CompiledGraphCache>());
-            sample_sessions.push_back(std::make_unique<RenderSession>());
+            sample_sessions.push_back(std::make_unique<runtime::JobSession>());
             sample_scratches.push_back(std::make_unique<TransformScratchBuffer>());
             sample_framebuffer_pools.push_back(
                 cache::FramebufferPool::create_shared(sample_pool_limit));

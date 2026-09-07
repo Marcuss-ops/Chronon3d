@@ -1,4 +1,4 @@
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -113,7 +113,7 @@ SceneGraphStats analyze_scene_graph(
     if (execute && graph.has_output()) {
     const auto t_exec0 = profiling::now();
     GraphExecutor executor;
-    RenderSession session;
+    runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // PR-2 rewire — compile the raw graph through the compiler root
     // (single source of truth for topological plans after WP-8 close-out).

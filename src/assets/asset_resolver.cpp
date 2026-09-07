@@ -3,7 +3,7 @@
 //
 // WP-8 PR 8.0 — typed engine-local asset resolver implementation.
 // Lives next to AssetRegistry (its sibling for import-by-extension /
-// metadata-id work); ownership is on RenderRuntime.
+// metadata-id work); ownership is on RuntimeContext.
 // ===========================================================================
 
 #include <chronon3d/assets/asset_resolver.hpp>

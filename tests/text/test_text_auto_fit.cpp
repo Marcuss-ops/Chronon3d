@@ -60,11 +60,11 @@ namespace {
 // ── LocalEngine — matches precedent in tests/text/test_auto_fit_font_size.cpp
 struct LocalEngine {
     chronon3d::Config cfg{};
-    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
+    std::unique_ptr<chronon3d::runtime::RuntimeContext> runtime;
     FontEngine engine;
 
     LocalEngine()
-        : runtime(chronon3d::runtime::RenderRuntime::create(
+        : runtime(chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
           engine{runtime->resolver()}
     {}

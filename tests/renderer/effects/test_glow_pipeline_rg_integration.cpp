@@ -35,7 +35,7 @@ test::TestRenderer make_glow_rg_renderer() {
     RenderSettings s;
         r.set_settings(s);
     // Return the concrete TestRenderer: returning a sliced SoftwareRenderer
-    // would destroy the TestRenderer-owned RenderRuntime at the return
+    // would destroy the TestRenderer-owned RuntimeContext at the return
     // boundary, leaving the renderer's runtime pointer dangling.
     return r;
 }

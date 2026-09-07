@@ -5,9 +5,9 @@
 //
 // Per-render-job resources that are CPU/software-backend specific.
 //
-// After the RenderSession extraction (architecture plan section 8.5) this
+// After the runtime::JobSession extraction (architecture plan section 8.5) this
 // header holds the per-job state that used to live directly on
-// `RenderSession` as members.  Moving it out lets `RenderSession.common`
+// `runtime::JobSession` as members.  Moving it out lets `runtime::JobSession.common`
 // stay renderer-agnostic (no `backends/software/*` includes).
 //
 // Members:
@@ -28,8 +28,8 @@
 //
 // WP-3 PR 3.1 — the `graph::SceneHasher scene_hasher` member was
 // REMOVED.  The canonical scene hasher is now a per-session value
-// member on `RenderSession::scene_hasher`.  `SoftwareRenderSession`
-// (which composes `RenderSession common + SoftwareSessionResources
+// member on `runtime::JobSession::scene_hasher`.  `SoftwareRenderSession`
+// (which composes `runtime::JobSession common + SoftwareSessionResources
 // software`) reaches the scene hasher through
 // `session.common.scene_hasher()`.  This struct no longer needs an
 // include of `<chronon3d/internal/render_graph/core/scene_hasher.hpp>`
@@ -134,7 +134,7 @@ struct SoftwareSessionResources {
     // the CANONICAL OWNER of all text-backend caches (font face +
     // FreeType face + glyph atlas + raster cache + scratch pool).  It
     // lives on the SOFTWARE side of the session (not on the
-    // engine-generic `RenderSession`) because it pulls in
+    // engine-generic `runtime::JobSession`) because it pulls in
     // `<blend2d.h>` and `<ft2build.h>` — backend-specific includes
     // that would violate the WP-3 dependency-direction invariant.
     //
@@ -165,7 +165,7 @@ struct SoftwareSessionResources {
         // scratch_buffer intentionally preserved.
         // buffer_ring intentionally preserved: holds previous frame FB.
         // WP-3 PR 3.1: scene_hasher reset no longer happens here —
-        // canonical scene_hasher is on RenderSession (per-session).
+        // canonical scene_hasher is on runtime::JobSession (per-session).
     }
 
     /// Reset temporal/session resources without touching runtime caches.
@@ -181,7 +181,7 @@ struct SoftwareSessionResources {
     /// Full job-level reset. Persistent caches (image cache, node cache,
     /// framebuffer pool) are NOT touched here — those belong to the runtime.
     /// WP-3 PR 3.1: scene_hasher reset no longer happens here (canonical
-    /// scene_hasher is on RenderSession).
+    /// scene_hasher is on runtime::JobSession).
     void reset_job() {
         reset_temporal_history();
     }

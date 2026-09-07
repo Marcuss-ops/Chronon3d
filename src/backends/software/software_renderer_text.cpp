@@ -87,7 +87,7 @@ const TextRenderResources* SoftwareRenderer::text_render_resources() const {
 
 // R1 — runtime owns the FontEngine; the renderer delegates to it.
 // The accessor body lives here (single TU) because it dereferences
-// runtime::RenderRuntime, whose complete type is available here.
+// runtime::RuntimeContext, whose complete type is available here.
 FontEngine& SoftwareRenderer::font_engine() { return m_runtime->font_engine(); }
 const FontEngine& SoftwareRenderer::font_engine() const { return m_runtime->font_engine(); }
 

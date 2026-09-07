@@ -98,7 +98,7 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
     // the real `TextRunShape`, real per-node world matrix, and
     // producer-supplied predicted/clip bboxes (the 4 inputs to
     // `audit_text_visibility()`).
-    auto runtime_result = runtime::RenderRuntime::create(
+    auto runtime_result = runtime::RuntimeContext::create(
         runtime::RuntimeConfig{Config{}, std::nullopt});
     if (!runtime_result) {
         emit_error_json("render_runtime_failed", args.comp_id,

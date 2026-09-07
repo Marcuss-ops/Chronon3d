@@ -9,9 +9,11 @@ int run_render_plan_file(
                       normalized.error().message);
         return 1;
     }
-    return execute_normalized_render_job(
-        registry, normalized.value(), std::move(warm_renderer),
-        std::move(video_execution));
+    RenderPlanState state;
+    state.normalized_request = std::move(normalized).value();
+    state.warm_renderer = std::move(warm_renderer);
+    state.video_execution = std::move(video_execution);
+    return execute_render_plan(registry, state);
 }
 
 ipc::Reply ipc_render_job(const CompositionRegistry& registry,

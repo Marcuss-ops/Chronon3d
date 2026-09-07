@@ -4,7 +4,7 @@
 // assets/asset_resolver.hpp
 //
 // WP-8 PR 8.0 — typed, engine-local asset path resolver.  Every
-// `chronon3d::runtime::RenderRuntime` owns exactly one
+// `chronon3d::runtime::RuntimeContext` owns exactly one
 // `AssetResolver`.  Resolution is deterministic and per-engine: two
 // runtimes with different mount roots resolve the same relative path
 // to different absolute paths.  The resolver does NOT consult any

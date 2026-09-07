@@ -40,7 +40,7 @@ struct CachedImage {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase B B1+B4 — ImageCache is now per-runtime (RenderRuntime-owned).
+// Fase B B1+B4 — ImageCache is now per-runtime (RuntimeContext-owned).
 //
 // B1 Removed: instance() singleton, preload_async (std::thread::detach hazard),
 //             raw-pointer get_or_load().
@@ -48,7 +48,7 @@ struct CachedImage {
 //             Cancellation/join/error-propagation deferred to post-freeze
 //             (requires executor-owned job abstraction not safe under freeze).
 //
-// Owned by RenderRuntime; accessed via runtime.image_cache().
+// Owned by RuntimeContext; accessed via runtime.image_cache().
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ImageCache {
@@ -104,7 +104,7 @@ private:
     // serialized all backend reads with cache loads.
     //
     // Wrapped in unique_ptr because std::shared_mutex is non-movable;
-    // ImageCache must remain movable for RenderRuntime::create() factory.
+    // ImageCache must remain movable for RuntimeContext::create() factory.
     std::shared_ptr<image::ImageBackend> m_backend;
     mutable std::unique_ptr<std::shared_mutex> m_backend_mutex{
         std::make_unique<std::shared_mutex>()};

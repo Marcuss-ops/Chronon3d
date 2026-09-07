@@ -17,7 +17,7 @@
 //
 // What does NOT live here:
 //   - backend concrete types (SoftwareRenderer*, SoftwareRenderSession)
-//   - runtime / session services (runtime::RenderRuntime&)
+//   - runtime / session services (runtime::RuntimeContext&)
 //   - cache concrete types (NodeCache, FrameCache, FramebufferPool)
 //   - render-graph executor / graph-cache concrete types
 //   - asset-registry handle

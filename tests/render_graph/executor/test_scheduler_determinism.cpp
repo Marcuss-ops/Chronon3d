@@ -19,9 +19,9 @@
 // Implementation choice — `FakeBackend` (mirrors
 // `tests/render_graph/pipeline/test_render_backend.cpp`):
 //   * We do NOT use `SoftwareRenderer(Config{})` because its
-//     transitional ctor synthesises an internal `RenderRuntime` that
+//     transitional ctor synthesises an internal `RuntimeContext` that
 //     has no backend attached; calling `renderer.backend()` throws
-//     `RenderRuntime::backend() called before attach_backend()`.
+//     `RuntimeContext::backend() called before attach_backend()`.
 //   * FakeBackend writes a deterministic per-(layer_id, x, y) pixel
 //     pattern, so framebuffer hashes are reproducible between modes
 //     WHEN the architecture invariant holds (each node visited once,
@@ -64,7 +64,7 @@
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -219,7 +219,7 @@ struct TestFixture {
     cache::NodeCache                                  node_cache;
     std::shared_ptr<cache::FramebufferPool>           fb_pool;
     ExecutionScheduler                                runtime_scheduler;
-    RenderSession                                     session;
+    runtime::JobSession                                     session;
 
     RenderGraphContext                                ctx;
     Scene                                             scene;

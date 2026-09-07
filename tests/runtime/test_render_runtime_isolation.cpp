@@ -1,7 +1,7 @@
 // ===========================================================================
 // tests/runtime/test_render_runtime_isolation.cpp
 //
-// Fase 5 — TICKET-P1-09 closure: verify two independent RenderRuntime
+// Fase 5 — TICKET-P1-09 closure: verify two independent RuntimeContext
 // instances do not share state (caches, pools, registries, resolvers,
 // schedulers, executors).
 //
@@ -31,7 +31,7 @@ namespace {
 
 namespace chronon3d::test {
 
-TEST_CASE("RenderRuntime isolation: two runtimes do not share state") {
+TEST_CASE("RuntimeContext isolation: two runtimes do not share state") {
     namespace fs = std::filesystem;
 
     // ── Build two Configs with different cache capacities ──────────
@@ -44,11 +44,11 @@ TEST_CASE("RenderRuntime isolation: two runtimes do not share state") {
     runtime::RuntimeConfig rc_b{std::move(cfg_b), std::nullopt};
 
     // ── Create both runtimes via the canonical factory ─────────────
-    auto result_a = runtime::RenderRuntime::create(std::move(rc_a));
+    auto result_a = runtime::RuntimeContext::create(std::move(rc_a));
     REQUIRE(result_a.has_value());
     auto runtime_a = std::move(result_a.value());
 
-    auto result_b = runtime::RenderRuntime::create(std::move(rc_b));
+    auto result_b = runtime::RuntimeContext::create(std::move(rc_b));
     REQUIRE(result_b.has_value());
     auto runtime_b = std::move(result_b.value());
 
@@ -125,7 +125,7 @@ TEST_CASE("RenderRuntime isolation: two runtimes do not share state") {
     // ── §7: Backends start unattached ──────────────────────────────
     // P1-14 — the previous `populate() is idempotent` SUBCASE was
     // REMOVED.  `populate()` is now PRIVATE; the canonical factory
-    // `RenderRuntime::create(RuntimeConfig)` produces a fully-populated
+    // `RuntimeContext::create(RuntimeConfig)` produces a fully-populated
     // runtime, and the test for re-populate idempotency was testing
     // implementation detail (the idempotency check is now an internal
     // internal contract of the factory's private construction path, not

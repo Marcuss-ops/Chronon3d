@@ -1,7 +1,7 @@
 // ===========================================================================
 // runtime/render_runtime.cpp
 //
-// TICKET-011 — RenderRuntime implementation.  Sole owner of engine-
+// TICKET-011 — RuntimeContext implementation.  Sole owner of engine-
 // lifetime state:
 //
 //   - All caches (NodeCache, FramebufferPool, CompiledGraphCache)
@@ -15,11 +15,11 @@
 // live on SoftwareRenderer.
 //
 // WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
-// runtime-owned.  They were relocated from RenderSession to RenderRuntime
+// runtime-owned.  They were relocated from runtime::JobSession to RuntimeContext
 // in WP-8 (see prior revisions) and are now back per-session-owned.
 // The runtime therefore no longer populates them, no longer assigns
 // them into the service bundle, and no longer wires them into the
-// SessionServices table via `make_session()`.  The corresponding
+// JobSession/runtime dependency boundary is explicit. The corresponding
 // service-bundle fields in `RenderServices` are gone (see header).
 //
 // ===========================================================================
@@ -85,14 +85,14 @@ std::string prepared_mesh_key(const PreparedAssets& prepared) {
 
 } // namespace
 
-void RenderRuntime::publish_prepared_assets(const PreparedAssets& prepared) {
+void RuntimeContext::publish_prepared_assets(const PreparedAssets& prepared) {
     std::lock_guard lock(m_prepared_assets_mutex);
     m_prepared_assets = std::make_shared<const PreparedAssets>(prepared);
     m_prepared_mesh_manifest_key = prepared_mesh_key(prepared);
 }
 
 std::shared_ptr<const PreparedAssets>
-RenderRuntime::prepared_assets_for(const assets::AssetManifest& manifest) const {
+RuntimeContext::prepared_assets_for(const assets::AssetManifest& manifest) const {
     const auto requested_key = mesh_manifest_key(manifest);
     if (requested_key.empty()) return {};
     std::lock_guard lock(m_prepared_assets_mutex);
@@ -103,10 +103,10 @@ RenderRuntime::prepared_assets_for(const assets::AssetManifest& manifest) const 
 // Fase B2 (DONE) — process_wide_assets_root globals REMOVED.
 // The anonymous namespace that previously held the global string +
 // mutex + resolver was removed.  Production code must use
-// RenderRuntime::resolver() or pass AssetResolver& through the call chain.
+// RuntimeContext::resolver() or pass AssetResolver& through the call chain.
 
-RenderRuntime::RenderRuntime(chronon3d::Config config)
-    : RuntimeContext(std::move(config))
+RuntimeContext::RuntimeContext(chronon3d::Config config)
+    : m_config(std::move(config))
 {
     populate();
 }
@@ -119,11 +119,11 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
 // is deliberately NOT here — the backend depends on per-instance state from
 // SoftwareRenderer, which is wired at a higher level.
 
-Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
-RenderRuntime::create(RuntimeConfig cfg) {
+Result<std::unique_ptr<RuntimeContext>, RuntimeBuildError>
+RuntimeContext::create(RuntimeConfig cfg) {
     try {
-        auto runtime = std::unique_ptr<RenderRuntime>(
-            new RenderRuntime(std::move(cfg.config)));  // private construction
+        auto runtime = std::unique_ptr<RuntimeContext>(
+            new RuntimeContext(std::move(cfg.config)));  // private construction
 
         if (cfg.assets_root.has_value()) {
             runtime->resolver().mount(*cfg.assets_root);
@@ -133,27 +133,27 @@ RenderRuntime::create(RuntimeConfig cfg) {
     } catch (const std::exception& e) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            std::string{"RenderRuntime::create(): construction failed — "} + e.what()
+            std::string{"RuntimeContext::create(): construction failed — "} + e.what()
         };
     } catch (...) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            "RenderRuntime::create(): construction failed — unknown exception"
+            "RuntimeContext::create(): construction failed — unknown exception"
         };
     }
 }
 
-RenderRuntime::~RenderRuntime() = default;
+RuntimeContext::~RuntimeContext() = default;
 
-void RenderRuntime::reset_compiled_cache() {
+void RuntimeContext::reset_compiled_cache() {
     CompiledTopologyCache{m_owned_graph_cache}.reset();
 }
 
-void RenderRuntime::reset_frame_value_cache() {
+void RuntimeContext::reset_frame_value_cache() {
     FrameValueCache{m_owned_node_cache}.reset();
 }
 
-void RenderRuntime::populate() {
+void RuntimeContext::populate() {
     if (m_populated) {
         return;
     }
@@ -214,7 +214,7 @@ void RenderRuntime::populate() {
     m_resolver.mount(std::filesystem::path{});
 
     m_populated = true;
-    spdlog::debug("RenderRuntime::populate(): runtime populated with "
+    spdlog::debug("RuntimeContext::populate(): runtime populated with "
                   "NodeCache({}B), FramebufferPool({}B), GraphExecutor, "
                   "ExecutionScheduler (mode={}), 2 registries + 3 catalogs"
                   " (WP-3 PR 3.1: scene_hasher + program_store are per-session owned,"
@@ -224,16 +224,16 @@ void RenderRuntime::populate() {
                   static_cast<int>(sched_cfg.mode()));
 }
 
-void RenderRuntime::attach_backend(
+void RuntimeContext::attach_backend(
     std::unique_ptr<chronon3d::graph::RenderBackend> backend)
 {
     if (!backend) {
         throw std::invalid_argument(
-            "RenderRuntime::attach_backend(): nullptr");
+            "RuntimeContext::attach_backend(): nullptr");
     }
     if (m_backend) {
         throw std::runtime_error(
-            "RenderRuntime::attach_backend(): backend already attached");
+            "RuntimeContext::attach_backend(): backend already attached");
     }
     m_backend = std::move(backend);
     m_owned_framebuffer_pool->set_native_surface_releaser(
@@ -266,24 +266,24 @@ void RenderRuntime::attach_backend(
 // of surfacing the error.  The header mirrors this no-noexcept
 // declaration; see check [11/12] of
 // `tools/check_architecture_boundaries.sh` for the regression guard.
-chronon3d::graph::RenderBackend& RenderRuntime::backend() {
+chronon3d::graph::RenderBackend& RuntimeContext::backend() {
     if (!m_backend) {
         throw std::runtime_error(
-            "RenderRuntime::backend() called before attach_backend().");
+            "RuntimeContext::backend() called before attach_backend().");
     }
     return *m_backend;
 }
 
-const chronon3d::graph::RenderBackend& RenderRuntime::backend() const {
+const chronon3d::graph::RenderBackend& RuntimeContext::backend() const {
     if (!m_backend) {
         throw std::runtime_error(
-            "RenderRuntime::backend() (const) called before attach_backend().");
+            "RuntimeContext::backend() (const) called before attach_backend().");
     }
     return *m_backend;
 }
 
 // Fase B2 (DONE) — process_wide_assets_root() / process_wide_assets_root() /
 // process_wide_resolver() REMOVED.  Production code passes AssetResolver&
-// through the call chain (RenderRuntime::resolver(), RenderSession, DI).
+// through the call chain (RuntimeContext::resolver(), runtime::JobSession, DI).
 
 } // namespace chronon3d::runtime

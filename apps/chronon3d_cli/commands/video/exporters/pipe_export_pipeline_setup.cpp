@@ -255,7 +255,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     const auto renderer_t0 = profiling::now();
     if (session->direct_yuv_selected()) {
-        spdlog::info("[direct-yuv] skipped SoftwareRenderer and RenderRuntime construction");
+        spdlog::info("[direct-yuv] skipped SoftwareRenderer and RuntimeContext construction");
     } else {
         session->full_graph_session = std::make_unique<FullGraphSession>();
         Config renderer_cfg = Config::from_environment(cpu_budget);

@@ -4,8 +4,8 @@
 // scene_program_store.hpp — Centralized per-session store for compiled
 // scene programs, replacing per-PrecompNode SceneProgramCache instances.
 //
-// PR-5 / PR-2-rewire — Each RenderSession owns exactly one SceneProgramStore
-// (vended through the `runtime::SessionServices::program_store` pointer
+// PR-5 / PR-2-rewire — Each runtime::JobSession owns exactly one SceneProgramStore
+// (vended directly through the owning JobSession
 // populated by `runtime::make_session()`).  PrecompNode instances no longer
 // hold their own SceneProgramCache / GraphExecutor / auto-tune counter.
 // Instead they call `ctx.services.session->program_store().acquire(...)`
@@ -119,7 +119,7 @@ struct PrecompCachePolicy {
 
 /// Centralized, session-scoped store of compiled scene programs.
 ///
-/// Owned by RenderSession (via the `runtime::SessionServices::program_store`
+/// Owned directly by runtime::JobSession
 /// pointer populated by `runtime::make_session()`).  Multiple PrecompNode
 /// instances within the same session share this store; each instance is
 /// keyed by its `PrecompInstanceKey` and has its own capacity / tuning
@@ -132,8 +132,8 @@ struct PrecompCachePolicy {
 ///   if (!lease.program) return empty;
 ///
 /// WP 5.5 — the store is owned at the runtime layer (see
-/// `RenderRuntime::m_owned_program_store`) and vended through
-/// `runtime::SessionServices`.  RenderSession::reset_job() drives an
+/// `RuntimeContext::m_owned_program_store`) and vended through
+/// runtime::JobSession::reset_job() drives an
 /// isolated `clear()` that touches ONLY the per-instance caches for
 /// the owner session (in the single-runtime / single-renderer / single-
 /// session production deployment this is the whole store; in any
@@ -159,7 +159,7 @@ public:
         /// Review #3 — non-owning pointer to the per-instance cache the
         /// program was acquired from.  Lets the caller detect when
         /// `clear()` has replaced the bucket (e.g. after a
-        /// `RenderSession::reset_job()`) so it can re-forward any
+        /// `runtime::JobSession::reset_job()`) so it can re-forward any
         /// eviction callback to the new bucket.
         cache::SceneProgramCache* bucket{nullptr};
 

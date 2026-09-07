@@ -177,7 +177,7 @@ void verify_order(const std::string& order_name,
         REQUIRE_MESSAGE(has_non_black_frame(*shared_frame),
                             "shared render produced a black/empty frame at frame " << frame_value);
 
-        // A new renderer means a new RenderRuntime, graph cache, node cache,
+        // A new renderer means a new RuntimeContext, graph cache, node cache,
         // framebuffer pool and render session for this exact frame. Match the
         // shared runtime's settings so only cache state differs.
         auto independent_runtime = make_renderer_shared();

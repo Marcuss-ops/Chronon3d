@@ -49,7 +49,7 @@ inline std::string bundled_font_path(const std::string& rel) {
 // ── Renderer factories ────────────────────────────────────────────────────
 
 /// Attach a `SoftwareBackend` to the renderer's runtime.  Required before
-/// calling `render_frame` / `render_scene` — `RenderRuntime::backend()`
+/// calling `render_frame` / `render_scene` — `RuntimeContext::backend()`
 /// throws when called before `attach_backend()`.  Call after `set_settings()`.
 ///
 /// TICKET-118 closure — `SoftwareBackendServices::owner` REMOVED.  The
@@ -58,7 +58,7 @@ inline std::string bundled_font_path(const std::string& rel) {
 /// construction via `SoftwareBackend::attach_processor_context(...)`,
 /// routed through `backends::software::internal::make_processor_context`.
 /// Lifetime invariant (preserved): `renderer->runtime()` owns the
-/// backend, and `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`.
+/// backend, and `~RuntimeContext()` runs BEFORE `~SoftwareRenderer()`.
 ///
 /// TICKET-079: takes `SoftwareRenderer*` (pointer) instead of
 /// `SoftwareRenderer&` (lvalue ref) — gate-3 I5 compliance.
@@ -81,7 +81,7 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
     // internal bridge (mirrors runtime_adapter.cpp).  Lifetime of
     // extras.* matches `*renderer` which outlives the backend (the
     // backend is owned by `renderer->runtime()`, and
-    // `~RenderRuntime()` runs BEFORE `~SoftwareRenderer()`).
+    // `~RuntimeContext()` runs BEFORE `~SoftwareRenderer()`).
     backends::software::internal::ProcessorSourceExtras extras{};
     extras.registry      = &renderer->software_registry();
     extras.image_backend = renderer->image_backend();
@@ -111,9 +111,9 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
 // ── TestRenderer wrapper ──────────────────────────────────────────────────
 
 struct TestRuntimeOwner {
-    std::unique_ptr<runtime::RenderRuntime> m_test_runtime;
+    std::unique_ptr<runtime::RuntimeContext> m_test_runtime;
     explicit TestRuntimeOwner(const Config& cfg = Config{}) {
-        auto res = runtime::RenderRuntime::create(
+        auto res = runtime::RuntimeContext::create(
             runtime::RuntimeConfig{.config = cfg, .assets_root = std::nullopt});
         if (!res) throw std::runtime_error("TestRenderer: runtime creation failed: " + res.error().message);
         m_test_runtime = std::move(res).value();
@@ -121,7 +121,7 @@ struct TestRuntimeOwner {
             m_test_runtime->resolver().mount(std::filesystem::current_path());
         }
     }
-    explicit TestRuntimeOwner(std::unique_ptr<runtime::RenderRuntime> rt)
+    explicit TestRuntimeOwner(std::unique_ptr<runtime::RuntimeContext> rt)
         : m_test_runtime(std::move(rt)) {}
 };
 
