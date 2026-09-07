@@ -94,10 +94,10 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no CompositionRegistry"};
     }
-    if (!job.compiled || !job.compiled->composition) {
+    if (!job.program && (!job.compiled || !job.compiled->composition)) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
-            "RenderJob has no compiled composition"};
+            "RenderJob has neither a compiled program nor a compiled composition"};
     }
 
     // --trace: job-scoped Perfetto session covering every render mode.  The
@@ -106,6 +106,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
     JobTraceSession job_trace(job);
 
     if (job.mode == RenderMode::Video) {
+        if (!job.compiled || !job.compiled->composition) {
+            return RenderJobError{
+                RenderJobErrorCode::InvalidJob,
+                "Video RenderJob requires the legacy compiled export view"};
+        }
         if (!job.selected_frames.empty()) {
             return RenderJobError{
                 RenderJobErrorCode::InvalidJob,
