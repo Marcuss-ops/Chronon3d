@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
+#include <chronon3d/runtime/frame/frame_slot_payload.hpp>
 
 #include <array>
 #include <cstddef>
@@ -28,11 +29,14 @@ public:
     [[nodiscard]] std::size_t busy_count() const noexcept;
     [[nodiscard]] FrameExecutionSlot& slot(FrameSlotId slot_id);
     [[nodiscard]] const FrameExecutionSlot& slot(FrameSlotId slot_id) const;
+    [[nodiscard]] FrameSlotPayload& payload(FrameSlotId slot_id);
+    [[nodiscard]] const FrameSlotPayload& payload(FrameSlotId slot_id) const;
 
 private:
     std::size_t capacity_{0};
     std::size_t producer_cursor_{0};
     std::array<FrameExecutionSlot, kMaxFrameExecutionSlots> slots_{};
+    std::array<FrameSlotPayload, kMaxFrameExecutionSlots> payloads_{};
 };
 
 } // namespace chronon3d::runtime

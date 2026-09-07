@@ -2,7 +2,7 @@
 // test_scene_program_store.cpp — SceneProgramStore integration tests
 //
 // WP 5.2 / 5.3 / 5.4 / 5.5 lifecycle, ownership, and tuning tests for the
-// centralized SceneProgramStore.  These run without a real RenderSession —
+// centralized SceneProgramStore.  These run without a real runtime::JobSession —
 // the store's public API operates on PrecompInstanceKey + SceneStructureKey
 // directly so unit-level coverage is sufficient.
 //

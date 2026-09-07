@@ -476,7 +476,7 @@ struct TextRenderResources {
     );
 
     // ── P1 #3 hierarchy note ──────────────────────────────────────────
-    // The canonical TextLayoutCache lives on RenderSession::layout_cache
+    // The canonical TextLayoutCache lives on runtime::JobSession::layout_cache
     // (see render_session.hpp), NOT here.  Rationale:
     //   • TextLayoutCache is backend-agnostic (pure LRU — no BLFontFace,
     //     no FT_Face, no blend2d.h).  It belongs in engine-generic
@@ -484,9 +484,9 @@ struct TextRenderResources {
     //   • TextRenderResources aggregates BACKEND-SPECIFIC caches
     //     (BLFontFace → Blend2D, FT_Face → FreeType, GlyphAtlas →
     //     bitmap tilesheets).
-    // The user-specified hierarchy "RenderSession → TextRenderResources
+    // The user-specified hierarchy "runtime::JobSession → TextRenderResources
     // → LayoutCache" is flattened for this reason: LayoutCache sits
-    // alongside TextRenderResources on RenderSession, not inside it.
+    // alongside TextRenderResources on runtime::JobSession, not inside it.
     //
     // Post-baseline, the GlyphAtlas will migrate into this struct to
     // complete the hierarchy.  The legacy text-raster cache migrated in

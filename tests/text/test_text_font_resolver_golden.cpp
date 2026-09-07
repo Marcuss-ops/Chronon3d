@@ -66,10 +66,10 @@ TextDocument make_golden_doc() {
     return doc;
 }
 
-/// Build a FontEngine bound to a RenderRuntime.
+/// Build a FontEngine bound to a RuntimeContext.
 FontEngine make_golden_engine() {
     static const Config cfg;
-    static const auto runtime = runtime::RenderRuntime::create(
+    static const auto runtime = runtime::RuntimeContext::create(
         runtime::RuntimeConfig{cfg, std::nullopt}).value();
     return FontEngine{runtime->resolver()};
 }

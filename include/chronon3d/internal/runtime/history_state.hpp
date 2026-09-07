@@ -3,9 +3,9 @@
 // ---------------------------------------------------------------------------
 // runtime/history_state.hpp
 //
-// Internal, non-owning boundary for RenderSession's generic temporal state.
+// Internal, non-owning boundary for runtime::JobSession's generic temporal state.
 // The session remains the sole owner of FrameHistory and DirtyHistory. Facades
-// are ephemeral and must not outlive the referenced RenderSession. Software
+// are ephemeral and must not outlive the referenced runtime::JobSession. Software
 // framebuffer-ring and transform-scratch history remains owned by
 // SoftwareSessionResources and is reset by SoftwareRenderSession's existing
 // reset_temporal_history() orchestration.

@@ -44,7 +44,7 @@ struct NodeMemoryReport {
     std::uint64_t peak_rss_bytes{0};
 };
 
-/// Internal per-session tracker. One instance belongs to one RenderSession;
+/// Internal per-session tracker. One instance belongs to one runtime::JobSession;
 /// concurrent graph executions serialize updates through this tracker, while
 /// TemporalSampleKey keeps sample domains distinct. The owning session may
 /// call reset() at an explicit report-lifetime boundary.

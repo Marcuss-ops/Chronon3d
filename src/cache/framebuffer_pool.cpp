@@ -242,8 +242,11 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         return std::move(entry.fb);
     }
 
-    if (m_arena) {
-        void* ptr = m_arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
+    FramebufferArena* arena = m_arena_provider
+        ? m_arena_provider()
+        : m_arena.get();
+    if (arena) {
+        void* ptr = arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);

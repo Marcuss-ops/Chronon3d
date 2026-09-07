@@ -1,12 +1,12 @@
 #include "scene_tile_execution.hpp"
 
 // TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
-// RenderRuntime (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
+// RuntimeContext (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
 // owner of GraphExecutor per TICKET-011.  Calling
 // sw_renderer->runtime().executor().execute(...) below
-// needs the FULL type of RenderRuntime (the .executor() accessor +
+// needs the FULL type of RuntimeContext (the .executor() accessor +
 // the GraphExecutor& return — only declared in the full type).
-// graph_executor.hpp transitively forward-declares RenderRuntime; the
+// graph_executor.hpp transitively forward-declares RuntimeContext; the
 // include here resolves the type for this TU.  See commit 91debc36
 // (TXT-00 closure of ROT 1 on src/render_graph/pipeline/) for the
 // duplicate-fix precedent — the audit-comment block above mirrors
@@ -74,7 +74,7 @@ namespace chronon3d::graph::detail {
     // violated pipeline precondition and must fail loudly.
     if (!sw_renderer || !sw_renderer->has_runtime()) {
         throw std::logic_error(
-            "tile execution requires the RenderRuntime-owned GraphExecutor");
+            "tile execution requires the RuntimeContext-owned GraphExecutor");
     }
     auto& tile_scheduler = ctx.services.scheduler
         ? *ctx.services.scheduler

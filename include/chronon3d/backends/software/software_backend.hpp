@@ -137,7 +137,7 @@ public:
 private:
     // ── Non-owning required-service pointers ──
     // All fields are non-owning references to services whose lifetime is
-    // managed by the caller (RenderRuntime / renderer) per the
+    // managed by the caller (RuntimeContext / renderer) per the
     // SoftwareBackendServices docs.  FramebufferPool is the sole owning
     // reference (shared_ptr) so the same pool can be shared by multiple
     // backends while RenderBackend::framebuffer_pool() can return by-value.

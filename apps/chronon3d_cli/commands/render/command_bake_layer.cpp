@@ -9,7 +9,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/internal/runtime/render_session.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <spdlog/spdlog.h>
 
@@ -81,11 +81,12 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     // (single source of truth for topological plans after WP-8 close-out).
     //
     // Section 5 fix: route the executor via the renderer's runtime — the
-    // executor is engine-lifetime owned by RenderRuntime (per AGENTS.md +
+    // executor is engine-lifetime owned by RuntimeContext (per AGENTS.md +
     // STATUS.md).  No local executor instantiation in CLI TUs.
     graph.retarget_output(selection.selected_output);
-    auto compiled = chronon3d::compiler::detail::compile_graph(std::move(graph), graph_ctx);
-    RenderSession session;
+    auto compiled = chronon3d::compiler::detail::compile_graph(
+        std::move(graph), graph_ctx);
+    runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // FASE 5 — ExecutionScope public direct-ctor is closed; route
     // through make_root() with the session's own arena.

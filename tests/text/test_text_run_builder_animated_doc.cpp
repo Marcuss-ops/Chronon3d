@@ -65,7 +65,7 @@ PreparedText make_spec(const std::string& literal_text) {
 
 TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     PreparedText spec = make_spec("Static initial text");
@@ -93,7 +93,7 @@ TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
 
 TEST_CASE("TextRunBuilder+PendingDoc: animated_doc drives layout content + per-frame resample") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     AnimatedTextDocument doc;

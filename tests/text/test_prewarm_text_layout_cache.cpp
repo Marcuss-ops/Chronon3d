@@ -167,7 +167,7 @@ std::shared_ptr<AnimatedTextDocument> make_scramble_doc(const FontSpec& font) {
 
 TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     const FontSpec spec = test_text_fixture::inter_bold();
@@ -180,7 +180,7 @@ TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
 
 TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -219,7 +219,7 @@ TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8
 
 TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text bytes") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -267,7 +267,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
 
 TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -299,7 +299,7 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
 
 TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct cache entries") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -344,7 +344,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
 
 TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transition_text)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -435,7 +435,7 @@ static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc(const FontSpec& 
 
 TEST_CASE("Prewarm PR11 CF: DissolveLayouts prewarm populates BOTH active and dissolve_from caches") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -487,7 +487,7 @@ TEST_CASE("Prewarm PR11 CF: DissolveLayouts prewarm populates BOTH active and di
 
 TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots inside the gap, clears outside") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
@@ -564,7 +564,7 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
 
 TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfade slot") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;

@@ -52,11 +52,11 @@ TextDocument make_doc(const std::string& utf8) {
     return doc;
 }
 
-/// Build a FontEngine bound to a RenderRuntime.
+/// Build a FontEngine bound to a RuntimeContext.
 ///
-/// Uses function-local statics for Config + RenderRuntime because:
+/// Uses function-local statics for Config + RuntimeContext because:
 ///   1. Config is immutable after construction (read-only in tests).
-///   2. RenderRuntime is read-only in these tests (no calls to
+///   2. RuntimeContext is read-only in these tests (no calls to
 ///      set_process_wide_assets_root or other mutating operations).
 ///   3. Each call returns a FontEngine BY VALUE (copy of the resolver
 ///      reference), so test cases operate on independent engine objects.
@@ -67,7 +67,7 @@ TextDocument make_doc(const std::string& utf8) {
 /// construct its own FontEngine directly instead of using this helper.
 FontEngine make_determinism_engine() {
     static const Config cfg;
-    static const auto runtime = runtime::RenderRuntime::create(
+    static const auto runtime = runtime::RuntimeContext::create(
         runtime::RuntimeConfig{cfg, std::filesystem::path{
             chronon3d::test::test_repo_root() / "assets"}}).value();
     return FontEngine{runtime->resolver()};

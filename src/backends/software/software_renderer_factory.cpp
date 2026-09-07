@@ -48,16 +48,17 @@ namespace chronon3d {
 
 // ── Construction ──────────────────────────────────────────────────────────────
 
-// Canonical path — borrows an existing RenderRuntime + overrides Config.
-SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
+// Canonical path — borrows an existing RuntimeContext + overrides Config.
+SoftwareRenderer::SoftwareRenderer(runtime::RuntimeContext& rt, Config config)
     : m_config(std::move(config))
     , m_runtime(&rt)
     , m_image_renderer(rt.image_cache())
     , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
     , m_text_render_resources(std::make_unique<TextRenderResources>())
+    , m_session(rt)
 {
     m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());
-    m_session = backends::software::make_session(*m_runtime);
+    m_session.common.bind_runtime(rt);
     backends::software::register_builtin_processors(*m_software_registry);
 }
 

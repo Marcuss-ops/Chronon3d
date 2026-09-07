@@ -12,7 +12,7 @@
 //         └── PIMPL  ──wraps──▶  chronon3d::RenderEngine  (INTERNAL ADAPTER)
 //                                     │
 //                                     └── RenderEngine::Impl
-//                                         ├── runtime::RenderRuntime
+//                                         ├── runtime::RuntimeContext
 //                                         ├── SoftwareRenderer
 //                                         └── AssetRegistry
 //
@@ -58,7 +58,7 @@ namespace chronon3d {
 
 namespace image { class ImageBackend; }
 namespace media { class MediaFrameProvider; }
-namespace runtime { class RenderRuntime; }
+namespace runtime { class RuntimeContext; }
 // P1-E Pass E — `SoftwareRenderer` was relocated into
 // `src/backends/software/include_private/`; this public SDK header
 // only references it via opaque sidecar pointers + the OPP escape
@@ -182,7 +182,7 @@ public:
     /// Set the root directory for asset resolution (fonts, images, etc.).
     /// In Phase A: writes both (a) the legacy process-wide default so
     /// deep rendering code keeps working unchanged and (b) the
-    /// owning RenderRuntime's default_assets_root + AssetRegistry mount
+    /// owning RuntimeContext's default_assets_root + AssetRegistry mount
     /// so the engine owns the asset root in its own state.  Phase B
     /// (follow-up) will drop (a) once all deep rendering callers read
     /// the engine's runtime instead of the global.

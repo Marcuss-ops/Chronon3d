@@ -5,6 +5,7 @@
 #include <mutex>
 #include <cstddef>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -16,6 +17,35 @@ namespace chronon3d {
 class CancellationToken {
 public:
     using CallbackId = std::size_t;
+
+    CancellationToken() = default;
+    CancellationToken(const CancellationToken&) = delete;
+    CancellationToken& operator=(const CancellationToken&) = delete;
+
+    // A token is job-owned and is only moved while the owning job is
+    // quiescent. Transfer its observable state under the source lock; the
+    // mutex itself remains local to the destination object.
+    CancellationToken(CancellationToken&& other) noexcept {
+        std::lock_guard<std::mutex> lock(other.m_callbacks_mutex);
+        m_cancelled.store(other.m_cancelled.load(std::memory_order_acquire),
+                          std::memory_order_release);
+        m_next_callback_id = other.m_next_callback_id;
+        m_on_cancel = std::move(other.m_on_cancel);
+        other.m_cancelled.store(false, std::memory_order_release);
+        other.m_on_cancel.clear();
+    }
+
+    CancellationToken& operator=(CancellationToken&& other) noexcept {
+        if (this == &other) return *this;
+        std::scoped_lock lock(m_callbacks_mutex, other.m_callbacks_mutex);
+        m_cancelled.store(other.m_cancelled.load(std::memory_order_acquire),
+                          std::memory_order_release);
+        m_next_callback_id = other.m_next_callback_id;
+        m_on_cancel = std::move(other.m_on_cancel);
+        other.m_cancelled.store(false, std::memory_order_release);
+        other.m_on_cancel.clear();
+        return *this;
+    }
 
     void cancel() noexcept {
         m_cancelled.store(true, std::memory_order_seq_cst);
