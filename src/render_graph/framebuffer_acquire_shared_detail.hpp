@@ -51,8 +51,15 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     // reusable bottom input. A 1×1 placeholder swaps pixel storage with
     // the source; the placeholder is returned as a shared_ptr and will be
     // released back to the pool on destruction.
+    // F2.3 — zero-copy swap only when the borrowed buffer's storage carries
+    // pool provenance. Scratch-slot (ReturnToScratch), arena-backed and
+    // renderer-owned (planned physical slot) storage must never be re-wrapped
+    // with a pool deleter: the pool would double-account the bytes and hand
+    // the same storage to two future acquires. Non-transferable inputs fall
+    // through to the explicit-copy path below (borrow semantics preserved).
     if (node_exec.reusable_bottom.get() == &other &&
-        node_exec.reusable_bottom.use_count() <= 2)
+        node_exec.reusable_bottom.use_count() <= 2 &&
+        other.storage_transferable())
     {
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(const_cast<Framebuffer&>(other));
@@ -83,9 +90,16 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         }
     } else {
         out = std::make_shared<Framebuffer>(other.width(), other.height(), false);
-        std::copy(other.data(),
-                  other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
-                  out->data());
+        // R3 — row-wise stride-aware copy. Framebuffer storage is cache-line
+        // padded: logical rows are NOT contiguous at width*sizeof(Color), so
+        // a flat [data, data+w*h) copy shifts every row after the first
+        // (striped/corrupted output). Mirrors FramebufferPool::acquire_from.
+        const i32 copy_width = std::min(other.width(), out->width());
+        const i32 copy_height = std::min(other.height(), out->height());
+        const usize row_bytes = static_cast<usize>(copy_width) * sizeof(Color);
+        for (i32 y = 0; y < copy_height; ++y) {
+            std::memcpy(out->pixels_row(y), other.pixels_row(y), row_bytes);
+        }
         if (node_exec.counters) {
             node_exec.counters->full_frame_copies.fetch_add(1, std::memory_order_relaxed);
             node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);

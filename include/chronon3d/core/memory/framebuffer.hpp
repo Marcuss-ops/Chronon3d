@@ -296,6 +296,26 @@ public:
     }
     [[nodiscard]] bool is_arena_allocated() const { return !m_owns_pixels && m_external_pixels != nullptr; }
 
+    // ── F2.2/F2.3 ownership-provenance authority ────────────────────────────
+    //
+    // One authority answers "may this buffer's pixel storage be transferred
+    // zero-copy into a different ownership wrapper?". It is set by the only
+    // producer that hands out pool-owned storage (FramebufferPool::release
+    // → ReturnToPool) and cleared on the paths that move storage out of the
+    // pool (swap_contents out, pool eviction paths that delete).
+    //
+    // Swap-transfer sites (acquire_framebuffer(const Framebuffer&),
+    // acquire_owned_fb(const Framebuffer&), acquire_owned_fb(shared_ptr&&))
+    // MUST consult storage_transferable() before swapping storage out of a
+    // borrowed buffer: a scratch-slot (ReturnToScratch), arena-backed or
+    // renderer-owned (planned physical slot) buffer must never be re-wrapped
+    // with a pool deleter — that would double-account the pool budget and
+    // hand the same storage to two future acquires.
+    [[nodiscard]] bool storage_transferable() const noexcept { return m_storage_transferable; }
+    void set_storage_transferable(bool transferable) noexcept {
+        m_storage_transferable = transferable;
+    }
+
     /**
      * @brief Swap the full contents (pixel data + metadata) with another framebuffer.
      *
@@ -319,6 +339,9 @@ public:
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
         swap(m_external_pixels,  other.m_external_pixels);
+        // Provenance travels with the storage: after a zero-copy swap the
+        // recipient owns whatever reclamation contract the storage had.
+        swap(m_storage_transferable, other.m_storage_transferable);
     }
 
     /**
@@ -421,6 +444,11 @@ private:
     // changes, this must revert to std::atomic<bool>.
     bool m_content_cleared{false};
     bool m_owns_pixels{true};
+    // F2.2/F2.3 — provenance authority. Default false: freshly-constructed
+    // framebuffers (scratch, arena, node-internal) are NOT pool storage and
+    // must never be swap-transferred into a pool-owned wrapper. Only the
+    // pool's release path flips this to true.
+    bool m_storage_transferable{false};
     std::vector<Color, memory::HugePageAllocator<Color>> m_pixels;
     Color* m_external_pixels{nullptr};
 };

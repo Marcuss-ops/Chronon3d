@@ -18,13 +18,22 @@ void compute_scene_root_bboxes(
     const RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer
 ) {
+    // The registry snapshot is identical for every root node in this frame:
+    // capture it once instead of rebuilding the (sorted, shared-owned)
+    // snapshot inside the node loop.  Captured lazily so a scene with no
+    // visible/placed root nodes pays nothing (same cost envelope as the
+    // previous per-node capture).  compute_dirty_rect only reaches this
+    // helper with a live software renderer.
+    std::shared_ptr<const renderer::ProcessorRegistrySnapshot> snapshot;
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
         const auto placement = evaluate_root_source_placement(
             node, ctx, node.name, "root_bbox");
         if (!placement) continue;
         const Mat4 matrix = placement->render_matrix;
-        const auto snapshot = sw_renderer->software_registry().snapshot();
+        if (!snapshot) {
+            snapshot = sw_renderer->software_registry().snapshot();
+        }
         const auto processor = snapshot->shape_shared(
             snapshot->shape_handle(node.shape.type()));
         if (!processor) continue;

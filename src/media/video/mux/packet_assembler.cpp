@@ -309,18 +309,26 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                     }
                 }
                 AVPacket* copy = av_packet_alloc();
-                if (!copy || av_packet_ref(copy, raw) < 0) {
-                    av_packet_free(&copy); av_packet_unref(raw); av_packet_free(&raw);
-                    result.reason = "failed to copy video packet"; return result;
+                if (!copy) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to allocate video packet copy";
+                    return result;
+                }
+                OwnedAVPacket owned(copy);
+                if (av_packet_ref(copy, raw) < 0) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to copy video packet";
+                    return result;
                 }
                 copy->pts = normalize_timestamp(copy->pts, first_video_dts, video_offset);
                 copy->dts = normalize_timestamp(copy->dts, first_video_dts, video_offset);
                 copy->stream_index = 0;
-                auto owned = std::shared_ptr<AVPacket>(copy, [](AVPacket* packet) { av_packet_free(&packet); });
-                if (!mux.submit_video(EncodedPacket{owned, video_stream->time_base,
-                                                     (copy->flags & AV_PKT_FLAG_KEY) != 0})) {
+                const bool keyframe = (copy->flags & AV_PKT_FLAG_KEY) != 0;
+                if (!mux.submit_video(EncodedPacket{std::move(owned), video_stream->time_base,
+                                                     keyframe})) {
                     av_packet_unref(raw); av_packet_free(&raw);
-                    result.reason = "failed to write video packet"; return result;
+                    result.reason = "failed to write video packet";
+                    return result;
                 }
             } else if (audio_stream && raw->stream_index == input->audio_index) {
                 if (!saw_audio) {
@@ -328,17 +336,24 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                     first_audio_dts = raw->dts != AV_NOPTS_VALUE ? raw->dts : raw->pts;
                 }
                 AVPacket* copy = av_packet_alloc();
-                if (!copy || av_packet_ref(copy, raw) < 0) {
-                    av_packet_free(&copy); av_packet_unref(raw); av_packet_free(&raw);
-                    result.reason = "failed to copy audio packet"; return result;
+                if (!copy) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to allocate audio packet copy";
+                    return result;
+                }
+                OwnedAVPacket owned(copy);
+                if (av_packet_ref(copy, raw) < 0) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to copy audio packet";
+                    return result;
                 }
                 copy->pts = normalize_timestamp(copy->pts, first_audio_dts, audio_offset);
                 copy->dts = normalize_timestamp(copy->dts, first_audio_dts, audio_offset);
                 copy->stream_index = 1;
-                auto owned = std::shared_ptr<AVPacket>(copy, [](AVPacket* packet) { av_packet_free(&packet); });
-                if (!mux.submit_audio(EncodedPacket{owned, audio_stream->time_base, false})) {
+                if (!mux.submit_audio(EncodedPacket{std::move(owned), audio_stream->time_base, false})) {
                     av_packet_unref(raw); av_packet_free(&raw);
-                    result.reason = "failed to write audio packet"; return result;
+                    result.reason = "failed to write audio packet";
+                    return result;
                 }
             }
             av_packet_unref(raw);

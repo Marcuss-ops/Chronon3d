@@ -149,6 +149,7 @@ PreparedRenderJob RenderEngine::prepare(
 
     auto impl = std::make_unique<PreparedRenderJob::Impl>();
     impl->engine = this;
+    impl->assets_root = m_impl->m_runtime->resolver().mount_root().string();
     impl->compiled = std::move(compiled);
     impl->count = impl->compiled->composition
         ? impl->compiled->composition->duration()

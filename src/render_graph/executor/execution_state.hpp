@@ -68,8 +68,14 @@ struct ExecutionState {
           physical_slots(workspace.physical_slots),
           node_memory_tracker(tracker) {}
 
-    explicit ExecutionState(std::pmr::memory_resource* /*res*/ = nullptr,
-                            NodeMemoryTracker* tracker = nullptr)
+    // Standalone execution state whose vectors live in internally-owned
+    // (heap) storage.  Used by tests and isolated executions that do not
+    // reuse an ExecutionWorkspace.  The historical
+    // `std::pmr::memory_resource*` parameter was removed instead of being
+    // silently ignored: LocalStorage holds plain std::vector members, so no
+    // allocation is arena-scoped and accepting an arena here would mislead
+    // callers.
+    explicit ExecutionState(NodeMemoryTracker* tracker = nullptr)
         : owned_storage(std::make_unique<LocalStorage>()),
           temp(owned_storage->temp),
           resolved_key_digest(owned_storage->resolved_key_digest),

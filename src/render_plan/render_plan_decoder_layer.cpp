@@ -23,7 +23,13 @@ std::optional<Frame> optional_frame(const nlohmann::json& object, const char* ke
 
 AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     AnimationTrackPlan track;
-    track.property = value.at("property").get<std::string>();
+    // 'property' is optional: text-selector bounds (start/end/offset/amount)
+    // carry it for backward compatibility but never use it semantically, so a
+    // selector track without a property is valid.  Layer-animation and text-
+    // animator property tracks require it at the schema level; a missing one
+    // surfaces as "unsupported property" during compilation instead of a
+    // confusing decode failure.
+    track.property = value.value("property", std::string{});
     track.easing = value.value("easing", std::string{"linear"});
     for (const auto& key_value : value.at("keyframes")) {
         AnimationKeyframePlan key;

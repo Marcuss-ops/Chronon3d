@@ -15,26 +15,18 @@
 
 namespace chronon3d::graph::detail {
 
-raster::BBox compute_layer_bbox(
+namespace {
+
+/// Per-visible-node world-bbox union for a resolved layer.  Requires the
+/// pre-loop guards (layer kind, placement visibility, renderer/snapshot
+/// availability) to have already run — see the two public entry points.
+raster::BBox compute_layer_node_union_bbox(
     const LayerGraphItem& item,
     const RenderGraphContext& ctx,
-    SoftwareRenderer* renderer)
+    const renderer::ProcessorRegistrySnapshot& snapshot)
 {
     const Layer& layer = *item.layer;
-
-    if (layer.kind == LayerKind::Adjustment || layer.kind != LayerKind::Normal) {
-        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
-    }
-
     const auto placement = evaluate_layer_placement(item, ctx);
-    if (!placement.visible) {
-        return raster::BBox{0, 0, 0, 0};
-    }
-
-    if (!renderer) {
-        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
-    }
-
     const Mat4 ssaa_scale = glm::scale(
         Mat4(1.0f),
         Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
@@ -87,9 +79,8 @@ raster::BBox compute_layer_bbox(
             matrix = ssaa_scale * actual_world_matrix;
         }
 
-        const auto snapshot = renderer->software_registry().snapshot();
-        const auto processor = snapshot->shape_shared(
-            snapshot->shape_handle(node.shape.type()));
+        const auto processor = snapshot.shape_shared(
+            snapshot.shape_handle(node.shape.type()));
         if (!processor) {
             return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
         }
@@ -120,6 +111,54 @@ raster::BBox compute_layer_bbox(
     }
 
     return layer_bbox;
+}
+
+} // namespace
+
+raster::BBox compute_layer_bbox(
+    const LayerGraphItem& item,
+    const RenderGraphContext& ctx,
+    SoftwareRenderer* renderer)
+{
+    const Layer& layer = *item.layer;
+
+    if (layer.kind == LayerKind::Adjustment || layer.kind != LayerKind::Normal) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
+    const auto placement = evaluate_layer_placement(item, ctx);
+    if (!placement.visible) {
+        return raster::BBox{0, 0, 0, 0};
+    }
+
+    if (!renderer) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
+    // One snapshot per layer (previously one per visible node).  Registry
+    // content cannot change while this layer is being analyzed, so a single
+    // capture keeps processor dispatch consistent for every node in the layer.
+    const auto snapshot = renderer->software_registry().snapshot();
+    return compute_layer_node_union_bbox(item, ctx, *snapshot);
+}
+
+raster::BBox compute_layer_bbox(
+    const LayerGraphItem& item,
+    const RenderGraphContext& ctx,
+    const renderer::ProcessorRegistrySnapshot& processor_snapshot)
+{
+    const Layer& layer = *item.layer;
+
+    if (layer.kind == LayerKind::Adjustment || layer.kind != LayerKind::Normal) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
+    const auto placement = evaluate_layer_placement(item, ctx);
+    if (!placement.visible) {
+        return raster::BBox{0, 0, 0, 0};
+    }
+
+    return compute_layer_node_union_bbox(item, ctx, processor_snapshot);
 }
 
 } // namespace chronon3d::graph::detail
