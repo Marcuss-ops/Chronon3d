@@ -1,6 +1,7 @@
 add_library(chronon3d_compiler OBJECT
     compiler.cpp
     compiler_graph.cpp
+    compiler_pass_pipeline.cpp
     program_sampler.cpp
     compiled_program.cpp
     compiled_program_validator.cpp
@@ -22,7 +23,6 @@ add_library(chronon3d_compiler OBJECT
     ../render_graph/builder/graph_builder_bbox.cpp
     ../render_graph/builder/graph_builder_matte.cpp
     ../render_graph/builder/graph_builder_layer_pipeline.cpp
-    ../render_graph/builder/graph_build_pipeline.cpp
     ../render_graph/builder/passes/graph_builder_layer_passes.cpp
     ../render_graph/builder/passes/graph_builder_lighting_passes.cpp
     ../render_graph/builder/passes/graph_builder_source_pass.cpp
