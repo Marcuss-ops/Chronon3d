@@ -118,6 +118,78 @@ public:
     [[nodiscard]] FrameQueue& evaluated_queue() noexcept { return *evaluated_queue_; }
     [[nodiscard]] FrameQueue& rendered_queue() noexcept { return *rendered_queue_; }
 
+    // Canonical frame-pipeline ownership. PreparedRenderJob coordinates these
+    // transitions but does not own a second lease/queue implementation.
+    [[nodiscard]] FrameSlotPayload& payload(const FrameExecutionSlot& slot) noexcept {
+        return slots_->payload(slot.slot_id);
+    }
+    [[nodiscard]] FrameExecutionSlot* acquire_for_evaluation() noexcept {
+        return slots_->try_acquire(FrameSlotState::Evaluating);
+    }
+    [[nodiscard]] bool publish_evaluated(FrameExecutionSlot& slot) noexcept {
+        if (!slots_->transition(slot, FrameSlotState::Evaluating,
+                                FrameSlotState::Evaluated)) {
+            return false;
+        }
+        if (!evaluated_queue_->try_push(slot.slot_id)) {
+            slots_->set_state(slot, FrameSlotState::Evaluating);
+            return false;
+        }
+        return true;
+    }
+    [[nodiscard]] FrameExecutionSlot* acquire_for_render() noexcept {
+        FrameSlotId slot_id = 0;
+        return evaluated_queue_->try_pop(slot_id) ? &slots_->slot(slot_id) : nullptr;
+    }
+    [[nodiscard]] bool publish_rendered(FrameExecutionSlot& slot) noexcept {
+        if (!slots_->transition(slot, FrameSlotState::Evaluated,
+                                FrameSlotState::Rendered)) {
+            return false;
+        }
+        if (!rendered_queue_->try_push(slot.slot_id)) {
+            slots_->set_state(slot, FrameSlotState::Evaluated);
+            return false;
+        }
+        return true;
+    }
+    [[nodiscard]] FrameExecutionSlot* acquire_for_encoding() noexcept {
+        FrameSlotId slot_id = 0;
+        return rendered_queue_->try_pop(slot_id) ? &slots_->slot(slot_id) : nullptr;
+    }
+    [[nodiscard]] bool begin_encoding(FrameExecutionSlot& slot) noexcept {
+        return slots_->transition(slot, FrameSlotState::Rendered,
+                                  FrameSlotState::Encoding);
+    }
+    void release_slot(FrameExecutionSlot& slot) noexcept {
+        gpu_completion_->recycle(slot.slot_id);
+        slot.native_surface_ptr = 0;
+        slot.gpu_ready_sync = 0;
+        slots_->release(slot);
+    }
+    [[nodiscard]] bool release_encoded(FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) != FrameSlotState::Encoding) {
+            return false;
+        }
+        release_slot(slot);
+        return true;
+    }
+    [[nodiscard]] bool abort(FrameExecutionSlot& slot) noexcept {
+        if (slot.state.load(std::memory_order_acquire) == FrameSlotState::Free) {
+            return false;
+        }
+        release_slot(slot);
+        return true;
+    }
+    [[nodiscard]] std::size_t rendered_depth() const noexcept {
+        return rendered_queue_->size();
+    }
+    void reset_slots() noexcept {
+        evaluated_queue_->clear();
+        rendered_queue_->clear();
+        gpu_completion_->reset();
+        slots_->reset();
+    }
+
     void reset_temporal_history() noexcept {
         frame_history = FrameHistorySlot{};
         dirty_telemetry.previous_layers.clear();

@@ -9,7 +9,7 @@
 // Every rendering entry point (GraphExecutor::execute, tile path,
 // PrecompNode::execute, future checksum harnesses) either receives an
 // `ExecutionScheduler&` parameter or reads it from
-// `ctx.services.scheduler`.
+// `ctx.scheduler`.
 //
 // Concurrency contract:
 //   * Sequential   → arena(1)  → caps nested tbb::parallel_for

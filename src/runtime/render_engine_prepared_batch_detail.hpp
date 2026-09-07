@@ -51,27 +51,27 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
             {
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
-                    return failed || (slot = m_impl->acquire_for_evaluation()) != nullptr;
+                    return failed || (slot = m_impl->job_session->acquire_for_evaluation()) != nullptr;
                 });
                 if (failed) break;
             }
             slot->frame_index = frame.integral();
-            auto& payload = m_impl->payload(*slot);
+            auto& payload = m_impl->job_session->payload(*slot);
             payload.reset();
             try {
                 if (split_evaluation) {
                     payload.evaluated.emplace(
                         m_impl->evaluate_frame(frame, payload.arena));
                 }
-                if (!m_impl->publish_evaluated(*slot)) {
+                if (!m_impl->job_session->publish_evaluated(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
                 }
             } catch (const std::exception& exception) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(frame, std::string{"PreparedRenderJob evaluation failed: "} + exception.what());
                 break;
             } catch (...) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(frame, "PreparedRenderJob evaluation failed with an unknown exception");
                 break;
             }
@@ -91,7 +91,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
                     if (slot) return true;
-                    if ((slot = m_impl->acquire_for_render()) != nullptr) return true;
+                    if ((slot = m_impl->job_session->acquire_for_render()) != nullptr) return true;
                     return failed || evaluation_done;
                 });
                 if (!slot) {
@@ -107,7 +107,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     continue;
                 }
             }
-            auto& payload = m_impl->payload(*slot);
+            auto& payload = m_impl->job_session->payload(*slot);
             const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
             try {
                 std::shared_ptr<Framebuffer> output;
@@ -125,18 +125,18 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                 }
                 payload.rendered = std::move(output);
                 ++frames_rendered;
-                if (!m_impl->publish_rendered(*slot)) {
+                if (!m_impl->job_session->publish_rendered(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish rendered frame");
                 }
-                if (m_impl->rendered_depth() > max_queue_depth) {
-                    max_queue_depth = m_impl->rendered_depth();
+                if (m_impl->job_session->rendered_depth() > max_queue_depth) {
+                    max_queue_depth = m_impl->job_session->rendered_depth();
                 }
             } catch (const std::exception& exception) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(slot_frame, std::string{"PreparedRenderJob render failed: "} + exception.what());
                 return;
             } catch (...) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(slot_frame, "PreparedRenderJob render failed with an unknown exception");
                 return;
             }
@@ -151,7 +151,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                 std::unique_lock lock(wait_mutex);
                 stage_changed.wait(lock, [&] {
                     if (slot) return true;
-                    if ((slot = m_impl->acquire_for_encoding()) != nullptr) return true;
+                    if ((slot = m_impl->job_session->acquire_for_encoding()) != nullptr) return true;
                     return failed || render_done;
                 });
                 if (!slot) {
@@ -159,31 +159,31 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     continue;
                 }
             }
-            auto& payload = m_impl->payload(*slot);
+            auto& payload = m_impl->job_session->payload(*slot);
             const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
 
             try {
-                if (!m_impl->begin_encoding(*slot)) {
+                if (!m_impl->job_session->begin_encoding(*slot)) {
                     throw std::runtime_error(
                         "PreparedRenderJob failed to begin encoding frame");
                 }
                 if (!payload.rendered ||
                     !encoder(slot_frame, *payload.rendered)) {
-                    (void)m_impl->abort(*slot);
+                    (void)m_impl->job_session->abort(*slot);
                     fail(slot_frame, "PreparedRenderJob encoder rejected frame");
                     return;
                 }
             } catch (const std::exception& exception) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(slot_frame, std::string{"PreparedRenderJob encoder threw: "} + exception.what());
                 return;
             } catch (...) {
-                (void)m_impl->abort(*slot);
+                (void)m_impl->job_session->abort(*slot);
                 fail(slot_frame, "PreparedRenderJob encoder threw an unknown exception");
                 return;
             }
             payload.rendered.reset();
-            (void)m_impl->release_encoded(*slot);
+            (void)m_impl->job_session->release_encoded(*slot);
             ++frames_encoded;
             stage_changed.notify_all();
         }
@@ -195,7 +195,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
 
     // A failed stage may leave slot ids queued. Reset only after every worker
     // has joined so the fixed pool can be reused deterministically.
-    m_impl->reset_slots();
+    m_impl->job_session->reset_slots();
 
     PreparedRenderBatchResult result;
     result.frames_rendered = frames_rendered;

@@ -5,14 +5,12 @@
 namespace chronon3d::runtime {
 
 FrameExecution::FrameExecution(JobSession& job, Frame frame, SampleTime time,
-                               FrameExecutionSlot* slot,
-                               FrameSlotPayload* payload) noexcept
+                               FrameExecutionSlot& slot,
+                               FrameSlotPayload& payload) noexcept
     : job_(job), frame_(frame), time_(time), slot_(slot), payload_(payload) {
     job_.reset_frame_counters();
     ++job_.counters().frames_started;
-    if (slot_) {
-        slot_->frame_index = static_cast<std::uint64_t>(frame_.integral());
-    }
+    slot_.frame_index = static_cast<std::uint64_t>(frame_.integral());
 }
 
 FrameExecution::~FrameExecution() {

@@ -27,8 +27,8 @@ namespace chronon3d::graph::detail {
 //   * ctx.frame_input.light_context, camera_2_5d, has_camera_2_5d, projection_ctx
 //   * ctx.policy.debug_config  (when an actual SoftwareRenderer is wired)
 //   * ctx.node_exec.buffer_ring (typed software framebuffer-reuse resource)
-//   * ctx.services.compiled_graph_cache / node_catalog / effect_catalog
-//   * ctx.services.scheduler / session
+//   * ctx.compiled_graph_cache / ctx.services.node_catalog / effect_catalog
+//   * ctx.scheduler / ctx.session
 //
 // `sw_sidecar` is the optional SoftwareRenderer pointer propagated by upstream
 // orchestrators (render_composition_frame, SoftwareRenderer::render, etc.).

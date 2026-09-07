@@ -103,6 +103,18 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
     return m_impl->m_pipeline->render_compiled_composition(compiled, frame);
 }
 
+std::shared_ptr<Framebuffer> RenderEngine::render_program(
+    const compiler::CompiledProgram& program, Frame frame)
+{
+    // Mirror render_compiled()'s per-frame configuration so both
+    // equivalence-gate seams start from identical renderer settings.
+    auto settings = m_impl->m_renderer->render_settings();
+    settings.render_budget = program.metadata().render_budget;
+    m_impl->m_renderer->set_settings(settings);
+    m_impl->m_renderer->session().clear_last_frame_error();
+    return m_impl->m_pipeline->render_program(program, frame);
+}
+
 PreparedRenderJob RenderEngine::prepare(
     const Composition& comp,
     const PreparedRenderJobOptions& options) {

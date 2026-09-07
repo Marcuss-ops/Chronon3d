@@ -25,8 +25,4 @@ const ProgramFingerprint& CompiledProgram::fingerprint_data() const noexcept { r
 
 const render_plan::PreparedRenderPlan& CompiledProgram::prepared_plan() const noexcept { return *prepared_plan_; }
 const CompiledComposition& CompiledProgram::compiled_composition() const noexcept { return prepared_plan_->compiled_composition; }
-const render_plan::CanvasSpec& CompiledProgram::canvas() const noexcept { return prepared_plan_->canvas; }
-const render_plan::OutputSpec& CompiledProgram::output() const noexcept { return prepared_plan_->output; }
-const std::string& CompiledProgram::job_id() const noexcept { return prepared_plan_->job_id; }
-
 }  // namespace chronon3d::compiler

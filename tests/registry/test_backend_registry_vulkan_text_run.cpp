@@ -107,12 +107,10 @@ TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via V
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     TextRenderResources text_resources;
-    runtime::GpuStyledGlyphCache gpu_cache;
     RenderGraphContext ctx;
     ctx.services.backend = &backend;
     ctx.services.surface_registry = &surfaces;
     ctx.services.text_render_resources = &text_resources;
-    ctx.services.gpu_text_atlas_cache = &gpu_cache;
 
     // Pre-populate glyph atlas with an unstyled glyph entry
     auto glyph_img = std::make_shared<BLImage>(4, 4, BL_FORMAT_PRGB32);

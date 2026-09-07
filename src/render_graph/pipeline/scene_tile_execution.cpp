@@ -76,8 +76,8 @@ namespace chronon3d::graph::detail {
         throw std::logic_error(
             "tile execution requires the RuntimeContext-owned GraphExecutor");
     }
-    auto& tile_scheduler = ctx.services.scheduler
-        ? *ctx.services.scheduler
+    auto& tile_scheduler = ctx.scheduler
+        ? *ctx.scheduler
         : sw_renderer->scheduler();
     tile_fb = sw_renderer->runtime().executor().execute(
         compiled, tile_ctx, tile_scope,
@@ -129,9 +129,9 @@ TileExecutionResult execute_dirty_tiles(
     // of the raw tbb parallel_for.  The scheduler handles Sequential/TbbFixed/
     // TbbAutomatic modes internally.  When scheduler is null (test paths
     // without a wired scheduler), fall back to sequential execution.
-    if (ctx.services.scheduler && parallel && coalesced_count > 1) {
+    if (ctx.scheduler && parallel && coalesced_count > 1) {
         std::vector<uint64_t> per_region(regions.size(), 0);
-        ctx.services.scheduler->for_each_index(
+        ctx.scheduler->for_each_index(
             regions.size(), [&](std::size_t i) {
                 if (regions[i].is_empty()) return;
                 auto region_result = execute_single_dirty_region(

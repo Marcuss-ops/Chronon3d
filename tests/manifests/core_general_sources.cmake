@@ -106,5 +106,6 @@ set(CORE_TEST_SOURCES
     runtime/test_gpu_asset_cache_content_addressed.cpp
     runtime/test_prepared_render_job.cpp
     runtime/test_prepared_render_job_allocations.cpp
+    runtime/test_compiled_program_execution_equivalence.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
 )

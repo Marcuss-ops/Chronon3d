@@ -96,12 +96,13 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
-    const auto& canvas = program.canvas();
+    const auto& metadata = program.metadata();
+    const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     const auto context = make_frame_context({
-        .global_time = SampleTime::from_frame_int(frame, canvas.fps),
-        .duration = canvas.duration,
-        .width = canvas.width,
-        .height = canvas.height,
+        .global_time = SampleTime::from_frame_int(frame, canvas_fps),
+        .duration = Frame{metadata.duration_frames},
+        .width = static_cast<i32>(metadata.width),
+        .height = static_cast<i32>(metadata.height),
         .assets_root = m_runtime.resolver().mount_root().string(),
         .font_engine = &m_runtime.font_engine(),
         .runtime = &m_runtime,
@@ -122,10 +123,10 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     }
     return chronon3d::graph::render_scene_via_graph(
         m_runtime.backend(), m_runtime.node_cache(), *scene, Camera{},
-        canvas.width, canvas.height, frame, 0.0f,
+        static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         m_renderer->render_settings(), m_renderer->composition_registry(),
-        m_renderer->video_decoder(), static_cast<float>(canvas.fps.fps()),
-        program.job_id(), m_renderer);
+        m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),
+        metadata.job_id, m_renderer);
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(

@@ -78,26 +78,26 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
     if (!m_impl || m_impl->finished || !m_impl->engine || !m_impl->compiled) {
         throw std::runtime_error("PreparedRenderJob is no longer executable");
     }
-    auto* evaluated = m_impl->acquire_for_evaluation();
+    auto* evaluated = m_impl->job_session->acquire_for_evaluation();
     if (!evaluated) {
         throw std::runtime_error("PreparedRenderJob pipeline has no free frame slot");
     }
     evaluated->frame_index = frame.integral();
-    auto& evaluated_payload = m_impl->payload(*evaluated);
+    auto& evaluated_payload = m_impl->job_session->payload(*evaluated);
     const auto frame_time = SampleTime::from_frame_int(
         frame, m_impl->compiled->composition
             ? m_impl->compiled->composition->frame_rate() : FrameRate{});
     runtime::FrameExecution frame_execution(
-        *m_impl->job_session, frame, frame_time, evaluated, &evaluated_payload);
+        *m_impl->job_session, frame, frame_time, *evaluated, evaluated_payload);
     evaluated_payload.reset();
-    if (!m_impl->publish_evaluated(*evaluated)) {
-        (void)m_impl->abort(*evaluated);
+    if (!m_impl->job_session->publish_evaluated(*evaluated)) {
+        (void)m_impl->job_session->abort(*evaluated);
         throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
     }
 
-    auto* render_slot = m_impl->acquire_for_render();
+    auto* render_slot = m_impl->job_session->acquire_for_render();
     if (!render_slot) {
-        (void)m_impl->abort(*evaluated);
+        (void)m_impl->job_session->abort(*evaluated);
         throw std::runtime_error("PreparedRenderJob failed to acquire render slot");
     }
     try {
@@ -116,16 +116,16 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
             // compositor until their evaluated-frame boundaries are split.
             output = m_impl->engine->render_compiled(*m_impl->compiled, frame);
         }
-        if (!m_impl->publish_rendered(*render_slot)) {
-            (void)m_impl->abort(*render_slot);
+        if (!m_impl->job_session->publish_rendered(*render_slot)) {
+            (void)m_impl->job_session->abort(*render_slot);
             throw std::runtime_error("PreparedRenderJob failed to publish rendered frame");
         }
-        auto* encode_slot = m_impl->acquire_for_encoding();
+        auto* encode_slot = m_impl->job_session->acquire_for_encoding();
         if (!encode_slot || encode_slot != render_slot ||
-            !m_impl->begin_encoding(*encode_slot) ||
-            !m_impl->release_encoded(*encode_slot)) {
+            !m_impl->job_session->begin_encoding(*encode_slot) ||
+            !m_impl->job_session->release_encoded(*encode_slot)) {
             if (encode_slot && encode_slot->state.load(std::memory_order_acquire) != runtime::FrameSlotState::Free) {
-                (void)m_impl->abort(*encode_slot);
+                (void)m_impl->job_session->abort(*encode_slot);
             }
             throw std::runtime_error("PreparedRenderJob failed to release encoded frame slot");
         }
@@ -133,7 +133,7 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
     } catch (...) {
         frame_execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) != runtime::FrameSlotState::Free) {
-            (void)m_impl->abort(*render_slot);
+            (void)m_impl->job_session->abort(*render_slot);
         }
         throw;
     }
