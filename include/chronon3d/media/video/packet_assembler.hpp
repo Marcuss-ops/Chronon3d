@@ -16,6 +16,19 @@ namespace chronon3d::media {
 
 struct MuxAvioHashWriter;
 
+/// FFmpeg AVPacket ownership.  Encoded packets handed to MuxSession are
+/// consumed synchronously inside submit_video/submit_audio (the mux never
+/// retains the pointer past the call), so a move-only owner matches the
+/// real protocol: no shared_ptr control block, no per-packet ref-count
+/// traffic, and producers can av_packet_move_ref() straight out of their
+/// receive buffer instead of clone+ref.
+struct AVPacketDeleter {
+    void operator()(AVPacket* packet) const noexcept {
+        if (packet) av_packet_free(&packet);
+    }
+};
+using OwnedAVPacket = std::unique_ptr<AVPacket, AVPacketDeleter>;
+
 enum class AudioExecutionPath : std::uint8_t {
     CopyPackets,
     TrimPackets,
@@ -37,9 +50,12 @@ constexpr AudioExecutionPath resolve_audio_execution(
     return AudioExecutionPath::FullReencode;
 }
 
-/// Canonical mux boundary shared by encoded and copied packets.
+/// Canonical mux boundary shared by encoded and copied packets.  Move-only:
+/// submit_video/submit_audio take the packet by value and never retain it,
+/// so the producer transfers ownership exactly once (av_packet_move_ref or
+/// av_packet_ref into a fresh OwnedAVPacket).
 struct EncodedPacket {
-    std::shared_ptr<AVPacket> packet;
+    OwnedAVPacket packet;
     AVRational time_base{1, 1};
     bool keyframe{false};
 };

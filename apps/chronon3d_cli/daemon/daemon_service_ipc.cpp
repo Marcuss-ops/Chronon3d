@@ -3,6 +3,7 @@
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
 
@@ -24,6 +25,15 @@ RenderJobDispatcher& render_job_dispatcher() {
 WarmRenderJobDispatcher& warm_render_job_dispatcher() {
     static WarmRenderJobDispatcher dispatcher;
     return dispatcher;
+}
+
+std::mutex& DaemonService::render_execution_lock_for(runtime::DeviceId device) {
+    std::lock_guard<std::mutex> guard(m_device_locks_mutex);
+    auto& mutex_ptr = m_device_execution_locks[device];
+    if (!mutex_ptr) {
+        mutex_ptr = std::make_unique<std::mutex>();
+    }
+    return *mutex_ptr;
 }
 
 void DaemonService::run_socket(const std::string& path) {
@@ -129,6 +139,9 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
                           reserved_device, native_nvenc);
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
+            // Per-job wall anchor for the exclusive-wall timeline: startup is
+            // measured from THIS request, never from daemon boot.
+            video_execution->job_started_at = profiling::now();
             video_execution->device_id = reserved_device;
             if (const auto caps = m_device_scheduler.capability_snapshot(reserved_device)) {
                 video_execution->cuda_device_ordinal = caps->cuda_device_ordinal;
@@ -137,7 +150,18 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             video_execution->reservation = std::move(reservation);
             video_execution->video_runtimes = m_video_runtimes;
             const bool direct_yuv = canon.direct_yuv;
-            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+            // Per-device execution lock, NOT the global state mutex: holding
+            // m_ipc_state_mutex across the whole render serialized every GPU
+            // session the worker was configured with (gpu_lanes=2 never ran
+            // two jobs in parallel on one daemon). Execution is still
+            // serialized per device because the warm SoftwareRenderer and the
+            // per-device VideoDeviceRuntime (CUDA context, FFmpeg hwdevice,
+            // shared image cache) are process-wide; different devices may
+            // render concurrently. The anchor is stamped before the lock so
+            // the per-job exclusive-wall startup includes any wait for the
+            // device, which is real scheduling latency — never daemon uptime.
+            auto& execution_lock = render_execution_lock_for(reserved_device);
+            std::lock_guard<std::mutex> exec_lock(execution_lock);
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
                 warm_renderer = warm_renderer_for_device(reserved_device);

@@ -70,4 +70,4 @@ Do not advance to new compiler architecture while Stage 1 same-SHA CI is red or 
 - [`CHRONON_PLAN.md`](CHRONON_PLAN.md)
 - [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md)
 - [`EXECUTOR_OWNERSHIP.md`](EXECUTOR_OWNERSHIP.md)
-- [`WORKING_BUILD_HOST.md`](WORKING_BUILD_HOST.md)
+- WBH toolchain contract: `tools/check_wbh_toolchain.sh` + `tools/wbh_toolchain_manifest.env` (verify presence before use)

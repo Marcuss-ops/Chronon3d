@@ -17,6 +17,7 @@
 #include <spdlog/spdlog.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <thread>
@@ -96,6 +97,19 @@ struct PipeExportSession {
     runtime::DeviceId device_id{0};
 
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
+
+    /// Per-job wall anchor for exclusive-wall timing. CLI single-shot
+    /// renders anchor at process start; a persistent daemon RENDER_JOB
+    /// anchors at the request's own arrival (see
+    /// media::VideoJobExecutionContext::job_started_at). Exclusive-wall
+    /// startup/process timings are measured from this point, never from
+    /// `process_start_time()` alone, so a long-lived daemon cannot report
+    /// its uptime as per-job startup.
+    std::chrono::steady_clock::time_point job_started_at{};
+    /// True when this export runs inside a persistent daemon (an explicit
+    /// job anchor was supplied): the sidecar measurement_kind is then
+    /// "warm_process" instead of the CLI default "cold_process".
+    bool warm_process{false};
 
     runtime::RenderPreparationTimings prepare_timings;
 

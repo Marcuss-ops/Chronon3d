@@ -32,9 +32,14 @@ namespace {
     switch (error->backend_code) {
       case RenderBackendErrorCode::UnsupportedCapability:
       case RenderBackendErrorCode::InvalidInput:
+        // Missing capability or malformed input: the request is at fault,
+        // not the device.
         failure = runtime::ExecutionFailure::InvalidResource; break;
       case RenderBackendErrorCode::ExecutionFailure:
-        failure = runtime::ExecutionFailure::InvalidResource; break;
+        // Real runtime/backend fault (shaping, raster, surface/device call).
+        // Kept distinct so telemetry and retry policy never mistake an
+        // execution failure for invalid input.
+        failure = runtime::ExecutionFailure::BackendFailure; break;
     }
     std::string reason;
     if (!error->node_name.empty()) reason = error->node_name + ": ";

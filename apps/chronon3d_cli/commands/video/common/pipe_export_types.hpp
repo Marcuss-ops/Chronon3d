@@ -111,6 +111,10 @@ struct RenderLoopOutput {
 
 void run_writer_thread(const WriterThreadContext& ctx);
 
+/// F5.2 — exception-boundary target. Declared here so the boundary wrapper
+/// in pipe_export_writer.cpp can call it; definition lives in the same TU.
+void run_writer_thread_impl(const WriterThreadContext& ctx);
+
 [[nodiscard]] RenderLoopResult run_render_loop(const RenderLoopContext& ctx);
 
 /// CLI adapter over media::video::DirectYuvExecutor. PipeExportSession and

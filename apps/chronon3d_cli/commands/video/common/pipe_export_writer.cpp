@@ -34,7 +34,34 @@ private:
 // The writer owns the encoder-facing side of the queue. Keeping it separate
 // from the render loop makes the GPU-surface lifetime and fallback policy
 // auditable without mixing them with frame evaluation.
+
+// F5.2 — single exception boundary for the writer thread. An exception that
+// escapes a std::thread's callable calls std::terminate and kills the whole
+// process OUTSIDE the fail-closed finalize path (no .partial removal, no
+// structured error, meaningless exit code). The boundary must publish the
+// failure through the SAME channel the encoder error paths already use
+// (writer_failed + queue.close()) so the render loop observes it per-frame,
+// finalize refuses to publish, and the .partial artifact is removed. It must
+// NOT swallow silently: the reason is logged with the failing frame when the
+// package is identifiable.
 void run_writer_thread(const WriterThreadContext& ctx) {
+    // Arena release for the in-flight package is handled by the impl loop:
+    // every early-return inside it releases cpu_arena before propagating, so
+    // the boundary here only needs to publish failure + close the queue.
+    try {
+        run_writer_thread_impl(ctx);
+    } catch (const std::exception& e) {
+        spdlog::error("[video] writer thread exception: {}", e.what());
+        ctx.writer_failed.store(true);
+        ctx.queue.close();
+    } catch (...) {
+        spdlog::error("[video] writer thread exception: unknown");
+        ctx.writer_failed.store(true);
+        ctx.queue.close();
+    }
+}
+
+void run_writer_thread_impl(const WriterThreadContext& ctx) {
     profiling::g_current_counters = ctx.counters;
     profiling::g_current_framebuffer_pool = ctx.renderer
         ? ctx.renderer->framebuffer_pool().get() : nullptr;

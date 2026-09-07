@@ -225,8 +225,27 @@ struct SingleGlyphRun {
                         out_stroke = *override_color;
                         out_stroke.a = eff_stroke.a * g.opacity;
                     }
+                    // GlyphOutlineBuilder emits outlines in FreeType font
+                    // design units (1 unit = 1/units_per_EM of the em
+                    // square), and the glyph matrix scales those units down
+                    // to render pixels.  BLContext::setStrokeWidth operates
+                    // in the same pre-transform user space, so a stroke
+                    // width expressed in pixels must be scaled back up by
+                    // units_per_EM / font_size — otherwise a "2 px" stroke
+                    // becomes ~0.08 px (2 font units) and is invisible.
+                    // span_handle.font_size is the render-pixel font size
+                    // (pre-supersample); the scale factor is invariant to
+                    // supersampling because the glyph matrix and the
+                    // downsampling pass cancel it.
+                    double stroke_width_user = static_cast<double>(eff_stroke_w);
+                    if (span_handle.ft_face->units_per_EM > 0
+                        && span_handle.font_size > 0.0f) {
+                        stroke_width_user *=
+                            static_cast<double>(span_handle.ft_face->units_per_EM)
+                            / static_cast<double>(span_handle.font_size);
+                    }
                     ctx.setStrokeStyle(to_bl_rgba(out_stroke));
-                    ctx.setStrokeWidth(static_cast<double>(eff_stroke_w));
+                    ctx.setStrokeWidth(stroke_width_user);
                     ctx.strokePath(path);
                 }
             }

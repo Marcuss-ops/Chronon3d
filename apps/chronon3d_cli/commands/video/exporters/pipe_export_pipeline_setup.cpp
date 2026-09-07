@@ -16,6 +16,7 @@
 #endif
 
 #include <spdlog/spdlog.h>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
@@ -263,7 +264,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         spdlog::info("[direct-yuv] skipped SoftwareRenderer and RenderRuntime construction");
     } else {
         session->full_graph_session = std::make_unique<FullGraphSession>();
-        session->full_graph_session = std::make_unique<FullGraphSession>();
         Config renderer_cfg = Config::from_environment(cpu_budget);
         if (direct_yuv_requested) {
             renderer_cfg.set_backend_preference(graph::BackendPreference::Software);
@@ -290,7 +290,18 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->full_graph_session->surface_backend = &sw_renderer->backend();
         session->full_graph_session->surface_registry = &sw_renderer->runtime().surface_registry();
     }
-    session->startup_ms = profiling::duration_ms(process_start_time(), renderer_t1);
+    // Exclusive-wall startup is anchored to THIS job, never to the process:
+    // in a persistent daemon `process_start_time()` is daemon boot, which
+    // made every IPC job report "startup ≈ daemon uptime" (values that even
+    // exceeded the whole job wall). CLI single-shot renders carry no job
+    // anchor and keep the process-start semantics unchanged.
+    const bool has_job_anchor = execution &&
+        execution->job_started_at != std::chrono::steady_clock::time_point{};
+    session->warm_process = has_job_anchor;
+    session->job_started_at =
+        has_job_anchor ? execution->job_started_at : process_start_time();
+    session->startup_ms =
+        profiling::duration_ms(session->job_started_at, renderer_t1);
     session->startup_breakdown.renderer_runtime_init_ms = session->engine_init_ms;
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (session->full_graph_session && session->full_graph_session->renderer) {

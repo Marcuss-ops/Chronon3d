@@ -1,13 +1,21 @@
 // File/video rendering adapter. Included by sdk_render_engine.cpp because
 // RenderEngine::Impl is intentionally private to the SDK bridge TU.
+//
+// Locking model: the engine state (settings, prepared job, pixel buffers) is
+// only touched while state_mutex is held.  The *whole job* does NOT hold the
+// mutex: each frame locks, renders and converts, then releases so that
+// host callbacks (progress / cancellation) run with no engine lock held and a
+// long file render never blocks unrelated operations (settings mutation,
+// other frames, another render) for its entire duration.
 RenderEngine::render_to_file(const RenderFileRequest& request,
                              const RenderCallbacks& callbacks) {
-    std::lock_guard lock(m_impl->state_mutex);
-
     const auto reject = [&](RenderError error)
         -> chronon3d::Result<RenderReport, RenderError> {
         if (error.component.empty()) error.component = "render_job";
-        m_impl->log(LogLevel::Error, error.component, error.message);
+        {
+            std::lock_guard lock(m_impl->state_mutex);
+            m_impl->log(LogLevel::Error, error.component, error.message);
+        }
         return error;
     };
 
@@ -22,10 +30,6 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     if (!request.video.overwrite && std::filesystem::exists(request.output_path)) {
         return reject(RenderError{RenderErrorCode::InvalidSettings,
                                    "output already exists and overwrite is disabled"});
-    }
-    if (m_impl->settings.width <= 0 || m_impl->settings.height <= 0) {
-        return reject(RenderError{RenderErrorCode::InvalidSettings,
-                                   "RenderSettings width and height must be positive"});
     }
 
     const auto start = request.start_frame.integral();
@@ -42,21 +46,36 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
                                    "render job frame limit exceeded",
                                    "render_job"});
     }
+
+    // Snapshot the engine settings used for the whole job under the lock.
+    // A concurrent set_settings() after this point only affects subsequent
+    // frames of other jobs; this job keeps a stable canvas.
+    const int width = [&] {
+        std::lock_guard lock(m_impl->state_mutex);
+        return m_impl->settings.width;
+    }();
+    const int height = [&] {
+        std::lock_guard lock(m_impl->state_mutex);
+        return m_impl->settings.height;
+    }();
+    if (width <= 0 || height <= 0) {
+        return reject(RenderError{RenderErrorCode::InvalidSettings,
+                                   "RenderSettings width and height must be positive"});
+    }
     if (request.limits.max_width != 0 &&
-        static_cast<std::uint64_t>(m_impl->settings.width) > request.limits.max_width) {
+        static_cast<std::uint64_t>(width) > request.limits.max_width) {
         return reject(RenderError{RenderErrorCode::BudgetExceeded,
                                    "render job width limit exceeded",
                                    "render_job"});
     }
     if (request.limits.max_height != 0 &&
-        static_cast<std::uint64_t>(m_impl->settings.height) > request.limits.max_height) {
+        static_cast<std::uint64_t>(height) > request.limits.max_height) {
         return reject(RenderError{RenderErrorCode::BudgetExceeded,
                                    "render job height limit exceeded",
                                    "render_job"});
     }
-    const auto width = static_cast<std::uint64_t>(m_impl->settings.width);
-    const auto height = static_cast<std::uint64_t>(m_impl->settings.height);
-    if (width != 0 && height > std::numeric_limits<std::uint64_t>::max() / width / 16) {
+    if (width != 0 && static_cast<std::uint64_t>(height) >
+            std::numeric_limits<std::uint64_t>::max() / static_cast<std::uint64_t>(width) / 16) {
         return reject(RenderError{RenderErrorCode::OutOfMemory,
                                    "render job memory estimate overflow",
                                    "memory"});
@@ -73,8 +92,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 #if CHRONON3D_ENABLE_VIDEO
     using namespace chronon3d::media::video;
     VideoSinkConfig config;
-    config.stream.width = m_impl->settings.width;
-    config.stream.height = m_impl->settings.height;
+    config.stream.width = static_cast<std::uint32_t>(width);
+    config.stream.height = static_cast<std::uint32_t>(height);
     config.stream.frame_rate_num = request.frame_rate.numerator;
     config.stream.frame_rate_den = request.frame_rate.denominator;
     config.stream.submitted_format = media::video::PixelFormat::RGBA8;
@@ -104,12 +123,17 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     const auto started = std::chrono::steady_clock::now();
     const auto total_frames = ((end - start) / step) + 1;
 
+    // fail() is invoked from inside the frame loop where the engine lock is
+    // NOT held, so it takes the lock only to emit the diagnostic log line.
     auto fail = [&](RenderError error) -> chronon3d::Result<RenderReport, RenderError> {
         sink->close();
         std::error_code cleanup_error;
         std::filesystem::remove(temp_path, cleanup_error);
         if (error.component.empty()) error.component = "render_job";
-        m_impl->log(LogLevel::Error, error.component, error.message);
+        {
+            std::lock_guard lock(m_impl->state_mutex);
+            m_impl->log(LogLevel::Error, error.component, error.message);
+        }
         return error;
     };
 
@@ -131,31 +155,43 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         active_compiled = &*local_compiled;
     }
 
+    // Reused RGBA8 staging buffer: allocated once, resized only when the
+    // canvas grows, never re-allocated per frame.
     std::vector<std::uint8_t> pixels;
     std::uint64_t rendered = 0;
 
     for (std::int64_t frame = start; frame <= end; frame += step) {
+        // Host cancellation/progress callbacks run with NO engine lock held:
+        // a callback may legally call set_settings()/render() on this engine.
         if (callbacks.is_cancelled && callbacks.is_cancelled()) {
             return fail(RenderError{RenderErrorCode::Cancelled,
                                     "render cancelled by callback"});
         }
 
-        auto settings = convert_settings(m_impl->settings);
-        settings.render_budget = active_compiled->render_budget;
-        m_impl->prepared_job.reset();
-        m_impl->prepared_composition = nullptr;
-        m_impl->engine.set_settings(settings);
-        auto framebuffer = m_impl->engine.render_compiled(
-            *active_compiled, chronon3d::Frame{frame});
-        if (const auto error = m_impl->engine.last_render_error()) {
-            return fail(runtime_error(error->message.empty()
-                ? "internal render graph reported a frame error" : error->message));
-        }
-        if (!framebuffer) {
-            return fail(runtime_error("internal renderer returned a null framebuffer"));
+        std::shared_ptr<chronon3d::Framebuffer> framebuffer;
+        {
+            // One frame's engine work: settings + prepared-job reset + graph
+            // execution + RGBA8 conversion are all engine state and stay
+            // inside the lock.  The lock is released before any host callback
+            // and before the (local, blocking) encoder submit.
+            std::lock_guard frame_lock(m_impl->state_mutex);
+            auto settings = convert_settings(m_impl->settings);
+            settings.render_budget = active_compiled->render_budget;
+            m_impl->prepared_job.reset();
+            m_impl->prepared_composition = nullptr;
+            m_impl->engine.set_settings(settings);
+            framebuffer = m_impl->engine.render_compiled(
+                *active_compiled, chronon3d::Frame{frame});
+            if (const auto error = m_impl->engine.last_render_error()) {
+                return fail(runtime_error(error->message.empty()
+                    ? "internal render graph reported a frame error" : error->message));
+            }
+            if (!framebuffer) {
+                return fail(runtime_error("internal renderer returned a null framebuffer"));
+            }
+            framebuffer_to_rgba8(*framebuffer, pixels);
         }
 
-        framebuffer_to_rgba8(*framebuffer, pixels);
         VideoFrameView view;
         view.data = pixels.data();
         view.stride_bytes = static_cast<std::size_t>(config.stream.width) * 4;

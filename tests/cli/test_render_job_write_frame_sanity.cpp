@@ -4,11 +4,14 @@
 //
 // TICKET-RENDER-PIPELINE-INTEGRITY — layer 1 unit test.
 //
-// Locks the new pre-write sanity contract:
-//   * `scan_framebuffer_sanity` rejects a framebuffer whose sampled
-//     alpha-zero fraction exceeds the threshold (CODE-REVIEW M2 fix
-//     raised it from 0.60 to 0.85 so legitimate minimalist fade-in
-//     animations are not falsely flagged as empty).
+// Locks the pre-write sanity contract:
+//   * `scan_framebuffer_sanity` accepts a fully transparent framebuffer:
+//     a transparent canvas is a valid result for overlay renders (glyphs
+//     leave the surrounding pixels empty), so alpha-zero is diagnostic
+//     only — see the design note in render_job_write_frame_sanity.hpp.
+//     The historical M2 alpha-zero rejection (threshold raised 0.60 →
+//     0.85) was removed in favour of NaN/Inf-only rejection; the constant
+//     is still locked below to keep that history explicit.
 //   * `scan_framebuffer_sanity` rejects a framebuffer whose sampled
 //     NaN/Inf fraction exceeds the (unchanged) 0.05 threshold.
 //   * A clean framebuffer (solid color) is accepted.
@@ -82,14 +85,17 @@ TEST_CASE("render_job_write_frame::sanity: clean solid-color framebuffer is acce
     CHECK(r.first_bad_y       == -1);
 }
 
-TEST_CASE("render_job_write_frame::sanity: fully transparent framebuffer is rejected (alpha-zero > 0.85)") {
-    // All pixels alpha=0.0.  Sampled: 100% alpha-zero > 0.85 threshold.
-    // Reject.
+TEST_CASE("render_job_write_frame::sanity: fully transparent framebuffer is accepted (overlay semantics)") {
+    // All pixels alpha=0.0 → 100% alpha-zero, well above the historical
+    // 0.85 threshold — yet the frame is ACCEPTED because transparent
+    // canvases are legitimate for overlay renders (the design note in
+    // render_job_write_frame_sanity.hpp makes alpha-zero diagnostic
+    // only).  NaN/Inf is the sole hard reject.
     auto fb = solid_framebuffer(Color::transparent());
 
     const auto r = scan_framebuffer_sanity(fb);
 
-    CHECK_FALSE(r.ok);
+    CHECK(r.ok);
     CHECK(r.sampled_pixels    > 0);
     CHECK(r.alpha_zero_pixels == r.sampled_pixels);   // 100% alpha-zero
     CHECK(r.nan_or_inf_pixels == 0);

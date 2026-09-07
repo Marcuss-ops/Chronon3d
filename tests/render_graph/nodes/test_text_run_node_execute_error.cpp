@@ -309,7 +309,11 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     // P0-1 — seed the frame_error slot so the node can surface the
     // backend failure.  Without this, the node's ctx.frame_error is
     // null (no-op), and the test only validates the spdlog diagnostic.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
+    // non-owning pointer to frame-scoped storage (the executor owns the
+    // optional); mirror that contract here.
+    std::optional<NodeExecutionError> frame_error_storage;
+    ctx.frame_error = &frame_error_storage;
     REQUIRE_NOTHROW(auto _fb = node.execute(ctx, empty_inputs, empty_bboxes));
 
     // Locked invariant: the dispatch reached the backend exactly once.
@@ -365,7 +369,11 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
 
     // P0-1 — seed frame_error slot so the node can surface the failure.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
+    // non-owning pointer to frame-scoped storage (the executor owns the
+    // optional); mirror that contract here.
+    std::optional<NodeExecutionError> frame_error_storage;
+    ctx.frame_error = &frame_error_storage;
 
     // First call → diagnostic fires.
     {
@@ -426,7 +434,11 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
 
     // P0-1 — seed frame_error slot.
-    ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
+    // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
+    // non-owning pointer to frame-scoped storage (the executor owns the
+    // optional); mirror that contract here.
+    std::optional<NodeExecutionError> frame_error_storage;
+    ctx.frame_error = &frame_error_storage;
 
     {
         REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
