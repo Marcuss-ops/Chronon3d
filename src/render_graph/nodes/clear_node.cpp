@@ -7,7 +7,7 @@
 
 #include <chronon3d/render_graph/nodes/clear_node.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
@@ -47,10 +47,10 @@ NodeExecResult ClearNode::execute(
     }
 
     auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);
-    auto* sw_renderer = static_cast<SoftwareRenderer*>(ctx.services.sw_renderer_sidecar);
+    auto* buffer_ring = ctx.node_exec.buffer_ring;
     bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer &&
-        ctx.node_exec.ping_write.fb && sw_renderer &&
-        sw_renderer->buffer_ring().prev_framebuffer();
+        ctx.node_exec.ping_write.fb && buffer_ring &&
+        buffer_ring->prev_framebuffer();
     const bool skip_clear = ctx.policy.skip_initial_clear ||
         (use_dirty_rects && ctx.node_exec.clip_rect && ctx.node_exec.clip_rect->is_empty());
     const uint64_t clear_pixels = ctx.node_exec.clip_rect
@@ -67,16 +67,16 @@ NodeExecResult ClearNode::execute(
             ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y0 : 0,
             ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->x1 : ctx.frame_input.width,
             ctx.node_exec.clip_rect ? ctx.node_exec.clip_rect->y1 : ctx.frame_input.height,
-            sw_renderer->buffer_ring().prev_framebuffer() ? sw_renderer->buffer_ring().prev_framebuffer()->origin_x() : 0,
-            sw_renderer->buffer_ring().prev_framebuffer() ? sw_renderer->buffer_ring().prev_framebuffer()->origin_y() : 0,
-            sw_renderer->buffer_ring().prev_framebuffer() ? (sw_renderer->buffer_ring().prev_framebuffer()->is_opaque() ? 1 : 0) : 0
+            buffer_ring && buffer_ring->prev_framebuffer() ? buffer_ring->prev_framebuffer()->origin_x() : 0,
+            buffer_ring && buffer_ring->prev_framebuffer() ? buffer_ring->prev_framebuffer()->origin_y() : 0,
+            buffer_ring && buffer_ring->prev_framebuffer() ? (buffer_ring->prev_framebuffer()->is_opaque() ? 1 : 0) : 0
         );
     }
 
     if (use_dirty_rects) {
         if (ctx.node_exec.ping_write.fb) {
             Framebuffer* write_fb = ctx.node_exec.ping_write.fb;
-            const Framebuffer* read_fb = sw_renderer->buffer_ring().prev_framebuffer().get();
+            const Framebuffer* read_fb = buffer_ring->prev_framebuffer().get();
             const int h = ctx.frame_input.height;
             const int logical_w = ctx.frame_input.width;
             const int stride = write_fb->allocated_width();
@@ -249,9 +249,9 @@ NodeExecResult ClearNode::execute(
         }
 
         const uint64_t prev_use_count = static_cast<uint64_t>(
-            sw_renderer->buffer_ring().prev_framebuffer().use_count());
+                        buffer_ring->prev_framebuffer().use_count());
         const bool fb_is_shared = prev_use_count > 1;
-        auto fb = std::move(sw_renderer->buffer_ring().prev_framebuffer());
+        auto fb = std::move(buffer_ring->prev_framebuffer());
         const bool is_empty_clip = ctx.node_exec.clip_rect && ctx.node_exec.clip_rect->is_empty();
         const bool is_full_clip = !ctx.node_exec.clip_rect ||
             (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&

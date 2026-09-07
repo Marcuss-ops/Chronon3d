@@ -10,9 +10,11 @@ struct FontEngine::Impl {
               std::make_unique<chronon3d::content::text::TypewriterLayoutCache>()) {}
 };
 
-FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
+FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver,
+                       TextLayoutCache* layout_cache)
     : m_impl(std::make_unique<Impl>(&resolver)),
-      m_text_layout_cache(std::make_unique<TextLayoutCache>()) {}
+      m_compat_layout_cache(layout_cache ? nullptr : std::make_unique<TextLayoutCache>()),
+      m_text_layout_cache(layout_cache ? layout_cache : m_compat_layout_cache.get()) {}
 
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
@@ -37,6 +39,6 @@ void FontEngine::clear_cache() {}
 size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
 bool FontEngine::can_load(const FontSpec&) { return false; }
 
-TextLayoutCache& FontEngine::text_layout_cache() noexcept {
-    return *m_text_layout_cache;
+TextLayoutCache* FontEngine::text_layout_cache() noexcept {
+    return m_text_layout_cache;
 }

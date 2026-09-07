@@ -43,10 +43,6 @@ void JobSession::reset_job() {
     reset_frame_values();
     reset_temporal_history();
     reset_scene_state();
-    prepared_composition = nullptr;
-    authoring_composition_name.clear();
-    authoring_composition_identity = 0;
-    authoring_compiled_composition.reset();
 }
 
 }  // namespace chronon3d::runtime

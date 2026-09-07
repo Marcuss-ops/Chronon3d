@@ -188,7 +188,8 @@ void RuntimeContext::populate() {
     // It is constructed from the typed AssetResolver and lives as long
     // as the runtime so that every composition lambda sees a stable
     // engine via ctx.runtime->font_engine().
-    m_font_engine_owned = std::make_unique<chronon3d::FontEngine>(m_resolver);
+    m_font_engine_owned = std::make_unique<chronon3d::FontEngine>(
+        m_resolver, &m_text_layout_cache);
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
     // TICKET-011 — these registrations previously lived in

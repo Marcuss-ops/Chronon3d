@@ -90,6 +90,7 @@ namespace chronon3d {
     class Scene;
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
+    class RendererBufferRing;
     namespace runtime { class JobSession; }
     class TextRenderResources;
     class ImageCache;
@@ -137,6 +138,10 @@ class MeshPreparationCache;
 
 namespace chronon3d::runtime {
 struct PreparedAssets;
+}
+
+namespace chronon3d::graph {
+class SceneProgramStore;
 }
 
 namespace chronon3d::renderer {
@@ -341,6 +346,11 @@ struct RenderServices {
     /// available.  Null in test paths without a wired session.
     chronon3d::runtime::JobSession* session{nullptr};
 
+    /// Scene-program cache is a graph dependency in its own right. Keep the
+    /// JobSession pointer above for arena/executor lifetime, but do not make
+    /// scene cache access depend on a generic runtime job facade.
+    class SceneProgramStore* program_store{nullptr};
+
     /// PR-9 — opaque sidecar pointer to the owning SoftwareRenderer.
     /// Set by scene.cpp / composition.cpp alongside `session` so that
     /// render-graph nodes (ClearNode, etc.) can reach software-specific
@@ -348,7 +358,6 @@ struct RenderServices {
     /// the public SDK header.  Null when no software renderer is active.
     /// Callers must static_cast to SoftwareRenderer* after including
     /// the full software_renderer.hpp header.
-    void* sw_renderer_sidecar{nullptr};
 
     /// WP-8 PR 8.0 — typed engine-local asset path resolver (non-owning
     /// pointer into the owning RuntimeContext's resolver).  Set by
@@ -377,6 +386,11 @@ struct RenderServices {
 struct NodeExecutionContext {
     // ── Telemetry (was RenderTelemetryContext) ─────────────────────────
     chronon3d::RenderCounters* counters{nullptr};
+
+    // Narrow typed dependency for the framebuffer-reuse path. The graph
+    // borrows the backend's ring for this frame; it does not receive a
+    // SoftwareRenderer service locator or an opaque sidecar.
+    chronon3d::RendererBufferRing* buffer_ring{nullptr};
 
     std::vector<chronon3d::telemetry::NodeTelemetryRecord>  node_telemetry;
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
