@@ -6,7 +6,7 @@
 //
 // Every render-plan consumer goes through ONE method:
 //
-//   read/parse JSON → decode_render_plan → resolve assets → compile_render_plan
+//   read/parse JSON → decode_render_plan → resolve assets → compiler::compile
 //
 // `prepare_render_plan()` returns the decoded plan, the prepared (compiled)
 // plan, the mounted resolver, the effective assets root and the effective
