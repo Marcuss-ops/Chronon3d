@@ -209,7 +209,8 @@ void SoftwareRenderer::clear_caches() {
     // clear all session state, including the scene hasher, after the three
     // independently addressable cache/history domains are reset.
     reset_temporal_history();
-    m_session.common.reset_scene_state();
+    m_session.software.scene_hasher_state = {};
+    m_session.software.program_store_state.clear();
 }
 
 void SoftwareRenderer::reset_compiled_cache() {
