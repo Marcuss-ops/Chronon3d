@@ -130,7 +130,8 @@ struct SoftwareSessionResources {
     renderer::DofScratchBuffers dof_scratch;
     EffectScratchResources effect_scratch;
     graph::SceneHasher scene_hasher_state{};
-    graph::SceneProgramStore program_store_state{};
+    std::unique_ptr<graph::SceneProgramStore> program_store_state{
+        std::make_unique<graph::SceneProgramStore>()};
 
     // Authoring adapters are software-renderer compatibility state, not
     // generic JobSession state. The compiled-program path does not consult

@@ -44,7 +44,7 @@ void JobSession::reset_job() {
     reset_frame_values();
     reset_temporal_history();
     reset_scene_state();
-    memory_aggregate_state.reset();
+    memory_aggregate_state->reset();
 }
 
 }  // namespace chronon3d::runtime
