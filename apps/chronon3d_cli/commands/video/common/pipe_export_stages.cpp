@@ -76,7 +76,7 @@ RenderOutcome render_frame(
     out.fb = graph::render_compiled_composition_frame_temporal(
         ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
         ctx.video_decoder, ctx.compiled, current_frame,
-        ctx.sw_renderer, ctx.opts.cancellation_token);
+        ctx.sw_renderer, ctx.opts.cancellation_token, nullptr);
     const auto frame_t1 = profiling::now();
     const FrameProfileSample after = sample_frame_profile(ctx);
     out.frame_ms = profiling::duration_ms(frame_t0, frame_t1);

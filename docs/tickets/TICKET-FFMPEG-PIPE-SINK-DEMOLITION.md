@@ -1,6 +1,6 @@
 # TICKET-FFMPEG-PIPE-SINK-DEMOLITION — delete subprocess encoder fallback
 
-**Stato:** OPEN (residual scope redefined 2026-09-04 after negative census)  
+**Stato:** OPEN (residual certification debt; silent native→pipe downgrade removed 2026-09-08)
 **Priorità:** P1 demolition debt  
 **Authority:** `src/media/video/video_sink_factory.cpp` + `src/media/CMakeLists.txt`
 
@@ -16,7 +16,7 @@
 
 ## Nuovo scope residuo (sostituisce la lista file sopra)
 
-1. **Downgrade silenzioso nativo→pipe**: `create_video_encoder()` con `CHRONON3D_ENABLE_NATIVE_FFMPEG` spento e `encoder_backend == "native"` oggi logga un warn e prosegue in pipe. Deve diventare fail-closed (errore, no output) — stesso contratto P0.1/P0.2 del resto della repo.
+1. **Downgrade silenzioso nativo→pipe**: **RISOLTO 2026-09-08**. `create_video_encoder()` con `CHRONON3D_ENABLE_NATIVE_FFMPEG` spento e `encoder_backend == "native"` ora restituisce `nullptr` dopo un errore esplicito; nessun output può essere prodotto dal percorso pipe.
 2. **`--encoder-backend pipe` come percorso esplicito**: resta consentito come modalità diagnostic/debug dichiarata (null/adaptive), ma mai come fallback silenzioso del native.
 3. Cleanup finale di `ffmpeg-mode pipe` doc/options quando il punto 1 è chiiuso.
 
@@ -68,6 +68,11 @@ Quando le exit conditions sono certificate:
 ## Evidenza corrente
 
 - `VideoSinkFactory` seleziona `NativeAvSink` nei build con `CHRONON3D_ENABLE_NATIVE_FFMPEG`.
+- Nei build senza `CHRONON3D_ENABLE_NATIVE_FFMPEG`, una richiesta esplicita
+  `encoder_backend=native` è fail-closed (`create_video_encoder() == nullptr`);
+  il comportamento è coperto da un test CLI condizionato al build; il test
+  locale `chronon3d_cli_tests --test-case='native encoder request fails closed*'`
+  è verde su `linux-fast-dev` (2026-09-08).
 - `linux-video-release` eredita `CHRONON3D_ENABLE_NATIVE_FFMPEG=ON` e, da `36c013b`, la configurazione native fallisce immediatamente se header o librerie libav richieste non sono disponibili.
 - `tests/video/test_native_av_sink_factory.cpp` blocca esplicitamente H264 e H265 su `NativeAvSink` e mantiene raw su `RawVideoSink`.
 - `tests/video/test_native_av_sink_lifecycle.cpp` esercita H264 e H265 attraverso `open -> submit -> flush -> close` e teardown del sink reale.

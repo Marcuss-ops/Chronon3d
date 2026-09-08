@@ -3,6 +3,8 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 
+namespace chronon3d::runtime { class FrameExecution; }
+
 namespace chronon3d::graph {
 
 /// CLI-only bridge. The implementation lives in the internal render-graph
@@ -16,6 +18,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     const CompiledComposition& compiled,
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    chronon3d::CancellationToken* cancellation);
+    chronon3d::CancellationToken* cancellation,
+    chronon3d::runtime::FrameExecution* execution);
 
 } // namespace chronon3d::graph

@@ -37,7 +37,13 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(
     }
 #else
     if (opts.encoder.encoder_backend == "native") {
-        spdlog::warn("[video] Native FFmpeg support is disabled at build time; falling back to pipe encoder");
+        // Native is an explicit execution contract. Do not silently change
+        // the encoder authority to the external-process pipe path when this
+        // build has no in-process libav support.
+        spdlog::error(
+            "[video] Native FFmpeg backend was requested, but this build has "
+            "CHRONON3D_ENABLE_NATIVE_FFMPEG disabled; refusing pipe fallback");
+        return nullptr;
     }
 #endif
     spdlog::info("[video] Using new FFmpeg pipe sink via VideoSinkEncoderAdapter");
