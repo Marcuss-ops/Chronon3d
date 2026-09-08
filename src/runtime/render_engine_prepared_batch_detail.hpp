@@ -60,8 +60,9 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
             payload.reset();
             try {
                 if (split_evaluation) {
-                    payload.evaluated.emplace(
-                        m_impl->evaluate_frame(frame, payload.arena));
+                    auto evaluated = m_impl->evaluate_frame(frame, payload.arena);
+                    payload.sampled_scene.emplace(std::move(evaluated.scene));
+                    payload.sampled_camera = std::move(evaluated.camera);
                 }
                 if (!m_impl->job_session->publish_evaluated(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
@@ -112,9 +113,12 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
             try {
                 std::shared_ptr<Framebuffer> output;
                 if (split_evaluation) {
+                    EvaluatedCompositionFrame evaluated(payload.arena.resource());
+                    evaluated.scene = std::move(*payload.sampled_scene);
+                    evaluated.camera = std::move(payload.sampled_camera);
                     output = m_impl->render_evaluated_frame(
-                        *payload.evaluated, slot_frame);
-                    payload.evaluated.reset();
+                        evaluated, slot_frame);
+                    payload.sampled_scene.reset();
                 } else {
                     // Temporal/SSAA paths retain their canonical complete
                     // compositor boundary, but still participate in the
