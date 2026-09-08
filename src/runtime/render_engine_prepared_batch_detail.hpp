@@ -42,7 +42,6 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
         stage_changed.notify_all();
     };
 
-    const bool split_evaluation = m_impl->can_split_evaluation();
     const Frame end = first + count;
 
     std::thread evaluation_thread([&] {
@@ -59,11 +58,6 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
             auto& payload = m_impl->job_session->payload(*slot);
             payload.reset();
             try {
-                if (split_evaluation) {
-                    auto evaluated = m_impl->evaluate_frame(frame, payload.arena);
-                    payload.sampled_scene.emplace(std::move(evaluated.scene));
-                    payload.sampled_camera = std::move(evaluated.camera);
-                }
                 if (!m_impl->job_session->publish_evaluated(*slot)) {
                     throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
                 }
@@ -110,23 +104,20 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
             }
             auto& payload = m_impl->job_session->payload(*slot);
             const Frame slot_frame{static_cast<std::int64_t>(slot->frame_index)};
+            const auto frame_time = SampleTime::from_frame_int(
+                slot_frame,
+                m_impl->job_session->legacy_composition()->composition
+                    ? m_impl->job_session->legacy_composition()->composition->frame_rate()
+                    : FrameRate{});
+            runtime::FrameExecution frame_execution(
+                *m_impl->job_session, slot_frame, frame_time, *slot, payload);
             try {
                 std::shared_ptr<Framebuffer> output;
-                if (split_evaluation) {
-                    EvaluatedCompositionFrame evaluated(payload.arena.resource());
-                    evaluated.scene = std::move(*payload.sampled_scene);
-                    evaluated.camera = std::move(payload.sampled_camera);
-                    output = m_impl->render_evaluated_frame(
-                        evaluated, slot_frame);
-                    payload.sampled_scene.reset();
-                } else {
-                    // Temporal/SSAA paths retain their canonical complete
-                    // compositor boundary, but still participate in the
-                    // bounded render→encode stages without recursively
-                    // acquiring the same slot pipeline.
-                    output = m_impl->engine->render_compiled(
-                        *m_impl->job_session->legacy_composition(), slot_frame);
-                }
+                // The pipeline owns sampling, graph execution, and output
+                // staging. The job only hands it the leased slot's frame.
+                output = m_impl->pipeline->render_compiled_composition(
+                    *m_impl->job_session->legacy_composition(), slot_frame,
+                    &frame_execution);
                 payload.rendered = std::move(output);
                 ++frames_rendered;
                 if (!m_impl->job_session->publish_rendered(*slot)) {

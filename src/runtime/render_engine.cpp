@@ -16,8 +16,6 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/timeline/evaluated_composition_frame.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -45,12 +43,7 @@ struct PreparedRenderJob::Impl {
     // JobSession is the sole owner of job-lifetime queues, slots, payloads,
     // cancellation and counters. PreparedRenderJob only orchestrates stages.
     std::unique_ptr<runtime::JobSession> job_session;
-
-    [[nodiscard]] bool can_split_evaluation() const noexcept;
-    [[nodiscard]] EvaluatedCompositionFrame evaluate_frame(
-        Frame frame, FrameArena& arena) const;
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_evaluated_frame(
-        EvaluatedCompositionFrame& evaluated, Frame frame) const;
+    runtime::RenderPipeline* pipeline{nullptr};
 };
 
 PreparedRenderJob::PreparedRenderJob(std::unique_ptr<Impl> impl) noexcept

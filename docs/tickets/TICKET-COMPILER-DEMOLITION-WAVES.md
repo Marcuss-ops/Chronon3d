@@ -62,10 +62,12 @@ sono coerenti.
   creare `EvaluatedCompositionFrame`.
 - [x] Wave 3.5b — il compiler boundary test verifica la materializzazione
   diretta della `Scene` typed dal sampler.
-- [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
-  `ProgramSampler` attuale è ancora un adapter verso
-  `detail::compiled_composition(program)` e quindi non costituisce la chiusura
-  typed della wave.
+- [x] Wave 3 — il percorso typed del runtime campiona direttamente la `Scene`
+  dal `CompiledProgram` e la consegna al grafo; il frame loop non materializza
+  più `EvaluatedCompositionFrame`.
+- [x] Wave 8 — `PreparedRenderJob` non possiede più uno stadio di evaluation:
+  il lease viene passato al `RenderPipeline`, che coordina sampling, graph
+  execution e output; il payload contiene solo stato typed/frame-local.
 - [x] Wave 4 — target CMake separati di render-plan/graph builder/graph
   compiler assorbiti nel target `chronon3d_compiler`.
 - [x] Wave 4 — `graph_compile.hpp` pubblico e free facade rimossi; il graph
