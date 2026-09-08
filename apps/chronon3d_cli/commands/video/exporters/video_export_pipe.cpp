@@ -92,6 +92,11 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         spdlog::info("[direct-yuv] bypassed generic warmup_pipe_renderer and 273MB warmup_pipe_pool");
     }
     const auto warmup_t1 = profiling::now();
+    if (session->device_runtime) {
+        session->cuda_host_upload_bytes_at_steady_start =
+            session->device_runtime->cuda_host_upload_bytes();
+        session->cuda_host_upload_steady_window_started = true;
+    }
     session->prepare_breakdown.pool_warmup_ms = session->direct_yuv_selected()
         ? 0.0 : profiling::duration_ms(warmup_t0, warmup_t1);
     session->sys_metrics.sample_cpu_start();
@@ -278,8 +283,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         // half is the backend's gpu_upload_bytes above. Device-cumulative;
         // certification separates the setup/prewarm window from steady state
         // instead of reclassifying the counters.
-        timings.gpu.cuda_host_upload_bytes =
-            session->device_runtime->cuda_host_upload_bytes();
+        const auto current = session->device_runtime->cuda_host_upload_bytes();
+        const auto before = session->cuda_host_upload_bytes_before_setup;
+        const auto steady_start = session->cuda_host_upload_steady_window_started
+            ? session->cuda_host_upload_bytes_at_steady_start : current;
+        timings.gpu.cuda_host_upload_bytes = current >= before ? current - before : 0;
+        timings.gpu.cuda_host_upload_bytes_prewarm = steady_start >= before
+            ? steady_start - before : 0;
+        timings.gpu.cuda_host_upload_bytes_steady = current >= steady_start
+            ? current - steady_start : 0;
     }
     if (counters) {
         auto* c = counters;
@@ -621,8 +633,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     if (session->direct_yuv_selected()) {
         dyuv_p.input_probe_ms = decode_stats.container_open_ms +
             decode_stats.stream_probe_ms + decode_stats.decoder_open_ms;
-        // DirectYuvSession now exposes only the executor contract; the old
-        // private DirectYuvProgram timing hooks are intentionally unavailable.
+        // DirectYuvSession exposes the prepared media program; its preparation
+        // timings remain part of the session telemetry contract.
     }
     dyuv_p.cuda_launch_ms = close_result.direct_yuv_cuda_launch_ms;
     dyuv_p.cuda_event_wait_ms = close_result.direct_yuv_cuda_wait_ms;

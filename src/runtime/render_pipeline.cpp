@@ -24,6 +24,7 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <cstdint>
 #include <stdexcept>
 
 namespace chronon3d::runtime {
@@ -99,25 +100,30 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     const auto& metadata = program.metadata();
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
-    // TypedProgramSampler is now part of the production program route. The
-    // graph context borrows this immutable-per-frame block; legacy scene
-    // materialization remains below only until GraphExecutor consumes the
-    // typed bindings directly.
+    // TypedProgramSampler is the only frame-varying producer on this route.
+    // The scene below is immutable graph topology; activity, transforms and
+    // typed payloads come from the borrowed FrameParameterBlock.
     const auto frame_parameters = compiler::TypedProgramSampler{}.sample(program, frame);
-    const auto context = make_frame_context({
-        .global_time = SampleTime::from_frame_int(frame, canvas_fps),
-        .duration = Frame{metadata.duration_frames},
-        .width = static_cast<i32>(metadata.width),
-        .height = static_cast<i32>(metadata.height),
-        .assets_root = m_runtime.resolver().mount_root().string(),
-        .font_engine = &m_runtime.font_engine(),
-        .runtime = &m_runtime,
-    });
-    const Scene sampled = compiler::ProgramSampler{}.sample_scene(
-        program, context, frame);
-    const Scene* scene = &sampled;
+    std::shared_ptr<const Scene> topology;
+    {
+        std::lock_guard lock(m_topology_mutex);
+        const auto key = program.fingerprint();
+        const auto found = m_topologies.find(key);
+        if (found != m_topologies.end()) {
+            topology = found->second;
+        } else {
+            // The topology is materialized once per immutable program. Use the
+            // default resource: a frame arena must never back cached state.
+            topology = std::make_shared<const Scene>(
+                compiler::ProgramSampler{}.materialize_scene(program));
+            if (m_topologies.size() >= 32) {
+                m_topologies.erase(m_topologies.begin());
+            }
+            m_topologies.emplace(key, topology);
+        }
+    }
     return chronon3d::graph::render_scene_via_graph(
-        m_runtime.backend(), m_runtime.node_cache(), *scene, Camera{},
+        m_runtime.backend(), m_runtime.node_cache(), *topology, Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         m_renderer->render_settings(), m_renderer->composition_registry(),
         m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),

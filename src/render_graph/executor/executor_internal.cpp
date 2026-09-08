@@ -72,6 +72,47 @@ std::shared_ptr<Framebuffer> execute_internal(
         slot.reset();
     }
 
+    // Z3 — bind the terminal graph allocation before any node executes.  A
+    // late handle replacement would leave the renderer's original allocation
+    // intact and merely move a descriptor; it cannot eliminate the handoff
+    // copy.  Persistent graph outputs do not normally receive a transient
+    // physical slot, so reserve one executor-owned slot for this native
+    // encode frame when needed.
+    OwnedFB* terminal_encode_slot = nullptr;
+    if (ctx.policy.native_video_encode_surface !=
+        runtime::kInvalidRenderSurfaceHandle) {
+        // Prefer the compiled output resource's physical allocation. This is
+        // the actual executor allocation point; the fallback slot is only for
+        // persistent outputs that deliberately have no transient allocation.
+        if (const auto* output_resource = resource_table.resource_for(output);
+            output_resource &&
+            output_resource->physical_slot != kInvalidPhysicalAllocationId &&
+            output_resource->physical_slot < state.physical_slots.size()) {
+            terminal_encode_slot =
+                &state.physical_slots[output_resource->physical_slot];
+        } else {
+            state.physical_slots.emplace_back(
+                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height, false),
+                PoolFbDeleter(DeleteFramebuffer{}));
+            terminal_encode_slot = &state.physical_slots.back();
+        }
+        auto& slot = *terminal_encode_slot;
+        if (!slot) {
+            slot = OwnedFB(
+                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height, false),
+                PoolFbDeleter(DeleteFramebuffer{}));
+        }
+        slot->set_surface_handle(ctx.policy.native_video_encode_surface);
+        slot->mark_gpu_authoritative();
+    }
+    ctx.node_exec.terminal_video_encode_physical_slot = terminal_encode_slot;
+    if (terminal_encode_slot) {
+        // The physical slot is now the source of truth.  Leave the external
+        // handle fallback unset so acquire_* cannot create a second wrapper.
+        ctx.node_exec.terminal_video_encode_surface =
+            runtime::kInvalidRenderSurfaceHandle;
+    }
+
     const auto t_fb0 = profiling::now();
     init_shared_transparent_fb(state, ctx, res);
 
@@ -166,7 +207,17 @@ std::shared_ptr<Framebuffer> execute_internal(
         return nullptr;
     }
 
-    return state.temp[output];
+    CachedFB result = state.temp[output];
+    if (terminal_encode_slot && result &&
+        result.get() == terminal_encode_slot->get()) {
+        // The workspace owns physical slots only for the duration of graph
+        // execution.  Transfer the completed terminal wrapper to the return
+        // value so it remains valid after the workspace lease is recycled.
+        state.temp[output].reset();
+        auto owned = std::move(*terminal_encode_slot);
+        return promote_to_cached(std::move(owned));
+    }
+    return result;
 }
 
 } // namespace chronon3d::graph

@@ -50,12 +50,19 @@ bool NativeAvEncoder::write_native_surface_impl(
         spdlog::error("[native_av] Vulkan/CUDA physical-device UUID mismatch");
         return false;
     }
-    if (!surface_already_prepared) {
-        const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
-        if (!copy_result.ok()) {
-            spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
-            return false;
-        }
+    const auto key = static_cast<std::uint64_t>(destination);
+    auto compositor_it = cuda_nv12_compositors_.find(key);
+    if (compositor_it == cuda_nv12_compositors_.end()) {
+        const auto info = vulkan->export_cuda_external_memory(destination);
+        auto compositor = std::make_unique<media::video::CudaNv12Compositor>(
+            info, reinterpret_cast<CUcontext>(cuda_context_));
+        compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
+    }
+
+    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
+    if (!copy_result.ok()) {
+        spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
+        return false;
     }
     try {
         if (!drain_ready_cuda_frames(false)) return false;
@@ -63,15 +70,6 @@ bool NativeAvEncoder::write_native_surface_impl(
             !drain_ready_cuda_frames(true)) {
             spdlog::error("[native_av] CUDA encoder queue backpressure failed");
             return false;
-        }
-
-        const auto key = static_cast<std::uint64_t>(destination);
-        auto compositor_it = cuda_nv12_compositors_.find(key);
-        if (compositor_it == cuda_nv12_compositors_.end()) {
-            const auto info = vulkan->export_cuda_external_memory(destination);
-            auto compositor = std::make_unique<media::video::CudaNv12Compositor>(
-                info, reinterpret_cast<CUcontext>(cuda_context_));
-            compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
         }
 
         AVFrame* gpu_frame = nullptr;

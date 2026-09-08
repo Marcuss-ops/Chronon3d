@@ -13,7 +13,7 @@
 #include "gpu_slot_pool.hpp"
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
-#include <chronon3d/media/video/direct_yuv_executor.hpp>
+#include <chronon3d/media/video/direct_yuv_program.hpp>
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -27,10 +27,10 @@
 
 namespace chronon3d::cli {
 
-/// CLI-owned adapter state for DirectYUV. The executable knows only the
-/// media executor contract; DirectYuvProgram remains private to src/media.
+/// CLI-owned session state for DirectYUV. Preparation and one-frame execution
+/// belong to the media program; the CLI owns only the shared writer handoff.
 struct DirectYuvSession {
-    std::shared_ptr<media::video::DirectYuvExecutor> executor;
+    std::shared_ptr<media::video::DirectYuvProgram> program;
     RenderCounters counters;
     std::unique_ptr<assets::AssetResolver> asset_resolver;
     bool required_but_unavailable{false};
@@ -99,6 +99,12 @@ struct PipeExportSession {
 
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
 
+    // Z7: the device counter is cumulative, so capture explicit window
+    // boundaries instead of making the report infer where prewarm ended.
+    std::uint64_t cuda_host_upload_bytes_before_setup{0};
+    std::uint64_t cuda_host_upload_bytes_at_steady_start{0};
+    bool cuda_host_upload_steady_window_started{false};
+
     /// Per-job wall anchor for exclusive-wall timing. CLI single-shot
     /// renders anchor at process start; a persistent daemon RENDER_JOB
     /// anchors at the request's own arrival (see
@@ -115,7 +121,7 @@ struct PipeExportSession {
     runtime::RenderPreparationTimings prepare_timings;
 
     [[nodiscard]] bool direct_yuv_selected() const noexcept {
-        return direct_yuv_session && direct_yuv_session->executor;
+        return direct_yuv_session && direct_yuv_session->program;
     }
 
     [[nodiscard]] SoftwareRenderer* renderer_ptr() noexcept {

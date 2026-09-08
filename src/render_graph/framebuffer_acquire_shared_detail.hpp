@@ -24,6 +24,39 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     std::optional<raster::BBox> bounds,
     std::atomic<uint64_t>* specific_clear_ms
 ) const {
+    if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        const auto encode_surface = node_exec.terminal_video_encode_surface;
+        node_exec.terminal_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
+        node_exec.planned_physical_slot = nullptr;
+        auto fb = std::make_shared<Framebuffer>(w, h, clear);
+        fb->set_surface_handle(encode_surface);
+        fb->mark_gpu_authoritative();
+        if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {
+            fb->set_origin(bounds->x0, bounds->y0);
+        }
+        return fb;
+    }
+
+    if (node_exec.planned_physical_slot) {
+        OwnedFB& slot = *node_exec.planned_physical_slot;
+        if (!slot) {
+            auto* pool = framebuffer_pool.get();
+            slot = pool
+                ? pool->acquire_owned(w, h, clear)
+                : OwnedFB(new Framebuffer(w, h, clear),
+                          PoolFbDeleter(DeleteFramebuffer{}));
+        } else {
+            slot->resize_logical(w, h);
+        }
+        slot->set_origin(0, 0);
+        slot->set_opaque(false);
+        slot->set_content_cleared(false);
+        if (clear) slot->clear(Color::transparent());
+        auto* raw = slot.get();
+        node_exec.planned_physical_slot = nullptr;
+        return std::shared_ptr<Framebuffer>(raw, [](Framebuffer*) noexcept {});
+    }
+
     std::shared_ptr<Framebuffer> out;
     auto* pool = framebuffer_pool.get();
     if (pool) {
@@ -49,6 +82,16 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
 
 std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     const Framebuffer& other) const {
+    if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        auto out = acquire_framebuffer(other.width(), other.height(), false);
+        if (out && out->data() != other.data() && out->data() && other.data()) {
+            FramebufferCopyAuthority::copy_rows(*out, other);
+            out->set_origin(other.origin_x(), other.origin_y());
+            out->set_opaque(other.is_opaque());
+            out->set_content_cleared(other.is_content_cleared());
+        }
+        return out;
+    }
     // Zero-copy ownership transfer when the source is the uniquely-owned
     // reusable bottom input. A 1×1 placeholder swaps pixel storage with
     // the source; the placeholder is returned as a shared_ptr and will be

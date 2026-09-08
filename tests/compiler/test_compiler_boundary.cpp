@@ -3,12 +3,10 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/compiler/program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
-#include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/runtime/context/runtime_context.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
 
 #include <doctest/doctest.h>
 
@@ -73,18 +71,14 @@ std::shared_ptr<const chronon3d::compiler::CompiledProgram> shared_program() {
 
 }  // namespace
 
-TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy output") {
+TEST_CASE("CompiledProgram lowers deterministic immutable IR") {
     const auto plan = test_plan();
     chronon3d::assets::AssetResolver compiler_resolver;
-    chronon3d::assets::AssetResolver legacy_resolver;
 
     auto compiled = chronon3d::compiler::compile(plan, compiler_resolver);
-    auto legacy = chronon3d::render_plan::compile_render_plan(plan, legacy_resolver);
     REQUIRE(compiled);
-    REQUIRE(legacy);
 
     const auto program = std::move(compiled).value();
-    const auto prepared = std::move(legacy).value();
     CHECK(program.metadata().width == 1920);
     CHECK(program.metadata().height == 1080);
     CHECK(program.metadata().output.path == "compiler-boundary.mp4");
@@ -99,11 +93,6 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     CHECK(program.passes().front().node_count == 1);
     CHECK(program.metadata().render_budget.max_width == plan.budget.max_width);
     CHECK(program.fingerprint_data().digest != 0);
-    CHECK(program.fingerprint_data().content_digest.hex()
-          == prepared.fingerprint.content_digest.hex());
-    CHECK(program.fingerprint_data().request_digest.hex()
-          == prepared.fingerprint.request_digest.hex());
-
     chronon3d::assets::AssetResolver repeat_resolver;
     auto repeat = chronon3d::compiler::compile(plan, repeat_resolver);
     REQUIRE(repeat);
@@ -156,14 +145,7 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(frame.layers.front().matrix[3][0] == doctest::Approx(10.0f));
     CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
 
-    const auto context = chronon3d::make_frame_context({
-        .duration = plan.canvas.duration,
-        .width = 1920,
-        .height = 1080,
-        .resource = std::pmr::get_default_resource(),
-    });
-    const auto scene = chronon3d::compiler::ProgramSampler{}.sample_scene(
-        program, context, chronon3d::Frame{6});
+    const auto scene = chronon3d::compiler::ProgramSampler{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
 }
 

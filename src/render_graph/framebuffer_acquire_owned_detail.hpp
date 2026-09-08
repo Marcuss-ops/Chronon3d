@@ -8,6 +8,7 @@
 #include <chronon3d/cache/framebuffer_copy.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <atomic>
@@ -22,6 +23,19 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     std::optional<raster::BBox> bounds,
     std::atomic<uint64_t>* specific_clear_ms
 ) const {
+    if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        const auto encode_surface = node_exec.terminal_video_encode_surface;
+        node_exec.terminal_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
+        node_exec.planned_physical_slot = nullptr;
+        auto* fb = new Framebuffer(w, h, clear);
+        fb->set_surface_handle(encode_surface);
+        fb->mark_gpu_authoritative();
+        if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {
+            fb->set_origin(bounds->x0, bounds->y0);
+        }
+        return OwnedFB(fb, PoolFbDeleter(DeleteFramebuffer{}));
+    }
+
     // A compiler-assigned transient slot is the sole owner of this
     // framebuffer. Returning a RendererOwned view lets the node publish a
     // CachedFB without transferring or duplicating ownership; the slot is
@@ -72,6 +86,17 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
+    if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        auto out = acquire_owned_fb(other.width(), other.height(), false);
+        if (out && out->data() != other.data() && out->data() && other.data()) {
+            FramebufferCopyAuthority::copy_rows(*out, other);
+            out->set_origin(other.origin_x(), other.origin_y());
+            out->set_opaque(other.is_opaque());
+            out->set_content_cleared(other.is_content_cleared());
+        }
+        return out;
+    }
+
     // F2.3 — the swap-transfer requires pool-provenance storage. Scratch,
     // arena and renderer-owned (planned physical slot) buffers must never be
     // re-wrapped with a pool deleter. Fall through to the explicit-copy path
@@ -135,6 +160,16 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
 
 OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) {
     if (!src) return OwnedFB{};
+    if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        auto out = acquire_owned_fb(src->width(), src->height(), false);
+        if (out && out->data() != src->data() && out->data() && src->data()) {
+            FramebufferCopyAuthority::copy_rows(*out, *src);
+            out->set_origin(src->origin_x(), src->origin_y());
+            out->set_opaque(src->is_opaque());
+            out->set_content_cleared(src->is_content_cleared());
+        }
+        return out;
+    }
     if (!src->data() && src->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         auto* placeholder = new Framebuffer(src->width(), src->height(), false);
         placeholder->set_surface_handle(src->surface_handle());

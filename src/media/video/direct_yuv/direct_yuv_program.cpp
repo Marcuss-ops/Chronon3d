@@ -1,4 +1,4 @@
-#include "direct_yuv_program.hpp"
+#include <chronon3d/media/video/direct_yuv_program.hpp>
 #include "text_texture_cache.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
@@ -54,6 +54,15 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 #else
     if (!compiled.composition) {
         reason = "compiled composition is empty";
+        return nullptr;
+    }
+    // Z4 is enforced twice by design: the session resolver chooses the lane
+    // before encoder open(), while the prepared media program refuses a
+    // direct execution contract that was assembled by any other caller.
+    const auto capability = resolve_support(compiled, DirectYuvPolicy::Require);
+    if (!capability.eligible) {
+        reason = "DirectYUV capability matrix rejected the composition: " +
+            capability.reason;
         return nullptr;
     }
     if (!video_runtime) {

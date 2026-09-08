@@ -107,6 +107,8 @@ struct GpuMetrics {
     // the other half of zero-copy gate 1; gpu_upload_bytes is the Vulkan
     // backend half. Device-cumulative, same window semantics as backend stats.
     std::optional<std::uint64_t> cuda_host_upload_bytes;
+    std::optional<std::uint64_t> cuda_host_upload_bytes_prewarm;
+    std::optional<std::uint64_t> cuda_host_upload_bytes_steady;
     std::optional<std::uint64_t> gpu_upload_full_surface_bytes;
     std::optional<std::uint64_t> gpu_upload_region_bytes;
     std::optional<std::uint64_t> native_surface_promotion_count;

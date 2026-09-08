@@ -117,8 +117,9 @@ void run_writer_thread_impl(const WriterThreadContext& ctx);
 
 [[nodiscard]] RenderLoopResult run_render_loop(const RenderLoopContext& ctx);
 
-/// CLI adapter over media::video::DirectYuvExecutor. PipeExportSession and
-/// FfmpegExportOptions stop here and never enter the DirectYUV media core.
+/// Canonical direct-YUV loop over a prepared media program. The CLI owns the
+/// same bounded writer queue as FullGraph; the media program owns only
+/// preparation and one-frame execution.
 [[nodiscard]] RenderLoopOutput run_direct_yuv_loop(
     PipeExportSession& session,
     media::NativeVideoFrameDecoder& decoder,

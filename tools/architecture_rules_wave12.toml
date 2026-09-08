@@ -34,3 +34,14 @@ description = "Wave 1+12: chronon3d_compiler is autonomous and must not depend o
 source = "chronon3d_compiler"
 forbidden_deps = ["chronon3d_render_plan"]
 hint = "chronon3d_compiler is the autonomous compiler root and must not depend on chronon3d_render_plan."
+
+[[configured_target_source]]
+name = "configured_compiler_no_legacy_graph_sources"
+target = "chronon3d_compiler"
+description = "Wave 12: configured compiler target must not absorb legacy render-graph source families."
+forbidden_patterns = [
+  "(^|/)src/render_graph/builder/",
+  "(^|/)src/render_graph/compiler/",
+  "(^|/)src/render_graph/optimizer/",
+]
+hint = "Move the remaining compiler-owned lowering into src/compiler/** before deleting the compatibility facade."

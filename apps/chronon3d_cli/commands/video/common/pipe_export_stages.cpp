@@ -118,6 +118,9 @@ EncodeOutcome encode_frame(
         ctx.backend.is_native_surface_valid(execution_slot->source_surface)) {
         source_surface = execution_slot->source_surface;
     }
+    if (execution_slot && source_surface != runtime::kInvalidRenderSurfaceHandle) {
+        execution_slot->source_surface = source_surface;
+    }
     auto* surface_registry = ctx.sw_renderer
         ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
     // When a native encode destination exists, finish_frame_encode() has

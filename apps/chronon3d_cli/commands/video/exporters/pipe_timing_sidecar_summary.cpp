@@ -10,6 +10,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -103,6 +104,34 @@ void build_summary_and_job_sections(
     summary["graph_reused_ratio"] = count > 0
         ? static_cast<double>(graph_reused_count) / static_cast<double>(count) : 0.0;
     summary["fast_path_reused_frames"] = fast_path_reused_count;
+    const auto window_endpoints = [&frames](std::size_t begin, std::size_t end) {
+        nlohmann::json window{
+            {"frame_count", end > begin ? end - begin : 0},
+            {"first_frame", nullptr},
+            {"last_frame", nullptr},
+        };
+        if (begin < end) {
+            window["first_frame"] = frames[begin].frame_number;
+            window["last_frame"] = frames[end - 1].frame_number;
+        }
+        return window;
+    };
+    const std::size_t prewarm_count = std::min(stats.warmup_frames, count);
+    auto prewarm_window = window_endpoints(0, prewarm_count);
+    auto steady_window = window_endpoints(prewarm_count, count);
+    prewarm_window["cuda_host_upload_bytes"] =
+        timings.gpu.cuda_host_upload_bytes_prewarm
+            ? nlohmann::json(*timings.gpu.cuda_host_upload_bytes_prewarm)
+            : nlohmann::json(nullptr);
+    steady_window["cuda_host_upload_bytes"] =
+        timings.gpu.cuda_host_upload_bytes_steady
+            ? nlohmann::json(*timings.gpu.cuda_host_upload_bytes_steady)
+            : nlohmann::json(nullptr);
+    summary["windows"] = nlohmann::json{
+        {"prewarm", std::move(prewarm_window)},
+        {"steady_state", std::move(steady_window)},
+        {"semantics", "prewarm includes setup and warmup; steady_state begins immediately before the render loop"}
+    };
     summary["first_frame"] = std::move(first_frame);
     if (timings.target_fps) {
         summary["target_fps"] = *timings.target_fps;
@@ -189,6 +218,8 @@ void build_summary_and_job_sections(
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
     put_gpu_u64("cuda_host_upload_bytes", timings.gpu.cuda_host_upload_bytes);
+    put_gpu_u64("cuda_host_upload_bytes_prewarm", timings.gpu.cuda_host_upload_bytes_prewarm);
+    put_gpu_u64("cuda_host_upload_bytes_steady", timings.gpu.cuda_host_upload_bytes_steady);
     put_gpu_u64("gpu_upload_full_surface_bytes", timings.gpu.gpu_upload_full_surface_bytes);
     put_gpu_u64("gpu_upload_region_bytes", timings.gpu.gpu_upload_region_bytes);
     put_gpu_u64("native_surface_promotion_count", timings.gpu.native_surface_promotion_count);

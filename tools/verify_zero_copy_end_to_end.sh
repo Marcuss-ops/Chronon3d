@@ -216,6 +216,21 @@ NATIVE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_encode_frames"
 # semantics, Z-wave F5/F7).
 CUDA_HOST_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "cuda_host_upload_bytes")
 
+# Z7 formal window document. A report without both windows is unverifiable,
+# even when the cumulative counter happens to be zero.
+WINDOW_STATUS=$(python3 -c "
+import json, sys
+try:
+    with open('$REPORT_JSON') as f: data = json.load(f)
+    windows = data.get('summary', {}).get('windows', {})
+    pre = windows.get('prewarm', {})
+    steady = windows.get('steady_state', {})
+    ok = ('cuda_host_upload_bytes' in pre and 'cuda_host_upload_bytes' in steady)
+    print('ok' if ok else '')
+except Exception:
+    print('')
+" 2>/dev/null)
+
 EFFECTIVE_BACKEND=$(extract_counter "$REPORT_JSON" "effective_backend")
 ENCODER_BACKEND=$(extract_counter "$REPORT_JSON" "encoder_backend")
 SURFACE_HANDOFF_PATH=$(extract_counter "$REPORT_JSON" "surface_handoff_path")
@@ -259,6 +274,13 @@ _info "── Required Native Zero-Copy Identity Gates ──"
 check_gate "effective_backend" "$EFFECTIVE_BACKEND" "vulkan"
 check_gate "encoder_backend" "$ENCODER_BACKEND" "nvenc"
 check_gate "surface_handoff_path" "$SURFACE_HANDOFF_PATH" "direct"
+if [[ "$WINDOW_STATUS" == "ok" ]]; then
+    _pass "z7_upload_windows = present (prewarm + steady_state)"
+    PASS_COUNT=$((PASS_COUNT + 1))
+else
+    _warn "z7_upload_windows: MISSING (cannot verify prewarm/steady-state semantics)"
+    BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+fi
 
 check_positive_gate() {
     local name="$1"
@@ -283,7 +305,7 @@ check_positive_gate "gpu_native_encode_frames" "$NATIVE_ENCODE_FRAMES"
 # ── Verdict ──────────────────────────────────────────────────────────────
 _info "── Summary ──"
 if [[ "$CUDA_HOST_UPLOAD_BYTES" != "" ]]; then
-    _info "  cuda_host_upload_bytes = $CUDA_HOST_UPLOAD_BYTES (CUDA-lane gate 1; informational, steady-state window)"
+    _info "  cuda_host_upload_bytes = $CUDA_HOST_UPLOAD_BYTES (CUDA-lane cumulative total; see summary.windows)"
 fi
 _info "  PASS:     $PASS_COUNT"
 _info "  FAIL:     $FAIL_COUNT"

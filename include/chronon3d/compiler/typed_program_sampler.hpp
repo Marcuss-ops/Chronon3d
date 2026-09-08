@@ -6,8 +6,8 @@
 
 namespace chronon3d::compiler {
 
-/// Samples only the immutable typed compiler IR.  It has no dependency on
-/// CompiledComposition, PreparedRenderPlan, or runtime/backend state.
+/// Samples only the immutable typed compiler IR. It has no dependency on
+/// authoring bridges or execution-layer state.
 class TypedProgramSampler final {
 public:
     [[nodiscard]] FrameParameterBlock sample(const CompiledProgram& program,

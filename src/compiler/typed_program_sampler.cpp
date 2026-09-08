@@ -55,6 +55,32 @@ FrameParameterBlock TypedProgramSampler::sample(const CompiledProgram& program,
         const auto end = start + layer.duration_frames;
         sampled.active = frame.integral() >= start && frame.integral() < end;
 
+        switch (layer.kind) {
+            case NodeKind::Color:
+                sampled.payload = SampledColorParameters{layer.color};
+                break;
+            case NodeKind::Image:
+                sampled.payload = SampledImageParameters{
+                    layer.asset, layer.size, layer.radius};
+                break;
+            case NodeKind::Video:
+                sampled.payload = SampledVideoParameters{
+                    layer.source.empty() ? layer.asset : layer.source,
+                    layer.size, layer.loop};
+                break;
+            case NodeKind::Text: {
+                const auto text_it = std::find_if(
+                    program.texts().begin(), program.texts().end(),
+                    [&](const TextProgram& text) { return text.id == layer.id; });
+                sampled.text_index = text_it == program.texts().end()
+                    ? 0 : text_it->text_index;
+                sampled.payload = SampledTextParameters{sampled.text_index, 0};
+                break;
+            }
+            case NodeKind::Unknown:
+                break;
+        }
+
         Vec3 position{layer.position[0], layer.position[1], layer.position[2]};
         Vec3 scale{layer.scale[0], layer.scale[1], layer.scale[2]};
         sampled.opacity = layer.opacity;

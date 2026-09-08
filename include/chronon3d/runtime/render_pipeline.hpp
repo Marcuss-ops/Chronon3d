@@ -43,9 +43,12 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 namespace chronon3d {
 class SoftwareRenderer;
@@ -115,6 +118,10 @@ public:
 private:
     SoftwareRenderer* m_renderer;
     RuntimeContext&   m_runtime;
+    // Bounded topology cache: Scene is a legacy graph input adapter, never a
+    // frame-varying value. Its lifetime must not depend on FrameContext's arena.
+    std::mutex m_topology_mutex;
+    std::unordered_map<std::uint64_t, std::shared_ptr<const Scene>> m_topologies;
 };
 
 } // namespace chronon3d::runtime

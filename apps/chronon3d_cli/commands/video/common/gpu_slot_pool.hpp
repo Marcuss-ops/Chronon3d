@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <spdlog/spdlog.h>
 #include <utility>
 
 namespace chronon3d::cli {
@@ -125,9 +126,22 @@ public:
     /// so a closing job never destroys surfaces the encoder still references.
     void drain() {
         std::unique_lock lock(mutex_);
+        int loop_count = 0;
         while (slots_.busy_count() > 0) {
             reap_ready_locked();
             if (closed_) return;
+            if (++loop_count % 1000 == 1) {
+                for (FrameSlotId slot_id = 0; slot_id < slots_.capacity(); ++slot_id) {
+                    auto& s = slots_.slot(slot_id);
+                    if (s.state.load() != FrameSlotState::Free) {
+                        const bool has_c = gpu_completions_.has_completion(slot_id);
+                        const bool rdy = has_c ? gpu_completions_.completion_ready(slot_id) : false;
+                        spdlog::warn("[gpu_slot_pool::drain] slot={} state={} interop={} has_comp={} ready={}",
+                                     slot_id, static_cast<int>(s.state.load()),
+                                     static_cast<int>(s.interop_state.load()), has_c, rdy);
+                    }
+                }
+            }
             cv_free_.wait_for(lock, std::chrono::milliseconds(1));
         }
     }

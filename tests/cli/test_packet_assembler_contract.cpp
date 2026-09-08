@@ -40,7 +40,7 @@ TEST_CASE("VideoExecutionResolver: semantic GPU graph is orthogonal") {
     CHECK(decision.plan.composite == chronon3d::media::CompositePath::VulkanGraph);
     CHECK(decision.plan.encode == chronon3d::media::EncodePath::Nvenc);
     CHECK(decision.plan.interop == chronon3d::media::InteropPath::VulkanCuda);
-    CHECK(decision.plan.handoff == chronon3d::media::SurfaceHandoffPath::VulkanCopy);
+    CHECK(decision.plan.handoff == chronon3d::media::SurfaceHandoffPath::Direct);
     CHECK(decision.plan.uses_gpu());
 }
 
