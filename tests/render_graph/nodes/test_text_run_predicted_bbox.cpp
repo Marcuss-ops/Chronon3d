@@ -166,7 +166,7 @@ Composition build_pinned_absolute_animation_comp(SoftwareRenderer& renderer) {
                         },
                         .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
                     },
-                    .frame = {.tracking = 14.0f},
+                    .frame = {.size = {1920.0f, 1080.0f}, .tracking = 14.0f},
                 });
             });
             return s.build();

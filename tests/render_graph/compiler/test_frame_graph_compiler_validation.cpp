@@ -240,7 +240,7 @@ TEST_CASE("FrameGraphCompiler - rejects snapshot generation mismatch") {
 
     CHECK_THROWS_WITH(
         static_cast<void>(compiler.compile(make_single_source_graph(ShapeType::Rect), ctx)),
-        "FrameGraphCompiler: processor snapshot generation does not match RenderGraphContext registry generation");
+        "GraphCompilePipeline: processor snapshot generation does not match RenderGraphContext registry generation");
 }
 
 TEST_CASE("FrameGraphCompiler - reuse rejects a different same-generation snapshot") {

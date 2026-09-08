@@ -163,6 +163,10 @@ Decision resolve_from_requirements(
             result.render_fallback = ResolvedPath::RenderGraph;
             result.reason = "software_composition_allowed";
         }
+        if (!requirements.cpu_fallback_allowed && !result.plan.uses_gpu()) {
+            result.valid = false;
+            result.reason = "cpu_fallback_forbidden";
+        }
         return result;
     }
 
@@ -295,6 +299,7 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
     std::string_view requested_backend,
     std::string_view daemon_backend) noexcept {
     ResolvedExecutionParameters params;
+    params.cpu_fallback_forbidden = !requirements.cpu_fallback_allowed;
     if (requirements.gpu_required) {
         params.backend = (requested_backend != "auto" && !requested_backend.empty())
             ? std::string{requested_backend}
@@ -318,7 +323,6 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         }
         params.native_nvenc = true;
         params.direct_yuv = !requirements.composition_required;
-        params.cpu_fallback_forbidden = !requirements.cpu_fallback_allowed;
         params.codec = requested_codec.empty() ? "h264" : std::string{requested_codec};
     } else {
         params.backend = (requested_backend != "auto" && !requested_backend.empty())
@@ -329,7 +333,6 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         params.gpu_hot_path_mode = "auto";
         params.native_nvenc = false;
         params.direct_yuv = false;
-        params.cpu_fallback_forbidden = false;
         params.codec = requested_codec.empty() ? "auto" : std::string{requested_codec};
     }
     return params;
