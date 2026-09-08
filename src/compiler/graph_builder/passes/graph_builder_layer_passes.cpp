@@ -1,6 +1,6 @@
 #include "graph_builder_layer_passes.hpp"
-#include "../graph_builder_coordinates.hpp"
-#include "../evaluated_layer_placement.hpp"
+#include "graph_builder_coordinates.hpp"
+#include "evaluated_layer_placement.hpp"
 
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

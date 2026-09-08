@@ -1,15 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase C3 — Canonical composition pipeline (single unified path):
+// Canonical graph adapter for legacy Composition diagnostics and the typed
+// CompiledProgram execution path.  The latter is the production route.
 //
-//   Definition      → compile_composition() → CompiledComposition
-//   Evaluator       → evaluate(CompiledComposition, FrameContext)
-//   GraphCompiler   → build_or_reuse_graph() → CompiledFrameGraph
-//   Executor        → render_scene_via_graph() → execute_tile_or_fallback()
+//   CompiledProgram → ProgramSampler → render_scene_via_graph()
 //
-// The canonical entry point for ALL graph rendering is:
-//   render_compiled_composition_frame(CompiledComposition, Frame)
-//     → evaluate()
-//       → render_scene_via_graph()
+// `render_compiled_composition_frame` remains an adapter for legacy callers
+// and tests; production prepared-program execution uses RenderPipeline.
 //
 // Deprecated paths (thin wrappers, migrate to render()):
 //   * SoftwareRenderer::render_scene(Scene, Camera, ...)          — Fase C3 @deprecated
