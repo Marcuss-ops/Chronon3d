@@ -83,6 +83,7 @@ namespace chronon3d { class DebugConfig; }
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>  // P0-1 — NodeExecutionError for frame_error slot
+#include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 
 namespace chronon3d {
     class CompositionRegistry;
@@ -91,7 +92,7 @@ namespace chronon3d {
     class DebugConfig;  // re-exported; see forward-declare above
     class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
     class RendererBufferRing;
-    namespace runtime { class JobSession; class RuntimeContext; }
+    namespace runtime { class JobSession; class RuntimeContext; class FrameExecution; }
     class TextRenderResources;
     class ImageCache;
 }
@@ -134,10 +135,6 @@ namespace chronon3d::effects {
 namespace chronon3d::assets {
 class AssetResolver;
 class MeshPreparationCache;
-}
-
-namespace chronon3d::runtime {
-struct PreparedAssets;
 }
 
 namespace chronon3d::renderer {
@@ -283,13 +280,13 @@ struct RenderPolicy {
     bool tile_execution_enabled{false};
 };
 
-// ── Graph-only dependencies: backend, graph caches, catalogs, builder ──────
+// ── Execution dependencies: backend, surfaces, caches and media ───────────
 // Runtime-owned caches are reached through RenderGraphContext::runtime;
 // they are deliberately not copied into this per-frame dependency set.
 // Replaces RenderResourceContext. The legacy std::function field
 // `precomp_build` is replaced by a typed `precomp_builder*` pointer to a
 // `PrecompBuilderService` (typically DefaultPrecompBuilder) owned by
-// `PipelineCatalogs`.
+// `PipelineCatalogs` (build-only catalogs live in GraphBuildDependencies).
 
 struct RenderServices {
     RenderBackend* backend{nullptr};
@@ -300,12 +297,8 @@ struct RenderServices {
     const CompositionRegistry* registry{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
 
-    /// Node catalog — populated by `wire_catalog_pointers`, consumed by
-    /// graph builder (source.precomp factory lookup).
-    const class GraphNodeCatalog* node_catalog{nullptr};
-
-    /// Effect catalog — populated by `wire_catalog_pointers`, consumed by
-    /// graph builder + dirty safety.
+    /// Effect catalog — consumed by dirty-region safety and transitional
+    /// runtime paths; graph builders use GraphBuildDependencies.
     const class effects::EffectCatalog* effect_catalog{nullptr};
 
     /// Layer transition catalog — populated by `wire_catalog_pointers`,
@@ -318,20 +311,12 @@ struct RenderServices {
     /// MUST treat the build as unavailable and return empty output.
     const class PrecompBuilderService* precomp_builder{nullptr};
 
-    /// Canonical generation of the node/effect/transition registries used to
-    /// compile this graph. A registry change invalidates topology reuse even
-    /// when authored scene data is unchanged.
-    std::uint64_t registry_generation{0};
-
     /// TICKET-010 / TICKET-011 — PR-B scheduler accessor.  PrecompNode
     /// dereferences `*ctx.scheduler` to route its inner execute()
     /// through the same arena as the parent graph.  Set by
     /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
     /// (which forwards to `RuntimeContext::scheduler()`).  Lifetime is
     /// pinned to the owning runtime; never dereference past shutdown.
-    /// Immutable resource-preparation snapshot for this render invocation.
-    /// Graph construction consumes it; it never performs asset I/O.
-    std::shared_ptr<const chronon3d::runtime::PreparedAssets> prepared_assets;
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────
@@ -521,6 +506,20 @@ struct RenderGraphContext {
     RenderPolicy         policy{};
     RenderServices       services{};
     NodeExecutionContext node_exec{};
+
+    /// Borrowed frame lease. When present, this is the canonical route to
+    /// JobSession and RuntimeContext for production execution. The legacy
+    /// direct pointers below remain only for standalone/preflight callers
+    /// during the dependency-collapse migration.
+    runtime::FrameExecution* execution{nullptr};
+    /// Non-owning build-only dependencies, valid only while a
+    /// CompilerPassPipeline is running. Never retained by execution nodes.
+    const GraphBuildDependencies* build_dependencies{nullptr};
+
+    /// Immutable compiler identity captured while the runtime is wired.
+    /// Graph compilation reads this directly instead of consulting services.
+    std::uint64_t registry_generation{0};
+    bool processor_snapshot_required{false};
 
     /// Borrowed engine-lifetime owner for runtime-owned caches and resources.
     /// These dependencies are intentionally not duplicated in RenderServices.

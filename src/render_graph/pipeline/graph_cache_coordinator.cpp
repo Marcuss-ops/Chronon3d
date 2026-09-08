@@ -198,7 +198,7 @@ static void log_graph_cache_diagnostics(
         std::move(graph), ctx, compile_options);
     compiled.authored_structure_fingerprint =
         SceneHasher{}.compute_structure_fingerprint(
-            scene, ctx.services.registry_generation);
+            scene, ctx.registry_generation);
     if (!compiled.valid) {
         throw std::runtime_error(
             "graph cache coordinator: fresh graph compilation produced an invalid graph");
@@ -235,14 +235,12 @@ static void log_graph_cache_diagnostics(
     }
 
     CompiledFrameGraph& compiled = lease.candidate();
-    const auto current_snapshot = ctx.services.backend
-        ? ctx.services.backend->processor_snapshot()
-        : nullptr;
+    const auto current_snapshot = ctx.node_exec.processor_snapshot;
     const auto current_snapshot_identity = current_snapshot
         ? current_snapshot->identity()
         : 0;
     if (!compiled.valid ||
-        compiled.registry_generation != ctx.services.registry_generation ||
+        compiled.registry_generation != ctx.registry_generation ||
         compiled.processor_snapshot_identity != current_snapshot_identity ||
         compiled.authored_structure_fingerprint == 0 ||
         compiled.authored_structure_fingerprint != current_authored_topology) {
@@ -357,7 +355,7 @@ GraphBuildResult build_or_reuse_graph(
 
     const auto current_authored_topology =
         SceneHasher{}.compute_structure_fingerprint(
-            scene, ctx.services.registry_generation);
+            scene, ctx.registry_generation);
     result.can_reuse = scene_structure_unchanged &&
         graph_cache != nullptr &&
         graph_cache->has(width, height);

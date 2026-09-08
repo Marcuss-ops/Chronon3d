@@ -340,7 +340,7 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     // compute_dirty_rect().
     plan.frame_fingerprints = compute_frame_fingerprints(
         sw_renderer->scene_hasher(), scene, frame,
-        ctx.services.registry_generation);
+        ctx.registry_generation);
 
     const bool has_surface = has_matching_previous_surface(sw_renderer, width, height);
     const bool previous_fingerprints_valid =

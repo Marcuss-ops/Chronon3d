@@ -28,6 +28,8 @@ namespace chronon3d {
 
 namespace chronon3d::graph {
 
+struct GraphBuildContext;
+
 /// Grouped domain catalogs + typed builder for a render pipeline.
 /// Constructed by the host, then passed by const-ref to the pipeline +
 /// graph coordinator.
@@ -91,5 +93,9 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs);
 /// (e.g. the host installed a custom builder post-init), this helper
 /// does NOT overwrite it.
 void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs);
+
+/// Build-only catalog wiring. These dependencies never enter the execution
+/// service bundle and are valid only for the pass pipeline invocation.
+void wire_catalog_pointers(GraphBuildContext& ctx, const PipelineCatalogs& catalogs);
 
 } // namespace chronon3d::graph

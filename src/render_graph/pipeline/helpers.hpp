@@ -121,7 +121,8 @@ namespace chronon3d::graph {
     const CompositionRegistry* registry,
     media::MediaFrameProvider* video_decoder,
     float fps,
-    TemporalSampleKey temporal_key = {}
+    TemporalSampleKey temporal_key = {},
+    runtime::FrameExecution* execution = nullptr
 ) {
     // Preserve fractional FPS precision (e.g. 29.97 NTSC).
     const FrameRate frm = FrameRate{static_cast<i32>(fps * 1000.0f + 0.5f), 1000};
@@ -177,13 +178,16 @@ namespace chronon3d::graph {
         .node_exec = NodeExecutionContext{
             .counters = backend.counters(),
         },
+        .execution = execution,
     };
     // Graph-only/debug callers do not pass through scene_context_setup().
     // Seed the context with the backend's immutable processor generation so
     // the compiler cannot compare a valid snapshot against the zero default.
     if (const auto snapshot = backend.processor_snapshot()) {
-        ctx.services.registry_generation = snapshot->generation();
+        ctx.registry_generation = snapshot->generation();
+        ctx.node_exec.processor_snapshot = snapshot;
     }
+    ctx.processor_snapshot_required = backend.requires_processor_snapshot();
     return ctx;
 }
 

@@ -27,6 +27,10 @@ struct NodeExecutionError;
 class GraphExecutor;
 }
 
+namespace chronon3d {
+struct CompiledComposition;
+}
+
 namespace chronon3d::runtime {
 
 class RuntimeContext;
@@ -57,6 +61,10 @@ private:
 
 struct JobSessionConfig {
     std::shared_ptr<const compiler::CompiledProgram> program;
+    // Transitional execution view.  This belongs to the job lifetime rather
+    // than the PreparedRenderJob handle and is removed with the legacy
+    // composition executor once ProgramSampler is fully typed.
+    std::shared_ptr<const ::chronon3d::CompiledComposition> legacy_composition;
     Frame first_frame{0};
     Frame end_frame{0};
     std::uint64_t job_id{0};
@@ -100,6 +108,8 @@ public:
     }
     [[nodiscard]] const std::shared_ptr<const compiler::CompiledProgram>&
     program_ptr() const noexcept { return program_; }
+    [[nodiscard]] const std::shared_ptr<const ::chronon3d::CompiledComposition>&
+    legacy_composition() const noexcept { return legacy_composition_; }
     [[nodiscard]] Frame first_frame() const noexcept { return first_frame_; }
     [[nodiscard]] Frame end_frame() const noexcept { return end_frame_; }
     [[nodiscard]] std::uint64_t job_id() const noexcept { return job_id_; }
@@ -255,6 +265,7 @@ private:
     RuntimeContext* runtime_{nullptr};
     graph::GraphExecutor* executor_{nullptr};
     std::shared_ptr<const compiler::CompiledProgram> program_;
+    std::shared_ptr<const ::chronon3d::CompiledComposition> legacy_composition_;
     Frame first_frame_{0};
     Frame end_frame_{0};
     std::uint64_t job_id_{0};

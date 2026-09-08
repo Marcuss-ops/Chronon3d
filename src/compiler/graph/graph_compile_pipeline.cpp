@@ -52,7 +52,7 @@ CompiledFrameGraph GraphCompilePipeline::compile(
     }
 
     CompiledFrameGraph compiled;
-    compiled.registry_generation = ctx.services.registry_generation;
+    compiled.registry_generation = ctx.registry_generation;
     if (!graph.has_output()) {
         compiled.valid = false;
         compiled.graph = std::move(graph);
@@ -90,7 +90,7 @@ CompiledFrameGraph GraphCompilePipeline::compile(
     }
 
     compiled.structure_hash = compute_structure_hash(
-        compiled.graph, compiled.output, ctx.services.registry_generation);
+        compiled.graph, compiled.output, ctx.registry_generation);
     compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
 
     compiled.early_exit_skip.assign(node_count, false);
@@ -240,7 +240,7 @@ CompiledFrameGraph GraphCompilePipeline::compile_with_reuse(
     const FrameGraphCompileOptions& options
 ) const {
     CompiledFrameGraph compiled;
-    compiled.registry_generation = ctx.services.registry_generation;
+    compiled.registry_generation = ctx.registry_generation;
     if (!graph.has_output()) {
         compiled.valid = false;
         compiled.graph = std::move(graph);
@@ -258,10 +258,8 @@ CompiledFrameGraph GraphCompilePipeline::compile_with_reuse(
 
     const std::uint64_t current_hash =
         compute_structure_hash(
-            graph, compiled.output, ctx.services.registry_generation);
-    const auto current_snapshot = ctx.services.backend
-        ? ctx.services.backend->processor_snapshot()
-        : nullptr;
+            graph, compiled.output, ctx.registry_generation);
+    const auto current_snapshot = ctx.node_exec.processor_snapshot;
     const auto current_snapshot_identity = current_snapshot
         ? current_snapshot->identity()
         : 0;
@@ -301,7 +299,7 @@ CompiledFrameGraph GraphCompilePipeline::compile_with_reuse(
     }
 
     compiled.structure_hash = compute_structure_hash(
-        compiled.graph, compiled.output, ctx.services.registry_generation);
+        compiled.graph, compiled.output, ctx.registry_generation);
     compiled.skip_initial_clear = ctx.policy.skip_initial_clear;
 
     compiled.early_exit_skip.assign(node_count, false);

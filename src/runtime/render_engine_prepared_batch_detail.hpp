@@ -121,7 +121,7 @@ PreparedRenderBatchResult PreparedRenderJob::render_frames(
                     // bounded render→encode stages without recursively
                     // acquiring the same slot pipeline.
                     output = m_impl->engine->render_compiled(
-                        *m_impl->compiled, slot_frame);
+                        *m_impl->job_session->legacy_composition(), slot_frame);
                 }
                 payload.rendered = std::move(output);
                 ++frames_rendered;
