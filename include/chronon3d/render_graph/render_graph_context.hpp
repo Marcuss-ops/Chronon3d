@@ -553,6 +553,12 @@ struct RenderGraphContext {
     /// scene-derived fallback used by standalone authoring callers.
     std::uint64_t program_fingerprint{0};
 
+    /// Execution-time backend access. New executor code uses this typed seam;
+    /// the legacy `services` bundle remains only for nodes not yet migrated.
+    [[nodiscard]] RenderBackend* execution_backend() const noexcept {
+        return services.backend;
+    }
+
     /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a
     /// frame-scoped optional (stack storage, zero per-frame heap churn) and
     /// exposed to every node via a non-owning pointer; clones copy the
