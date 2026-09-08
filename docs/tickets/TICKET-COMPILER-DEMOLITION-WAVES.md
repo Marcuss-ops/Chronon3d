@@ -49,6 +49,8 @@ sono coerenti.
   `RenderServices`.
 - [x] Wave 5.2 — il lifecycle executor dei framebuffer usa il seam tipizzato
   `execution_framebuffer_pool()`.
+- [x] Wave 5.3 — il node-cache evaluator usa il seam tipizzato
+  `execution_node_cache()`.
 - [x] Wave 3.5a — il percorso `RenderPipeline::render_program` materializza
   direttamente una `Scene` typed tramite `ProgramSampler::sample_scene`, senza
   creare `EvaluatedCompositionFrame`.

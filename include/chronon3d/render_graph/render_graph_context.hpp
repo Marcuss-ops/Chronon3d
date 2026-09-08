@@ -562,6 +562,9 @@ struct RenderGraphContext {
     execution_framebuffer_pool() const noexcept {
         return services.framebuffer_pool;
     }
+    [[nodiscard]] cache::NodeCache* execution_node_cache() const noexcept {
+        return services.node_cache;
+    }
 
     /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a
     /// frame-scoped optional (stack storage, zero per-frame heap churn) and
