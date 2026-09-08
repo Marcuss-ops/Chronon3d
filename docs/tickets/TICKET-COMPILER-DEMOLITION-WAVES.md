@@ -51,6 +51,8 @@ sono coerenti.
   `execution_framebuffer_pool()`.
 - [x] Wave 5.3 — il node-cache evaluator usa il seam tipizzato
   `execution_node_cache()`.
+- [x] Wave 5.4 — il node executor e il workspace executor usano i seam
+  tipizzati per node cache e framebuffer pool.
 - [x] Wave 3.5a — il percorso `RenderPipeline::render_program` materializza
   direttamente una `Scene` typed tramite `ProgramSampler::sample_scene`, senza
   creare `EvaluatedCompositionFrame`.
