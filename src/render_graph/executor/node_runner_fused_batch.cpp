@@ -62,7 +62,7 @@ void execute_fused_batch_impl(
     FramebufferPool* /*parent_pool*/,
     RenderCounters* parent_counters,
     const CompiledFrameGraph& compiled) {
-    if (!ctx.services.backend || batch.instances.empty()) return;
+    if (!ctx.execution_backend() || batch.instances.empty()) return;
 
     bool is_text_batch = false;
     for (const auto& inst : batch.instances) {
@@ -161,7 +161,7 @@ void execute_fused_batch_impl(
             throw std::runtime_error("failed to materialize fused text batch destination");
         }
         dest_fb->set_opaque(false);
-        ctx.services.backend->draw_text_batch(dest_fb->surface_handle(), all_glyphs, all_runs, atlas_pages);
+        ctx.execution_backend()->draw_text_batch(dest_fb->surface_handle(), all_glyphs, all_runs, atlas_pages);
 
         state.temp[id] = dest_fb;
         state.resolved_bboxes[id] = raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
@@ -295,7 +295,7 @@ void execute_fused_batch_impl(
         throw std::runtime_error("failed to materialize fused image batch destination");
     }
     dest_fb->set_opaque(false);
-    ctx.services.backend->execute_layer_batch(
+    ctx.execution_backend()->execute_layer_batch(
         dest_fb->surface_handle(), gpu_batch, resources, {}, {});
     dest_fb->mark_gpu_authoritative();
 
