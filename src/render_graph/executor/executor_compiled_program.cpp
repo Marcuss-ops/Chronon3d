@@ -16,7 +16,7 @@ bool execute_compiled_program(
     RenderCounters* counters)
 {
     (void)state;
-    auto* backend = ctx.services.backend;
+    auto* backend = ctx.execution_backend();
     if (!backend) {
         spdlog::error("[compiled-executor] fully_recorded program has no render backend");
         return false;
