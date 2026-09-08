@@ -88,8 +88,8 @@ struct SoftwareRenderSession {
     // compile without forcing callers to spell `.common`).
     [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       { return software.scene_hasher_state; }
     [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return software.scene_hasher_state; }
-    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       { return software.program_store_state; }
-    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return software.program_store_state; }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       { return *software.program_store_state; }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return *software.program_store_state; }
 
     /// Per-frame reset: empty the arena (canonical) and the software
     /// scratch (buffer ring NOT touched — it's needed for the previous
@@ -130,7 +130,7 @@ struct SoftwareRenderSession {
         reset_frame_values();
         reset_temporal_history();
         software.scene_hasher_state = {};
-        software.program_store_state.clear();
+        software.program_store_state->clear();
     }
 };
 
