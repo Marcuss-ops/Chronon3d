@@ -261,5 +261,5 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
 #endif
 }
 
-chronon3d::Result<std::shared_ptr<const chronon3d::CompiledComposition>,
+chronon3d::Result<std::shared_ptr<const chronon3d::compiler::CompiledProgram>,
                   RenderError>
