@@ -21,6 +21,11 @@ const std::vector<CompiledNode>& CompiledProgram::nodes() const noexcept { retur
 const std::vector<CompiledPass>& CompiledProgram::passes() const noexcept { return data_->passes; }
 const std::vector<ResourceBindingSpec>& CompiledProgram::resources() const noexcept { return data_->resources; }
 const std::vector<AnimationProgram>& CompiledProgram::animations() const noexcept { return data_->animations; }
+const std::vector<TimelineProgram>& CompiledProgram::timelines() const noexcept { return data_->timelines; }
+const std::vector<AnimationTrackProgram>& CompiledProgram::animation_tracks() const noexcept { return data_->animation_tracks; }
+const std::vector<CurveKeyframeProgram>& CompiledProgram::curve_keyframes() const noexcept { return data_->curve_keyframes; }
+const std::vector<TextProgram>& CompiledProgram::texts() const noexcept { return data_->texts; }
+const std::vector<std::string>& CompiledProgram::text_values() const noexcept { return data_->text_values; }
 const std::vector<ParameterProgram>& CompiledProgram::parameters() const noexcept { return data_->parameters; }
 const ProgramFingerprint& CompiledProgram::fingerprint_data() const noexcept { return data_->fingerprint_data; }
 

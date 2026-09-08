@@ -59,6 +59,11 @@ struct CompiledProgramData {
     std::vector<CompiledPass> passes;
     std::vector<ResourceBindingSpec> resources;
     std::vector<AnimationProgram> animations;
+    std::vector<TimelineProgram> timelines;
+    std::vector<AnimationTrackProgram> animation_tracks;
+    std::vector<CurveKeyframeProgram> curve_keyframes;
+    std::vector<TextProgram> texts;
+    std::vector<std::string> text_values;
     std::vector<ParameterProgram> parameters;
     ProgramFingerprint fingerprint_data;
 };
@@ -78,6 +83,11 @@ public:
     [[nodiscard]] const std::vector<CompiledPass>& passes() const noexcept;
     [[nodiscard]] const std::vector<ResourceBindingSpec>& resources() const noexcept;
     [[nodiscard]] const std::vector<AnimationProgram>& animations() const noexcept;
+    [[nodiscard]] const std::vector<TimelineProgram>& timelines() const noexcept;
+    [[nodiscard]] const std::vector<AnimationTrackProgram>& animation_tracks() const noexcept;
+    [[nodiscard]] const std::vector<CurveKeyframeProgram>& curve_keyframes() const noexcept;
+    [[nodiscard]] const std::vector<TextProgram>& texts() const noexcept;
+    [[nodiscard]] const std::vector<std::string>& text_values() const noexcept;
     [[nodiscard]] const std::vector<ParameterProgram>& parameters() const noexcept;
     [[nodiscard]] const ProgramFingerprint& fingerprint_data() const noexcept;
 
