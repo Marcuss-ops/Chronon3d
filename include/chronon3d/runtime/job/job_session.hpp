@@ -202,22 +202,22 @@ public:
     [[nodiscard]] ResourcePlan& resource_plan() noexcept { return resource_plan_state; }
     [[nodiscard]] const ResourcePlan& resource_plan() const noexcept { return resource_plan_state; }
     [[nodiscard]] graph::NodeMemoryTracker& memory_aggregate() noexcept {
-        return memory_aggregate_state;
+        return *memory_aggregate_state;
     }
     [[nodiscard]] const graph::NodeMemoryTracker& memory_aggregate() const noexcept {
-        return memory_aggregate_state;
+        return *memory_aggregate_state;
     }
 
     void reset_frame_counters() noexcept {
         dirty_telemetry.reset_telemetry_counters();
     }
 
-    void clear_last_frame_error() { frame_error_aggregate.clear(); }
+    void clear_last_frame_error() { frame_error_aggregate->clear(); }
     void publish_last_frame_error(const graph::NodeExecutionError& error) {
-        frame_error_aggregate.publish_first(error);
+        frame_error_aggregate->publish_first(error);
     }
     [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError>
-    last_frame_error() const { return frame_error_aggregate.load(); }
+    last_frame_error() const { return frame_error_aggregate->load(); }
 
     void reset_frame_temporaries() {
         dirty_telemetry.reset_telemetry_counters();
@@ -257,10 +257,12 @@ public:
         std::make_unique<graph::SceneProgramStore>()};
     // Job-level aggregate. Individual node/frame records live in the leased
     // FrameSlotPayload and are promoted here when execution completes.
-    graph::NodeMemoryTracker memory_aggregate_state{};
+    std::unique_ptr<graph::NodeMemoryTracker> memory_aggregate_state{
+        std::make_unique<graph::NodeMemoryTracker>()};
     // Job-level diagnostic aggregate; frame-local writes use the slot's
     // RenderErrorSlot and are promoted at execution completion.
-    RenderErrorSlot frame_error_aggregate{};
+    std::unique_ptr<RenderErrorSlot> frame_error_aggregate{
+        std::make_unique<RenderErrorSlot>()};
     void reset_job();
 
 private:
