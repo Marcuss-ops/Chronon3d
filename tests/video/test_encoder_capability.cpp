@@ -18,7 +18,7 @@ namespace {
 
 VideoExecutionPlan full_graph_native_plan() noexcept {
     return {DecodePath::Nvdec, CompositePath::VulkanGraph, EncodePath::Nvenc,
-            InteropPath::VulkanCuda, SurfaceHandoffPath::VulkanCopy};
+            InteropPath::VulkanCuda, SurfaceHandoffPath::Direct};
 }
 
 VideoExecutionPlan direct_yuv_plan() noexcept {

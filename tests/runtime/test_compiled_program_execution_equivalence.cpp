@@ -1,20 +1,9 @@
 // =============================================================================
 // tests/runtime/test_compiled_program_execution_equivalence.cpp
 //
-// Compiler-equivalence gate (milestone 1) — TICKET-COMPILER-BOUNDARY-WAVE7-9.
-//
-// Two execution seams must produce identical still frames for the same plan:
-//   * legacy seam  — render_compiled() executes the immutable
-//                    CompiledComposition that PreparedRenderJob materialises
-//                    (the compatibility payload the runtime currently uses);
-//   * program seam — render_program() executes the compiler-boundary
-//                    CompiledProgram through the canonical ProgramSampler +
-//                    graph pipeline.
-//
-// Today both seams converge on the same legacy evaluation, so the gate pins
-// the bit-exact baseline that must stay green while the compiled-program
-// execution path (nodes/passes/parameters) is built and switched over.  Any
-// future divergence between the two seams is a GATE FAIL by construction.
+// Typed-program execution gate. The old render-plan comparison was removed
+// with the legacy sampler bridge; this corpus checks deterministic output from
+// the canonical CompiledProgram -> ProgramSampler -> graph path.
 // =============================================================================
 
 #include <doctest/doctest.h>
@@ -27,7 +16,6 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
-#include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <array>
 #include <string>
@@ -115,17 +103,12 @@ std::vector<CorpusEntry> corpus() {
 
 }  // namespace
 
-TEST_CASE("equivalence gate: compiled-program seam matches legacy "
-          "compiled-composition seam (still frames)") {
+TEST_CASE("typed-program execution gate is deterministic (still frames)") {
     for (const auto& entry : corpus()) {
         SUBCASE(entry.name.c_str()) {
             chronon3d::assets::AssetResolver resolver;
             auto compiled = chronon3d::compiler::compile(entry.plan, resolver);
             REQUIRE(compiled);
-
-            chronon3d::assets::AssetResolver legacy_resolver;
-            auto legacy_prep = chronon3d::render_plan::compile_render_plan(entry.plan, legacy_resolver);
-            REQUIRE(legacy_prep);
 
             auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
                 std::move(compiled).value());
@@ -134,20 +117,13 @@ TEST_CASE("equivalence gate: compiled-program seam matches legacy "
             for (const auto frame : entry.frames) {
                 CAPTURE(frame.integral());
 
-                // Legacy seam — render_compiled executes the compiled composition
-                // produced by compile_render_plan.
-                const auto legacy_frame = engine.render_compiled(
-                    legacy_prep->compiled_composition,
-                    frame);
-                REQUIRE(legacy_frame);
-
-                // Program seam — canonical ProgramSampler + graph pipeline.
-                const auto program_frame = engine.render_program(*program, frame);
-                REQUIRE(program_frame);
-
-                CHECK(legacy_frame->width() == program_frame->width());
-                CHECK(legacy_frame->height() == program_frame->height());
-                CHECK(bit_equal(*legacy_frame, *program_frame));
+                const auto first = engine.render_program(*program, frame);
+                const auto second = engine.render_program(*program, frame);
+                REQUIRE(first);
+                REQUIRE(second);
+                CHECK(first->width() == entry.plan.canvas.width);
+                CHECK(first->height() == entry.plan.canvas.height);
+                CHECK(bit_equal(*first, *second));
             }
         }
     }

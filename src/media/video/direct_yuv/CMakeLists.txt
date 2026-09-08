@@ -24,7 +24,7 @@ target_link_libraries(chronon3d_media_direct_yuv PRIVATE
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_media_direct_yuv PRIVATE
         direct_yuv_program.cpp
-        direct_yuv_executor.cpp
+        direct_yuv_capability.cpp
         text_texture_cache.cpp
     )
     target_link_libraries(chronon3d_media_direct_yuv PUBLIC
@@ -52,6 +52,6 @@ else()
     # execution fails closed at prepare() without pulling libav/CUDA headers
     # into non-native builds.
     target_sources(chronon3d_media_direct_yuv PRIVATE
-        direct_yuv_executor_stub.cpp
+        direct_yuv_program_stub.cpp
     )
 endif()

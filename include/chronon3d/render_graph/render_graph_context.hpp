@@ -86,7 +86,10 @@ namespace chronon3d { class DebugConfig; }
 #include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 
 namespace chronon3d {
-    namespace compiler { struct FrameParameterBlock; }
+    namespace compiler {
+        struct FrameParameterBlock;
+        struct SampledLayerParameters;
+    }
     class CompositionRegistry;
     struct RenderCounters;
     class Scene;
@@ -364,6 +367,24 @@ struct NodeExecutionContext {
     // return a non-owning RendererOwned view so the slot survives node-state
     // commits and can be reused only after its compiled interval ends.
     mutable OwnedFB* planned_physical_slot{nullptr};
+
+    // Z3: the executor seeds this slot with the native encode surface before
+    // the terminal node runs.  Keeping the pointer in the node context lets
+    // fused and standalone producers use the same physical allocation path.
+    // It is distinct from terminal_video_encode_surface, which remains the
+    // fail-closed fallback when a graph has no bindable output slot.
+    mutable OwnedFB* terminal_video_encode_physical_slot{nullptr};
+
+    // Wave Z3: Direct terminal output binding for native GPU video export.
+    // When non-invalid, acquire_owned_fb/acquire_framebuffer binds the allocated
+    // framebuffer directly to this external encode surface handle.
+    mutable runtime::RenderSurfaceHandle terminal_video_encode_surface{
+        runtime::kInvalidRenderSurfaceHandle};
+
+    // Borrowed typed payload for the node's compiler binding. Node execution
+    // may read this value, but never reconstructs a Scene or mutates the
+    // compiler block. Null means this is a legacy/standalone graph call.
+    const compiler::SampledLayerParameters* sampled_layer{nullptr};
 
     // ── Zero-copy bottom-input ownership transfer (composite hot-path) ──
     // Populated by `execute_single_node` for the FIRST input (j==0,

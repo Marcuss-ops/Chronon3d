@@ -1,10 +1,12 @@
 #pragma once
 
-#include <chronon3d/media/video/direct_yuv_frame.hpp>
-#include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/media/video/video_device_runtime.hpp>
-#include <chronon3d/media/video/cuda_image_resource.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/media/video/composition_capability.hpp>
+#include <chronon3d/media/video/cuda_image_resource.hpp>
+#include <chronon3d/media/video/direct_yuv_frame.hpp>
+#include <chronon3d/media/video/hw_frame_ref.hpp>
+#include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <memory>
 #include <string>
@@ -13,10 +15,7 @@
 
 namespace chronon3d {
 class ImageCache;
-namespace media {
-class NativeVideoFrameDecoder;
-class CudaImageResource;
-}
+namespace media { class NativeVideoFrameDecoder; }
 }
 
 namespace chronon3d::media::video {
@@ -35,10 +34,21 @@ struct DirectVideoLayer {
     ::chronon3d::video::VideoSource source;
 };
 
-/// Private compiled program used by DirectYuvExecutor. This type belongs to
-/// the media layer and is intentionally not exposed to CLI/export sessions.
+/// Prepared DirectYUV program. It owns immutable resources and one retained
+/// decoder frame; the canonical CLI slot/writer pipeline owns frame looping,
+/// cancellation, queue submission, and timing.
 class DirectYuvProgram final {
 public:
+    struct CapabilityReport {
+        bool eligible{false};
+        DirectYuvSupport support{DirectYuvSupport::Unsupported};
+        std::string reason;
+    };
+
+    [[nodiscard]] static CapabilityReport resolve_support(
+        const CompiledComposition& compiled,
+        DirectYuvPolicy policy);
+
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
         ImageCache& image_cache,

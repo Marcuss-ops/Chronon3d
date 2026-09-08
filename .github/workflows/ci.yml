@@ -373,7 +373,13 @@ jobs:
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+      - name: Request configured CMake codemodel
+        run: |
+          mkdir -p build/chronon/linux-ci-full-validation/.cmake/api/v1/query
+          : > build/chronon/linux-ci-full-validation/.cmake/api/v1/query/codemodel-v2
       - run: cmake --preset linux-ci-full-validation
+      - name: Configured architecture codemodel gate
+        run: python3 tools/check_architecture.py --build-dir build/chronon/linux-ci-full-validation
       - run: cmake --build --preset linux-ci-full-validation
       - name: Run full test suite
         run: ctest --preset linux-ci-full-validation-test --output-on-failure

@@ -95,6 +95,26 @@ inline bool ensure_native_surface(
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
+        if (handle == ctx.policy.native_video_encode_surface) {
+            if (ctx.backend->is_native_surface_valid(handle)) {
+                return true;
+            }
+            if (!framebuffer.data()) {
+                return true;
+            }
+            const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
+            std::vector<float> packed;
+            const auto pixels = framebuffer_rgba_view(framebuffer, packed);
+            runtime::UploadTicket upload_ticket{};
+            const auto uploaded = ctx.policy.retain_native_surface_for_video
+                ? ctx.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
+                : ctx.backend->upload_surface(handle, desc, pixels);
+            if (uploaded.ok()) {
+                framebuffer.mark_cpu_gpu_synchronized();
+                return true;
+            }
+            return false;
+        }
         // The registry owns logical identity, while Vulkan owns the physical
         // binding.  They can briefly diverge when a pooled framebuffer is
         // returned while a transient backend surface is reclaimed.  Checking
@@ -191,6 +211,9 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
+        if (handle == ctx.policy.native_video_encode_surface) {
+            return true;
+        }
         if (ctx.surface_registry->lookup(handle) &&
             ctx.backend->is_native_surface_valid(handle)) {
             return true;

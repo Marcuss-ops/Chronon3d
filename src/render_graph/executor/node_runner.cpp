@@ -11,6 +11,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>

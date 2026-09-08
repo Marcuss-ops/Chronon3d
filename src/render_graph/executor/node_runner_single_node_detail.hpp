@@ -18,6 +18,22 @@ void execute_single_node(
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
 
+    // Typed programs own frame activity.  A graph binding is the stable
+    // bridge from a render-graph node to the compiler layer id; do not consult
+    // a materialized Scene for this decision when the typed block is present.
+    const compiler::SampledLayerParameters* typed_layer = nullptr;
+    if (ctx.frame_parameters && id < compiled.nodes.size() &&
+        compiled.nodes[id].binding_meta.has_binding()) {
+        typed_layer = compiler::find_layer(
+            *ctx.frame_parameters, compiled.nodes[id].binding_meta.layer_index);
+        if (!typed_layer || !typed_layer->active) {
+            commit_transparent_skip(
+                state, id, ctx, parent_pool, SkipReason::EarlyExit,
+                graph.node(id).name());
+            return;
+        }
+    }
+
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
         commit_transparent_skip(
             state, id, ctx, parent_pool,
@@ -59,6 +75,18 @@ void execute_single_node(
         // scratch or reporter fields into the shared parent context.
         RenderGraphContext batch_ctx = ctx.clone_for_node_execution();
         batch_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
+        batch_ctx.node_exec.sampled_layer = typed_layer;
+        if (id == compiled.output &&
+            ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+            if (ctx.node_exec.terminal_video_encode_physical_slot) {
+                batch_ctx.node_exec.planned_physical_slot =
+                    ctx.node_exec.terminal_video_encode_physical_slot;
+            } else {
+                batch_ctx.node_exec.terminal_video_encode_surface =
+                    ctx.policy.native_video_encode_surface;
+            }
+            batch_ctx.node_exec.reusable_bottom.reset();
+        }
         if (id < compiled.nodes.size() && compiled.nodes[id].reachable) {
             batch_ctx.node_exec.current_identity = NodeIdentity{
                 compiled.graph_instance_id, compiled.nodes[id].stable_node_id};
@@ -129,9 +157,23 @@ void execute_single_node(
     // Single worker-local mutable context for the actual node execution.
     RenderGraphContext node_ctx = ctx.clone_for_node_execution();
     node_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
+    node_ctx.node_exec.sampled_layer = typed_layer;
     node_ctx.node_exec.planned_physical_slot = nullptr;
     const auto& resource_table = compiled.resource_table();
-    if (id < resource_table.resources.size()) {
+    const bool terminal_encode_binding =
+        id == compiled.output &&
+        ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle;
+    if (terminal_encode_binding && ctx.node_exec.terminal_video_encode_physical_slot) {
+        node_ctx.node_exec.planned_physical_slot =
+            ctx.node_exec.terminal_video_encode_physical_slot;
+        node_ctx.node_exec.terminal_video_encode_surface =
+            runtime::kInvalidRenderSurfaceHandle;
+        node_ctx.node_exec.reusable_bottom.reset();
+    } else if (terminal_encode_binding) {
+        node_ctx.node_exec.terminal_video_encode_surface =
+            ctx.policy.native_video_encode_surface;
+        node_ctx.node_exec.reusable_bottom.reset();
+    } else if (id < resource_table.resources.size()) {
         const auto& allocation = resource_table.resources[id];
         if (allocation.aliasable() &&
             allocation.physical_slot != kInvalidPhysicalAllocationId &&
