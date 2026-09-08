@@ -13,7 +13,7 @@ forbidden-pattern rule.
 
 | Current field / responsibility | Current owner | Target owner | Wave | Status |
 |---|---|---|---:|---|
-| `FrameArena` | `JobSession` | `FrameExecution` / slot payload | 7 | slot/payload lease landed; arena evacuation pending (Wave 4) |
+| `FrameArena` | `FrameExecution` payload for leased production frames; `JobSession` fallback for standalone callers | `FrameExecution` / slot payload | 7 | production arena handoff landed 2026-09-08; standalone fallback remains |
 | `ExecutionWorkspaceRing` | `JobSession` | frame execution workspace | 7 | JobSession-owned; pending executor seam (Wave 4) |
 | `SceneHasher` | `JobSession` | compiler fingerprint / runtime cache | 8 | JobSession-owned; evacuation pending (Wave 7) |
 | `SceneProgramStore` | `JobSession` | `RuntimeContext` cache | 8 | JobSession-owned; evacuation pending (Wave 7) |
@@ -72,9 +72,10 @@ the legacy bridge is gone with the session type.
 
 Wave 7 exits when frame payloads are obtained by an explicit slot lease and no
 frame-local pointer is retained by `JobSession` after the lease is destroyed.
-The slot/payload lease is live; `JobSession` still owns `FrameArena`,
-`ExecutionWorkspaceRing`, `NodeMemoryTracker` and `RenderErrorSlot`, which is
-the remaining Wave-4 audit gap.
+The slot/payload lease is live and production graph execution now binds its
+root scope to `FrameExecution::arena()`; `JobSession` still owns the explicit
+standalone fallback plus `ExecutionWorkspaceRing`, `NodeMemoryTracker` and
+`RenderErrorSlot`, which remain open migration seams.
 
 Wave 8 exits when runtime execution consumes compiled numeric data and no
 authoring scene/timeline type is required by the execution kernel.  The
