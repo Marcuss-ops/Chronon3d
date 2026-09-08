@@ -13,7 +13,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include "scene_fingerprint.hpp"   // src-only header (Check 17 architecture-boundary)
+#include "../core/scene_fingerprint.hpp"   // src-only header (Check 17 architecture-boundary)
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/core/types/frame.hpp>
 

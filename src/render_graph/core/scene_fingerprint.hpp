@@ -19,7 +19,6 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <cstdint>
 
 namespace chronon3d::graph {
@@ -35,13 +34,13 @@ struct FrameFingerprints {
 };
 
 /// Compute all three fingerprints for the given scene + frame.
-/// Returns zeros when the hasher has no history (first frame).
-/// NOTE: SceneHasher methods are NOT const (they modify internal state
-/// for incremental hashing), so requires a non-const reference.
 [[nodiscard]] FrameFingerprints compute_frame_fingerprints(
-    graph::SceneHasher& hasher,
     const Scene& scene,
     Frame frame,
     std::uint64_t registry_generation = 0);
+
+[[nodiscard]] bool scene_is_static_at(const Scene& scene, Frame frame);
+[[nodiscard]] std::uint64_t scene_structure_fingerprint(
+    const Scene& scene, std::uint64_t registry_generation);
 
 } // namespace chronon3d::graph

@@ -5,7 +5,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 
 #include <cstdint>
 #include <optional>

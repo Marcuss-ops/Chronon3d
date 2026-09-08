@@ -37,7 +37,7 @@
 #include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
 #include "scene_native_output.hpp"        // native output sync + residency
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 #include "tile_execution_policy.hpp"
 #include "graph_cache_coordinator.hpp"
 #include "pool_preallocation.hpp"

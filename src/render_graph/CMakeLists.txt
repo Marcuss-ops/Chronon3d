@@ -190,7 +190,7 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/dirty_telemetry_reporter.cpp
     pipeline/tile_execution_coordinator.cpp
     pipeline/frame_timing_recorder.cpp
-    pipeline/scene_fingerprint.cpp
+    core/scene_fingerprint.cpp
     pipeline/pool_preallocation.cpp
     pipeline/graph_cache_coordinator.cpp
     pipeline/frame_state_commit.cpp

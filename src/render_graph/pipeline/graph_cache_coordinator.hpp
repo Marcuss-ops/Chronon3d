@@ -13,7 +13,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include "scene_internal.hpp"
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 #include <memory>
 
 namespace chronon3d::graph {

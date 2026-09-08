@@ -10,7 +10,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
-#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
@@ -198,7 +197,7 @@ static void log_graph_cache_diagnostics(
         std::move(graph), ctx, compile_options);
     compiled.authored_structure_fingerprint = ctx.program_fingerprint != 0
         ? ctx.program_fingerprint
-        : SceneHasher{}.compute_structure_fingerprint(scene, ctx.registry_generation);
+        : scene_structure_fingerprint(scene, ctx.registry_generation);
     if (!compiled.valid) {
         throw std::runtime_error(
             "graph cache coordinator: fresh graph compilation produced an invalid graph");
@@ -355,7 +354,7 @@ GraphBuildResult build_or_reuse_graph(
 
     const auto current_authored_topology = ctx.program_fingerprint != 0
         ? ctx.program_fingerprint
-        : SceneHasher{}.compute_structure_fingerprint(scene, ctx.registry_generation);
+        : scene_structure_fingerprint(scene, ctx.registry_generation);
     result.can_reuse = scene_structure_unchanged &&
         graph_cache != nullptr &&
         graph_cache->has(width, height);
