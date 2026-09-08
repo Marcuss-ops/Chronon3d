@@ -17,7 +17,7 @@ media::VideoExecutionPlan render_graph_fallback_plan(const FfmpegExportOptions& 
             media::CompositePath::VulkanGraph,
             media::EncodePath::Nvenc,
             media::InteropPath::VulkanCuda,
-            media::SurfaceHandoffPath::VulkanCopy};
+            media::SurfaceHandoffPath::Direct};
     }
     return {
         media::DecodePath::Software,

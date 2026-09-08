@@ -174,6 +174,7 @@ class Runner:
         self.rules = load_registry(rules_path)
         self.passes: list[str] = []
         self.failures: list[str] = []
+        self.configured_build_dir: Path | None = None
 
     def selected(self, name: str) -> bool:
         return self.prefix is None or name.startswith(self.prefix)
@@ -598,6 +599,88 @@ class Runner:
         else:
             self.ok(name, f"{len(declared)} libraries registered")
 
+    def check_configured_cmake(self, build_dir: Path) -> None:
+        """Check the generated CMake target graph, not only source text.
+
+        Source-level CMake checks cannot see generator expressions, platform
+        branches, or targets assembled by included files.  CMake's File API
+        codemodel is the authoritative configured graph for those cases.  A
+        build directory is intentionally opt-in: the fast static gate can run
+        from a checkout, while CI/build validation passes the configured
+        directory and turns missing codemodel data into a hard failure.
+        """
+        name = "configured_cmake_dag"
+        if not self.selected(name):
+            return
+        reply = build_dir / ".cmake" / "api" / "v1" / "reply"
+        indexes = sorted(reply.glob("index-*.json"))
+        if not indexes:
+            self.fail(name, f"CMake File API reply missing in {reply}")
+            return
+        try:
+            index = json.loads(indexes[-1].read_text(encoding="utf-8"))
+            codemodel_object = next(
+                obj for obj in index.get("objects", [])
+                if obj.get("kind") == "codemodel"
+            )
+            model_path = reply / codemodel_object["jsonFile"]
+            model = json.loads(model_path.read_text(encoding="utf-8"))
+            configuration = model["configurations"][0]
+        except (OSError, KeyError, StopIteration, IndexError, TypeError, json.JSONDecodeError) as error:
+            self.fail(name, f"invalid CMake codemodel: {error}")
+            return
+
+        targets = configuration.get("targets", [])
+        by_id = {target.get("id"): target for target in targets}
+        by_name = {target.get("name"): target for target in targets}
+        violations: list[str] = []
+
+        for rule in self.rules.get("cmake_dag", []):
+            if rule.get("kind") == "forbidden_target":
+                for target_name in rule.get("targets", []):
+                    if target_name in by_name:
+                        violations.append(
+                            f"target {target_name!r} is present in configured codemodel")
+            elif rule.get("kind") == "forbidden_edge":
+                source = rule.get("source")
+                target = by_name.get(source)
+                if not target:
+                    continue
+                dependency_names = {
+                    by_id[dep["id"]].get("name")
+                    for dep in target.get("dependencies", [])
+                    if dep.get("id") in by_id
+                }
+                for dependency in rule.get("forbidden_deps", []):
+                    if dependency in dependency_names:
+                        violations.append(
+                            f"configured target {source} links {dependency}")
+
+        for rule in self.rules.get("configured_target_source", []):
+            target_name = rule["target"]
+            target = by_name.get(target_name)
+            if not target:
+                self.fail(name, f"configured target missing: {target_name}")
+                continue
+            source_paths = [
+                source.get("path", "")
+                for source in target.get("sources", [])
+                if source.get("path")
+            ]
+            for pattern in rule.get("forbidden_patterns", []):
+                matcher = re.compile(pattern)
+                for source_path in source_paths:
+                    if matcher.search(source_path):
+                        violations.append(
+                            f"configured target {target_name} owns forbidden source {source_path}")
+
+        if violations:
+            self.fail(name, f"{len(violations)} configured violation(s)")
+            for violation in violations[:10]:
+                print(f"         {violation}")
+        else:
+            self.ok(name, f"clean ({len(by_name)} configured targets)")
+
     def check_vcpkg_parity(self) -> None:
         cfg = self.rules.get("vcpkg_parity")
         if not cfg:
@@ -766,6 +849,8 @@ class Runner:
         self.check_cmake_ownership()
         self.check_test_registration()
         self.check_cmake_registry()
+        if self.configured_build_dir is not None:
+            self.check_configured_cmake(self.configured_build_dir)
         self.check_vcpkg_parity()
         self.check_sdk_public_deps()
         self.check_public_include_resolution()
@@ -783,6 +868,11 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--rules", type=Path)
     parser.add_argument("--rule-prefix")
+    parser.add_argument(
+        "--build-dir",
+        type=Path,
+        help="check the configured CMake File API codemodel in this build directory",
+    )
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
     root = args.root.resolve()
@@ -800,7 +890,11 @@ def main() -> int:
             elif isinstance(value, dict) and "name" in value:
                 print(f"{key}:{value['name']}")
         return 0
-    return Runner(root, rules_path, args.rule_prefix).run()
+    runner = Runner(root, rules_path, args.rule_prefix)
+    runner.configured_build_dir = (
+        args.build_dir.resolve() if args.build_dir else None
+    )
+    return runner.run()
 
 
 if __name__ == "__main__":

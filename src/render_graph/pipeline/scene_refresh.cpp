@@ -326,8 +326,13 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                         }
                     }
                 }
-                if (!typed_applied) {
+                if (!typed_applied && !ctx.frame_parameters) {
                     refresh_transform_node(*prepared, resolved_by_name, ctx);
+                }
+                if (!typed_applied && ctx.frame_parameters) {
+                    return missing_dynamic_data(
+                        "typed transform parameters missing for node " +
+                        std::to_string(id));
                 }
                 patch.nodes.push_back({node_id, std::move(prepared)});
                 break;

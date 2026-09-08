@@ -38,7 +38,7 @@
       "name": "linux-fast-dev",
       "configurePreset": "linux-fast-dev",
       "targets": ["chronon3d_dev_fast"],
-      "jobs": 16
+      "jobs": 20
     }
   ],
   "testPresets": [

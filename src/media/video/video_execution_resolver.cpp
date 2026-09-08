@@ -69,7 +69,7 @@ Decision resolve_legacy_internal(
     if (hot_path == GpuHotPathMode::RequireGpuNative) {
         return {.plan = {DecodePath::Nvdec, CompositePath::VulkanGraph,
                          EncodePath::Nvenc, InteropPath::VulkanCuda,
-                         SurfaceHandoffPath::VulkanCopy},
+                         SurfaceHandoffPath::Direct},
                 .path = ResolvedPath::RenderGraph,
                 .render_fallback = ResolvedPath::RenderGraph,
                 .reason = "required_gpu_native_full_graph",

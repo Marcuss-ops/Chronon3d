@@ -116,34 +116,11 @@ RenderPreparationResult prepare_render(
         return detail::prepare_render_scene(
             renderer, Scene{}, CompositionSpec{}, options);
     }
-    const auto& runtime = renderer->runtime();
     const auto& metadata = program.metadata();
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
-    const auto context = make_frame_context({
-        .global_time = SampleTime::from_frame_int(
-            options.reference_frame, canvas_fps),
-        .duration = Frame{metadata.duration_frames},
-        .width = static_cast<i32>(metadata.width),
-        .height = static_cast<i32>(metadata.height),
-        .assets_root = runtime.resolver().mount_root().string(),
-        .font_engine = &runtime.font_engine(),
-        .runtime = &runtime,
-    });
-    const auto evaluated = compiler::ProgramSampler{}.sample(
-        program, CompositionEvaluateContext{.frame_context = context},
-        options.reference_frame);
-    if (!evaluated) {
-        RenderPreparationResult result;
-        result.preparation_error = PreparationError{
-            .code = PreparationError::Code::InternalError,
-            .message = evaluated.error().message,
-            .phase = "compiled program sampling",
-        };
-        return result;
-    }
-    auto& evaluated_frame = evaluated.value();
-    Scene scene = evaluated_frame.scene.clone();
-    if (evaluated_frame.camera) scene.set_camera_2_5d(*evaluated_frame.camera);
+    // Preparation needs graph topology only. Frame-varying values are sampled
+    // by TypedProgramSampler at execution time and are not materialized here.
+    Scene scene = compiler::ProgramSampler{}.materialize_scene(program);
     auto result = detail::prepare_render_scene(
         renderer, scene,
         CompositionSpec{

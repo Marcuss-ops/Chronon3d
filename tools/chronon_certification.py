@@ -36,12 +36,19 @@ from pathlib import Path
 
 
 def git_source(root: Path) -> dict:
-    source: dict = {"git_sha": None, "dirty": None}
+    source: dict = {"git_sha": None, "upstream_sha": None, "dirty": None}
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
                              capture_output=True, text=True, timeout=15)
         if sha.returncode == 0:
             source["git_sha"] = sha.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        upstream = subprocess.run(["git", "rev-parse", "--verify", "@{u}"], cwd=root,
+                                  capture_output=True, text=True, timeout=15)
+        if upstream.returncode == 0:
+            source["upstream_sha"] = upstream.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         pass
     try:
@@ -85,11 +92,20 @@ def main() -> int:
     parser.add_argument("--receipt-exit", type=int)
     parser.add_argument("--av-parity-exit", type=int)
     parser.add_argument("--perf-json", type=Path)
+    parser.add_argument("--expected-sha", help="require all supplied evidence to identify this SHA")
+    parser.add_argument("--require-clean", action="store_true",
+                        help="fail the certificate when the working tree is dirty")
     args = parser.parse_args()
 
     root = args.root.resolve()
     cert: dict = {"schema": "chronon-certification.v1"}
     cert["source"] = git_source(root)
+    source_sha = cert["source"].get("git_sha")
+    same_sha = {"expected": args.expected_sha,
+                "observed": source_sha,
+                "matches": args.expected_sha is None or args.expected_sha == source_sha,
+                "working_tree_clean": cert["source"].get("dirty") is False}
+    cert["same_sha"] = same_sha
 
     # toolchain / hardware — best-effort local probe
     toolchain: dict = {}
@@ -171,6 +187,10 @@ def main() -> int:
     failures: list[str] = []
     if arch.get("gate_status") == "FAIL":
         failures.append("architecture gate FAIL")
+    if args.expected_sha and not same_sha["matches"]:
+        failures.append("source SHA does not match --expected-sha")
+    if args.require_clean and not same_sha["working_tree_clean"]:
+        failures.append("working tree is dirty")
     if zc.get("ZERO_COPY_FAIL"):
         failures.append("zero-copy FAIL")
     if zc.get("ZERO_COPY_BLOCKED"):

@@ -24,6 +24,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -48,8 +49,12 @@ NodeExecResult SourceNode::execute(
         return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
     }
     const bool full_frame_seed = can_seed_full_frame(ctx);
-    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+    const Mat4 base_matrix = ctx.node_exec.sampled_layer
+        ? ctx.node_exec.sampled_layer->matrix
+        : m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    const f32 opacity = ctx.node_exec.sampled_layer
+        ? ctx.node_exec.sampled_layer->opacity
+        : m_opacity_override.value_or(m_node.world_transform.opacity);
 
     // A screen-space solid background is semantically a clear, not a shape
     // raster.  Keep this predicate deliberately narrow: only an un-stroked,

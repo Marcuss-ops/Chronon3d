@@ -48,6 +48,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
             : const_cast<DofSourceCoverage*>(&node_exec.dof_source_coverage);
     copy.node_exec.current_identity = node_exec.current_identity;
     copy.node_exec.planned_physical_slot = node_exec.planned_physical_slot;
+    copy.node_exec.terminal_video_encode_physical_slot =
+        node_exec.terminal_video_encode_physical_slot;
+    copy.node_exec.terminal_video_encode_surface = node_exec.terminal_video_encode_surface;
+    copy.node_exec.sampled_layer = node_exec.sampled_layer;
     copy.node_exec.current_shape_processor = node_exec.current_shape_processor;
     copy.node_exec.current_shape_processors = node_exec.current_shape_processors;
     copy.node_exec.current_effect_processors = node_exec.current_effect_processors;

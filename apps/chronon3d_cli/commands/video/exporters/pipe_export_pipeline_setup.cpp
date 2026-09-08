@@ -98,6 +98,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         spdlog::error("[video] failed to obtain the video device runtime; aborting");
         return session;
     }
+    session->cuda_host_upload_bytes_before_setup =
+        session->device_runtime->cuda_host_upload_bytes();
 
     const auto& startup_trace = chronon3d::cli::startup_trace();
     session->startup_breakdown.logger_init_ms = startup_trace.logger_init_ms;
@@ -196,6 +198,30 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     if (direct_yuv_requested) {
+        const auto capability = media::video::DirectYuvProgram::resolve_support(
+            compiled,
+            opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv
+                ? media::video::DirectYuvPolicy::Require
+                : media::video::DirectYuvPolicy::Auto);
+        if (!capability.eligible) {
+            if (opts.gpu_hot_path_mode == GpuHotPathMode::Auto) {
+                spdlog::info(
+                    "[direct-yuv] capability pre-screen rejected lane; "
+                    "falling back to FullGraph: {}", capability.reason);
+                direct_yuv_requested = false;
+                session->execution_plan = render_graph_fallback_plan(opts);
+            } else {
+                spdlog::error(
+                    "[direct-yuv] capability pre-screen failed closed: {}",
+                    capability.reason);
+                session->direct_yuv_session = std::make_unique<DirectYuvSession>();
+                session->direct_yuv_session->required_but_unavailable = true;
+                return session;
+            }
+        }
+    }
+
+    if (direct_yuv_requested) {
         session->direct_yuv_session = std::make_unique<DirectYuvSession>();
         auto& direct = *session->direct_yuv_session;
         direct.asset_resolver = std::make_unique<assets::AssetResolver>();
@@ -211,7 +237,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
         std::string direct_reason;
-        session->direct_yuv_session->executor = media::video::DirectYuvExecutor::prepare(
+        session->direct_yuv_session->program = media::video::DirectYuvProgram::prepare(
             compiled, session->device_runtime->image_cache(), session->device_runtime,
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
@@ -231,7 +257,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         if (session->direct_yuv_selected()) {
             spdlog::info("[direct-yuv] selected for video source '{}'",
-                         session->direct_yuv_session->executor->video_path());
+                         session->direct_yuv_session->program->video_path());
         }
     }
 
