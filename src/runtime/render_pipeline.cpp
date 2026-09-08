@@ -125,43 +125,6 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         program.fingerprint());
 }
 
-std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(
-    const CompiledComposition& compiled,
-    const EvaluatedCompositionFrame& evaluated,
-    Frame frame, FrameExecution* execution)
-{
-    if (!compiled.composition) {
-        throw std::invalid_argument("compiled composition has no definition");
-    }
-    // The evaluated scene already owns its authored 2.5D state for the
-    // common no-camera path. Avoid cloning it (and its heap-owned camera)
-    // for every prepared frame; clone only when a separate evaluated camera
-    // must be stamped onto the scene.
-    const Scene* effective = &evaluated.scene;
-    std::optional<Scene> camera_scene;
-    if (evaluated.camera.has_value()) {
-        camera_scene.emplace(evaluated.scene.clone());
-        camera_scene->set_camera_2_5d(*evaluated.camera);
-        effective = &*camera_scene;
-    }
-    Camera context_camera{};
-    return chronon3d::graph::render_scene_via_graph(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
-        *effective,
-        context_camera,
-        compiled.composition->width(),
-        compiled.composition->height(),
-        frame,
-        0.0f,
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
-        static_cast<float>(compiled.composition->frame_rate().fps()),
-        compiled.composition->name(),
-        m_renderer, execution);
-}
-
 std::string RenderPipeline::debug_graph(
     const Scene& scene, const Camera& camera, i32 width, i32 height,
     float fps, Frame frame, f32 frame_time)

@@ -42,7 +42,6 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/evaluated_composition_frame.hpp>
 
 #include <memory>
 #include <optional>
@@ -89,15 +88,6 @@ public:
 
     [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame);
-
-    /// Execute a frame that has already passed the immutable composition
-    /// evaluation stage. This is the stage boundary used by PreparedRenderJob
-    /// for non-temporal, non-SSAA frames.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_evaluated_composition(
-        const CompiledComposition& compiled,
-        const EvaluatedCompositionFrame& evaluated,
-        Frame frame,
-        FrameExecution* execution = nullptr);
 
     // ── Scene/debug adapters ───────────────────────────────────────
     /// @deprecated Fase C3 — scene authoring adapter.
