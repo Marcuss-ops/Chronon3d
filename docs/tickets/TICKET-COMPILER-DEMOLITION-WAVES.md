@@ -44,6 +44,10 @@ sono coerenti.
   dipendenza esplicita del contesto, senza leggerlo dal `JobSession`.
 - [x] Wave 3.3c — il reset frame/job non invalida più il program cache store;
   la sua gestione è separata dal ciclo di vita dei valori frame.
+- [x] Wave 3.3d — il percorso software possiede `SceneHasher` e
+  `SceneProgramStore` in `SoftwareSessionResources`; il contesto di grafo
+  riceve il puntatore esplicito dal renderer e il job non è più consultato
+  dall’executor.
 - [x] Wave 5.1 — il compiled executor accede al backend tramite il seam
   tipizzato `RenderGraphContext::execution_backend()` invece del bundle
   `RenderServices`.

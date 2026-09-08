@@ -26,21 +26,16 @@
 // da reset_job — le risorse di sessione sono solo ciò che è elencato
 // sopra.
 //
-// WP-3 PR 3.1 — the `graph::SceneHasher` / `graph::SceneProgramStore`
-// members were REMOVED.  Scene-hash and scene-program state is canonical
-// per-session state on `runtime::JobSession` (`scene_hasher()` /
-// `program_store()`); `SoftwareRenderSession` (which composes
-// `runtime::JobSession common + SoftwareSessionResources software`)
-// reaches them through `session.common.scene_hasher()` /
-// `session.common.program_store()`.  This struct therefore needs no
-// include of the internal scene-hash / scene-program-store headers
-// (TICKET-013 boundary invariant restored for this header).
+// Scene-hash and scene-program state is software graph execution state and
+// follows this software-session owner rather than the renderer-agnostic job.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
 #include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include <chronon3d/backends/software/effects/per_pixel_dof.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>  // M1.5#7 — complete-type visibility for std::unique_ptr<TextRenderResources> deleter
 #include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
 #include <algorithm>
@@ -134,6 +129,8 @@ struct SoftwareSessionResources {
     DepthBufferPool depth_buffer_pool;
     renderer::DofScratchBuffers dof_scratch;
     EffectScratchResources effect_scratch;
+    graph::SceneHasher scene_hasher_state{};
+    graph::SceneProgramStore program_store_state{};
 
     // Authoring adapters are software-renderer compatibility state, not
     // generic JobSession state. The compiled-program path does not consult
@@ -177,8 +174,7 @@ struct SoftwareSessionResources {
     void reset_frame_temporaries() {
         // scratch_buffer intentionally preserved.
         // buffer_ring intentionally preserved: holds previous frame FB.
-        // WP-3 PR 3.1: scene_hasher reset no longer happens here —
-        // canonical scene_hasher is on runtime::JobSession (per-session).
+        // Scene/program caches persist across frame boundaries.
     }
 
     /// Reset temporal/session resources without touching runtime caches.
@@ -193,8 +189,7 @@ struct SoftwareSessionResources {
 
     /// Full job-level reset. Persistent caches (image cache, node cache,
     /// framebuffer pool) are NOT touched here — those belong to the runtime.
-    /// WP-3 PR 3.1: scene_hasher reset no longer happens here (canonical
-    /// scene_hasher is on runtime::JobSession).
+    /// Reset software-owned authoring state at the full job boundary.
     void reset_job();
 };
 

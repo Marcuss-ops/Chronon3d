@@ -54,7 +54,7 @@ SoftwareRenderer* setup_render_graph_context(
         auto& job = ctx.execution->job();
         ctx.runtime = &job.runtime();
         ctx.session = &job;
-        ctx.program_store = &job.program_store();
+        if (sw_sidecar) ctx.program_store = &sw_sidecar->program_store();
         ctx.scheduler = &job.runtime().scheduler();
         ctx.compiled_graph_cache = &job.runtime().graph_cache();
         ctx.node_cache = &job.runtime().node_cache();
