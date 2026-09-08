@@ -2,7 +2,6 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
-#include "render_plan_compiler_detail.hpp"
 #include "compiler_stages.hpp"
 
 #include <memory>
@@ -89,7 +88,7 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     render_plan::RenderPlanFingerprintOptions fp_opts = options.fingerprint;
     if (fp_opts.render_settings.width == 0) fp_opts.render_settings.width = plan.canvas.width;
     if (fp_opts.render_settings.height == 0) fp_opts.render_settings.height = plan.canvas.height;
-    const auto fp = render_plan::detail::render_job_fingerprint(
+    const auto fp = stages::compute_digests(
         plan, data->metadata.asset_manifest, fp_opts);
     data->metadata.content_digest = fp.content_digest;
     data->metadata.request_digest = fp.request_digest;
