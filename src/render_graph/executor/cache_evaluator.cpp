@@ -39,7 +39,7 @@ CacheEvalResult evaluate_cache(
     // frame-invariant results enter the inter-frame cache; this is the semantic
     // boundary between reusable text/raster assets and dynamic projections.
     cr.use_cache = is_cacheable && !cr.node_frame_dependent &&
-                   ctx.services.node_cache;
+                   ctx.execution_node_cache();
     cr.is_cacheable = is_cacheable;
 
     // Native video backends attach device surfaces to framebuffers.  Keeping
@@ -128,7 +128,7 @@ CacheEvalResult evaluate_cache(
         const auto lookup_t0 = ctx.node_exec.counters
             ? profiling::now()
             : profiling::Clock::time_point{};
-        cr.result = ctx.services.node_cache->get(cr.key);
+        cr.result = ctx.execution_node_cache()->get(cr.key);
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->node_cache_lookup_wall_us.fetch_add(
                 static_cast<uint64_t>(profiling::duration_us(lookup_t0, profiling::now())),
@@ -150,7 +150,7 @@ CacheEvalResult evaluate_cache(
                 ? CacheEvaluationStatus::Hit : CacheEvaluationStatus::Miss;
         }
     } else {
-        if (!ctx.services.node_cache) {
+        if (!ctx.execution_node_cache()) {
             cr.cache_status = CacheEvaluationStatus::BypassNoCache;
         } else if (node.kind() == RenderGraphNodeKind::Composite) {
             // Explicit composite status — composites always bypass cache so the
