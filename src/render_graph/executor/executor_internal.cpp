@@ -8,6 +8,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -40,7 +41,15 @@ std::shared_ptr<Framebuffer> execute_internal(
         return nullptr;
     }
 
-    auto workspace_lease = session.execution_workspaces->acquire(
+    // Slot-owned resources are the canonical frame execution owner. Standalone
+    // graph diagnostics have no lease, so they use short-lived local storage.
+    ExecutionWorkspaceRing standalone_workspaces;
+    NodeMemoryTracker standalone_memory;
+    auto* payload = ctx.execution ? ctx.execution->payload() : nullptr;
+    auto& workspaces = payload ? payload->execution_workspaces
+                               : standalone_workspaces;
+    auto* memory_tracker = payload ? &payload->memory_tracker : &standalone_memory;
+    auto workspace_lease = workspaces.acquire(
         static_cast<std::uint64_t>(std::max<std::int64_t>(0, ctx.frame_input.frame.integral())));
     auto& workspace = workspace_lease.workspace();
     auto* res = arena.resource();
@@ -50,7 +59,7 @@ std::shared_ptr<Framebuffer> execute_internal(
     } guard{arena};
 
     const size_t node_count = graph.size();
-    ExecutionState state(workspace, session.memory_tracker.get());
+    ExecutionState state(workspace, memory_tracker);
     state.temp.resize(node_count);
     state.resolved_key_digest.assign(node_count, 0);
     state.resolved_frame_dependent.assign(node_count, 0);
@@ -116,7 +125,7 @@ std::shared_ptr<Framebuffer> execute_internal(
     // executions remain visible to this executor, and the storage dies with
     // this call — node executions never outlive execute_internal.
     std::optional<NodeExecutionError> frame_error_storage;
-    ctx.frame_error = &frame_error_storage;
+    ctx.frame_error = payload ? &payload->frame_error : &frame_error_storage;
 
     if (compiled.program.fully_recorded) {
         execute_compiled_program(compiled.program, ctx, state, parent_counters);
@@ -136,6 +145,13 @@ std::shared_ptr<Framebuffer> execute_internal(
             .total_returns = pool.total_returns,
             .evicted_bytes = pool.evicted_bytes,
         });
+    }
+
+    // Promote the completed frame report to the job aggregate before the slot
+    // is recycled. This keeps job telemetry available without making the job
+    // own frame scratch or frame-local counters.
+    if (state.node_memory_tracker) {
+        session.memory_aggregate().merge_report(state.node_memory_tracker->snapshot());
     }
 
     if (ctx.frame_error && ctx.frame_error->has_value()) {

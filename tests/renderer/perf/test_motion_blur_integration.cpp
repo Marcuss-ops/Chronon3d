@@ -343,7 +343,7 @@ TEST_CASE("Motion blur runtime matrix: 1/2/4/8 samples preserve cold-warm parity
             REQUIRE(repeat != nullptr);
             CHECK(test::framebuffer_hash(*repeat) == warm_hashes.at(2));
 
-            const auto runtime_report = warm_renderer->session().memory_tracker->snapshot();
+            const auto runtime_report = warm_renderer->session().memory_aggregate().snapshot();
             CHECK(runtime_report.current_live_bytes == 0);
             CHECK(runtime_report.peak_live_bytes >= runtime_report.current_live_bytes);
             std::uint64_t allocation_events = 0;
@@ -437,7 +437,7 @@ TEST_CASE("Motion blur runtime cancellation: stops between temporal samples") {
     CHECK(framebuffer == nullptr);
     CHECK(evaluations >= 2);
     CHECK(evaluations < settings.motion_blur.samples);
-    const auto cancelled_report = renderer->session().memory_tracker->snapshot();
+    const auto cancelled_report = renderer->session().memory_aggregate().snapshot();
     CHECK(cancelled_report.current_live_bytes == 0);
     CHECK(cancelled_report.peak_live_bytes >= cancelled_report.current_live_bytes);
     REQUIRE(cancelled_report.samples.size() >= 1);

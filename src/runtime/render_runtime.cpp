@@ -20,7 +20,7 @@
 // The runtime therefore no longer populates them, no longer assigns
 // them into the service bundle, and no longer wires them into the
 // JobSession/runtime dependency boundary is explicit. The corresponding
-// service-bundle fields in `RenderServices` are gone (see header).
+// graph service-bundle fields are gone (see header).
 //
 // ===========================================================================
 
