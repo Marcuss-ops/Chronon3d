@@ -7,8 +7,8 @@
 namespace chronon3d::compiler::stages {
 
 struct ProgramDigests {
-    std::string content_digest;
-    std::string request_digest;
+    assets::ContentDigest content_digest{};
+    assets::ContentDigest request_digest{};
 };
 
 void lower_scene(const render_plan::RenderPlan&, CompiledProgramData&);
