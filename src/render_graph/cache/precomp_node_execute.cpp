@@ -202,7 +202,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     SceneHasher hasher;
     SceneStructureKey key;
     key.topology_hash      = hasher.compute_structure_fingerprint(
-        nested_scene, nested_ctx.services.registry_generation);
+        nested_scene, nested_ctx.registry_generation);
     key.active_set_hash    = hasher.compute_active_at_fingerprint(nested_scene, nested_frame);
     key.render_options_hash = hash_combine(0, static_cast<uint64_t>(nested_ctx.policy.ssaa_factor));
     key.width              = nested_ctx.frame_input.width;

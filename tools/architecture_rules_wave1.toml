@@ -12,3 +12,32 @@ paths = [
   "include/chronon3d/render_graph/compiler/frame_graph_compiler.hpp",
   "src/render_graph/compiler/frame_graph_compiler.cpp",
 ]
+
+[[occurrence_cap]]
+name = "compiler_no_execution_service_locator"
+description = "Compiler passes consume typed build dependencies, never RenderGraphContext::services"
+pattern = '\bservices\s*\.'
+max_count = 0
+scan_paths = ["src/compiler", "include/chronon3d/compiler"]
+skip_comments = true
+hint = "Move graph-build dependency assembly to the render-graph boundary."
+
+# The compiler boundary owns static graph semantics only.  Runtime/backend
+# objects are materialized after compilation and must never leak back into the
+# compiler target through a convenience include.
+[[forbidden_include]]
+name = "compiler_boundary_no_runtime_backend_dependencies"
+patterns = [
+  '#include\s*[<\"][^>\"]*(?:backends/|GraphExecutor|graph_executor|FrameExecution|frame_execution|Vulkan|CUDA|cuda)'
+]
+scan_paths = ["include/chronon3d/compiler", "src/compiler"]
+skip_comments = true
+
+[[contract]]
+name = "compiler_graph_root_coordinator"
+file = "src/compiler/compiler_graph.cpp"
+required_patterns = [
+  'compiler/detail/graph_compile_pipeline.hpp',
+  'GraphCompilePipeline',
+  'compile_graph\s*\('
+]

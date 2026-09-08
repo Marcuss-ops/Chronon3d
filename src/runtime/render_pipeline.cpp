@@ -80,7 +80,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
-    const CompiledComposition& compiled, Frame frame)
+    const CompiledComposition& compiled, Frame frame, FrameExecution* execution)
 {
     return chronon3d::graph::render_compiled_composition_frame(
         m_runtime.backend(),
@@ -90,7 +90,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
         m_renderer->video_decoder(),
         compiled,
         frame,
-        m_renderer /* R3 sidecar */
+        m_renderer /* R3 sidecar */, execution
     );
 }
 
@@ -132,7 +132,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
 std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(
     const CompiledComposition& compiled,
     const EvaluatedCompositionFrame& evaluated,
-    Frame frame)
+    Frame frame, FrameExecution* execution)
 {
     if (!compiled.composition) {
         throw std::invalid_argument("compiled composition has no definition");
@@ -163,7 +163,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(
         m_renderer->video_decoder(),
         static_cast<float>(compiled.composition->frame_rate().fps()),
         compiled.composition->name(),
-        m_renderer);
+        m_renderer, execution);
 }
 
 std::string RenderPipeline::debug_graph(

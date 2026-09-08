@@ -37,16 +37,17 @@ using namespace chronon3d::graph;
         }
         return materialized;
     }
-    if (!ctx.services.prepared_assets) {
+    const auto* build = ctx.build_dependencies;
+    if (!build || !build->prepared_assets) {
         throw std::runtime_error(
             "Mesh source cannot be materialized: matching preparation snapshot is not wired");
     }
 
     // Graph construction consumes only the immutable source populated by the
     // preparation barrier. It must never resolve paths or invoke MeshLoader.
-    const auto prepared = ctx.services.prepared_assets->meshes.find(
+    const auto prepared = build->prepared_assets->meshes.find(
         mesh_shape.reference.owner());
-    if (prepared == ctx.services.prepared_assets->meshes.end() ||
+    if (prepared == build->prepared_assets->meshes.end() ||
         prepared->second.path != mesh_shape.reference.path() ||
         !prepared->second.source) {
         throw std::runtime_error(
@@ -62,6 +63,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                                const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
     const bool is_static = layer.cache_static || item.is_static;
+    const auto* build = ctx.build_dependencies;
 
     if (layer.kind == LayerKind::Adjustment) {
         return k_invalid_node;
@@ -333,11 +335,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             }
         };
 
-        if (!ctx.services.node_catalog) {
+        if (!build || !build->node_catalog) {
             throw std::logic_error(
                 "source.precomp: node_catalog not wired (call wire_precomp_build_factory)");
         }
-        auto node = ctx.services.node_catalog->create(
+        auto node = build->node_catalog->create(
             "source.precomp", request);
 
         if (!node) {
@@ -354,7 +356,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
         // the cache policy is baked in by the factory.
         return graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, ctx.services.video_decoder, layer.from
+            *layer.video_source, build ? build->video_decoder : nullptr, layer.from
         ), node_ctx);
     }
 

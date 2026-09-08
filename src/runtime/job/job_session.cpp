@@ -24,6 +24,7 @@ std::shared_ptr<const graph::NodeExecutionError> RenderErrorSlot::load() const {
 JobSession::JobSession(RuntimeContext& runtime, JobSessionConfig config)
     : runtime_(&runtime),
       program_(std::move(config.program)),
+      legacy_composition_(std::move(config.legacy_composition)),
       first_frame_(config.first_frame),
       end_frame_(config.end_frame),
       job_id_(config.job_id) {

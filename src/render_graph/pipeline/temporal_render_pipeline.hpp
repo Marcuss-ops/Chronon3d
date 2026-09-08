@@ -20,7 +20,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     float fps,
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    const TemporalRenderContext* temporal_context);
+    const TemporalRenderContext* temporal_context,
+    chronon3d::runtime::FrameExecution* execution = nullptr);
 
 std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     RenderBackend& backend,
@@ -31,6 +32,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     const CompiledComposition& compiled,
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    chronon3d::CancellationToken* cancellation);
+    chronon3d::CancellationToken* cancellation,
+    chronon3d::runtime::FrameExecution* execution = nullptr);
 
 } // namespace chronon3d::graph

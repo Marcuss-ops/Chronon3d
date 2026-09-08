@@ -6,6 +6,31 @@
 # Backend sanitization
 # -----------------------------------------------------------------------------
 
+[[occurrence_cap]]
+name = "graph_builder_no_execution_service_locator"
+description = "Graph builders consume typed GraphBuildDependencies, never RenderGraphContext::services"
+pattern = '\bservices\s*\.'
+max_count = 0
+scan_paths = ["src/render_graph/builder"]
+skip_comments = true
+hint = "Move catalog/prepared-asset access into GraphBuildContext::dependencies before touching RenderServices."
+
+[[occurrence_cap]]
+name = "retired_render_services_node_catalog"
+description = "Graph-node catalog is build-only and must not return to RenderServices"
+pattern = '\bservices\.node_catalog\b'
+max_count = 0
+scan_paths = ["include", "src", "apps"]
+skip_comments = true
+
+[[occurrence_cap]]
+name = "retired_render_services_prepared_assets"
+description = "Prepared asset snapshots are build dependencies, never RenderServices members"
+pattern = '\bservices\.prepared_assets\b'
+max_count = 0
+scan_paths = ["include", "src", "apps"]
+skip_comments = true
+
 [[forbidden_path]]
 name = "software_backend_retired_dispatch_files"
 paths = [
