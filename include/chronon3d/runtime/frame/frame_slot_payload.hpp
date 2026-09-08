@@ -10,7 +10,8 @@
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/compiler/frame_parameters.hpp>
-#include <chronon3d/timeline/evaluated_composition_frame.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 #include <memory>
 #include <optional>
@@ -24,12 +25,17 @@ struct FrameSlotPayload final {
     // JobSession or in the legacy EvaluatedCompositionFrame compatibility
     // payload.
     compiler::FrameParameterBlock parameters{};
-    std::optional<EvaluatedCompositionFrame> evaluated{};
+    // Frame-local evaluated state belongs to the lease.  Keep the scene and
+    // camera as separate typed values so the slot does not own the timeline
+    // compatibility wrapper (`EvaluatedCompositionFrame`).
+    std::optional<Scene> sampled_scene{};
+    std::optional<Camera2_5D> sampled_camera{};
     std::shared_ptr<Framebuffer> rendered{};
 
     void reset() noexcept {
         parameters.layers.clear();
-        evaluated.reset();
+        sampled_scene.reset();
+        sampled_camera.reset();
         rendered.reset();
         arena.reset();
     }

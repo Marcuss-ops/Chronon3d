@@ -32,6 +32,9 @@ sono coerenti.
 - [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
   `CompiledComposition` come payload dell’executor.
+- [x] Wave 3.1 — il payload dello slot non possiede più
+  `EvaluatedCompositionFrame`: scene e camera frame-local sono possedute dal
+  lease come stato tipizzato separato.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura
