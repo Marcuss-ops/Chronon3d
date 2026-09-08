@@ -16,8 +16,8 @@ void init_shared_transparent_fb(
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
         PoolFbDeleter deleter;
-        if (ctx.services.framebuffer_pool) {
-            deleter = PoolFbDeleter{ctx.services.framebuffer_pool};
+        if (ctx.execution_framebuffer_pool()) {
+            deleter = PoolFbDeleter{ctx.execution_framebuffer_pool()};
         }
         state.shared_transparent = CachedFB(raw, std::move(deleter));
     }
