@@ -146,6 +146,16 @@ LayerBuilder& LayerBuilder::enable_3d(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::transform(Transform t) {
+    m_layer.transform = t;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::transform(const Mat4& matrix) {
+    m_layer.transform = from_mat4(matrix, m_layer.transform.opacity);
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::depth_role(DepthRole role) { m_layer.depth_role = role; return *this; }
 LayerBuilder& LayerBuilder::depth_offset(f32 offset)   { m_layer.depth_offset = offset; return *this; }
 

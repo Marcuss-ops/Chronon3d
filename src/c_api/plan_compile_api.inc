@@ -8,10 +8,10 @@ chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* s
     *out_plan = nullptr;
     try {
         const auto root = json::parse(source, source + source_size);
-        auto plan = std::make_unique<chronon_plan>();
-        plan->prepared = compile_plan(root, engine->resolver);
-        plan->settings.width = plan->prepared.canvas.width;
-        plan->settings.height = plan->prepared.canvas.height;
+        auto program = compile_plan(root, engine->resolver);
+        auto plan = std::make_unique<chronon_plan>(std::move(program));
+        plan->settings.width = static_cast<int>(plan->program.metadata().width);
+        plan->settings.height = static_cast<int>(plan->program.metadata().height);
         *out_plan = plan.release();
         clear_error(engine);
         return CHRONON_OK;

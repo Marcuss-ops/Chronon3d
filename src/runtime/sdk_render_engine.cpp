@@ -18,7 +18,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
-#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <nlohmann/json.hpp>
@@ -325,6 +325,30 @@ RenderEngine::render_compiled(
         m_impl->engine.set_settings(settings);
         return m_impl->engine.render_compiled(
             compiled, chronon3d::Frame{frame.integral()});
+    });
+}
+
+chronon3d::Result<RenderOutput, RenderError>
+RenderEngine::render_program(
+    const chronon3d::compiler::CompiledProgram& program, Frame frame) {
+    return m_impl->render_frame(frame, [&] {
+        auto settings = convert_settings(m_impl->settings);
+        const auto& meta = program.metadata();
+        settings.render_budget.max_width = meta.render_budget.max_width;
+        settings.render_budget.max_height = meta.render_budget.max_height;
+        settings.render_budget.max_total_pixels = meta.render_budget.max_total_pixels;
+        settings.render_budget.max_frames = meta.render_budget.max_frames;
+        settings.render_budget.max_layers = meta.render_budget.max_layers;
+        settings.render_budget.max_text_bytes = meta.render_budget.max_text_bytes;
+        settings.render_budget.max_asset_reference_bytes = meta.render_budget.max_asset_reference_bytes;
+        settings.render_budget.max_estimated_output_bytes = meta.render_budget.max_estimated_output_bytes;
+        settings.render_budget.max_peak_memory_bytes = meta.render_budget.max_peak_memory_bytes;
+        settings.render_budget.max_temporal_pixels = meta.render_budget.max_temporal_pixels;
+        m_impl->prepared_job.reset();
+        m_impl->prepared_composition = nullptr;
+        m_impl->engine.set_settings(settings);
+        return m_impl->engine.render_program(
+            program, chronon3d::Frame{frame.integral()});
     });
 }
 

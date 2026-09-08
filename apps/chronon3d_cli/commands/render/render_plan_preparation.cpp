@@ -168,17 +168,16 @@ int validate_render_plan(const RenderPlanPreparationOptions& options) {
     nlohmann::json js;
     js["valid"]           = true;
     js["plan"]            = options.input;
-    // Wave 2: legacy plan view reached via the context bridge (see
-    // render_plan_preparation.hpp).
-    const auto& prepared = context.prepared();
-    js["job_id"]          = prepared.job_id;
-    js["content_digest"]  = prepared.fingerprint.content_digest.hex();
-    js["request_digest"]  = prepared.fingerprint.request_digest.hex();
-    js["width"]           = prepared.canvas.width;
-    js["height"]          = prepared.canvas.height;
-    js["fps_num"]         = prepared.canvas.fps.num();
-    js["fps_den"]         = prepared.canvas.fps.den();
-    js["duration_frames"] = prepared.canvas.duration.integral();
+    const auto& meta = context.program->metadata();
+    const auto& fp = context.program->fingerprint_data();
+    js["job_id"]          = meta.job_id;
+    js["content_digest"]  = fp.content_digest.hex();
+    js["request_digest"]  = fp.request_digest.hex();
+    js["width"]           = meta.width;
+    js["height"]          = meta.height;
+    js["fps_num"]         = meta.fps_numerator;
+    js["fps_den"]         = meta.fps_denominator;
+    js["duration_frames"] = meta.duration_frames;
     js["layers"]          = context.decoded.layers.size();
     js["status"]          = "PASS";
     std::cout << js.dump(2) << "\n";
