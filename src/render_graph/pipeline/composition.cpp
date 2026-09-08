@@ -325,13 +325,13 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 : frame_runtime->config().cache().fb_pool_max_bytes())
             : cache::FramebufferPool::kDefaultBudgetBytes;
         auto* owning_memory_tracker = sw_sidecar
-            ? sw_sidecar->session().memory_tracker.get()
+            ? &sw_sidecar->session().memory_aggregate()
             : nullptr;
         auto merge_sample_reports = [&](std::size_t completed_samples) {
             if (!owning_memory_tracker) return;
             for (std::size_t i = 0; i < completed_samples; ++i) {
                 owning_memory_tracker->merge_report(
-                    sample_sessions[i]->memory_tracker->snapshot());
+                    sample_sessions[i]->memory_aggregate().snapshot());
             }
         };
         for (std::size_t i = 0; i < sample_plan.contexts.size(); ++i) {

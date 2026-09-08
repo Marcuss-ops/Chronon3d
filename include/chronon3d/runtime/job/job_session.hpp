@@ -7,6 +7,7 @@
 #include <chronon3d/runtime/frame_history.hpp>
 #include <chronon3d/runtime/frame/frame_queue.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
@@ -45,18 +46,6 @@ struct DirtyHistorySlot : DirtyHistory {
     using DirtyHistory::operator=;
     DirtyHistory& operator()() noexcept { return *this; }
     const DirtyHistory& operator()() const noexcept { return *this; }
-};
-
-/// Frame error channel owned by the job and cleared at each frame boundary.
-class RenderErrorSlot final {
-public:
-    void clear();
-    void publish_first(const graph::NodeExecutionError& error);
-    [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError> load() const;
-
-private:
-    mutable std::mutex mutex_;
-    std::shared_ptr<const graph::NodeExecutionError> error_;
 };
 
 struct JobSessionConfig {
@@ -212,17 +201,23 @@ public:
     }
     [[nodiscard]] ResourcePlan& resource_plan() noexcept { return resource_plan_state; }
     [[nodiscard]] const ResourcePlan& resource_plan() const noexcept { return resource_plan_state; }
+    [[nodiscard]] graph::NodeMemoryTracker& memory_aggregate() noexcept {
+        return memory_aggregate_state;
+    }
+    [[nodiscard]] const graph::NodeMemoryTracker& memory_aggregate() const noexcept {
+        return memory_aggregate_state;
+    }
 
     void reset_frame_counters() noexcept {
         dirty_telemetry.reset_telemetry_counters();
     }
 
-    void clear_last_frame_error() { frame_error_slot->clear(); }
+    void clear_last_frame_error() { frame_error_aggregate.clear(); }
     void publish_last_frame_error(const graph::NodeExecutionError& error) {
-        frame_error_slot->publish_first(error);
+        frame_error_aggregate.publish_first(error);
     }
     [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError>
-    last_frame_error() const { return frame_error_slot->load(); }
+    last_frame_error() const { return frame_error_aggregate.load(); }
 
     void reset_frame_temporaries() {
         dirty_telemetry.reset_telemetry_counters();
@@ -233,15 +228,21 @@ public:
         // SceneProgramStore is a persistent program-cache authority. Frame
         // reset must not invalidate it; the active graph context owns the
         // explicit store seam used by precomp execution.
-        memory_tracker->reset();
+        // Per-frame memory telemetry is owned by the slot payload and is
+        // reset when that lease is recycled; the job aggregate is reset only
+        // at reset_job().
     }
     void reset_scene_state() noexcept { scene_hasher_state = graph::SceneHasher{}; }
     [[nodiscard]] graph::SceneHasher& scene_hasher() noexcept { return scene_hasher_state; }
     [[nodiscard]] const graph::SceneHasher& scene_hasher() const noexcept { return scene_hasher_state; }
     [[nodiscard]] graph::SceneProgramStore& program_store() noexcept { return *program_store_state; }
     [[nodiscard]] const graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
-    [[nodiscard]] FrameArena& arena() noexcept { return *arena_ptr; }
-    [[nodiscard]] const FrameArena& arena() const noexcept { return *arena_ptr; }
+    // Compatibility accessor for standalone graph diagnostics. Production
+    // execution uses FrameExecution::arena(), which resolves to the leased
+    // slot payload. Slot zero is the stable standalone payload for callers
+    // that do not have a lease yet.
+    [[nodiscard]] FrameArena& arena() noexcept { return slots_->payload(0).arena; }
+    [[nodiscard]] const FrameArena& arena() const noexcept { return slots_->payload(0).arena; }
     [[nodiscard]] FrameHistoryState history_state() noexcept {
         return FrameHistoryState{frame_history, dirty_telemetry};
     }
@@ -251,16 +252,15 @@ public:
     FrameHistorySlot frame_history{};
     DirtyHistorySlot dirty_telemetry{};
     ResourcePlan resource_plan_state{};
-    std::unique_ptr<FrameArena> arena_ptr{std::make_unique<FrameArena>()};
-    std::unique_ptr<graph::ExecutionWorkspaceRing> execution_workspaces{
-        std::make_unique<graph::ExecutionWorkspaceRing>()};
     graph::SceneHasher scene_hasher_state{};
     std::unique_ptr<graph::SceneProgramStore> program_store_state{
         std::make_unique<graph::SceneProgramStore>()};
-    std::unique_ptr<graph::NodeMemoryTracker> memory_tracker{
-        std::make_unique<graph::NodeMemoryTracker>()};
-    std::unique_ptr<RenderErrorSlot> frame_error_slot{
-        std::make_unique<RenderErrorSlot>()};
+    // Job-level aggregate. Individual node/frame records live in the leased
+    // FrameSlotPayload and are promoted here when execution completes.
+    graph::NodeMemoryTracker memory_aggregate_state{};
+    // Job-level diagnostic aggregate; frame-local writes use the slot's
+    // RenderErrorSlot and are promoted at execution completion.
+    RenderErrorSlot frame_error_aggregate{};
     void reset_job();
 
 private:
