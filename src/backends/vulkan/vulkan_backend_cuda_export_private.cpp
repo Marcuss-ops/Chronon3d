@@ -158,6 +158,22 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
     }
     const bool record_in_frame_batch = frame_batch.active;
     if (!record_in_frame_batch) begin_command_buffer();
+    const VkCommandBuffer command = record_in_frame_batch
+        ? active_command_buffer() : command_buffer;
+
+    if (source_slot == destination_slot) {
+        // Z3 direct encode-surface binding: source IS destination.
+        // No blit or D2D copy needed; gate 6 stays 0.
+        // Ensure image layout is GENERAL and register for CUDA export signaling.
+        transition(command, dst.image,
+                   dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        dst.initialized = true;
+        surfaces.cuda_export_ready_surfaces.insert(destination_slot);
+        if (!record_in_frame_batch) submit(wait_for_completion);
+        return;
+    }
+
     static std::atomic<int> s_copy_count{0};
     if (s_copy_count.fetch_add(1) < 5) {
         spdlog::info(
@@ -166,8 +182,6 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
             static_cast<int>(src.format), dst.width, dst.height,
             record_in_frame_batch);
     }
-    const VkCommandBuffer command = record_in_frame_batch
-        ? active_command_buffer() : command_buffer;
     transition(command, src.image, VK_IMAGE_LAYOUT_GENERAL,
                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     transition(command, dst.image,

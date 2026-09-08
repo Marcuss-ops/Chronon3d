@@ -267,13 +267,18 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
         return std::shared_ptr<Framebuffer>{};
     }
     if (source == encode_surface) {
-        // Z3 encode-surface alias binding (TICKET-ZERO-COPY-ZWAVES): the
-        // reused frame is already resident in the slot's encode surface, so
-        // no source→encode D2D copy exists. Gate 6 stays 0 by construction;
-        // the encoder consumes this same surface through the prepared path.
         spdlog::debug(
             "[native-residency] encode-surface alias binding active: reused "
             "frame {} needs no D2D copy", static_cast<int>(frame));
+        const auto copy = backend_.copy_surface_to_video_encode(
+            source, encode_surface);
+        if (!copy.ok()) {
+            spdlog::error("[backend] native encode copy failed on reused frame {}: {}",
+                          static_cast<int>(frame), copy.error().message);
+            backend_.end_frame_batch();
+            encode_batch_active_ = false;
+            return std::shared_ptr<Framebuffer>{};
+        }
     } else {
         const auto copy = backend_.copy_surface_to_video_encode(
             source, encode_surface);
@@ -303,17 +308,17 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
                           static_cast<int>(frame));
             exec_fb.reset();
         } else if (source == encode_surface) {
-            // Z3 encode-surface alias binding (TICKET-ZERO-COPY-ZWAVES): the
-            // graph's final composite rendered DIRECTLY into the slot's
-            // encode surface, so the transient source→encode D2D copy does
-            // not exist for this frame. Gate 6 stays 0; the encoder consumes
-            // the same surface through the prepared native handoff. This is
-            // the certified no-copy path — reachable only when the executor
-            // binds the frame output to the slot encode surface.
             spdlog::debug(
                 "[native-residency] encode-surface alias binding active: frame "
                 "{} rendered directly into encode surface; D2D skipped",
                 static_cast<int>(frame));
+            const auto copy = backend_.copy_surface_to_video_encode(
+                source, encode_surface);
+            if (!copy.ok()) {
+                spdlog::error("[backend] native encode copy failed for frame {}: {}",
+                              static_cast<int>(frame), copy.error().message);
+                exec_fb.reset();
+            }
         } else {
             // Degraded (non-bound) lane: the graph produced a transient
             // output surface distinct from the encode surface. The counted

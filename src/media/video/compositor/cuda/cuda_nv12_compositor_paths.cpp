@@ -121,7 +121,6 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
                               (height + 31) / 32, 1, 16, 16, 1, 0, active,
                               args, nullptr),
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
-    bridge_->signal_for_vulkan(active);
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {
         // Zero-copy gate 4: every RGBA→NV12 kernel launch is an encoder

@@ -103,12 +103,18 @@ std::optional<RenderRequest> make_render_request(
     // ("--frames 0") resolves to exactly one frame.
     request.frame_range_explicit = args.frames_explicit;
 
+    const bool gpu_native =
+        (args.video_settings.hardware_encoder == "nvenc" &&
+         args.video_settings.encoder_backend == "native" &&
+         args.backend != chronon3d::graph::BackendPreference::Software) ||
+        args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
+
     if (is_video_output(args.output)) {
         request.mode = RenderMode::Video;
         request.first_frame = Frame{range.start};
         request.last_frame = Frame{range.end};
         request.execution.warmup_renderer = true;
-        request.execution.warmup_dummy_frame = true;
+        request.execution.warmup_dummy_frame = !gpu_native;
     } else if (range.start == range.end) {
         request.mode = RenderMode::Still;
         request.still_frame = Frame{range.start};
@@ -127,6 +133,9 @@ std::optional<RenderRequest> make_render_request(
     request.execution.trace_level = args.trace_level;
     fill_execution_options(request.execution, args.pipeline, args.cpu_budget,
                            request.mode == RenderMode::Video, args.backend);
+    if (gpu_native) {
+        request.execution.warmup_dummy_frame = false;
+    }
 
     return request;
 }

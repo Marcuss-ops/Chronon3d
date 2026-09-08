@@ -149,7 +149,9 @@ private:
     int audio_input_stream_{-1};
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    static constexpr std::size_t kCudaEncodeRingSlots = 6;
+    // Expanded from 6 to 34 slots to accommodate NVENC rc_lookahead (up to 32 frames)
+    // plus safety margin, preventing encoder backpressure stalls and lookahead deadlock.
+    static constexpr std::size_t kCudaEncodeRingSlots = 34;
 #ifdef CHRONON3D_ENABLE_VULKAN
     std::unordered_map<std::uint64_t,
         std::unique_ptr<media::video::CudaNv12Compositor>>

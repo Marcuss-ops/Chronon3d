@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_slot_view.hpp>
+#include <memory>
 
 namespace chronon3d {
 
