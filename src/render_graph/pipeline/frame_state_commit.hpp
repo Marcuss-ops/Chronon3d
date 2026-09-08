@@ -13,7 +13,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/renderer_state.hpp>
 #include "scene_internal.hpp"
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 #include <memory>
 
 namespace chronon3d {

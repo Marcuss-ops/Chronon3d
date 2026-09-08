@@ -1,7 +1,7 @@
 #include "tile_execution_policy.hpp"
 
 #include "camera_change_policy.hpp"
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -339,15 +339,14 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     // the resolved layer map is compiled later by the same authority through
     // compute_dirty_rect().
     plan.frame_fingerprints = compute_frame_fingerprints(
-        sw_renderer->scene_hasher(), scene, frame,
-        ctx.registry_generation);
+        scene, frame, ctx.registry_generation);
 
     const bool has_surface = has_matching_previous_surface(sw_renderer, width, height);
     const bool previous_fingerprints_valid =
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     const bool scene_is_static = previous_fingerprints_valid &&
-        sw_renderer->scene_hasher().is_static_scene_at(scene, frame);
+        scene_is_static_at(scene, frame);
 
     detail::FrameStateSnapshot previous_state;
     previous_state.frame = history.prev_frame;

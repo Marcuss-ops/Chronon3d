@@ -7,7 +7,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include "scene_internal.hpp"
-#include "scene_fingerprint.hpp"
+#include "../core/scene_fingerprint.hpp"
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <cstdint>
 #include <memory>
