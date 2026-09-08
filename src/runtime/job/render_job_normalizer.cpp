@@ -89,6 +89,7 @@ normalize_render_job(
     resolved.execution.hardware_encoder = "none";
     resolved.execution.encoder_backend = "pipe";
     resolved.execution.gpu_hot_path_mode = "auto";
+    resolved.execution.cpu_fallback_forbidden = !resolved.requirements.cpu_fallback_allowed;
 #endif
 
     if (request.backend == "auto") resolved.backend = resolved.execution.backend;

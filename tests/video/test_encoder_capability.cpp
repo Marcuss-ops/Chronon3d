@@ -91,3 +91,69 @@ TEST_CASE("encoder capability: feed names are stable and non-empty") {
     CHECK(chronon3d::media::encoder_feed_name(EncoderFeed::DirectYuv) == "direct_yuv");
     CHECK(chronon3d::media::encoder_feed_name(EncoderFeed::NativeSurface) == "native_surface");
 }
+
+TEST_CASE("canonical execution parameters: cpu_fallback_forbidden contract across GPU and pipe lanes") {
+    using chronon3d::media::ExecutionRequirements;
+    using chronon3d::media::resolve_canonical_execution_parameters;
+    using chronon3d::media::resolve_video_execution;
+    using chronon3d::media::OutputSpec;
+    using chronon3d::media::VideoCapabilities;
+
+    // ── Lane 1: GPU / native execution lane ──────────────────────────────
+    {
+        ExecutionRequirements req;
+        req.gpu_required = true;
+        req.cpu_fallback_allowed = false;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK(params.cpu_fallback_forbidden);
+    }
+    {
+        ExecutionRequirements req;
+        req.gpu_required = true;
+        req.cpu_fallback_allowed = true;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK_FALSE(params.cpu_fallback_forbidden);
+    }
+
+    // ── Lane 2: Pipe / non-native execution lane ─────────────────────────
+    {
+        ExecutionRequirements req;
+        req.gpu_required = false;
+        req.cpu_fallback_allowed = false;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK(params.cpu_fallback_forbidden);
+    }
+    {
+        ExecutionRequirements req;
+        req.gpu_required = false;
+        req.cpu_fallback_allowed = true;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK_FALSE(params.cpu_fallback_forbidden);
+    }
+
+    // ── Semantic validity contract: cpu_fallback_forbidden enforces fail-closed ─
+    {
+        // Non-native lane with CPU fallback disallowed and no GPU capabilities:
+        // must fail-closed with "cpu_fallback_forbidden".
+        ExecutionRequirements req;
+        req.gpu_required = false;
+        req.cpu_fallback_allowed = false;
+        req.composition_required = true;
+        const auto decision = resolve_video_execution(
+            req, OutputSpec{}, VideoCapabilities{});
+        CHECK_FALSE(decision.valid);
+        CHECK(decision.reason == "cpu_fallback_forbidden");
+    }
+    {
+        // Non-native lane with CPU fallback allowed:
+        // succeeds with software composition.
+        ExecutionRequirements req;
+        req.gpu_required = false;
+        req.cpu_fallback_allowed = true;
+        req.composition_required = true;
+        const auto decision = resolve_video_execution(
+            req, OutputSpec{}, VideoCapabilities{});
+        CHECK(decision.valid);
+    }
+}
+
