@@ -116,7 +116,6 @@ private:
         int stream_index{-1};
         SourceSampleTable sample_table{};
         int64_t last_sample_index{-1};
-        std::vector<uint8_t> rgba;
         cache::LruCache<int64_t, std::shared_ptr<Framebuffer>> cache{64, 1, cache::CapacityMode::Count};
 
         static constexpr std::size_t kPrefetchCapacity = 4;

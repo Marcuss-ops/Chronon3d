@@ -14,3 +14,11 @@ includes = [
   "architecture_rules_wave12.toml",
   "architecture_rules_wave1.toml",
 ]
+
+[[duplicate_basename]]
+name = "duplicate_source_basenames"
+description = "Prevent new source basename collisions and namespace/directory drift; historical collisions require explicit grandfathering."
+scan_paths = ["include/chronon3d", "src", "tests", "apps"]
+extensions = [".h", ".hpp", ".hh", ".c", ".cc", ".cpp", ".cxx", ".inc"]
+allowlist = "tools/duplicate_basename_allowlist.txt"
+hint = "Use the canonical owner directory; if a compatibility boundary truly needs a duplicate basename, add a reviewed grandfather entry and explain the demolition scope in its ticket."

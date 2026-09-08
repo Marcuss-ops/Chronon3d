@@ -21,7 +21,6 @@ extern "C" {
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace chronon3d::media {
 
@@ -29,7 +28,7 @@ namespace chronon3d::media {
 enum AVPixelFormat select_cuda_format(AVCodecContext*,
                                       const enum AVPixelFormat* formats);
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
-    const AVFrame* frame, SwsContext*& sws, std::vector<uint8_t>& rgba,
+    const AVFrame* frame, SwsContext*& sws,
     RenderCounters* counters, bool enable_swscale = true);
 bool build_source_sample_table(AVFormatContext* fmt, int stream_index,
                                SourceSampleTable& out);

@@ -97,6 +97,7 @@ add_library(chronon3d_graph_executor OBJECT
     executor/level_timings.cpp          # P1 refactor — per-level metrics accumulator + roll_up() helper (replaces 7-vector declaration + 60-line if-block in executor_levels.cpp; forward-declared RenderCounters, src-local header)
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
+    compiler/frame_graph_builder.cpp
     # ── TICKET-009 close-out (post-RenderGraphContext OBJECT-lift) —
     # graph topological-plan cache (thread-safe, shared between
     # SoftwareRenderer and RenderRuntime).  Compiled directly into the
@@ -104,6 +105,9 @@ add_library(chronon3d_graph_executor OBJECT
     # link chain.  Public surface still lives at
 )
 set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_graph_executor PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/render_graph/compiler
+)
 target_link_libraries(chronon3d_graph_executor PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
@@ -195,6 +199,9 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/graph_cache_coordinator.cpp
     pipeline/frame_state_commit.cpp
     pipeline/scene_refresh.cpp
+    builder/graph_builder_bbox.cpp
+    builder/passes/graph_builder_source_pass.cpp
+    builder/passes/graph_builder_layer_pipeline_pass.cpp
     pipeline/refresh/layer_item.cpp
     pipeline/refresh/source.cpp
     pipeline/refresh/multi_source.cpp
@@ -205,6 +212,12 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_graph_pipeline PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/render_graph
+    ${CMAKE_SOURCE_DIR}/src/render_graph/builder
+    ${CMAKE_SOURCE_DIR}/src/render_graph/builder/passes
+    ${CMAKE_SOURCE_DIR}/src/compiler
+)
 target_link_libraries(chronon3d_graph_pipeline
     PUBLIC
         chronon3d_graph_core

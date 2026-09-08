@@ -97,8 +97,6 @@ GraphBuildDependencies make_graph_build_dependencies(
             ? context.transition_catalog : &catalogs.transition_catalog,
         .precomp_builder = context.precomp_builder
             ? context.precomp_builder : catalogs.precomp_builder.get(),
-        .composition_registry = context.registry,
-        .video_decoder = context.video_decoder,
         .prepared_assets = context.runtime
             ? context.runtime->prepared_assets_for(scene.asset_manifest())
             : nullptr,

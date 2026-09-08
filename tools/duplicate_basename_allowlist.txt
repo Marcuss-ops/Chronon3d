@@ -1,0 +1,27 @@
+# Historical source basename collisions. New collisions fail the architecture gate.
+cache_policy.hpp
+cli_context.hpp
+composition.cpp
+cuda_nv12_compositor.hpp
+effect_stack.cpp
+effect_stack.hpp
+helpers.hpp
+interpolate.hpp
+main.cpp
+memory_utils.hpp
+path_rasterizer.hpp
+path_utils.hpp
+render_engine.hpp
+render_graph.hpp
+render_job.hpp
+render_pipeline.hpp
+render_receipt.cpp
+render_receipt.hpp
+render_settings.hpp
+render_to_media.hpp
+scene.cpp
+shape_params.hpp
+test_catmull_rom_path.cpp
+text_run_builder.cpp
+text_run_builder.hpp
+transform.hpp

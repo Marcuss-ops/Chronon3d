@@ -1,7 +1,7 @@
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 
 #include <chronon3d/compiler/compiler_pass_registry.hpp>
-#include "../render_graph/builder/passes/graph_builder_passes.hpp"
+#include "graph_builder/passes/graph_builder_passes.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 

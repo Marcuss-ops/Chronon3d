@@ -6,10 +6,6 @@
 
 namespace chronon3d::graph::detail {
 
-/// Phase 7 pass: validates scene before graph construction.
-/// Logs warnings/errors for duplicate names, missing parents, etc.
-// (ValidationPass is declared in graph_builder_validation_pass.hpp)
-
 /// Phase 4 pass: resolves layers from scene, populates GraphBuildContext
 /// with resolved data, cam25d, static cache, matte sources, and name lookup.
 class ResolvePass final : public GraphBuildPass {

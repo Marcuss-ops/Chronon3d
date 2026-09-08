@@ -21,15 +21,12 @@
   `check_no_sqlite.sh` PASS on 2026-09-08.
 - The migration is not yet globally CLOSED: Wave 3 direct typed-program
   execution, zero-copy GPU evidence, and same-SHA certification remain open.
-- HEAD audit correction (`be14cbd86`): `TypedProgramSampler` is boundary-tested
-  but not production-wired. Compiler SSOT still retains the
-  `render_plan::compile_render_plan`/`PreparedRenderPlan` bridge; runtime
-  `EvaluatedCompositionFrame` and `RenderServices` evacuation are also open.
-- Typed handoff implementation started on this checkout: `FrameSlotPayload`
-  owns `compiler::FrameParameterBlock`, `FrameExecution` exposes it, and the
-  `render_program` route samples `TypedProgramSampler` and forwards the block
-  through `RenderGraphContext::frame_parameters`. GraphExecutor consumption
-  and legacy bridge deletion remain required before Wave 3 can close.
+- `TypedProgramSampler` is now wired through the prepared typed execution route:
+  `JobSession::program()` → `RenderPipeline::render_program()` →
+  `FrameExecution`/`RenderGraphContext::frame_parameters`. `JobSession` no
+  longer owns `legacy_composition_`; arbitrary `Composition::SceneFunction`
+  remains an explicit compatibility adapter until typed Composition lowering is
+  available.
 - Cross-repo Wave 10 remains open in RenderingGen `main@3c4de1ec`: raw sidecar
   JSON is still unmarshaled/deleted/ remarshaled instead of consuming
   `SummaryV1` while retaining raw bytes and hash.

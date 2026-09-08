@@ -1,6 +1,6 @@
 # TICKET — Native decoder software (sws) multi-frame materialization corrupts the heap
 
-Status: Open (pre-existing — predates the retained-frame window work)
+Status: Closed (aligned staging + same-session regression verified)
 Priority: P1 (software-fallback reliability) / low production impact (GPU path unaffected)
 Owner: rendering-core / media
 
@@ -48,12 +48,13 @@ documents this ticket in its scope note.
 
 ## Required before closing
 
-- [ ] Reproduce under ASan (rebuild media_native + pipeline + core with
+- [x] Reproduce the regression under ASan (rebuild media_native + pipeline +
+      core with
       `-fsanitize=address`), capture the exact OOB write stack.
-- [ ] Fix the sws staging/linesize handling in the software materialization
-      path (or size staging from `av_image_get_buffer_size` with the aligned
-      linesizes sws actually writes).
-- [ ] Add the two-sample software decode back to the native decoder test suite
-      (currently avoided here) and verify clean teardown.
-- [ ] Confirm the seek/flush re-entry crash on y4m is resolved or explicitly
-      gated (e.g. skip seek when source has a single keyframe at 0).
+- [x] Fix the sws staging/linesize handling in the software materialization
+      path with FFmpeg-owned aligned RGBA storage and the returned destination
+      stride for every conversion.
+- [x] Add the two-sample software decode back to the native decoder test suite
+      and verify clean teardown under the regular and focused ASan lanes.
+- [x] Confirm the seek/flush re-entry path on y4m: the first seek, forward
+      second frame, and retained-window replay all pass without heap damage.

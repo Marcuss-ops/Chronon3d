@@ -5,6 +5,10 @@
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
+extern "C" {
+#include <libavutil/imgutils.h>
+}
+
 namespace chronon3d::media {
 
 enum AVPixelFormat select_cuda_format(AVCodecContext*, const enum AVPixelFormat* formats) {
@@ -15,7 +19,7 @@ enum AVPixelFormat select_cuda_format(AVCodecContext*, const enum AVPixelFormat*
 }
 
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
-    const AVFrame* frame, SwsContext*& sws, std::vector<uint8_t>& rgba,
+    const AVFrame* frame, SwsContext*& sws,
     RenderCounters* counters, bool enable_swscale) {
     if (!frame || frame->width <= 0 || frame->height <= 0) return nullptr;
     if (!enable_swscale) {
@@ -25,9 +29,16 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
         static_cast<AVPixelFormat>(frame->format), frame->width, frame->height,
         AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!sws) return nullptr;
-    rgba.resize(static_cast<size_t>(frame->width) * frame->height * 4);
-    uint8_t* dst_data[4] = {rgba.data(), nullptr, nullptr, nullptr};
-    int dst_stride[4] = {frame->width * 4, 0, 0, 0};
+    uint8_t* dst_data[4] = {nullptr, nullptr, nullptr, nullptr};
+    int dst_stride[4] = {0, 0, 0, 0};
+    const int image_bytes = av_image_alloc(dst_data, dst_stride,
+                                           frame->width, frame->height,
+                                           AV_PIX_FMT_RGBA, 32);
+    if (image_bytes < 0) return nullptr;
+    struct ImageAllocation {
+        uint8_t** data;
+        ~ImageAllocation() { av_freep(&data[0]); }
+    } image_allocation{dst_data};
     const auto start = profiling::now();
     const int ret = sws_scale(sws, frame->data, frame->linesize, 0, frame->height,
                               dst_data, dst_stride);
@@ -45,7 +56,7 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const auto conv_start = profiling::now();
     const auto convert_rows = [&](int first, int last) {
         for (int y = first; y < last; ++y) {
-            const uint8_t* row = rgba.data() + static_cast<size_t>(y) * frame->width * 4;
+            const uint8_t* row = dst_data[0] + static_cast<size_t>(y) * dst_stride[0];
             Color* dst = pixels + static_cast<usize>(y) * stride;
             for (int x = 0; x < frame->width; ++x) {
                 const uint8_t* p = row + static_cast<size_t>(x) * 4;

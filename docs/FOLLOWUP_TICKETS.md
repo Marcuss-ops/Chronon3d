@@ -25,6 +25,7 @@
 | SQLite telemetry (store + emitters + CLI readers) | P1 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — Wave 1D: runtime events-only (NullTelemetryStore default), zero dipendenza sqlite3 in src/include/apps; persistenza/aggregazione engine-external |
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
 | PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato); record: ADR-024 + git history |
+| Legacy composition adapter | P1 | ACTIVE | [WAVE-CLOSEOUT-DEMOLITION-DEBT](tickets/TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT.md) — `Composition::SceneFunction` compatibility route remains until typed Composition lowering has corpus equivalence |
 
 ## Backlog P2/P3 (non bloccante)
 

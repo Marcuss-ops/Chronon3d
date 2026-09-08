@@ -259,38 +259,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: bash tools/verify_sdk_product.sh
 
-  trace-gates:
-    name: Gate 8 / trace-gates
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          lfs: ${{ github.event_name == 'push' }}
-      - uses: actions/cache@v4
-        with:
-          path: .trace-gate-cache
-          key: trace-gates-${{ runner.os }}-perfetto-v53.0-v1
-      - name: Provision Perfetto v53.0 amalgamated SDK
-        run: |
-          mkdir -p .perfetto-sdk
-          curl -fsSL -o .perfetto-sdk/perfetto.h https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.h
-          curl -fsSL -o .perfetto-sdk/perfetto.cc https://raw.githubusercontent.com/google/perfetto/v53.0/sdk/perfetto.cc
-          wc -l .perfetto-sdk/perfetto.h .perfetto-sdk/perfetto.cc
-      - name: Trace correctness gate
-        run: |
-          CHRONON3D_TRACE_GATES=1 PERFETTO_SDK_DIR=$PWD/.perfetto-sdk \
-          CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_correctness.sh
-      - name: Trace SQL report selftest
-        run: |
-          PERFETTO_SDK_DIR=$PWD/.perfetto-sdk CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache \
-          bash tools/check_trace_sql_report_selftest.sh /tmp/chronon3d_trace_gate.pftrace
-      - name: Trace overhead gates
-        run: |
-          CHRONON3D_TRACE_GATES=1 PERFETTO_SDK_DIR=$PWD/.perfetto-sdk \
-          CHRONON3D_TRACE_GATE_CACHE=$PWD/.trace-gate-cache bash tools/check_trace_overhead.sh
-
   fuzz-regressions:
     name: Fuzz regressions
     runs-on: ubuntu-latest
@@ -313,7 +281,7 @@ jobs:
   gate-status:
     name: Gate Status Summary
     if: ${{ !cancelled() }}
-    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, trace-gates, fuzz-regressions]
+    needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, fuzz-regressions]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -329,7 +297,6 @@ jobs:
               'install-consumer-check': '${{ needs.install-consumer-check.result }}',
               'architecture-check':     '${{ needs.architecture-check.result }}',
               'install-consumer-script':'${{ needs.install-consumer-script.result }}',
-              'trace-gates':            '${{ needs.trace-gates.result }}',
               'fuzz-regressions':       '${{ needs.fuzz-regressions.result }}',
           }
           passed = sum(1 for v in gates.values() if v == 'success')

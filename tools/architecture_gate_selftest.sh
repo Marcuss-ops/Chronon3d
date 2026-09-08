@@ -153,7 +153,7 @@ case5_forbidden_include() {
     write_file "$1" "rules.toml" <<'EOF'
 [[forbidden_include]]
 name = "selftest_compiled_program_no_render_plan_include"
-patterns = ['#include\\s*[<\"]chronon3d/render_plan/']
+patterns = ['#include\s*[<\"]chronon3d/render_plan/']
 scan_paths = ["include/chronon3d/compiler/compiled_program.hpp"]
 skip_comments = true
 EOF

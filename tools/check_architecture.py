@@ -778,6 +778,42 @@ class Runner:
         else:
             self.ok(name)
 
+    def check_duplicate_basenames(self, rule: dict[str, Any]) -> None:
+        """Reject new source basename collisions while grandfathering history.
+
+        A basename collision is often harmless across public/source/test
+        boundaries, but it makes namespace and CMake ownership drift easy to
+        reintroduce. The allowlist is deliberately name-only and checked in;
+        adding a new collision therefore requires an explicit architecture
+        review instead of silently growing the duplicate set.
+        """
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        allowlist_path = self.root / rule["allowlist"]
+        if not allowlist_path.exists():
+            self.fail(name, f"allowlist missing: {rule['allowlist']}")
+            return
+        grandfathered = {
+            line.strip() for line in read_text(allowlist_path).splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        by_basename: dict[str, list[str]] = defaultdict(list)
+        for path in iter_files(self.root, rule.get("scan_paths", []), rule.get("extensions")):
+            by_basename[path.name].append(relpath(self.root, path))
+        duplicates = {
+            basename: sorted(paths)
+            for basename, paths in by_basename.items()
+            if len(paths) > 1
+        }
+        unreviewed = sorted(set(duplicates) - grandfathered)
+        if unreviewed:
+            self.fail(name, f"new duplicate basename(s): {unreviewed}")
+            for basename in unreviewed[:10]:
+                print(f"         {basename}: {', '.join(duplicates[basename])}")
+            return
+        self.ok(name, f"{len(duplicates)} duplicate basename(s), all grandfathered")
+
     def check_gitignored(self) -> None:
         cfg = self.rules.get("gitignored")
         name = "gitignored"
@@ -862,6 +898,8 @@ class Runner:
         self.check_vcpkg_parity()
         self.check_sdk_public_deps()
         self.check_public_include_resolution()
+        for rule in self.rules.get("duplicate_basename", []):
+            self.check_duplicate_basenames(rule)
         self.check_gitignored()
         total = len(self.passes) + len(self.failures)
         if self.failures:

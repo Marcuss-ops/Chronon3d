@@ -269,11 +269,10 @@ TEST_CASE("command planner emits read and write barriers per pass") {
         return nullptr;
     };
 
-    const auto* input_read = transition_for(0, input);
-    REQUIRE(input_read != nullptr);
-    const auto input_read_ok =
-        input_read->before.reads() || input_read->after.reads();
-    CHECK(input_read_ok);
+    // The first read observes Undefined state and therefore needs no
+    // transition. The first write and the later write-to-read bridge are the
+    // meaningful barriers for this graph.
+    CHECK(transition_for(0, input) == nullptr);
     const auto* scratch_write = transition_for(0, scratch);
     REQUIRE(scratch_write != nullptr);
     CHECK(scratch_write->after.writes());

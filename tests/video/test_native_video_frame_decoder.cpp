@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/decode_result.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #endif
@@ -45,6 +46,21 @@ void write_y4m(const std::filesystem::path& path, std::array<unsigned char, 6> p
     REQUIRE(output.good());
 }
 
+void write_two_frame_y4m(const std::filesystem::path& path) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(output.good());
+    output << "YUV4MPEG2 W2 H2 F30:1 Ip A1:1 C420jpeg\n";
+    output << "FRAME\n";
+    const std::array<unsigned char, 6> first{76, 76, 76, 76, 84, 255};
+    output.write(reinterpret_cast<const char*>(first.data()),
+                 static_cast<std::streamsize>(first.size()));
+    output << "FRAME\n";
+    const std::array<unsigned char, 6> second{29, 29, 29, 29, 255, 107};
+    output.write(reinterpret_cast<const char*>(second.data()),
+                 static_cast<std::streamsize>(second.size()));
+    REQUIRE(output.good());
+}
+
 } // namespace
 
 TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") {
@@ -80,8 +96,8 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 TEST_CASE("CUDA compositor exposes distinct NV12 and P010 conversion formats") {
-    CHECK(static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::Nv12) !=
-          static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::P010));
+    CHECK(static_cast<int>(chronon3d::media::video::CudaYuvFormat::Nv12) !=
+          static_cast<int>(chronon3d::media::video::CudaYuvFormat::P010));
 }
 #endif
 
@@ -96,6 +112,13 @@ TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     write_y4m(source_b, {29, 29, 29, 29, 255, 107});
 
     chronon3d::media::NativeVideoFrameDecoder decoder;
+    // This test isolates per-source decoder state; prefetch has its own
+    // dedicated concurrency coverage and would add a second decode worker to
+    // each source while diagnosing the FFmpeg fixture.
+    decoder.set_test_options(chronon3d::media::NativeDecoderTestOptions{
+        .enable_prefetch = false,
+        .enable_swscale = true,
+        .enable_frame_cache = true});
     auto decode = [&decoder](const std::filesystem::path& source) {
         return decoder.decode_frame_at(
             source.string(), chronon3d::RationalTime{0, {1, 30}}, 2, 2);
@@ -106,11 +129,45 @@ TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     const auto frame_a = future_a.get();
     const auto frame_b = future_b.get();
 
-    REQUIRE(frame_a);
-    REQUIRE(frame_b);
-    CHECK(frame_a->width() == 2);
-    CHECK(frame_a->height() == 2);
-    CHECK(frame_b->width() == 2);
-    CHECK(frame_b->height() == 2);
-    CHECK(frame_a->get_pixel(0, 0).r != doctest::Approx(frame_b->get_pixel(0, 0).r));
+    const auto* decoded_a = chronon3d::media::decoded_frame_if(frame_a);
+    const auto* decoded_b = chronon3d::media::decoded_frame_if(frame_b);
+    REQUIRE(decoded_a != nullptr);
+    REQUIRE(decoded_b != nullptr);
+    REQUIRE(decoded_a->framebuffer != nullptr);
+    REQUIRE(decoded_b->framebuffer != nullptr);
+    CHECK(decoded_a->framebuffer->width() == 2);
+    CHECK(decoded_a->framebuffer->height() == 2);
+    CHECK(decoded_b->framebuffer->width() == 2);
+    CHECK(decoded_b->framebuffer->height() == 2);
+    CHECK(decoded_a->framebuffer->get_pixel(0, 0).r !=
+          doctest::Approx(decoded_b->framebuffer->get_pixel(0, 0).r));
+
+    // The original regression was a second software conversion in one
+    // session. Keep this explicit same-source sequence beside the concurrent
+    // per-source check so the aligned sws staging contract is exercised.
+    const auto multi_source = fixtures.path / "multi.y4m";
+    write_two_frame_y4m(multi_source);
+    chronon3d::media::NativeVideoFrameDecoder sequential_decoder;
+    sequential_decoder.set_test_options(chronon3d::media::NativeDecoderTestOptions{
+        .enable_prefetch = false,
+        .enable_swscale = true,
+        .enable_frame_cache = true});
+    const auto first = sequential_decoder.decode_frame_at(
+        multi_source.string(), chronon3d::RationalTime{0, {1, 30}}, 2, 2);
+    const auto second = sequential_decoder.decode_frame_at(
+        multi_source.string(), chronon3d::RationalTime{1, {1, 30}}, 2, 2);
+    const auto replay = sequential_decoder.decode_frame_at(
+        multi_source.string(), chronon3d::RationalTime{0, {1, 30}}, 2, 2);
+    const auto* first_decoded = chronon3d::media::decoded_frame_if(first);
+    const auto* second_decoded = chronon3d::media::decoded_frame_if(second);
+    const auto* replay_decoded = chronon3d::media::decoded_frame_if(replay);
+    REQUIRE(first_decoded != nullptr);
+    REQUIRE(second_decoded != nullptr);
+    REQUIRE(replay_decoded != nullptr);
+    REQUIRE(first_decoded->framebuffer != nullptr);
+    REQUIRE(second_decoded->framebuffer != nullptr);
+    REQUIRE(replay_decoded->framebuffer != nullptr);
+    CHECK(first_decoded->framebuffer->width() == 2);
+    CHECK(second_decoded->framebuffer->height() == 2);
+    CHECK(replay_decoded->framebuffer->height() == 2);
 }

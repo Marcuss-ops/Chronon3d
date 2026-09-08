@@ -135,9 +135,9 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
 
     std::unique_ptr<TransformNode> transform_node;
     // A projected layer may be authoring-static while its camera-space
-    // transform changes every frame. Persisting that transformed framebuffer
+    // transform changes every frame. Persisting that transformed surface
     // in the inter-frame cache creates one large entry per camera pose and
-    // defeats the framebuffer lifetime/aliasing path. Tight text raster is
+    // defeats the surface lifetime/aliasing path. Tight text raster is
     // cached separately; the camera projection is deliberately transient.
     const bool is_static = (layer.cache_static || item.is_static) && !item.projected;
     const Frame cache_frame = is_static ? Frame{0} : Frame{-1};

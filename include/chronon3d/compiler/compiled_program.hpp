@@ -18,7 +18,8 @@ namespace chronon3d::compiler {
 /// The concrete program data is intentionally hidden behind a const shared
 /// object and carries no execution-owned state or authoring object pointers.
 /// Runtime consumers read this immutable value through the typed sampler and
-/// graph executor.
+/// graph executor. It is the canonical compiled-program representation; no
+/// prepared-plan bridge is retained here.
 struct ProgramMetadata {
     /// Compiler-owned copy of the output contract.  Keep this numeric so the
     /// frozen program header does not expose render-plan authoring types.

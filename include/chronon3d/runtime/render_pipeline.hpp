@@ -44,6 +44,8 @@
 #include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
+#include <cstddef>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -60,6 +62,18 @@ namespace media { class MediaFrameProvider; }
 namespace chronon3d::runtime {
 class RuntimeContext;
 class FrameExecution;
+class JobSession;
+
+using FrameEncoder = std::function<bool(Frame, const Framebuffer&)>;
+
+struct RenderBatchResult {
+    bool ok{true};
+    std::size_t frames_rendered{0};
+    std::size_t frames_encoded{0};
+    std::size_t max_queue_depth{0};
+    Frame failed_frame{-1};
+    std::string error{};
+};
 }
 
 namespace chronon3d::runtime {
@@ -83,14 +97,34 @@ public:
     RenderPipeline(SoftwareRenderer* renderer, RuntimeContext& runtime) noexcept;
 
     // ── Canonical prepared-plan execution entry ────────────────────
-    /// Executes only an immutable compiled composition. Authoring
-    /// Composition values must be compiled before reaching this facade.
+    /// Compatibility adapter for an immutable CompiledComposition. New typed
+    /// production jobs use render(JobSession&, Frame) below.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
         const CompiledComposition& compiled, Frame frame,
         FrameExecution* execution = nullptr);
 
     [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
-        const compiler::CompiledProgram& program, Frame frame);
+        const compiler::CompiledProgram& program, Frame frame,
+        FrameExecution* execution = nullptr);
+
+    /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
+    /// only a handle; it must not duplicate slot, queue, or FrameExecution
+    /// transitions here.
+    [[nodiscard]] std::shared_ptr<Framebuffer> render(
+        JobSession& session, Frame frame);
+
+    /// Compatibility-only lifecycle for an arbitrary Composition callback.
+    /// It is kept outside JobSession until that authoring API has a typed
+    /// lowering into CompiledProgram.
+    [[nodiscard]] std::shared_ptr<Framebuffer> render_compatibility(
+        JobSession& session, const CompiledComposition& compiled, Frame frame);
+
+    /// Canonical bounded batch lifecycle. PreparedRenderJob supplies only the
+    /// immutable compatibility program and encoder callback; slot acquisition,
+    /// stage queues, FrameExecution, and release remain runtime-owned.
+    [[nodiscard]] RenderBatchResult render_compatibility_frames(
+        JobSession& session, const CompiledComposition& compiled,
+        Frame first, Frame count, const FrameEncoder& encoder);
 
     // ── Scene/debug adapters ───────────────────────────────────────
     /// @deprecated Fase C3 — scene authoring adapter.

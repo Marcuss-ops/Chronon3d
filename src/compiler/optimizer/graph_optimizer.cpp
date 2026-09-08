@@ -124,7 +124,7 @@ size_t eliminate_dead_nodes(RenderGraph& graph) {
 // parent → child with a single consumer on the parent and matching
 // frame_dependent, the parent's effect list is prepended into the child and
 // the parent is removed.
-// This eliminates one intermediate framebuffer per fused pair.
+// This eliminates one intermediate surface per fused pair.
 size_t fuse_effect_stacks(RenderGraph& graph) {
     const size_t node_count = graph.size();
     if (node_count < 2) return 0;

@@ -27,7 +27,7 @@ namespace chronon3d::nv12_equiv {
 struct OverlaySpec {
     std::uint32_t resource_width{1};
     std::uint32_t resource_height{1};
-    CudaLayerResourceKind kind{CudaLayerResourceKind::Rgba};
+    media::CudaLayerResourceKind kind{media::CudaLayerResourceKind::Rgba};
     float src_x0{0.0f}, src_y0{0.0f}, src_x1{1.0f}, src_y1{1.0f};  // normalized
     float dst_x0{0.0f}, dst_y0{0.0f}, dst_x1{1.0f}, dst_y1{1.0f};  // canvas px
     float opacity{1.0f};

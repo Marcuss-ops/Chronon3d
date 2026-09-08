@@ -356,7 +356,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // PR2-cleanup: VideoNode is intrinsically frame-variant per its ctor;
         // the cache policy is baked in by the factory.
         return graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, build ? build->video_decoder : nullptr, layer.from
+            *layer.video_source, ctx.video_decoder, layer.from
         ), node_ctx);
     }
 

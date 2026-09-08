@@ -39,6 +39,24 @@ void report_optimization_result(
         result.static_bakes);
 }
 
+// Standalone compiler callers may wire only RenderGraphContext::backend.
+// Capture the backend-owned immutable processor snapshot at this boundary so
+// every compile entry point observes the same ownership contract as the
+// production pipeline wiring.
+void capture_processor_contract(RenderGraphContext& ctx) {
+    if (!ctx.backend) return;
+
+    if (!ctx.node_exec.processor_snapshot) {
+        ctx.node_exec.processor_snapshot = ctx.backend->processor_snapshot();
+    }
+    ctx.processor_snapshot_required =
+        ctx.processor_snapshot_required ||
+        ctx.backend->requires_processor_snapshot();
+    if (ctx.registry_generation == 0 && ctx.node_exec.processor_snapshot) {
+        ctx.registry_generation = ctx.node_exec.processor_snapshot->generation();
+    }
+}
+
 } // namespace
 
 CompiledFrameGraph GraphCompilePipeline::compile(
@@ -46,6 +64,7 @@ CompiledFrameGraph GraphCompilePipeline::compile(
     RenderGraphContext& ctx,
     const FrameGraphCompileOptions& options
 ) const {
+    capture_processor_contract(ctx);
     if (options.run_optimizer) {
         const auto optimization_result = optimizer::optimize_graph(graph, ctx);
         report_optimization_result(optimization_result, ctx);
@@ -239,6 +258,7 @@ CompiledFrameGraph GraphCompilePipeline::compile_with_reuse(
     const CompiledFrameGraph& prior_compiled,
     const FrameGraphCompileOptions& options
 ) const {
+    capture_processor_contract(ctx);
     CompiledFrameGraph compiled;
     compiled.registry_generation = ctx.registry_generation;
     if (!graph.has_output()) {

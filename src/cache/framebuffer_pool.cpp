@@ -183,68 +183,85 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool* out_fresh_alloc) {
     if (out_fresh_alloc) *out_fresh_alloc = false;
 
+    std::unique_ptr<Framebuffer> reused;
+    FramebufferArena* arena = nullptr;
+    std::shared_ptr<FramebufferArena> arena_owner;
     const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
-    m_acquire_count.fetch_add(1, std::memory_order_relaxed);
-    PoolLockHoldMeter hold(m_lock_hold_wall_us);
-
     auto [rounded_w, rounded_h] = round_to_bucket(width, height);
-
     {
-        FramebufferPoolKey key{rounded_w, rounded_h};
-        auto it = m_free.find(key);
-        if (it != m_free.end() && !it->second.empty()) {
-            auto& bucket = it->second;
-            // Take the oldest (LRU) entry from the front to keep fresher entries for later.
-            auto entry = std::move(bucket.front());
-            bucket.erase(bucket.begin());
-            m_current_bytes -= entry.fb->size_bytes();
-            m_total_reuses.fetch_add(1, std::memory_order_relaxed);
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-                profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+        m_acquire_count.fetch_add(1, std::memory_order_relaxed);
+        PoolLockHoldMeter hold(m_lock_hold_wall_us);
+
+        {
+            FramebufferPoolKey key{rounded_w, rounded_h};
+            auto it = m_free.find(key);
+            if (it != m_free.end() && !it->second.empty()) {
+                auto& bucket = it->second;
+                // Take the oldest (LRU) entry from the front to keep fresher entries for later.
+                auto entry = std::move(bucket.front());
+                bucket.erase(bucket.begin());
+                m_current_bytes -= entry.fb->size_bytes();
+                m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+                if (profiling::g_current_counters) {
+                    profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+                    profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
+                }
+                reused = std::move(entry.fb);
             }
-            entry.fb->resize_logical(width, height);
-            // F2.3 — storage left the pool: no longer swap-transferable.
-            entry.fb->set_storage_transferable(false);
-            return std::move(entry.fb);
+        }
+
+        if (!reused) {
+            auto best_fit = m_free.end();
+            size_t best_area = std::numeric_limits<size_t>::max();
+            for (auto it = m_free.begin(); it != m_free.end(); ++it) {
+                const auto& key = it->first;
+                if (key.width < rounded_w || key.height < rounded_h || it->second.empty()) {
+                    continue;
+                }
+                const size_t area = static_cast<size_t>(key.width) * static_cast<size_t>(key.height);
+                if (area < best_area) {
+                    best_area = area;
+                    best_fit = it;
+                }
+            }
+
+            if (best_fit != m_free.end()) {
+                auto& bucket = best_fit->second;
+                auto entry = std::move(bucket.back());
+                bucket.pop_back();
+                m_current_bytes -= entry.fb->size_bytes();
+                m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+                if (profiling::g_current_counters) {
+                    profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+                    profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
+                }
+                reused = std::move(entry.fb);
+            }
+        }
+
+        if (!reused) {
+            // The provider is intentionally sampled under the mutex because
+            // it observes the job's rotating arena association. The actual
+            // potentially expensive allocation happens after unlock.
+            if (m_arena_provider) {
+                arena = m_arena_provider();
+            } else {
+                arena_owner = m_arena;
+                arena = arena_owner.get();
+            }
         }
     }
 
-    auto best_fit = m_free.end();
-    size_t best_area = std::numeric_limits<size_t>::max();
-    for (auto it = m_free.begin(); it != m_free.end(); ++it) {
-        const auto& key = it->first;
-        if (key.width < rounded_w || key.height < rounded_h || it->second.empty()) {
-            continue;
-        }
-        const size_t area = static_cast<size_t>(key.width) * static_cast<size_t>(key.height);
-        if (area < best_area) {
-            best_area = area;
-            best_fit = it;
-        }
+    if (reused) {
+        // Logical metadata is caller-local work and must not extend pool
+        // mutex hold time. Storage left the pool: no longer transferable.
+        reused->resize_logical(width, height);
+        reused->set_storage_transferable(false);
+        return reused;
     }
 
-    if (best_fit != m_free.end()) {
-        auto& bucket = best_fit->second;
-        auto entry = std::move(bucket.back());
-        bucket.pop_back();
-        m_current_bytes -= entry.fb->size_bytes();
-        m_total_reuses.fetch_add(1, std::memory_order_relaxed);
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-            profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
-        }
-        entry.fb->resize_logical(width, height);
-        // F2.3 — storage left the pool: no longer swap-transferable.
-        entry.fb->set_storage_transferable(false);
-        return std::move(entry.fb);
-    }
-
-    FramebufferArena* arena = m_arena_provider
-        ? m_arena_provider()
-        : m_arena.get();
     if (arena) {
         void* ptr = arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
         if (ptr) {

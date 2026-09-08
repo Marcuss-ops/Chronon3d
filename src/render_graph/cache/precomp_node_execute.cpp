@@ -215,9 +215,11 @@ NodeExecResult PrecompNode::execute_with_scope(
     //      `execute_with_scope` call below + the function's tail return).
     //      The store is reached through the typed JobSession seam only:
     //      execution dependencies does not carry a second store pointer.
-    auto* program_store = nested_ctx.program_store;
+    auto* program_store = nested_ctx.session
+        ? &nested_ctx.session->program_store() : nullptr;
     if (!program_store) {
-        throw std::runtime_error("PrecompNode: no SceneProgramStore wired in RenderGraphContext");
+        throw std::runtime_error(
+            "PrecompNode: no JobSession program store wired for execution");
     }
     auto lease = program_store->acquire(
         precomp_key, key, m_cache_policy,

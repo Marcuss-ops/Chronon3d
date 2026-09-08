@@ -89,9 +89,8 @@ struct TestContext {
         , pool(std::make_shared<FramebufferPool>(128))
         , scheduler(SchedulerMode::Sequential, 1, false)
     {
-        // WP-0 PR 0.1 — wire the local GraphExecutor into the session
-        // service bundle so the new PrecompNode::execute() borrow path
-        // reaches a real executor instead of nullptr.
+        // WP-0 PR 0.1 — wire the local GraphExecutor into the session so the
+        // new PrecompNode::execute() borrow path reaches a real executor.
         session.bind_executor(local_executor);
 
         ctx.backend = &backend.backend();
@@ -99,7 +98,6 @@ struct TestContext {
         ctx.framebuffer_pool = pool;
         ctx.registry        = &registry;
         ctx.session                  = &session;
-        ctx.program_store           = &store;
         ctx.scheduler               = &scheduler;
         // TICKET-010 — PrecompNode delegates compilation to the typed
         // PrecompBuilderService. Without this pointer the cache-miss

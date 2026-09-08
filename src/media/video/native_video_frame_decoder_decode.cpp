@@ -253,7 +253,7 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
                 m_counters->hwframe_transfer_to_cpu_frames.fetch_add(1, std::memory_order_relaxed);
             }
         }
-        framebuffer = frame_to_framebuffer(render, session.sws, session.rgba, m_counters,
+        framebuffer = frame_to_framebuffer(render, session.sws, m_counters,
                                            session.test_options.enable_swscale);
         if (!framebuffer) {
             fail(DecodeFailureReason::UnsupportedFormatChange, 0,

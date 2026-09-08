@@ -64,6 +64,50 @@ TEST_CASE("VideoExecutionResolver: public contract hides backend selection") {
     CHECK_FALSE(rejected.valid);
 }
 
+TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semantic inputs") {
+    using namespace chronon3d::media;
+    const ExecutionRequirements video_only{
+        .gpu_required = false, .cpu_fallback_allowed = true,
+        .composition_required = false, .video_source_required = true,
+        .packet_copy_allowed = true};
+    const OutputSpec output{.codec = "h264", .width = 1920, .height = 1080,
+                            .fps_num = 30, .fps_den = 1};
+    const VideoCapabilities capable{
+        .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true};
+
+    const auto all_copy = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, false, true,
+        GopAnalysisSummary{.available = true, .total_gops = 2,
+                           .copy_gops = 2, .reencode_gops = 0,
+                           .all_copy = true, .hybrid = false,
+                           .safe_to_splice = true});
+    REQUIRE(all_copy.valid);
+    REQUIRE(all_copy.gop_plan.has_value());
+    CHECK(all_copy.reason == "gop_all_copy_eligible");
+    CHECK(all_copy.plan.decode == DecodePath::PacketCopy);
+    CHECK(all_copy.plan.composite == CompositePath::None);
+    CHECK(all_copy.plan.encode == EncodePath::PacketCopy);
+    CHECK(all_copy.gop_plan->all_copy);
+
+    const auto unsafe_hybrid = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, false, true,
+        GopAnalysisSummary{.available = true, .total_gops = 2,
+                           .copy_gops = 1, .reencode_gops = 1,
+                           .all_copy = false, .hybrid = true,
+                           .safe_to_splice = false});
+    CHECK_FALSE(unsafe_hybrid.valid);
+    CHECK(unsafe_hybrid.reason == "gop_splice_unsafe");
+    CHECK(unsafe_hybrid.plan.composite == CompositePath::DirectYuv);
+    CHECK(unsafe_hybrid.plan.encode == EncodePath::Nvenc);
+
+    const auto unavailable = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, true, false, GopAnalysisSummary{});
+    CHECK_FALSE(unavailable.valid);
+    CHECK(unavailable.reason == "gop_copy_preflight_unavailable");
+    CHECK(unavailable.plan.decode == DecodePath::Nvdec);
+    CHECK(unavailable.plan.composite == CompositePath::DirectYuv);
+}
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 // assemble_segments lives in chronon3d_media_native (libavformat MuxSession
 // authority) which is only linked when native FFmpeg is enabled.

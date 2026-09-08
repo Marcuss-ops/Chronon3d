@@ -4,9 +4,7 @@
 #include <memory>
 
 namespace chronon3d {
-class CompositionRegistry;
 class Scene;
-namespace media { class MediaFrameProvider; }
 namespace effects { class EffectCatalog; }
 namespace runtime { struct PreparedAssets; }
 namespace graph {
@@ -29,8 +27,6 @@ struct GraphBuildDependencies {
     const effects::EffectCatalog* effect_catalog{nullptr};
     const LayerTransitionCatalog* transition_catalog{nullptr};
     const PrecompBuilderService* precomp_builder{nullptr};
-    const CompositionRegistry* composition_registry{nullptr};
-    media::MediaFrameProvider* video_decoder{nullptr};
     std::shared_ptr<const runtime::PreparedAssets> prepared_assets;
     std::uint64_t registry_generation{0};
 };

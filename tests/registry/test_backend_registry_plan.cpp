@@ -124,7 +124,9 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     // synchronizes through the BarrierPlan mapper (precise compute-stage
     // barriers) instead of the conservative per-pass fallback.
     const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
-                                     ResourceUsage::Storage, 4 * 4 * 4 * sizeof(float)};
+                                     ResourceUsage::Storage,
+                                     LifetimeClass::FrameTransient,
+                                     4 * 4 * 4 * sizeof(float)};
     GpuCommandPlanner planner;
     planner.declare_surface(541, resource_desc);
     planner.declare_surface(542, resource_desc);
@@ -134,7 +136,7 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     planner.composite(CompositePass{543, 541, 0});
     const auto plan = planner.build();
     REQUIRE(plan.passes.size() == 3);
-    CHECK(plan.barriers.size() >= 4);
+    CHECK(plan.transitions.size() >= 2);
 
     const auto submissions_before = backend.stats().submissions;
     backend.begin_plan_batch(plan);
@@ -179,6 +181,7 @@ TEST_CASE("command plan executor dispatches passes through the canonical backend
 
     const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
                                      ResourceUsage::Storage,
+                                     LifetimeClass::FrameTransient,
                                      4 * 4 * 4 * sizeof(float)};
     GpuCommandPlanner planner;
     planner.declare_surface(input, resource_desc);
@@ -190,7 +193,7 @@ TEST_CASE("command plan executor dispatches passes through the canonical backend
     const auto plan = planner.build();
 
     const auto submissions_before = backend.stats().submissions;
-    REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
+    REQUIRE((chronon3d::graph::GraphExecutor{}.execute(backend, registry, plan)));
     // The executor opens + closes one frame batch: every plan pass coalesces
     // into a single queue submission.
     CHECK(backend.stats().submissions == submissions_before + 1);
