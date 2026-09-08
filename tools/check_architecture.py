@@ -634,6 +634,7 @@ class Runner:
         by_id = {target.get("id"): target for target in targets}
         by_name = {target.get("name"): target for target in targets}
         violations: list[str] = []
+        target_details: dict[str, dict[str, Any]] = {}
 
         for rule in self.rules.get("cmake_dag", []):
             if rule.get("kind") == "forbidden_target":
@@ -662,9 +663,16 @@ class Runner:
             if not target:
                 self.fail(name, f"configured target missing: {target_name}")
                 continue
+            try:
+                detail_path = reply / target["jsonFile"]
+                target_details[target_name] = json.loads(
+                    detail_path.read_text(encoding="utf-8"))
+            except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+                self.fail(name, f"invalid target codemodel for {target_name}: {error}")
+                continue
             source_paths = [
                 source.get("path", "")
-                for source in target.get("sources", [])
+                for source in target_details[target_name].get("sources", [])
                 if source.get("path")
             ]
             for pattern in rule.get("forbidden_patterns", []):

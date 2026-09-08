@@ -58,6 +58,7 @@ Audit baseline supplied by the user: Chronon3D `79dda0c41284225bcf40b70be75533e4
 - Final CPU build passed: `cmake --build --preset linux-fast-dev --parallel 20` completed `219/219` targets; peak observed memory stayed below the 29 GiB host limit.
 - Final CPU test run was interrupted after 25/80 tests by the user; before interruption, the core suite failed 24 font-corpus cases because the referenced fonts are absent, backend-registry failed one barrier assertion, and the compiler boundary gate found a forbidden legacy name in a comment. The comment-only false positive is removed; the functional failures remain open.
 - Refined the compiler sampler comment to avoid the boundary gate's `runtime/` token matcher; the targeted compiler boundary test must be rerun after the final commit.
+- Found and fixed a configured-CMake gate bug: target source rules now read each target's File API detail JSON instead of the codemodel summary, so legacy compiler-owned sources cannot pass silently. This requires a follow-up commit/push.
 
 ## Resource policy
 
