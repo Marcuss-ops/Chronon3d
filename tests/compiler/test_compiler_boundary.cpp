@@ -157,9 +157,9 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
 
     const auto context = chronon3d::make_frame_context({
+        .duration = plan.canvas.duration,
         .width = 1920,
         .height = 1080,
-        .duration = plan.canvas.duration,
         .resource = std::pmr::get_default_resource(),
     });
     const auto scene = chronon3d::compiler::ProgramSampler{}.sample_scene(
