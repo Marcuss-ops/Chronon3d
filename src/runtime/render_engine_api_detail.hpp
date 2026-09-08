@@ -107,9 +107,18 @@ std::shared_ptr<Framebuffer> RenderEngine::render_program(
     const compiler::CompiledProgram& program, Frame frame)
 {
     // Mirror render_compiled()'s per-frame configuration so both
-    // equivalence-gate seams start from identical renderer settings.
     auto settings = m_impl->m_renderer->render_settings();
-    settings.render_budget = program.metadata().render_budget;
+    const auto& b = program.metadata().render_budget;
+    settings.render_budget.max_width = b.max_width;
+    settings.render_budget.max_height = b.max_height;
+    settings.render_budget.max_total_pixels = b.max_total_pixels;
+    settings.render_budget.max_frames = b.max_frames;
+    settings.render_budget.max_layers = b.max_layers;
+    settings.render_budget.max_text_bytes = b.max_text_bytes;
+    settings.render_budget.max_asset_reference_bytes = b.max_asset_reference_bytes;
+    settings.render_budget.max_estimated_output_bytes = b.max_estimated_output_bytes;
+    settings.render_budget.max_peak_memory_bytes = b.max_peak_memory_bytes;
+    settings.render_budget.max_temporal_pixels = b.max_temporal_pixels;
     m_impl->m_renderer->set_settings(settings);
     m_impl->m_renderer->session().clear_last_frame_error();
     return m_impl->m_pipeline->render_program(program, frame);

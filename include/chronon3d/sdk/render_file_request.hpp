@@ -9,6 +9,9 @@
 namespace chronon3d {
 class Composition;
 struct CompiledComposition;
+namespace compiler {
+class CompiledProgram;
+}
 }
 
 namespace chronon3d::sdk {
@@ -63,6 +66,7 @@ struct RenderFileRequest {
     // this immutable value for every frame; composition remains a metadata
     // compatibility pointer for existing callers.
     const chronon3d::CompiledComposition* compiled_composition{nullptr};
+    const chronon3d::compiler::CompiledProgram* program{nullptr};
     std::filesystem::path output_path;
     Frame start_frame{0};
     Frame end_frame{0};

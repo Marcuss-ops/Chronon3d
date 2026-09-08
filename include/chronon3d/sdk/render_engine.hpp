@@ -39,6 +39,10 @@
 #include <cstdint>
 #include <string_view>
 
+namespace chronon3d::compiler {
+class CompiledProgram;
+}
+
 namespace chronon3d::sdk {
 
 enum class LogLevel : std::uint8_t { Trace, Debug, Info, Warning, Error };
@@ -82,6 +86,12 @@ public:
     chronon3d::Result<RenderOutput, RenderError>
     render_compiled(const chronon3d::CompiledComposition& compiled,
                     Frame frame);
+
+    /// Render one frame from an immutable compiler program.
+    [[nodiscard]]
+    chronon3d::Result<RenderOutput, RenderError>
+    render_program(const chronon3d::compiler::CompiledProgram& program,
+                   Frame frame);
 
     /// Render a contiguous frame range into an encoded video file.
     /// This is a public wrapper over the same internal frame renderer and
