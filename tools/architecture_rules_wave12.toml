@@ -26,3 +26,11 @@ description = "Phase 12: chronon3d_media_direct_yuv is a media leaf and must dep
 source = "chronon3d_media_direct_yuv"
 forbidden_deps = ["chronon3d_pipeline"]
 hint = "A leaf/specialization linking the whole-pipeline aggregate is an inverted dependency (Phase 12 demolition). Declare the real boundary (chronon3d_media_interface + native authorities)."
+
+[[cmake_dag]]
+name = "compiler_render_plan_edge_forbidden"
+kind = "forbidden_edge"
+description = "Wave 1+12: chronon3d_compiler is autonomous and must not depend on chronon3d_render_plan"
+source = "chronon3d_compiler"
+forbidden_deps = ["chronon3d_render_plan"]
+hint = "chronon3d_compiler is the autonomous compiler root and must not depend on chronon3d_render_plan."
