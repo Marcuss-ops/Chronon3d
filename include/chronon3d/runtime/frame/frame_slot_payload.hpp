@@ -8,8 +8,11 @@
 // it with the plain-data evaluated program state.
 
 #include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/compiler/frame_parameters.hpp>
+#include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
+#include <chronon3d/render_graph/executor/execution_workspace.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
@@ -31,12 +34,20 @@ struct FrameSlotPayload final {
     std::optional<Scene> sampled_scene{};
     std::optional<Camera2_5D> sampled_camera{};
     std::shared_ptr<Framebuffer> rendered{};
+    // Per-slot execution scratch and memory telemetry. These resources are
+    // leased with the slot, so concurrent frames never contend on a
+    // JobSession-owned workspace/tracker.
+    graph::ExecutionWorkspaceRing execution_workspaces{};
+    graph::NodeMemoryTracker memory_tracker{};
+    std::optional<graph::NodeExecutionError> frame_error{};
 
     void reset() noexcept {
         parameters.layers.clear();
         sampled_scene.reset();
         sampled_camera.reset();
         rendered.reset();
+        memory_tracker.reset();
+        frame_error.reset();
         arena.reset();
     }
 };

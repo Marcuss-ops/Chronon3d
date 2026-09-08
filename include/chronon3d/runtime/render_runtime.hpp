@@ -148,10 +148,10 @@ struct RuntimeConfig {
 
 class RuntimeContext;
 
-// P1-15 (DONE) — the `RenderServices` pointer bundle (struct +
+// P1-15 (DONE) — the graph execution dependency bundle (struct +
 // `services()` accessor + `m_services` member) has been REMOVED
 // wholesale.  The typed direct accessors below are the canonical
-// surface.  (graph::RenderServices in render_graph_context.hpp is
+// surface.  (graph execution dependencies in render_graph_context.hpp are
 // a distinct per-frame bundle — unaffected.)
 
 /// RuntimeContext — engine-lifetime container.
@@ -215,7 +215,7 @@ public:
     [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
 
     // ── Typed direct accessors (P1-15 canonical surface) ───────────
-    // The legacy `Runtime::services()` accessor + `RenderServices`
+    // The legacy runtime service accessor and graph dependency bundle
     // service-locator bundle was REMOVED in P1-15.  External
     // consumers use these typed accessors (each returns the canonical
     // reference / pointer / shared_ptr for that subsystem).  Internal
