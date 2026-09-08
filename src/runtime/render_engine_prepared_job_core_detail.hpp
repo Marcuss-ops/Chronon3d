@@ -1,53 +1,3 @@
-// PreparedRenderJob evaluation/render helpers and single-frame execution.
-bool PreparedRenderJob::Impl::can_split_evaluation() const noexcept {
-    if (!engine || !engine->m_impl || !engine->m_impl->m_renderer) return false;
-    const auto& settings = engine->m_impl->m_renderer->render_settings();
-    return settings.ssaa_factor <= 1.0f &&
-        settings.motion_blur.mode == MotionBlurMode::Off;
-}
-
-EvaluatedCompositionFrame PreparedRenderJob::Impl::evaluate_frame(
-    Frame frame, FrameArena& arena) const {
-    const auto& compiled = job_session->legacy_composition();
-    if (!compiled || !compiled->composition) {
-        throw std::runtime_error("PreparedRenderJob has no compiled definition");
-    }
-    const auto& spec = compiled->composition->spec();
-    const auto& runtime = engine->m_impl->m_renderer->runtime();
-    const FrameContextParams context_params{
-        .global_time = SampleTime::from_frame_int(frame, spec.frame_rate),
-        .duration = spec.duration,
-        .width = spec.width,
-        .height = spec.height,
-        .assets_root = engine->m_impl->m_renderer->runtime().resolver().mount_root().string(),
-        .resource = arena.resource(),
-        .shape_registry = &engine->m_impl->m_shape_registry,
-        .font_engine = &runtime.font_engine(),
-        .runtime = &runtime,
-    };
-    const auto context = make_frame_context(context_params);
-    auto evaluated = chronon3d::evaluate(
-        *compiled,
-        CompositionEvaluateContext{.frame_context = context},
-        frame);
-    if (!evaluated) {
-        throw std::runtime_error(
-            "prepared frame evaluation failed: " + evaluated.error().message);
-    }
-    return std::move(evaluated).value();
-}
-
-std::shared_ptr<Framebuffer> PreparedRenderJob::Impl::render_evaluated_frame(
-    EvaluatedCompositionFrame& evaluated, Frame frame) const {
-    const auto& compiled = job_session->legacy_composition();
-    if (!compiled) throw std::runtime_error("PreparedRenderJob has no compiled definition");
-    if (evaluated.camera.has_value()) {
-        evaluated.scene.set_camera_2_5d(*evaluated.camera);
-    }
-    return engine->m_impl->m_pipeline->render_evaluated_composition(
-        *compiled, evaluated, frame);
-}
-
 PreparedRenderJobTelemetry PreparedRenderJob::telemetry() const noexcept {
     PreparedRenderJobTelemetry snapshot;
     if (!m_impl || !m_impl->engine || !m_impl->engine->m_impl ||
@@ -80,46 +30,32 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
         !m_impl->job_session->legacy_composition()) {
         throw std::runtime_error("PreparedRenderJob is no longer executable");
     }
-    auto* evaluated = m_impl->job_session->acquire_for_evaluation();
-    if (!evaluated) {
+    auto* slot = m_impl->job_session->acquire_for_evaluation();
+    if (!slot) {
         throw std::runtime_error("PreparedRenderJob pipeline has no free frame slot");
     }
-    evaluated->frame_index = frame.integral();
-    auto& evaluated_payload = m_impl->job_session->payload(*evaluated);
+    slot->frame_index = frame.integral();
+    auto& payload = m_impl->job_session->payload(*slot);
     const auto frame_time = SampleTime::from_frame_int(
         frame, m_impl->job_session->legacy_composition()->composition
             ? m_impl->job_session->legacy_composition()->composition->frame_rate() : FrameRate{});
     runtime::FrameExecution frame_execution(
-        *m_impl->job_session, frame, frame_time, *evaluated, evaluated_payload);
-    evaluated_payload.reset();
-    if (!m_impl->job_session->publish_evaluated(*evaluated)) {
-        (void)m_impl->job_session->abort(*evaluated);
+        *m_impl->job_session, frame, frame_time, *slot, payload);
+    payload.reset();
+    if (!m_impl->job_session->publish_evaluated(*slot)) {
+        (void)m_impl->job_session->abort(*slot);
         throw std::runtime_error("PreparedRenderJob failed to publish evaluated frame");
     }
 
     auto* render_slot = m_impl->job_session->acquire_for_render();
     if (!render_slot) {
-        (void)m_impl->job_session->abort(*evaluated);
+        (void)m_impl->job_session->abort(*slot);
         throw std::runtime_error("PreparedRenderJob failed to acquire render slot");
     }
     try {
         std::shared_ptr<Framebuffer> output;
-        const auto& settings = m_impl->engine->m_impl->m_renderer->render_settings();
-        const bool can_split_evaluation =
-            settings.ssaa_factor <= 1.0f &&
-            settings.motion_blur.mode == MotionBlurMode::Off;
-        if (can_split_evaluation && m_impl->job_session->legacy_composition()->composition) {
-            auto evaluated_frame = m_impl->evaluate_frame(
-                frame, evaluated_payload.arena);
-            output = m_impl->engine->m_impl->m_pipeline->render_evaluated_composition(
-                *m_impl->job_session->legacy_composition(), evaluated_frame, frame,
-                &frame_execution);
-        } else {
-            // Temporal accumulation and SSAA remain on the canonical complete
-            // compositor until their evaluated-frame boundaries are split.
-            output = m_impl->engine->m_impl->m_pipeline->render_compiled_composition(
-                *m_impl->job_session->legacy_composition(), frame, &frame_execution);
-        }
+        output = m_impl->pipeline->render_compiled_composition(
+            *m_impl->job_session->legacy_composition(), frame, &frame_execution);
         if (!m_impl->job_session->publish_rendered(*render_slot)) {
             (void)m_impl->job_session->abort(*render_slot);
             throw std::runtime_error("PreparedRenderJob failed to publish rendered frame");
