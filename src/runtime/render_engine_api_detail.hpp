@@ -171,10 +171,9 @@ PreparedRenderJob RenderEngine::prepare(
     auto impl = std::make_unique<PreparedRenderJob::Impl>();
     impl->engine = this;
     impl->pipeline = &*m_impl->m_pipeline;
-    runtime::JobSessionConfig job_config;
-    job_config.legacy_composition = std::move(compiled);
+    impl->compatibility_composition = std::move(compiled);
     impl->job_session = std::make_unique<runtime::JobSession>(
-        *m_impl->m_runtime, std::move(job_config));
+        *m_impl->m_runtime, Frame{0}, comp.duration(), 0);
     runtime::ResourcePlanner planner;
     if (const auto* graph = m_impl->m_renderer->graph_cache().peek(
             comp.width(), comp.height()); graph != nullptr) {

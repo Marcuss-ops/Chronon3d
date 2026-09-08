@@ -4,7 +4,8 @@
 //
 //   CompiledProgram → ProgramSampler → render_scene_via_graph()
 //
-// `render_compiled_composition_frame` remains an adapter for legacy callers
+// `render_compiled_composition_frame` remains a compatibility adapter for
+// arbitrary Composition authoring callers
 // and tests; production prepared-program execution uses RenderPipeline.
 //
 // Deprecated paths (thin wrappers, migrate to render()):

@@ -129,7 +129,7 @@ GraphNodeId build_layer_output_node(
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione
-        // B): track-matte keys participate in the framebuffer cache lookup
+        // B): track-matte keys participate in the surface cache lookup
         // chain and MUST differentiate per-camera-state (track-matte
         // compositing is camera-position relative on multi-camera comps).
         cache::NodeCacheKey matte_key = cache::NodeCacheIdentityBuilder{

@@ -3,6 +3,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 
 #include <array>
 #include <chrono>
@@ -12,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::verification {
 
@@ -51,6 +53,13 @@ CapturedOutput run_capture_checked(const std::string& command) {
     }
     result.exit_ok = pclose(pipe) == 0;
     return result;
+}
+
+void warn_ffprobe_failure(const char* stage,
+                          const std::filesystem::path& output,
+                          std::string_view detail) {
+    spdlog::warn("[ffprobe] {} failed for {}: {}", stage,
+                 output.filename().string(), detail);
 }
 
 /// Post-render verification policy.
@@ -149,12 +158,23 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
         const auto elapsed = std::chrono::steady_clock::now() - start;
         *ms_out = std::chrono::duration<double, std::milli>(elapsed).count();
     }
-    if (captured.out.empty() || (require_exit_ok && !captured.exit_ok)) return false;
+    if (!captured.exit_ok) {
+        warn_ffprobe_failure("metadata probe", output, "non-zero exit");
+    }
+    if (captured.out.empty()) {
+        warn_ffprobe_failure("metadata probe", output, "empty output");
+        return false;
+    }
+    if (require_exit_ok && !captured.exit_ok) return false;
 
     nlohmann::json js;
     try {
         js = nlohmann::json::parse(captured.out);
+    } catch (const std::exception& exception) {
+        warn_ffprobe_failure("metadata parse", output, exception.what());
+        return false;
     } catch (...) {
+        warn_ffprobe_failure("metadata parse", output, "unknown exception");
         return false;
     }
 
@@ -216,7 +236,14 @@ std::int64_t count_frames_ffprobe(const std::filesystem::path& output,
         const auto elapsed = std::chrono::steady_clock::now() - start;
         *count_ms_out = std::chrono::duration<double, std::milli>(elapsed).count();
     }
-    if (!captured.exit_ok || captured.out.empty()) return -1;
+    if (!captured.exit_ok) {
+        warn_ffprobe_failure("count-frames probe", output, "non-zero exit");
+    }
+    if (captured.out.empty()) {
+        warn_ffprobe_failure("count-frames probe", output, "empty output");
+        return -1;
+    }
+    if (!captured.exit_ok) return -1;
     try {
         const auto js = nlohmann::json::parse(captured.out);
         if (!js.contains("streams") || !js["streams"].is_array()) return -1;
@@ -224,7 +251,10 @@ std::int64_t count_frames_ffprobe(const std::filesystem::path& output,
             if (stream.value("codec_type", "") != "video") continue;
             return stream_frame_count(stream);
         }
+    } catch (const std::exception& exception) {
+        warn_ffprobe_failure("count-frames parse", output, exception.what());
     } catch (...) {
+        warn_ffprobe_failure("count-frames parse", output, "unknown exception");
     }
     return -1;
 }

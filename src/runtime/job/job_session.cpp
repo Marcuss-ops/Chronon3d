@@ -24,13 +24,23 @@ std::shared_ptr<const graph::NodeExecutionError> RenderErrorSlot::load() const {
 JobSession::JobSession(RuntimeContext& runtime, JobSessionConfig config)
     : runtime_(&runtime),
       program_(std::move(config.program)),
-      legacy_composition_(std::move(config.legacy_composition)),
       first_frame_(config.first_frame),
       end_frame_(config.end_frame),
       job_id_(config.job_id) {
     if (!program_) {
         throw std::invalid_argument("JobSession requires a CompiledProgram");
     }
+    if (end_frame_ < first_frame_) {
+        throw std::invalid_argument("JobSession frame range is inverted");
+    }
+}
+
+JobSession::JobSession(RuntimeContext& runtime, Frame first_frame,
+                       Frame end_frame, std::uint64_t job_id)
+    : runtime_(&runtime),
+      first_frame_(first_frame),
+      end_frame_(end_frame),
+      job_id_(job_id) {
     if (end_frame_ < first_frame_) {
         throw std::invalid_argument("JobSession frame range is inverted");
     }

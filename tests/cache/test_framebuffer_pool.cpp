@@ -7,6 +7,9 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <atomic>
 #include <cstring>
+#include <cstdio>
+#include <thread>
+#include <vector>
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -738,4 +741,32 @@ TEST_CASE("FramebufferPool wave-2 contention counters advance") {
     CHECK(after.lock_wait_us >= before.lock_wait_us);
     CHECK(after.lock_hold_wall_us >= before.lock_hold_wall_us);
     CHECK(after.arena_set_wait_us >= before.arena_set_wait_us);
+}
+
+TEST_CASE("FramebufferPool narrow-before-shard measurement") {
+    auto pool = FramebufferPool::create_shared(256ULL * 1024ULL * 1024ULL);
+    pool->reset_counters();
+    constexpr int kThreads = 8;
+    constexpr int kIterations = 128;
+    std::atomic<bool> acquired{true};
+    std::vector<std::thread> workers;
+    workers.reserve(kThreads);
+    for (int thread = 0; thread < kThreads; ++thread) {
+        workers.emplace_back([&pool, &acquired] {
+            for (int i = 0; i < kIterations; ++i) {
+                auto fb = pool->acquire(64, 64, false);
+                if (!fb) acquired.store(false, std::memory_order_relaxed);
+            }
+        });
+    }
+    for (auto& worker : workers) worker.join();
+
+    const auto measured = pool->stats();
+    CHECK(acquired.load(std::memory_order_relaxed));
+    CHECK(measured.acquire_count == static_cast<std::uint64_t>(kThreads * kIterations));
+    CHECK(measured.release_count == static_cast<std::uint64_t>(kThreads * kIterations));
+    std::printf("[INFO] framebuffer-pool-narrow-before-shard: acquire=%llu wait_us=%llu hold_us=%llu\n",
+                static_cast<unsigned long long>(measured.acquire_count),
+                static_cast<unsigned long long>(measured.lock_wait_us),
+                static_cast<unsigned long long>(measured.lock_hold_wall_us));
 }

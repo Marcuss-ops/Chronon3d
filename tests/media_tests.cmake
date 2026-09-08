@@ -34,6 +34,9 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     # directly; those symbols only exist when the native FFmpeg mux authority
     # is built.
     list(APPEND _media_video_sources video/test_output_contract.cpp)
+    if(CHRONON3D_ENABLE_VERIFICATION AND TARGET chronon3d_verification)
+        list(APPEND _media_video_sources video/test_render_receipt.cpp)
+    endif()
 endif()
 
 chronon3d_add_test_suite(
@@ -51,6 +54,9 @@ endif()
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     target_link_libraries(chronon3d_media_video_tests PRIVATE chronon3d_media_native)
+endif()
+if(CHRONON3D_ENABLE_VERIFICATION AND TARGET chronon3d_verification)
+    target_link_libraries(chronon3d_media_video_tests PRIVATE chronon3d_verification)
 endif()
 if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_CUDA_INCLUDE_DIR)
     target_include_directories(chronon3d_media_video_tests PRIVATE
@@ -121,10 +127,15 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     # Kept as a separate target so it can be run standalone under ASan:
     #   cmake --build ... --target chronon3d_native_decoder_teardown_tests
     #   ASAN_OPTIONS=halt_on_error=1:detect_leaks=1 .../chronon3d_native_decoder_teardown_tests
+    set(_native_decoder_teardown_links
+        chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl)
+    if(TARGET chronon3d_cli_video_export)
+        list(APPEND _native_decoder_teardown_links chronon3d_cli_video_export)
+    endif()
     chronon3d_add_test_suite(
         NAME chronon3d_native_decoder_teardown_tests
         TIER INTEGRATION
-        LINK_TARGETS chronon3d_media_native chronon3d_pipeline chronon3d_backend_software chronon3d_core_impl
+        LINK_TARGETS ${_native_decoder_teardown_links}
         SOURCES video/test_native_decoder_teardown_stress.cpp
                 video/test_native_av_encoder_teardown_stress.cpp
     )

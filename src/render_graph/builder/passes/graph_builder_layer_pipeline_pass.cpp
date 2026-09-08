@@ -1,4 +1,4 @@
-#include "graph_builder_passes.hpp"
+#include "graph_builder/passes/graph_builder_passes.hpp"
 #include "graph_builder_pipeline.hpp"
 #include "graph_builder_coordinates.hpp"
 #include "evaluated_layer_placement.hpp"

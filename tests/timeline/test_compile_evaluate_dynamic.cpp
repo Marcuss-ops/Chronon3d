@@ -148,8 +148,8 @@ TEST_CASE("Frame-invariant definition evaluates deterministically via DynamicCal
     // CompositionDefinition-only authoring hint.  The canonical compile path
     // takes a Composition (the deprecated CompositionDefinition overload was
     // removed), and Composition intentionally does not carry the hint, so
-    // compilation is correct-by-default DynamicCallback — the StaticScene
-    // fast-path is not wired into the canonical model.  The frame-invariant
+    // compilation is correct-by-default DynamicCallback — static Scene
+    // materialization is not wired into the canonical model.  The frame-invariant
     // content must still evaluate to the same scene at every frame through
     // the dynamic callback.
     CompositionDefinition def;
@@ -174,7 +174,6 @@ TEST_CASE("Frame-invariant definition evaluates deterministically via DynamicCal
     REQUIRE(compiled_res.has_value());
     const auto& compiled = compiled_res.value();
     CHECK(compiled.execution_mode == SceneExecutionMode::DynamicCallback);
-    CHECK(compiled.static_scene == nullptr);
     CHECK_FALSE(compiled.is_static_topology);
 
     CompositionEvaluateContext eval_ctx;
@@ -194,4 +193,3 @@ TEST_CASE("Frame-invariant definition evaluates deterministically via DynamicCal
     REQUIRE(!f50.value().scene.layers().empty());
     CHECK(f50.value().scene.layers()[0].name == "static_layer");
 }
-

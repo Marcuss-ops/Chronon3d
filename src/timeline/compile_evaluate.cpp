@@ -151,36 +151,12 @@ compile_composition(const Composition& composition,
     }
 
     // (5) Scene execution mode resolution.
-    // Correct-by-default: SceneFunction is a per-frame API (SceneExecutionMode::DynamicCallback).
-    // The template scene fast-path is used only when the definition explicitly promises
-    // that scene materialization is frame invariant (SceneExecutionMode::StaticScene)
-    // or through compiled dynamic topology parameter slots (SceneExecutionMode::StaticTopologySlots).
-    if (composition.scene_function()) {
-        if (false) {
-            out.execution_mode = SceneExecutionMode::StaticScene;
-            try {
-                const FrameContext fc0 = make_frame_context({
-                    .global_time = SampleTime::from_frame(0.0, composition.frame_rate()),
-                    .duration = composition.duration(),
-                    .width = composition.width(),
-                    .height = composition.height(),
-                });
-                out.static_scene = std::make_shared<const Scene>(composition.evaluate(fc0));
-                out.template_scene = out.static_scene;
-                out.is_static_topology = true;
-            } catch (...) {
-                out.execution_mode = SceneExecutionMode::DynamicCallback;
-                out.static_scene = nullptr;
-                out.template_scene = nullptr;
-                out.is_static_topology = false;
-            }
-        } else {
-            out.execution_mode = SceneExecutionMode::DynamicCallback;
-            out.static_scene = nullptr;
-            out.template_scene = nullptr;
-            out.is_static_topology = false;
-        }
-    }
+    // SceneFunction is a per-frame API.  Static topology is represented by
+    // the separate compiled frame-program path; there is no static Scene
+    // materialization mode in the canonical Composition adapter.
+    out.execution_mode = SceneExecutionMode::DynamicCallback;
+    out.template_scene = nullptr;
+    out.is_static_topology = false;
 
     // (6) Deterministic fingerprint of the canonical Composition.
     out.fingerprint = fingerprint_composition(composition);
@@ -249,11 +225,7 @@ evaluate(const CompiledComposition& compiled,
     // frame arena.
     EvaluatedCompositionFrame result(context.frame_context.resource);
     try {
-        if (compiled.execution_mode == SceneExecutionMode::StaticScene && compiled.static_scene) {
-            result.scene = compiled.static_scene->clone();
-        } else {
-            result.scene = composition.evaluate(fc);
-        }
+        result.scene = composition.evaluate(fc);
     } catch (const std::exception& e) {
         CompositionEvaluateError err;
         err.kind    = CompositionEvaluateError::Kind::SceneBuildFailed;

@@ -54,7 +54,6 @@ SoftwareRenderer* setup_render_graph_context(
         auto& job = ctx.execution->job();
         ctx.runtime = &job.runtime();
         ctx.session = &job;
-        if (sw_sidecar) ctx.program_store = &sw_sidecar->program_store();
         ctx.scheduler = &job.runtime().scheduler();
         ctx.compiled_graph_cache = &job.runtime().graph_cache();
         ctx.node_cache = &job.runtime().node_cache();
@@ -129,7 +128,6 @@ SoftwareRenderer* setup_render_graph_context(
         // PR-5 — propagate the job-session pointer so PrecompNode borrows
         // the scene program store through the typed JobSession seam.
         if (!ctx.execution) ctx.session = &sw_renderer->session();
-        if (!ctx.execution) ctx.program_store = &sw_renderer->program_store();
         ctx.text_render_resources = sw_renderer->text_render_resources();
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create

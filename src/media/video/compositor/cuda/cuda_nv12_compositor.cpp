@@ -23,7 +23,6 @@
 #include <chrono>
 #include <dlfcn.h>
 #include <filesystem>
-#include <mutex>
 #include <system_error>
 
 namespace chronon3d::media::video {
@@ -73,35 +72,35 @@ void check_nvrtc(nvrtcResult result, const char* operation) {
     fail(operation, nvrtcGetErrorString(result));
 }
 
-std::string get_compiled_nv12_ptx() {
-    static std::mutex ptx_mutex;
-    static std::string cached_ptx;
-    std::lock_guard<std::mutex> lock(ptx_mutex);
-    if (!cached_ptx.empty()) {
-        return cached_ptx;
-    }
-    ensure_nvrtc_builtins_loaded();
+const std::string& get_compiled_nv12_ptx() {
+    // Function-local constant initialization is the sole compile-once
+    // authority. After initialization readers only borrow the immutable PTX;
+    // no explicit mutex, mutation, or per-call string copy remains on the
+    // compositor hot path.
+    static const std::string cached_ptx = [] {
+        ensure_nvrtc_builtins_loaded();
 
-    nvrtcProgram program{};
-    check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
-                                   0, nullptr, nullptr), "nvrtcCreateProgram");
-    const char* options[] = {
-        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
-    const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
-    if (compile != NVRTC_SUCCESS) {
-        size_t log_size = 0;
-        nvrtcGetProgramLogSize(program, &log_size);
-        std::string log(log_size, '\0');
-        if (log_size) nvrtcGetProgramLog(program, log.data());
+        nvrtcProgram program{};
+        check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
+                                       0, nullptr, nullptr), "nvrtcCreateProgram");
+        const char* options[] = {
+            "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
+        const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
+        if (compile != NVRTC_SUCCESS) {
+            size_t log_size = 0;
+            nvrtcGetProgramLogSize(program, &log_size);
+            std::string log(log_size, '\0');
+            if (log_size) nvrtcGetProgramLog(program, log.data());
+            nvrtcDestroyProgram(&program);
+            fail("nvrtcCompileProgram", log);
+        }
+        size_t ptx_size = 0;
+        check_nvrtc(nvrtcGetPTXSize(program, &ptx_size), "nvrtcGetPTXSize");
+        std::string ptx(ptx_size, '\0');
+        check_nvrtc(nvrtcGetPTX(program, ptx.data()), "nvrtcGetPTX");
         nvrtcDestroyProgram(&program);
-        fail("nvrtcCompileProgram", log);
-    }
-    size_t ptx_size = 0;
-    check_nvrtc(nvrtcGetPTXSize(program, &ptx_size), "nvrtcGetPTXSize");
-    std::string ptx(ptx_size, '\0');
-    check_nvrtc(nvrtcGetPTX(program, ptx.data()), "nvrtcGetPTX");
-    nvrtcDestroyProgram(&program);
-    cached_ptx = std::move(ptx);
+        return ptx;
+    }();
     return cached_ptx;
 }
 
@@ -114,7 +113,7 @@ void CudaNv12Compositor::warm_up(CUcontext context) {
 
     if (!context) fail("CudaNv12Compositor::warm_up", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent(warm_up)");
-    const std::string ptx = get_compiled_nv12_ptx();
+    const auto& ptx = get_compiled_nv12_ptx();
     CUmodule module = nullptr;
     check_cuda(cuModuleLoadData(&module, ptx.c_str()),
                "cuModuleLoadData(warm_up)");
@@ -132,7 +131,7 @@ CudaNv12Compositor::CudaNv12Compositor(
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
-    const std::string ptx = get_compiled_nv12_ptx();
+    const auto& ptx = get_compiled_nv12_ptx();
 
     // The native encoder shares FFmpeg's primary CUDA context.  Surface any
     // earlier asynchronous failure before loading the compositor module so a
@@ -182,7 +181,7 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     if (!context_) fail("CudaNv12Compositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
-    const std::string ptx = get_compiled_nv12_ptx();
+    const auto& ptx = get_compiled_nv12_ptx();
     check_cuda(cuModuleLoadData(&module_, ptx.c_str()), "cuModuleLoadData");
     check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
                                    "nv12_composite_overlay_2x2"),

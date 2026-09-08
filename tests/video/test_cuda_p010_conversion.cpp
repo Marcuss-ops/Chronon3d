@@ -27,8 +27,8 @@ TEST_CASE("P010 CUDA conversion has a dedicated dispatch format") {
     }
 
     CHECK(CUDA_SUCCESS == 0);
-    CHECK(static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::P010) !=
-          static_cast<int>(chronon3d::backends::vulkan::CudaYuvFormat::Nv12));
+    CHECK(static_cast<int>(chronon3d::media::video::CudaYuvFormat::P010) !=
+          static_cast<int>(chronon3d::media::video::CudaYuvFormat::Nv12));
 }
 
 #else
