@@ -87,6 +87,8 @@ public:
     LayerBuilder& anchor(Vec3 anchor);
     LayerBuilder& opacity(f32 value);
     LayerBuilder& enable_3d(bool value = true);
+    LayerBuilder& transform(Transform transform);
+    LayerBuilder& transform(const Mat4& matrix);
     AnimatedValue<Vec3>& position_anim();
     AnimatedValue<Vec3>& scale_anim();
     AnimatedValue<Vec3>& rotate_anim();

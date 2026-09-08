@@ -71,7 +71,7 @@ bool font_is_resolved(const PreparedRenderPlanContext& context,
     if (logical_path.empty()) {
         return false;
     }
-    for (const auto& asset : context.prepared().assets.assets()) {
+    for (const auto& asset : context.program->metadata().asset_manifest.assets()) {
         if (asset.kind == chronon3d::assets::PreparedAssetKind::Font &&
             asset.logical_path == logical_path) {
             return true;
@@ -87,25 +87,24 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
     ResolvedRenderPlanInspection inspection;
 
     const auto& decoded = context.decoded;
-    // Wave 2: legacy plan view reached via the context bridge (see
-    // render_plan_preparation.hpp).
-    const auto& prepared = context.prepared();
+    const auto& meta = context.program->metadata();
+    const auto& fp = context.program->fingerprint_data();
 
-    inspection.job.id = prepared.job_id;
+    inspection.job.id = meta.job_id;
     inspection.job.schema = "chronon.render-plan.v2";
-    inspection.job.content_digest = prepared.fingerprint.content_digest.hex();
-    inspection.job.request_digest = prepared.fingerprint.request_digest.hex();
-    inspection.job.asset_manifest_digest = prepared.assets.manifest_digest().hex();
+    inspection.job.content_digest = fp.content_digest.hex();
+    inspection.job.request_digest = fp.request_digest.hex();
+    inspection.job.asset_manifest_digest = meta.asset_manifest.manifest_digest().hex();
 
-    inspection.canvas.width = prepared.canvas.width;
-    inspection.canvas.height = prepared.canvas.height;
-    inspection.canvas.fps_num = prepared.canvas.fps.num();
-    inspection.canvas.fps_den = prepared.canvas.fps.den();
-    inspection.canvas.frames = static_cast<int>(prepared.canvas.duration.integral());
+    inspection.canvas.width = meta.width;
+    inspection.canvas.height = meta.height;
+    inspection.canvas.fps_num = meta.fps_numerator;
+    inspection.canvas.fps_den = meta.fps_denominator;
+    inspection.canvas.frames = static_cast<int>(meta.duration_frames);
 
-    inspection.output_path = prepared.output.path;
-    inspection.output_format = output_format_name(prepared.output.format);
-    inspection.video_codec = video_codec_name(prepared.output.codec);
+    inspection.output_path = meta.output.path;
+    inspection.output_format = output_format_name(static_cast<render_plan::OutputFormat>(meta.output.format));
+    inspection.video_codec = video_codec_name(static_cast<render_plan::VideoCodec>(meta.output.codec));
 
     inspection.layers.reserve(decoded.layers.size());
     for (const auto& layer : decoded.layers) {

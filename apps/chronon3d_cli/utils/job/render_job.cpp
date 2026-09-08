@@ -2,7 +2,6 @@
 
 #include "../common/cli_utils.hpp"
 
-#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <spdlog/spdlog.h>
@@ -137,14 +136,6 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     RenderRequest request) {
     const std::string composition_id = request.comp_id;
     std::shared_ptr<const CompiledComposition> compiled = std::move(request.compiled_composition);
-    if (!compiled && request.compiled_program && request.mode == RenderMode::Video) {
-        // Wave 2-9 seam: the executor compatibility view is materialised once
-        // at this boundary through the internal compiler plan bridge (see the
-        // bridge debt card).  RenderRequest carries only the numeric program.
-        compiled = std::make_shared<const CompiledComposition>(
-            chronon3d::compiler::detail::compiled_composition(
-                *request.compiled_program));
-    }
     std::optional<ResolvedCompositionSpec> resolved;
     if (!compiled && !request.compiled_program) {
         auto registry_result = registry.resolve(composition_id, request.input);

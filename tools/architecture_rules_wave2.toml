@@ -45,22 +45,18 @@ scan_paths = ["include/chronon3d/compiler/compiled_program.hpp"]
 skip_comments = true
 hint = "Lower output, asset-manifest and budget data into ProgramMetadata. A render-plan include here makes every typed-program consumer depend on authoring input types."
 
-[[contract]]
-name = "compiled_program_plan_bridge_canonical"
-description = "Wave 2: the internal plan-bridge header must exist with its friendship gate and Demolition Debt card"
-file = "include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp"
-required_patterns = [
-  'class CompiledProgramPlanBridge',
-  'DEMOLITION DEBT CARD',
-]
-hint = "Canonical bridge header missing — the legacy plan would have no confined access path."
+[[forbidden_symbol]]
+name = "compiled_program_plan_bridge_demolished"
+description = "Wave 2 demolition: CompiledProgramPlanBridge must never be reintroduced"
+patterns = ['\bCompiledProgramPlanBridge\b']
+scan_paths = ["include", "src", "apps"]
+skip_comments = true
+hint = "CompiledProgramPlanBridge was demolished in Wave 2. Consumers must use pure CompiledProgram."
 
-[[contract]]
-name = "compiled_program_plan_bridge_impl_single_tu"
-description = "Wave 2: the bridge implementations are defined exactly once, in the compiler boundary TU"
-file = "src/compiler/compiled_program.cpp"
-required_patterns = [
-  'CompiledProgramPlanBridge::prepared_plan',
-  'CompiledProgramPlanBridge::compiled_composition',
-]
-hint = "Bridge out-of-line definitions missing from compiled_program.cpp (the one TU with the complete PreparedRenderPlan definition)."
+[[forbidden_include]]
+name = "compiled_program_plan_bridge_header_forbidden"
+description = "Wave 2 demolition: compiled_program_plan_bridge.hpp must never be included"
+patterns = ['compiled_program_plan_bridge\.hpp']
+scan_paths = ["include", "src", "apps", "tests"]
+skip_comments = true
+hint = "compiled_program_plan_bridge.hpp was demolished in Wave 2."

@@ -1,7 +1,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
-#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
@@ -35,10 +34,7 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     CHECK(program.metadata().height == 1080);
     CHECK(program.metadata().output.path.empty());
     CHECK(program.metadata().asset_manifest.assets().empty());
-    // Wave 2: the retained legacy composition is reachable only through the
-    // internal compiler plan bridge (equivalence-baseline check).
-    CHECK(chronon3d::compiler::detail::compiled_composition(program).composition
-          != nullptr);
+    CHECK(program.metadata().duration_frames == 1);
     CHECK(program.metadata().job_id == "compiler-boundary");
     CHECK(program.nodes().empty());
     CHECK(program.passes().size() == 1);
@@ -54,6 +50,7 @@ chronon3d::render_plan::RenderPlan test_plan() {
     plan.canvas.height = 1080;
     plan.canvas.duration = chronon3d::Frame{24};
     plan.output.path = "compiler-boundary.mp4";
+    plan.output.rate_control = chronon3d::render_plan::RateControlMode::Bitrate;
     plan.output.bitrate = 4'000'000;
 
     chronon3d::render_plan::LayerPlan layer;
@@ -99,8 +96,11 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     CHECK(program.passes().size() == 1);
     CHECK(program.passes().front().node_count == 1);
     CHECK(program.metadata().render_budget.max_width == plan.budget.max_width);
-    CHECK(chronon3d::compiler::detail::compiled_composition(program).fingerprint
-          == prepared.compiled_composition.fingerprint);
+    CHECK(program.fingerprint_data().digest != 0);
+    CHECK(program.fingerprint_data().content_digest.hex()
+          == prepared.fingerprint.content_digest.hex());
+    CHECK(program.fingerprint_data().request_digest.hex()
+          == prepared.fingerprint.request_digest.hex());
 
     chronon3d::assets::AssetResolver repeat_resolver;
     auto repeat = chronon3d::compiler::compile(plan, repeat_resolver);

@@ -14,31 +14,21 @@ RenderEngine::compile_plan_json(std::string_view json) {
         fingerprint_options.render_settings.height = decoded->canvas.height;
         fingerprint_options.render_settings.deterministic = false;
         fingerprint_options.render_settings.force_scalar_normal_blend = false;
-        chronon3d::compiler::CompileOptions compile_options;
-        compile_options.fingerprint = fingerprint_options;
-        auto compiled = chronon3d::compiler::compile(
-            decoded.value(), m_impl->resolver, compile_options);
+        auto compiled = chronon3d::render_plan::compile_render_plan(
+            decoded.value(), m_impl->resolver, fingerprint_options);
         if (!compiled) {
             return RenderError{RenderErrorCode::InvalidPlan,
                                compiled.error().message, "render_plan"};
         }
-        auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
-            std::move(compiled).value());
-        // Wave 2-9 seam: the legacy prepared plan is only reachable through
-        // the internal compiler plan bridge (see the bridge debt card).
-        const auto& prepared =
-            chronon3d::compiler::detail::prepared_plan(*program);
-        // Apply the plan canvas to the engine output size so subsequent
-        // render_compiled()/render_to_file() render at native resolution.
         RenderSettings settings = m_impl->settings;
-        settings.width = prepared.canvas.width;
-        settings.height = prepared.canvas.height;
+        settings.width = compiled->canvas.width;
+        settings.height = compiled->canvas.height;
         m_impl->settings = settings;
         m_impl->prepared_job.reset();
         m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(convert_settings(settings));
         return std::make_shared<const chronon3d::CompiledComposition>(
-            prepared.compiled_composition);
+            std::move(compiled->compiled_composition));
     } catch (const std::exception& error) {
         return RenderError{RenderErrorCode::DecodeFailure,
             std::string{"render plan JSON parse failed: "} + error.what(),
@@ -63,7 +53,7 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
         set_assets_root(std::move(assets_root));
     }
 
-    std::shared_ptr<const chronon3d::CompiledComposition> compiled_holder;
+    std::shared_ptr<const chronon3d::compiler::CompiledProgram> program_holder;
     RenderFileRequest request;
     {
         std::lock_guard lock(m_impl->state_mutex);
@@ -87,32 +77,28 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
                 return RenderError{RenderErrorCode::InvalidPlan,
                                    compiled.error().message, "render_plan"};
             }
-            auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
+            program_holder = std::make_shared<const chronon3d::compiler::CompiledProgram>(
                 std::move(compiled).value());
-            // Wave 2-9 seam: internal plan bridge (see bridge debt card).
-            const auto& prepared =
-                chronon3d::compiler::detail::prepared_plan(*program);
+            const auto& meta = program_holder->metadata();
             RenderSettings settings = m_impl->settings;
-            settings.width = prepared.canvas.width;
-            settings.height = prepared.canvas.height;
+            settings.width = static_cast<int>(meta.width);
+            settings.height = static_cast<int>(meta.height);
             m_impl->settings = settings;
             m_impl->prepared_job.reset();
             m_impl->prepared_composition = nullptr;
             m_impl->engine.set_settings(convert_settings(settings));
 
-            const auto fps = prepared.canvas.fps.numerator > 0 ? prepared.canvas.fps : chronon3d::FrameRate{30, 1};
-            const auto duration = prepared.canvas.duration.integral();
-            compiled_holder =
-                std::make_shared<const chronon3d::CompiledComposition>(
-                    prepared.compiled_composition);
+            const auto fps_num = meta.fps_numerator > 0 ? meta.fps_numerator : 30;
+            const auto fps_den = meta.fps_denominator > 0 ? meta.fps_denominator : 1;
+            const auto duration = meta.duration_frames;
 
-            request.compiled_composition = compiled_holder.get();
+            request.program = program_holder.get();
             request.output_path = output_path.empty()
-                ? std::filesystem::path{prepared.output.path}
+                ? std::filesystem::path{meta.output.path}
                 : output_path;
             request.start_frame = Frame{0};
             request.end_frame = Frame{duration > 0 ? duration - 1 : 0};
-            request.frame_rate = chronon3d::sdk::FrameRate{fps.numerator, fps.denominator};
+            request.frame_rate = chronon3d::sdk::FrameRate{fps_num, fps_den};
         } catch (const std::exception& error) {
             return RenderError{RenderErrorCode::DecodeFailure,
                 std::string{"render plan error: "} + error.what(),

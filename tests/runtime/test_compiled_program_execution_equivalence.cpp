@@ -23,11 +23,11 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
-#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <array>
 #include <string>
@@ -123,6 +123,10 @@ TEST_CASE("equivalence gate: compiled-program seam matches legacy "
             auto compiled = chronon3d::compiler::compile(entry.plan, resolver);
             REQUIRE(compiled);
 
+            chronon3d::assets::AssetResolver legacy_resolver;
+            auto legacy_prep = chronon3d::render_plan::compile_render_plan(entry.plan, legacy_resolver);
+            REQUIRE(legacy_prep);
+
             auto program = std::make_shared<const chronon3d::compiler::CompiledProgram>(
                 std::move(compiled).value());
 
@@ -130,10 +134,10 @@ TEST_CASE("equivalence gate: compiled-program seam matches legacy "
             for (const auto frame : entry.frames) {
                 CAPTURE(frame.integral());
 
-                // Legacy seam — PreparedRenderJob materialises this payload
-                // from the retained legacy view (Wave 2-9 internal bridge).
+                // Legacy seam — render_compiled executes the compiled composition
+                // produced by compile_render_plan.
                 const auto legacy_frame = engine.render_compiled(
-                    chronon3d::compiler::detail::compiled_composition(*program),
+                    legacy_prep->compiled_composition,
                     frame);
                 REQUIRE(legacy_frame);
 

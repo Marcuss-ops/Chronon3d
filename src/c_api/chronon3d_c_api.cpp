@@ -2,7 +2,7 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
-#include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
@@ -26,8 +26,11 @@
 using json = nlohmann::json;
 
 struct chronon_plan {
-    chronon3d::render_plan::PreparedRenderPlan prepared;
+    chronon3d::compiler::CompiledProgram program;
     chronon3d::sdk::RenderSettings settings{};
+
+    explicit chronon_plan(chronon3d::compiler::CompiledProgram p)
+        : program(std::move(p)) {}
 };
 
 struct chronon_engine {
@@ -143,7 +146,7 @@ struct PlanCompileError : std::runtime_error {
           component(std::move(error_component)) {}
 };
 
-chronon3d::render_plan::PreparedRenderPlan compile_plan(
+chronon3d::compiler::CompiledProgram compile_plan(
     const json& root, chronon3d::assets::AssetResolver& resolver) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
     if (!decoded)
@@ -156,17 +159,14 @@ chronon3d::render_plan::PreparedRenderPlan compile_plan(
     fingerprint_options.render_settings.force_scalar_normal_blend = false;
     chronon3d::compiler::CompileOptions compile_options;
     compile_options.fingerprint = fingerprint_options;
-    const auto compiled = chronon3d::compiler::compile(
+    auto compiled = chronon3d::compiler::compile(
         decoded.value(), resolver, compile_options);
     if (!compiled)
         throw PlanCompileError(compiled.error().path,
                                compiled.error().message,
                                "compile_error",
                                compiled.error().component);
-    // Wave 2-9 seam: the legacy PreparedRenderPlan that this C ABI handle
-    // owns is copied out through the internal compiler plan bridge (see the
-    // bridge debt card).  CompiledProgram exposes no public plan accessor.
-    return chronon3d::compiler::detail::prepared_plan(compiled.value());
+    return std::move(compiled).value();
 }
 
 chronon_status render_error_status(const chronon3d::sdk::RenderError& error);
