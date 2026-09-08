@@ -93,9 +93,9 @@ double run_node(
         const bool has_native_surface = result &&
             result->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
 
-        if (use_cache && ctx.services.node_cache && !is_scratch &&
+        if (use_cache && ctx.execution_node_cache() && !is_scratch &&
             !is_renderer_owned && !has_native_surface) {
-            ctx.services.node_cache->store(key, result);
+            ctx.execution_node_cache()->store(key, result);
         }
     }
     const auto exec_t1 = timing_enabled

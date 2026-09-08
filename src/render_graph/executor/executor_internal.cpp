@@ -76,7 +76,8 @@ std::shared_ptr<Framebuffer> execute_internal(
     }
 
     auto* parent_counters = ctx.node_exec.counters;
-    auto* parent_pool = ctx.services.framebuffer_pool.get();
+    auto parent_pool_owner = ctx.execution_framebuffer_pool();
+    auto* parent_pool = parent_pool_owner.get();
 
     if (parent_counters) {
         const auto logical_count = static_cast<std::uint64_t>(
