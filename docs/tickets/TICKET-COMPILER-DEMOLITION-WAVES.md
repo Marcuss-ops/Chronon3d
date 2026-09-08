@@ -42,6 +42,8 @@ sono coerenti.
   service accessor da `JobSession`.
 - [x] Wave 3.3b — i test precomp possiedono il `SceneProgramStore` come
   dipendenza esplicita del contesto, senza leggerlo dal `JobSession`.
+- [x] Wave 3.3c — il reset frame/job non invalida più il program cache store;
+  la sua gestione è separata dal ciclo di vita dei valori frame.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura

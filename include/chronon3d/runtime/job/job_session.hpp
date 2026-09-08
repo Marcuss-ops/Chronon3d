@@ -230,7 +230,9 @@ public:
     }
     void reset_frame_values() {
         reset_frame_temporaries();
-        program_store_state->clear();
+        // SceneProgramStore is a persistent program-cache authority. Frame
+        // reset must not invalidate it; the active graph context owns the
+        // explicit store seam used by precomp execution.
         memory_tracker->reset();
     }
     void reset_scene_state() noexcept { scene_hasher_state = graph::SceneHasher{}; }
