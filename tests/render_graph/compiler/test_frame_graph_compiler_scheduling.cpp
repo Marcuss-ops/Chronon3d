@@ -327,7 +327,7 @@ TEST_CASE("FrameGraphCompiler - stable structure hash") {
 
     CHECK(compiled1.structure_hash == compiled2.structure_hash);
 
-    ctx.services.registry_generation = 2;
+    ctx.registry_generation = 2;
     RenderGraph graph3;
     GraphNodeId a3 = graph3.add_node(std::make_unique<CompilerTestNode>("A"));
     GraphNodeId b3 = graph3.add_node(std::make_unique<CompilerTestNode>("B"));

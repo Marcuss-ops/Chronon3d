@@ -73,7 +73,7 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        auto* decoder = m_decoder ? m_decoder : ctx.services.video_decoder;
+        auto* decoder = m_decoder ? m_decoder : ctx.video_decoder;
         if (!decoder) {
             if (ctx.policy.is_gpu_native_required()) {
                 spdlog::error("[video-node] GPU_NATIVE_REQUIRED: no decoder wired for source='{}'", m_source.path);

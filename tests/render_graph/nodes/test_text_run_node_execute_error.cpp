@@ -273,8 +273,8 @@ RenderGraphContext make_text_run_ctx(int w, int h, RenderBackend* backend) {
     RenderGraphContext ctx;
     ctx.frame_input.width       = w;
     ctx.frame_input.height      = h;
-    ctx.services.framebuffer_pool = s_pool;
-    ctx.services.backend        = backend;
+    ctx.framebuffer_pool = s_pool;
+    ctx.backend        = backend;
     // diagnostics_enabled stays false by default to avoid debug-log noise.
     return ctx;
 }

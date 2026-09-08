@@ -41,7 +41,7 @@ bool try_native_matte(RenderGraphContext& ctx,
         (clip->x0 != target.origin_x() || clip->y0 != target.origin_y() ||
          clip->x1 != target.origin_x() + target.width() ||
          clip->y1 != target.origin_y() + target.height());
-    if (partial_clip || !ctx.services.backend || !ctx.services.surface_registry ||
+    if (partial_clip || !ctx.backend || !ctx.surface_registry ||
         target.width() != matte.width() || target.height() != matte.height() ||
         target.origin_x() != matte.origin_x() || target.origin_y() != matte.origin_y() ||
         output.surface_handle() != runtime::kInvalidRenderSurfaceHandle ||
@@ -53,59 +53,59 @@ bool try_native_matte(RenderGraphContext& ctx,
     const auto desc = native_surface_desc(target.width(), target.height());
     const auto target_pixels = pack_framebuffer_rgba(target);
     const auto matte_pixels = pack_framebuffer_rgba(matte);
-    const auto destination = ctx.services.surface_registry->create(desc);
-    const auto target_surface = ctx.services.surface_registry->create(desc);
-    const auto matte_surface = ctx.services.surface_registry->create(desc);
+    const auto destination = ctx.surface_registry->create(desc);
+    const auto target_surface = ctx.surface_registry->create(desc);
+    const auto matte_surface = ctx.surface_registry->create(desc);
     if (destination == runtime::kInvalidRenderSurfaceHandle ||
         target_surface == runtime::kInvalidRenderSurfaceHandle ||
         matte_surface == runtime::kInvalidRenderSurfaceHandle) {
-        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(destination);
-        if (target_surface != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(target_surface);
-        if (matte_surface != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(matte_surface);
+        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(destination);
+        if (target_surface != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(target_surface);
+        if (matte_surface != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(matte_surface);
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.services.backend->release_surface(destination);
-        (void)ctx.services.backend->release_surface(target_surface);
-        (void)ctx.services.backend->release_surface(matte_surface);
-        ctx.services.surface_registry->release(destination);
-        ctx.services.surface_registry->release(target_surface);
-        ctx.services.surface_registry->release(matte_surface);
+        (void)ctx.backend->release_surface(destination);
+        (void)ctx.backend->release_surface(target_surface);
+        (void)ctx.backend->release_surface(matte_surface);
+        ctx.surface_registry->release(destination);
+        ctx.surface_registry->release(target_surface);
+        ctx.surface_registry->release(matte_surface);
     };
-    auto created_target = ctx.services.backend->create_surface(target_surface, desc);
+    auto created_target = ctx.backend->create_surface(target_surface, desc);
     auto uploaded_target = created_target;
     if (created_target.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Composition);
-        uploaded_target = ctx.services.backend->upload_surface(
+        uploaded_target = ctx.backend->upload_surface(
             target_surface, desc, target_pixels);
     }
     auto created_matte = uploaded_target.ok()
-        ? ctx.services.backend->create_surface(matte_surface, desc)
+        ? ctx.backend->create_surface(matte_surface, desc)
         : uploaded_target;
     auto uploaded_matte = created_matte;
     if (created_matte.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Composition);
-        uploaded_matte = ctx.services.backend->upload_surface(
+        uploaded_matte = ctx.backend->upload_surface(
             matte_surface, desc, matte_pixels);
     }
     auto created_destination = uploaded_matte.ok()
-        ? ctx.services.backend->create_surface(destination, desc)
+        ? ctx.backend->create_surface(destination, desc)
         : uploaded_matte;
     const bool luma = type == TrackMatteType::Luma || type == TrackMatteType::LumaInverted;
     const bool inverted = type == TrackMatteType::AlphaInverted || type == TrackMatteType::LumaInverted;
     const auto applied = created_destination.ok()
-        ? ctx.services.backend->matte_surface(destination, target_surface, matte_surface, luma, inverted)
+        ? ctx.backend->matte_surface(destination, target_surface, matte_surface, luma, inverted)
         : created_destination;
     if (!applied.ok()) {
         cleanup();
         return false;
     }
-    (void)ctx.services.backend->release_surface(target_surface);
-    (void)ctx.services.backend->release_surface(matte_surface);
-    ctx.services.surface_registry->release(target_surface);
-    ctx.services.surface_registry->release(matte_surface);
+    (void)ctx.backend->release_surface(target_surface);
+    (void)ctx.backend->release_surface(matte_surface);
+    ctx.surface_registry->release(target_surface);
+    ctx.surface_registry->release(matte_surface);
     output.set_surface_handle(destination);
     return true;
 }

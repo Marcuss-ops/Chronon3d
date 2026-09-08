@@ -189,7 +189,7 @@ TEST_CASE("Static bake - frame-independent nodes are counted") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.services.node_cache = &node_cache;
+    ctx.node_cache = &node_cache;
 
     size_t eligible = count_bake_eligible_nodes(graph, ctx);
     CHECK(eligible == 1); // Only TransformNode is eligible (root uses no_cache)
@@ -204,7 +204,7 @@ TEST_CASE("Static bake - frame-dependent nodes are excluded") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.services.node_cache = &node_cache;
+    ctx.node_cache = &node_cache;
 
     // Both nodes frame-dependent → nothing eligible
 
@@ -270,7 +270,7 @@ TEST_CASE("Explain plan - optimize_graph reports node counts") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.services.node_cache = &node_cache;
+    ctx.node_cache = &node_cache;
 
     OptimizationConfig config;
     config.enable_node_fusion     = true;
@@ -295,7 +295,7 @@ TEST_CASE("Explain plan - optimize_graph respects config toggles") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.services.node_cache = &node_cache;
+    ctx.node_cache = &node_cache;
 
     // All disabled
     OptimizationConfig off;
@@ -498,7 +498,7 @@ TEST_CASE("Config - effect_fusion and dead_node_elimination flags honored") {
 
     auto ctx = make_test_context(100, 100);
     cache::NodeCache node_cache;
-    ctx.services.node_cache = &node_cache;
+    ctx.node_cache = &node_cache;
 
     OptimizationConfig off;
     off.enable_node_fusion          = false;

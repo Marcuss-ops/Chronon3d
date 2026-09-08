@@ -27,12 +27,12 @@ namespace {
 RenderGraphContext make_ctx(int w, int h) {
     RenderGraphContext ctx;
     ctx.frame_input = chronon3d::test::make_render_frame_info(w, h, 0);
-    ctx.services.framebuffer_pool = cache::FramebufferPool::create_shared(64 * 1024 * 1024);
+    ctx.framebuffer_pool = cache::FramebufferPool::create_shared(64 * 1024 * 1024);
     return ctx;
 }
 
 std::shared_ptr<Framebuffer> make_fb(RenderGraphContext& ctx, int w, int h, const Color& color) {
-    auto fb = ctx.services.framebuffer_pool->acquire_shared(w, h, /*clear=*/true);
+    auto fb = ctx.framebuffer_pool->acquire_shared(w, h, /*clear=*/true);
     fb->clear(color);
     return fb;
 }

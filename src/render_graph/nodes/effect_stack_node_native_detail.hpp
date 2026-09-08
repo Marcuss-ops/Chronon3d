@@ -15,7 +15,7 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
+    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1 ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         return false;
@@ -36,40 +36,40 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
 
     const auto desc = native_surface_desc(result.width(), result.height());
     const auto rgba = pack_framebuffer_rgba(result);
-    const auto output = ctx.services.surface_registry->create(desc);
-    const auto horizontal = ctx.services.surface_registry->create(desc);
-    const auto vertical = ctx.services.surface_registry->create(desc);
+    const auto output = ctx.surface_registry->create(desc);
+    const auto horizontal = ctx.surface_registry->create(desc);
+    const auto vertical = ctx.surface_registry->create(desc);
     if (output == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         vertical == runtime::kInvalidRenderSurfaceHandle) {
-        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(output);
-        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(horizontal);
-        if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(vertical);
+        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
+        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
+        if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(vertical);
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.services.backend->release_surface(output);
-        (void)ctx.services.backend->release_surface(horizontal);
-        (void)ctx.services.backend->release_surface(vertical);
-        ctx.services.surface_registry->release(output);
-        ctx.services.surface_registry->release(horizontal);
-        ctx.services.surface_registry->release(vertical);
+        (void)ctx.backend->release_surface(output);
+        (void)ctx.backend->release_surface(horizontal);
+        (void)ctx.backend->release_surface(vertical);
+        ctx.surface_registry->release(output);
+        ctx.surface_registry->release(horizontal);
+        ctx.surface_registry->release(vertical);
     };
-    const auto create_output = ctx.services.backend->create_surface(output, desc);
+    const auto create_output = ctx.backend->create_surface(output, desc);
     RenderOpResult upload = create_output;
     if (create_output.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
-        upload = ctx.services.backend->upload_surface(output, desc, rgba);
+        upload = ctx.backend->upload_surface(output, desc, rgba);
     }
     const auto create_horizontal = upload.ok()
-        ? ctx.services.backend->create_surface(horizontal, desc)
+        ? ctx.backend->create_surface(horizontal, desc)
         : upload;
     const auto create_vertical = create_horizontal.ok()
-        ? ctx.services.backend->create_surface(vertical, desc)
+        ? ctx.backend->create_surface(vertical, desc)
         : create_horizontal;
     const auto glow = create_vertical.ok()
-        ? ctx.services.backend->glow_surfaces(
+        ? ctx.backend->glow_surfaces(
             output, output, horizontal, vertical, params->radius,
             params->intensity, params->color)
         : create_vertical;
@@ -77,10 +77,10 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         cleanup();
         return false;
     }
-    (void)ctx.services.backend->release_surface(horizontal);
-    (void)ctx.services.backend->release_surface(vertical);
-    ctx.services.surface_registry->release(horizontal);
-    ctx.services.surface_registry->release(vertical);
+    (void)ctx.backend->release_surface(horizontal);
+    (void)ctx.backend->release_surface(vertical);
+    ctx.surface_registry->release(horizontal);
+    ctx.surface_registry->release(vertical);
     result.set_surface_handle(output);
     return true;
 }
@@ -89,7 +89,7 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    if (!clip_covers_result(clip, result) || !ctx.services.backend || !ctx.services.surface_registry ||
+    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1 ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         return false;
@@ -106,32 +106,32 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
 
     const auto desc = native_surface_desc(result.width(), result.height());
     const auto rgba = pack_framebuffer_rgba(result);
-    const auto source = ctx.services.surface_registry->create(desc);
-    const auto destination = ctx.services.surface_registry->create(desc);
+    const auto source = ctx.surface_registry->create(desc);
+    const auto destination = ctx.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         destination == runtime::kInvalidRenderSurfaceHandle) {
-        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(source);
-        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(destination);
+        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(source);
+        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(destination);
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.services.backend->release_surface(source);
-        (void)ctx.services.backend->release_surface(destination);
-        ctx.services.surface_registry->release(source);
-        ctx.services.surface_registry->release(destination);
+        (void)ctx.backend->release_surface(source);
+        (void)ctx.backend->release_surface(destination);
+        ctx.surface_registry->release(source);
+        ctx.surface_registry->release(destination);
     };
-    const auto created_source = ctx.services.backend->create_surface(source, desc);
+    const auto created_source = ctx.backend->create_surface(source, desc);
     RenderOpResult uploaded = created_source;
     if (created_source.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
-        uploaded = ctx.services.backend->upload_surface(source, desc, rgba);
+        uploaded = ctx.backend->upload_surface(source, desc, rgba);
     }
     const auto created_destination = uploaded.ok()
-        ? ctx.services.backend->create_surface(destination, desc)
+        ? ctx.backend->create_surface(destination, desc)
         : uploaded;
     const auto adjusted = created_destination.ok()
-        ? ctx.services.backend->color_adjust_surface(
+        ? ctx.backend->color_adjust_surface(
             destination, source, 0.0f, 1.0f, params->color,
             params->color.a * params->amount)
         : created_destination;
@@ -139,8 +139,8 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         cleanup();
         return false;
     }
-    (void)ctx.services.backend->release_surface(source);
-    ctx.services.surface_registry->release(source);
+    (void)ctx.backend->release_surface(source);
+    ctx.surface_registry->release(source);
     result.set_surface_handle(destination);
     return true;
 }
@@ -149,7 +149,7 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip) {
-    if (!ctx.services.backend || !ctx.services.surface_registry ||
+    if (!ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
     }
@@ -165,43 +165,43 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
     const auto source = source_is_existing
         ? result.surface_handle()
-        : ctx.services.surface_registry->create(desc);
-    const auto horizontal = ctx.services.surface_registry->create(desc);
-    const auto output = ctx.services.surface_registry->create(desc);
+        : ctx.surface_registry->create(desc);
+    const auto horizontal = ctx.surface_registry->create(desc);
+    const auto output = ctx.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         output == runtime::kInvalidRenderSurfaceHandle) {
         if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
-            ctx.services.surface_registry->release(source);
-        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(horizontal);
-        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.services.surface_registry->release(output);
+            ctx.surface_registry->release(source);
+        if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
+        if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
         return false;
     }
     const auto cleanup = [&] {
         if (!source_is_existing) {
-            (void)ctx.services.backend->release_surface(source);
-            ctx.services.surface_registry->release(source);
+            (void)ctx.backend->release_surface(source);
+            ctx.surface_registry->release(source);
         }
-        (void)ctx.services.backend->release_surface(horizontal);
-        (void)ctx.services.backend->release_surface(output);
-        ctx.services.surface_registry->release(horizontal);
-        ctx.services.surface_registry->release(output);
+        (void)ctx.backend->release_surface(horizontal);
+        (void)ctx.backend->release_surface(output);
+        ctx.surface_registry->release(horizontal);
+        ctx.surface_registry->release(output);
     };
     const auto source_ready = source_is_existing
         ? RenderOpResult(RenderOpOutcome{})
-        : ctx.services.backend->create_surface(source, desc);
+        : ctx.backend->create_surface(source, desc);
     RenderOpResult uploaded = source_ready;
     if (source_ready.ok() && !source_is_existing) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
-        uploaded = ctx.services.backend->upload_surface(
+        uploaded = ctx.backend->upload_surface(
             source, desc, pack_framebuffer_rgba(result));
     }
     const auto created_horizontal = uploaded.ok()
-        ? ctx.services.backend->create_surface(horizontal, desc)
+        ? ctx.backend->create_surface(horizontal, desc)
         : uploaded;
     const auto created_output = created_horizontal.ok()
-        ? ctx.services.backend->create_surface(output, desc)
+        ? ctx.backend->create_surface(output, desc)
         : created_horizontal;
     const bool partial_clip = clip && !clip_covers_result(clip, result);
     std::optional<raster::BBox> local_clip;
@@ -212,27 +212,27 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         local_clip->clip_to(result.width(), result.height());
     }
     const auto blurred_horizontal = created_output.ok()
-        ? ctx.services.backend->blur_surface(horizontal, source, params->radius, /*horizontal=*/true)
+        ? ctx.backend->blur_surface(horizontal, source, params->radius, /*horizontal=*/true)
         : created_output;
     const auto blurred_vertical = blurred_horizontal.ok()
-        ? ctx.services.backend->blur_surface(output, horizontal, params->radius, /*horizontal=*/false)
+        ? ctx.backend->blur_surface(output, horizontal, params->radius, /*horizontal=*/false)
         : blurred_horizontal;
     const auto clipped_result = blurred_vertical.ok() && partial_clip
-        ? ctx.services.backend->copy_surface(source, output, local_clip)
+        ? ctx.backend->copy_surface(source, output, local_clip)
         : blurred_vertical;
     if (!clipped_result.ok()) {
         cleanup();
         return false;
     }
-    (void)ctx.services.backend->release_surface(horizontal);
-    ctx.services.surface_registry->release(horizontal);
+    (void)ctx.backend->release_surface(horizontal);
+    ctx.surface_registry->release(horizontal);
     if (partial_clip) {
-        (void)ctx.services.backend->release_surface(output);
-        ctx.services.surface_registry->release(output);
+        (void)ctx.backend->release_surface(output);
+        ctx.surface_registry->release(output);
         result.set_surface_handle(source);
     } else {
-        (void)ctx.services.backend->release_surface(source);
-        ctx.services.surface_registry->release(source);
+        (void)ctx.backend->release_surface(source);
+        ctx.surface_registry->release(source);
         result.set_surface_handle(output);
     }
     return true;

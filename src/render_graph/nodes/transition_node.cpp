@@ -104,11 +104,11 @@ const LayerTransitionProgram& TransitionNode::resolve_program(const RenderGraphC
         return *m_program;
     }
 
-    if (!ctx.services.transition_catalog) {
-        throw std::runtime_error("TransitionNode: no LayerTransitionCatalog wired in RenderServices");
+    if (!ctx.transition_catalog) {
+        throw std::runtime_error("TransitionNode: no LayerTransitionCatalog wired in execution dependencies");
     }
 
-    m_program = ctx.services.transition_catalog->resolve(m_spec);
+    m_program = ctx.transition_catalog->resolve(m_spec);
     if (!m_program) {
         throw std::runtime_error("TransitionNode: catalog returned null program for " + m_spec.transition_id);
     }
@@ -137,9 +137,9 @@ NodeExecResult TransitionNode::execute(
         src->origin_x() + w, src->origin_y() + h};
     auto out_fb = ctx.acquire_owned_fb(w, h, false, output_bounds);
 
-    const bool has_native_backend = ctx.services.backend &&
-                                    ctx.services.surface_registry &&
-                                    ctx.services.backend->supports_native_surfaces();
+    const bool has_native_backend = ctx.backend &&
+                                    ctx.surface_registry &&
+                                    ctx.backend->supports_native_surfaces();
 
     if (m_spec.transition_id.empty() || m_spec.transition_id == "none") {
         if (has_native_backend &&
@@ -149,7 +149,7 @@ NodeExecResult TransitionNode::execute(
             const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.none.source");
             const bool dst_ready = ensure_native_surface(ctx, *out_fb, "TransitionNode.none.destination");
             if (src_ready && dst_ready) {
-                auto res = ctx.services.backend->copy_surface(out_fb->surface_handle(), src->surface_handle());
+                auto res = ctx.backend->copy_surface(out_fb->surface_handle(), src->surface_handle());
                 if (res.ok()) {
                     out_fb->mark_gpu_authoritative();
                     return NodeExecResult{std::move(out_fb)};
@@ -172,8 +172,8 @@ NodeExecResult TransitionNode::execute(
     // transition catalog — the single string-id authority — never from
     // local string dispatch.
     const bool native_blend_capable =
-        !ctx.services.transition_catalog ||
-        ctx.services.transition_catalog->backend_capability(m_spec.transition_id) ==
+        !ctx.transition_catalog ||
+        ctx.transition_catalog->backend_capability(m_spec.transition_id) ==
             LayerTransitionCatalog::BackendCapability::NativeBlend;
     if (native_blend_capable && has_native_backend &&
         (src->is_gpu_authoritative() || ctx.policy.require_native_gpu ||
@@ -190,7 +190,7 @@ NodeExecResult TransitionNode::execute(
                     "native residency violation: crossfade transition surfaces could not be materialized"};
             }
         } else {
-            auto res = ctx.services.backend->transform_surface(
+            auto res = ctx.backend->transform_surface(
                 out_fb->surface_handle(), src->surface_handle(), 0, 0, t);
             if (res.ok()) {
                 out_fb->mark_gpu_authoritative();

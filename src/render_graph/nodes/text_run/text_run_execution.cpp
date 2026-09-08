@@ -32,7 +32,7 @@ namespace {
     RenderBackend& backend,
     Framebuffer& framebuffer,
     const std::optional<raster::BBox>& ink_bbox) {
-    if (!ink_bbox || !ctx.services.surface_registry ||
+    if (!ink_bbox || !ctx.surface_registry ||
         !backend.supports_native_surfaces()) {
         return false;
     }

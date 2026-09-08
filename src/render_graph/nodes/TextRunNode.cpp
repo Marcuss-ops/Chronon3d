@@ -174,13 +174,13 @@ NodeExecResult TextRunNode::execute(
     // pool's best-fit reuse can hand it a full-frame physical allocation and
     // resize only the logical view, making cache weight and RSS lie about
     // the actual tight surface. Keep this allocation exact and disposable.
-    auto fb = tight_surface && ctx.services.framebuffer_pool
-        ? ctx.services.framebuffer_pool->acquire_owned_exact(
+    auto fb = tight_surface && ctx.framebuffer_pool
+        ? ctx.framebuffer_pool->acquire_owned_exact(
               surface_width, surface_height, /*clear=*/true)
         : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
 
     // ── 2. Validate pre-dispatch invariants. ──
-    auto* backend = ctx.services.backend;
+    auto* backend = ctx.backend;
     // A direct caller may execute the same node again with the frame error
     // already latched.  Preserve the first diagnostic and avoid emitting a
     // duplicate log (the executor treats the frame as failed already).

@@ -114,7 +114,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ctx.node_exec.counters = sw_renderer->counters();
     }
     if (sw_renderer) {
-        ctx.services.surface_registry = &sw_renderer->runtime().surface_registry();
+        ctx.surface_registry = &sw_renderer->runtime().surface_registry();
     }
 
     if (isolated_temporal_sample) {
@@ -122,7 +122,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         // sidecar is still borrowed for immutable runtime services (backend,
         // catalogs, processor snapshot), but no sample state is published to
         // the main session.
-        ctx.services.node_cache = active_node_cache;
+        ctx.node_cache = active_node_cache;
         // A temporal sub-sample owns an isolated session domain; it must not
         // expose the parent frame lease to nodes that use the canonical
         // execution root.
@@ -142,12 +142,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx.node_exec.counters = nullptr;
         }
         if (temporal_context->framebuffer_pool) {
-            ctx.services.framebuffer_pool = temporal_context->framebuffer_pool;
+            ctx.framebuffer_pool = temporal_context->framebuffer_pool;
         }
     }
 
     profiling::ProfilingGuard profiling_guard(
-        ctx.node_exec.counters, ctx.services.framebuffer_pool.get());
+        ctx.node_exec.counters, ctx.framebuffer_pool.get());
 
     // The SDK contract is fail-closed for unresolved assets. Run the same
     // graph preflight against the owning runtime resolver before any backend
@@ -289,16 +289,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     if (!isolated_temporal_sample) {
         CHRONON_TRACE_SCOPE("chronon.frame", "execution_plan_resolve");
         const auto output_format = (ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle &&
-                                    ctx.services.surface_registry &&
-                                    ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface))
-            ? ctx.services.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format.pixel
+                                    ctx.surface_registry &&
+                                    ctx.surface_registry->lookup(ctx.policy.native_video_encode_surface))
+            ? ctx.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format.pixel
             : runtime::PixelFormat::Rgba32Float;
 
         execution_plan = ExecutionResolver::resolve(
             std::move(execution_plan), resolved, scene,
             ctx.frame_input.camera_2_5d, effective_settings, dirty_out,
             dirty_ratio, sw_renderer, frame, width, height,
-            ctx.services.effect_catalog,
+            ctx.effect_catalog,
             ctx.policy.native_video_encode_surface !=
                 runtime::kInvalidRenderSurfaceHandle,
             ctx.policy.diagnostics_enabled,
@@ -382,9 +382,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
     // ── 10. Pre-frame pool preallocation ──
     const auto t_prealloc0 = profiling::now();
-    if (ctx.services.framebuffer_pool) {
+    if (ctx.framebuffer_pool) {
         const size_t prealloc_count = preallocate_for_frame(
-            *ctx.services.framebuffer_pool, graph_result.compiled,
+            *ctx.framebuffer_pool, graph_result.compiled,
             width, height, ctx.node_exec.counters,
             ctx.policy.diagnostics_enabled && !isolated_temporal_sample);
         (void)prealloc_count;

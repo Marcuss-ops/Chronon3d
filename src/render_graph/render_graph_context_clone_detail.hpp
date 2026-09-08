@@ -24,7 +24,16 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     RenderGraphContext copy;
     copy.frame_input = frame_input;
     copy.policy      = policy;
-    copy.services    = services;
+    copy.backend = backend;
+    copy.surface_registry = surface_registry;
+    copy.text_render_resources = text_render_resources;
+    copy.node_cache = node_cache;
+    copy.framebuffer_pool = framebuffer_pool;
+    copy.registry = registry;
+    copy.video_decoder = video_decoder;
+    copy.effect_catalog = effect_catalog;
+    copy.transition_catalog = transition_catalog;
+    copy.precomp_builder = precomp_builder;
 
     copy.node_exec.counters         = node_exec.counters;
     copy.node_exec.clip_rect        = node_exec.clip_rect;

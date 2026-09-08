@@ -19,7 +19,7 @@
 //                                          // diagnostics, ssaa, modular,
 //                                          // dirty-rect, skip-clear, tile
 //                                          // size, program-cache tuning
-//       RenderServices       services;     // service-locator pointers +
+//       execution dependencies       // typed execution pointers +
 //                                          // catalog pointers + typed
 //                                          // PrecompBuilderService (was
 //                                          // precomp_build std::function)
@@ -34,15 +34,15 @@
 // The top-level RenderGraphContext is a thin composition holding these 4
 // sub-contexts + facade methods (`acquire_owned_fb`, `acquire_framebuffer`,
 // `clone_for_node_execution`, `resolve_asset`) that delegate to
-// `services.framebuffer_pool` / `node_exec.scratch` as appropriate.
+// `framebuffer_pool` / `node_exec.scratch` as appropriate.
 //
 // Naming convention:
 //   - The inner sub-context field NAMES give the path-natural access:
 //       ctx.frame_input.frame          (= frame number)
 //       ctx.frame_input.camera         (= 2D Camera)
 //       ctx.policy.tile_size           (= tile size)
-//       ctx.services.backend           (= RenderBackend*)
-//       ctx.services.precomp_builder   (= typed builder; was std::function)
+//       ctx.backend           (= RenderBackend*)
+//       ctx.precomp_builder   (= typed builder; was std::function)
 //       ctx.node_exec.telemetry        (= per-frame telemetry vectors)
 //       ctx.node_exec.transform_scratch (= ping-pong scratch view)
 //     The `frame_input.frame` two-step is intentional: it preserves the
@@ -91,7 +91,7 @@ namespace chronon3d {
     struct RenderCounters;
     class Scene;
     class DebugConfig;  // re-exported; see forward-declare above
-    class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on RenderServices
+    class ExecutionScheduler;  // TICKET-011 / PR-B — typed scheduler ptr on execution dependencies
     class RendererBufferRing;
     namespace runtime { class JobSession; class RuntimeContext; class FrameExecution; }
     class TextRenderResources;
@@ -290,37 +290,6 @@ struct RenderPolicy {
 // `PrecompBuilderService` (typically DefaultPrecompBuilder) owned by
 // `PipelineCatalogs` (build-only catalogs live in GraphBuildDependencies).
 
-struct RenderServices {
-    RenderBackend* backend{nullptr};
-    runtime::RenderSurfaceRegistry* surface_registry{nullptr};
-    TextRenderResources* text_render_resources{nullptr};
-    cache::NodeCache* node_cache{nullptr};
-    std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
-    const CompositionRegistry* registry{nullptr};
-    media::MediaFrameProvider* video_decoder{nullptr};
-
-    /// Effect catalog — consumed by dirty-region safety and transitional
-    /// runtime paths; graph builders use GraphBuildDependencies.
-    const class effects::EffectCatalog* effect_catalog{nullptr};
-
-    /// Layer transition catalog — populated by `wire_catalog_pointers`,
-    /// consumed by TransitionNode to resolve executable transition programs.
-    const class LayerTransitionCatalog* transition_catalog{nullptr};
-
-    /// TICKET-010 — typed alternative to the legacy `precomp_build`
-    /// std::function.  Set by `wire_catalog_pointers(ctx, catalogs)`
-    /// from `catalogs.precomp_builder.get()`.  When nullptr, callers
-    /// MUST treat the build as unavailable and return empty output.
-    const class PrecompBuilderService* precomp_builder{nullptr};
-
-    /// TICKET-010 / TICKET-011 — PR-B scheduler accessor.  PrecompNode
-    /// dereferences `*ctx.scheduler` to route its inner execute()
-    /// through the same arena as the parent graph.  Set by
-    /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
-    /// (which forwards to `RuntimeContext::scheduler()`).  Lifetime is
-    /// pinned to the owning runtime; never dereference past shutdown.
-};
-
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────
 // Replaces RenderTelemetryContext + the tile-clip+dirty_rect subset of
 // RenderTileContext + the full RenderScratchContext.
@@ -490,7 +459,7 @@ struct NodeExecutionContext {
     NodeStatsReporter* node_stats_reporter{ nullptr };
 };
 
-// Forward-declared for use in RenderServices callback signatures.
+// Forward-declared for use in execution dependencies callback signatures.
 struct RenderGraphContext;
 
 // TICKET-010 — backward-compat type aliases for the legacy 7-substruct names.
@@ -506,7 +475,20 @@ using RenderFrameInfo = FrameInput;
 struct RenderGraphContext {
     FrameInput           frame_input{};
     RenderPolicy         policy{};
-    RenderServices       services{};
+
+    // Borrowed execution dependencies. Ownership stays with the runtime,
+    // renderer, or frozen graph catalogs; the context is the sole typed
+    // route by which graph nodes reach them.
+    RenderBackend* backend{nullptr};
+    runtime::RenderSurfaceRegistry* surface_registry{nullptr};
+    TextRenderResources* text_render_resources{nullptr};
+    cache::NodeCache* node_cache{nullptr};
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+    const CompositionRegistry* registry{nullptr};
+    media::MediaFrameProvider* video_decoder{nullptr};
+    const class effects::EffectCatalog* effect_catalog{nullptr};
+    const class LayerTransitionCatalog* transition_catalog{nullptr};
+    const class PrecompBuilderService* precomp_builder{nullptr};
     NodeExecutionContext node_exec{};
 
     /// Borrowed frame lease. When present, this is the canonical route to
@@ -523,12 +505,13 @@ struct RenderGraphContext {
     const GraphBuildDependencies* build_dependencies{nullptr};
 
     /// Immutable compiler identity captured while the runtime is wired.
-    /// Graph compilation reads this directly instead of consulting services.
+    /// Graph compilation reads this directly instead of consulting runtime
+    /// service bundles.
     std::uint64_t registry_generation{0};
     bool processor_snapshot_required{false};
 
     /// Borrowed engine-lifetime owner for runtime-owned caches and resources.
-    /// These dependencies are intentionally not duplicated in RenderServices.
+    /// These dependencies are intentionally not duplicated in execution dependencies.
     runtime::RuntimeContext* runtime{nullptr};
     /// Graph cache selected for this invocation. Temporal samples may borrow
     /// an isolated cache while normal frames use RuntimeContext::graph_cache.
@@ -544,7 +527,7 @@ struct RenderGraphContext {
     /// Borrowed job owner for nested scene execution and frame history.
     chronon3d::runtime::JobSession* session{nullptr};
     /// Typed cache authority for nested/precomp programs. This explicit seam
-    /// lets the store leave RenderServices before the JobSession owner is
+    /// lets the store leave execution dependencies before the JobSession owner is
     /// removed in the next demolition step.
     SceneProgramStore* program_store{nullptr};
 
@@ -553,17 +536,16 @@ struct RenderGraphContext {
     /// scene-derived fallback used by standalone authoring callers.
     std::uint64_t program_fingerprint{0};
 
-    /// Execution-time backend access. New executor code uses this typed seam;
-    /// the legacy `services` bundle remains only for nodes not yet migrated.
+    /// Execution-time backend access through the typed context seam.
     [[nodiscard]] RenderBackend* execution_backend() const noexcept {
-        return services.backend;
+        return backend;
     }
     [[nodiscard]] std::shared_ptr<cache::FramebufferPool>
     execution_framebuffer_pool() const noexcept {
-        return services.framebuffer_pool;
+        return framebuffer_pool;
     }
     [[nodiscard]] cache::NodeCache* execution_node_cache() const noexcept {
-        return services.node_cache;
+        return node_cache;
     }
 
     /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a

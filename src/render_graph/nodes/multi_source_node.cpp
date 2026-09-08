@@ -225,7 +225,7 @@ NodeExecResult MultiSourceNode::execute(
     CHRONON_TRACE_SCOPE("chronon.node", "multi_source_render");
 
     // Fase A4 — null backend is a hard error (matches TextRunNode contract).
-    if (!ctx.services.backend) {
+    if (!ctx.backend) {
         spdlog::error(
             "[multi-source] node='{}' cannot render: backend is null; "
             "aborting frame.", m_name);
@@ -265,7 +265,7 @@ NodeExecResult MultiSourceNode::execute(
                     continue;
                 }
 
-                if (!ctx.services.backend->capabilities().text_run) {
+                if (!ctx.backend->capabilities().text_run) {
                     spdlog::error(
                         "[multi-source] node='{}' contains text run items "
                         "but active backend does not support draw_text_run; "
@@ -296,7 +296,7 @@ NodeExecResult MultiSourceNode::execute(
                 const Mat4 resolved_matrix = placement->render_matrix;
 
                 auto result = text_run::render_text_run_item(
-                    ctx, *ctx.services.backend, *fb, *run_shape,
+                    ctx, *ctx.backend, *fb, *run_shape,
                     TextRunPlacement{resolved_matrix}, item.opacity);
 
                 if (!result) {
@@ -371,7 +371,7 @@ NodeExecResult MultiSourceNode::execute(
         const bool native_image = item.node->shape.type() == ShapeType::Image &&
             detail::try_native_image(ctx, *fb, *item.node, state);
         if (!native_image) {
-            const auto draw_result = ctx.services.backend->draw_node(
+            const auto draw_result = ctx.backend->draw_node(
                 *fb, *item.node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!draw_result.ok()) {

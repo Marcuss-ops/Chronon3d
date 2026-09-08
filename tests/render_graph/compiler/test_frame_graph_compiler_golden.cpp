@@ -110,7 +110,7 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     FrameGraphCompiler compiler;
     ValidationBackend backend(false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
 
     auto first = compiler.compile(make_determinism_fixture(), ctx);
     auto second = compiler.compile(make_determinism_fixture(), ctx);

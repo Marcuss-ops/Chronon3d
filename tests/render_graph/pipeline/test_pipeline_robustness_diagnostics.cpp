@@ -47,7 +47,7 @@ DiagnosticsParityObservation observe_source_diagnostics(
     ctx.frame_input.height = 240;
     ctx.frame_input.frame = 0;
     ctx.policy.diagnostics_enabled = diagnostics_enabled;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
@@ -106,7 +106,7 @@ DiagnosticsParityObservation observe_multi_source_diagnostics(
     ctx.frame_input.height = 240;
     ctx.frame_input.frame = 0;
     ctx.policy.diagnostics_enabled = diagnostics_enabled;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = snapshot;
     ctx.node_exec.current_shape_processor = processors[0];
     ctx.node_exec.current_shape_processors = processors;

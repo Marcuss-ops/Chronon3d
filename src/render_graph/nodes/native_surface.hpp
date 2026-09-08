@@ -92,7 +92,7 @@ inline std::span<const float> framebuffer_rgba_view(
 inline bool ensure_native_surface(
     RenderGraphContext& ctx, Framebuffer& framebuffer,
     std::string_view promotion_reason = "unspecified") {
-    if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
+    if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
         // The registry owns logical identity, while Vulkan owns the physical
@@ -102,16 +102,16 @@ inline bool ensure_native_surface(
         // operation failed with "surface handle is not bound to a physical
         // slot".  Treat either side being stale as a cache miss and rebuild
         // the native surface before issuing a command.
-        if (ctx.services.surface_registry->lookup(handle) &&
-            ctx.services.backend->is_native_surface_valid(handle)) {
+        if (ctx.surface_registry->lookup(handle) &&
+            ctx.backend->is_native_surface_valid(handle)) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->native_surface_reuse_count.fetch_add(
                     1, std::memory_order_relaxed);
             }
             return true;
         }
-        if (ctx.services.surface_registry->lookup(handle)) {
-            (void)ctx.services.surface_registry->release(handle);
+        if (ctx.surface_registry->lookup(handle)) {
+            (void)ctx.surface_registry->release(handle);
         }
         // A previous job or frame may have reclaimed the backend surface while
         // a pooled CPU framebuffer still carried its old logical handle.
@@ -131,17 +131,17 @@ inline bool ensure_native_surface(
     // caller then may dereference an incomplete native graph.  Keep the
     // promotion measurable instead of disabling it: the base video remains
     // GPU-resident and only the overlay surface crosses the boundary.
-    const auto handle = ctx.services.surface_registry->create(desc);
+    const auto handle = ctx.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected {}x{} surface", framebuffer.width(), framebuffer.height());
         return false;
     }
 
-    const auto created = ctx.services.backend->create_surface(handle, desc);
+    const auto created = ctx.backend->create_surface(handle, desc);
     if (!created.ok()) {
         spdlog::error("[native-surface] create failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), created.error().message);
-        ctx.services.surface_registry->release(handle);
+        ctx.surface_registry->release(handle);
         return false;
     }
     std::vector<float> packed;
@@ -149,16 +149,16 @@ inline bool ensure_native_surface(
     runtime::UploadTicket upload_ticket{};
     const auto promotion_t0 = profiling::now();
     const auto uploaded = ctx.policy.retain_native_surface_for_video
-        ? ctx.services.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
-        : ctx.services.backend->upload_surface(handle, desc, pixels);
+        ? ctx.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
+        : ctx.backend->upload_surface(handle, desc, pixels);
     if (!uploaded.ok()) {
         spdlog::error("[native-surface] upload failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), uploaded.error().message);
         // The backend surface was already allocated by create_surface();
         // release it symmetrically before dropping the registry entry so the
         // native path stays leak-free on the upload-failure branch.
-        (void)ctx.services.backend->release_surface(handle);
-        ctx.services.surface_registry->release(handle);
+        (void)ctx.backend->release_surface(handle);
+        ctx.surface_registry->release(handle);
         return false;
     }
     if (ctx.node_exec.counters) {
@@ -188,37 +188,37 @@ inline bool ensure_native_surface(
 /// untouched pixels preserve source-over composition with layers below.
 inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
-    if (!ctx.services.backend || !ctx.services.surface_registry || !ctx.services.backend->supports_native_surfaces()) return false;
+    if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
-        if (ctx.services.surface_registry->lookup(handle) &&
-            ctx.services.backend->is_native_surface_valid(handle)) {
+        if (ctx.surface_registry->lookup(handle) &&
+            ctx.backend->is_native_surface_valid(handle)) {
             return true;
         }
-        if (ctx.services.surface_registry->lookup(handle)) {
-            (void)ctx.services.surface_registry->release(handle);
+        if (ctx.surface_registry->lookup(handle)) {
+            (void)ctx.surface_registry->release(handle);
         }
         framebuffer.clear_surface_handle();
     }
     const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
-    const auto handle = ctx.services.surface_registry->create(desc);
+    const auto handle = ctx.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected empty {}x{} surface", framebuffer.width(), framebuffer.height());
         return false;
     }
-    const auto created = ctx.services.backend->create_surface(handle, desc);
+    const auto created = ctx.backend->create_surface(handle, desc);
     if (!created.ok()) {
         spdlog::error("[native-surface] empty create failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), created.error().message);
-        ctx.services.surface_registry->release(handle);
+        ctx.surface_registry->release(handle);
         return false;
     }
-    const auto cleared = ctx.services.backend->initialize_transparent_surface(handle);
+    const auto cleared = ctx.backend->initialize_transparent_surface(handle);
     if (!cleared.ok()) {
         spdlog::error("[native-surface] empty transparent clear failed for {}x{}: {}",
                       framebuffer.width(), framebuffer.height(), cleared.error().message);
-        (void)ctx.services.backend->release_surface(handle);
-        (void)ctx.services.surface_registry->release(handle);
+        (void)ctx.backend->release_surface(handle);
+        (void)ctx.surface_registry->release(handle);
         return false;
     }
     if (ctx.node_exec.counters) {
@@ -238,11 +238,11 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
 inline void release_native_surface(RenderGraphContext& ctx, Framebuffer& framebuffer) {
     const auto handle = framebuffer.surface_handle();
     if (handle == runtime::kInvalidRenderSurfaceHandle) return;
-    if (ctx.services.backend) {
-        (void)ctx.services.backend->release_surface(handle);
+    if (ctx.backend) {
+        (void)ctx.backend->release_surface(handle);
     }
-    if (ctx.services.surface_registry) {
-        ctx.services.surface_registry->release(handle);
+    if (ctx.surface_registry) {
+        ctx.surface_registry->release(handle);
     }
     framebuffer.clear_surface_handle();
 }

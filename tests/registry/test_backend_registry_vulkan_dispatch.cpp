@@ -53,8 +53,8 @@ TEST_CASE("TrackMatteNode dispatches aligned full-frame matte to Vulkan") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 2;
     ctx.frame_input.height = 2;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
 
     auto target = std::make_shared<Framebuffer>(2, 2);
     auto matte = std::make_shared<Framebuffer>(2, 2);
@@ -97,8 +97,8 @@ TEST_CASE("SourceNode dispatches a solid rect through Vulkan fill_rect_surface")
     RenderGraphContext ctx;
     ctx.frame_input.width = 4;
     ctx.frame_input.height = 4;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
 
     RenderNode node;
     node.shape = Shape(RectShape{{2.0f, 2.0f}, {}});
