@@ -48,6 +48,10 @@
 #include <string>
 #include <vector>
 
+namespace chronon3d::media::video::cuda_nv12_detail {
+const std::string& get_compiled_nv12_ptx();
+}
+
 namespace {
 
 bool gpu_tests_enabled() {
@@ -77,6 +81,20 @@ struct DevBuffer {
     }
     DevBuffer(const DevBuffer&) = delete;
     DevBuffer& operator=(const DevBuffer&) = delete;
+    DevBuffer(DevBuffer&& other) noexcept
+        : ptr(other.ptr), bytes(other.bytes) {
+        other.ptr = 0;
+        other.bytes = 0;
+    }
+    DevBuffer& operator=(DevBuffer&& other) noexcept {
+        if (this == &other) return *this;
+        if (ptr) (void)cuMemFree(ptr);
+        ptr = other.ptr;
+        bytes = other.bytes;
+        other.ptr = 0;
+        other.bytes = 0;
+        return *this;
+    }
 
     void alloc(std::size_t size) {
         bytes = size;
@@ -99,7 +117,7 @@ struct CudaSession {
     CudaSession() {
         if (cuInit(0) != CUDA_SUCCESS) return;
         if (cuDeviceGet(&device, 0) != CUDA_SUCCESS) return;
-        if (cuCtxCreate(&context, 0, device) != CUDA_SUCCESS) return;
+        if (cuCtxCreate(&context, nullptr, 0, device) != CUDA_SUCCESS) return;
         if (cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS) return;
         ok = true;
     }
@@ -111,6 +129,24 @@ struct CudaSession {
     }
     void set_current() { check_ok(cuCtxSetCurrent(context), "cuCtxSetCurrent"); }
 };
+
+TEST_CASE("NV12 PTX cache has stable immutable identity") {
+    if (!gpu_tests_enabled()) {
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 PTX cache test");
+        return;
+    }
+    CudaSession session;
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable for NV12 PTX cache test");
+        return;
+    }
+    session.set_current();
+    chronon3d::media::video::CudaNv12Compositor::warm_up(session.context);
+    const auto& first = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
+    const auto& second = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
+    REQUIRE_FALSE(first.empty());
+    CHECK(&first == &second);
+}
 
 struct PlaneMetrics {
     bool identical{true};
@@ -158,8 +194,8 @@ struct CaseMetrics {
 // metrics + PASS/FAIL per the corpus expectation.  bg/out device buffers are
 // owned by the caller.
 void run_case(const CudaSession& session,
-              media::video::CudaNv12Compositor& comp_a,
-              media::video::CudaNv12Compositor& comp_b,
+              chronon3d::media::video::CudaNv12Compositor& comp_a,
+              chronon3d::media::video::CudaNv12Compositor& comp_b,
               const chronon3d::nv12_equiv::Nv12Case& test_case,
               const std::vector<std::uint8_t>& bg_y_host,
               const std::vector<std::uint8_t>& bg_uv_host,
@@ -305,11 +341,14 @@ TEST_CASE("NV12 contract matrix: independent instances, unified compositor") {
     }
 
     CudaSession session;
-    REQUIRE(session.ok);
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; NV12 contract matrix is NOT RUN");
+        return;
+    }
     session.set_current();
 
-    media::video::CudaNv12Compositor comp_a(session.context);
-    media::video::CudaNv12Compositor comp_b(session.context);
+    chronon3d::media::video::CudaNv12Compositor comp_a(session.context);
+    chronon3d::media::video::CudaNv12Compositor comp_b(session.context);
 
     const auto corpus = nv12_equivalence_corpus();
     REQUIRE_FALSE(corpus.empty());
@@ -393,11 +432,14 @@ TEST_CASE("NV12 compositor: instances are bit-exact across identical re-runs") {
     }
 
     CudaSession session;
-    REQUIRE(session.ok);
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; NV12 determinism test is NOT RUN");
+        return;
+    }
     session.set_current();
 
-    media::video::CudaNv12Compositor comp_a(session.context);
-    media::video::CudaNv12Compositor comp_b(session.context);
+    chronon3d::media::video::CudaNv12Compositor comp_a(session.context);
+    chronon3d::media::video::CudaNv12Compositor comp_b(session.context);
 
     const int w = 640;
     const int h = 360;
@@ -436,8 +478,8 @@ TEST_CASE("NV12 compositor: instances are bit-exact across identical re-runs") {
     bg_y_d.alloc(y_bytes);
     bg_uv_d.alloc(uv_bytes);
 
-    auto run_once = [&](media::video::CudaNv12Compositor* a,
-                        media::video::CudaNv12Compositor* b,
+    auto run_once = [&](chronon3d::media::video::CudaNv12Compositor* a,
+                        chronon3d::media::video::CudaNv12Compositor* b,
                         std::vector<std::uint8_t>& out_y,
                         std::vector<std::uint8_t>& out_uv,
                         DevBuffer& out_y_d, DevBuffer& out_uv_d) {

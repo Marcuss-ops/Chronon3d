@@ -49,11 +49,10 @@ VideoExecutionDecision to_decision(const Decision& d) noexcept {
     return result;
 }
 
-// Legacy flag semantics, kept internal to the resolver. Authoring layers
-// express intent through ExecutionRequirements / GopAnalysisSummary; the
-// old per-path views were demolished when the CLI executor moved to the
-// final-plan contract (audit Wave 1).
-Decision resolve_legacy_internal(
+// Resolve the final orthogonal plan from semantic capabilities and intents.
+// The executor consumes only VideoExecutionPlan; this helper is intentionally
+// private so there is one public resolver authority and no compatibility view.
+Decision resolve_plan_from_capabilities(
     bool encoder_native,
     bool hardware_nvenc,
     GpuHotPathMode hot_path,
@@ -145,7 +144,7 @@ Decision resolve_from_requirements(
             ? GpuHotPathMode::RequireGpuNative
             : GpuHotPathMode::RequireDirectYuv)
         : GpuHotPathMode::Auto;
-    Decision result = resolve_legacy_internal(
+    Decision result = resolve_plan_from_capabilities(
         capabilities.nvenc,
         capabilities.nvenc,
         hot_path,

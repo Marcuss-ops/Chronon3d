@@ -15,7 +15,6 @@ namespace chronon3d {
 
 enum class SceneExecutionMode : std::uint8_t {
     DynamicCallback,
-    StaticScene,
     StaticTopologySlots
 };
 
@@ -44,7 +43,6 @@ struct CompiledComposition {
     std::shared_ptr<const assets::PreparedAssetManifest> asset_manifest{};
     render_plan::RenderBudget render_budget{};
     std::uint64_t fingerprint{0};
-    std::shared_ptr<const Scene> static_scene{};
     std::shared_ptr<const CompiledFrameProgram> frame_program{};
     SceneExecutionMode execution_mode{SceneExecutionMode::DynamicCallback};
     mutable std::shared_ptr<const Scene> template_scene{};

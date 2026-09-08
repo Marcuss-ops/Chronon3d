@@ -21,4 +21,5 @@ target_link_libraries(chronon3d_verification
     PUBLIC
         nlohmann_json::nlohmann_json
         chronon3d_assets
+        spdlog::spdlog_header_only
 )

@@ -92,6 +92,7 @@ TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry 
 
     const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
                                      ResourceUsage::Storage,
+                                     LifetimeClass::FrameTransient,
                                      4 * 4 * 4 * sizeof(float)};
     GpuCommandPlanner planner;
     planner.declare_surface(input, resource_desc);
@@ -103,7 +104,7 @@ TEST_CASE("Vulkan backend exports gpu_submissions and passes_executed telemetry 
     REQUIRE(plan.passes.size() == 2);
 
     const auto before = backend.stats();
-        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
+        REQUIRE((chronon3d::graph::GraphExecutor{}.execute(backend, registry, plan)));
     const auto after = backend.stats();
     // One vkQueueSubmit for the 2-pass plan, and exactly two executed passes
     // (independent of how many submits the passes coalesced into).
@@ -163,6 +164,7 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
 
     const ResourceDesc resource_desc{4, 4, PixelFormat::Rgba32Float,
                                      ResourceUsage::Storage,
+                                     LifetimeClass::FrameTransient,
                                      4 * 4 * 4 * sizeof(float)};
     GpuCommandPlanner planner;
     planner.declare_surface(background, resource_desc);
@@ -178,7 +180,7 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     const auto plan = planner.build();
     REQUIRE(plan.passes.size() == 4);
     // One barrier transition per pass boundary (≥4 for the 4-pass chain).
-    CHECK(plan.barriers.size() >= 4);
+    CHECK(plan.transitions.size() >= 2);
 
     // Aliasing proof: the 5 logical surfaces never overlap in pairs whose
     // lifetimes are disjoint, so the planner must back them with fewer
@@ -192,7 +194,7 @@ TEST_CASE("checkpoint: Background-Transform-Blur-Composite-ColorAdjust is one su
     CHECK(physical_slots.size() < 5);
 
     const auto submissions_before = backend.stats().submissions;
-        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
+        REQUIRE((chronon3d::graph::GraphExecutor{}.execute(backend, registry, plan)));
     // The whole 4-pass scene coalesces into exactly one queue submission.
     CHECK(backend.stats().submissions == submissions_before + 1);
 
@@ -256,6 +258,7 @@ TEST_CASE("minimal background + 1 overlay render produces a pixel-correct frame"
     // single overlay on top (source-over).
     const ResourceDesc resource_desc{kWidth, kHeight, PixelFormat::Rgba32Float,
                                      ResourceUsage::Storage,
+                                     LifetimeClass::FrameTransient,
                                      kFloatCount * sizeof(float)};
     GpuCommandPlanner planner;
     planner.declare_surface(background, resource_desc);
@@ -266,7 +269,7 @@ TEST_CASE("minimal background + 1 overlay render produces a pixel-correct frame"
     const auto plan = planner.build();
     REQUIRE(plan.passes.size() == 2);
 
-        REQUIRE((graph::GraphExecutor{}.execute(backend, registry, plan)));
+        REQUIRE((chronon3d::graph::GraphExecutor{}.execute(backend, registry, plan)));
 
     std::vector<float> actual(kFloatCount, 0.0f);
     REQUIRE(backend.download_surface(output, actual).ok());

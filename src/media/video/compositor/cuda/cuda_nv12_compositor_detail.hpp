@@ -35,7 +35,7 @@ static_assert(sizeof(DirectYuvLayerHost) == 64);
 [[noreturn]] void fail(const char* operation, const std::string& detail);
 void check_cuda(CUresult result, const char* operation);
 void check_nvrtc(nvrtcResult result, const char* operation);
-std::string get_compiled_nv12_ptx();
+const std::string& get_compiled_nv12_ptx();
 
 } // namespace chronon3d::media::video::cuda_nv12_detail
 

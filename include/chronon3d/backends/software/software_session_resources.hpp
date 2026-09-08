@@ -26,16 +26,14 @@
 // da reset_job — le risorse di sessione sono solo ciò che è elencato
 // sopra.
 //
-// Scene-hash and scene-program state is software graph execution state and
-// follows this software-session owner rather than the renderer-agnostic job.
+// Scene-hash and scene-program state is owned by the renderer-agnostic
+// JobSession::common. This backend-specific half must not duplicate it.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
 #include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include <chronon3d/backends/software/effects/per_pixel_dof.hpp>
-#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
-#include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>  // M1.5#7 — complete-type visibility for std::unique_ptr<TextRenderResources> deleter
 #include <memory>  // std::unique_ptr (M1.5#7 RAII for text_resources)
 #include <algorithm>
@@ -129,10 +127,6 @@ struct SoftwareSessionResources {
     DepthBufferPool depth_buffer_pool;
     renderer::DofScratchBuffers dof_scratch;
     EffectScratchResources effect_scratch;
-    graph::SceneHasher scene_hasher_state{};
-    std::unique_ptr<graph::SceneProgramStore> program_store_state{
-        std::make_unique<graph::SceneProgramStore>()};
-
     // Authoring adapters are software-renderer compatibility state, not
     // generic JobSession state. The compiled-program path does not consult
     // these fields.
