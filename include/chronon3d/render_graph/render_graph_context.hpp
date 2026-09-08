@@ -147,6 +147,7 @@ struct EffectProcessorHandle;
 }
 
 namespace chronon3d::graph {
+class SceneProgramStore;
 
 class RenderBackend;
 struct NodeExecutionError;
@@ -542,6 +543,10 @@ struct RenderGraphContext {
     chronon3d::assets::AssetResolver* asset_resolver{nullptr};
     /// Borrowed job owner for nested scene execution and frame history.
     chronon3d::runtime::JobSession* session{nullptr};
+    /// Typed cache authority for nested/precomp programs. This explicit seam
+    /// lets the store leave RenderServices before the JobSession owner is
+    /// removed in the next demolition step.
+    SceneProgramStore* program_store{nullptr};
 
     /// Immutable compiler identity for typed-program execution. A non-zero
     /// value is authoritative for graph topology cache keys; zero retains the

@@ -215,8 +215,11 @@ NodeExecResult PrecompNode::execute_with_scope(
     //      `execute_with_scope` call below + the function's tail return).
     //      The store is reached through the typed JobSession seam only:
     //      RenderServices does not carry a second store pointer.
-    auto& program_store = session.program_store();
-    auto lease = program_store.acquire(
+    auto* program_store = nested_ctx.program_store;
+    if (!program_store) {
+        throw std::runtime_error("PrecompNode: no SceneProgramStore wired in RenderGraphContext");
+    }
+    auto lease = program_store->acquire(
         precomp_key, key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
@@ -229,7 +232,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // Forward eviction callback to the store's per-instance cache if one
     // is set and the instance was just created (or on first call).
     if (m_on_evict) {
-        program_store.set_on_evict(precomp_key, m_on_evict);
+        program_store->set_on_evict(precomp_key, m_on_evict);
     }
 
     // WP 5.2 — ProgramLease::program is std::shared_ptr<CompiledSceneProgram>;

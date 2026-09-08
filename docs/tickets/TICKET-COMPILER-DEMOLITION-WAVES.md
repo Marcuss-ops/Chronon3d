@@ -37,6 +37,9 @@ sono coerenti.
   lease come stato tipizzato separato.
 - [x] Wave 3.2 — il graph cache usa il `ProgramFingerprint` quando il percorso
   typed lo fornisce; i caller authoring mantengono il fallback `SceneHasher`.
+- [x] Wave 3.3a — `SceneProgramStore` è esposto al precomp executor tramite
+  un puntatore esplicito di `RenderGraphContext`, preparando la rimozione del
+  service accessor da `JobSession`.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura
