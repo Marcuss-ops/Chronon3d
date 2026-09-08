@@ -9,26 +9,26 @@ RenderEngine::compile_plan_json(std::string_view json) {
             return RenderError{RenderErrorCode::InvalidPlan,
                                decoded.error().message, "render_plan"};
         }
-        chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
-        fingerprint_options.render_settings.width = decoded->canvas.width;
-        fingerprint_options.render_settings.height = decoded->canvas.height;
-        fingerprint_options.render_settings.deterministic = false;
-        fingerprint_options.render_settings.force_scalar_normal_blend = false;
-        auto compiled = chronon3d::render_plan::compile_render_plan(
-            decoded.value(), m_impl->resolver, fingerprint_options);
+        chronon3d::compiler::CompileOptions compile_options;
+        compile_options.fingerprint.render_settings.width = decoded->canvas.width;
+        compile_options.fingerprint.render_settings.height = decoded->canvas.height;
+        compile_options.fingerprint.render_settings.deterministic = false;
+        compile_options.fingerprint.render_settings.force_scalar_normal_blend = false;
+        auto compiled = chronon3d::compiler::compile(
+            decoded.value(), m_impl->resolver, compile_options);
         if (!compiled) {
             return RenderError{RenderErrorCode::InvalidPlan,
                                compiled.error().message, "render_plan"};
         }
         RenderSettings settings = m_impl->settings;
-        settings.width = compiled->canvas.width;
-        settings.height = compiled->canvas.height;
+        settings.width = decoded->canvas.width;
+        settings.height = decoded->canvas.height;
         m_impl->settings = settings;
         m_impl->prepared_job.reset();
         m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(convert_settings(settings));
-        return std::make_shared<const chronon3d::CompiledComposition>(
-            std::move(compiled->compiled_composition));
+        return std::make_shared<const chronon3d::compiler::CompiledProgram>(
+            std::move(compiled).value());
     } catch (const std::exception& error) {
         return RenderError{RenderErrorCode::DecodeFailure,
             std::string{"render plan JSON parse failed: "} + error.what(),

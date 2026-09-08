@@ -101,16 +101,11 @@ public:
     render_to_file(const RenderFileRequest& request,
                    const RenderCallbacks& callbacks = {});
 
-    /// Compile a canonical RenderPlan JSON document into an immutable
-    /// `CompiledComposition`.  This is a thin wrapper over the canonical
-    /// `render_plan` decode→compile pipeline (the same path the C ABI
-    /// exposes through `chronon_plan_compile_json`); it introduces no
-    /// second plan model.  The returned composition is caller-owned and can
-    /// be passed to render_compiled()/render_to_file().  The engine's output
-    /// dimensions are updated from the plan canvas so a subsequent render
-    /// runs at the plan's native resolution.
+    /// Compile a canonical RenderPlan JSON document into an immutable typed
+    /// compiler program. The returned program is caller-owned and can be
+    /// passed to render_program(); no legacy composition is materialized.
     [[nodiscard]]
-    chronon3d::Result<std::shared_ptr<const chronon3d::CompiledComposition>,
+    chronon3d::Result<std::shared_ptr<const chronon3d::compiler::CompiledProgram>,
                       RenderError>
     compile_plan_json(std::string_view json);
 

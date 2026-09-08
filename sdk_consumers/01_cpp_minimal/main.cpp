@@ -3,8 +3,8 @@
 // Minimal C++ SDK consumer.  Links ONLY Chronon3D::SDK and drives the
 // canonical RenderPlan JSON through the thin facade:
 //
-//     engine.compile_plan_json(json) -> CompiledComposition
-//     engine.render_compiled(...)    -> RenderOutput
+//     engine.compile_plan_json(json) -> CompiledProgram
+//     engine.render_program(...)     -> RenderOutput
 //
 // No umbrella header, no internal target, no backend/runtime/graph types.
 
@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
     }
 
     auto out =
-        engine.render_compiled(*compiled.value(), chronon3d::sdk::Frame{0});
+        engine.render_program(*compiled.value(), chronon3d::sdk::Frame{0});
     if (!out.has_value()) {
         std::fprintf(stderr, "render_compiled failed: %s\n",
                      out.error().message.c_str());
