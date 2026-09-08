@@ -196,9 +196,9 @@ static void log_graph_cache_diagnostics(
 
     auto compiled = chronon3d::compiler::detail::compile_graph(
         std::move(graph), ctx, compile_options);
-    compiled.authored_structure_fingerprint =
-        SceneHasher{}.compute_structure_fingerprint(
-            scene, ctx.registry_generation);
+    compiled.authored_structure_fingerprint = ctx.program_fingerprint != 0
+        ? ctx.program_fingerprint
+        : SceneHasher{}.compute_structure_fingerprint(scene, ctx.registry_generation);
     if (!compiled.valid) {
         throw std::runtime_error(
             "graph cache coordinator: fresh graph compilation produced an invalid graph");
@@ -353,9 +353,9 @@ GraphBuildResult build_or_reuse_graph(
     // pointer (e.g. LayerTransitionCatalog).
     wire_catalog_pointers(ctx, builtin_pipeline_catalogs());
 
-    const auto current_authored_topology =
-        SceneHasher{}.compute_structure_fingerprint(
-            scene, ctx.registry_generation);
+    const auto current_authored_topology = ctx.program_fingerprint != 0
+        ? ctx.program_fingerprint
+        : SceneHasher{}.compute_structure_fingerprint(scene, ctx.registry_generation);
     result.can_reuse = scene_structure_unchanged &&
         graph_cache != nullptr &&
         graph_cache->has(width, height);

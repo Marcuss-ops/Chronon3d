@@ -543,6 +543,11 @@ struct RenderGraphContext {
     /// Borrowed job owner for nested scene execution and frame history.
     chronon3d::runtime::JobSession* session{nullptr};
 
+    /// Immutable compiler identity for typed-program execution. A non-zero
+    /// value is authoritative for graph topology cache keys; zero retains the
+    /// scene-derived fallback used by standalone authoring callers.
+    std::uint64_t program_fingerprint{0};
+
     /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a
     /// frame-scoped optional (stack storage, zero per-frame heap churn) and
     /// exposed to every node via a non-owning pointer; clones copy the

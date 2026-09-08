@@ -35,6 +35,8 @@ sono coerenti.
 - [x] Wave 3.1 — il payload dello slot non possiede più
   `EvaluatedCompositionFrame`: scene e camera frame-local sono possedute dal
   lease come stato tipizzato separato.
+- [x] Wave 3.2 — il graph cache usa il `ProgramFingerprint` quando il percorso
+  typed lo fornisce; i caller authoring mantengono il fallback `SceneHasher`.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura
