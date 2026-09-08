@@ -1,5 +1,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
+#include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
@@ -126,6 +127,25 @@ TEST_CASE("CompiledProgram owns typed timeline, animation and text lowering") {
     CHECK(program.curve_keyframes().size() == 2);
     REQUIRE(program.texts().size() == 1);
     CHECK(program.text_values()[program.texts().front().text_index] == "Chronon");
+}
+
+TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge") {
+    auto plan = test_plan();
+    plan.layers.front().position = {10.0f, 20.0f, 0.0f};
+    plan.layers.front().animation->tracks.push_back({
+        "opacity", {{chronon3d::Frame{0}, {0.25f}}, {chronon3d::Frame{12}, {1.0f}}}, "linear"});
+    chronon3d::assets::AssetResolver resolver;
+    auto result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(result);
+    const auto program = std::move(result).value();
+
+    const auto frame = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{6});
+    REQUIRE(frame.layers.size() == 1);
+    CHECK(frame.layers.front().active);
+    CHECK(frame.layers.front().opacity == doctest::Approx(0.625f));
+    CHECK(frame.layers.front().matrix[3][0] == doctest::Approx(10.0f));
+    CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
 }
 
 TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
