@@ -1,6 +1,6 @@
 #include "graph_builder_passes.hpp"
-#include "../graph_builder_internal.hpp"
-#include "../graph_builder_pipeline.hpp"
+#include "graph_builder_internal.hpp"
+#include "graph_builder_pipeline.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 

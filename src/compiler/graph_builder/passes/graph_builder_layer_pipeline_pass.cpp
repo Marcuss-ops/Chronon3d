@@ -1,7 +1,7 @@
 #include "graph_builder_passes.hpp"
-#include "../graph_builder_pipeline.hpp"
-#include "../graph_builder_coordinates.hpp"
-#include "../evaluated_layer_placement.hpp"
+#include "graph_builder_pipeline.hpp"
+#include "graph_builder_coordinates.hpp"
+#include "evaluated_layer_placement.hpp"
 #include "graph_builder_layer_passes.hpp"
 #include "graph_builder_lighting_passes.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
