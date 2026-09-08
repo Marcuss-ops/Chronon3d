@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace chronon3d::compiler {
 
@@ -18,6 +19,35 @@ struct AnimationProgram {
     std::uint32_t first_track{0};
     std::uint32_t track_count{0};
     std::uint32_t data_offset{0};
+};
+
+/// Immutable, typed timeline entry. Frame values are authored-time data;
+/// sampling converts them into frame parameters without rebuilding the plan.
+struct TimelineProgram {
+    std::uint32_t id{0};
+    std::int64_t start_frame{0};
+    std::int64_t duration_frames{0};
+    std::uint32_t animation_index{0};
+};
+
+struct AnimationTrackProgram {
+    std::uint32_t id{0};
+    std::string property;
+    std::uint32_t first_keyframe{0};
+    std::uint32_t keyframe_count{0};
+};
+
+struct CurveKeyframeProgram {
+    std::int64_t frame{0};
+    float value{0.0f};
+};
+
+/// Text payload and animator topology are kept typed and owned by the
+/// immutable program. Runtime text layout receives only sampled parameters.
+struct TextProgram {
+    std::uint32_t id{0};
+    std::uint32_t text_index{0};
+    std::uint32_t animator_count{0};
 };
 
 /// Static parameter topology. Values are sampled per frame by the runtime;
