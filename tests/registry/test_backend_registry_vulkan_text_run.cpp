@@ -51,8 +51,8 @@ TEST_CASE("packed text-run builder packs glyphs and composites via Vulkan") {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
 
     Framebuffer canvas(4, 2);  // transparent
     std::vector<text_run::GpuTextGlyph> glyphs;
@@ -108,9 +108,9 @@ TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via V
     runtime::RenderSurfaceRegistry surfaces;
     TextRenderResources text_resources;
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
-    ctx.services.text_render_resources = &text_resources;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.text_render_resources = &text_resources;
 
     // Pre-populate glyph atlas with an unstyled glyph entry
     auto glyph_img = std::make_shared<BLImage>(4, 4, BL_FORMAT_PRGB32);

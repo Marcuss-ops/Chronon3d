@@ -54,6 +54,9 @@ sono coerenti.
 - [x] Wave 5.4 — il node executor e il workspace executor usano i seam
   tipizzati per node cache e framebuffer pool.
 - [x] Wave 5.5 — i runner batch/single-node usano il seam backend tipizzato.
+- [x] Wave 5.6 — `RenderServices` rimosso: backend, superfici, cache,
+  cataloghi e decoder sono dipendenze tipizzate direttamente sul contesto;
+  il gate impedisce la reintroduzione del service locator.
 - [x] Wave 3.5a — il percorso `RenderPipeline::render_program` materializza
   direttamente una `Scene` typed tramite `ProgramSampler::sample_scene`, senza
   creare `EvaluatedCompositionFrame`.

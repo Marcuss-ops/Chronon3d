@@ -301,7 +301,7 @@ size_t count_bake_eligible_nodes(
     RenderGraph&           graph,
     const RenderGraphContext& ctx)
 {
-    if (!ctx.services.node_cache) return 0;
+    if (!ctx.node_cache) return 0;
 
     const size_t node_count = graph.size();
     size_t baked = 0;

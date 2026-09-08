@@ -34,7 +34,7 @@ namespace {
 bool try_native_affine_composite(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, const std::optional<raster::BBox>& clip) {
-    if (!ctx.services.backend || !ctx.services.surface_registry ||
+    if (!ctx.backend || !ctx.surface_registry ||
         (source.width() == destination.width() &&
          source.height() == destination.height())) {
         return false;
@@ -100,7 +100,7 @@ bool try_native_affine_composite(
     transform.clip_rect[2] = eff_x1 + destination.origin_x();
     transform.clip_rect[3] = eff_y1 + destination.origin_y();
 
-    const auto composited = ctx.services.backend->transform_surface_affine(
+    const auto composited = ctx.backend->transform_surface_affine(
         destination.surface_handle(), source_handle, transform);
     if (source_copy) release_native_surface(ctx, *source_copy);
     if (!composited.ok()) {
@@ -135,7 +135,7 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
         }
         return false;
     }
-    const auto result = ctx.services.backend->composite_surfaces(
+    const auto result = ctx.backend->composite_surfaces(
         destination.surface_handle(), source.surface_handle(), mode, op, clip);
     if (result.ok()) return true;
     if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
@@ -155,7 +155,7 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
 bool seed_native_destination(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source) {
-    if (!ctx.services.backend || !ctx.services.surface_registry) {
+    if (!ctx.backend || !ctx.surface_registry) {
         return false;
     }
     const auto original_destination = destination.surface_handle();
@@ -163,7 +163,7 @@ bool seed_native_destination(
     // truth. If the bottom did not retain a native handle, promote the result
     // directly instead of rejecting the whole frame.
     if (source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
-        !ctx.services.backend->is_native_surface_valid(source.surface_handle())) {
+        !ctx.backend->is_native_surface_valid(source.surface_handle())) {
         return ensure_native_surface(ctx, destination,
                                      "CompositeNode.seed.source-fallback");
     }
@@ -180,7 +180,7 @@ bool seed_native_destination(
 
     // `copy_surface` maps to replace-mode composite on Vulkan. It preserves
     // the source pixels exactly and avoids affine sampling/coordinate setup.
-    const auto seeded = ctx.services.backend->copy_surface(
+    const auto seeded = ctx.backend->copy_surface(
         destination.surface_handle(), source.surface_handle(), std::nullopt);
     if (!seeded.ok()) {
         if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
@@ -272,8 +272,8 @@ float dof_source_radius(RenderGraphContext& ctx, float world_z) {
 [[nodiscard]] std::optional<NodeExecutionError> materialize_native_or_fail(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, std::string_view context) {
-    if (!ctx.services.backend || !ctx.services.surface_registry ||
-        !ctx.services.backend->supports_native_surfaces()) {
+    if (!ctx.backend || !ctx.surface_registry ||
+        !ctx.backend->supports_native_surfaces()) {
         return std::nullopt;
     }
     const bool destination_ready =
@@ -401,13 +401,13 @@ NodeExecResult CompositeNode::execute(
     OwnedFB result;
     if (bottom_matches_canvas) {
         const bool native_backend =
-            ctx.services.backend && ctx.services.surface_registry &&
-            ctx.services.backend->supports_native_surfaces();
+            ctx.backend && ctx.surface_registry &&
+            ctx.backend->supports_native_surfaces();
         auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
         bool bottom_native_valid =
             bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
             native_backend &&
-            ctx.services.backend->is_native_surface_valid(bottom->surface_handle());
+            ctx.backend->is_native_surface_valid(bottom->surface_handle());
         if (native_backend && !bottom_native_valid) {
             if (!ensure_native_surface(ctx, mutable_bottom, "CompositeNode.bottom")) {
                 return NodeExecutionError{
@@ -428,7 +428,7 @@ NodeExecResult CompositeNode::execute(
         }
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
-        if (ctx.services.backend) {
+        if (ctx.backend) {
             if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
                 // try_native_affine_composite returns false both when the
                 // native affine path is unavailable (software backend, or
@@ -440,8 +440,8 @@ NodeExecResult CompositeNode::execute(
                 // 39a5c03c9: it deleted this CPU fallback, making every
                 // software dimension-mismatch composite — e.g. shadow
                 // receivers smaller than the canvas — fail hard.)
-                if (ctx.services.surface_registry &&
-                    ctx.services.backend->supports_native_surfaces()) {
+                if (ctx.surface_registry &&
+                    ctx.backend->supports_native_surfaces()) {
                     const bool destination_ready = ensure_native_surface(
                         ctx, *result, "CompositeNode.dimension.destination");
                     auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
@@ -456,7 +456,7 @@ NodeExecResult CompositeNode::execute(
                             "dimension-mismatched inputs"};
                     }
                 }
-                ctx.services.backend->composite_layer(
+                ctx.backend->composite_layer(
                     *result, *bottom, BlendMode::Normal);
             }
         }
@@ -484,7 +484,7 @@ NodeExecResult CompositeNode::execute(
     // double-counting bottom composite time (already in compositenode_blend_wall_ms).
     const auto t_dispatch0 = profiling::now();
 
-    if (ctx.services.backend) {
+    if (ctx.backend) {
         std::optional<raster::BBox> clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
         if (ctx.node_exec.clip_rect) {
             if (clip) {
@@ -538,7 +538,7 @@ NodeExecResult CompositeNode::execute(
                 "CompositeNode",
                 "native residency violation: composite inputs could not be materialized"};
         }
-        if (ctx.services.backend && ctx.services.backend->supports_native_surfaces() &&
+        if (ctx.backend && ctx.backend->supports_native_surfaces() &&
             m_operator == CompositeOperator::SourceOver &&
             !native_composite && !native_dimension_composite) {
             return NodeExecutionError{
@@ -557,15 +557,15 @@ NodeExecResult CompositeNode::execute(
             // apply the operator via the backend (which handles the masking).
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
-            if (ctx.services.backend && ctx.services.surface_registry &&
-                ctx.services.backend->supports_native_surfaces()) {
+            if (ctx.backend && ctx.surface_registry &&
+                ctx.backend->supports_native_surfaces()) {
                 if (auto err = materialize_native_or_fail(
                         ctx, *result, *top,
                         "non-SourceOver composite")) {
                     return *err;
                 }
             }
-            ctx.services.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
+            ctx.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
             if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
                 result->mark_gpu_authoritative();
     } else {
@@ -574,14 +574,14 @@ NodeExecResult CompositeNode::execute(
         // (for example Add/stencil operators).  Materialize both handles
         // before dispatching that fallback; otherwise the backend receives
         // the framebuffer sentinel 0 and fails later in resolve_image().
-        if (ctx.services.backend && ctx.services.surface_registry &&
-            ctx.services.backend->supports_native_surfaces()) {
+        if (ctx.backend && ctx.surface_registry &&
+            ctx.backend->supports_native_surfaces()) {
             if (auto err = materialize_native_or_fail(
                     ctx, *result, *top, "composite fallback")) {
                 return *err;
             }
         }
-        ctx.services.backend->composite_layer(*result, *top, m_mode, clip);
+        ctx.backend->composite_layer(*result, *top, m_mode, clip);
         if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
             result->mark_gpu_authoritative();
     }

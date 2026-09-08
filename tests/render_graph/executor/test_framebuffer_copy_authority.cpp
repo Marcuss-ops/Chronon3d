@@ -143,7 +143,7 @@ TEST_CASE("RenderGraphContext::acquire_framebuffer pool path copies stride-padde
     // the first used to be shifted (striped output).
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
     RenderGraphContext ctx;
-    ctx.services.framebuffer_pool = pool;
+    ctx.framebuffer_pool = pool;
 
     Framebuffer src(130, 4, false);
     REQUIRE(src.stride() == 132);
@@ -171,7 +171,7 @@ TEST_CASE("RenderGraphContext::acquire_framebuffer non-pool path copies row-wise
 TEST_CASE("RenderGraphContext shared and owned full-frame copies agree (single copy authority)") {
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
     RenderGraphContext ctx;
-    ctx.services.framebuffer_pool = pool;
+    ctx.framebuffer_pool = pool;
 
     Framebuffer src(130, 4, false);
     fill_pattern(src);

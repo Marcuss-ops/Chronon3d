@@ -76,7 +76,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 2D standard top left layer") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
@@ -118,7 +118,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D non-centered source") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
@@ -160,7 +160,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - Centered 2D source") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
@@ -202,7 +202,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =

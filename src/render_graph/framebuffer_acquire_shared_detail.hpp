@@ -25,7 +25,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     std::atomic<uint64_t>* specific_clear_ms
 ) const {
     std::shared_ptr<Framebuffer> out;
-    auto* pool = services.framebuffer_pool.get();
+    auto* pool = framebuffer_pool.get();
     if (pool) {
         // Direct acquire_shared acquires a fresh CachedFB with pool-aware
         // deleter (no OwnedFB intermediary: acquire_shared(int,int,bool)
@@ -65,7 +65,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     {
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(const_cast<Framebuffer&>(other));
-        std::weak_ptr<cache::FramebufferPool> weak_pool = services.framebuffer_pool;
+        std::weak_ptr<cache::FramebufferPool> weak_pool = framebuffer_pool;
         return std::shared_ptr<Framebuffer>(placeholder, [weak_pool](Framebuffer* ptr) noexcept {
             if (auto pool_ptr = weak_pool.lock()) {
                 pool_ptr->release(ptr);
@@ -76,7 +76,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     }
 
     std::shared_ptr<Framebuffer> out;
-    auto* pool = services.framebuffer_pool.get();
+    auto* pool = framebuffer_pool.get();
     if (pool) {
         // Use acquire_shared for a correct pool reclaim path; copy pixels
         // because the pool's bucket may have a re-used allocation.

@@ -60,8 +60,8 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
 
 // ── Helper: minimal RenderGraphContext + runtime::JobSession for PrecompNode tests ──
 // PR-5 — the TestContext now owns a runtime::JobSession with a SceneProgramStore,
-// and wires session + scheduler into ctx.services.
-// WP-0 PR 0.1 — the TestContext now ALSO wires `session.services.executor`
+// and wires session + scheduler into ctx.
+// WP-0 PR 0.1 — the TestContext now ALSO wires `session.executor`
 // to a local GraphExecutor instance, matching the new PrecompNode contract
 // (`session->services().executor` is borrowed for inner execution).  The
 // default-constructed session has `services.executor = nullptr`; without
@@ -94,17 +94,17 @@ struct TestContext {
         // reaches a real executor instead of nullptr.
         session.bind_executor(local_executor);
 
-        ctx.services.backend = &backend.backend();
-        ctx.services.node_cache      = &node_cache;
-        ctx.services.framebuffer_pool = pool;
-        ctx.services.registry        = &registry;
+        ctx.backend = &backend.backend();
+        ctx.node_cache      = &node_cache;
+        ctx.framebuffer_pool = pool;
+        ctx.registry        = &registry;
         ctx.session                  = &session;
         ctx.program_store           = &store;
         ctx.scheduler               = &scheduler;
         // TICKET-010 — PrecompNode delegates compilation to the typed
         // PrecompBuilderService. Without this pointer the cache-miss
         // path returns nullptr and the program never gets stored.
-        ctx.services.precomp_builder = &precomp_builder_service;
+        ctx.precomp_builder = &precomp_builder_service;
 
         ctx.frame_input.frame        = Frame{0};
         ctx.frame_input.width        = w;

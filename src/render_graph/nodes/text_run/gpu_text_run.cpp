@@ -237,7 +237,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run_surface: empty glyph vector; fall back to legacy text path"});
     }
-    if (!ctx.services.backend || !ctx.services.surface_registry) {
+    if (!ctx.backend || !ctx.surface_registry) {
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run: no backend or surface registry"});
@@ -346,7 +346,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 "draw_packed_text_run: GPU atlas cache: " + acquired.error});
         }
     } else if (!cached_atlas) {
-        atlas_handle = ctx.services.surface_registry->create(atlas_desc);
+        atlas_handle = ctx.surface_registry->create(atlas_desc);
     }
     if (atlas_handle == runtime::kInvalidRenderSurfaceHandle) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -354,20 +354,20 @@ graph::RenderOpResult draw_packed_text_run_surface(
             "draw_packed_text_run: failed to create atlas surface"});
     }
     if (!cached_atlas) {
-        auto created = ctx.services.backend->create_surface(atlas_handle, atlas_desc);
+        auto created = ctx.backend->create_surface(atlas_handle, atlas_desc);
         if (!created.ok()) {
-            ctx.services.surface_registry->release(atlas_handle);
+            ctx.surface_registry->release(atlas_handle);
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_packed_text_run: create_surface: " + created.error().message});
         }
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Text);
-        auto uploaded = ctx.services.backend->upload_surface(
+        auto uploaded = ctx.backend->upload_surface(
             atlas_handle, atlas_desc, atlas_buffer);
         if (!uploaded.ok()) {
-            (void)ctx.services.backend->release_surface(atlas_handle);
-            ctx.services.surface_registry->release(atlas_handle);
+            (void)ctx.backend->release_surface(atlas_handle);
+            ctx.surface_registry->release(atlas_handle);
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "draw_packed_text_run: upload_surface: " + uploaded.error().message});
@@ -381,7 +381,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
         }
     }
 
-    auto drawn = ctx.services.backend->draw_text_run_surface_timed(
+    auto drawn = ctx.backend->draw_text_run_surface_timed(
         destination, atlas_handle, instances, current_frame,
         highlight_color, highlight_enabled);
 
@@ -397,8 +397,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
     // Cached atlases belong to the runtime. Only the compatibility atlas is
     // released here.
     if (!cached_atlas) {
-        (void)ctx.services.backend->release_surface(atlas_handle);
-        ctx.services.surface_registry->release(atlas_handle);
+        (void)ctx.backend->release_surface(atlas_handle);
+        ctx.surface_registry->release(atlas_handle);
     }
 
     if (!drawn.ok()) {
@@ -443,7 +443,7 @@ graph::RenderOpResult draw_packed_text_run(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_packed_text_run: destination has no native surface support"});
     }
-    const auto cleared = ctx.services.backend->fill_rect_surface(
+    const auto cleared = ctx.backend->fill_rect_surface(
         destination.surface_handle(), 0, 0, destination.width(), destination.height(),
         Color::transparent());
     if (!cleared.ok()) return cleared;

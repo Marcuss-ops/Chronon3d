@@ -49,7 +49,7 @@ namespace {
                      image.opacity, state.opacity);
     }
     if (!ctx.runtime ||
-        !ctx.services.backend || !ctx.services.surface_registry ||
+        !ctx.backend || !ctx.surface_registry ||
         image.path.empty() || image.radius > 0.0f ||
         native_promotion::has_active_mask(state) ||
         !native_promotion::is_axis_aligned_affine(state)) {
@@ -169,7 +169,7 @@ namespace {
     transform.clip_rect[2] = effective_clip_x1;
     transform.clip_rect[3] = effective_clip_y1;
 
-    const auto result = ctx.services.backend->transform_surface_affine(
+    const auto result = ctx.backend->transform_surface_affine(
         fb.surface_handle(), acquired.handle, transform);
     if (!result.ok()) {
         release_native_surface(ctx, fb);

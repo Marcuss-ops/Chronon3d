@@ -53,7 +53,7 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
     // keep this native route limited to the equivalent solid operation.
     if (node.corner_radius > 0.0f) return false;
     if (native_promotion::has_active_mask(state)) return false;
-    if (!ctx.services.backend || !ctx.services.surface_registry) return false;
+    if (!ctx.backend || !ctx.surface_registry) return false;
     // Axis-aligned affine placement only.  A 2D rotation/shear shows up in
     // matrix[0][1]/matrix[1][0]; a camera projection in the w-row (both are
     // owned by the canonical predicate).  A projected layer therefore falls
@@ -101,7 +101,7 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
         return true;  // fully off-canvas: surface attached, nothing to fill
     }
 
-    const auto result = ctx.services.backend->fill_rect_surface(
+    const auto result = ctx.backend->fill_rect_surface(
         fb.surface_handle(), x0, y0, x1, y1, fill_color);
     if (!result.ok()) {
         release_native_surface(ctx, fb);

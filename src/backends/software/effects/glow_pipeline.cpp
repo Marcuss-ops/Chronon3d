@@ -449,8 +449,8 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
 
     // Acquire from pool or allocate fresh.
     OwnedFB result;
-    if (ctx.services.framebuffer_pool) {
-        result = ctx.services.framebuffer_pool->acquire_owned(w, h, false);
+    if (ctx.framebuffer_pool) {
+        result = ctx.framebuffer_pool->acquire_owned(w, h, false);
     } else {
         profiling::FramebufferAllocationScope allocation_scope(
             profiling::FramebufferAllocationCategory::Glow);

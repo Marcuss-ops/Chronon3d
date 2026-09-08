@@ -4,7 +4,7 @@
 // TICKET-010 — replaces the legacy std::function callback
 // `wire_precomp_build_factory(ctx, catalogs)` with a typed helper
 // `wire_catalog_pointers(ctx, catalogs)` that copies catalog pointers +
-// a typed `PrecompBuilderService*` into `ctx.services`.  The actual
+// a typed `PrecompBuilderService*` into `ctx`.  The actual
 // compile/optimise code is no longer here — it lives in
 // `DefaultPrecompBuilder::build()` (precomp_builder_service.cpp).  This
 // separation lets us:
@@ -91,14 +91,14 @@ GraphBuildDependencies make_graph_build_dependencies(
     const auto& catalogs = builtin_pipeline_catalogs();
     return GraphBuildDependencies{
         .node_catalog = &catalogs.graph_nodes,
-        .effect_catalog = context.services.effect_catalog
-            ? context.services.effect_catalog : &catalogs.effects,
-        .transition_catalog = context.services.transition_catalog
-            ? context.services.transition_catalog : &catalogs.transition_catalog,
-        .precomp_builder = context.services.precomp_builder
-            ? context.services.precomp_builder : catalogs.precomp_builder.get(),
-        .composition_registry = context.services.registry,
-        .video_decoder = context.services.video_decoder,
+        .effect_catalog = context.effect_catalog
+            ? context.effect_catalog : &catalogs.effects,
+        .transition_catalog = context.transition_catalog
+            ? context.transition_catalog : &catalogs.transition_catalog,
+        .precomp_builder = context.precomp_builder
+            ? context.precomp_builder : catalogs.precomp_builder.get(),
+        .composition_registry = context.registry,
+        .video_decoder = context.video_decoder,
         .prepared_assets = context.runtime
             ? context.runtime->prepared_assets_for(scene.asset_manifest())
             : nullptr,
@@ -164,26 +164,26 @@ void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& cata
         // scene_context_setup(). The backend-owned processor snapshot is the
         // canonical generation for compilation; using the pipeline catalog's
         // independent generation here would make a valid snapshot look stale.
-        if (ctx.services.backend) {
-            if (const auto snapshot = ctx.services.backend->processor_snapshot()) {
+        if (ctx.backend) {
+            if (const auto snapshot = ctx.backend->processor_snapshot()) {
                 ctx.registry_generation = snapshot->generation();
                 ctx.node_exec.processor_snapshot = snapshot;
             }
             ctx.processor_snapshot_required =
-                ctx.services.backend->requires_processor_snapshot();
+                ctx.backend->requires_processor_snapshot();
         }
         if (ctx.registry_generation == 0) {
             ctx.registry_generation = catalogs.registry_generation;
         }
     }
-    ctx.services.effect_catalog       = &catalogs.effects;
-    ctx.services.transition_catalog   = &catalogs.transition_catalog;
+    ctx.effect_catalog       = &catalogs.effects;
+    ctx.transition_catalog   = &catalogs.transition_catalog;
     // Wire the typed builder only when the caller hasn't already installed
     // a custom service.  Tests / instrumentation can pre-set
-    // `ctx.services.precomp_builder` to a non-null substitute before this
+    // `ctx.precomp_builder` to a non-null substitute before this
     // call and the override will be preserved.
-    if (ctx.services.precomp_builder == nullptr && catalogs.precomp_builder) {
-        ctx.services.precomp_builder = catalogs.precomp_builder.get();
+    if (ctx.precomp_builder == nullptr && catalogs.precomp_builder) {
+        ctx.precomp_builder = catalogs.precomp_builder.get();
     }
 }
 

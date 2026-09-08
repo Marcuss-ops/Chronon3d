@@ -56,7 +56,7 @@ NodeExecResult EffectStackNode::execute(
         }
     }
 
-    if (ctx.services.backend) {
+    if (ctx.backend) {
         std::optional<raster::BBox> local_clip = ctx.node_exec.clip_rect;
         if (pred_bbox) {
             if (local_clip) {
@@ -91,7 +91,7 @@ NodeExecResult EffectStackNode::execute(
         if (!native_effects::try_native_full_frame_blur(ctx, m_effects, *result, local_clip) &&
             !native_effects::try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
             !native_effects::try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
-            ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+            ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

@@ -217,8 +217,8 @@ TEST_CASE("packed text-run builder validates input before touching the device") 
     RenderGraphContext ctx;
     StubBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
     Framebuffer canvas(4, 2);
 
     // Empty input is a valid no-op success (outcome 0).

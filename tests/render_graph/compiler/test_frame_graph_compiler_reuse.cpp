@@ -177,7 +177,7 @@ TEST_CASE("FrameGraphCompiler - compile_with_reuse: post-conditions hold (Test E
     // structure_hash freshly derived equals compute_structure_hash on compiled.graph
     CHECK(compiled.structure_hash ==
           FrameGraphCompiler::compute_structure_hash(
-              compiled.graph, compiled.output, ctx.services.registry_generation));
+              compiled.graph, compiled.output, ctx.registry_generation));
     // early_exit_skip propagated from ctx (per-node, size == graph.size())
     REQUIRE(compiled.early_exit_skip.size() == compiled.graph.size());
     CHECK(compiled.early_exit_skip[0] == true);
