@@ -104,7 +104,8 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     const CompiledComposition& compiled,
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    chronon3d::CancellationToken* cancellation
+    chronon3d::CancellationToken* cancellation,
+    chronon3d::runtime::FrameExecution* execution
 ) {
     if (!compiled.composition) {
         throw std::invalid_argument(
@@ -174,12 +175,12 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 backend, node_cache, scene, context_camera,
                 rw, rh, fr, t, settings, registry, video_decoder,
                 static_cast<float>(spec.frame_rate.fps()), spec.name,
-                sw_sidecar, temporal_context);
+                sw_sidecar, temporal_context, execution);
         }
         return render_scene_via_graph(
             backend, node_cache, scene, context_camera,
             rw, rh, fr, t, settings, registry, video_decoder,
-            static_cast<float>(spec.frame_rate.fps()), spec.name, sw_sidecar);
+            static_cast<float>(spec.frame_rate.fps()), spec.name, sw_sidecar, execution);
     };
 
     auto evaluate_scene = [&](const FrameContext& context) {
@@ -483,11 +484,12 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     media::MediaFrameProvider* video_decoder,
     const CompiledComposition& compiled,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar)
+    chronon3d::SoftwareRenderer* sw_sidecar,
+    chronon3d::runtime::FrameExecution* execution)
 {
     return render_compiled_composition_frame_temporal(
         backend, node_cache, settings, registry, video_decoder, compiled,
-        frame, sw_sidecar, nullptr);
+        frame, sw_sidecar, nullptr, execution);
 }
 
 } // namespace chronon3d::graph

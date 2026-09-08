@@ -20,6 +20,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include "helpers.hpp"               // resolve_scene_camera, build_graph_context, make_default_pipeline_flags
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
@@ -45,6 +46,19 @@ SoftwareRenderer* setup_render_graph_context(
     }
 
     SoftwareRenderer* sw_renderer = sw_sidecar;
+
+    // A prepared job supplies the active frame lease. Prefer its ownership
+    // chain for execution-local routing; standalone graph diagnostics still
+    // use the legacy explicit pointers below.
+    if (ctx.execution) {
+        auto& job = ctx.execution->job();
+        ctx.runtime = &job.runtime();
+        ctx.session = &job;
+        ctx.scheduler = &job.runtime().scheduler();
+        ctx.compiled_graph_cache = &job.runtime().graph_cache();
+        ctx.services.node_cache = &job.runtime().node_cache();
+        ctx.services.framebuffer_pool = job.runtime().framebuffer_pool_shared();
+    }
 
     // ── Runtime assets root ──────────────────────────────────────────
     // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root().
@@ -89,34 +103,32 @@ SoftwareRenderer* setup_render_graph_context(
     }
 
     // ── Catalog + scheduler + session wiring ──────────────────────────
-    // Wire compiled_graph_cache + node_catalog + effect_catalog + scheduler
+    // Wire compiled_graph_cache + effect_catalog + scheduler
     // into the render graph context so that graph_cache_coordinator,
     // PrecompNode creation, and dirty/tile policies can access them
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
-        ctx.compiled_graph_cache = &sw_renderer->graph_cache();
+        if (!ctx.execution) ctx.compiled_graph_cache = &sw_renderer->graph_cache();
         // The processor snapshot captured by SoftwareBackend is owned by
         // SoftwareRegistry and carries that registry's generation. Use the
         // same canonical generation for graph compilation; hashing it with
         // the separate pipeline-catalog generation would make every valid
         // snapshot look stale and reject cacheable graphs before execution.
-        ctx.services.registry_generation =
-            sw_renderer->software_registry().generation();
+        ctx.registry_generation = sw_renderer->software_registry().generation();
+        ctx.node_exec.processor_snapshot = sw_renderer->backend().processor_snapshot();
+        ctx.processor_snapshot_required = sw_renderer->backend().requires_processor_snapshot();
         // Pipeline catalogs are frozen for the runtime lifetime; their
         // generation remains part of the runtime-owned topology policy and
         // must not be mixed into the processor-snapshot generation contract.
-        ctx.services.node_catalog = &sw_renderer->graph_node_registry();
         ctx.services.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────
         // PrecompNode dereferences `*ctx.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
-        ctx.scheduler = &sw_renderer->scheduler();
+        if (!ctx.execution) ctx.scheduler = &sw_renderer->scheduler();
         // PR-5 — propagate the job-session pointer so PrecompNode borrows
         // the scene program store through the typed JobSession seam.
-        ctx.session = &sw_renderer->session();
+        if (!ctx.execution) ctx.session = &sw_renderer->session();
         ctx.services.text_render_resources = sw_renderer->text_render_resources();
-        ctx.services.prepared_assets =
-            sw_renderer->runtime().prepared_assets_for(scene.asset_manifest());
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.

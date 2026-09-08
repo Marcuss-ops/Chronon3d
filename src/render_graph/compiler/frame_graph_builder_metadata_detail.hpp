@@ -12,18 +12,16 @@ void GraphCompilePipeline::build_node_metadata(
     // backend that participates in shape/effect compilation without one is
     // rejected at the first binding request; non-renderable graph operators
     // remain compilable without a backend.
-    compiled.processor_snapshot = ctx.services.backend
-        ? ctx.services.backend->processor_snapshot()
-        : nullptr;
+    compiled.processor_snapshot = ctx.node_exec.processor_snapshot;
     // Standalone graph callers may provide a backend without going through
     // scene_context_setup(), leaving the optional context generation at its
     // zero sentinel. In that case the owning backend snapshot is the
     // canonical registry generation; use it rather than rejecting a valid
     // graph at the compiler boundary.
-    if (ctx.services.registry_generation == 0 && compiled.processor_snapshot) {
-        ctx.services.registry_generation = compiled.processor_snapshot->generation();
+    if (ctx.registry_generation == 0 && compiled.processor_snapshot) {
+        ctx.registry_generation = compiled.processor_snapshot->generation();
     }
-    compiled.registry_generation = ctx.services.registry_generation;
+    compiled.registry_generation = ctx.registry_generation;
     compiled.processor_snapshot_identity = compiled.processor_snapshot
         ? compiled.processor_snapshot->identity()
         : 0;
@@ -41,8 +39,7 @@ void GraphCompilePipeline::build_node_metadata(
         }
         return *compiled.processor_snapshot;
     };
-    const bool requires_snapshot = ctx.services.backend &&
-        ctx.services.backend->requires_processor_snapshot();
+    const bool requires_snapshot = ctx.processor_snapshot_required;
     const auto resolve_shape = [&](ShapeType type) {
         return require_snapshot().shape_handle(type);
     };

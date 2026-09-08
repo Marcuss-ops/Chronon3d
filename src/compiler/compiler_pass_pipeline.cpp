@@ -1,8 +1,6 @@
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 
 #include <chronon3d/compiler/compiler_pass_registry.hpp>
-#include <chronon3d/render_graph/pipeline/pipeline_catalogs.hpp>
-#include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include "../render_graph/builder/passes/graph_builder_passes.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -28,15 +26,17 @@ void CompilerPassPipeline::add_default_passes() {
 graph::RenderGraph CompilerPassPipeline::build(
     const Scene& scene, graph::RenderGraphContext& context) {
     CHRONON_TRACE_SCOPE("chronon.compiler", "CompilerPassPipeline::build");
-    graph::wire_catalog_pointers(context, graph::builtin_pipeline_catalogs());
-
     graph::RenderGraph graph;
     graph::GraphBuildContext build_context;
     build_context.scene = &scene;
     build_context.render_ctx = &context;
     build_context.graph = &graph;
+    build_context.dependencies = graph::make_graph_build_dependencies(context, scene);
     build_context.cam25d = scene.camera_2_5d();
-    return run_passes(build_context);
+    context.build_dependencies = &build_context.dependencies;
+    auto result = run_passes(build_context);
+    context.build_dependencies = nullptr;
+    return result;
 }
 
 graph::RenderGraph CompilerPassPipeline::build_with_resolved(
@@ -45,17 +45,19 @@ graph::RenderGraph CompilerPassPipeline::build_with_resolved(
     const graph::GraphBuildContext::ResolvedData& resolved) {
     CHRONON_TRACE_SCOPE(
         "chronon.compiler", "CompilerPassPipeline::build_with_resolved");
-    graph::wire_catalog_pointers(context, graph::builtin_pipeline_catalogs());
-
     graph::RenderGraph graph;
     graph::GraphBuildContext build_context;
     build_context.scene = &scene;
     build_context.render_ctx = &context;
     build_context.graph = &graph;
+    build_context.dependencies = graph::make_graph_build_dependencies(context, scene);
     build_context.cam25d = scene.camera_2_5d();
     build_context.resolved = resolved;
     build_context.resolved_prepopulated = true;
-    return run_passes(build_context);
+    context.build_dependencies = &build_context.dependencies;
+    auto result = run_passes(build_context);
+    context.build_dependencies = nullptr;
+    return result;
 }
 
 graph::RenderGraph CompilerPassPipeline::run_passes(

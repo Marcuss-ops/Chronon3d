@@ -57,6 +57,7 @@ namespace media { class MediaFrameProvider; }
 
 namespace chronon3d::runtime {
 class RuntimeContext;
+class FrameExecution;
 }
 
 namespace chronon3d::runtime {
@@ -83,7 +84,8 @@ public:
     /// Executes only an immutable compiled composition. Authoring
     /// Composition values must be compiled before reaching this facade.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_compiled_composition(
-        const CompiledComposition& compiled, Frame frame);
+        const CompiledComposition& compiled, Frame frame,
+        FrameExecution* execution = nullptr);
 
     [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame);
@@ -94,7 +96,8 @@ public:
     [[nodiscard]] std::shared_ptr<Framebuffer> render_evaluated_composition(
         const CompiledComposition& compiled,
         const EvaluatedCompositionFrame& evaluated,
-        Frame frame);
+        Frame frame,
+        FrameExecution* execution = nullptr);
 
     // ── Scene/debug adapters ───────────────────────────────────────
     /// @deprecated Fase C3 — scene authoring adapter.

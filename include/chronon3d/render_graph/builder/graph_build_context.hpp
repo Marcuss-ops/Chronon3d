@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/model/render/resolved_types.hpp>
@@ -28,6 +29,7 @@ struct GraphBuildContext {
     const Scene*                      scene{nullptr};
     RenderGraphContext*               render_ctx{nullptr};   // mutable
     RenderGraph*                      graph{nullptr};
+    GraphBuildDependencies             dependencies{};
 
     // ── Resolved layer data (populated by resolve_layers or pre-populated)
     struct ResolvedData {

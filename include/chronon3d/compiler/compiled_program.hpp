@@ -3,6 +3,7 @@
 #include <chronon3d/compiler/compiled_node.hpp>
 #include <chronon3d/compiler/compiled_pass.hpp>
 #include <chronon3d/compiler/compiled_resource.hpp>
+#include <chronon3d/compiler/compiled_layer.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
 
 #include <cstdint>
@@ -56,6 +57,7 @@ struct ProgramFingerprint {
 struct CompiledProgramData {
     ProgramMetadata metadata;
     std::vector<CompiledNode> nodes;
+    std::vector<StaticLayerProgram> layers;
     std::vector<CompiledPass> passes;
     std::vector<ResourceBindingSpec> resources;
     std::vector<AnimationProgram> animations;
@@ -80,6 +82,7 @@ public:
 
     [[nodiscard]] const ProgramMetadata& metadata() const noexcept;
     [[nodiscard]] const std::vector<CompiledNode>& nodes() const noexcept;
+    [[nodiscard]] const std::vector<StaticLayerProgram>& layers() const noexcept;
     [[nodiscard]] const std::vector<CompiledPass>& passes() const noexcept;
     [[nodiscard]] const std::vector<ResourceBindingSpec>& resources() const noexcept;
     [[nodiscard]] const std::vector<AnimationProgram>& animations() const noexcept;

@@ -38,6 +38,7 @@
 namespace chronon3d {
 class SoftwareRenderer;  // sw_sidecar parameter for render_composition_frame
 struct RenderSettings;
+namespace runtime { class FrameExecution; }
 }
 
 namespace chronon3d::graph {
@@ -62,7 +63,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     media::MediaFrameProvider* video_decoder,
     float fps,
     std::string_view diagnostic_label = "scene",
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
+    chronon3d::runtime::FrameExecution* execution = nullptr
 );
 
 /**
@@ -100,7 +102,8 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame(
     media::MediaFrameProvider* video_decoder,
     const CompiledComposition& compiled,
     Frame frame,
-    chronon3d::SoftwareRenderer* sw_sidecar = nullptr
+    chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
+    chronon3d::runtime::FrameExecution* execution = nullptr
 );
 
 // ── Graph diagnostics ──────────────────────────────────────────────────────

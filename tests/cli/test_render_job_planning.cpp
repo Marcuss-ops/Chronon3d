@@ -290,7 +290,10 @@ void check_same_semantics(const JobRequest& cli, const JobRequest& ipc) {
     // part of the parity contract: the resolved backend is asserted by the
     // normalized fingerprint below. Only a payload-authored backend must
     // agree verbatim.
-    CHECK(ipc.backend == cli.backend || ipc.backend == "auto");
+    const bool backend_matches = ipc.backend == cli.backend;
+    const bool backend_is_auto = ipc.backend == "auto";
+    const bool backend_ok = backend_matches || backend_is_auto;
+    CHECK(backend_ok);
     CHECK(ipc.report == cli.report);
     CHECK(ipc.frame_range.has_value() == cli.frame_range.has_value());
     if (ipc.frame_range && cli.frame_range) {

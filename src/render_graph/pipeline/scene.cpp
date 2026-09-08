@@ -72,7 +72,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     float fps,
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    const TemporalRenderContext* temporal_context
+    const TemporalRenderContext* temporal_context,
+    chronon3d::runtime::FrameExecution* execution
 ) {
     CHRONON_TRACE_SCOPE("chronon.graph", "SceneTemporal");
     const auto t0 = profiling::now();
@@ -101,7 +102,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     auto ctx = make_graph_context(
         backend, *active_node_cache, camera, width, height, frame, frame_time,
         effective_settings, registry, video_decoder, fps,
-        temporal_context ? temporal_context->sample_key : TemporalSampleKey{});
+        temporal_context ? temporal_context->sample_key : TemporalSampleKey{},
+        execution);
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
     if (!ctx.node_exec.counters && sw_renderer && sw_renderer->counters()) {
@@ -117,6 +119,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         // catalogs, processor snapshot), but no sample state is published to
         // the main session.
         ctx.services.node_cache = active_node_cache;
+        // A temporal sub-sample owns an isolated session domain; it must not
+        // expose the parent frame lease to nodes that use the canonical
+        // execution root.
+        ctx.execution = nullptr;
         ctx.compiled_graph_cache = temporal_context->topology_cache;
         ctx.session = temporal_context->session;
         ctx.node_exec.buffer_ring = nullptr;
@@ -463,12 +469,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     media::MediaFrameProvider* video_decoder,
     float fps,
     std::string_view diagnostic_label,
-    chronon3d::SoftwareRenderer* sw_sidecar)
+    chronon3d::SoftwareRenderer* sw_sidecar,
+    chronon3d::runtime::FrameExecution* execution)
 {
     return render_scene_via_graph_temporal(
         backend, node_cache, scene, camera, width, height, frame, frame_time,
         settings, registry, video_decoder, fps, diagnostic_label, sw_sidecar,
-        nullptr);
+        nullptr, execution);
 }
 
 } // namespace chronon3d::graph

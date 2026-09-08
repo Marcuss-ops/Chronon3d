@@ -10,6 +10,7 @@
 #include <memory>
 #include <atomic>
 #include <cstdint>
+#include <stdexcept>
 
 namespace chronon3d::graph::detail {
 
@@ -73,7 +74,9 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     // the constructed node; in-place mutation was removed. Single id.
     for (const auto& effect : layer.effects()) {
         if (!effect.enabled) continue;
-        const auto* ec = ctx.services.effect_catalog;
+        const auto* ec = ctx.build_dependencies
+            ? ctx.build_dependencies->effect_catalog : nullptr;
+        if (!ec) throw std::logic_error("effect catalog not wired for graph build");
         GraphNodeId effect_id = graph.add_node(ec->create_node(effect), node_ctx);
         graph.connect(layer_output, effect_id);
         layer_output = effect_id;

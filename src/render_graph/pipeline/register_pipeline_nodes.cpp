@@ -19,6 +19,10 @@
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/builder/graph_build_context.hpp>
+#include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/runtime/context/runtime_context.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>
@@ -82,6 +86,27 @@ void register_pipeline_graph_nodes(GraphNodeCatalog& node_catalog) {
     });
 }
 
+GraphBuildDependencies make_graph_build_dependencies(
+    const RenderGraphContext& context, const Scene& scene) {
+    const auto& catalogs = builtin_pipeline_catalogs();
+    return GraphBuildDependencies{
+        .node_catalog = &catalogs.graph_nodes,
+        .effect_catalog = context.services.effect_catalog
+            ? context.services.effect_catalog : &catalogs.effects,
+        .transition_catalog = context.services.transition_catalog
+            ? context.services.transition_catalog : &catalogs.transition_catalog,
+        .precomp_builder = context.services.precomp_builder
+            ? context.services.precomp_builder : catalogs.precomp_builder.get(),
+        .composition_registry = context.services.registry,
+        .video_decoder = context.services.video_decoder,
+        .prepared_assets = context.runtime
+            ? context.runtime->prepared_assets_for(scene.asset_manifest())
+            : nullptr,
+        .registry_generation = context.registry_generation != 0
+            ? context.registry_generation : catalogs.registry_generation,
+    };
+}
+
 void populate_builtin_pipeline_catalogs(PipelineCatalogs& catalogs,
                                          ExtensionContext& ctx) {
     // ── Pipeline graph-node extension ────────────────────────────
@@ -134,21 +159,23 @@ void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& cata
     // with the shared builtin catalogs by the graph builder; overwriting the
     // owning runtime's generation here would make scene and compiled-graph
     // fingerprints disagree after a catalog revision.
-    if (ctx.services.registry_generation == 0) {
+    if (ctx.registry_generation == 0) {
         // Standalone graph callers may wire a backend without going through
         // scene_context_setup(). The backend-owned processor snapshot is the
         // canonical generation for compilation; using the pipeline catalog's
         // independent generation here would make a valid snapshot look stale.
         if (ctx.services.backend) {
             if (const auto snapshot = ctx.services.backend->processor_snapshot()) {
-                ctx.services.registry_generation = snapshot->generation();
+                ctx.registry_generation = snapshot->generation();
+                ctx.node_exec.processor_snapshot = snapshot;
             }
+            ctx.processor_snapshot_required =
+                ctx.services.backend->requires_processor_snapshot();
         }
-        if (ctx.services.registry_generation == 0) {
-            ctx.services.registry_generation = catalogs.registry_generation;
+        if (ctx.registry_generation == 0) {
+            ctx.registry_generation = catalogs.registry_generation;
         }
     }
-    ctx.services.node_catalog         = &catalogs.graph_nodes;
     ctx.services.effect_catalog       = &catalogs.effects;
     ctx.services.transition_catalog   = &catalogs.transition_catalog;
     // Wire the typed builder only when the caller hasn't already installed
@@ -157,6 +184,16 @@ void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& cata
     // call and the override will be preserved.
     if (ctx.services.precomp_builder == nullptr && catalogs.precomp_builder) {
         ctx.services.precomp_builder = catalogs.precomp_builder.get();
+    }
+}
+
+void wire_catalog_pointers(GraphBuildContext& ctx, const PipelineCatalogs& catalogs) {
+    ctx.dependencies.node_catalog = &catalogs.graph_nodes;
+    ctx.dependencies.effect_catalog = &catalogs.effects;
+    ctx.dependencies.transition_catalog = &catalogs.transition_catalog;
+    ctx.dependencies.precomp_builder = catalogs.precomp_builder.get();
+    if (ctx.dependencies.registry_generation == 0) {
+        ctx.dependencies.registry_generation = catalogs.registry_generation;
     }
 }
 

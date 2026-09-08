@@ -40,7 +40,6 @@ namespace chronon3d {
 
 struct PreparedRenderJob::Impl {
     RenderEngine* engine{nullptr};
-    std::shared_ptr<const CompiledComposition> compiled;
     bool finished{false};
 
     // JobSession is the sole owner of job-lifetime queues, slots, payloads,
@@ -62,8 +61,9 @@ PreparedRenderJob::PreparedRenderJob(PreparedRenderJob&&) noexcept = default;
 PreparedRenderJob& PreparedRenderJob::operator=(PreparedRenderJob&&) noexcept = default;
 
 Frame PreparedRenderJob::frame_count() const noexcept {
-    return m_impl && m_impl->compiled
-        ? m_impl->compiled->duration() : Frame{0};
+    return m_impl && m_impl->job_session && m_impl->job_session->legacy_composition()
+        && m_impl->job_session->legacy_composition()->composition
+        ? m_impl->job_session->legacy_composition()->composition->duration() : Frame{0};
 }
 
 const runtime::ResourcePlan& PreparedRenderJob::resource_plan() const noexcept {
@@ -75,7 +75,7 @@ const runtime::ResourcePlan& PreparedRenderJob::resource_plan() const noexcept {
 void PreparedRenderJob::finish() noexcept {
     if (!m_impl) return;
     m_impl->finished = true;
-    m_impl->compiled.reset();
+    if (m_impl->job_session) m_impl->job_session->reset_job();
 }
 
 struct RenderEngine::Impl {
