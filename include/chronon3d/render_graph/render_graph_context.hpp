@@ -86,6 +86,7 @@ namespace chronon3d { class DebugConfig; }
 #include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 
 namespace chronon3d {
+    namespace compiler { struct FrameParameterBlock; }
     class CompositionRegistry;
     struct RenderCounters;
     class Scene;
@@ -512,6 +513,10 @@ struct RenderGraphContext {
     /// direct pointers below remain only for standalone/preflight callers
     /// during the dependency-collapse migration.
     runtime::FrameExecution* execution{nullptr};
+    /// Borrowed typed frame parameters owned by the active FrameExecution
+    /// slot. Execution code must not resolve these through JobSession or an
+    /// authoring/evaluated composition compatibility payload.
+    const compiler::FrameParameterBlock* frame_parameters{nullptr};
     /// Non-owning build-only dependencies, valid only while a
     /// CompilerPassPipeline is running. Never retained by execution nodes.
     const GraphBuildDependencies* build_dependencies{nullptr};

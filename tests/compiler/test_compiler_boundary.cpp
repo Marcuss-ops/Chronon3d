@@ -178,6 +178,7 @@ TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
         CHECK(frame.job().job_id() == 42);
         CHECK(frame.payload() == &payload);
         CHECK(frame.arena() == &payload.arena);
+        CHECK(&frame.parameters() == &payload.parameters);
         CHECK(job.counters().frames_started == 1);
         CHECK_FALSE(frame.cancelled());
         frame.complete();

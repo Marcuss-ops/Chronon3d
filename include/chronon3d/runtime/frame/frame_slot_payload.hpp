@@ -9,6 +9,7 @@
 
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 
 #include <memory>
@@ -18,10 +19,16 @@ namespace chronon3d::runtime {
 
 struct FrameSlotPayload final {
     FrameArena arena{4u * 1024u * 1024u, true};
+    // Typed compiler output is frame-slot owned.  This is the handoff point
+    // for TypedProgramSampler -> GraphExecutor; it must not live in
+    // JobSession or in the legacy EvaluatedCompositionFrame compatibility
+    // payload.
+    compiler::FrameParameterBlock parameters{};
     std::optional<EvaluatedCompositionFrame> evaluated{};
     std::shared_ptr<Framebuffer> rendered{};
 
     void reset() noexcept {
+        parameters.layers.clear();
         evaluated.reset();
         rendered.reset();
         arena.reset();
