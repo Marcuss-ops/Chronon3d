@@ -47,6 +47,8 @@ sono coerenti.
 - [x] Wave 5.1 — il compiled executor accede al backend tramite il seam
   tipizzato `RenderGraphContext::execution_backend()` invece del bundle
   `RenderServices`.
+- [x] Wave 5.2 — il lifecycle executor dei framebuffer usa il seam tipizzato
+  `execution_framebuffer_pool()`.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura
