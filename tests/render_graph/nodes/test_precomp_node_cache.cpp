@@ -80,6 +80,7 @@ struct TestContext {
     GraphExecutor               local_executor;
     DefaultPrecompBuilder       precomp_builder_service;
     runtime::JobSession               session;
+    SceneProgramStore             store;
     ExecutionScheduler          scheduler;
     RenderGraphContext          ctx;
 
@@ -98,6 +99,7 @@ struct TestContext {
         ctx.services.framebuffer_pool = pool;
         ctx.services.registry        = &registry;
         ctx.session                  = &session;
+        ctx.program_store           = &store;
         ctx.scheduler               = &scheduler;
         // TICKET-010 — PrecompNode delegates compilation to the typed
         // PrecompBuilderService. Without this pointer the cache-miss
@@ -138,7 +140,7 @@ TEST_CASE("precomp_cache: cache hit returns same program on repeated execute") {
     REQUIRE(fb0.value()->width() == 200);
     REQUIRE(fb0.value()->height() == 200);
 
-    auto stats = tc.session.program_store().aggregate_stats();
+    auto stats = tc.store.aggregate_stats();
     CHECK(stats.misses == 1);
     CHECK(stats.hits == 0);
     CHECK(stats.current_size == 1);
@@ -147,7 +149,7 @@ TEST_CASE("precomp_cache: cache hit returns same program on repeated execute") {
     auto fb1 = precomp.execute(tc.ctx, {}, {});
     REQUIRE(fb1.has_value());
 
-    stats = tc.session.program_store().aggregate_stats();
+    stats = tc.store.aggregate_stats();
     CHECK(stats.misses == 1);       // still 1 miss
     CHECK(stats.hits >= 1);         // at least 1 hit
     CHECK(stats.current_size == 1); // still 1 entry
@@ -163,21 +165,21 @@ TEST_CASE("precomp_cache: different frame with same structure → cache hit") {
     // Frame 0 → miss
     tc.set_frame(Frame{0});
     precomp.execute(tc.ctx, {}, {});
-    auto stats0 = tc.session.program_store().aggregate_stats();
+    auto stats0 = tc.store.aggregate_stats();
     CHECK(stats0.misses == 1);
     CHECK(stats0.hits == 0);
 
     // Frame 1 → hit (structure unchanged)
     tc.set_frame(Frame{1});
     precomp.execute(tc.ctx, {}, {});
-    auto stats1 = tc.session.program_store().aggregate_stats();
+    auto stats1 = tc.store.aggregate_stats();
     CHECK(stats1.misses == 1);
     CHECK(stats1.hits >= 1);
 
     // Frame 2 → hit again
     tc.set_frame(Frame{2});
     precomp.execute(tc.ctx, {}, {});
-    auto stats2 = tc.session.program_store().aggregate_stats();
+    auto stats2 = tc.store.aggregate_stats();
     CHECK(stats2.misses == 1);
     CHECK(stats2.hits >= 2);
 }
@@ -197,7 +199,7 @@ TEST_CASE("precomp_cache: different composition name triggers recompile") {
     {
         PrecompNode precomp("comp_a", Frame{0}, Frame{60}, Frame{-1}, policy);
         precomp.execute(tc.ctx, {}, {});
-        auto stats = tc.session.program_store().aggregate_stats();
+        auto stats = tc.store.aggregate_stats();
         CHECK(stats.misses == 1);
     }
 
@@ -205,7 +207,7 @@ TEST_CASE("precomp_cache: different composition name triggers recompile") {
     {
         PrecompNode precomp("comp_b", Frame{0}, Frame{60}, Frame{-1}, policy);
         precomp.execute(tc.ctx, {}, {});
-        auto stats = tc.session.program_store().aggregate_stats();
+        auto stats = tc.store.aggregate_stats();
         CHECK(stats.misses == 2);  // two instances, two misses
     }
 }
@@ -249,7 +251,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
     // the capacity-2 cache, so at least one eviction is expected. Sharding
     // may choose a different victim distribution on another hash platform;
     // the invariant is that the callback observes an eviction.
-    tc.session.program_store().acquire(
+    tc.store.acquire(
         precomp.instance_key_default(),
         SceneStructureKey{1, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
@@ -258,7 +260,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
             p->frame_graph.valid = true;
             return p;
         });
-    tc.session.program_store().acquire(
+    tc.store.acquire(
         precomp.instance_key_default(),
         SceneStructureKey{2, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
@@ -271,7 +273,7 @@ TEST_CASE("precomp_cache: eviction callback fires on inner cache evict") {
     const int evictions_after_two = evict_count;
 
     // Insert 3rd entry → evicts LRU.
-    tc.session.program_store().acquire(
+    tc.store.acquire(
         precomp.instance_key_default(),
         SceneStructureKey{3, 0, 0, 80, 80, 1}, policy,
         []() -> std::unique_ptr<CompiledSceneProgram> {
@@ -291,7 +293,7 @@ TEST_CASE("precomp_cache: no crash when eviction callback not set") {
     PrecompNode precomp("inner", Frame{0}, Frame{60}, Frame{-1}, policy);
     // Don't set any callback — should not crash on eviction
     precomp.execute(tc.ctx, {}, {});
-    auto stats = tc.session.program_store().aggregate_stats();
+    auto stats = tc.store.aggregate_stats();
     CHECK(stats.hits == 0);
     CHECK(stats.misses == 1);
 }
@@ -336,7 +338,7 @@ TEST_CASE("precomp_cache: 10 frames with same structure → 1 compile") {
         precomp.execute(tc.ctx, {}, {});
     }
 
-    auto stats = tc.session.program_store().aggregate_stats();
+    auto stats = tc.store.aggregate_stats();
     CHECK(stats.misses == 1);       // compiled only once
     CHECK(stats.hits >= 9);         // 9 subsequent hits
     CHECK(stats.current_size == 1); // single entry
@@ -357,14 +359,14 @@ TEST_CASE("precomp_cache: nested_frame past duration returns empty") {
     tc.set_frame(Frame{0});
     auto fb0 = precomp.execute(tc.ctx, {}, {});
     REQUIRE(fb0.has_value());
-    auto stats0 = tc.session.program_store().aggregate_stats();
+    auto stats0 = tc.store.aggregate_stats();
     CHECK(stats0.misses == 1);
 
     // Frame 30 → past duration → empty
     tc.set_frame(Frame{30});
     auto fb30 = precomp.execute(tc.ctx, {}, {});
     REQUIRE(fb30.has_value());
-    auto stats30 = tc.session.program_store().aggregate_stats();
+    auto stats30 = tc.store.aggregate_stats();
     CHECK(stats30.misses == 1);  // no new cache activity
 
     // Frame 31 → also past duration
@@ -389,7 +391,7 @@ TEST_CASE("precomp_cache: negative nested_frame returns empty") {
     tc.set_frame(Frame{10});
     fb = precomp.execute(tc.ctx, {}, {});
     REQUIRE(fb.has_value());
-    auto stats = tc.session.program_store().aggregate_stats();
+    auto stats = tc.store.aggregate_stats();
     CHECK(stats.misses == 1);
 }
 
