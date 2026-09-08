@@ -132,7 +132,8 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         m_renderer->render_settings(), m_renderer->composition_registry(),
         m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),
-        metadata.job_id, m_renderer, nullptr, &frame_parameters);
+        metadata.job_id, m_renderer, nullptr, &frame_parameters,
+        program.fingerprint());
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(

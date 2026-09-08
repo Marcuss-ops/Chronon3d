@@ -75,7 +75,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     chronon3d::SoftwareRenderer* sw_sidecar,
     const TemporalRenderContext* temporal_context,
     chronon3d::runtime::FrameExecution* execution,
-    const chronon3d::compiler::FrameParameterBlock* frame_parameters
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters,
+    std::uint64_t program_fingerprint
 ) {
     CHRONON_TRACE_SCOPE("chronon.graph", "SceneTemporal");
     const auto t0 = profiling::now();
@@ -106,6 +107,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         effective_settings, registry, video_decoder, fps,
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{},
         execution, frame_parameters);
+    ctx.program_fingerprint = program_fingerprint;
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
     if (!ctx.node_exec.counters && sw_renderer && sw_renderer->counters()) {
@@ -477,12 +479,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
     chronon3d::runtime::FrameExecution* execution,
-    const chronon3d::compiler::FrameParameterBlock* frame_parameters)
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters,
+    std::uint64_t program_fingerprint)
 {
     return render_scene_via_graph_temporal(
         backend, node_cache, scene, camera, width, height, frame, frame_time,
         settings, registry, video_decoder, fps, diagnostic_label, sw_sidecar,
-        nullptr, execution, frame_parameters);
+        nullptr, execution, frame_parameters, program_fingerprint);
 }
 
 } // namespace chronon3d::graph
