@@ -7,6 +7,11 @@
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
+namespace chronon3d {
+class Scene;
+struct FrameContext;
+}
+
 namespace chronon3d::compiler {
 
 /// Samples an immutable program at a frame boundary.
@@ -16,6 +21,12 @@ public:
     sample(const CompiledProgram& program,
            const CompositionEvaluateContext& context,
            Frame frame) const;
+
+    /// Typed execution seam: materialize only the render scene required by
+    /// graph execution, without allocating an EvaluatedCompositionFrame.
+    [[nodiscard]] chronon3d::Scene sample_scene(const CompiledProgram& program,
+                                      const chronon3d::FrameContext& context,
+                                      Frame frame) const;
 
     [[nodiscard]] FrameParameterBlock
     sample(const CompiledProgram& program, Frame frame) const;

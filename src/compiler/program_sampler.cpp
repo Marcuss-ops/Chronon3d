@@ -15,11 +15,18 @@ Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 ProgramSampler::sample(const CompiledProgram& program,
                        const CompositionEvaluateContext& context,
                        Frame frame) const {
+    EvaluatedCompositionFrame result(context.frame_context.resource);
+    result.scene = sample_scene(program, context.frame_context, frame);
+    return result;
+}
+
+chronon3d::Scene ProgramSampler::sample_scene(
+    const CompiledProgram& program,
+    const chronon3d::FrameContext& context,
+    Frame frame) const {
     const auto frame_params = TypedProgramSampler{}.sample(program, frame);
     const auto& meta = program.metadata();
-
-    EvaluatedCompositionFrame result(context.frame_context.resource);
-    SceneBuilder scene(context.frame_context.resource);
+    SceneBuilder scene(context.resource);
 
     const auto& layers = program.layers();
     for (std::size_t i = 0; i < layers.size(); ++i) {
@@ -73,8 +80,7 @@ ProgramSampler::sample(const CompiledProgram& program,
         });
     }
 
-    result.scene = scene.build();
-    return result;
+    return scene.build();
 }
 
 }  // namespace chronon3d::compiler

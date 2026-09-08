@@ -113,20 +113,9 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         .font_engine = &m_runtime.font_engine(),
         .runtime = &m_runtime,
     });
-    const auto evaluated = compiler::ProgramSampler{}.sample(
-        program, CompositionEvaluateContext{.frame_context = context}, frame);
-    if (!evaluated) {
-        throw std::runtime_error(
-            "CompiledProgram sampling failed: " + evaluated.error().message);
-    }
-    const auto& sampled = evaluated.value();
-    const Scene* scene = &sampled.scene;
-    std::optional<Scene> camera_scene;
-    if (sampled.camera) {
-        camera_scene.emplace(sampled.scene.clone());
-        camera_scene->set_camera_2_5d(*sampled.camera);
-        scene = &*camera_scene;
-    }
+    const Scene sampled = compiler::ProgramSampler{}.sample_scene(
+        program, context, frame);
+    const Scene* scene = &sampled;
     return chronon3d::graph::render_scene_via_graph(
         m_runtime.backend(), m_runtime.node_cache(), *scene, Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
