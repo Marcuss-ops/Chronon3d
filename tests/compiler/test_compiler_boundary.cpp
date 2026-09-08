@@ -33,6 +33,8 @@ TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     CHECK(program.metadata().job_id == "compiler-boundary");
     CHECK(program.metadata().width == 1920);
     CHECK(program.metadata().height == 1080);
+    CHECK(program.metadata().output.path.empty());
+    CHECK(program.metadata().asset_manifest.assets().empty());
     // Wave 2: the retained legacy composition is reachable only through the
     // internal compiler plan bridge (equivalence-baseline check).
     CHECK(chronon3d::compiler::detail::compiled_composition(program).composition
@@ -51,6 +53,8 @@ chronon3d::render_plan::RenderPlan test_plan() {
     plan.canvas.width = 1920;
     plan.canvas.height = 1080;
     plan.canvas.duration = chronon3d::Frame{24};
+    plan.output.path = "compiler-boundary.mp4";
+    plan.output.bitrate = 4'000'000;
 
     chronon3d::render_plan::LayerPlan layer;
     layer.id = "animated-color";
@@ -84,6 +88,8 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     const auto prepared = std::move(legacy).value();
     CHECK(program.metadata().width == 1920);
     CHECK(program.metadata().height == 1080);
+    CHECK(program.metadata().output.path == "compiler-boundary.mp4");
+    CHECK(program.metadata().output.bitrate == 4'000'000);
     CHECK(program.nodes().size() == 1);
     CHECK(program.nodes().front().kind == chronon3d::compiler::NodeKind::Color);
     CHECK(program.animations().size() == 1);
@@ -92,6 +98,7 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     CHECK(program.curve_keyframes().empty());
     CHECK(program.passes().size() == 1);
     CHECK(program.passes().front().node_count == 1);
+    CHECK(program.metadata().render_budget.max_width == plan.budget.max_width);
     CHECK(chronon3d::compiler::detail::compiled_composition(program).fingerprint
           == prepared.compiled_composition.fingerprint);
 

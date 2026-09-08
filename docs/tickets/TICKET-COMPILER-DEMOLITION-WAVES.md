@@ -26,6 +26,9 @@ sono coerenti.
   resolver per gli executor ancora non migrati.
 - [x] Wave 3 — `CompiledProgram` immutable con topology, parameters e
   fingerprint esposti dalla compiler boundary.
+- [x] Wave 3 — `ProgramMetadata` owns the output contract, prepared-asset
+  manifest, request/content digests and admission budget; its public header
+  no longer includes a `render_plan/*` header.
 - [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
   `CompiledComposition` come payload dell’executor.
@@ -60,6 +63,8 @@ sono coerenti.
   sources/targets e compatibility payload non più referenziati.
 - Status: `ACTIVE` for the remaining Wave 1/2/3 compatibility payloads and
   execution callers; Wave 4 graph facade demolition/caller census is closed.
+  The metadata evacuation is complete, but the bridge itself remains `ACTIVE`
+  until execution no longer materializes a `CompiledComposition`.
 
 ## Verified residual census — `be14cbd86`
 

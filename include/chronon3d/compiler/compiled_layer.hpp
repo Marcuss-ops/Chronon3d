@@ -16,6 +16,7 @@ enum class LayerFitMode : std::uint8_t { Cover, Contain, Stretch, None };
 struct StaticLayerProgram {
     NodeId id{0};
     NodeKind kind{NodeKind::Unknown};
+    std::string name;
     std::string asset;
     std::string source;
     std::string text;
