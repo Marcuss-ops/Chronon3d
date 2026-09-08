@@ -19,6 +19,7 @@
 #include <doctest/doctest.h>
 
 #include <apps/chronon3d_cli/utils/video/video_sink_encoders.hpp>
+#include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
 #include <apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -75,6 +76,16 @@ namespace {
 }
 
 } // anonymous namespace
+
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+TEST_CASE("native encoder request fails closed when libav support is disabled") {
+    FfmpegExportOptions options;
+    options.encoder.encoder_backend = "native";
+    options.sink.sink_type = VideoSinkType::Ffmpeg;
+
+    CHECK(create_video_encoder(options) == nullptr);
+}
+#endif
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // NullRenderEncoder — lightweight counter, no conversion or I/O

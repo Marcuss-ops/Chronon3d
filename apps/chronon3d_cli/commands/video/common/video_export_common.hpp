@@ -47,8 +47,8 @@ bool ffmpeg_in_path();
 /// The in-process `native` libavcodec encoder must NOT depend on the external
 /// ffmpeg executable — only the separate output-verification capability
 /// (ffprobe / full-decode) may.  When native support is disabled at build
-/// time, the "native" backend silently falls back to the pipe encoder
-/// (see create_video_encoder), so ffmpeg is still required in that case.
+/// time, an explicit "native" request is rejected by create_video_encoder;
+/// it never falls back to the pipe encoder.
 bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend);
 
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt);

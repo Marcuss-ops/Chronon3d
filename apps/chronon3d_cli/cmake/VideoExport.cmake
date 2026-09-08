@@ -39,6 +39,11 @@ target_include_directories(chronon3d_cli_video_export PRIVATE
 )
 target_link_libraries(chronon3d_cli_video_export PRIVATE
     chronon3d
+    # This target calls the temporal graph pipeline directly from
+    # pipe_export_stages.cpp. Keep the graph execution authority explicit so
+    # OBJECT-library propagation does not leave composition.cpp out of the
+    # final CLI/test link.
+    chronon3d_graph
     chronon3d_media_direct_yuv
     CLI11::CLI11
     spdlog::spdlog_header_only
