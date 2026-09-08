@@ -17,17 +17,17 @@ Audit baseline supplied by the user: Chronon3D `79dda0c41284225bcf40b70be75533e4
 | Z7 — certification instrumentation | In progress — upload-byte windows emitted and verified by gate | Report emits separate prewarm and steady-state windows, including upload-byte semantics and canary counters. |
 | Wave 13 — certificate aggregation | In progress — SHA/upstream/clean-tree fields added | Aggregator records one fixed SHA and consumes architecture, correctness, zero-copy, and report evidence. Same-SHA CI remains an external gate until pushed/green. |
 | Wave 0 — same-SHA CI | Open / external | One fixed pushed SHA has green build, tests, sanitizers, resource-leak, native-video, architecture, and zero-copy workflows. |
-| Wave 1 — compiler authority | Open — second root remains | `Compiler::compile` no longer routes through `render_plan::compile_render_plan`; compiler target owns its source boundary. |
-| Wave 2 — pure `CompiledProgram` | Open — bridge remains | Remove `PreparedRenderPlan`/`CompiledComposition` bridge from compiler/runtime execution. |
+| Wave 1 — compiler authority | In progress — typed root is canonical; legacy API remains for C ABI/tests | `Compiler::compile` no longer routes through `render_plan::compile_render_plan`; remaining legacy render-plan API has an explicit compatibility owner/removal gate. |
+| Wave 2 — pure `CompiledProgram` | In progress — typed IR is pure; composition adapter remains | Runtime production entry points consume `CompiledProgram`; remove the remaining `CompiledComposition` adapter only where an equivalent typed source exists. |
 | Wave 4 — pure frame lifetime | Open | Move frame-local state out of `JobSession` into leased `FrameSlotPayload`/`FrameExecution`. |
 | Wave 5 — service locator demolition | Open | Remove `RenderServices` and duplicate raw dependency bundles from runtime graph execution. |
 | Wave 6 — text cache SSOT | Preserved green | RuntimeContext remains the single bounded text-layout cache owner. |
-| Wave 7 — Scene/timeline evacuation | Open | No `SceneHasher`/`SceneProgramStore`/`EvaluatedCompositionFrame` in the runtime frame path. |
-| Wave 8 — RenderEngine demolition | Open | `PreparedRenderJob` becomes a thin handle; execution coordination belongs to the canonical pipeline. |
+| Wave 7 — Scene/timeline evacuation | Open — blocked by arbitrary `Composition::SceneFunction` adapter | No `SceneHasher`/`SceneProgramStore`/`EvaluatedCompositionFrame` in the runtime frame path; do not fake this by sampling one frame. |
+| Wave 8 — RenderEngine demolition | Open — depends on Wave 7 typed Composition lowering | `PreparedRenderJob` becomes a thin handle; execution coordination belongs to the canonical pipeline. |
 | Wave 9 — CLI/IPC parity | Preserved green | Normalize and resolve exactly once at the transport boundary. |
 | Wave 10 — observability ownership | Verified cross-repo at supplied SHA | RenderingGen `3c4de1ec...` already preserves the raw timing sidecar opaquely; Chronon now emits explicit prewarm/steady-state windows. |
 | Wave 11 — configured architecture gates | In progress — codemodel checker added | `check_architecture.py --build-dir` reads the configured File API target graph; CI requests the codemodel before configure. |
-| Wave 12 — CMake DAG demolition | In progress — configured source gate added | Compiler target no longer owns/link-loads legacy render-plan/graph facades; configured codemodel now reports legacy graph source ownership. |
+| Wave 12 — CMake DAG demolition | In progress — physical source relocation applied; gate/build deferred | Compiler-owned graph translation units now live under `src/compiler/**`; configured codemodel must verify zero legacy source ownership and the residual header/API facade still needs a removal decision. |
 | Final verification/build | Deferred | Only after all implementation work: configure with `ccache` and `mold` when available, build with `-j20`, run CPU suites, then GPU-host gates where available. |
 
 ## Change log
@@ -59,6 +59,9 @@ Audit baseline supplied by the user: Chronon3D `79dda0c41284225bcf40b70be75533e4
 - Final CPU test run was interrupted after 25/80 tests by the user; before interruption, the core suite failed 24 font-corpus cases because the referenced fonts are absent, backend-registry failed one barrier assertion, and the compiler boundary gate found a forbidden legacy name in a comment. The comment-only false positive is removed; the functional failures remain open.
 - Refined the compiler sampler comment to avoid the boundary gate's `runtime/` token matcher; the targeted compiler boundary test must be rerun after the final commit.
 - Found and fixed a configured-CMake gate bug: target source rules now read each target's File API detail JSON instead of the codemodel summary, so legacy compiler-owned sources cannot pass silently. This requires a follow-up commit/push.
+- Physically relocated the 19 compiler-owned graph translation units from `src/render_graph/{builder,compiler,optimizer}` into `src/compiler/{graph_builder,graph_compiler,optimizer}` and updated CMake/include ownership. No build was run yet by policy.
+- Removed stale `CompiledProgram` bridge wording and corrected the render-graph pipeline header to describe the typed production adapter accurately.
+- Audited the remaining Wave 7/8 bridge: `RenderEngine::prepare(Composition)` still accepts an arbitrary per-frame `SceneFunction`, while `CompiledProgram` currently compiles `RenderPlan`; a one-frame projection would be semantically invalid, so this remains an explicit typed-lowering prerequisite rather than a compatibility hack.
 
 ## Resource policy
 

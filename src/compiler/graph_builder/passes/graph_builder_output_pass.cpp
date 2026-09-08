@@ -1,5 +1,5 @@
 #include "graph_builder_passes.hpp"
-#include "../graph_builder_pipeline.hpp"
+#include "graph_builder_pipeline.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/render_graph/nodes/composite_node.hpp>

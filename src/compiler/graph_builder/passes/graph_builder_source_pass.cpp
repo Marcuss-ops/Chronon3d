@@ -1,6 +1,6 @@
 #include "graph_builder_source_pass.hpp"
-#include "../graph_builder_coordinates.hpp"
-#include "../evaluated_layer_placement.hpp"
+#include "graph_builder_coordinates.hpp"
+#include "evaluated_layer_placement.hpp"
 
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 
