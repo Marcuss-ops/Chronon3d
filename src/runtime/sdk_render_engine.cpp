@@ -20,7 +20,6 @@
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
-#include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
