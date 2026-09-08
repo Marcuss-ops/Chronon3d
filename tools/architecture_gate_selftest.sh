@@ -146,6 +146,23 @@ EOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────
+# Case 5 — forbidden_include catches a render-plan dependency in the frozen
+# compiler output header.
+# ─────────────────────────────────────────────────────────────────────────
+case5_forbidden_include() {
+    write_file "$1" "rules.toml" <<'EOF'
+[[forbidden_include]]
+name = "selftest_compiled_program_no_render_plan_include"
+patterns = ['#include\\s*[<\"]chronon3d/render_plan/']
+scan_paths = ["include/chronon3d/compiler/compiled_program.hpp"]
+skip_comments = true
+EOF
+    write_file "$1" "include/chronon3d/compiler/compiled_program.hpp" <<'EOF'
+#include <chronon3d/render_plan/render_budget.hpp>
+EOF
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # Cases 9/10 — cmake_dag rule kind (Phase 11/12): forbidden_target fires on a
 # recreated facade, forbidden_edge fires on a leaf -> aggregate link.
 # ─────────────────────────────────────────────────────────────────────────
@@ -291,6 +308,7 @@ expect_fail case1_forbidden_symbol case1_forbidden_symbol
 expect_fail case2_occurrence_cap case2_occurrence_cap
 expect_fail case3_contract_missing case3_contract_missing
 expect_fail case4_unique_owner case4_unique_owner
+expect_fail case5_forbidden_include case5_forbidden_include
 
 # Real wave9 fragment: compliant tree passes, each single reintroduction fails.
 expect_pass case5_wave9_compliant wave9_mirror

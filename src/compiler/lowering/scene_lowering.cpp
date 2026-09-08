@@ -18,6 +18,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
         lowered.id = i;
+        lowered.name = layer.id;
         lowered.kind = kind;
         lowered.asset = layer.asset;
         lowered.source = layer.source;

@@ -37,6 +37,14 @@ scan_paths = ["include", "src", "apps", "tests"]
 skip_comments = true
 hint = "Callers needing the retained legacy plan use chronon3d::compiler::detail::prepared_plan(program) / detail::compiled_composition(program) — free-function form, no dot/arrow. Any dot/arrow call site is a reintroduced CompiledProgram accessor dependency."
 
+[[forbidden_include]]
+name = "compiled_program_public_header_no_render_plan_include"
+description = "Wave 2: CompiledProgram's frozen public IR must not expose render-plan headers"
+patterns = ['#include\\s*[<\"]chronon3d/render_plan/']
+scan_paths = ["include/chronon3d/compiler/compiled_program.hpp"]
+skip_comments = true
+hint = "Lower output, asset-manifest and budget data into ProgramMetadata. A render-plan include here makes every typed-program consumer depend on authoring input types."
+
 [[contract]]
 name = "compiled_program_plan_bridge_canonical"
 description = "Wave 2: the internal plan-bridge header must exist with its friendship gate and Demolition Debt card"

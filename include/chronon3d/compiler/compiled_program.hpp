@@ -4,30 +4,14 @@
 #include <chronon3d/compiler/compiled_pass.hpp>
 #include <chronon3d/compiler/compiled_resource.hpp>
 #include <chronon3d/compiler/compiled_layer.hpp>
-#include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-namespace chronon3d {
-struct CompiledComposition;
-namespace render_plan {
-struct PreparedRenderPlan;
-}
-}
-
 namespace chronon3d::compiler {
-
-/// Internal plan bridge (Wave 2 demolition seam).  See
-/// `<chronon3d/compiler/detail/compiled_program_plan_bridge.hpp>`.
-/// Declared here so `CompiledProgram` can grant friendship; defined only in
-/// the implementation (src/compiler/compiled_program.cpp).  Not part of the
-/// SDK public surface and never installed.
-namespace detail {
-class CompiledProgramPlanBridge;
-}  // namespace detail
 
 /// Immutable result of the compiler boundary.
 ///
@@ -38,6 +22,34 @@ class CompiledProgramPlanBridge;
 /// still run on the legacy plan reach it exclusively through the internal
 /// bridge above (demolition debt — see the bridge header's debt card).
 struct ProgramMetadata {
+    /// Compiler-owned copy of the output contract.  Keep this numeric so the
+    /// frozen program header does not expose render-plan authoring types.
+    struct OutputSpec {
+        std::string path;
+        std::uint8_t format{0};
+        std::uint8_t codec{0};
+        std::uint8_t rate_control{0};
+        std::int64_t bitrate{0};
+        std::int32_t crf{0};
+        std::int32_t qp{-1};
+        std::string profile_id;
+    };
+
+    /// Admission limits copied at the compiler boundary.  This mirrors the
+    /// value contract, rather than retaining a render-plan object.
+    struct RenderBudget {
+        std::uint32_t max_width{7680};
+        std::uint32_t max_height{4320};
+        std::uint64_t max_total_pixels{7680ULL * 4320ULL};
+        std::uint64_t max_frames{1'000'000};
+        std::uint32_t max_layers{1024};
+        std::uint64_t max_text_bytes{4ULL * 1024ULL * 1024ULL};
+        std::uint64_t max_asset_reference_bytes{1ULL * 1024ULL * 1024ULL};
+        std::uint64_t max_estimated_output_bytes{4ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL};
+        std::uint64_t max_peak_memory_bytes{2ULL * 1024ULL * 1024ULL * 1024ULL};
+        std::uint64_t max_temporal_pixels{128ULL * 1024ULL * 1024ULL};
+    };
+
     std::string schema;
     std::string job_id;
     std::uint32_t width{0};
@@ -45,12 +57,19 @@ struct ProgramMetadata {
     std::int64_t duration_frames{0};
     std::int32_t fps_numerator{0};
     std::int32_t fps_denominator{1};
-    render_plan::RenderBudget render_budget{};
+    OutputSpec output{};
+    std::string assets_root;
+    assets::PreparedAssetManifest asset_manifest{};
+    assets::ContentDigest content_digest{};
+    assets::ContentDigest request_digest{};
+    RenderBudget render_budget{};
 };
 
 struct ProgramFingerprint {
     std::uint64_t digest{0};
     std::uint32_t algorithm_version{1};
+    assets::ContentDigest content_digest{};
+    assets::ContentDigest request_digest{};
 };
 
 /// Mutable assembly buffer used only between compiler passes.
@@ -98,19 +117,11 @@ public:
 
 private:
     explicit CompiledProgram(
-        std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan,
         std::shared_ptr<const CompiledProgramData> data);
 
-    // Wave 2-9 migration debt: the legacy prepared plan is retained (and
-    // owned for the program's lifetime) so the equivalence/execution seams
-    // that still run on CompiledComposition keep working.  There is NO
-    // public accessor — reach it only via detail::CompiledProgramPlanBridge
-    // (see include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp).
-    std::shared_ptr<const render_plan::PreparedRenderPlan> prepared_plan_;
     std::shared_ptr<const CompiledProgramData> data_;
 
     friend class Compiler;
-    friend class detail::CompiledProgramPlanBridge;
 };
 
 }  // namespace chronon3d::compiler
