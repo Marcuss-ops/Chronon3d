@@ -39,7 +39,7 @@ void execute_single_node(
     }
 
     if (id < compiled.nodes.size() && compiled.nodes[id].lowered_into_batch &&
-        ctx.services.backend && ctx.services.backend->is_batching_supported()) {
+        ctx.execution_backend() && ctx.execution_backend()->is_batching_supported()) {
         const CompiledLayerBatch* batch_for_root = nullptr;
         for (const auto& b : compiled.program.layer_batches) {
             if (b.is_gpu_fused && b.root_node == id) {
