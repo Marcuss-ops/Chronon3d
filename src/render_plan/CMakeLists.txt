@@ -10,8 +10,16 @@ add_library(chronon3d_render_plan OBJECT
     fingerprint.cpp
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
+    render_plan_compiler.cpp
+    render_plan_compiler_animation.cpp
+    render_plan_compiler_text.cpp
+    render_plan_compiler_fingerprint.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
+set_source_files_properties(
+    render_plan_compiler.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
+)
 
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v2.schema.json)
@@ -34,6 +42,8 @@ target_link_libraries(chronon3d_render_plan
         nlohmann_json::nlohmann_json
         nlohmann_json_schema_validator::validator
         chronon3d_core_impl
+    PRIVATE
+        spdlog::spdlog_header_only
 )
 
 # Propagation: chronon3d_render_plan is intentionally NOT linked into
