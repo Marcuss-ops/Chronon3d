@@ -7,6 +7,7 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include "../builder/graph_builder_coordinates.hpp"
 #include "refresh/layer_item.hpp"
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
@@ -311,7 +312,23 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     return topology_mismatch("transform graph node has an invalid concrete implementation at node " + std::to_string(id));
                 }
                 auto prepared = std::make_unique<TransformNode>(*transform_node);
-                refresh_transform_node(*prepared, resolved_by_name, ctx);
+                bool typed_applied = false;
+                if (ctx.frame_parameters &&
+                    compiled.nodes[node_id].binding_meta.has_binding()) {
+                    const auto layer_index = compiled.nodes[node_id].binding_meta.layer_index;
+                    const auto& typed_layers = ctx.frame_parameters->layers;
+                    if (layer_index < typed_layers.size()) {
+                        const auto& parameters = typed_layers[layer_index];
+                        if (parameters.active) {
+                            prepared->set_matrix(parameters.matrix);
+                            prepared->set_opacity(parameters.opacity);
+                            typed_applied = true;
+                        }
+                    }
+                }
+                if (!typed_applied) {
+                    refresh_transform_node(*prepared, resolved_by_name, ctx);
+                }
                 patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
