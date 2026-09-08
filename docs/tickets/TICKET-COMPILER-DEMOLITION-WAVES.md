@@ -1,6 +1,7 @@
 # Compiler Demolition Waves — Wave 1–4
 
-Status: `ACTIVE`
+Status: `ACTIVE` (verified against `be14cbd86`; Waves 1/2/3/4 execution
+demolition remains open)
 
 Obiettivo: lasciare una sola authority per execution, job normalization,
 compiler output e graph lowering, senza introdurre una seconda pipeline
@@ -28,8 +29,10 @@ sono coerenti.
 - [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
   `CompiledComposition` come payload dell’executor.
-- [x] Wave 3 — il runtime passa dal `ProgramSampler` canonico; l’accesso alla
-  composizione legacy è confinato all’implementazione transitoria del sampler.
+- [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
+  `ProgramSampler` attuale è ancora un adapter verso
+  `detail::compiled_composition(program)` e quindi non costituisce la chiusura
+  typed della wave.
 - [x] Wave 4 — target CMake separati di render-plan/graph builder/graph
   compiler assorbiti nel target `chronon3d_compiler`.
 - [x] Wave 4 — `graph_compile.hpp` pubblico e free facade rimossi; il graph
@@ -39,8 +42,10 @@ sono coerenti.
 - [x] Wave 4 — `GraphBuildPipeline` è stato assorbito in
   `compiler::CompilerPassPipeline`; header, source e simbolo/path legacy sono
   stati rimossi.
-- [ ] Wave 4 — census finale: nessun caller production indipendente di
-  `build_graph`, `compile_frame_graph` o `compile_render_plan`.
+- [x] Wave 4 — census finale: nessun caller production indipendente di
+  `build_graph`, `compile_frame_graph` o `compile_render_plan` (verified
+  2026-09-08 across `src/`, `apps/`, and `include/`; remaining matches are
+  declarations, comments, compiler-root ownership, or tests).
 
 ## Demolition debt
 
@@ -53,7 +58,26 @@ sono coerenti.
   request parity, targeted render-graph tests e build `linux-fast-dev`.
 - Removal scope: legacy CLI adapter, public graph facade, obsolete CMake
   sources/targets e compatibility payload non più referenziati.
-- Status: `ACTIVE`.
+- Status: `ACTIVE` for the remaining Wave 1/2/3 compatibility payloads and
+  execution callers; Wave 4 graph facade demolition/caller census is closed.
+
+## Verified residual census — `be14cbd86`
+
+The following are deliberate blockers, not documentation debt:
+
+- `src/compiler/compiler.cpp` still calls `render_plan::compile_render_plan`
+  and stores `PreparedRenderPlan` in `CompiledProgram`.
+- `src/compiler/CMakeLists.txt` still owns render-plan and graph-builder
+  compatibility translation units and links `chronon3d_render_plan`.
+- `src/compiler/program_sampler.cpp` still reaches
+  `detail::compiled_composition(program)`.
+- `EvaluatedCompositionFrame`, `SceneProgramStore`, `SceneHasher`, and
+  `RenderServices` still cross the runtime execution boundary.
+
+`TypedProgramSampler` is present and boundary-tested, but is not yet a
+production execution authority. No wave may be marked closed until the typed
+parameter block is consumed by the graph executor and the legacy bridge is
+deleted.
 
 ## Verification snapshot
 
