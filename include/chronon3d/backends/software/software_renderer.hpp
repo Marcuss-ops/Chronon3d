@@ -159,10 +159,10 @@ public:
     [[nodiscard]] const FrameHistory& frame_history() const      { return m_session.common.frame_history; }
     [[nodiscard]] DirtyHistory& dirty_telemetry()                { return m_session.common.dirty_telemetry; }
     [[nodiscard]] const DirtyHistory& dirty_telemetry() const    { return m_session.common.dirty_telemetry; }
-    [[nodiscard]] chronon3d::graph::SceneHasher& scene_hasher()  { return m_session.common.scene_hasher(); }
-    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher(); }
-    [[nodiscard]] chronon3d::graph::SceneProgramStore& program_store()      { return m_session.common.program_store(); }
-    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return m_session.common.program_store(); }
+    [[nodiscard]] chronon3d::graph::SceneHasher& scene_hasher()  { return m_session.software.scene_hasher_state; }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return m_session.software.scene_hasher_state; }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore& program_store()      { return m_session.software.program_store_state; }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return m_session.software.program_store_state; }
     [[nodiscard]] RendererBufferRing& buffer_ring()               { return m_session.software.buffer_ring; }
     [[nodiscard]] const RendererBufferRing& buffer_ring() const   { return m_session.software.buffer_ring; }
     [[nodiscard]] TransformScratchBuffer& scratch_buffer()        { return m_session.software.scratch_buffer; }
