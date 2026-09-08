@@ -29,6 +29,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <xxhash.h>
 #include <algorithm>
 #include <cmath>
@@ -122,7 +123,8 @@ namespace chronon3d::graph {
     media::MediaFrameProvider* video_decoder,
     float fps,
     TemporalSampleKey temporal_key = {},
-    runtime::FrameExecution* execution = nullptr
+    runtime::FrameExecution* execution = nullptr,
+    const compiler::FrameParameterBlock* frame_parameters = nullptr
 ) {
     // Preserve fractional FPS precision (e.g. 29.97 NTSC).
     const FrameRate frm = FrameRate{static_cast<i32>(fps * 1000.0f + 0.5f), 1000};
@@ -180,6 +182,11 @@ namespace chronon3d::graph {
         },
         .execution = execution,
     };
+    if (execution) {
+        ctx.frame_parameters = &execution->parameters();
+    } else {
+        ctx.frame_parameters = frame_parameters;
+    }
     // Graph-only/debug callers do not pass through scene_context_setup().
     // Seed the context with the backend's immutable processor generation so
     // the compiler cannot compare a valid snapshot against the zero default.

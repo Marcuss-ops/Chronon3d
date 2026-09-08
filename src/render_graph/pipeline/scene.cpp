@@ -28,6 +28,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 
 #include <chrono>
 
@@ -73,7 +74,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
     const TemporalRenderContext* temporal_context,
-    chronon3d::runtime::FrameExecution* execution
+    chronon3d::runtime::FrameExecution* execution,
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters
 ) {
     CHRONON_TRACE_SCOPE("chronon.graph", "SceneTemporal");
     const auto t0 = profiling::now();
@@ -103,7 +105,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         backend, *active_node_cache, camera, width, height, frame, frame_time,
         effective_settings, registry, video_decoder, fps,
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{},
-        execution);
+        execution, frame_parameters);
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
     if (!ctx.node_exec.counters && sw_renderer && sw_renderer->counters()) {
@@ -398,8 +400,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         : (sw_renderer
             ? static_cast<runtime::JobSession&>(sw_renderer->session())
             : fallback_session);
+    // Wave 7: production frames use the leased FrameExecution payload arena.
+    // The JobSession arena remains only as an explicit compatibility fallback
+    // for standalone/preflight callers that do not provide a frame lease.
+    FrameArena& frame_arena = execution ? *execution->arena() : session_ref.arena();
     ExecutionScope root_scope = ExecutionScope::make_root(
-        session_ref, session_ref.arena(),
+        session_ref, frame_arena,
         graph_result.compiled.graph_instance_id);
     const auto t_exec0 = profiling::now();
     // Frame-batching boundary: a batching backend records every graph pass
@@ -470,12 +476,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     float fps,
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
-    chronon3d::runtime::FrameExecution* execution)
+    chronon3d::runtime::FrameExecution* execution,
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters)
 {
     return render_scene_via_graph_temporal(
         backend, node_cache, scene, camera, width, height, frame, frame_time,
         settings, registry, video_decoder, fps, diagnostic_label, sw_sidecar,
-        nullptr, execution);
+        nullptr, execution, frame_parameters);
 }
 
 } // namespace chronon3d::graph

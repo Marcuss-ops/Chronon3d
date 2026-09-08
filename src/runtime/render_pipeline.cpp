@@ -21,6 +21,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/compiler/program_sampler.hpp>
+#include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <stdexcept>
@@ -98,6 +99,11 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     const auto& metadata = program.metadata();
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
+    // TypedProgramSampler is now part of the production program route. The
+    // graph context borrows this immutable-per-frame block; legacy scene
+    // materialization remains below only until GraphExecutor consumes the
+    // typed bindings directly.
+    const auto frame_parameters = compiler::TypedProgramSampler{}.sample(program, frame);
     const auto context = make_frame_context({
         .global_time = SampleTime::from_frame_int(frame, canvas_fps),
         .duration = Frame{metadata.duration_frames},
@@ -126,7 +132,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         m_renderer->render_settings(), m_renderer->composition_registry(),
         m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),
-        metadata.job_id, m_renderer);
+        metadata.job_id, m_renderer, nullptr, &frame_parameters);
 }
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_evaluated_composition(

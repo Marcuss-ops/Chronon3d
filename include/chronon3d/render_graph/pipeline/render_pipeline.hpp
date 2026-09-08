@@ -38,6 +38,7 @@
 namespace chronon3d {
 class SoftwareRenderer;  // sw_sidecar parameter for render_composition_frame
 struct RenderSettings;
+namespace compiler { struct FrameParameterBlock; }
 namespace runtime { class FrameExecution; }
 }
 
@@ -64,7 +65,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     float fps,
     std::string_view diagnostic_label = "scene",
     chronon3d::SoftwareRenderer* sw_sidecar = nullptr,
-    chronon3d::runtime::FrameExecution* execution = nullptr
+    chronon3d::runtime::FrameExecution* execution = nullptr,
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters = nullptr
 );
 
 /**

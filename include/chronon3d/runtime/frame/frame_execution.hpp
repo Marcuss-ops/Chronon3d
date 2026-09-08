@@ -45,6 +45,12 @@ public:
     [[nodiscard]] FrameExecutionSlot* slot() const noexcept { return &slot_; }
     [[nodiscard]] FrameSlotPayload* payload() const noexcept { return &payload_; }
     [[nodiscard]] FrameArena* arena() const noexcept { return &payload_.arena; }
+    [[nodiscard]] compiler::FrameParameterBlock& parameters() noexcept {
+        return payload_.parameters;
+    }
+    [[nodiscard]] const compiler::FrameParameterBlock& parameters() const noexcept {
+        return payload_.parameters;
+    }
     [[nodiscard]] FrameCounters& counters() noexcept { return counters_; }
     [[nodiscard]] const FrameCounters& counters() const noexcept { return counters_; }
     [[nodiscard]] bool cancelled() const noexcept;

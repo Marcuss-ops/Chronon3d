@@ -21,7 +21,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     std::string_view diagnostic_label,
     chronon3d::SoftwareRenderer* sw_sidecar,
     const TemporalRenderContext* temporal_context,
-    chronon3d::runtime::FrameExecution* execution = nullptr);
+    chronon3d::runtime::FrameExecution* execution = nullptr,
+    const chronon3d::compiler::FrameParameterBlock* frame_parameters = nullptr);
 
 std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     RenderBackend& backend,
