@@ -12,6 +12,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <filesystem>
 
 TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     static_assert(!std::is_copy_constructible_v<chronon3d::compiler::CompiledProgram>);
@@ -85,6 +86,9 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     CHECK(program.nodes().size() == 1);
     CHECK(program.nodes().front().kind == chronon3d::compiler::NodeKind::Color);
     CHECK(program.animations().size() == 1);
+    CHECK(program.timelines().size() == 1);
+    CHECK(program.animation_tracks().empty());
+    CHECK(program.curve_keyframes().empty());
     CHECK(program.passes().size() == 1);
     CHECK(program.passes().front().node_count == 1);
     CHECK(chronon3d::compiler::detail::compiled_composition(program).fingerprint
@@ -94,6 +98,34 @@ TEST_CASE("CompiledProgram lowers deterministic IR without changing legacy outpu
     auto repeat = chronon3d::compiler::compile(plan, repeat_resolver);
     REQUIRE(repeat);
     CHECK(program.fingerprint() == repeat.value().fingerprint());
+}
+
+TEST_CASE("CompiledProgram owns typed timeline, animation and text lowering") {
+    auto plan = test_plan();
+    plan.layers.front().animation->tracks.push_back({
+        "opacity", {{chronon3d::Frame{0}, {0.25f}}, {chronon3d::Frame{12}, {1.0f}}}, "linear"});
+    chronon3d::render_plan::LayerPlan text;
+    text.id = "title";
+    text.type = chronon3d::render_plan::LayerType::Text;
+    text.text = "Chronon";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    text.style = chronon3d::render_plan::LayerStylePlan{
+        .font = text.font, .font_size = 48.0f, .fill = "#ffffff"};
+    plan.layers.push_back(std::move(text));
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(result);
+    const auto program = std::move(result).value();
+
+    REQUIRE(program.timelines().size() == 2);
+    CHECK(program.timelines()[1].duration_frames == plan.canvas.duration.integral());
+    REQUIRE(program.animation_tracks().size() == 1);
+    CHECK(program.animation_tracks().front().property == "opacity");
+    CHECK(program.curve_keyframes().size() == 2);
+    REQUIRE(program.texts().size() == 1);
+    CHECK(program.text_values()[program.texts().front().text_index] == "Chronon");
 }
 
 TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
