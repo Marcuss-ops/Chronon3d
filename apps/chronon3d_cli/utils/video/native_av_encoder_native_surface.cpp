@@ -118,14 +118,6 @@ bool NativeAvEncoder::write_native_surface_impl(
                     static_cast<std::uint64_t>(options_.height) * 3 / 2,
                 std::memory_order_relaxed);
         }
-        const auto prepared = vulkan->prepare_cuda_surface_for_vulkan(destination);
-        if (!prepared.ok()) {
-            spdlog::error("[native_av] failed to publish CUDA completion for surface {}: {}",
-                          destination, prepared.error().message);
-            av_frame_unref(gpu_frame);
-            reusable_cuda_frames_.push_back(gpu_frame);
-            return false;
-        }
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
         cuda::OwnedCudaEvent ready{};
         const CUresult event_create = cuda::create_recorded(
