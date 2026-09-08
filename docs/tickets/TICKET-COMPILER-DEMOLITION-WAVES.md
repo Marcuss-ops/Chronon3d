@@ -52,6 +52,8 @@ sono coerenti.
 - [x] Wave 3.5a — il percorso `RenderPipeline::render_program` materializza
   direttamente una `Scene` typed tramite `ProgramSampler::sample_scene`, senza
   creare `EvaluatedCompositionFrame`.
+- [x] Wave 3.5b — il compiler boundary test verifica la materializzazione
+  diretta della `Scene` typed dal sampler.
 - [ ] Wave 3 — il runtime esegue il programma tipizzato direttamente. Il
   `ProgramSampler` attuale è ancora un adapter verso
   `detail::compiled_composition(program)` e quindi non costituisce la chiusura

@@ -1,12 +1,14 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
+#include <chronon3d/compiler/program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/runtime/context/runtime_context.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 
 #include <doctest/doctest.h>
 
@@ -153,6 +155,16 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(frame.layers.front().opacity == doctest::Approx(0.625f));
     CHECK(frame.layers.front().matrix[3][0] == doctest::Approx(10.0f));
     CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
+
+    const auto context = chronon3d::make_frame_context({
+        .width = 1920,
+        .height = 1080,
+        .duration = plan.canvas.duration,
+        .resource = std::pmr::get_default_resource(),
+    });
+    const auto scene = chronon3d::compiler::ProgramSampler{}.sample_scene(
+        program, context, chronon3d::Frame{6});
+    CHECK(scene.layers().size() == 1);
 }
 
 TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {
