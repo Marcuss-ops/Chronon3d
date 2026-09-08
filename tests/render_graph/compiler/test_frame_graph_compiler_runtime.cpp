@@ -174,7 +174,7 @@ TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 leg
     FrameGraphCompiler compiler;
     ValidationBackend backend(false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
     auto compiled = compiler.compile(std::move(graph), ctx);
 
     CHECK(compiled.program.layer_batches.size() == 1);

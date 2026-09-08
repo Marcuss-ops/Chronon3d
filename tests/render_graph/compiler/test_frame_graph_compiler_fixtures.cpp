@@ -179,8 +179,8 @@ TEST_CASE("CompiledFrameGraph retains processor snapshot ownership") {
             9);
         ValidationBackend backend(false, snapshot);
         RenderGraphContext ctx;
-        ctx.services.backend = &backend;
-        ctx.services.registry_generation = 9;
+        ctx.backend = &backend;
+        ctx.registry_generation = 9;
         FrameGraphCompiler compiler;
 
         compiled = compiler.compile(make_single_source_graph(ShapeType::Rect), ctx);

@@ -29,8 +29,8 @@ NodeExecResult ClearNode::execute(
     // target.  The legacy clear path owns only CPU pixels; letting that
     // framebuffer reach CompositeNode would force a full RGBA32F promotion
     // (or, in strict mode, fail after the composite has already been built).
-    if ((ctx.policy.require_native_gpu || (ctx.services.backend && ctx.services.backend->supports_native_video_surface())) &&
-        ctx.services.backend && ctx.services.surface_registry) {
+    if ((ctx.policy.require_native_gpu || (ctx.backend && ctx.backend->supports_native_video_surface())) &&
+        ctx.backend && ctx.surface_registry) {
         auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, false);
         if (ensure_empty_native_surface(ctx, *fb)) {
             // ensure_empty_native_surface initializes the new GPU target to
@@ -46,7 +46,7 @@ NodeExecResult ClearNode::execute(
         }
     }
 
-    auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.services.backend);
+    auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.backend);
     auto* buffer_ring = ctx.node_exec.buffer_ring;
     bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer &&
         ctx.node_exec.ping_write.fb && buffer_ring &&

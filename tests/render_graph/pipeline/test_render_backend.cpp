@@ -73,9 +73,9 @@ TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend
     FakeBackend backend;
     cache::NodeCache cache;
     RenderGraphContext ctx{
-        .services = {.backend = &backend, .node_cache = &cache}
+        .backend = &backend, .node_cache = &cache
     };
-    CHECK(ctx.services.backend == &backend);
+    CHECK(ctx.backend == &backend);
 }
 
 TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
@@ -89,7 +89,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
 
     RenderGraphContext ctx{
         .frame_input = {.width = 64, .height = 64},
-        .services = {.backend = &backend, .node_cache = &cache}
+        .backend = &backend, .node_cache = &cache
     };
     
     compiler::CompilerPassPipeline graph_builder;
@@ -117,7 +117,7 @@ TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame fail
     Scene scene = builder.build();
     RenderGraphContext ctx{
         .frame_input = {.width = 64, .height = 64},
-        .services = {.backend = &backend, .node_cache = &cache}
+        .backend = &backend, .node_cache = &cache
     };
     compiler::CompilerPassPipeline graph_builder;
     graph_builder.add_default_passes();
@@ -149,7 +149,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
 
     RenderGraphContext ctx{
         .frame_input = {.width = 64, .height = 64},
-        .services = {.backend = &backend, .node_cache = &cache}
+        .backend = &backend, .node_cache = &cache
     };
     
     compiler::CompilerPassPipeline graph_builder;
@@ -180,7 +180,7 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
 
     RenderGraphContext ctx{
         .frame_input = {.width = 64, .height = 64},
-        .services = {.backend = &backend, .node_cache = &cache}
+        .backend = &backend, .node_cache = &cache
     };
     
     compiler::CompilerPassPipeline graph_builder;

@@ -78,7 +78,7 @@ TEST_CASE("SourceNode execution bbox is invariant under diagnostics") {
         ctx.frame_input.width = 1920;
         ctx.frame_input.height = 1080;
         ctx.policy.diagnostics_enabled = diagnostics_enabled;
-        ctx.services.backend = &renderer.backend();
+        ctx.backend = &renderer.backend();
         return ctx;
     };
 
@@ -151,7 +151,7 @@ TEST_CASE("Diagnostics OFF == ON: SourceNode bbox dirty clip cache key and pixel
         ctx.frame_input.frame = 0;
         ctx.policy.diagnostics_enabled = diagnostics_enabled;
         ctx.node_exec.dirty_rect = raster::BBox{0, 0, 160, 120};
-        ctx.services.backend = &renderer.backend();
+        ctx.backend = &renderer.backend();
         ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
         REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
         ctx.node_exec.current_shape_processor =
@@ -210,7 +210,7 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = renderer.backend().processor_snapshot();
     REQUIRE(ctx.node_exec.processor_snapshot != nullptr);
     ctx.node_exec.current_shape_processor =
@@ -268,7 +268,7 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &renderer.backend();
+    ctx.backend = &renderer.backend();
     ctx.node_exec.processor_snapshot = snapshot;
     ctx.node_exec.current_shape_processor = processors[0];
     ctx.node_exec.current_shape_processors = processors;

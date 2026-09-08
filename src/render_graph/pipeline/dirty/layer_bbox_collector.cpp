@@ -160,7 +160,7 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                         rl.layer->is_native_3d() ||
                         !is_safe_for_dirty_rects(*rl.layer,
                                                    chronon3d::is_motion_blur_active(settings.motion_blur),
-                                                   ctx.services.effect_catalog)) {
+                                                   ctx.effect_catalog)) {
                         bbox = raster::BBox{0, 0, width, height};
                         if (ctx.node_exec.counters) {
                             ctx.node_exec.counters->increment_dirty_full_fallback_reason(

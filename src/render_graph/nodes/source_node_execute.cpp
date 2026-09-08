@@ -126,9 +126,9 @@ NodeExecResult SourceNode::execute(
         ctx.frame_input.height);
 
     OwnedFB fb;
-    if (producer_surface.tight && ctx.services.framebuffer_pool &&
+    if (producer_surface.tight && ctx.framebuffer_pool &&
         !ctx.node_exec.planned_physical_slot) {
-        fb = ctx.services.framebuffer_pool->acquire_owned_exact(
+        fb = ctx.framebuffer_pool->acquire_owned_exact(
             producer_surface.width(), producer_surface.height(),
             !skip_clear && !direct_full_frame_fill);
         fb->set_origin(producer_surface.bounds.x0, producer_surface.bounds.y0);
@@ -144,7 +144,7 @@ NodeExecResult SourceNode::execute(
     // must materialize even a full-frame color layer as a native surface so
     // the final framebuffer can stay device-local all the way to NVENC.
     const bool native_surface_backend =
-        ctx.services.backend && ctx.services.backend->supports_native_video_surface();
+        ctx.backend && ctx.backend->supports_native_video_surface();
     if (direct_full_frame_fill && !native_surface_backend) {
         Color fill_color = m_node.color.to_linear();
         fill_color.a *= opacity;
@@ -159,7 +159,7 @@ NodeExecResult SourceNode::execute(
         return NodeExecResult{std::move(fb)};
     }
 
-    if (ctx.services.backend) {
+    if (ctx.backend) {
         RenderState state;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
         state.ssaa_factor = ctx.policy.ssaa_factor;
@@ -213,14 +213,14 @@ NodeExecResult SourceNode::execute(
             // Ensure the destination exists before dispatch so the backend
             // can select its native shape path instead of seeing a CPU-only
             // framebuffer and reporting a misleading unsupported capability.
-            if (ctx.services.backend->supports_native_surfaces() &&
-                ctx.services.surface_registry && !ensure_native_surface(ctx, *fb, "SourceNode.image.fallback")) {
+            if (ctx.backend->supports_native_surfaces() &&
+                ctx.surface_registry && !ensure_native_surface(ctx, *fb, "SourceNode.image.fallback")) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
                     m_name,
                     "failed to materialize native source surface"};
             }
-            const auto draw_result = ctx.services.backend->draw_node(
+            const auto draw_result = ctx.backend->draw_node(
                 *fb, m_node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!draw_result.ok()) {

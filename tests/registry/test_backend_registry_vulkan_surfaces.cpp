@@ -98,8 +98,8 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     RenderGraphContext ctx;
     ctx.frame_input.width = 8;
     ctx.frame_input.height = 8;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
 
     auto source = std::make_shared<Framebuffer>(8, 8);
     source->clear(Color::transparent());
@@ -146,8 +146,8 @@ TEST_CASE("EffectStackNode dispatches a full-frame tint through Vulkan surfaces"
     RenderGraphContext ctx;
     ctx.frame_input.width = 2;
     ctx.frame_input.height = 2;
-    ctx.services.backend = &backend;
-    ctx.services.surface_registry = &surfaces;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
 
     auto source = std::make_shared<Framebuffer>(2, 2);
     source->set_pixel(0, 0, Color{0.2f, 0.4f, 0.6f, 1.0f});

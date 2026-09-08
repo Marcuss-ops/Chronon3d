@@ -25,12 +25,12 @@ void GraphCompilePipeline::validate_renderable_shape(
             node_info.name + "' has ShapeType::None and cannot reach a shape processor");
     }
 
-    if (!ctx.services.backend) {
+    if (!ctx.backend) {
         throw std::runtime_error(
             "GraphCompilePipeline: renderable Shape node '" +
             node_info.name + "' has no render backend");
     }
-    if (const auto error = ctx.services.backend->validate_render_node(render_node)) {
+    if (const auto error = ctx.backend->validate_render_node(render_node)) {
         throw std::runtime_error(
             "GraphCompilePipeline: renderable Shape node '" +
             node_info.name + "' is invalid: " + error->message);

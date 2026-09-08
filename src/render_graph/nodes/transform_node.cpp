@@ -82,8 +82,8 @@ NodeExecResult TransformNode::execute(
         input->width() == out_w && input->height() == out_h &&
         input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
         const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
-        if (ctx.services.backend && ctx.services.backend->counters()) {
-            ctx.services.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
+        if (ctx.backend && ctx.backend->counters()) {
+            ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
@@ -95,10 +95,10 @@ NodeExecResult TransformNode::execute(
         // single-frame render.
         auto result = ctx.acquire_owned_fb(out_w, out_h, false, out_bounds);
         if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-            ctx.services.backend && ctx.services.surface_registry &&
-            ctx.services.backend->is_native_surface_valid(input->surface_handle()) &&
+            ctx.backend && ctx.surface_registry &&
+            ctx.backend->is_native_surface_valid(input->surface_handle()) &&
             ensure_empty_native_surface(ctx, *result)) {
-            const auto transformed = ctx.services.backend->transform_surface(
+            const auto transformed = ctx.backend->transform_surface(
                 result->surface_handle(), input->surface_handle(),
                 input->origin_x() - result->origin_x(),
                 input->origin_y() - result->origin_y(), opacity);
@@ -242,8 +242,8 @@ NodeExecResult TransformNode::execute(
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
 
-    if (ctx.services.backend && ctx.services.backend->counters()) {
-        ctx.services.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
+    if (ctx.backend && ctx.backend->counters()) {
+        ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
     }
     if (ctx.node_exec.counters) {
         ctx.node_exec.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
@@ -273,21 +273,21 @@ NodeExecResult TransformNode::execute(
             // CPU implementation remains the fallback for the first upload,
             // perspective, and filtered affine paths.
             if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-                ctx.services.backend && ctx.services.surface_registry) {
+                ctx.backend && ctx.surface_registry) {
                 const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
                     static_cast<std::uint32_t>(result->width()),
                     static_cast<std::uint32_t>(result->height()),
                     runtime::PixelFormat::Rgba32Float,
                     runtime::ResourceUsage::Storage,
                     runtime::LifetimeClass::FrameTransient);
-                const auto handle = ctx.services.surface_registry->create(desc);
+                const auto handle = ctx.surface_registry->create(desc);
                 const auto created = handle != runtime::kInvalidRenderSurfaceHandle
-                    ? ctx.services.backend->create_surface(handle, desc)
+                    ? ctx.backend->create_surface(handle, desc)
                     : RenderOpResult(RenderBackendError{
                         RenderBackendErrorCode::InvalidInput,
                         "TransformNode: unable to allocate native output handle"});
                 if (created.ok()) {
-                    const auto transformed = ctx.services.backend->transform_surface(
+                    const auto transformed = ctx.backend->transform_surface(
                         handle, input->surface_handle(),
                         input->origin_x() + itx - result->origin_x(),
                         input->origin_y() + ity - result->origin_y(), opacity);
@@ -297,8 +297,8 @@ NodeExecResult TransformNode::execute(
                     }
                 }
                 if (handle != runtime::kInvalidRenderSurfaceHandle) {
-                    (void)ctx.services.backend->release_surface(handle);
-                    ctx.services.surface_registry->release(handle);
+                    (void)ctx.backend->release_surface(handle);
+                    ctx.surface_registry->release(handle);
                 }
             }
             detail::execute_translate_clamped(
@@ -333,7 +333,7 @@ NodeExecResult TransformNode::execute(
     // projective transforms and clipped passes remain on the CPU reference.
     if (is_affine &&
         input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-        ctx.services.backend && ctx.services.surface_registry) {
+        ctx.backend && ctx.surface_registry) {
         runtime::SurfaceAffineTransform transform{};
         transform.source_x[0] = inv_H_corrected[0][0];
         transform.source_x[1] = inv_H_corrected[1][0];
@@ -363,14 +363,14 @@ NodeExecResult TransformNode::execute(
             runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::FrameTransient);
-        const auto handle = ctx.services.surface_registry->create(desc);
+        const auto handle = ctx.surface_registry->create(desc);
         const auto created = handle != runtime::kInvalidRenderSurfaceHandle
-            ? ctx.services.backend->create_surface(handle, desc)
+            ? ctx.backend->create_surface(handle, desc)
             : RenderOpResult(RenderBackendError{
                 RenderBackendErrorCode::InvalidInput,
                 "TransformNode: unable to allocate native affine output handle"});
         if (created.ok()) {
-            const auto transformed = ctx.services.backend->transform_surface_affine(
+            const auto transformed = ctx.backend->transform_surface_affine(
                 handle, input->surface_handle(), transform);
             if (transformed.ok()) {
                 result->set_surface_handle(handle);
@@ -378,8 +378,8 @@ NodeExecResult TransformNode::execute(
             }
         }
         if (handle != runtime::kInvalidRenderSurfaceHandle) {
-            (void)ctx.services.backend->release_surface(handle);
-            ctx.services.surface_registry->release(handle);
+            (void)ctx.backend->release_surface(handle);
+            ctx.surface_registry->release(handle);
         }
     }
 

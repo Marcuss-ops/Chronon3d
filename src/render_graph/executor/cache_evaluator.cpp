@@ -48,8 +48,8 @@ CacheEvalResult evaluate_cache(
     // exhausting VRAM.  CPU layout/glyph caches remain active; only the
     // framebuffer cache is disabled for this export path so ownership returns
     // to FramebufferPool at the frame boundary.
-    if (ctx.services.backend &&
-        ctx.services.backend->supports_native_video_surface()) {
+    if (ctx.backend &&
+        ctx.backend->supports_native_video_surface()) {
         cr.use_cache = false;
     }
 

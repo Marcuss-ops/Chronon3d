@@ -123,7 +123,7 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &backend.backend();
+    ctx.backend = &backend.backend();
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_multi", std::move(items), key);
@@ -216,9 +216,9 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.frame_input.frame = 0;
-    ctx.services.backend = &backend.backend();
-    ctx.services.framebuffer_pool = pool;
-    ctx.services.node_cache = &node_cache;
+    ctx.backend = &backend.backend();
+    ctx.framebuffer_pool = pool;
+    ctx.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("orphan_run", std::move(items), key);
@@ -267,9 +267,9 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.frame_input.frame = 0;
-    ctx.services.backend = &backend.backend();
-    ctx.services.framebuffer_pool = pool;
-    ctx.services.node_cache = &node_cache;
+    ctx.backend = &backend.backend();
+    ctx.framebuffer_pool = pool;
+    ctx.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_full", std::move(items), key);

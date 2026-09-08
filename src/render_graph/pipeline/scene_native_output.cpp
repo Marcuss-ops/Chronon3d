@@ -19,7 +19,7 @@ namespace chronon3d::graph::detail {
 
 void synchronize_native_output(RenderGraphContext& ctx,
                                const std::shared_ptr<Framebuffer>& framebuffer) {
-    if (!framebuffer || !ctx.services.backend ||
+    if (!framebuffer || !ctx.backend ||
         framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return;
     }
@@ -31,7 +31,7 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->mark_gpu_authoritative();
         return;
     }
-    if (ctx.services.backend->supports_native_video_surface() &&
+    if (ctx.backend->supports_native_video_surface() &&
         ctx.policy.retain_native_surface_for_video) {
         framebuffer->mark_gpu_authoritative();
         return;
@@ -42,7 +42,7 @@ void synchronize_native_output(RenderGraphContext& ctx,
     // demolition removed everywhere else. download_surface() remains a
     // legitimate capability for images, golden tests and SDK consumers;
     // the *video* path may not use it as a fallback.
-    if (ctx.services.backend->supports_native_video_surface()) {
+    if (ctx.backend->supports_native_video_surface()) {
         spdlog::error(
             "[video] native video contract violation: frame reached "
             "synchronize_native_output without a native encode surface and "
@@ -62,14 +62,14 @@ void synchronize_native_output(RenderGraphContext& ctx,
     }
     std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
                             framebuffer->height() * 4);
-    const auto result = ctx.services.backend->download_surface(
+    const auto result = ctx.backend->download_surface(
         framebuffer->surface_handle(), rgba);
     if (!result.ok()) {
         spdlog::error("[backend] native output synchronization failed: {}",
                       result.error().message);
-        if (ctx.services.surface_registry) {
-            (void)ctx.services.backend->release_surface(framebuffer->surface_handle());
-            (void)ctx.services.surface_registry->release(framebuffer->surface_handle());
+        if (ctx.surface_registry) {
+            (void)ctx.backend->release_surface(framebuffer->surface_handle());
+            (void)ctx.surface_registry->release(framebuffer->surface_handle());
         }
         framebuffer->clear_surface_handle();
         return;
@@ -84,9 +84,9 @@ void synchronize_native_output(RenderGraphContext& ctx,
         reinterpret_cast<const Color*>(rgba.data()),
         framebuffer->width() /* packed source has no padding */,
         framebuffer->width(), framebuffer->height());
-    if (ctx.services.surface_registry) {
-        (void)ctx.services.backend->release_surface(framebuffer->surface_handle());
-        (void)ctx.services.surface_registry->release(framebuffer->surface_handle());
+    if (ctx.surface_registry) {
+        (void)ctx.backend->release_surface(framebuffer->surface_handle());
+        (void)ctx.surface_registry->release(framebuffer->surface_handle());
     }
     framebuffer->clear_surface_handle();
     framebuffer->mark_cpu_gpu_synchronized();
@@ -98,7 +98,7 @@ void release_temporary_native_output(RenderGraphContext& ctx,
     if (!framebuffer || source == runtime::kInvalidRenderSurfaceHandle ||
         source == ctx.policy.native_video_source_surface ||
         source == ctx.policy.native_video_encode_surface ||
-        !ctx.services.backend || !ctx.services.surface_registry) {
+        !ctx.backend || !ctx.surface_registry) {
         return;
     }
     // The frame batch has already submitted the device-to-device copy, but
@@ -107,7 +107,7 @@ void release_temporary_native_output(RenderGraphContext& ctx,
     // waits for every pending submission and turned every video frame into a
     // full GPU drain.  Drop only the logical registry lease; physical
     // transient retirement is fenced centrally at batch/job cleanup.
-    (void)ctx.services.surface_registry->release(source);
+    (void)ctx.surface_registry->release(source);
     if (framebuffer->surface_handle() == source) {
         framebuffer->clear_surface_handle();
     }
@@ -150,9 +150,9 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
     const auto persistent_source = ctx_.policy.native_video_source_surface;
     if (persistent_source != runtime::kInvalidRenderSurfaceHandle) {
         if (handle != runtime::kInvalidRenderSurfaceHandle &&
-            handle != persistent_source && ctx_.services.surface_registry) {
+            handle != persistent_source && ctx_.surface_registry) {
             (void)backend_.release_surface(handle);
-            (void)ctx_.services.surface_registry->release(handle);
+            (void)ctx_.surface_registry->release(handle);
         }
         handle = persistent_source;
         const auto desc = native_surface_desc(framebuffer->width(), framebuffer->height());
@@ -205,11 +205,11 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
             static_cast<int>(frame));
         return runtime::kInvalidRenderSurfaceHandle;
     }
-    if (!ctx_.services.surface_registry) {
+    if (!ctx_.surface_registry) {
         return runtime::kInvalidRenderSurfaceHandle;
     }
     if (handle != runtime::kInvalidRenderSurfaceHandle) {
-        (void)ctx_.services.surface_registry->release(handle);
+        (void)ctx_.surface_registry->release(handle);
         framebuffer->clear_surface_handle();
     }
     const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
@@ -218,9 +218,9 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
         runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::FrameTransient);
-    handle = ctx_.services.surface_registry->create(desc);
+    handle = ctx_.surface_registry->create(desc);
     if (!backend_.create_surface(handle, desc).ok()) {
-        (void)ctx_.services.surface_registry->release(handle);
+        (void)ctx_.surface_registry->release(handle);
         return runtime::kInvalidRenderSurfaceHandle;
     }
     std::vector<float> packed;
@@ -231,7 +231,7 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
     runtime::UploadTicket upload_ticket{};
     if (!backend_.upload_surface_async(handle, desc, rgba, upload_ticket).ok()) {
         (void)backend_.release_surface(handle);
-        (void)ctx_.services.surface_registry->release(handle);
+        (void)ctx_.surface_registry->release(handle);
         return runtime::kInvalidRenderSurfaceHandle;
     }
     const auto upload_ms = std::chrono::duration_cast<std::chrono::microseconds>(

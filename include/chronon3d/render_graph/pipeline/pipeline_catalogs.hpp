@@ -85,11 +85,11 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs);
 [[nodiscard]] const PipelineCatalogs& builtin_pipeline_catalogs();
 
 /// Wire catalog pointers (graph_nodes + effects) and the typed
-/// `PrecompBuilderService*` into `ctx.services`.  TICKET-010 replaces
+/// `PrecompBuilderService*` into `ctx`.  TICKET-010 replaces
 /// the legacy `wire_precomp_build_factory(ctx, catalogs)` lambda wiring
 /// with this typed helper.
 ///
-/// When called with `ctx.services.precomp_builder == nullptr` already set
+/// When called with `ctx.precomp_builder == nullptr` already set
 /// (e.g. the host installed a custom builder post-init), this helper
 /// does NOT overwrite it.
 void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs);

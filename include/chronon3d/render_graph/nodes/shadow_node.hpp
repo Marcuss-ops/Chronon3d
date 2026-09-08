@@ -170,8 +170,8 @@ public:
                 }
             }
 
-            if (blur_radius > 0.0f && ctx.services.backend && projected_pixels > 0) {
-                ctx.services.backend->apply_blur(*shadow_fb, blur_radius, ctx.node_exec.clip_rect);
+            if (blur_radius > 0.0f && ctx.backend && projected_pixels > 0) {
+                ctx.backend->apply_blur(*shadow_fb, blur_radius, ctx.node_exec.clip_rect);
             }
 
             spdlog::info(

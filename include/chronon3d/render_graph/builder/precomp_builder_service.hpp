@@ -11,9 +11,9 @@
 //     (unique_ptr<PrecompBuilderService>); constructed once at pipeline init
 //     (typical default: `DefaultPrecompBuilder`).
 //   - `wire_catalog_pointers(ctx, catalogs)` copies the service pointer
-//     into `ctx.services.precomp_builder`.
+//     into `ctx.precomp_builder`.
 //   - Consumers (currently `PrecompNode::execute()` on cache miss) invoke
-//     `ctx.services.precomp_builder->build(nested_scene, nested_ctx)`.
+//     `ctx.precomp_builder->build(nested_scene, nested_ctx)`.
 //
 // Replace the old `wire_precomp_build_factory(ctx, catalogs)` std::function
 // wiring.  The service has a virtual destructor + a single virtual `build()`
@@ -46,7 +46,7 @@ public:
     /// `nested_ctx` is the per-frame context to use for the nested build.
     /// The service must NOT assume ownership of pipeline state — any
     /// services it needs (framebuffer_pool, registry, video_decoder, etc.)
-    /// are already in `nested_ctx.services` and must be re-used from there.
+    /// are already in `nested_ctx` and must be re-used from there.
     ///
     /// Returns nullptr on failure.  PrecompNode already treats nullptr as
     /// "outer fail; return empty framebuffer".

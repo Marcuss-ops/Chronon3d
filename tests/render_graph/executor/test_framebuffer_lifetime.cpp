@@ -484,7 +484,7 @@ TEST_CASE("RenderGraphContext::acquire_owned_fb(const Framebuffer&) reuses reusa
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 
     RenderGraphContext ctx;
-    ctx.services.framebuffer_pool = pool;
+    ctx.framebuffer_pool = pool;
 
     // Acquire a uniquely-owned source framebuffer and write a marker pixel.
     auto src = pool->acquire_shared(64, 64, true);
@@ -519,7 +519,7 @@ TEST_CASE("RenderGraphContext::acquire_owned_fb resets aliased slot metadata") {
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 
     RenderGraphContext ctx;
-    ctx.services.framebuffer_pool = pool;
+    ctx.framebuffer_pool = pool;
 
     OwnedFB slot = pool->acquire_owned(64, 64, true);
     slot->set_origin(123, 456);
@@ -544,7 +544,7 @@ TEST_CASE("RenderGraphContext::acquire_framebuffer(const Framebuffer&) reuses re
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 
     RenderGraphContext ctx;
-    ctx.services.framebuffer_pool = pool;
+    ctx.framebuffer_pool = pool;
 
     auto src = pool->acquire_shared(64, 64, true);
     src->set_pixel(5, 5, Color::blue());

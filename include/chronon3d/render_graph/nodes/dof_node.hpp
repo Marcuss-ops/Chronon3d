@@ -82,7 +82,7 @@ public:
         }
 
         auto result = ctx.acquire_owned_fb(*inputs[0]);
-        if (ctx.services.backend) {
+        if (ctx.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{
                 effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
@@ -112,7 +112,7 @@ public:
             };
             if (!native_effects::try_native_full_frame_blur(
                     ctx, dof_stack, *result, local_clip)) {
-                ctx.services.backend->apply_effect_stack(*result, dof_stack, dof_context);
+                ctx.backend->apply_effect_stack(*result, dof_stack, dof_context);
             }
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

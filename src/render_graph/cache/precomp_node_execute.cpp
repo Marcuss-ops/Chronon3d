@@ -152,7 +152,7 @@ NodeExecResult PrecompNode::execute_with_scope(
 {
     // ── 0. Guard: parent session must be wired (via the borrowed parent ref)
     auto& session = parent.session();
-    if (!ctx.services.registry || !ctx.services.registry->contains(m_comp_name)) {
+    if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
         return NodeExecResult{ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height)};
     }
 
@@ -170,7 +170,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     const auto precomp_key = instance_key(ctx);
 
     // ── 3. Fetch nested composition & build nested context ──────────────
-    const auto comp = ctx.services.registry->create(m_comp_name);
+    const auto comp = ctx.registry->create(m_comp_name);
 
     RenderGraphContext nested_ctx = ctx;
     nested_ctx.frame_input.frame   = nested_frame;
@@ -214,7 +214,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     //      `lease`'s shared_ptr<CompiledSceneProgram> alive past the
     //      `execute_with_scope` call below + the function's tail return).
     //      The store is reached through the typed JobSession seam only:
-    //      RenderServices does not carry a second store pointer.
+    //      execution dependencies does not carry a second store pointer.
     auto* program_store = nested_ctx.program_store;
     if (!program_store) {
         throw std::runtime_error("PrecompNode: no SceneProgramStore wired in RenderGraphContext");
@@ -223,10 +223,10 @@ NodeExecResult PrecompNode::execute_with_scope(
         precomp_key, key, m_cache_policy,
         [&]() -> std::unique_ptr<CompiledSceneProgram> {
             // Cache miss — delegate to the typed PrecompBuilderService.
-            if (!ctx.services.precomp_builder) {
+            if (!ctx.precomp_builder) {
                 return nullptr;
             }
-            return ctx.services.precomp_builder->build(nested_scene, nested_ctx);
+            return ctx.precomp_builder->build(nested_scene, nested_ctx);
         });
 
     // Forward eviction callback to the store's per-instance cache if one
@@ -279,7 +279,7 @@ NodeExecResult PrecompNode::execute_with_scope(
     // PR-5 — GraphExecutor is stateless; the topology plan lives on
     // `program->frame_graph.levels` (no legacy RenderGraph& overloads).
     // WP-0 PR 0.1 — PrecompNode MUST NOT construct a local GraphExecutor
-    // inline; borrow `session.services.executor` from the parent
+    // inline; borrow `session.executor` from the parent
     // JobSession dependency boundary. Regression guard:
     // `tools/check_architecture_boundaries.sh` check [9/12] blocks
     // reintroduction of `GraphExecutor <name>;` declarations in this TU.

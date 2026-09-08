@@ -30,7 +30,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     if (node_exec.planned_physical_slot) {
         OwnedFB& slot = *node_exec.planned_physical_slot;
         if (!slot) {
-            auto* pool = services.framebuffer_pool.get();
+            auto* pool = framebuffer_pool.get();
             if (pool) {
                 slot = pool->acquire_owned(w, h, clear);
             } else {
@@ -56,7 +56,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     }
 
     OwnedFB out;
-    auto* pool = services.framebuffer_pool.get();
+    auto* pool = framebuffer_pool.get();
     (void)bounds;
     (void)specific_clear_ms;
     if (pool) {
@@ -86,8 +86,8 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         placeholder->set_surface_handle(orig_surface_handle);
 
         PoolFbDeleter placeholder_deleter;
-        if (services.framebuffer_pool) {
-            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
+        if (framebuffer_pool) {
+            placeholder_deleter = PoolFbDeleter{framebuffer_pool};
         }
         return OwnedFB(placeholder, std::move(placeholder_deleter));
     }
@@ -116,7 +116,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     }
 
     OwnedFB out;
-    auto* pool = services.framebuffer_pool.get();
+    auto* pool = framebuffer_pool.get();
     if (pool) {
         out = pool->acquire_from(other);
     } else {
@@ -150,14 +150,14 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(*src);
         PoolFbDeleter placeholder_deleter;
-        if (services.framebuffer_pool) {
-            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
+        if (framebuffer_pool) {
+            placeholder_deleter = PoolFbDeleter{framebuffer_pool};
         }
         return OwnedFB(placeholder, std::move(placeholder_deleter));
     }
 
     OwnedFB out;
-    auto* pool = services.framebuffer_pool.get();
+    auto* pool = framebuffer_pool.get();
     if (pool) {
         out = pool->adopt_owned(std::move(src));
     } else {

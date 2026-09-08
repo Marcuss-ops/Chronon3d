@@ -208,7 +208,7 @@ inline ExecutionScheduler build_scheduler(
 // movable); the caller passes a temporary produced by `make_xxx_scene()`
 // below and the param move-constructs into the member.
 //
-// IMPORTANT: `ctx.services` is wired BEFORE `CompilerPassPipeline::build(scene,
+// IMPORTANT: `ctx` is wired BEFORE `CompilerPassPipeline::build(scene,
 // ctx)`.  The builder reads services to decide which nodes to emit
 // (e.g. blur feature-gate, precomp-vs-runtime path).  Building with
 // half-wired ctx and then overwriting would risk a topology-vs-runtime
@@ -237,9 +237,9 @@ struct TestFixture {
         , scene(std::move(s))
     {
         // ── Wire services FIRST (WP1 PR 1.0 invariant) ────────────────
-        ctx.services.backend          = &backend;
-        ctx.services.node_cache       = &node_cache;
-        ctx.services.framebuffer_pool = fb_pool;
+        ctx.backend          = &backend;
+        ctx.node_cache       = &node_cache;
+        ctx.framebuffer_pool = fb_pool;
         ctx.scheduler                = &runtime_scheduler;
         ctx.session                  = &session;
         ctx.frame_input.width         = 320;

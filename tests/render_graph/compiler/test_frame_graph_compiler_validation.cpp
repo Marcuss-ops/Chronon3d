@@ -30,7 +30,7 @@ TEST_CASE("FrameGraphCompiler - accepts Image Shape with resolved processor") {
     auto graph = make_single_source_graph(ShapeType::Image);
     ValidationBackend backend(/*missing_processor=*/false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
     FrameGraphCompiler compiler;
 
     const auto compiled = compiler.compile(std::move(graph), ctx);
@@ -161,7 +161,7 @@ TEST_CASE("FrameGraphCompiler - rejects missing render processor before executio
     auto graph = make_single_source_graph(ShapeType::Rect);
     ValidationBackend backend(/*missing_processor=*/true);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
     FrameGraphCompiler compiler;
 
     try {
@@ -176,7 +176,7 @@ TEST_CASE("FrameGraphCompiler - resolves processor identity during compilation")
     auto graph = make_single_source_graph(ShapeType::Rect);
     ValidationBackend backend(/*missing_processor=*/false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
     FrameGraphCompiler compiler;
 
     const auto compiled = compiler.compile(std::move(graph), ctx);
@@ -187,7 +187,7 @@ TEST_CASE("FrameGraphCompiler - resolves processor identity during compilation")
     CHECK(compiled.nodes.front().processor_id ==
           "source:" + std::to_string(static_cast<int>(ShapeType::Rect)));
     REQUIRE(compiled.processor_snapshot != nullptr);
-    CHECK(compiled.processor_snapshot->generation() == ctx.services.registry_generation);
+    CHECK(compiled.processor_snapshot->generation() == ctx.registry_generation);
     const auto shape_handle = compiled.nodes.front().shape_processor;
     CHECK(shape_handle.valid());
     REQUIRE(compiled.nodes.front().shape_processors_count == 1);
@@ -214,8 +214,8 @@ TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
         17);
     ValidationBackend backend(/*missing_processor=*/false, snapshot);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
-    ctx.services.registry_generation = 17;
+    ctx.backend = &backend;
+    ctx.registry_generation = 17;
     FrameGraphCompiler compiler;
 
     const auto compiled = compiler.compile(std::move(graph), ctx);
@@ -234,8 +234,8 @@ TEST_CASE("FrameGraphCompiler - resolves effect processor during compilation") {
 TEST_CASE("FrameGraphCompiler - rejects snapshot generation mismatch") {
     ValidationBackend backend(/*missing_processor=*/false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
-    ctx.services.registry_generation = 1;
+    ctx.backend = &backend;
+    ctx.registry_generation = 1;
     FrameGraphCompiler compiler;
 
     CHECK_THROWS_WITH(
@@ -259,7 +259,7 @@ TEST_CASE("FrameGraphCompiler - reuse rejects a different same-generation snapsh
     FrameGraphCompiler compiler;
     ValidationBackend first_backend(false, first_snapshot);
     RenderGraphContext first_ctx;
-    first_ctx.services.backend = &first_backend;
+    first_ctx.backend = &first_backend;
     first_ctx.policy.graph_structure_unchanged = true;
     FrameGraphCompileOptions options;
     options.run_optimizer = false;
@@ -268,7 +268,7 @@ TEST_CASE("FrameGraphCompiler - reuse rejects a different same-generation snapsh
 
     ValidationBackend second_backend(false, second_snapshot);
     RenderGraphContext second_ctx;
-    second_ctx.services.backend = &second_backend;
+    second_ctx.backend = &second_backend;
     second_ctx.policy.graph_structure_unchanged = true;
     auto rebuilt = compiler.compile_with_reuse(
         make_single_source_graph(ShapeType::Rect), second_ctx, prior, options);
@@ -282,7 +282,7 @@ TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
     FrameGraphCompiler compiler;
     ValidationBackend backend(/*missing_processor=*/false);
     RenderGraphContext ctx;
-    ctx.services.backend = &backend;
+    ctx.backend = &backend;
     ctx.policy.graph_structure_unchanged = true;
     FrameGraphCompileOptions options;
     options.run_optimizer = false;
@@ -293,7 +293,7 @@ TEST_CASE("FrameGraphCompiler - reuse does not resolve processors per frame") {
     auto reused = compiler.compile_with_reuse(
         make_single_source_graph(ShapeType::Rect), ctx, prior, options);
     REQUIRE(reused.valid);
-    CHECK(reused.registry_generation == ctx.services.registry_generation);
+    CHECK(reused.registry_generation == ctx.registry_generation);
     CHECK(reused.processor_snapshot == prior.processor_snapshot);
     CHECK(reused.processor_snapshot_identity == prior.processor_snapshot_identity);
     CHECK(reused.shape_processor_table == prior.shape_processor_table);

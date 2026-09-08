@@ -309,7 +309,7 @@ NodeExecResult PerPixelDofNode::execute(
     // and we can skip the backend entirely instead of allocating its scratch
     // buffers just to discover max_r < 0.5f again.
     const std::optional<raster::BBox> clip = active_region.clip;
-    if (active_region.depth_size_valid && clip && ctx.services.backend) {
+    if (active_region.depth_size_valid && clip && ctx.backend) {
         // Explicit span-wrap: `ctx.node_exec.dof_depth` is `std::vector<float>`
         // (the executor owns the depth buffer for node lifetimes).  The kernel
         // signature took `std::vector<float>` historically; that forced
@@ -318,7 +318,7 @@ NodeExecResult PerPixelDofNode::execute(
         // alloc go away.  Implicit C++20 range-to-span conversion would also
         // work, but explicit construction documents intent and guards
         // against future type drift on `dof_depth`.
-        ctx.services.backend->apply_per_pixel_dof(
+        ctx.backend->apply_per_pixel_dof(
             *result, std::span<const float>{dof_depth},
             camera.dof, camera.lens, clip);
     }

@@ -6,6 +6,14 @@
 # Backend sanitization
 # -----------------------------------------------------------------------------
 
+[[forbidden_symbol]]
+name = "render_services_locator_demolished"
+description = "Wave 5: RenderGraphContext owns typed execution dependencies directly"
+patterns = ['\\bRenderServices\\b']
+scan_paths = ["include", "src", "apps", "tests"]
+skip_comments = true
+hint = "Use the typed dependency fields on RenderGraphContext; do not reintroduce a service-locator bundle."
+
 [[occurrence_cap]]
 name = "graph_builder_no_execution_service_locator"
 description = "Graph builders consume typed GraphBuildDependencies, never RenderGraphContext::services"

@@ -4,7 +4,7 @@ graph::RenderOpResult draw_cached_text_run(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
-    if (!ctx.services.text_render_resources || !shape.layout ||
+    if (!ctx.text_render_resources || !shape.layout ||
         shape.layout->placed.glyphs.empty() ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
         return graph::RenderOpResult(graph::RenderBackendError{
@@ -62,17 +62,17 @@ graph::RenderOpResult draw_cached_text_run(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: animated/style feature requires canonical software text path"});
         }
-        auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
+        auto entry = ctx.text_render_resources->lookup_glyph_atlas(
             layout.font.font_path, state.glyph_id,
             static_cast<u32>(font_size));
         if ((!entry || !entry->image || entry->image->empty()) &&
             ctx.asset_resolver) {
             auto warmed = rasterize_missing_glyph(
-                *ctx.services.text_render_resources, *ctx.asset_resolver,
+                *ctx.text_render_resources, *ctx.asset_resolver,
                 layout.font.font_path, state.glyph_id,
                 static_cast<u32>(font_size), state.fill);
             if (warmed) {
-                ctx.services.text_render_resources->store_glyph_atlas(
+                ctx.text_render_resources->store_glyph_atlas(
                     layout.font.font_path, state.glyph_id,
                     static_cast<u32>(font_size), *warmed);
                 entry = std::move(warmed);
@@ -314,7 +314,7 @@ graph::RenderOpResult draw_cached_text_run(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: destination has no native surface"});
     }
-    const auto cleared = ctx.services.backend->fill_rect_surface(
+    const auto cleared = ctx.backend->fill_rect_surface(
         destination.surface_handle(), 0, 0, destination.width(), destination.height(), Color{});
     if (!cleared.ok()) return cleared;
 

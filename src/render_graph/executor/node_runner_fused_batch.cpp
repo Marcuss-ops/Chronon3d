@@ -123,8 +123,8 @@ void execute_fused_batch_impl(
                 const auto& placed = layout.placed.glyphs[gi];
                 if (placed.bbox_x1 <= placed.bbox_x0) continue;
 
-                if (!ctx.services.text_render_resources) continue;
-                auto entry = ctx.services.text_render_resources->lookup_glyph_atlas(
+                if (!ctx.text_render_resources) continue;
+                auto entry = ctx.text_render_resources->lookup_glyph_atlas(
                     layout.font.font_path, gstate.glyph_id, static_cast<u32>(font_size));
                 if (!entry || !entry->image) continue;
 

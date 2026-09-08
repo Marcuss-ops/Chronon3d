@@ -57,8 +57,8 @@ SoftwareRenderer* setup_render_graph_context(
         ctx.program_store = &job.program_store();
         ctx.scheduler = &job.runtime().scheduler();
         ctx.compiled_graph_cache = &job.runtime().graph_cache();
-        ctx.services.node_cache = &job.runtime().node_cache();
-        ctx.services.framebuffer_pool = job.runtime().framebuffer_pool_shared();
+        ctx.node_cache = &job.runtime().node_cache();
+        ctx.framebuffer_pool = job.runtime().framebuffer_pool_shared();
     }
 
     // ── Runtime assets root ──────────────────────────────────────────
@@ -121,7 +121,7 @@ SoftwareRenderer* setup_render_graph_context(
         // Pipeline catalogs are frozen for the runtime lifetime; their
         // generation remains part of the runtime-owned topology policy and
         // must not be mixed into the processor-snapshot generation contract.
-        ctx.services.effect_catalog = &sw_renderer->effect_catalog();
+        ctx.effect_catalog = &sw_renderer->effect_catalog();
         // ── PR-B: propagate scheduler to nested graph call sites ──────
         // PrecompNode dereferences `*ctx.scheduler` to route its
         // inner execute() through the same arena as the parent graph.
@@ -130,7 +130,7 @@ SoftwareRenderer* setup_render_graph_context(
         // the scene program store through the typed JobSession seam.
         if (!ctx.execution) ctx.session = &sw_renderer->session();
         if (!ctx.execution) ctx.program_store = &sw_renderer->program_store();
-        ctx.services.text_render_resources = sw_renderer->text_render_resources();
+        ctx.text_render_resources = sw_renderer->text_render_resources();
         // PR-1 — production paths must have a wired scheduler after
         // pipeline wiring.  Test paths (no SoftwareRenderer) create
         // a local Sequential(1) scheduler.

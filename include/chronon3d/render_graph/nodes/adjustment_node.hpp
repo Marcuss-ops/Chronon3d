@@ -39,7 +39,7 @@ public:
         if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
-        if (ctx.services.backend) {
+        if (ctx.backend) {
             const effects::EffectExecutionContext effect_context{
                 .time_seconds = ctx.frame_input.time_seconds,
                 .frame = ctx.frame_input.frame,
@@ -58,7 +58,7 @@ public:
                 native_effects::try_native_full_frame_tint(
                     ctx, m_effects, *result, ctx.node_exec.clip_rect);
             if (!native) {
-                ctx.services.backend->apply_effect_stack(*result, m_effects, effect_context);
+                ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
             }
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

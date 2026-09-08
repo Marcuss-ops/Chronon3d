@@ -8,7 +8,7 @@
 // TICKET-010 — the legacy `wire_precomp_build_factory(ctx, catalogs)` lambda
 // has been replaced by `wire_catalog_pointers(ctx, catalogs)` (see
 // pipeline_catalogs.hpp).  PrecompNode now invokes
-// `ctx.services.precomp_builder->build(...)` — a typed call against the
+// `ctx.precomp_builder->build(...)` — a typed call against the
 // service owned by `catalogs.precomp_builder` (a unique_ptr).
 // ═══════════════════════════════════════════════════════════════════════════
 
