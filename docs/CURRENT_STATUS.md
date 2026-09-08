@@ -4,6 +4,36 @@
 
 ## Main truth checkpoint — 2026-09-04
 
+## Migration closeout checkpoint — 2026-09-08
+
+- Wave 4 compiler caller census is CLOSED: no independent production caller
+  remains for `build_graph`, `compile_frame_graph`, or `compile_render_plan`;
+  the compiler root owns the route.
+- The native FFmpeg contract is fail-closed when native libav support is not
+  compiled: an explicit `encoder_backend=native` request no longer falls back
+  to the external pipe authority. Remaining pipe demolition is certification
+  work (supported-consumer, codec, zero-caller, and CI evidence).
+- The video-enabled `linux-fast-dev` CLI test target builds cleanly with
+  `-j20` (380/380) and the native fail-closed contract test passes locally.
+- Follow-up evidence on the same working tree: `native encoder request fails
+  closed*` 1/1, `VideoExecutionResolver*` 3/3 (16 assertions), compiler
+  boundary 6/6 (60 assertions), architecture self-test 10/10, and
+  `check_no_sqlite.sh` PASS on 2026-09-08.
+- The migration is not yet globally CLOSED: Wave 3 direct typed-program
+  execution, zero-copy GPU evidence, and same-SHA certification remain open.
+- HEAD audit correction (`be14cbd86`): `TypedProgramSampler` is boundary-tested
+  but not production-wired. Compiler SSOT still retains the
+  `render_plan::compile_render_plan`/`PreparedRenderPlan` bridge; runtime
+  `EvaluatedCompositionFrame` and `RenderServices` evacuation are also open.
+- Typed handoff implementation started on this checkout: `FrameSlotPayload`
+  owns `compiler::FrameParameterBlock`, `FrameExecution` exposes it, and the
+  `render_program` route samples `TypedProgramSampler` and forwards the block
+  through `RenderGraphContext::frame_parameters`. GraphExecutor consumption
+  and legacy bridge deletion remain required before Wave 3 can close.
+- Cross-repo Wave 10 remains open in RenderingGen `main@3c4de1ec`: raw sidecar
+  JSON is still unmarshaled/deleted/ remarshaled instead of consuming
+  `SummaryV1` while retaining raw bytes and hash.
+
 - Baseline inspected before this closeout: `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`.
 - **Stage 1 / source consistency:** the Vulkan lifecycle already creates, uses and persists `kernels.pipeline_cache`, but `VulkanKernelStore` had lost the matching `VkPipelineCache` member. This closeout restores one explicit owner, destroys the cache with the kernel store, and adds a regression lock.
 - **Frame-slot migration:** structurally closed. Runtime build registration uses `FrameSlotPool`, `GpuCompletionTracker` and `FrameQueue`; the retired `FrameSlotPipeline` path has been deleted. Do not restore the old `FrameExecutionSlotRing` compatibility facade.
