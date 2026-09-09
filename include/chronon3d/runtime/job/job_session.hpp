@@ -258,9 +258,19 @@ public:
     // RenderErrorSlot and are promoted at execution completion.
     std::unique_ptr<RenderErrorSlot> frame_error_aggregate{
         std::make_unique<RenderErrorSlot>()};
+
+    /// Reusable job-owned download scratch buffer for GPU→CPU readback.
+    [[nodiscard]] std::span<float> download_scratch(std::size_t required_floats) {
+        if (download_scratch_.size() < required_floats) {
+            download_scratch_.resize(required_floats);
+        }
+        return std::span<float>(download_scratch_.data(), required_floats);
+    }
+
     void reset_job();
 
 private:
+    std::vector<float> download_scratch_{};
     RuntimeContext* runtime_{nullptr};
     graph::GraphExecutor* executor_{nullptr};
     std::shared_ptr<const compiler::CompiledProgram> program_;

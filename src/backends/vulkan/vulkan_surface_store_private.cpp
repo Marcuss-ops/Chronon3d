@@ -344,6 +344,77 @@ namespace chronon3d::backends::vulkan {
         return submit_upload(slot, wait_for_completion);
     }
 
+    std::uint64_t VulkanBackend::Impl::upload_rows(
+        runtime::RenderSurfaceHandle handle,
+        const runtime::SurfaceDesc& desc,
+        const raster::BBox& clip,
+        const graph::RenderBackend::UploadRows& rows,
+        bool wait_for_completion) {
+        if (clip.x0 < 0 || clip.y0 < 0 || clip.x1 <= clip.x0 || clip.y1 <= clip.y0 ||
+            static_cast<std::uint32_t>(clip.x1) > desc.width ||
+            static_cast<std::uint32_t>(clip.y1) > desc.height) {
+            throw std::invalid_argument("Vulkan rows upload is outside surface bounds");
+        }
+        const auto rw = static_cast<std::uint32_t>(clip.x1 - clip.x0);
+        const auto rh = static_cast<std::uint32_t>(clip.y1 - clip.y0);
+        if (rows.first_row.size() < rw || rows.stride < rw) {
+            throw std::invalid_argument("Vulkan rows upload span or stride smaller than clip width");
+        }
+        auto& image = ensure_surface(handle, desc);
+        const VkDeviceSize bytes = static_cast<VkDeviceSize>(rw) * rh * sizeof(Color);
+        const bool full_upload = (clip.x0 == 0 && clip.y0 == 0 &&
+                                  rw == desc.width && rh == desc.height);
+        ++stats.upload_calls;
+        stats.upload_bytes += bytes;
+        if (full_upload) {
+            stats.upload_full_surface_bytes += bytes;
+        } else {
+            stats.upload_region_bytes += bytes;
+        }
+        const auto producer = static_cast<std::size_t>(profiling::g_gpu_upload_producer);
+        if (producer < stats.upload_producer_bytes.size()) {
+            stats.upload_producer_bytes[producer] += bytes;
+            if (full_upload) {
+                stats.upload_producer_full_count[producer] += 1;
+            } else {
+                stats.upload_producer_region_count[producer] += 1;
+            }
+        }
+        auto& slot = acquire_upload_slot(wait_for_completion);
+        ensure_upload_slot(slot, bytes);
+        auto* dst = static_cast<char*>(slot.buffer_allocation.mapped);
+        const auto* src = reinterpret_cast<const char*>(rows.first_row.data());
+        const std::size_t row_bytes = rw * sizeof(Color);
+        const std::size_t stride_bytes = rows.stride * sizeof(Color);
+        if (rows.stride == rw) {
+            std::memcpy(dst, src, row_bytes * rh);
+        } else {
+            for (std::size_t y = 0; y < rh; ++y) {
+                std::memcpy(dst + y * row_bytes, src + y * stride_bytes, row_bytes);
+            }
+        }
+        const VkCommandBufferBeginInfo begin{
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+            VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
+        check(vkResetCommandBuffer(slot.command_buffer, 0),
+              "vkResetCommandBuffer(rows upload slot)");
+        check(vkBeginCommandBuffer(slot.command_buffer, &begin),
+              "vkBeginCommandBuffer(rows upload slot)");
+        transition(slot.command_buffer, image.image,
+                   image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        const VkBufferImageCopy copy{0, rw, rh,
+            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+            {clip.x0, clip.y0, 0},
+            {rw, rh, 1}};
+        vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer_allocation.buffer, image.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        transition(slot.command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   VK_IMAGE_LAYOUT_GENERAL);
+        image.initialized = true;
+        return submit_upload(slot, wait_for_completion);
+    }
+
     void VulkanBackend::Impl::wait_upload_ticket(std::uint64_t ticket) {
         const VkSemaphoreWaitInfo wait_info{
             VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO, nullptr, 0, 1,

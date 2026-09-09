@@ -61,10 +61,10 @@ void synchronize_native_output(RenderGraphContext& ctx,
     if (framebuffer->is_cpu_authoritative()) {
         return;
     }
-    std::vector<float> rgba(static_cast<std::size_t>(framebuffer->width()) *
-                            framebuffer->height() * 4);
+    const auto scratch = ctx.download_scratch(framebuffer->width(),
+                                              framebuffer->height());
     const auto result = ctx.backend->download_surface(
-        framebuffer->surface_handle(), rgba);
+        framebuffer->surface_handle(), scratch);
     if (!result.ok()) {
         spdlog::error("[backend] native output synchronization failed: {}",
                       result.error().message);
@@ -82,7 +82,7 @@ void synchronize_native_output(RenderGraphContext& ctx,
     // this operation.
     FramebufferCopyAuthority::copy_rows(
         framebuffer->pixels_row(0), framebuffer->stride(),
-        reinterpret_cast<const Color*>(rgba.data()),
+        reinterpret_cast<const Color*>(scratch.data()),
         framebuffer->width() /* packed source has no padding */,
         framebuffer->width(), framebuffer->height());
     if (ctx.surface_registry) {
@@ -170,27 +170,20 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
         const auto rw = static_cast<std::size_t>(clip.x1 - clip.x0);
         const auto rh = static_cast<std::size_t>(clip.y1 - clip.y0);
         if (rw != 0 && rh != 0) {
-            std::vector<float> rgba(rw * rh * 4);
-            for (std::size_t y = 0; y < rh; ++y) {
-                const auto* row = framebuffer->data() +
-                    static_cast<std::size_t>(clip.y0 + static_cast<int>(y)) *
-                        static_cast<std::size_t>(framebuffer->stride()) + clip.x0;
-                std::memcpy(rgba.data() + y * rw * 4, row, rw * sizeof(Color));
-            }
             profiling::GpuUploadProducerScope upload_scope(
                 has_projected_surface
                     ? profiling::GpuUploadProducer::Projection
                     : profiling::GpuUploadProducer::Video);
             runtime::UploadTicket upload_ticket{};
-            const auto full_upload = clip.x0 == 0 && clip.y0 == 0 &&
-                clip.x1 == framebuffer->width() &&
-                clip.y1 == framebuffer->height();
-            const auto uploaded = full_upload
-                ? backend_.upload_surface_async(handle, desc, rgba, upload_ticket)
-                : backend_.upload_surface_region(
-                      handle, desc, clip.x0, clip.y0,
-                      static_cast<std::uint32_t>(rw),
-                      static_cast<std::uint32_t>(rh), rgba);
+            const auto* first_pixel = framebuffer->data() +
+                static_cast<std::size_t>(clip.y0) *
+                    static_cast<std::size_t>(framebuffer->stride()) + clip.x0;
+            const RenderBackend::UploadRows rows{
+                .first_row = std::span<const Color>(first_pixel, rw),
+                .stride = static_cast<std::size_t>(framebuffer->stride()),
+            };
+            const auto uploaded = backend_.upload_surface_rows_async(
+                handle, desc, clip, rows, upload_ticket);
             if (!uploaded.ok()) return runtime::kInvalidRenderSurfaceHandle;
         }
         framebuffer->set_surface_handle(handle);
@@ -220,27 +213,33 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
         (void)ctx_.surface_registry->release(handle);
         return runtime::kInvalidRenderSurfaceHandle;
     }
-    std::vector<float> packed;
-    const auto rgba = framebuffer_rgba_view(*framebuffer, packed);
     const auto upload_start = std::chrono::steady_clock::now();
     profiling::GpuUploadProducerScope upload_scope(
         profiling::GpuUploadProducer::Video);
     runtime::UploadTicket upload_ticket{};
-    if (!backend_.upload_surface_async(handle, desc, rgba, upload_ticket).ok()) {
+    const raster::BBox full_clip{0, 0, framebuffer->width(), framebuffer->height()};
+    const RenderBackend::UploadRows rows{
+        .first_row = std::span<const Color>(
+            framebuffer->data(), static_cast<std::size_t>(framebuffer->width())),
+        .stride = static_cast<std::size_t>(framebuffer->stride()),
+    };
+    if (!backend_.upload_surface_rows_async(handle, desc, full_clip, rows, upload_ticket).ok()) {
         (void)backend_.release_surface(handle);
         (void)ctx_.surface_registry->release(handle);
         return runtime::kInvalidRenderSurfaceHandle;
     }
     const auto upload_ms = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - upload_start).count() / 1000;
+    const auto total_bytes = static_cast<std::uint64_t>(
+        static_cast<std::size_t>(framebuffer->width()) * framebuffer->height() * sizeof(Color));
     if (ctx_.node_exec.counters) {
         ctx_.node_exec.counters->video_surface_upload_count.fetch_add(
             1, std::memory_order_relaxed);
         ctx_.node_exec.counters->video_surface_upload_bytes.fetch_add(
-            static_cast<std::uint64_t>(rgba.size() * sizeof(float)),
+            total_bytes,
             std::memory_order_relaxed);
         ctx_.node_exec.counters->cpu_full_surface_upload_bytes.fetch_add(
-            static_cast<std::uint64_t>(rgba.size() * sizeof(float)),
+            total_bytes,
             std::memory_order_relaxed);
         ctx_.node_exec.counters->video_surface_upload_wall_ms.fetch_add(
             static_cast<std::uint64_t>(upload_ms),

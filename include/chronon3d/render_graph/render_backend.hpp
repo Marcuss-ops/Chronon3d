@@ -375,6 +375,22 @@ public:
             "RenderBackend::upload_surface_async: native surfaces are not supported"});
     }
 
+    struct UploadRows {
+        std::span<const Color> first_row{};
+        std::size_t stride{0};
+    };
+
+    virtual RenderOpResult upload_surface_rows_async(
+        runtime::RenderSurfaceHandle /*handle*/,
+        const runtime::SurfaceDesc& /*desc*/,
+        const raster::BBox& /*clip*/,
+        const UploadRows& /*rows*/,
+        runtime::UploadTicket& /*ticket*/) {
+        return RenderOpResult(RenderBackendError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::upload_surface_rows_async: native surfaces are not supported"});
+    }
+
     virtual RenderOpResult wait_upload(const runtime::UploadTicket& /*ticket*/) {
         return RenderOpResult(RenderBackendError{
             RenderBackendErrorCode::UnsupportedCapability,

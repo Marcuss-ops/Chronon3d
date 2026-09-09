@@ -314,6 +314,28 @@ graph::RenderOpResult VulkanBackend::upload_surface_async(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::upload_surface_rows_async(
+    runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
+    const raster::BBox& clip, const UploadRows& rows,
+    runtime::UploadTicket& ticket) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    try {
+        std::lock_guard lock(m_impl->api_mutex);
+        ticket.value = m_impl->upload_rows(handle, desc, clip, rows, false);
+        return graph::RenderOpResult(graph::RenderOpOutcome{});
+    } catch (const std::exception& error) {
+        ticket = {};
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+    }
+#else
+    (void)handle; (void)desc; (void)clip; (void)rows; (void)ticket;
+    return graph::RenderOpResult(graph::RenderBackendError{
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::upload_surface_rows_async: Vulkan support is disabled"});
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::wait_upload(const runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
