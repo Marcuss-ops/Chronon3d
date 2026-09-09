@@ -61,8 +61,16 @@ bool run_phase(Policy                                policy,
                std::vector<ResourceDiagnostics::Warning>* warnings_out) {
     auto result = fn(ref);
     if (result.has_value()) return true;
+    // FIXING.md E-04 — WarnAndSkip must remain fail-loud for required assets.
+    // A missing required font/image/layout would otherwise produce a silent
+    // partial snapshot that later renders as black frames without any loud
+    // error signal (degraded success without completion).
+    const bool is_required_missing = ref.required &&
+        (result.error().code == PreparationError::Code::MissingAsset ||
+         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud) {
+        || mode == PreparationOptions::FailureMode::FailLoud
+        || is_required_missing) {
         throw result.error();   // bubble up to main loop, fail-loud
     }
     if (warnings_out) {
@@ -90,8 +98,12 @@ auto run_phase_value(Policy                                policy,
     -> std::optional<std::decay_t<decltype(fn(ref).value())>> {
     auto result = fn(ref);
     if (result.has_value()) return std::move(result.value());
+    const bool is_required_missing = ref.required &&
+        (result.error().code == PreparationError::Code::MissingAsset ||
+         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud) {
+        || mode == PreparationOptions::FailureMode::FailLoud
+        || is_required_missing) {
         throw result.error();
     }
     if (warnings_out) {
@@ -116,8 +128,12 @@ bool run_phase_with_frame(Policy                                policy,
                            std::vector<ResourceDiagnostics::Warning>* warnings_out) {
     auto result = fn(ref, frame);
     if (result.has_value()) return true;
+    const bool is_required_missing = ref.required &&
+        (result.error().code == PreparationError::Code::MissingAsset ||
+         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud) {
+        || mode == PreparationOptions::FailureMode::FailLoud
+        || is_required_missing) {
         throw result.error();
     }
     if (warnings_out) {
@@ -167,7 +183,10 @@ ResourcePreparation::prepare(
             for (const auto& ref : manifest.filter(assets::AssetKind::Image)) {
                 auto image_result = decode_image(ref, resolver);
                 if (!image_result.has_value()) {
-                    if (options.failure_mode == PreparationOptions::FailureMode::FailLoud) {
+                    const bool is_required_missing = ref.required &&
+                        (image_result.error().code == PreparationError::Code::MissingAsset ||
+                         image_result.error().code == PreparationError::Code::UnresolvableAssetPath);
+                    if (options.failure_mode == PreparationOptions::FailureMode::FailLoud || is_required_missing) {
                         throw image_result.error();
                     }
                     prepared.diagnostics.warnings.push_back({
@@ -220,8 +239,13 @@ ResourcePreparation::prepare(
                 if (!mesh.has_value()) {
                     const bool optional_missing =
                         !ref.required && mesh.error().code == PreparationError::Code::MissingAsset;
-                    if (!optional_missing &&
-                        options.failure_mode == PreparationOptions::FailureMode::FailLoud) {
+                    // FIXING.md E-04 — also fail-loud for required UnresolvableAssetPath,
+                    // not only MissingAsset (both signal a bad required reference).
+                    const bool required_unresolvable = ref.required &&
+                        mesh.error().code == PreparationError::Code::UnresolvableAssetPath;
+                    if ((!optional_missing &&
+                        options.failure_mode == PreparationOptions::FailureMode::FailLoud) ||
+                        required_unresolvable) {
                         throw mesh.error();
                     }
                     prepared.diagnostics.warnings.push_back({
