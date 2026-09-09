@@ -40,24 +40,30 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     runtime::DeviceScheduler local_scheduler;
     if (!device_scheduler) {
+        if (opts.encoder.hardware_encoder == "nvenc") {
+            spdlog::error(
+                "[video] hardware encoder 'nvenc' requested but device scheduler is missing; "
+                "refusing unprobed device capabilities");
+            return PipeExportResult{};
+        }
         runtime::DeviceCapabilities capabilities;
         capabilities.id = 0;
         capabilities.name = "cli-device-0";
-        capabilities.cuda = opts.encoder.hardware_encoder == "nvenc";
-        capabilities.nvdec = capabilities.cuda;
-        capabilities.nvenc = capabilities.cuda;
-        capabilities.nv12 = capabilities.cuda;
-        capabilities.p010 = capabilities.cuda;
-        capabilities.h264 = capabilities.cuda;
-        capabilities.hevc = capabilities.cuda;
-        capabilities.av1 = capabilities.cuda;
+        capabilities.cuda = false;
+        capabilities.nvdec = false;
+        capabilities.nvenc = false;
+        capabilities.nv12 = false;
+        capabilities.p010 = false;
+        capabilities.h264 = false;
+        capabilities.hevc = false;
+        capabilities.av1 = false;
         local_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
                 .compute_units = 1.0f,
                 .vram_bytes = 0,
-                .nvdec_sessions = 1,
-                .nvenc_sessions = 1,
+                .nvdec_sessions = 0,
+                .nvenc_sessions = 0,
                 .pcie_bandwidth = 1.0f});
         device_scheduler = &local_scheduler;
     }
