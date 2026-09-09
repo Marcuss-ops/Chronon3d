@@ -270,20 +270,21 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 static_cast<uint64_t>(profiling::duration_us(enc_t0, enc_t1)),
                 std::memory_order_relaxed);
 
+            const auto telemetry = ctx.encoder.last_frame_telemetry();
             ctx.frame_encoder_telemetry.push_back({
                 .frame_number = static_cast<int>(full->frame_number),
-                .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
-                .pixel_format_convert_ms = ctx.encoder.last_frame_telemetry().pixel_format_convert_ms,
-                .color_space_convert_ms = ctx.encoder.last_frame_telemetry().color_space_convert_ms,
-                .encoder_ms = ctx.encoder.last_frame_telemetry().encoder_ms,
-                .pipe_write_ms = ctx.encoder.last_frame_telemetry().pipe_write_ms,
-                .backpressure_wait_ms = ctx.encoder.last_frame_telemetry().backpressure_wait_ms,
-                .pipe_write_cpu_ms = ctx.encoder.last_frame_telemetry().pipe_write_cpu_ms,
-                .pipe_backpressure_wait_ms = ctx.encoder.last_frame_telemetry().pipe_backpressure_wait_ms,
-                .native_convert_ms = ctx.encoder.last_frame_telemetry().native_convert_ms,
-                .native_send_ms = ctx.encoder.last_frame_telemetry().native_send_ms,
-                .native_receive_ms = ctx.encoder.last_frame_telemetry().native_receive_ms,
-                .native_mux_ms = ctx.encoder.last_frame_telemetry().native_mux_ms,
+                .conversion_copy_ms = telemetry.conversion_copy_ms,
+                .pixel_format_convert_ms = telemetry.pixel_format_convert_ms,
+                .color_space_convert_ms = telemetry.color_space_convert_ms,
+                .encoder_ms = telemetry.encoder_ms,
+                .pipe_write_ms = telemetry.pipe_write_ms,
+                .backpressure_wait_ms = telemetry.backpressure_wait_ms,
+                .pipe_write_cpu_ms = telemetry.pipe_write_cpu_ms,
+                .pipe_backpressure_wait_ms = telemetry.pipe_backpressure_wait_ms,
+                .native_convert_ms = telemetry.native_convert_ms,
+                .native_send_ms = telemetry.native_send_ms,
+                .native_receive_ms = telemetry.native_receive_ms,
+                .native_mux_ms = telemetry.native_mux_ms,
             });
         }
 
