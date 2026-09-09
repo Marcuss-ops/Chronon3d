@@ -8,6 +8,7 @@
 #include <chronon3d/cache/framebuffer_copy.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -215,6 +216,17 @@ CachedFB RenderGraphContext::own_to_cache(OwnedFB& owned, cache::FramebufferPool
         return CachedFB{};
     }
     return pool->cache_adopt(std::move(owned));
+}
+
+std::span<float> RenderGraphContext::download_scratch(int w, int h) {
+    const std::size_t required = static_cast<std::size_t>(w) * h * 4;
+    if (session) {
+        return session->download_scratch(required);
+    }
+    if (fallback_download_scratch_.size() < required) {
+        fallback_download_scratch_.resize(required);
+    }
+    return std::span<float>(fallback_download_scratch_.data(), required);
 }
 
 } // namespace chronon3d::graph

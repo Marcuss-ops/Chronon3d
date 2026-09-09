@@ -573,6 +573,7 @@ struct RenderGraphContext {
     /// call: node executions never outlive it, and value copies (never
     /// pointer retention) cross the error boundary.
     std::optional<NodeExecutionError>* frame_error{nullptr};
+    std::vector<float> fallback_download_scratch_{};
 
     /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
     OwnedFB acquire_owned_fb(
@@ -597,6 +598,9 @@ struct RenderGraphContext {
         bool clear = true,
         std::optional<raster::BBox> bounds = std::nullopt
     ) const;
+
+    /// Reusable scratch buffer for GPU→CPU download synchronization.
+    [[nodiscard]] std::span<float> download_scratch(int w, int h);
 
     /// Convert an OwnedFB to a shared_ptr for cache storage.
     static CachedFB own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool);
