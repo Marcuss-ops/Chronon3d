@@ -16,6 +16,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
+#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -75,6 +76,12 @@ struct GpuAssetCacheStats {
     /// non-zero the device may still hold memory that the cache can no
     /// longer account for through resident_bytes.
     std::size_t release_failures{0};
+    /// AUDIT-2026-09-09 E-03 — release_surface() answered
+    /// UnsupportedCapability (backend never owned the allocation). The
+    /// accounting released is therefore "logical only"; keeping it distinct
+    /// from release_failures makes the CPU-backend case observable without
+    /// masking real device-release failures.
+    std::size_t unsupported_capability_releases{0};
 };
 
 /// Engine-local cache for decoded assets promoted to device-local surfaces.
@@ -159,6 +166,9 @@ private:
     std::list<GpuAssetKey> m_lru;
     std::unordered_map<GpuAssetKey, InflightUpload, GpuAssetKeyHash> m_inflight;
     GpuAssetCacheStats m_stats{};
+    /// Torn outside m_mutex (release_backend_surface runs unlocked); folded
+    /// into stats() on read.
+    std::atomic<std::uint64_t> m_unsupported_capability_releases{0};
 };
 
 } // namespace chronon3d::runtime

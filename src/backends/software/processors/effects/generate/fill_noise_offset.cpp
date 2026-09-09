@@ -144,7 +144,8 @@ void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
 void apply_offset(Framebuffer& fb, float dx, float dy,
                   chronon3d::sampling::EdgeMode edge_mode,
                   chronon3d::sampling::SampleFilter filter,
-                  const std::optional<raster::BBox>& clip) {
+                  const std::optional<raster::BBox>& clip,
+                  ::chronon3d::EffectScratchResources* scratch) {
     if (dx == 0.0f && dy == 0.0f) return;
 
     const int w = fb.width(), h = fb.height();
@@ -158,9 +159,21 @@ void apply_offset(Framebuffer& fb, float dx, float dy,
 
     // Create a temporary copy of the entire framebuffer so that sampling
     // reads from the pre-offset state regardless of the processing region.
-    auto temp = std::make_unique<Framebuffer>(w, h);
-    temp->blit(fb, 0, 0);
-    const chronon3d::sampling::Sampler2D sampler(*temp, edge_mode);
+    // AUDIT-2026-09-09 N-17 — borrow the session scratch framebuffer on the
+    // renderer path (zero heap churn per frame); the heap fallback stays for
+    // pool-less callers (tests, CLI dry-run).
+    std::unique_ptr<Framebuffer> owned_temp;
+    Framebuffer* temp_raw = nullptr;
+    if (scratch) {
+        scratch->ensure_size(w, h);
+        temp_raw = scratch->framebuffer.get();
+    } else {
+        owned_temp = std::make_unique<Framebuffer>(w, h);
+        temp_raw = owned_temp.get();
+    }
+    Framebuffer& temp = *temp_raw;
+    temp.blit(fb, 0, 0);
+    const chronon3d::sampling::Sampler2D sampler(temp, edge_mode);
 
     // ── Integer fast path: nearest-neighbour with edge modes ────────────
     const bool is_integer = (dx == std::floor(dx) && dy == std::floor(dy));

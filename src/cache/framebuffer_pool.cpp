@@ -209,22 +209,44 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                     profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
                 }
                 reused = std::move(entry.fb);
+                // OPT-POOL-BESTFIT — drop the bucket from the ordered index
+                // when this acquire empties it (index holds non-empty buckets
+                // only; re-inserted on the next release/preallocate).
+                if (bucket.empty()) {
+                    m_free.erase(it);
+                    m_free_by_area.erase({free_bucket_area(key), key});
+                }
             }
         }
 
         if (!reused) {
+            // OPT-POOL-BESTFIT — best-fit via the ordered (area, dims) index:
+            // lower_bound lands on the smallest-area bucket that still fits,
+            // replacing the O(distinct-buckets) linear scan with an
+            // O(log buckets) walk. Bucket refinement (the next entries with
+            // the same area but larger missing dimension) is checked the
+            // same way the previous scan did, by advancing while the entry
+            // fits and has a smaller area than the current pick.
+            auto candidate = m_free_by_area.lower_bound(
+                {static_cast<std::uint64_t>(rounded_w) * static_cast<std::uint64_t>(rounded_h),
+                 FramebufferPoolKey{rounded_w, rounded_h}});
             auto best_fit = m_free.end();
-            size_t best_area = std::numeric_limits<size_t>::max();
-            for (auto it = m_free.begin(); it != m_free.end(); ++it) {
-                const auto& key = it->first;
-                if (key.width < rounded_w || key.height < rounded_h || it->second.empty()) {
+            std::uint64_t best_area = std::numeric_limits<std::uint64_t>::max();
+            for (; candidate != m_free_by_area.end(); ++candidate) {
+                const auto& key = candidate->second;
+                if (key.width < rounded_w || key.height < rounded_h) {
                     continue;
                 }
-                const size_t area = static_cast<size_t>(key.width) * static_cast<size_t>(key.height);
+                const auto area = candidate->first;
                 if (area < best_area) {
                     best_area = area;
-                    best_fit = it;
+                    best_fit = m_free.find(key);
                 }
+                // Ordered by area: the first fitting entry is the best fit
+                // unless a same-area entry refines the missing dimension.
+                // All same-area entries are contiguous, so keep scanning only
+                // while the area equals the best found so far.
+                if (area != best_area) break;
             }
 
             if (best_fit != m_free.end()) {
@@ -238,6 +260,11 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                     profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
                 }
                 reused = std::move(entry.fb);
+                if (bucket.empty()) {
+                    const FramebufferPoolKey emptied = best_fit->first;
+                    m_free.erase(best_fit);
+                    m_free_by_area.erase({free_bucket_area(emptied), emptied});
+                }
             }
         }
 
@@ -458,7 +485,16 @@ void FramebufferPool::release(Framebuffer* fb) {
     // storage becomes swap-transferable; every other ownership path keeps
     // the flag false (default). Cleared on the way out by acquire_unique.
     owned->set_storage_transferable(true);
+    // OPT-POOL-BESTFIT — a release can (re)create a bucket: keep the ordered
+    // index in sync (insert only when transitioning empty → non-empty).
+    // Re-find instead of reusing the earlier iterator: evict_one_from_bucket()
+    // may have erased the (then-empty) bucket, invalidating it.
+    const auto bucket_it = m_free.find(key);
+    const bool bucket_was_empty = (bucket_it == m_free.end()) || bucket_it->second.empty();
     m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
+    if (bucket_was_empty) {
+        m_free_by_area.insert({free_bucket_area(key), key});
+    }
 
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
@@ -478,6 +514,8 @@ void FramebufferPool::set_native_surface_releaser(
 void FramebufferPool::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_free.clear();
+    // OPT-POOL-BESTFIT — the index must mirror m_free (non-empty buckets).
+    m_free_by_area.clear();
     m_current_bytes = 0;
 }
 
