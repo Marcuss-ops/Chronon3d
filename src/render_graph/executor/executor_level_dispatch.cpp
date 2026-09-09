@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 namespace chronon3d::graph {
 
@@ -44,47 +45,105 @@ void dispatch_level_nodes(
     }
 
     if (use_parallel) {
-        std::atomic<int> active_parallel_workers{0};
-        std::atomic<uint64_t> idle_worker_us{0};
-        std::atomic<int> idle_samples{0};
-        const int64_t max_workers = static_cast<int64_t>(scheduler.concurrency());
+        // Per-task RMW telemetry made the measured work contend on the same
+        // cache lines as the executor itself. Each scheduler worker registers
+        // once per dispatch into a pre-sized slot, then performs plain writes.
+        // The caller reduces the slots after the parallel region has joined.
+        struct alignas(kHardwareDestructiveInterferenceSize) WorkerTelemetry {
+            std::uint64_t samples{0};
+            std::uint64_t active_sum{0};
+            std::uint64_t idle_sum{0};
+            std::uint64_t idle_samples{0};
+            std::uint64_t nodes_executed{0};
+            std::uint64_t peak_local{0};
+        };
+        struct DispatchTelemetry {
+            std::vector<WorkerTelemetry> workers;
+            std::atomic<std::size_t> next_worker{0};
+            std::uint64_t dispatch_id{0};
+            explicit DispatchTelemetry(std::size_t count, std::uint64_t id)
+                : workers(count), dispatch_id(id) {}
+        };
+        static std::atomic<std::uint64_t> next_dispatch_id{1};
+        DispatchTelemetry telemetry(
+            static_cast<std::size_t>(std::max(1, scheduler.concurrency())),
+            next_dispatch_id.fetch_add(1, std::memory_order_relaxed));
+        struct WorkerBinding {
+            const void* owner{nullptr};
+            std::uint64_t dispatch_id{0};
+            std::size_t index{0};
+        };
+        thread_local WorkerBinding binding;
+        const std::uint64_t max_workers = static_cast<std::uint64_t>(
+            std::max(1, scheduler.concurrency()));
 
         scheduler.for_each_index(level.size(), [&](std::size_t level_index) {
-            const int prev = active_parallel_workers.fetch_add(1, std::memory_order_relaxed);
-            const int current = prev + 1;
-
-            if (parent_counters) {
-                uint64_t peak = parent_counters->tbb_active_workers_peak.load(std::memory_order_relaxed);
-                const uint64_t current_u64 = static_cast<uint64_t>(current);
-                while (peak < current_u64 &&
-                       !parent_counters->tbb_active_workers_peak.compare_exchange_weak(
-                           peak, current_u64, std::memory_order_relaxed)) {}
-                parent_counters->tbb_active_workers_avg_sum.fetch_add(
-                    current_u64, std::memory_order_relaxed);
-                parent_counters->tbb_active_workers_avg_count.fetch_add(
+            if (binding.owner != &telemetry ||
+                binding.dispatch_id != telemetry.dispatch_id) {
+                binding.owner = &telemetry;
+                binding.dispatch_id = telemetry.dispatch_id;
+                binding.index = telemetry.next_worker.fetch_add(
                     1, std::memory_order_relaxed);
-                const int idle_now = static_cast<int>(max_workers - current);
-                if (idle_now > 0) {
-                    idle_worker_us.fetch_add(static_cast<uint64_t>(idle_now), std::memory_order_relaxed);
-                    idle_samples.fetch_add(1, std::memory_order_relaxed);
+                // TBB cannot execute more concurrent callbacks than the
+                // arena's concurrency. This guard keeps malformed scheduler
+                // implementations fail-safe rather than indexing past the
+                // fixed worker-local array.
+                if (binding.index >= telemetry.workers.size()) {
+                    binding.index = telemetry.workers.size() - 1;
                 }
+            }
+            auto& local = telemetry.workers[binding.index];
+            const std::uint64_t observed_workers = static_cast<std::uint64_t>(
+                std::min<std::size_t>(telemetry.next_worker.load(std::memory_order_relaxed),
+                                      telemetry.workers.size()));
+            local.peak_local = std::max(local.peak_local, observed_workers);
+            ++local.samples;
+            local.active_sum += observed_workers;
+            if (observed_workers < max_workers) {
+                local.idle_sum += max_workers - observed_workers;
+                ++local.idle_samples;
             }
 
             execute_single_node(
                 state, graph, ctx, level_resolved, level[level_index], level_index,
                 parent_counters, parent_pool, consumer_remaining,
-                compiled);
-
-            active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
+                compiled, &local.nodes_executed);
         });
 
         if (parent_counters) {
-            const uint64_t idle_sum = idle_worker_us.load(std::memory_order_relaxed);
+            std::uint64_t peak_workers = 0;
+            std::uint64_t active_sum = 0;
+            std::uint64_t samples = 0;
+            std::uint64_t idle_sum = 0;
+            std::uint64_t idle_samples = 0;
+            std::uint64_t nodes_executed = 0;
+            for (const auto& worker : telemetry.workers) {
+                active_sum += worker.active_sum;
+                samples += worker.samples;
+                idle_sum += worker.idle_sum;
+                idle_samples += worker.idle_samples;
+                nodes_executed += worker.nodes_executed;
+            }
+            for (const auto& worker : telemetry.workers) {
+                peak_workers = std::max(peak_workers, worker.peak_local);
+            }
+            auto recorded_peak = parent_counters->tbb_active_workers_peak.load(
+                std::memory_order_relaxed);
+            while (recorded_peak < peak_workers &&
+                   !parent_counters->tbb_active_workers_peak.compare_exchange_weak(
+                       recorded_peak, peak_workers, std::memory_order_relaxed)) {}
+
+            parent_counters->tbb_active_workers_avg_sum.fetch_add(
+                active_sum, std::memory_order_relaxed);
+            parent_counters->tbb_active_workers_avg_count.fetch_add(
+                samples, std::memory_order_relaxed);
+            parent_counters->nodes_executed.fetch_add(
+                nodes_executed, std::memory_order_relaxed);
             if (idle_sum > 0) {
                 parent_counters->parallel_idle_worker_entry_sum.fetch_add(
                     idle_sum, std::memory_order_relaxed);
                 parent_counters->parallel_idle_worker_samples.fetch_add(
-                    idle_samples.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                    idle_samples, std::memory_order_relaxed);
             }
         }
         return;
@@ -95,7 +154,7 @@ void dispatch_level_nodes(
         execute_single_node(
             state, graph, ctx, level_resolved, level[level_index], level_index,
             parent_counters, parent_pool, consumer_remaining,
-            compiled);
+            compiled, nullptr);
     }
     if (parent_counters) {
         const auto seq_ms = profiling::duration_ms(t_seq0, profiling::now());

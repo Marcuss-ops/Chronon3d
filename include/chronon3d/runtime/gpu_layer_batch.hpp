@@ -70,6 +70,10 @@ struct GpuLayerBatch {
     std::vector<LayerInstance> instances;
     // Frame-local resolved resource table; this is not a second registry.
     std::vector<RenderSurfaceHandle> resources;
+    // Compiler-layer metadata retained for graph diagnostics and tests. These
+    // fields are intentionally not part of the backend span contract; the
+    // backend consumes only instances/resources and must not infer execution
+    // policy from them.
     std::uint32_t              output_physical_slot{0};
     bool                       is_gpu_fused{false};
 

@@ -132,58 +132,59 @@ bool GraphExecutor::execute(
             }
         }
 
-        const bool pass_ok = std::visit(
-            [&backend](const auto& params) {
+        const auto pass_result = std::visit(
+            [&backend](const auto& params) -> RenderOpResult {
                 using P = std::decay_t<decltype(params)>;
                 if constexpr (std::is_same_v<P, runtime::CompositePass>) {
                     return backend.composite_surfaces(
                         params.destination, params.source,
                         params.blend_mode == 1 ? BlendMode::Add : BlendMode::Normal,
-                        CompositeOperator::SourceOver).ok();
+                        CompositeOperator::SourceOver);
                 } else if constexpr (std::is_same_v<P, runtime::TransformPass>) {
                     return backend.transform_surface(
                         params.destination, params.source, params.offset_x,
-                        params.offset_y, params.opacity).ok();
+                        params.offset_y, params.opacity);
                 } else if constexpr (std::is_same_v<P, runtime::AffineTransformPass>) {
                     return backend.transform_surface_affine(
-                        params.destination, params.source, params.transform).ok();
+                        params.destination, params.source, params.transform);
                 } else if constexpr (std::is_same_v<P, runtime::BlurPass>) {
                     return backend.blur_surface(
                         params.destination, params.source, params.radius,
-                        params.horizontal != 0).ok();
+                        params.horizontal != 0);
                 } else if constexpr (std::is_same_v<P, runtime::GlowPass>) {
                     return backend.glow_surfaces(
                         params.destination, params.source, params.scratch_horizontal,
                         params.scratch_vertical, params.radius, params.intensity,
                         Color{params.tint[0], params.tint[1], params.tint[2],
-                              params.tint[3]}).ok();
+                              params.tint[3]});
                 } else if constexpr (std::is_same_v<P, runtime::YuvOverlayPass>) {
                     return backend.yuv_overlay_surface(
                         params.destination, params.source, params.format,
-                        params.dirty_region, params.mode).ok();
+                        params.dirty_region, params.mode);
                 } else if constexpr (std::is_same_v<P, runtime::ColorAdjustPass>) {
                     return backend.color_adjust_surface(
                         params.destination, params.source, params.brightness,
                         params.contrast,
                         Color{params.tint[0], params.tint[1], params.tint[2],
-                              params.tint[3]}, params.tint_amount).ok();
+                              params.tint[3]}, params.tint_amount);
                 } else if constexpr (std::is_same_v<P, runtime::MattePass>) {
                     return backend.matte_surface(
                         params.destination, params.target, params.matte,
-                        params.luma != 0, params.inverted != 0).ok();
+                        params.luma != 0, params.inverted != 0);
                 } else if constexpr (std::is_same_v<P, runtime::LayerBatchPass>) {
                     thread_local std::vector<runtime::LayerInstance> instances;
                     instances.clear();
                     instances.reserve(params.items.size());
                     for (const auto& item : params.items) {
-                        runtime::LayerInstance instance;
-                        instance.resource_index = 0;
-                        for (std::size_t i = 0; i < params.sources.size(); ++i) {
-                            if (params.sources[i] == item.source) {
-                                instance.resource_index = static_cast<std::uint32_t>(i);
-                                break;
-                            }
+                        if (item.resource_index == runtime::kInvalidLayerResourceIndex ||
+                            item.resource_index >= params.sources.size() ||
+                            params.sources[item.resource_index] != item.source) {
+                            return RenderOpResult(RenderBackendError{
+                                RenderBackendErrorCode::InvalidInput,
+                                "layer batch item has no valid compiled source/resource binding"});
                         }
+                        runtime::LayerInstance instance;
+                        instance.resource_index = item.resource_index;
                         instance.dst_x0 = item.dst_x;
                         instance.dst_y0 = item.dst_y;
                         instance.dst_x1 = item.dst_x + item.dst_w;
@@ -198,7 +199,7 @@ bool GraphExecutor::execute(
                         instances.push_back(instance);
                     }
                     return backend.execute_layer_batch(
-                        params.destination, instances, params.sources, {}, {}).ok();
+                        params.destination, instances, params.sources, {}, {});
                 } else if constexpr (std::is_same_v<P, runtime::ScalePass>) {
                     runtime::SurfaceAffineTransform transform{};
                     transform.source_x[0] = params.scale_x != 0.0f
@@ -209,18 +210,24 @@ bool GraphExecutor::execute(
                     transform.bilinear = static_cast<std::uint32_t>(
                         params.filter_mode != 0);
                     return backend.transform_surface_affine(
-                        params.destination, params.source, transform).ok();
+                        params.destination, params.source, transform);
                 } else if constexpr (std::is_same_v<P, runtime::TextBatchPass>) {
-                    backend.draw_text_batch(
+                    return backend.draw_text_batch(
                         params.destination, params.glyphs, params.runs,
                         params.atlas_pages);
-                    return true;
                 }
-                return false;
+                return RenderOpResult(RenderBackendError{
+                    RenderBackendErrorCode::UnsupportedCapability,
+                    "unsupported command plan pass variant"});
             },
             pass.params);
 
-        if (!pass_ok) {
+        if (!pass_result.ok()) {
+            spdlog::error(
+                "[render-graph] pass {} (kind={}) failed: [{}] {}",
+                pass_index, static_cast<int>(pass.kind),
+                render_backend_error_code_name(pass_result.error().code),
+                pass_result.error().message);
             success = false;
             break;
         }

@@ -114,7 +114,9 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
         params.model_matrix, s.offset_x, s.offset_y,
         s.min_x, s.min_y, s.max_x, s.max_y);
 
-    if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+    static const bool text_debug_env =
+        std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr;
+    if (text_debug_env) {
         std::size_t scratch_nonzero = 0;
         std::size_t scratch_alpha = 0;
         BLImageData scratch_data{};
@@ -147,7 +149,7 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
         params.fb, s.img, full_model,
         params.opacity, BlendMode::Normal);
 
-    if (std::getenv("CHRONON3D_TEXT_DEBUG")) {
+    if (text_debug_env) {
         std::size_t destination_nonzero = 0;
         for (int y = 0; y < params.fb.height(); ++y) {
             const Color* row = params.fb.pixels_row(y);

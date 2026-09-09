@@ -176,4 +176,16 @@ struct TextRunShape {
     float dissolve_mix{0.0f};                                   // current blend factor
 };
 
+/// Per-frame text state kept separate from the immutable shape payload.
+/// Layouts are shared and glyph state is reused by the executor scratch; the
+/// static material/animation/document data remains owned by TextRunShape.
+/// This is the data-plane representation used by render_text_run_item().
+struct TextRunFrameState {
+    // Reusable adapter for legacy renderer interfaces. The adapter owns the
+    // mutable glyph vectors for this worker; it is never copied from
+    // TextRunShape wholesale.
+    TextRunShape render_shape{};
+    const TextRunShape* source_identity{nullptr};
+};
+
 } // namespace chronon3d

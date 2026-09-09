@@ -14,6 +14,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -135,18 +136,36 @@ std::optional<NodeExecutionError> validate_execution(
 
 #ifdef CHRONON3D_ENABLE_TEXT
 
-TextRunShape prepare_per_frame_shape(
+void prepare_per_frame_shape(
     const TextRunShape& source,
-    chronon3d::SampleTime sample_time
+    chronon3d::SampleTime sample_time,
+    TextRunFrameState& frame
 ) {
-    // A6 immutability: shallow-copy the underlying layout (shared_ptr)
-    // and deep-copy the mutable per-glyph vector.  Evaluating the
-    // animator stack into the clone keeps `m_shape` (the compiled
-    // immutable node input) read-only across calls.
-    TextRunShape local = source;
-    chronon3d::update_text_run_shape_per_frame(local, sample_time);
+    // A6 immutability: keep the compiled shape read-only. Only the mutable
+    // glyph state is written into worker-owned scratch; its capacity survives
+    // across invocations to avoid per-item heap reallocations.
+    auto& view = frame.render_shape;
+    view.layout = source.layout;
+    view.dissolve_layout = source.dissolve_layout;
+    view.material = source.material;
+    view.paint = source.paint;
+    view.shadows = source.shadows;
+    view.placement_kind = source.placement_kind;
+    view.animators = source.animators;
+    view.animated_doc = source.animated_doc;
+    view.engine = source.engine;
+    view.layout_spec = source.layout_spec;
+    view.cache = source.cache;
+    view.dissolve_mix = source.dissolve_mix;
 
-    return local;
+    if (view.layout) reset_glyph_states_in_place(view.glyphs, view.layout->placed);
+    else view.glyphs.clear();
+    if (view.dissolve_layout) {
+        reset_glyph_states_in_place(view.dissolve_glyphs, view.dissolve_layout->placed);
+    } else {
+        view.dissolve_glyphs.clear();
+    }
+    chronon3d::update_text_run_shape_per_frame(view, sample_time);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -161,18 +180,21 @@ graph::RenderOpResult render_text_run_item(
     const TextRunPlacement& placement,
     float opacity
 ) {
-    // A6 immutability: clone the mutable per-glyph vector, evaluate
-    // animators into the clone.
-    TextRunShape local_shape = source_shape;
-    chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
+    // A6 immutability: evaluate into worker-owned frame scratch rather than
+    // copying the complete TextRunShape (materials, shadows, animator and
+    // document ownership) for every item.
+    static thread_local TextRunFrameState frame;
+    prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame);
+    auto& local_shape = frame.render_shape;
 
     // ── Per-frame fail-closed invariants ──────────────────────────────
     // An internally inconsistent shape (missing layout, or per-glyph
     // animator states that do not line up with the shaped/placed run)
     // must surface as an explicit error instead of a raw out-of-bounds
     // access in the GPU or software renderers below.
-    const bool text_debug = ctx.policy.diagnostics_enabled ||
-        (std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr);
+    static const bool text_debug_env =
+        std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr;
+    const bool text_debug = ctx.policy.diagnostics_enabled || text_debug_env;
     const auto shaped_glyph_count = local_shape.layout
         ? local_shape.layout->placed.glyphs.size() : std::size_t{0};
     if (text_debug) {

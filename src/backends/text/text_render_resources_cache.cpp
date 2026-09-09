@@ -62,12 +62,12 @@ struct TextRasterCache {
 // per-renderer atlas is used by non-legacy paths.
 
 struct GlyphAtlasKey {
-    std::string font_path;
+    std::uint64_t font_id{0};
     u32         glyph_id{0};
     u32         font_size{0};
 
     bool operator==(const GlyphAtlasKey& o) const noexcept {
-        return font_path == o.font_path
+        return font_id == o.font_id
             && glyph_id == o.glyph_id
             && font_size == o.font_size;
     }
@@ -75,7 +75,7 @@ struct GlyphAtlasKey {
 
 struct GlyphAtlasKeyHash {
     [[nodiscard]] std::size_t operator()(const GlyphAtlasKey& k) const noexcept {
-        std::size_t h = std::hash<std::string>{}(k.font_path);
+        std::size_t h = static_cast<std::size_t>(k.font_id);
         h ^= std::hash<u32>{}(k.glyph_id) + 0x9e3779b97f4a7c15ULL
              + (h << 6) + (h >> 2);
         h ^= std::hash<u32>{}(k.font_size) + 0x9e3779b97f4a7c15ULL
@@ -195,14 +195,24 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
     u32 glyph_id,
     u32 font_size
 ) {
+    return lookup_glyph_atlas(glyph_font_id(font_path), glyph_id, font_size);
+}
+
+std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
+    std::uint64_t font_id,
+    u32 glyph_id,
+    u32 font_size
+) {
     // TICKET-TEXT-TIMING-V1 — time the per-glyph atlas lookup so a cache
     // probe that regressed into re-rasterization is visible in telemetry.
-    const auto lookup_t0 = profiling::now();
+    const bool timing_enabled = profiling::g_current_counters != nullptr;
+    const auto lookup_t0 = timing_enabled
+        ? profiling::now() : profiling::Clock::time_point{};
     ensure_glyph_atlas_materialized();
-    detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
+    detail::GlyphAtlasKey key{font_id, glyph_id, font_size};
     std::shared_lock lock(glyph_atlas->mutex);
     auto result = glyph_atlas->cache.get(key);
-    if (profiling::g_current_counters) {
+    if (timing_enabled) {
         profiling::g_current_counters->glyph_cache_lookup_wall_us.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::elapsed_us(lookup_t0))),
             std::memory_order_relaxed);
@@ -218,7 +228,9 @@ void TextRenderResources::store_glyph_atlas(
 ) {
     // TICKET-TEXT-TIMING-V1 — time the atlas upload/store so glyph-atlas
     // population cost (frame 0 vs steady-state 0) is visible in telemetry.
-    const auto store_t0 = profiling::now();
+    const bool timing_enabled = profiling::g_current_counters != nullptr;
+    const auto store_t0 = timing_enabled
+        ? profiling::now() : profiling::Clock::time_point{};
     ensure_glyph_atlas_materialized();
 
     if (!entry.image || entry.image->empty()) {
@@ -246,10 +258,10 @@ void TextRenderResources::store_glyph_atlas(
     // incremented (cheap, atomic) so the cache owns the new instance
     // until eviction.
     const std::size_t weight = w * h * 4;
-    detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
+    detail::GlyphAtlasKey key{glyph_font_id(font_path), glyph_id, font_size};
     std::unique_lock lock(glyph_atlas->mutex);
     glyph_atlas->cache.put(key, entry, weight);
-    if (profiling::g_current_counters) {
+    if (timing_enabled) {
         profiling::g_current_counters->glyph_atlas_upload_wall_us.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::elapsed_us(store_t0))),
             std::memory_order_relaxed);
