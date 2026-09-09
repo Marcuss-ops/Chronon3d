@@ -14,9 +14,8 @@ std::pair<std::uint64_t, std::uint64_t> styled_hash(std::string_view key_bytes) 
 } // namespace
 
 std::shared_ptr<const GpuStyledGlyphCache::StyledGlyphBitmap>
-GpuStyledGlyphCache::find_styled(std::string_view key_bytes) const {
-    const auto [h0, h1] = styled_hash(key_bytes);
-    Key key{h0, h1};
+GpuStyledGlyphCache::find_styled(const StyledGlyphKey& key_value) const {
+    Key key{key_value};
     std::lock_guard lock(m_mutex);
     const auto it = m_entries.find(key);
     if (it == m_entries.end()) {
@@ -27,12 +26,25 @@ GpuStyledGlyphCache::find_styled(std::string_view key_bytes) const {
     return std::make_shared<const StyledGlyphBitmap>(it->second.bitmap);
 }
 
+std::shared_ptr<const GpuStyledGlyphCache::StyledGlyphBitmap>
+GpuStyledGlyphCache::find_styled(std::string_view key_bytes) const {
+    const auto [h0, h1] = styled_hash(key_bytes);
+    return find_styled(StyledGlyphKey{h0, 0, 0, 0, 0, {}, {}, {}, 0.0f, h1});
+}
+
 void GpuStyledGlyphCache::store_styled(
     std::string_view key_bytes, std::uint32_t width, std::uint32_t height,
     std::shared_ptr<const std::vector<float>> rgba) {
-    if (!rgba || width == 0 || height == 0) return;
     const auto [h0, h1] = styled_hash(key_bytes);
-    Key key{h0, h1};
+    store_styled(StyledGlyphKey{h0, 0, 0, 0, 0, {}, {}, {}, 0.0f, h1},
+                 width, height, std::move(rgba));
+}
+
+void GpuStyledGlyphCache::store_styled(
+    const StyledGlyphKey& key_value, std::uint32_t width, std::uint32_t height,
+    std::shared_ptr<const std::vector<float>> rgba) {
+    if (!rgba || width == 0 || height == 0) return;
+    Key key{key_value};
     std::lock_guard lock(m_mutex);
     if (m_entries.find(key) != m_entries.end()) return;
     ++m_stats.acquire_calls;

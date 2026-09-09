@@ -21,7 +21,8 @@ namespace chronon3d::graph::detail {
 /// go through draw_text_batch (CHRONON3D_ENABLE_TEXT builds only); image
 /// batches are materialized into runtime::GpuLayerBatch instances and
 /// dispatched via execute_layer_batch.  Fail-closed: any unmaterializable
-/// input throws rather than degrading to a CPU path.
+/// input is published through the frame error channel rather than degrading
+/// to a CPU path or unwinding the scheduler callback.
 void execute_fused_batch(
     ExecutionState& state,
     RenderGraph& graph,
@@ -30,6 +31,7 @@ void execute_fused_batch(
     GraphNodeId id,
     FramebufferPool* parent_pool,
     RenderCounters* parent_counters,
-    const CompiledFrameGraph& compiled);
+    const CompiledFrameGraph& compiled,
+    std::uint64_t* local_nodes_executed = nullptr);
 
 } // namespace chronon3d::graph::detail

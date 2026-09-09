@@ -10,6 +10,7 @@
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -78,6 +79,8 @@ using CompiledExecuteFn = bool (*)(RenderBackend* backend,
 inline constexpr std::uint32_t kInvalidPassTiming =
     std::numeric_limits<std::uint32_t>::max();
 inline constexpr std::uint32_t kInvalidOperationIndex =
+    std::numeric_limits<std::uint32_t>::max();
+inline constexpr std::uint32_t kInvalidLayerBatchIndex =
     std::numeric_limits<std::uint32_t>::max();
 
 struct PassTiming {
@@ -155,6 +158,9 @@ struct CompiledFrameProgram {
     std::vector<CompiledOperation> operations;
     // Compiler-owned dense lookup. Node execution never scans operations.
     std::vector<std::uint32_t> operation_index_by_node;
+    // Compiler-owned dense lookup for fused roots. Execution never scans the
+    // batch list to rediscover a structural node→batch relationship.
+    std::vector<std::uint32_t> layer_batch_index_by_node;
     std::vector<StaticSubgraphBakePass> static_bakes;
     std::vector<CompiledLayerBatch> layer_batches;
     PassQueryArena query_arena;
@@ -176,6 +182,39 @@ struct CompiledFrameProgram {
             }
             operation_index_by_node[node] = i;
         }
+    }
+
+    void rebuild_layer_batch_index(std::size_t node_count) {
+        layer_batch_index_by_node.assign(node_count, kInvalidLayerBatchIndex);
+        for (std::uint32_t i = 0; i < layer_batches.size(); ++i) {
+            const auto& batch = layer_batches[i];
+            if (!batch.is_gpu_fused) continue;
+            if (batch.member_nodes.empty()) {
+                throw std::runtime_error(
+                    "CompiledFrameProgram fused batch has no members");
+            }
+            if (std::find(batch.member_nodes.begin(), batch.member_nodes.end(),
+                          batch.root_node) == batch.member_nodes.end()) {
+                throw std::runtime_error(
+                    "CompiledFrameProgram fused batch root is not a member");
+            }
+            for (const auto node : batch.member_nodes) {
+                if (node >= node_count) {
+                    throw std::runtime_error("CompiledFrameProgram fused batch node is out of range");
+                }
+                if (layer_batch_index_by_node[node] != kInvalidLayerBatchIndex) {
+                    throw std::runtime_error("CompiledFrameProgram contains overlapping fused batches");
+                }
+                layer_batch_index_by_node[node] = i;
+            }
+        }
+    }
+
+    [[nodiscard]] const CompiledLayerBatch* layer_batch_for(GraphNodeId node) const noexcept {
+        if (node >= layer_batch_index_by_node.size()) return nullptr;
+        const auto index = layer_batch_index_by_node[node];
+        return index != kInvalidLayerBatchIndex && index < layer_batches.size()
+            ? &layer_batches[index] : nullptr;
     }
 
     [[nodiscard]] const CompiledOperation* operation_for(GraphNodeId node) const noexcept {

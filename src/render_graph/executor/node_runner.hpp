@@ -44,7 +44,8 @@ void execute_single_node(
     RenderCounters* parent_counters,
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    const CompiledFrameGraph& compiled
+    const CompiledFrameGraph& compiled,
+    std::uint64_t* local_nodes_executed = nullptr
 );
 
 } // namespace chronon3d::graph

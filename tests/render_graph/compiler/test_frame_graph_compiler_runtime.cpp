@@ -1,5 +1,9 @@
 #include "test_frame_graph_compiler_fixtures.hpp"
 
+#include <algorithm>
+#include <memory>
+#include <stdexcept>
+
 TEST_CASE("ExecutionWorkspaceRing - leases and releases workspace slots deterministically") {
     ExecutionWorkspaceRing ring;
 
@@ -103,6 +107,47 @@ TEST_CASE("AsyncEncoderSink: asynchronous task dispatch and drain") {
     CHECK(drained_frames.size() == 2);
     CHECK(drained_frames[0] == 42);
     CHECK(drained_frames[1] == 43);
+}
+
+TEST_CASE("CompiledFrameProgram: layer batch index is built with compiled program") {
+    CompiledFrameProgram program;
+    program.layer_batches.push_back(CompiledLayerBatch{
+        .member_nodes = {1, 3}, .root_node = 3, .is_gpu_fused = true});
+    program.rebuild_layer_batch_index(4);
+    REQUIRE(program.layer_batch_for(3) != nullptr);
+    CHECK(program.layer_batch_for(3)->root_node == 3);
+    CHECK(program.layer_batch_for(1) != nullptr);
+    CHECK(program.layer_batch_for(0) == nullptr);
+}
+
+TEST_CASE("CompiledFrameProgram: rejects empty and inconsistent layer batches") {
+    SUBCASE("empty batch") {
+        CompiledFrameProgram program;
+        program.layer_batches.push_back(CompiledLayerBatch{
+            .root_node = 0, .is_gpu_fused = true});
+        CHECK_THROWS_WITH(
+            program.rebuild_layer_batch_index(1),
+            doctest::Contains("has no members"));
+    }
+    SUBCASE("root is not a member") {
+        CompiledFrameProgram program;
+        program.layer_batches.push_back(CompiledLayerBatch{
+            .member_nodes = {1}, .root_node = 0, .is_gpu_fused = true});
+        CHECK_THROWS_WITH(
+            program.rebuild_layer_batch_index(2),
+            doctest::Contains("root is not a member"));
+    }
+}
+
+TEST_CASE("CompiledFrameProgram: rejects overlapping layer batch ownership") {
+    CompiledFrameProgram program;
+    program.layer_batches.push_back(CompiledLayerBatch{
+        .member_nodes = {2}, .root_node = 2, .is_gpu_fused = true});
+    program.layer_batches.push_back(CompiledLayerBatch{
+        .member_nodes = {2}, .root_node = 2, .is_gpu_fused = true});
+    CHECK_THROWS_WITH(
+        program.rebuild_layer_batch_index(4),
+        doctest::Contains("overlapping fused batches"));
 }
 
 TEST_CASE("ProcessorCapabilities: bitmask and fusion predicates") {

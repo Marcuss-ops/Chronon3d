@@ -29,7 +29,8 @@ double run_node(
     const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    const StableNodeId* stable_node_id
+    const StableNodeId* stable_node_id,
+    std::uint64_t* local_nodes_executed
 ) {
     if (result) {
         return 0.001;
@@ -44,6 +45,14 @@ double run_node(
         ? profiling::now()
         : profiling::Clock::time_point{};
     OwnedFB owned;
+    const auto record_node_executed = [&]() {
+        if (local_nodes_executed) {
+            ++(*local_nodes_executed);
+        } else if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->nodes_executed.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+    };
     {
         // chronon.node is a debug/slow category: node execution only shows
         // in kNodes/kFull traces, keeping light pipeline traces lean (plan §6).
@@ -61,9 +70,7 @@ double run_node(
             if (ctx.frame_error) {
                 *ctx.frame_error = exec_result.error();
             }
-            if (ctx.node_exec.counters) {
-                ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-            }
+            record_node_executed();
             const auto exec_t1 = timing_enabled
                 ? profiling::now()
                 : profiling::Clock::time_point{};
@@ -71,9 +78,7 @@ double run_node(
         }
         owned = exec_result.take_value();
     }
-    if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-    }
+    record_node_executed();
     if (owned) {
         owned->set_key_digest(key.digest());
 

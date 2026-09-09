@@ -130,11 +130,12 @@ TEST_CASE("DeviceScheduler: preserves physical identity and CUDA ordinal") {
 TEST_CASE("DeviceScheduler: compute share permits concurrent codec sessions") {
     DeviceScheduler scheduler;
     scheduler.register_device(
-        DeviceCapabilities{.name = "shared"},
+        DeviceCapabilities{.name = "shared", .nvenc = true},
         DeviceResourceVector{.compute_units = 1.0f, .nvenc_sessions = 2});
     DeviceSelectionRequirements req;
     req.resources.compute_units = 0.5f;
     req.resources.nvenc_sessions = 1;
+    req.resources.pcie_bandwidth = 0.5f;
     req.nvenc = true;
     auto first = scheduler.reserve(req);
     auto second = scheduler.reserve(req);

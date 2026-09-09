@@ -91,8 +91,14 @@ struct MattePass {
     std::int32_t luma{0};
     std::int32_t inverted{0};
 };
+inline constexpr std::uint32_t kInvalidLayerResourceIndex =
+    std::numeric_limits<std::uint32_t>::max();
+
 struct LayerBatchItem {
     RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
+    // Filled by GpuCommandPlanner::build(), before the frame executor sees
+    // the plan. A runtime pass must never rediscover this mapping by scan.
+    std::uint32_t resource_index{kInvalidLayerResourceIndex};
     float dst_x{0.0f}, dst_y{0.0f}, dst_w{0.0f}, dst_h{0.0f};
     float src_u0{0.0f}, src_v0{0.0f}, src_u1{1.0f}, src_v1{1.0f};
     float opacity{1.0f};
@@ -233,8 +239,11 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
 
 inline void collect_accesses(std::vector<DesiredAccess>& out,
                              const CompositePass& p) {
-    add_access(out, p.destination, true, true);
-    add_access(out, p.source, true, false);
+    const bool in_place = (p.destination == p.source);
+    add_access(out, p.destination, in_place, true);
+    if (!in_place) {
+        add_access(out, p.source, true, false);
+    }
 }
 inline void collect_accesses(std::vector<DesiredAccess>& out,
                              const TransformPass& p) {
@@ -363,6 +372,7 @@ public:
     CommandPlan build() const {
         CommandPlan plan;
         plan.passes.passes = m_passes;
+        lower_layer_batch_resources(plan.passes.passes);
 
         // ResourceId is the stable ResourcePlan request index. Sort handles so
         // unordered-map iteration can never perturb the compiled sync stream.
@@ -404,6 +414,28 @@ private:
         std::optional<ResourceState> initial{};
         std::optional<ResourceState> final{};
     };
+
+    static void lower_layer_batch_resources(std::vector<GpuPass>& passes) {
+        for (auto& pass : passes) {
+            auto* batch = std::get_if<LayerBatchPass>(&pass.params);
+            if (!batch) continue;
+            for (auto& item : batch->items) {
+                item.resource_index = kInvalidLayerResourceIndex;
+                for (std::uint32_t index = 0;
+                     index < batch->sources.size(); ++index) {
+                    if (batch->sources[index] == item.source) {
+                        item.resource_index = index;
+                        break;
+                    }
+                }
+                if (item.resource_index == kInvalidLayerResourceIndex) {
+                    throw std::invalid_argument(
+                        "GpuCommandPlanner: LayerBatchItem source is not present "
+                        "in the canonical sources table");
+                }
+            }
+        }
+    }
 
     static std::optional<ResourceId> resource_for_surface(
         const ResourcePlan& resources,

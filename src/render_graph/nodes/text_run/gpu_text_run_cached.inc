@@ -33,12 +33,37 @@ graph::RenderOpResult draw_cached_text_run(
 
     const auto& layout = *shape.layout;
     const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
+    const auto font_id = glyph_font_id(layout.font.font_path);
     const float model_scale_x = model_matrix[0][0];
     const float model_scale_y = model_matrix[1][1];
     const float model_translate_x = model_matrix[3][0];
     const float model_translate_y = model_matrix[3][1];
     const auto highlight_plan = build_timed_highlight_plan(shape);
     const float current_frame = static_cast<float>(ctx.frame_input.sample_time.frame);
+    // The shadow stack is immutable for this run. Fold it once instead of
+    // walking it for every glyph probe.
+    const auto shadow_hash = [&]() noexcept {
+        std::uint64_t hash = 1469598103934665603ULL;
+        const auto mix = [&hash](std::uint64_t value) {
+            hash ^= value;
+            hash *= 1099511628211ULL;
+        };
+        const auto mix_float = [&mix](float value) {
+            mix(std::bit_cast<std::uint32_t>(value));
+        };
+        for (const auto& shadow : shape.shadows) {
+            mix(shadow.enabled ? 1u : 0u);
+            mix_float(shadow.offset.x);
+            mix_float(shadow.offset.y);
+            mix_float(shadow.blur);
+            mix_float(shadow.opacity);
+            mix_float(shadow.color.r);
+            mix_float(shadow.color.g);
+            mix_float(shadow.color.b);
+            mix_float(shadow.color.a);
+        }
+        return hash;
+    }();
     std::vector<GpuTextGlyph> glyphs;
     glyphs.reserve(layout.placed.glyphs.size());
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
@@ -63,7 +88,7 @@ graph::RenderOpResult draw_cached_text_run(
                 "draw_cached_text_run: animated/style feature requires canonical software text path"});
         }
         auto entry = ctx.text_render_resources->lookup_glyph_atlas(
-            layout.font.font_path, state.glyph_id,
+            font_id, state.glyph_id,
             static_cast<u32>(font_size));
         if ((!entry || !entry->image || entry->image->empty()) &&
             ctx.asset_resolver) {
@@ -104,27 +129,17 @@ graph::RenderOpResult draw_cached_text_run(
         const int output_width = data.size.w + pad * 2;
         const int output_height = data.size.h + pad * 2;
         const Color raster_fill = highlight_plan.enabled ? shape.paint.fill : state.fill;
-        std::string style_key;
-        style_key.reserve(layout.font.font_path.size() + 128);
-        style_key.append(layout.font.font_path);
-        const auto append_key = [&](const auto& value) {
-            style_key.append(reinterpret_cast<const char*>(&value), sizeof(value));
-        };
-        append_key(state.glyph_id);
-        append_key(font_size);
-        append_key(stroke_radius);
-        append_key(background_padding);
-        append_key(raster_fill);
-        append_key(state.background);
-        append_key(state.stroke);
-        append_key(state.stroke_width);
-        for (const auto& shadow : shape.shadows) {
-            append_key(shadow.enabled);
-            append_key(shadow.offset);
-            append_key(shadow.blur);
-            append_key(shadow.opacity);
-            append_key(shadow.color);
-        }
+        const runtime::StyledGlyphKey style_key{
+            font_id,
+            state.glyph_id,
+            static_cast<std::uint32_t>(font_size),
+            static_cast<std::uint32_t>(stroke_radius),
+            static_cast<std::uint32_t>(background_padding),
+            raster_fill,
+            state.background,
+            state.stroke,
+            state.stroke_width,
+            shadow_hash};
         auto* styled_cache = ctx.runtime
             ? &ctx.runtime->gpu_styled_glyph_cache() : nullptr;
         auto styled = styled_cache
@@ -300,7 +315,6 @@ graph::RenderOpResult draw_cached_text_run(
             highlight_end
         });
 
-        glyphs.back().atlas_key = style_key;
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_glyphs_built.fetch_add(1, std::memory_order_relaxed);
         }

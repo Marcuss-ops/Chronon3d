@@ -249,6 +249,7 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
                           reserved_device, native_nvenc);
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
+            video_execution->device_scheduler = &m_device_scheduler;
             // Per-job wall anchor for the exclusive-wall timeline: startup is
             // measured from THIS request, never from daemon boot.
             video_execution->job_started_at = profiling::now();

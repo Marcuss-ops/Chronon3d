@@ -144,7 +144,12 @@ void lower_layer_batches(CompiledFrameGraph& compiled) {
                 has_pending = true;
                 pending_instance = CompiledLayerInstance{};
                 pending_instance.node = member_id;
-                pending_instance.resource_index = static_cast<std::uint32_t>(batch.instances.size());
+                // This is the canonical dense resource key for the fused
+                // data-plane. It is deliberately independent of graph node
+                // ids and is validated against the materialized resource
+                // vector by the worker-local scratch path.
+                pending_instance.resource_index =
+                    static_cast<std::uint32_t>(batch.instances.size());
                 pending_instance.opacity = 1.0f;
                 if (info.predicted_bbox) pending_instance.dst_bounds = *info.predicted_bbox;
             } else if (has_pending && info.kind == RenderGraphNodeKind::Transform) {
@@ -324,11 +329,26 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
     std::vector<GraphNodeId> tail_fused_batch = collect_layer_batches(compiled);
     flush_tail_fused_batch(compiled, tail_fused_batch);
     lower_layer_batches(compiled);
+    // Lowering is canonical only when every fused instance has a valid source
+    // node and a dense resource key. Fail at compile time; execution must not
+    // infer or silently repair bindings.
+    for (const auto& batch : compiled.program.layer_batches) {
+        if (!batch.is_gpu_fused) continue;
+        for (const auto& instance : batch.instances) {
+            if (instance.node >= compiled.nodes.size() ||
+                instance.resource_index >= batch.instances.size()) {
+                throw std::runtime_error(
+                    "GraphCompilePipeline: fused layer instance has invalid "
+                    "node/resource binding");
+            }
+        }
+    }
     build_standalone_operations(compiled);
     emit_fused_batch_operations(compiled);
     validate_operation_coverage(compiled);
     // Stage 3: build the dense node->operation index once at compile time.
     compiled.program.rebuild_operation_index(compiled.nodes.size());
+    compiled.program.rebuild_layer_batch_index(compiled.nodes.size());
     compute_has_fused_passes(compiled);
     compute_static_bake_islands(compiled);
     compute_fully_recorded(compiled);

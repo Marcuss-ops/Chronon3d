@@ -66,7 +66,8 @@ double run_node(
     const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    const StableNodeId* stable_node_id = nullptr  // trace annotation (plan §7)
+    const StableNodeId* stable_node_id = nullptr,  // trace annotation (plan §7)
+    std::uint64_t* local_nodes_executed = nullptr
 );
 
 } // namespace chronon3d::graph

@@ -334,10 +334,14 @@ int render_and_encode_ffmpeg(
             FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
     }
 
+    auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
+    auto video_runtimes = execution ? execution->video_runtimes : nullptr;
     auto result = render_and_encode_ffmpeg_pipe(
         registry, compiled, composition_id,
         settings, start, end, render_opts, cpu_budget,
-        nullptr, nullptr, std::move(execution));
+        std::move(video_runtimes),
+        device_scheduler,
+        std::move(execution));
     return result.return_code;
 }
 

@@ -2,14 +2,18 @@
 
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/math/color.hpp>
 
 #include <cstddef>
+#include <bit>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -180,6 +184,33 @@ private:
 /// This is a CPU-side cache only — no GPU surface or atlas packing.
 /// The packed phrase-atlas concept is gone; styled glyphs live in this cache
 /// and are uploaded to GpuGlyphAtlas pages individually.
+struct StyledGlyphKey {
+    std::uint64_t font_id{0};
+    std::uint32_t glyph_id{0};
+    std::uint32_t font_size{0};
+    std::uint32_t stroke_radius{0};
+    std::uint32_t background_padding{0};
+    Color fill{};
+    Color background{};
+    Color stroke{};
+    float stroke_width{0.0f};
+    std::uint64_t shadow_hash{0};
+
+    friend bool operator==(const StyledGlyphKey& a,
+                           const StyledGlyphKey& b) noexcept {
+        return a.font_id == b.font_id && a.glyph_id == b.glyph_id &&
+            a.font_size == b.font_size && a.stroke_radius == b.stroke_radius &&
+            a.background_padding == b.background_padding && a.fill.r == b.fill.r &&
+            a.fill.g == b.fill.g && a.fill.b == b.fill.b && a.fill.a == b.fill.a &&
+            a.background.r == b.background.r && a.background.g == b.background.g &&
+            a.background.b == b.background.b && a.background.a == b.background.a &&
+            a.stroke.r == b.stroke.r && a.stroke.g == b.stroke.g &&
+            a.stroke.b == b.stroke.b && a.stroke.a == b.stroke.a &&
+            a.stroke_width == b.stroke_width && a.shadow_hash == b.shadow_hash;
+    }
+};
+static_assert(std::is_trivially_copyable_v<StyledGlyphKey>);
+
 class GpuStyledGlyphCache {
 public:
     struct Stats {
@@ -197,10 +228,17 @@ public:
     /// Returns a previously rasterized/styled glyph bitmap. The returned
     /// pixel storage is immutable and shared by all frames using the key.
     [[nodiscard]] std::shared_ptr<const StyledGlyphBitmap> find_styled(
+        const StyledGlyphKey& key) const;
+
+    /// Legacy byte-key adapter retained for callers outside the render graph.
+    [[nodiscard]] std::shared_ptr<const StyledGlyphBitmap> find_styled(
         std::string_view key_bytes) const;
 
     /// Stores one CPU-rasterized/styled glyph for reuse by later frames.
     void store_styled(std::string_view key, std::uint32_t width,
+                      std::uint32_t height,
+                      std::shared_ptr<const std::vector<float>> rgba);
+    void store_styled(const StyledGlyphKey& key, std::uint32_t width,
                       std::uint32_t height,
                       std::shared_ptr<const std::vector<float>> rgba);
 
@@ -210,13 +248,36 @@ public:
 
 private:
     struct Key {
-        std::uint64_t h0{0};
-        std::uint64_t h1{0};
+        StyledGlyphKey value{};
         friend bool operator==(const Key&, const Key&) = default;
     };
     struct KeyHash {
         std::size_t operator()(const Key& k) const noexcept {
-            return static_cast<std::size_t>(k.h0 ^ k.h1);
+            std::size_t h = static_cast<std::size_t>(k.value.font_id);
+            const auto mix = [&h](std::uint64_t value) {
+                h ^= static_cast<std::size_t>(value) +
+                    static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) +
+                    (h << 6u) + (h >> 2u);
+            };
+            mix(k.value.glyph_id);
+            mix(k.value.font_size);
+            mix(k.value.stroke_radius);
+            mix(k.value.background_padding);
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.r)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.g)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.b)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.a)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.r)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.g)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.b)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.a)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.r)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.g)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.b)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.a)));
+            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke_width)));
+            mix(k.value.shadow_hash);
+            return h;
         }
     };
 

@@ -20,6 +20,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run.hpp>
@@ -49,18 +50,12 @@ std::optional<NodeExecutionError> validate_execution(
 
 #ifdef CHRONON3D_ENABLE_TEXT
 
-/// M1.5#1 (A6 immutability) — produce a per-frame clone of the
-/// immutable `TextRunShape` with the animator stack evaluated at
-/// `sample_time`.
-///
-/// Per-frame overhead is `O(N)` with `N = num_glyphs` (typically
-/// < 1000).  The underlying layout (`shared_ptr<const TextRunLayout>`)
-/// remains shared across frames: only the mutable per-glyph vector is
-/// copied.  Two concurrent frames on different worker threads can
-/// therefore never race on the same glyph data (Fase A6).
-TextRunShape prepare_per_frame_shape(
+/// Resolve per-frame text state into caller-owned scratch. The immutable
+/// layout is shared; stable glyph counts reuse the scratch vector capacity.
+void prepare_per_frame_shape(
     const TextRunShape& source,
-    chronon3d::SampleTime sample_time
+    chronon3d::SampleTime sample_time,
+    TextRunFrameState& frame
 );
 
 /// Unified TextRun rendering — used by BOTH TextRunNode::execute()
