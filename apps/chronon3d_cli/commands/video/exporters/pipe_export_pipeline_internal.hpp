@@ -22,7 +22,7 @@ public:
 
     bool open(const FfmpegPipeOptions&) override;
     void set_counters(RenderCounters* counters) override;
-    bool write_frame(const Framebuffer& framebuffer) override;
+    bool write_frame(const Framebuffer& framebuffer);
     bool write_frame_async(const Framebuffer& framebuffer,
                            std::shared_ptr<Framebuffer> owner) override;
     bool close() override;

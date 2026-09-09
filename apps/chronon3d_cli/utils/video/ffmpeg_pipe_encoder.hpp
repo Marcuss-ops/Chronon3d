@@ -41,7 +41,7 @@ struct EncoderFrameTelemetry {
 struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const struct FfmpegPipeOptions& options) = 0;
-    virtual bool write_frame(const Framebuffer& fb) = 0;
+    virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) = 0;
     virtual bool write_direct_yuv(const media::video::DirectYuvFrame& frame) {
         (void)frame;
         return false;
@@ -70,9 +70,6 @@ struct IVideoEncoder {
         runtime::RenderSurfaceHandle destination) {
         (void)backend; (void)destination;
         return true;
-    }
-    virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
-        return write_frame(fb);
     }
     virtual void set_counters(chronon3d::RenderCounters* counters) { (void)counters; }
 

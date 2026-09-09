@@ -61,7 +61,8 @@ public:
     // closed when a frame feed does not match the session capability — a
     // DirectYuvFrame must never reach the FullGraph native endpoint and host
     // RGBA frames must never bypass the DirectYuv executor.
-    bool write_frame(const Framebuffer& fb) override;
+    bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override;
+    bool write_frame(const Framebuffer& fb);
     bool write_direct_yuv(const media::video::DirectYuvFrame& frame) override;
     bool write_native_surface(
         graph::RenderBackend& backend,
