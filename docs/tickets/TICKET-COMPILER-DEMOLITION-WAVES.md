@@ -161,7 +161,7 @@ deleted.
   second `bounded sharding` — mai nuovo cache engine. Misurare prima di toccare.
 - **G47 `DeviceScheduler` contention — NOT MEASURED (note locked):** `DeviceScheduler::reserve()` path non profilato; misurare lock hold/wait prima di refactor.
 - **G48 `FramebufferPool` sharding — FATTO (narrow-before-shard):** già ridgeo: `FramebufferPool` allocation fuori mutex + measurement gate
-  1024 acquires, aggregates registrati; sharding non giustificato senza nuova evidenza (vedi chronon-wave-closeout-todo Ordine 8).
+  1024 acquires, aggregates registrati; sharding non giustificato senza nuova evidenza (ordine 8 del wave closeout, ora in `docs/tickets/TICKET-AUDIT-2026-09-09-REMEDIATION.md`).
 - **G42 benchmark text-heavy — NOT RUN:** corpus B00-B11 esiste; metriche target `allocations/frame, bytes/frame, text ms/frame, FPS`
   da produrre con benchmark gate (render_graph `graph_cache_refresh_fallback_total` già counter per refresh fallback).
 
