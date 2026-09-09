@@ -5,7 +5,8 @@
 
 #include <algorithm>
 #include <cstring>
-#include <sstream>
+#include <limits>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::runtime {
 

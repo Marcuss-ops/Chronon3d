@@ -10,7 +10,6 @@
 
 #include "radial_blur.hpp"
 #include <chronon3d/backends/software/software_session_resources.hpp>
-#include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -117,7 +116,26 @@ void apply_radial_blur(
     }
     temp->blit(fb, 0, 0);
     const AlphaCentroid source_centroid = compute_alpha_centroid(*temp);
-    sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
+    // FIXING.md H-01 — inline clamp bilinear on raw Color* (no Sampler2D vtable/indirection per pixel).
+    // Sampler2D is header-inline but still carries m_source pointer + edge-mode switch per fetch;
+    // inlining the clamp+lerp here removes the per-tap fetch call overhead on the hottest loop.
+    const int tw = temp->width();
+    const int th = temp->height();
+    auto clamp_bilinear = [&](float sx, float sy) noexcept -> Color {
+        const float u = sx - 0.5f, v = sy - 0.5f;
+        const int x0 = static_cast<int>(std::floor(u)), y0 = static_cast<int>(std::floor(v));
+        const int x1 = x0 + 1, y1 = y0 + 1;
+        const float tx = u - static_cast<float>(x0), ty = v - static_cast<float>(y0);
+        auto fetch_clamp = [&](int x, int y) noexcept -> Color {
+            x = std::clamp(x, 0, tw - 1); y = std::clamp(y, 0, th - 1);
+            return temp->get_pixel(x, y);
+        };
+        const Color c00 = fetch_clamp(x0, y0), c10 = fetch_clamp(x1, y0);
+        const Color c01 = fetch_clamp(x0, y1), c11 = fetch_clamp(x1, y1);
+        const Color r0{ c00.r + (c10.r - c00.r) * tx, c00.g + (c10.g - c00.g) * tx, c00.b + (c10.b - c00.b) * tx, c00.a + (c10.a - c00.a) * tx };
+        const Color r1{ c01.r + (c11.r - c01.r) * tx, c01.g + (c11.g - c01.g) * tx, c01.b + (c11.b - c01.b) * tx, c01.a + (c11.a - c01.a) * tx };
+        return Color{ r0.r + (r1.r - r0.r) * ty, r0.g + (r1.g - r0.g) * ty, r0.b + (r1.b - r0.b) * ty, r0.a + (r1.a - r0.a) * ty };
+    };
 
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
@@ -139,7 +157,7 @@ void apply_radial_blur(
                 const float rot_y = cy_px + dx_c * tap.sin_angle + dy_c * tap.cos_angle;
                 const float sx = px + zoom_x + (rot_x - px);
                 const float sy = py + zoom_y + (rot_y - py);
-                const Color c = sampler.bilinear(sx, sy);
+                const Color c = clamp_bilinear(sx, sy);
                 r += c.r * tap.weight;
                 g += c.g * tap.weight;
                 b += c.b * tap.weight;
@@ -167,13 +185,26 @@ void apply_radial_blur(
             owned_recentered = std::make_unique<Framebuffer>(w, h);
             recentered = owned_recentered.get();
         }
-        sampling::Sampler2D shift_sampler(fb, sampling::EdgeMode::Clamp);
+        // Reuse the same clamp helper pattern (source is fb, shifted by shift_x/y).
+        const int sw = fb.width(), sh = fb.height();
         for (int y = 0; y < h; ++y) {
             Color* dst_row = recentered->pixels_row(y);
             for (int x = 0; x < w; ++x) {
-                dst_row[x] = shift_sampler.bilinear(
-                    static_cast<float>(x) + shift_x,
-                    static_cast<float>(y) + shift_y);
+                const float sx = static_cast<float>(x) + shift_x;
+                const float sy = static_cast<float>(y) + shift_y;
+                const float u = sx - 0.5f, v = sy - 0.5f;
+                const int x0 = static_cast<int>(std::floor(u)), y0 = static_cast<int>(std::floor(v));
+                const int x1 = x0 + 1, y1 = y0 + 1;
+                const float tx = u - static_cast<float>(x0), ty = v - static_cast<float>(y0);
+                auto fetch = [&](int fx, int fy) noexcept -> Color {
+                    fx = std::clamp(fx, 0, sw - 1); fy = std::clamp(fy, 0, sh - 1);
+                    return fb.get_pixel(fx, fy);
+                };
+                const Color c00 = fetch(x0, y0), c10 = fetch(x1, y0);
+                const Color c01 = fetch(x0, y1), c11 = fetch(x1, y1);
+                const Color r0{ c00.r + (c10.r - c00.r) * tx, c00.g + (c10.g - c00.g) * tx, c00.b + (c10.b - c00.b) * tx, c00.a + (c10.a - c00.a) * tx };
+                const Color r1{ c01.r + (c11.r - c01.r) * tx, c01.g + (c11.g - c01.g) * tx, c01.b + (c11.b - c01.b) * tx, c01.a + (c11.a - c01.a) * tx };
+                dst_row[x] = Color{ r0.r + (r1.r - r0.r) * ty, r0.g + (r1.g - r0.g) * ty, r0.b + (r1.b - r0.b) * ty, r0.a + (r1.a - r0.a) * ty };
             }
         }
         fb.blit(*recentered, 0, 0);

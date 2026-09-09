@@ -110,21 +110,30 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // The scene below is immutable graph topology; activity, transforms and
     // typed payloads come from the borrowed FrameParameterBlock.
     const auto frame_parameters = compiler::TypedProgramSampler{}.sample(program, frame);
+    // FIXING.md S-04 — double-checked locking: allocate outside lock.
+    // materialize_scene (Scene::clone + topology build) is heavy and must
+    // not be held under m_topology_mutex when multiple jobs race.
     std::shared_ptr<const Scene> topology;
+    const auto key = program.fingerprint();
     {
         std::lock_guard lock(m_topology_mutex);
-        const auto key = program.fingerprint();
+        const auto found = m_topologies.find(key);
+        if (found != m_topologies.end()) {
+            topology = found->second;
+        }
+    }
+    if (!topology) {
+        auto fresh = std::make_shared<const Scene>(
+            compiler::ProgramSampler{}.materialize_scene(program));
+        std::lock_guard lock(m_topology_mutex);
         const auto found = m_topologies.find(key);
         if (found != m_topologies.end()) {
             topology = found->second;
         } else {
-            // The topology is materialized once per immutable program. Use the
-            // default resource: a frame arena must never back cached state.
-            topology = std::make_shared<const Scene>(
-                compiler::ProgramSampler{}.materialize_scene(program));
             if (m_topologies.size() >= 32) {
                 m_topologies.erase(m_topologies.begin());
             }
+            topology = fresh;
             m_topologies.emplace(key, topology);
         }
     }

@@ -129,16 +129,20 @@ public:
     void add(ResourceRequest request) {
         if (request.desc.kind == ResourceKind::Color &&
             is_rgb_surface_format(request.desc.format)) {
-            // Enter the one render domain.  When `bytes` still carries the
-            // tight size derived from the ORIGINAL (pre-canonical) format
-            // by ResourceDesc::make, re-derive it from the canonical
-            // format so the allocation stays coherent.  An explicit
-            // override (bytes != tight of the incoming format) is left
-            // untouched — it is the documented authority for
-            // padded/imported/external layouts.
-            const auto legacy_tight = request.desc.tight_bytes();
+            // FIXING.md C-05 — single canonical derivation: RGB surfaces are
+            // always normalized into the one render domain (RGBA16F Linear
+            // Premultiplied).  An explicit padded/imported override
+            // (bytes != 0 && bytes != tight(incoming_format)) is preserved
+            // as the authority for external layouts; otherwise bytes is
+            // re-derived from the canonical format so the tight/allocation
+            // size stays coherent.  This unifies the former `legacy_tight`
+            // branch into a single predicate and reuses the same tight_bytes
+            // primitive as ResourceDesc::make / normalize_render_color.
+            const auto incoming_tight = request.desc.tight_bytes();
+            const bool is_implicit = request.desc.bytes == 0 ||
+                                     request.desc.bytes == incoming_tight;
             request.desc.format = canonical_render_format();
-            if (request.desc.bytes == legacy_tight) {
+            if (is_implicit) {
                 request.desc.bytes = request.desc.tight_bytes();
             }
         }

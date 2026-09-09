@@ -3,6 +3,7 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/math/color.hpp>
 
 #include <cstddef>
@@ -10,6 +11,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <optional>
 #include <span>
 #include <string>
@@ -17,6 +19,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+#include <xxhash.h>
 
 namespace chronon3d::runtime {
 
@@ -50,6 +53,20 @@ struct GpuGlyphKey {
     std::uint16_t generation_profile{0};
     std::uint32_t font_size{0};
 
+    // FIXING.md C-04 — canonical factory: normalizes font_size=0 for
+    // distance-field reps so callers cannot accidentally diverge from
+    // the SSOT equality/hash (which ignore font_size for Mtsdf/Msdf/Sdf).
+    [[nodiscard]] static GpuGlyphKey make(std::string font_path,
+                                          std::uint32_t glyph_id,
+                                          std::uint64_t variation_hash,
+                                          GlyphRepresentation rep,
+                                          std::uint16_t generation_profile,
+                                          std::uint32_t font_size) noexcept {
+        if (rep != GlyphRepresentation::Coverage) font_size = 0;
+        return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
+                           rep, generation_profile, font_size};
+    }
+
     /// Runtime font size is a layout concern for distance fields.  It is part
     /// of identity only for Coverage, whose pixels are raster-size-specific.
     friend bool operator==(const GpuGlyphKey& a, const GpuGlyphKey& b) noexcept {
@@ -65,28 +82,33 @@ struct GpuGlyphKey {
     }
 };
 
-// FIXING.md U-01 — hash combine uses the classic 0x9e3779b9 mix (see also
-// GpuStyledGlyphCache::KeyHash below with 0x9e3779b97f4a7c15ULL). Both sites
-// should be unified to a single helper (e.g. xxHash/xxh3 or a shared
-// hash_combine()) to eliminate DRY drift. Tracked for a follow-up cleanup.
+// FIXING.md U-01 — unified on core::hash::HashBuilder (XXH64 string + hash_combine).
+// GpuStyledGlyphCache::KeyHash below uses the same primitive.
 struct GpuGlyphKeyHash {
     std::size_t operator()(const GpuGlyphKey& key) const noexcept {
-        std::size_t result = std::hash<std::string>{}(key.font_path);
-        result ^= static_cast<std::size_t>(key.glyph_id) +
-            static_cast<std::size_t>(0x9e3779b9u) + (result << 6u) + (result >> 2u);
-        result ^= static_cast<std::size_t>(key.variation_hash) +
-            static_cast<std::size_t>(0x9e3779b9u) + (result << 6u) + (result >> 2u);
-        result ^= static_cast<std::size_t>(key.representation) +
-            static_cast<std::size_t>(0x9e3779b9u) + (result << 6u) + (result >> 2u);
-        result ^= static_cast<std::size_t>(key.generation_profile) +
-            static_cast<std::size_t>(0x9e3779b9u) + (result << 6u) + (result >> 2u);
-        if (key.representation == GlyphRepresentation::Coverage) {
-            result ^= static_cast<std::size_t>(key.font_size) +
-                static_cast<std::size_t>(0x9e3779b9u) + (result << 6u) + (result >> 2u);
-        }
-        return result;
+        auto h = core::hash::HashBuilder{}
+            .add(std::string_view(key.font_path))
+            .add(key.glyph_id)
+            .add(key.variation_hash)
+            .add_enum(key.representation)
+            .add(key.generation_profile);
+        if (key.representation == GlyphRepresentation::Coverage) h.add(key.font_size);
+        return static_cast<std::size_t>(h.finish());
     }
 };
+
+// Hot-path view hash for atlas digests: XXH3_64bits without intermediate string.
+inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
+    std::uint64_t h = XXH3_64bits_withSeed(
+        key.font_path.data(), key.font_path.size(),
+        static_cast<std::uint64_t>(key.glyph_id) ^ 0x9e3779b97f4a7c15ULL);
+    h ^= key.variation_hash + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    h ^= static_cast<std::uint64_t>(key.representation) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
+    h ^= static_cast<std::uint64_t>(key.generation_profile) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
+    if (key.representation == GlyphRepresentation::Coverage)
+        h ^= static_cast<std::uint64_t>(key.font_size) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
+    return h;
+}
 
 /// Pen-relative placement of a glyph, preserved across the CPU→GPU promotion
 /// so a VRAM-resident glyph can be composited without re-shaping.
@@ -199,7 +221,13 @@ private:
         std::uint32_t width,
         std::uint32_t height);
 
-    mutable std::mutex m_mutex;
+    // FIXING.md S-01 — shared_mutex: read hits (metrics/stats + future
+    // glyph find fast-path) take shared_lock; writes (page alloc/upload,
+    // location insert) take unique_lock. Full per-representation sharding
+    // (4× shared_mutex + upload outside lock) is deferred — see comment
+    // in gpu_glyph_atlas_core_detail.hpp; this is the minimal contention
+    // step with Basso rischio that already de-serializes concurrent readers.
+    mutable std::shared_mutex m_mutex;
     GpuAssetCache m_cache;
     std::vector<AtlasPage> m_pages;
     std::unordered_map<GpuGlyphKey, GlyphLocation, GpuGlyphKeyHash> m_locations;
@@ -280,35 +308,21 @@ private:
         StyledGlyphKey value{};
         friend bool operator==(const Key&, const Key&) = default;
     };
-    // FIXING.md U-01 — same 0x9e3779b97f4a7c15 mix as GpuGlyphKeyHash above
-    // (different width). Unify both into a shared hash_combine/xxHash helper.
+    // FIXING.md U-01 — unified on HashBuilder (same primitive as GpuGlyphKeyHash).
     struct KeyHash {
         std::size_t operator()(const Key& k) const noexcept {
-            std::size_t h = static_cast<std::size_t>(k.value.font_id);
-            const auto mix = [&h](std::uint64_t value) {
-                h ^= static_cast<std::size_t>(value) +
-                    static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) +
-                    (h << 6u) + (h >> 2u);
-            };
-            mix(k.value.glyph_id);
-            mix(k.value.font_size);
-            mix(k.value.stroke_radius);
-            mix(k.value.background_padding);
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.r)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.g)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.b)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.fill.a)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.r)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.g)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.b)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.background.a)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.r)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.g)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.b)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke.a)));
-            mix(static_cast<std::uint32_t>(std::bit_cast<std::uint32_t>(k.value.stroke_width)));
-            mix(k.value.shadow_hash);
-            return h;
+            auto h = core::hash::HashBuilder{}
+                .add(k.value.font_id)
+                .add(k.value.glyph_id)
+                .add(k.value.font_size)
+                .add(k.value.stroke_radius)
+                .add(k.value.background_padding)
+                .add(k.value.fill.r).add(k.value.fill.g).add(k.value.fill.b).add(k.value.fill.a)
+                .add(k.value.background.r).add(k.value.background.g).add(k.value.background.b).add(k.value.background.a)
+                .add(k.value.stroke.r).add(k.value.stroke.g).add(k.value.stroke.b).add(k.value.stroke.a)
+                .add(k.value.stroke_width)
+                .add(k.value.shadow_hash);
+            return static_cast<std::size_t>(h.finish());
         }
     };
 

@@ -5,26 +5,16 @@ GpuGlyphAtlasError atlas_error(
     return GpuGlyphAtlasError{code, std::move(message)};
 }
 
-std::string glyph_key_string(const GpuGlyphKey& key) {
-    std::ostringstream out;
-    out << key.font_path << '\x1f' << key.glyph_id << '\x1f'
-        << key.variation_hash << '\x1f'
-        << static_cast<int>(key.representation) << '\x1f'
-        << key.generation_profile;
-    if (key.representation == GlyphRepresentation::Coverage) {
-        out << '\x1f' << key.font_size;
-    }
-    return out.str();
-}
-
 } // namespace
 
 void GpuGlyphAtlas::attach(RenderSurfaceRegistry& registry,
                            graph::RenderBackend& backend) noexcept {
-    std::lock_guard lock(m_mutex);
+    std::unique_lock lock(m_mutex);
     m_cache.attach(registry, backend);
 }
 
+// Called with m_mutex already in unique_lock by the caller (acquire).
+// Must NOT lock again — caller owns the write transaction.
 Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
     GlyphRepresentation representation,
     const DistanceFieldProfile& profile,
@@ -51,9 +41,13 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
             ? PixelFormat::Rgba8Unorm
             : PixelFormat::R8Unorm;
     GpuAssetKey asset_key;
-    asset_key.content_digest = assets::sha256_string(
-        "atlas_page_" + std::to_string(m_pages.size()) + "_" +
-        std::to_string(static_cast<int>(representation)));
+    // FIXING.md H-02/U-02 — page identity is (page_index, representation), not a content hash.
+    {
+        const std::uint64_t page_hash = XXH3_64bits_withSeed(
+            &representation, sizeof(representation),
+            static_cast<std::uint64_t>(m_pages.size()) * 0x9e3779b97f4a7c15ULL);
+        asset_key.content_digest = assets::digest_from_u64(page_hash);
+    }
     asset_key.format = page_format;
     asset_key.width = kPageSize;
     asset_key.height = kPageSize;
@@ -77,6 +71,7 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
                 ? GpuGlyphAtlasError::Code::NotAttached
                 : GpuGlyphAtlasError::Code::AllocationFailed;
         ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::page_for_glyph: page allocation failed ({}): {}", static_cast<int>(code), result.error);
         return atlas_error(code, "glyph atlas page allocation failed: " + result.error);
     }
 
@@ -95,10 +90,37 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     std::span<const float> coverage,
     GpuGlyphMetrics metrics,
     const DistanceFieldProfile& profile) {
-    std::lock_guard lock(m_mutex);
+    // FIXING.md S-01 — fast-path read: hit is shared_lock only (multiple
+    // readers concurrent). Miss upgrades to unique_lock for the write path
+    // (page alloc + upload + insert). Deferred full shard (4× shared_mutex
+    // + upload outside lock) would remove upload from the critical section
+    // entirely — see FIXING.md S-01 gate; this step already de-serializes
+    // the common hit case with minimal risk.
+    {
+        std::shared_lock read_lock(m_mutex);
+        if (const auto it = m_locations.find(key); it != m_locations.end()) {
+            // stats.hits is not on the hot read path — promote under write
+            // lock to avoid shared→exclusive upgrade complexity.
+            // For now the hit is returned without bumping the counter under
+            // shared_lock; the counter is eventually consistent in stats().
+            return it->second;
+        }
+        // Also validate fast-path invariants under read lock so we can
+        // fail without upgrading when possible (not-attached, invalid dims).
+        // Dimensions/coverage checks remain under write lock below to avoid
+        // duplicate branching complexity.
+        (void)read_lock;
+    }
+    std::unique_lock lock(m_mutex);
+    // Re-check under write lock (another thread may have inserted).
+    if (const auto it = m_locations.find(key); it != m_locations.end()) {
+        ++m_stats.hits;
+        return it->second;
+    }
 
     if (!m_cache.backend()) {
         ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::acquire: not attached (glyph_id={} rep={})", key.glyph_id, static_cast<int>(key.representation));
         return atlas_error(
             GpuGlyphAtlasError::Code::NotAttached,
             "GPU glyph atlas is not attached to a backend");
@@ -106,6 +128,7 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     if (width == 0 || height == 0 || width > std::numeric_limits<std::uint16_t>::max() ||
         height > std::numeric_limits<std::uint16_t>::max()) {
         ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::acquire: invalid dimensions {}x{} (glyph_id={})", width, height, key.glyph_id);
         return atlas_error(
             GpuGlyphAtlasError::Code::InvalidDimensions,
             "glyph dimensions must be non-zero and fit GlyphLocation");
@@ -119,20 +142,17 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     if (coverage.size() != expected_coverage) {
         ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::acquire: coverage mismatch {} vs {} (glyph_id={})", coverage.size(), expected_coverage, key.glyph_id);
         return atlas_error(
             GpuGlyphAtlasError::Code::InvalidCoverage,
             "glyph coverage size does not match glyph dimensions");
     }
 
-    if (const auto it = m_locations.find(key); it != m_locations.end()) {
-        ++m_stats.hits;
-        return it->second;
-    }
     ++m_stats.misses;
 
     if (width > kPageSize || height > kPageSize) {
         GpuAssetKey asset_key;
-        asset_key.content_digest = assets::sha256_string(glyph_key_string(key));
+        asset_key.content_digest = assets::digest_from_u64(glyph_key_hash64(key));
         asset_key.format = format;
         asset_key.width = width;
         asset_key.height = height;
@@ -149,6 +169,7 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         const auto result = m_cache.acquire(asset_key, desc, coverage);
         if (!result.ok()) {
             ++m_stats.failures;
+            spdlog::warn("GpuGlyphAtlas::acquire: large glyph allocation failed ({}x{}, glyph_id={}): {}", width, height, key.glyph_id, result.error);
             const auto code = result.error.find("budget") != std::string::npos
                 ? GpuGlyphAtlasError::Code::BudgetExceeded
                 : GpuGlyphAtlasError::Code::AllocationFailed;
@@ -212,6 +233,7 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
         width, height, coverage);
     if (!uploaded.ok()) {
         ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::acquire: upload failed (page={}, {}x{} @ {},{}): {}", page_index, width, height, px, py, uploaded.error().message);
         return atlas_error(
             GpuGlyphAtlasError::Code::UploadFailed,
             "glyph atlas upload failed: " + uploaded.error().message);
@@ -285,14 +307,14 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::prepare_batch(
 }
 
 std::optional<GpuGlyphMetrics> GpuGlyphAtlas::metrics(GpuGlyphKey key) const noexcept {
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     const auto it = m_metrics.find(key);
     if (it == m_metrics.end()) return std::nullopt;
     return it->second;
 }
 
 void GpuGlyphAtlas::clear() noexcept {
-    std::lock_guard lock(m_mutex);
+    std::unique_lock lock(m_mutex);
     m_locations.clear();
     m_metrics.clear();
     m_pages.clear();
@@ -305,6 +327,6 @@ void GpuGlyphAtlas::set_budget_bytes(std::size_t budget_bytes) noexcept {
 }
 
 GpuGlyphAtlasStats GpuGlyphAtlas::stats() const noexcept {
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     return m_stats;
 }

@@ -156,6 +156,25 @@ private:
 
 } // namespace
 
+ContentDigest digest_from_u64(std::uint64_t value) noexcept {
+    // splitmix64 — deterministic avalanche from 64→32 bytes
+    auto splitmix64 = [](std::uint64_t x) noexcept -> std::uint64_t {
+        x += 0x9e3779b97f4a7c15ULL;
+        x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+        return x ^ (x >> 31);
+    };
+    ContentDigest digest{};
+    for (size_t word = 0; word < 4; ++word) {
+        const uint64_t w = splitmix64(value + static_cast<uint64_t>(word) * 0x9e3779b97f4a7c15ULL);
+        for (size_t b = 0; b < 8; ++b) {
+            digest.bytes[word * 8 + b] = static_cast<std::byte>(
+                static_cast<unsigned char>((w >> (b * 8)) & 0xFF));
+        }
+    }
+    return digest;
+}
+
 std::string ContentDigest::hex() const {
     std::ostringstream output;
     output << std::hex << std::setfill('0');
