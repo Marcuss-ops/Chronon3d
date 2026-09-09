@@ -285,7 +285,7 @@ struct JobTimings {
     std::optional<double> process_wall_ms;
     std::optional<std::string> measurement_kind;
     // Canonical execution path string: "direct_yuv" | "full_graph" |
-    // "bitstream_copy" | "smart_gop_copy". Determined by the exporter from
+    // "full_graph_native" | "bitstream_copy" | "smart_gop_copy". Determined by the exporter from
     // the session's direct_yuv_selected() + encoder_backend, NOT from
     // counter heuristics. This is the single authoritative field; the
     // gpu.effective_backend field is kept as a compatibility projection.
