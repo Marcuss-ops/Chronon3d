@@ -102,7 +102,7 @@ sono coerenti.
   The metadata evacuation is complete, but the bridge itself remains `ACTIVE`
   until execution no longer materializes a `CompiledComposition`.
 
-## Verified residual census — `be14cbd86`
+## Verified residual census — `be14cbd86` + delta 2026-09-09
 
 The following are deliberate blockers, not documentation debt:
 
@@ -119,6 +119,60 @@ The following are deliberate blockers, not documentation debt:
 production execution authority. No wave may be marked closed until the typed
 parameter block is consumed by the graph executor and the legacy bridge is
 deleted.
+
+### FASE D26-D30 — census 2026-09-09 (compiler boundary)
+
+- **D26 sources `src/compiler/**` — PARZIALE:** 30 TU sotto `src/compiler/**` (compiler, program_sampler, typed_program_sampler,
+  frontend, lowering, graph, optimizer, fingerprint, `graph_builder/*`, `graph_compiler/*`, `optimizer/*`); `chronon3d_compiler`
+  linker `chronon3d_graph_core + chronon3d_graph_nodes` (corretto — graph IR/nodes sono dipendenza del lowering).
+- **D27 census header-per-header — FATTO:** `graph_builder_layer_passes.cpp` include `graph_builder_coordinates.hpp` +
+  `evaluated_layer_placement.hpp` da `src/render_graph/builder/` — sono sotto `PRIVATE` include roots
+  (`src/render_graph`, `src/render_graph/nodes`, `src/render_graph/builder`, `src/render_graph/builder/passes`,
+  `src/render_graph/compiler`) in `src/compiler/CMakeLists.txt:39-43`. Sono coordinate già migrate concettualmente
+  ma fisicamente ancora in `render_graph/builder/` — owner `chronon3d_compiler` già le compila via `src/compiler/graph_builder/**`
+  (compat TU), il file header originale resta solo per include path compat finché non viene spostato fisicamente.
+- **D28 reverse include roots — APERTO (intentional):** i `PRIVATE` roots sono 1-way `compiler → render_graph/*` per TU compat già migrati;
+  non sono "reverse ownership" — il gate `configured_compiler_no_legacy_graph_sources` vieta a `chronon3d_compiler` di assorbire
+  `src/render_graph/{builder,compiler,optimizer}/` come sources (deve usare `src/compiler/**`). Eliminazione progressiva = spostare
+  fisicamente `graph_builder_coordinates.hpp/evaluated_layer_placement.hpp` in `src/compiler/graph_builder/` e aggiornare include.
+- **D29 non spostare cosmeticamente — FATTO:** ogni header che conosce `RenderGraphNode`/`TextRunNode`/backend execution è
+  correttamente classificato runtime/backend-dependent e resta `render_graph-owned`; solo i lowering puri sono `compiler-pure`.
+  Boundary corretto > pathname cosmetico.
+- **D30 exit condition `chronon3d_compiler sources = src/compiler/** && vendor-neutral && zero reverse ownership && codemodel PASS` — PARZIALE:**
+  `src/compiler/**` puro + no CUDA/NVENC/NVDEC/vendor handles nel compiler (grep `cuda|nvenc|nvdec|vulkan` su `src/compiler/` = 0 include), ma i `PRIVATE` compat roots restano finché gli header originali non migrano fisicamente. Gate codemodel `configured_compiler_no_legacy_graph_sources` è l'evidence finale.
+
+### FASE E31-E35 — census 2026-09-09 (RenderGraphContext collapse)
+
+- **E31 15+ pointers — APERTO (censito):** `RenderGraphContext` espone `backend`, `surface_registry`, `text_render_resources`,
+  `node_cache`, `framebuffer_pool`, `registry`, `video_decoder`, `effect_catalog`, `transition_catalog`, `precomp_builder` (10 execution deps)
+  + `execution`/`frame_parameters`/`build_dependencies` (3) + `runtime`/`compiled_graph_cache`/`scheduler`/`asset_resolver`/`session`/`program_fingerprint` (6) = 19 campi. `FrameStaticContext` già estratto; `RenderServices` già demolito (Wave 5.6).
+- **E32 production via `FrameExecution → JobSession → RuntimeContext` — PARZIALE:** `RenderPipeline::render()` già usa
+  `JobSession::program()` → `RenderPipeline::render_program()` → `FrameExecution`/`frame_parameters`; `render_compatibility*`
+  è l'unico path che tocca `compatibility_composition`. Collasso completo bloccato da `compatibility_composition` (FASE C).
+- **E33 build/preflight via `GraphBuildDependencies` — FATTO:** `RenderGraphContext::build_dependencies` (const*) + `GraphBuildDependencies`
+  già wiring per builder; nessun nuovo `services` bundle.
+- **E34 eliminare direct pointer duplicati post-compatibility — DEFERRED:** esplicitamente rinviato a dopo morte di `compatibility_composition` (ticket WAVE-CLOSEOUT DEMOLITION debt). Togliere pointer ora = doppia migrazione.
+- **E35 gate anti-service-locator — FATTO:** `tools/architecture_rules_cleanup.toml` `forbidden_symbol: render_services_locator_demolished` (scan `include/src/apps/tests`, `\bRenderServices\b` = 0) + `graph_builder_no_execution_service_locator` (`services.` in `src/render_graph/builder` = 0). Reintroduzione = GATE FAIL.
+
+### FASE G46-G48 — measurement notes 2026-09-09
+
+- **G46 `SceneProgramStore` contention — NOT MEASURED (note locked):** `SceneProgramStore` (`src/render_graph/cache/scene_program_store.cpp`)
+  single `std::mutex` per-bucket; non è stato misurato sotto executor parallelo. Se costoso: first option `per-entry locking`,
+  second `bounded sharding` — mai nuovo cache engine. Misurare prima di toccare.
+- **G47 `DeviceScheduler` contention — NOT MEASURED (note locked):** `DeviceScheduler::reserve()` path non profilato; misurare lock hold/wait prima di refactor.
+- **G48 `FramebufferPool` sharding — FATTO (narrow-before-shard):** già ridgeo: `FramebufferPool` allocation fuori mutex + measurement gate
+  1024 acquires, aggregates registrati; sharding non giustificato senza nuova evidenza (vedi chronon-wave-closeout-todo Ordine 8).
+- **G42 benchmark text-heavy — NOT RUN:** corpus B00-B11 esiste; metriche target `allocations/frame, bytes/frame, text ms/frame, FPS`
+  da produrre con benchmark gate (render_graph `graph_cache_refresh_fallback_total` già counter per refresh fallback).
+
+### FASE H49-H53 — Vulkan recursive_mutex 2026-09-09
+
+- **H49-H51 call-graph — CENSUS DONE / DEFERRED:** `VulkanBackend::Impl::api_mutex` era unico `recursive_mutex`; dalla sharding P1 ora sono
+  3 shard non-ricorsivi (`surface_mutex → upload_mutex → submission_mutex`, `Impl::wait_for_standalone()` + `wait_for_pending()` split).
+  I 2 siti ricorsivi residui sono SDK `sdk_render_engine.cpp` state + Vulkan backend API shim — conversione a `api_mutex/api_locked`
+  pattern (`public_api(){lock_guard lock(api_mutex); return api_locked();}`) è DEFERRED after green baseline: richiede re-entry test + GPU cert rerun (deadlock risk). Spec in TICKET-VK-LOCK-SHARDING.
+- **H52-H53 re-entry test — DEFERRED:** test di re-entry prima della sostituzione + intera GPU certification dopo la sostituzione;
+  non eseguire finché baseline non è green.
 
 ## Verification snapshot
 

@@ -74,7 +74,7 @@ bool rebuild_active_side(
         return false;
     }
     shape.layout = result.paragraphs.front();
-    shape.glyphs = make_initial_glyph_states(shape.layout->placed);
+    reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
     return true;
 }
 
@@ -141,8 +141,7 @@ bool rebuild_dissolve_slot(
 
     if (!cf_result.paragraphs.empty() && cf_result.paragraphs.front()) {
         shape.dissolve_layout = cf_result.paragraphs.front();
-        shape.dissolve_glyphs = make_initial_glyph_states(
-            shape.dissolve_layout->placed);
+        reset_glyph_states_in_place(shape.dissolve_glyphs, shape.dissolve_layout->placed);
         shape.dissolve_mix = state.mix;
         return true;
     }

@@ -221,57 +221,69 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    // Pack Y + U + V into a single interleaved buffer.
     const size_t y_size  = y_row * static_cast<size_t>(frame.height);
     const size_t uv_size = y_size / 4;
     const size_t total   = y_size + uv_size * 2;  // YUV420P tight
 
-    if (staging_.size() < total) {
-        staging_.resize(total);
-    }
+    const bool y_tight = (y_stride == y_row);
+    const bool u_tight = (u_stride == uv_row);
+    const bool v_tight = (v_stride == uv_row);
+    const bool all_tight = y_tight && u_tight && v_tight;
 
-    // Copy Y plane.
-    if (y_stride == y_row) {
-        std::memcpy(staging_.data(), frame.y_data, y_size);
+    bool ok = true;
+    if (all_tight) {
+        // Fast path: every plane is tight — write directly from the caller's
+        // buffers without staging. No staging copy, no encoder_staging_bytes.
+        ok = write_bytes(static_cast<const uint8_t*>(frame.y_data), y_size);
+        if (ok) ok = write_bytes(static_cast<const uint8_t*>(frame.u_data), uv_size);
+        if (ok) ok = write_bytes(static_cast<const uint8_t*>(frame.v_data), uv_size);
     } else {
-        const auto* src = static_cast<const uint8_t*>(frame.y_data);
-        auto* dst = staging_.data();
-        for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, y_row);
-            src += y_stride;
-            dst += y_row;
+        if (staging_.size() < total) {
+            staging_.resize(total);
+        }
+        // Copy Y plane (tight → memcpy, padded → row loop).
+        if (y_tight) {
+            std::memcpy(staging_.data(), frame.y_data, y_size);
+        } else {
+            const auto* src = static_cast<const uint8_t*>(frame.y_data);
+            auto* dst = staging_.data();
+            for (int y = 0; y < frame.height; ++y) {
+                std::memcpy(dst, src, y_row);
+                src += y_stride;
+                dst += y_row;
+            }
+        }
+        // Copy U plane.
+        auto* u_dst = staging_.data() + y_size;
+        if (u_tight) {
+            std::memcpy(u_dst, frame.u_data, uv_size);
+        } else {
+            const auto* src = static_cast<const uint8_t*>(frame.u_data);
+            auto* dst = u_dst;
+            for (int y = 0; y < frame.height / 2; ++y) {
+                std::memcpy(dst, src, uv_row);
+                src += u_stride;
+                dst += uv_row;
+            }
+        }
+        // Copy V plane.
+        auto* v_dst = staging_.data() + y_size + uv_size;
+        if (v_tight) {
+            std::memcpy(v_dst, frame.v_data, uv_size);
+        } else {
+            const auto* src = static_cast<const uint8_t*>(frame.v_data);
+            auto* dst = v_dst;
+            for (int y = 0; y < frame.height / 2; ++y) {
+                std::memcpy(dst, src, uv_row);
+                src += v_stride;
+                dst += uv_row;
+            }
+        }
+        ok = write_bytes(staging_.data(), total);
+        if (ok) {
+            stats_.encoder_staging_copy_bytes += total;
         }
     }
-
-    // Copy U plane.
-    auto* u_dst = staging_.data() + y_size;
-    if (u_stride == uv_row) {
-        std::memcpy(u_dst, frame.u_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.u_data);
-        auto* dst = u_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += u_stride;
-            dst += uv_row;
-        }
-    }
-
-    // Copy V plane.
-    auto* v_dst = staging_.data() + y_size + uv_size;
-    if (v_stride == uv_row) {
-        std::memcpy(v_dst, frame.v_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.v_data);
-        auto* dst = v_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += v_stride;
-            dst += uv_row;
-        }
-    }
-
-    const bool ok = write_bytes(staging_.data(), total);
     if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
@@ -283,7 +295,6 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
     stats_.submit_count++;
     stats_.frames_submitted++;
     stats_.bytes_written += total;
-    stats_.encoder_staging_copy_bytes += total;
     return true;
 }
 
@@ -320,43 +331,51 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    // Pack Y + UV into a single buffer.
     const size_t y_size  = y_row * static_cast<size_t>(frame.height);
     const size_t uv_size = y_size / 2;  // NV12 UV plane = w*h/2 bytes
     const size_t total   = y_size + uv_size;
 
-    if (staging_.size() < total) {
-        staging_.resize(total);
-    }
+    const bool y_tight = (y_stride == y_row);
+    const bool uv_tight = (uv_stride == uv_row);
+    const bool all_tight = y_tight && uv_tight;
 
-    // Copy Y plane.
-    if (y_stride == y_row) {
-        std::memcpy(staging_.data(), frame.y_data, y_size);
+    bool ok = true;
+    if (all_tight) {
+        // Fast path: both planes tight — sequential direct writes, no staging.
+        ok = write_bytes(static_cast<const uint8_t*>(frame.y_data), y_size);
+        if (ok) ok = write_bytes(static_cast<const uint8_t*>(frame.uv_data), uv_size);
     } else {
-        const auto* src = static_cast<const uint8_t*>(frame.y_data);
-        auto* dst = staging_.data();
-        for (int y = 0; y < frame.height; ++y) {
-            std::memcpy(dst, src, y_row);
-            src += y_stride;
-            dst += y_row;
+        if (staging_.size() < total) {
+            staging_.resize(total);
+        }
+        if (y_tight) {
+            std::memcpy(staging_.data(), frame.y_data, y_size);
+        } else {
+            const auto* src = static_cast<const uint8_t*>(frame.y_data);
+            auto* dst = staging_.data();
+            for (int y = 0; y < frame.height; ++y) {
+                std::memcpy(dst, src, y_row);
+                src += y_stride;
+                dst += y_row;
+            }
+        }
+        auto* uv_dst = staging_.data() + y_size;
+        if (uv_tight) {
+            std::memcpy(uv_dst, frame.uv_data, uv_size);
+        } else {
+            const auto* src = static_cast<const uint8_t*>(frame.uv_data);
+            auto* dst = uv_dst;
+            for (int y = 0; y < frame.height / 2; ++y) {
+                std::memcpy(dst, src, uv_row);
+                src += uv_stride;
+                dst += uv_row;
+            }
+        }
+        ok = write_bytes(staging_.data(), total);
+        if (ok) {
+            stats_.encoder_staging_copy_bytes += total;
         }
     }
-
-    // Copy UV plane.
-    auto* uv_dst = staging_.data() + y_size;
-    if (uv_stride == uv_row) {
-        std::memcpy(uv_dst, frame.uv_data, uv_size);
-    } else {
-        const auto* src = static_cast<const uint8_t*>(frame.uv_data);
-        auto* dst = uv_dst;
-        for (int y = 0; y < frame.height / 2; ++y) {
-            std::memcpy(dst, src, uv_row);
-            src += uv_stride;
-            dst += uv_row;
-        }
-    }
-
-    const bool ok = write_bytes(staging_.data(), total);
     if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
@@ -368,7 +387,6 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     stats_.submit_count++;
     stats_.frames_submitted++;
     stats_.bytes_written += total;
-    stats_.encoder_staging_copy_bytes += total;
     return true;
 }
 

@@ -8,16 +8,7 @@
 
 namespace chronon3d::backends::vulkan {
 
-void VulkanBackend::Impl::begin_command_buffer() {
-    wait_for_pending();
-    const VkCommandBufferBeginInfo begin{
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
-        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
-    check(vkResetCommandBuffer(command_buffer, 0), "vkResetCommandBuffer");
-    check(vkBeginCommandBuffer(command_buffer, &begin), "vkBeginCommandBuffer");
-}
-
-void VulkanBackend::Impl::wait_for_pending() {
+void VulkanBackend::Impl::wait_for_standalone() {
     if (pending_timeline_value != 0) {
         const auto wait_start = profiling::now();
         check(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX),
@@ -30,6 +21,19 @@ void VulkanBackend::Impl::wait_for_pending() {
         check(vkResetFences(device, 1, &fence), "vkResetFences");
         pending_timeline_value = 0;
     }
+}
+
+void VulkanBackend::Impl::begin_command_buffer() {
+    wait_for_standalone();
+    const VkCommandBufferBeginInfo begin{
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
+    check(vkResetCommandBuffer(command_buffer, 0), "vkResetCommandBuffer");
+    check(vkBeginCommandBuffer(command_buffer, &begin), "vkBeginCommandBuffer");
+}
+
+void VulkanBackend::Impl::wait_for_pending() {
+    wait_for_standalone();
     for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
         if (!frame_batch.in_flight[i]) continue;
         const auto wait_start = profiling::now();

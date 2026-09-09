@@ -259,6 +259,7 @@ namespace chronon3d {
     X(full_frame_passes) \
     X(full_frame_copies) \
     X(compiled_graph_refresh_wall_ms) \
+    X(graph_cache_refresh_fallback_total) \
     X(cache_eval_wall_ms) \
     X(dirty_eval_wall_ms) \
     X(input_resolve_wall_ms) \
