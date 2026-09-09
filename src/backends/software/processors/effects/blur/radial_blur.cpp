@@ -2,27 +2,14 @@
 // radial_blur.cpp — Scalar Radial Blur implementation (A6)
 // ---------------------------------------------------------------------------
 //
-// Algorithm (combined zoom + spin):
-//
-//   For each pixel, N taps are placed symmetrically around the pixel
-//   along both radial (zoom) and tangential (spin) directions.
-//
-//   Zoom taps:  pixel + (pixel - center) × scale_i
-//     where scale_i ∈ [-s, +s] with s = amount / 2, symmetric around 0
-//
-//   Spin taps:  pixel rotated around center by ±angle_i
-//     where angle_i ∈ [-a, +a] with a = amount degrees, symmetric
-//
-//   Combined: each tap is the sum of zoom offset + spin offset.
-//   Uniform weighting: each tap weight = 1/N.
-//
-//   The tap pattern is symmetric so the centroid is preserved and
-//   the blur does not shift the image.
-//
-//   The pixel at the exact center always samples itself, making the
-//   centre invariant.
+// Tap offsets depend on the pixel's vector from the blur centre. The reusable
+// table therefore stores only per-sample values (u, cos, sin, weight); dx/dy
+// are derived in the pixel loop. This keeps the exact zoom+spin sampling
+// semantics while removing the former vector allocation and trigonometry from
+// every pixel.
 
 #include "radial_blur.hpp"
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <cmath>
@@ -31,23 +18,13 @@
 #include <numbers>
 #include <vector>
 
-// TICKET-121 (Phase 1) — single-shot instrumentation hook for the hot-path
-// transient `Framebuffer` wrapper inside `apply_radial_blur`.  Measurable
-// allocation audit; observability only.  Internal header resolved via
-// the chronon3d_backend_software PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-// entry (same path that TICKET-118 internal bridge consumers use).
-#include "internal/frame_alloc_counter.hpp"
-
 namespace chronon3d::renderer {
 
-// =============================================================================
-// Tap generation
-// =============================================================================
-
-struct Tap {
-    float dx;          // signed offset in X (pixels)
-    float dy;          // signed offset in Y (pixels)
-    float weight;      // sample weight (sum = 1.0)
+struct RadialTap {
+    float u{0.0f};
+    float cos_angle{1.0f};
+    float sin_angle{0.0f};
+    float weight{0.0f};
 };
 
 struct AlphaCentroid {
@@ -74,79 +51,32 @@ struct AlphaCentroid {
     return out;
 }
 
-/// Generate N symmetric taps for a combined zoom+spin radial blur.
-///
-/// `amount` controls the overall blur intensity — it scales both the
-/// zoom extent and spin angle.
-/// `cx_px, cy_px` — center coordinates in pixels.
-/// `px, py` — pixel coordinates (for zoom direction).
-///
-/// Returns exactly `samples` taps.
-[[nodiscard]] static std::vector<Tap> generate_radial_taps(
-    float cx_px, float cy_px,
-    float px, float py,
-    float amount, int samples)
-{
-    if (amount <= 0.0f || samples <= 1) {
-        return {{0.0f, 0.0f, 1.0f}};
-    }
-
-    const int n = std::max(2, samples);
-    std::vector<Tap> taps;
-    taps.reserve(n);
-
-    // Direction from center to pixel (zoom axis)
-    const float dx_c = px - cx_px;
-    const float dy_c = py - cy_px;
-
-    // For zoom: scale centered around 1.0, symmetric around 0
-    //   scale_i = 1 + u * amount, so scale_i - 1 = -(scale_(N-1-i) - 1)
-    //
-    // For spin: max angle in radians = amount degrees → radians
-    const float max_angle_rad = amount * (std::numbers::pi_v<float> / 180.0f);
-
-    const float inv_n = 1.0f / static_cast<float>(n);
-
-    for (int i = 0; i < n; ++i) {
-        // Parametric position u in [0, 1] → maps to [-1, +1]
-        const float u = (static_cast<float>(i) + 0.5f) * inv_n * 2.0f - 1.0f;
-
-        // ── Zoom offset: scale centered around 1.0 ──
-        // tap_pos = center + (pixel - center) * (1 + u * amount)
-        // offset  = (pixel - center) * u * amount
-        const float zoom_off_x = dx_c * u * amount;
-        const float zoom_off_y = dy_c * u * amount;
-
-        // ── Spin offset: rotate (dx_c, dy_c) by angle and subtract ──
-        const float angle = u * max_angle_rad;
-        const float cos_a = std::cos(angle);
-        const float sin_a = std::sin(angle);
-        // Rotated position: original pixel rotated around center by angle
-        const float rot_x = cx_px + dx_c * cos_a - dy_c * sin_a;
-        const float rot_y = cy_px + dx_c * sin_a + dy_c * cos_a;
-        const float spin_off_x = rot_x - px;
-        const float spin_off_y = rot_y - py;
-
-        Tap tap;
-        tap.dx = zoom_off_x + spin_off_x;
-        tap.dy = zoom_off_y + spin_off_y;
-        tap.weight = inv_n;
-        taps.push_back(tap);
-    }
-
-    return taps;
+[[nodiscard]] static int normalized_sample_count(int samples) noexcept {
+    return std::max(2, samples);
 }
 
-// =============================================================================
-// Main apply function
-// =============================================================================
+static void build_radial_taps(
+    float amount, int samples,
+    std::vector<EffectScratchResources::RadialTap>& taps) {
+    const int n = normalized_sample_count(samples);
+    const float inv_n = 1.0f / static_cast<float>(n);
+    const float max_angle_rad = amount * (std::numbers::pi_v<float> / 180.0f);
+    taps.resize(static_cast<std::size_t>(n));
+    for (int i = 0; i < n; ++i) {
+        const float u = (static_cast<float>(i) + 0.5f) * inv_n * 2.0f - 1.0f;
+        const float angle = u * max_angle_rad;
+        taps[static_cast<std::size_t>(i)] = EffectScratchResources::RadialTap{
+            u, std::cos(angle), std::sin(angle), inv_n};
+    }
+}
 
 void apply_radial_blur(
     Framebuffer& fb,
     float center_x, float center_y,
     float amount,
     int samples,
-    const std::optional<raster::BBox>& clip)
+    const std::optional<raster::BBox>& clip,
+    EffectScratchResources* scratch)
 {
     if (amount <= 0.0f || samples <= 1) return;
 
@@ -158,40 +88,35 @@ void apply_radial_blur(
     }
     if (y0 >= y1 || x0 >= x1) return;
 
-    // Convert normalized centre to pixel coordinates. We use the
-    // pixel-centre convention: normalized 0.5 must correspond to the
-    // integer pixel index at the geometric centre of the framebuffer
-    // (e.g. pixel index 4 for an 8-wide buffer, 16 for 32-wide).
-    // Without the +0.5 offset, an 8-wide buffer would resolve its
-    // centre to pixel coordinate 3.5 instead of 4.0, breaking the
-    // "exact-centre invariance" invariant and introducing a sub-pixel
-    // centroid drift that the recentering step below would amplify.
     const float cx_px = center_x * static_cast<float>(std::max(0, w - 1)) + 0.5f;
     const float cy_px = center_y * static_cast<float>(std::max(0, h - 1)) + 0.5f;
     const float blur_scale = amount * 0.1f;
 
-    const int n = std::max(2, samples);
+    std::vector<EffectScratchResources::RadialTap> local_taps;
+    EffectScratchResources* resources = scratch;
+    if (resources) {
+        resources->ensure_size(w, h);
+    }
+    auto& taps = resources ? resources->radial_taps : local_taps;
+    if (!resources || resources->radial_samples != samples ||
+        resources->radial_amount != blur_scale) {
+        build_radial_taps(blur_scale, samples, taps);
+        if (resources) {
+            resources->radial_samples = samples;
+            resources->radial_amount = blur_scale;
+        }
+    }
 
-    // Pre-generate tap patterns for each pixel? That would be expensive.
-    // Instead, we generate taps per pixel since they depend on the
-    // direction from the pixel to the centre.
-
-    // TICKET-121 (Phase 1) — frame-bound allocation counter hook.  Records
-    // the bytes-allocated-event for the transient blurred FB; observability
-    // only; no observable effect on output.  Future PRs (per TICKET-121
-    // Phase 2 / Phase 3) replace this with a `FrameScratchPool`-backed RAII
-    // handle once an ADR is filed and accepted.
-    chronon3d::internal::FrameAllocCounter::record_alloc(
-        static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * sizeof(Color));
-    auto temp = std::make_unique<Framebuffer>(w, h);
+    std::unique_ptr<Framebuffer> owned_temp;
+    Framebuffer* temp = nullptr;
+    if (resources) {
+        temp = resources->framebuffer.get();
+    } else {
+        owned_temp = std::make_unique<Framebuffer>(w, h);
+        temp = owned_temp.get();
+    }
     temp->blit(fb, 0, 0);
     const AlphaCentroid source_centroid = compute_alpha_centroid(*temp);
-
-    // Use a Clamp-edge sampler so that out-of-bounds taps clamp to the
-    // nearest edge pixel rather than returning transparent black. This is
-    // critical for correctness: a constant image must remain constant after
-    // any amount of radial blur, and edge pixels should not bleed to
-    // transparent.
     sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
 
     for (int y = y0; y < y1; ++y) {
@@ -199,8 +124,6 @@ void apply_radial_blur(
         const float py = static_cast<float>(y);
         for (int x = x0; x < x1; ++x) {
             const float px = static_cast<float>(x);
-
-            // Fast path: exact centre → pixel samples itself (identity)
             const float dx_c = px - cx_px;
             const float dy_c = py - cy_px;
             if (std::abs(dx_c) < 0.001f && std::abs(dy_c) < 0.001f) {
@@ -208,12 +131,14 @@ void apply_radial_blur(
                 continue;
             }
 
-            auto taps = generate_radial_taps(cx_px, cy_px, px, py, blur_scale, n);
-
             float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
             for (const auto& tap : taps) {
-                const float sx = px + tap.dx;
-                const float sy = py + tap.dy;
+                const float zoom_x = dx_c * tap.u * blur_scale;
+                const float zoom_y = dy_c * tap.u * blur_scale;
+                const float rot_x = cx_px + dx_c * tap.cos_angle - dy_c * tap.sin_angle;
+                const float rot_y = cy_px + dx_c * tap.sin_angle + dy_c * tap.cos_angle;
+                const float sx = px + zoom_x + (rot_x - px);
+                const float sy = py + zoom_y + (rot_y - py);
                 const Color c = sampler.bilinear(sx, sy);
                 r += c.r * tap.weight;
                 g += c.g * tap.weight;
@@ -225,23 +150,30 @@ void apply_radial_blur(
     }
 
     const AlphaCentroid blurred_centroid = compute_alpha_centroid(fb);
-    // Centroid drift correction: only fire when the blur actually drifted the
-    // mass centre. Symmetric taps (zoom + spin) preserve the centroid, so the
-    // shift must be the literal difference — no implicit half-pixel snap.
-    const float shift_x = blurred_centroid.sum > 0.0f ? (blurred_centroid.x - source_centroid.x) : 0.0f;
-    const float shift_y = blurred_centroid.sum > 0.0f ? (blurred_centroid.y - source_centroid.y) : 0.0f;
+    const float shift_x = blurred_centroid.sum > 0.0f
+        ? (blurred_centroid.x - source_centroid.x) : 0.0f;
+    const float shift_y = blurred_centroid.sum > 0.0f
+        ? (blurred_centroid.y - source_centroid.y) : 0.0f;
     const bool source_is_at_blur_center =
         std::abs(source_centroid.x - cx_px) < 1e-3f &&
         std::abs(source_centroid.y - cy_px) < 1e-3f;
     if (!source_is_at_blur_center &&
         (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f)) {
-        auto recentered = std::make_unique<Framebuffer>(w, h);
+        Framebuffer* recentered = nullptr;
+        std::unique_ptr<Framebuffer> owned_recentered;
+        if (resources) {
+            recentered = resources->framebuffer_b.get();
+        } else {
+            owned_recentered = std::make_unique<Framebuffer>(w, h);
+            recentered = owned_recentered.get();
+        }
         sampling::Sampler2D shift_sampler(fb, sampling::EdgeMode::Clamp);
         for (int y = 0; y < h; ++y) {
             Color* dst_row = recentered->pixels_row(y);
             for (int x = 0; x < w; ++x) {
-                dst_row[x] = shift_sampler.bilinear(static_cast<float>(x) + shift_x,
-                                                    static_cast<float>(y) + shift_y);
+                dst_row[x] = shift_sampler.bilinear(
+                    static_cast<float>(x) + shift_x,
+                    static_cast<float>(y) + shift_y);
             }
         }
         fb.blit(*recentered, 0, 0);

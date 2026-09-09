@@ -260,6 +260,11 @@ public:
         std::make_unique<RenderErrorSlot>()};
 
     /// Reusable job-owned download scratch buffer for GPU→CPU readback.
+    /// Lifetime: job-scoped, high-water-mark retained. The buffer grows to
+    /// the peak `required_floats` seen during the job and is never shrunk
+    /// mid-job to avoid per-frame realloc (FIXING.md H-07). It is released
+    /// only by `reset_job()` (job teardown) which may `shrink_to_fit()` if
+    /// the peak exceeded a threshold (e.g. 16 MiB) to bound idle memory.
     [[nodiscard]] std::span<float> download_scratch(std::size_t required_floats) {
         if (download_scratch_.size() < required_floats) {
             download_scratch_.resize(required_floats);
@@ -270,6 +275,8 @@ public:
     void reset_job();
 
 private:
+    // FIXING.md H-07 — job-lifetime high-water-mark buffer. Grows on demand,
+    // never shrinks until reset_job(). See download_scratch() doc above.
     std::vector<float> download_scratch_{};
     RuntimeContext* runtime_{nullptr};
     graph::GraphExecutor* executor_{nullptr};
