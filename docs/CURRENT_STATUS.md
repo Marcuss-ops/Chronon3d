@@ -26,10 +26,8 @@
   `FrameExecution`/`RenderGraphContext::frame_parameters`. `JobSession` no
   longer owns `legacy_composition_`; arbitrary `Composition::SceneFunction`
   remains an explicit compatibility adapter until typed Composition lowering is
-  available.
-- Cross-repo Wave 10 remains open in RenderingGen `main@3c4de1ec`: raw sidecar
-  JSON is still unmarshaled/deleted/ remarshaled instead of consuming
-  `SummaryV1` while retaining raw bytes and hash.
+  available.- Cross-repo Wave 10 — VERIFIED at `RenderingGen main@3c4de1ec` (see `chronon-wave-closeout-todo` + `TICKET-STAGE-CLOSING-ARCH-WAVES-9-13`): Chronon emits `summary.windows` prewarm/steady-state, RenderingGen `preserveRawTimingSidecar` stores raw bytes opaquely (hash→store); no JSON re-parse/mutate/drop — invariant locked, not a reopen.
+- Hot-path landed (no-build yet): G41 `reset_glyph_states_in_place` reuse • G43 `RawVideoSink` tight-stride direct `write_bytes` (staging only when padded) • G45 `graph_cache_refresh_fallback_total` • G46-48/H census deferred post-baseline (see `TICKET-COMPILER-DEMOLITION-WAVES` FASE C/D/E/H + `TICKET-FFMPEG-PIPE-SINK-DEMOLITION` F37-F40).
 
 - Baseline inspected before this closeout: `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`.
 - **Stage 1 / source consistency:** the Vulkan lifecycle already creates, uses and persists `kernels.pipeline_cache`, but `VulkanKernelStore` had lost the matching `VkPipelineCache` member. This closeout restores one explicit owner, destroys the cache with the kernel store, and adds a regression lock.
@@ -81,7 +79,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
-| Video pipeline | PASS (focused); zero-copy partial — Z1 typed feed capability + Z4 capability matrix + Z7 CUDA-lane gate-1 counter code landed (ZERO-COPY-ZWAVES), GPU certification pending |
+| Video pipeline | PASS (focused); zero-copy partial — Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar • `synchronize_native_output` policy `is_gpu_native_required()` fix landed (ZERO-COPY-ZWAVES), GPU certification pending |
 | CI infrastructure | NOT CERTIFIED on current SHA until workflows complete |
 | Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
 | Packaging | PASS (historical/local evidence) |

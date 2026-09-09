@@ -242,6 +242,7 @@ void build_summary_and_job_sections(
     put_gpu_u64("gpu_surface_copy_frames", timings.gpu.gpu_surface_copy_frames);
     put_gpu_u64("cpu_pixel_readback_count", timings.gpu.cpu_pixel_readback_count);
     put_gpu_u64("cpu_pixel_readback_bytes", timings.gpu.cpu_pixel_readback_bytes);
+    put_gpu_u64("video_surface_upload_bytes", timings.gpu.video_surface_upload_bytes);
     put_gpu_u64("video_pipe_fallback_frames", timings.gpu.video_pipe_fallback_frames);
     put_gpu_u64("video_native_fallback_frames", timings.gpu.video_native_fallback_frames);
     put_gpu_u64("gpu_surface_create_failures", timings.gpu.gpu_surface_create_failures);

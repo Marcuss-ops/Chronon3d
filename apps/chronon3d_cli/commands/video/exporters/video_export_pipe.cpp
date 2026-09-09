@@ -255,6 +255,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.gpu.gpu_surface_copy_frames = c->gpu_surface_copy_frames.load(std::memory_order_relaxed);
         timings.gpu.cpu_pixel_readback_count = c->cpu_pixel_readback_count.load(std::memory_order_relaxed);
         timings.gpu.cpu_pixel_readback_bytes = c->cpu_pixel_readback_bytes.load(std::memory_order_relaxed);
+        timings.gpu.video_surface_upload_bytes = c->video_surface_upload_bytes.load(std::memory_order_relaxed);
         timings.gpu.native_surface_promotion_count = c->native_surface_promotion_count.load(std::memory_order_relaxed);
         timings.gpu.native_surface_promotion_bytes = c->native_surface_promotion_bytes.load(std::memory_order_relaxed);
         timings.gpu.native_surface_promotion_wall_us = c->native_surface_promotion_wall_us.load(std::memory_order_relaxed);
@@ -470,6 +471,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.gpu_upload_full_surface_bytes = value;
             } else if (name == "gpu_upload_region_bytes") {
                 timings.gpu.gpu_upload_region_bytes = value;
+            } else if (name == "video_surface_upload_bytes") {
+                timings.gpu.video_surface_upload_bytes = value;
             } else if (name == "native_surface_promotion_count") {
                 timings.gpu.native_surface_promotion_count = value;
             } else if (name == "native_surface_promotion_bytes") {
