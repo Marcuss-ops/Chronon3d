@@ -302,6 +302,10 @@ public:
     graph::RenderOpResult upload_surface_async(
         runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
         std::span<const float>, runtime::UploadTicket&) override;
+    graph::RenderOpResult upload_surface_rows_async(
+        runtime::RenderSurfaceHandle, const runtime::SurfaceDesc&,
+        const raster::BBox&, const UploadRows&,
+        runtime::UploadTicket&) override;
     graph::RenderOpResult wait_upload(const runtime::UploadTicket&) override;
     graph::RenderOpResult download_surface(
         runtime::RenderSurfaceHandle, std::span<float>) override;
