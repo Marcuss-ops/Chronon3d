@@ -12,6 +12,11 @@ namespace chronon3d::media {
 /// Host-selected placement and persistent per-device video runtime.
 /// Export setup consumes the reservation; it never performs a second reserve.
 struct VideoJobExecutionContext {
+    // Borrowed daemon-owned scheduler. The daemon reserves the device before
+    // dispatch and the video exporter must use that same scheduler for its
+    // encoder/runtime reservation; it must never rediscover a second device
+    // authority inside the export path.
+    runtime::DeviceScheduler* device_scheduler{nullptr};
     std::optional<runtime::DeviceReservation> reservation;
     std::shared_ptr<VideoRuntimeRegistry> video_runtimes;
     runtime::DeviceId device_id{0};

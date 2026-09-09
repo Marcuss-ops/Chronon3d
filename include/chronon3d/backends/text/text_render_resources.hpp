@@ -34,6 +34,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -62,6 +63,18 @@ namespace detail {
 struct GlyphAtlasEntry;                       // P1-9: forward decl from text/glyph_atlas.hpp
 struct GlyphAtlasStats;                       // P1-9: forward decl from text/glyph_atlas.hpp
 struct PlacedGlyphRun;                        // P1-9: forward decl from text/font_engine.hpp
+
+/// Stable, allocation-free identity used by the per-renderer glyph atlas.
+/// The original path remains the source of truth at cache population time;
+/// hot lookup sites resolve this id once per text run and pass only the POD.
+inline std::uint64_t glyph_font_id(std::string_view font_path) noexcept {
+    std::uint64_t hash = 1469598103934665603ULL;
+    for (const unsigned char c : font_path) {
+        hash ^= c;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BLFontFaceCache — thread-safe cache of BLFontFace objects
@@ -567,6 +580,13 @@ struct TextRenderResources {
     /// 32 MiB fallback if `set_glyph_atlas_capacity` was never called).
     std::optional<GlyphAtlasEntry> lookup_glyph_atlas(
         const std::string& font_path,
+        u32 glyph_id,
+        u32 font_size
+    );
+
+    /// Allocation-free hot-path variant. `font_id` is glyph_font_id(font_path).
+    std::optional<GlyphAtlasEntry> lookup_glyph_atlas(
+        std::uint64_t font_id,
         u32 glyph_id,
         u32 font_size
     );

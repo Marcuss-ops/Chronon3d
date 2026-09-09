@@ -8,7 +8,8 @@ void execute_single_node(
     RenderCounters* parent_counters,
     FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
-    const CompiledFrameGraph& compiled
+    const CompiledFrameGraph& compiled,
+    std::uint64_t* local_nodes_executed
 ) {
     // OPT-DEAD-TIMINGS — the 7 dead per-node timing out-params are removed.
     // Fine-grained per-node timing left the execution contract in Stage 3;
@@ -17,6 +18,14 @@ void execute_single_node(
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
+    const auto record_node_executed = [&]() {
+        if (local_nodes_executed) {
+            ++(*local_nodes_executed);
+        } else if (parent_counters) {
+            parent_counters->nodes_executed.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+    };
 
     // Typed programs own frame activity.  A graph binding is the stable
     // bridge from a render-graph node to the compiler layer id; do not consult
@@ -56,14 +65,9 @@ void execute_single_node(
 
     if (id < compiled.nodes.size() && compiled.nodes[id].lowered_into_batch &&
         ctx.execution_backend() && ctx.execution_backend()->is_batching_supported()) {
-        const CompiledLayerBatch* batch_for_root = nullptr;
-        for (const auto& b : compiled.program.layer_batches) {
-            if (b.is_gpu_fused && b.root_node == id) {
-                batch_for_root = &b;
-                break;
-            }
-        }
-        if (!batch_for_root) {
+        const CompiledLayerBatch* batch_for_root =
+            compiled.program.layer_batch_for(id);
+        if (!batch_for_root || batch_for_root->root_node != id) {
             commit_transparent_skip(
                 state, id, ctx, parent_pool,
                 SkipReason::StaticBaked,
@@ -93,7 +97,7 @@ void execute_single_node(
         }
         detail::execute_fused_batch(
             state, graph, batch_ctx, *batch_for_root, id,
-            parent_pool, parent_counters, compiled);
+            parent_pool, parent_counters, compiled, local_nodes_executed);
         return;
     }
 
@@ -133,9 +137,7 @@ void execute_single_node(
 
     if (cache_hit_fast_path) {
         commit_node_state(state, id, cache_eval, predicted_bbox);
-        if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-        }
+        record_node_executed();
         return;
     }
 
@@ -282,7 +284,8 @@ void execute_single_node(
         cache_eval.key,
         cache_eval.result,
         ctx,
-        &compiled.nodes[id].stable_node_id
+        &compiled.nodes[id].stable_node_id,
+        local_nodes_executed
     );
     if (state.node_memory_tracker && cache_eval.result) {
         node_memory_scope->set_live_bytes(cache_eval.result->size_bytes());

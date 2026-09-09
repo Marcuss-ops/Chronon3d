@@ -12,9 +12,11 @@ using namespace chronon3d::runtime;
 namespace {
 
 ResourceDesc color_desc() {
-    return ResourceDesc::make(
+    auto desc = ResourceDesc::make(
         64, 64, PixelFormat::Rgba32Float,
         ResourceUsage::Generic, LifetimeClass::FrameTransient);
+    desc.kind = ResourceKind::Color;
+    return desc;
 }
 
 ResourceDesc yuv_desc() {
@@ -269,6 +271,38 @@ TEST_CASE("External surface boundary states produce release and acquire ownershi
     CHECK(release->before.queue == QueueClass::Compute);
     CHECK(release->after.queue == QueueClass::External);
     CHECK(release->queue_ownership_transfer);
+}
+
+TEST_CASE("GpuCommandPlanner lowers layer source bindings before execution") {
+    GpuCommandPlanner planner;
+    planner.declare_surface(10, color_desc());
+    planner.declare_surface(20, color_desc());
+    planner.layer_batch(LayerBatchPass{
+        .destination = 20,
+        .sources = {10},
+        .items = {LayerBatchItem{.source = 10, .dst_w = 4.0f, .dst_h = 4.0f}},
+    });
+
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.passes.size() == 1);
+    const auto* batch = std::get_if<LayerBatchPass>(&plan.passes.passes.front().params);
+    REQUIRE(batch != nullptr);
+    REQUIRE(batch->items.size() == 1);
+    CHECK(batch->items.front().resource_index == 0);
+}
+
+TEST_CASE("GpuCommandPlanner rejects invalid layer bindings") {
+    GpuCommandPlanner planner;
+    planner.declare_surface(20, color_desc());
+    planner.layer_batch(LayerBatchPass{
+        .destination = 20,
+        .sources = {10},
+        .items = {LayerBatchItem{.source = 99}},
+    });
+
+    CHECK_THROWS_WITH(
+        planner.build(),
+        doctest::Contains("source is not present"));
 }
 
 TEST_CASE("CommandPlan stores only canonical ResourceTransition sync data") {
