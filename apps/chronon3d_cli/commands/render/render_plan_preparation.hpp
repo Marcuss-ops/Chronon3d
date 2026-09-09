@@ -47,6 +47,10 @@ struct RenderPlanPreparationOptions {
 struct PreparedRenderPlanContext {
     render_plan::RenderPlan decoded;
     std::shared_ptr<const compiler::CompiledProgram> program;
+    // Video export still consumes the composition-shaped executor until its
+    // encoder bridge is numeric-program native. This is a compatibility view
+    // derived from the same decoded plan, never a second input/compiler path.
+    std::shared_ptr<const CompiledComposition> video_compatibility_view;
     chronon3d::assets::AssetResolver resolver;
     std::string effective_assets_root;
     chronon3d::RenderSettings settings;

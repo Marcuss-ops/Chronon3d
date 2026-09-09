@@ -129,6 +129,7 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_surface_copy_frames;
     std::optional<std::uint64_t> cpu_pixel_readback_count;
     std::optional<std::uint64_t> cpu_pixel_readback_bytes;
+    std::optional<std::uint64_t> video_surface_upload_bytes;
     std::optional<std::uint64_t> video_pipe_fallback_frames;
     std::optional<std::uint64_t> video_native_fallback_frames;
     std::optional<std::uint64_t> gpu_surface_create_failures;

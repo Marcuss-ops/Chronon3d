@@ -76,9 +76,7 @@ void update_text_run_shape_per_frame(
 
     // ── Empty animators short-circuit: just (re)seed glyphs. ─────────
     if (shape.animators.empty()) {
-        if (shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
-            shape.glyphs = make_initial_glyph_states(shape.layout->placed);
-        }
+        reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
         return;
     }
 
@@ -101,8 +99,7 @@ void update_text_run_shape_per_frame(
 
             if (!result.paragraphs.empty() && result.paragraphs.front()) {
                 shape.layout = result.paragraphs.front();
-                shape.glyphs = make_initial_glyph_states(
-                    shape.layout->placed);
+                reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
             }
         }
     }
@@ -121,12 +118,7 @@ void update_text_run_shape_per_frame(
     //    inside the gap, so per-glyph animators (transform / opacity /
     //    blur / color / etc.) apply symmetrically to both sides. ────
     if (!shape.dissolve_glyphs.empty() && shape.dissolve_layout) {
-        if (shape.dissolve_glyphs.size()
-            != shape.dissolve_layout->placed.glyphs.size())
-        {
-            shape.dissolve_glyphs = make_initial_glyph_states(
-                shape.dissolve_layout->placed);
-        }
+        reset_glyph_states_in_place(shape.dissolve_glyphs, shape.dissolve_layout->placed);
         evaluate_animator_stack_into(
             shape.dissolve_glyphs,
             shape.animators,

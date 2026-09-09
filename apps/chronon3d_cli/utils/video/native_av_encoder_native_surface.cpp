@@ -59,10 +59,12 @@ bool NativeAvEncoder::write_native_surface_impl(
         compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
     }
 
-    const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
-    if (!copy_result.ok()) {
-        spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
-        return false;
+    if (!surface_already_prepared) {
+        const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
+        if (!copy_result.ok()) {
+            spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
+            return false;
+        }
     }
     try {
         if (!drain_ready_cuda_frames(false)) return false;

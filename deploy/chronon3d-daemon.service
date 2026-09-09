@@ -6,7 +6,7 @@ After=local-fs.target
 Type=simple
 # The CLI binary owns the canonical full-video job protocol (PREPARE_PLAN and
 # RENDER_JOB) and keeps one C++ RenderEngine alive for the service lifetime.
-ExecStart=/usr/bin/chronon3d_cli daemon --socket /run/chronon3d/chronon.sock --backend auto
+ExecStart=/usr/local/bin/chronon3d_cli daemon --socket /run/chronon3d/chronon.sock --backend auto
 Restart=on-failure
 RestartSec=2
 RuntimeDirectory=chronon3d

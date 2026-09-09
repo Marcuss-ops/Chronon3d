@@ -65,6 +65,26 @@ Quando le exit conditions sono certificate:
 - Non introdurre un secondo registry/factory globale per tenere in vita il pipe path.
 - Non reimplementare codec o muxing fuori dalle authority native esistenti.
 
+## F37-F40 — caller census + codec matrix — 2026-09-09
+
+- **F37 census — FATTO (repo grep 2026-09-09):** unico entrypoint `create_video_encoder(FfmpegPipeOptions) → IVideoEncoder`
+  in `video_export_common.cpp:11` con 2 caller production: `pipe_export_pipeline_setup.cpp:169` (child variant fanout)
+  e `:181` (session encoder). `FfmpegPipeSink`/`ProcessRunner`/`ffmpeg_pipe_sink.*`/`ffmpeg_pipe_args.*`/`ffmpeg_frame_submit.*` = 0 file
+  in `src/apps/include` (già demoliti); `FfmpegPipeSink` symbol = 0 in production (solo 2 commenti storici). Residuo vivo
+  è solo il ramo encoder `VideoSinkEncoderAdapter(VideoSinkType::Ffmpeg)` quando `encoder_backend != "native"` (explicit diagnostic),
+  mai come silent downgrade del native (fail-closed dal 2026-09-08).
+- **F38 codec/output matrix — FATTO (code मौजूद):** `video_config_validator.cpp` rifiuta H264/H265 su WebM, `native_av_sink.cpp`
+  mappa `H264/H264Nvenc / H265/HEVC / AV1` su `AV_CODEC_ID_*`, `video_execution_resolver.cpp` default `h264`, `output_contract.cpp`
+  fallback `h264`, `native_video_frame_decoder_session.cpp` cerca `h264_cuvid/hevc_cuvid/av1_cuvid` per NVDEC, `video_export_common.cpp`
+  normalizza `h264→h264_nvenc, hevc→hevc_nvenc, qsv/vt/amf→h264_*`. Output: mp4/webm/mkv via `detect_container()` + raw/NV12/YUV420P.
+- **F39 zero caller gate — APERTO (correctly blocked):** exit 4 (`video_pipe_fallback_frames == 0` in produzione) + exit 5
+  (zero direct `FfmpegPipeSink`/`ProcessRunner` include) intenzionalmente aperte; demolition fisica bloccata finché
+  certificazione native/SDK/codec non è verde. Non rimuovere prima.
+- **F40 gate anti-resurrezione — FATTO (architecture):** `tools/architecture_rules_cleanup.toml` blocca `RenderServices`
+  (service-locator) + `src/media/CMakeLists.txt` mantiene pipe/process-runner solo dietro ramo non-native; quando exit 4+5
+  saranno PASS, aggiungere `forbidden_symbol` su `FfmpegPipeSink`/`ProcessRunner` in `src/apps/include` + `forbidden_path`
+  sui file pipe — reintroduzione diventa gate FAIL.
+
 ## Evidenza corrente
 
 - `VideoSinkFactory` seleziona `NativeAvSink` nei build con `CHRONON3D_ENABLE_NATIVE_FFMPEG`.

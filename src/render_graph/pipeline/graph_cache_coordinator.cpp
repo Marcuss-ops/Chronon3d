@@ -279,10 +279,16 @@ static void log_graph_cache_diagnostics(
             spdlog::warn("[graph-cache] transactional refresh threw: {} — restoring prior cache and rebuilding fresh",
                          error.what());
         }
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_cache_refresh_fallback_total.fetch_add(1, std::memory_order_relaxed);
+        }
         lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     } catch (...) {
         // Preserve the same cache invariant for non-standard exceptions.
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_cache_refresh_fallback_total.fetch_add(1, std::memory_order_relaxed);
+        }
         lease.restore();
         return build_fresh_graph(ctx, scene, resolved);
     }
@@ -296,6 +302,9 @@ static void log_graph_cache_diagnostics(
         if (diagnostics_enabled) {
             spdlog::warn("[graph-cache] transactional refresh rejected: {} — rebuilding fresh",
                          refresh_result.message);
+        }
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_cache_refresh_fallback_total.fetch_add(1, std::memory_order_relaxed);
         }
         // Validation is performed before any refresh mutation, so this
         // detached candidate is still the original cache entry. Restore it

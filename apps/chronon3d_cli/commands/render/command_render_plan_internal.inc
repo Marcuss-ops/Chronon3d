@@ -130,6 +130,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         RenderRequest request;
         request.comp_id = meta.job_id;
         request.compiled_program = context.program;
+		request.compiled_composition = context.video_compatibility_view;
         request.output = output;
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt

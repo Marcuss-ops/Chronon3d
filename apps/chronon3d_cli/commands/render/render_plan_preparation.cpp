@@ -141,6 +141,20 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         context.decoded = std::move(plan);
         context.program = std::make_shared<const compiler::CompiledProgram>(
             std::move(compiled).value());
+		// The new numeric compiler is the canonical plan authority, but the
+		// current FFmpeg video exporter still accepts CompiledComposition. Build
+		// that compatibility view from the same decoded v2 plan so render-plan
+		// video jobs can use the real encoder without falling back to an older
+		// plan schema or a separate semantic path.
+		if (context.decoded.output.format != render_plan::OutputFormat::Png) {
+			auto video_bridge = render_plan::compile_render_plan(
+				context.decoded, resolver, fingerprint_options);
+			if (!video_bridge) {
+				return std::move(video_bridge).error();
+			}
+			context.video_compatibility_view = std::make_shared<const CompiledComposition>(
+				std::move(video_bridge).value().compiled_composition);
+		}
         context.resolver = std::move(resolver);
         context.effective_assets_root = effective_assets_root;
         context.settings = settings;

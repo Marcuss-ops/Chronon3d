@@ -495,6 +495,7 @@ struct VulkanBackend::Impl {
     void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
                                  bool indices);
     void begin_command_buffer();
+    void wait_for_standalone();
     void wait_for_pending();
     std::uint64_t submit(bool wait_for_completion = true);
     void composite(Framebuffer& destination, const Framebuffer& source);

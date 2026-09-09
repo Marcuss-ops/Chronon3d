@@ -42,7 +42,8 @@ void synchronize_native_output(RenderGraphContext& ctx,
     // demolition removed everywhere else. download_surface() remains a
     // legitimate capability for images, golden tests and SDK consumers;
     // the *video* path may not use it as a fallback.
-    if (ctx.backend->supports_native_video_surface()) {
+    if (ctx.backend->supports_native_video_surface() &&
+        ctx.policy.is_gpu_native_required()) {
         spdlog::error(
             "[video] native video contract violation: frame reached "
             "synchronize_native_output without a native encode surface and "
@@ -137,10 +138,6 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
     const std::shared_ptr<Framebuffer>& framebuffer, Frame frame) {
     if (!framebuffer) return runtime::kInvalidRenderSurfaceHandle;
     auto handle = framebuffer->surface_handle();
-    spdlog::info("[ensure_source_diag] fb={} handle={} valid={} persistent={}",
-                 static_cast<const void*>(framebuffer.get()), handle,
-                 backend_.is_native_surface_valid(handle),
-                 ctx_.policy.native_video_source_surface);
     // Native graph outputs are already resident and synchronized;
     // never copy them through the CPU-source ring a second time.
     if (handle != runtime::kInvalidRenderSurfaceHandle &&
