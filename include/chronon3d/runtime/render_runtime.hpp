@@ -8,7 +8,6 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
-#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/runtime/media_session_pool.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>

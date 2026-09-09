@@ -70,6 +70,18 @@ struct EffectScratchResources {
     std::vector<float> row_src, row_dst, col_src, col_dst;
     // Directional blur taps are packed as dx, dy, weight triples.
     std::vector<float> directional_taps;
+    // Radial blur stores only the per-sample parametric values. Offsets still
+    // depend on the current pixel's vector from the blur centre, so this LUT
+    // is shared by every pixel without pretending dx/dy are global.
+    struct RadialTap {
+        float u{0.0f};
+        float cos_angle{1.0f};
+        float sin_angle{0.0f};
+        float weight{0.0f};
+    };
+    std::vector<RadialTap> radial_taps;
+    int radial_samples{0};
+    float radial_amount{0.0f};
     int width{0};
     int height{0};
 
@@ -101,6 +113,9 @@ struct EffectScratchResources {
         original_alpha.clear();
         row_src.clear(); row_dst.clear(); col_src.clear(); col_dst.clear();
         directional_taps.clear();
+        radial_taps.clear();
+        radial_samples = 0;
+        radial_amount = 0.0f;
         width = 0; height = 0;
     }
 };

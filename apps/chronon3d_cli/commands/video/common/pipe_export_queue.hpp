@@ -88,7 +88,13 @@ public:
     bool push(RenderFramePackage& item, const CancellationToken* token = nullptr) {
         for (;;) {
             if (state_.load(std::memory_order_acquire) != State::Open) return false;
-            if (ring_.try_push(std::move(item))) return true;
+            // BoundedSpscRing::try_push takes its value by value. Calling it
+            // while full would move `item` into the temporary before the
+            // capacity check, so a later retry could enqueue a moved-from
+            // DirectYuvFramePackage. Check fullness first; with one producer
+            // only the consumer can change this state, therefore a non-full
+            // observation cannot become full before try_push executes.
+            if (!ring_.full() && ring_.try_push(std::move(item))) return true;
             if (token && token->is_cancelled()) return false;
             // Queue is full: backpressure. Tiny sleep so the producer does not
             // spin-burn a core while the consumer encodes the in-flight frame.

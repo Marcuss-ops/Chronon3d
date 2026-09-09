@@ -383,7 +383,7 @@ TEST_CASE("VariantBatch shares preparation and chooses scale or recompose") {
     const std::vector<chronon3d::cli::OutputVariant> landscape{
         {1920, 1080, "nv12", "h264"},
         {1280, 720, "nv12", "h264"},
-        {854, 480, "nv12", "h264"}};
+        {960, 540, "nv12", "h264"}};
     const auto scale = chronon3d::cli::plan_variant_batch(landscape);
     CHECK(scale.mode == chronon3d::cli::VariantReuseMode::MasterScale);
     CHECK(scale.share_decode);

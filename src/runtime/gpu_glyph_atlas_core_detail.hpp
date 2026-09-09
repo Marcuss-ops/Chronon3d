@@ -1,5 +1,10 @@
 namespace {
 
+GpuGlyphAtlasError atlas_error(
+    GpuGlyphAtlasError::Code code, std::string message) {
+    return GpuGlyphAtlasError{code, std::move(message)};
+}
+
 std::string glyph_key_string(const GpuGlyphKey& key) {
     std::ostringstream out;
     out << key.font_path << '\x1f' << key.glyph_id << '\x1f'
@@ -16,30 +21,35 @@ std::string glyph_key_string(const GpuGlyphKey& key) {
 
 void GpuGlyphAtlas::attach(RenderSurfaceRegistry& registry,
                            graph::RenderBackend& backend) noexcept {
+    std::lock_guard lock(m_mutex);
     m_cache.attach(registry, backend);
 }
 
-GpuGlyphAtlas::AtlasPage& GpuGlyphAtlas::current_page_or_new(
+Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
     GlyphRepresentation representation,
-    const DistanceFieldProfile& profile) {
-    for (auto& p : m_pages) {
-        if (p.representation == representation &&
-            p.profile == profile &&
-            !(p.cursor_x + 64 > kPageSize &&
-              p.cursor_y + p.row_height + 64 > kPageSize)) {
-            return p;
+    const DistanceFieldProfile& profile,
+    std::uint32_t width,
+    std::uint32_t height) {
+    for (std::size_t page_index = 0; page_index < m_pages.size(); ++page_index) {
+        auto& page = m_pages[page_index];
+        if (page.representation != representation || page.profile != profile) {
+            continue;
+        }
+        const std::uint32_t next_x = page.cursor_x + width;
+        const bool wraps = next_x > kPageSize && page.cursor_x != 0;
+        const std::uint32_t candidate_x = wraps ? 0 : page.cursor_x;
+        const std::uint32_t candidate_y = wraps
+            ? page.cursor_y + page.row_height
+            : page.cursor_y;
+        if (candidate_x + width <= kPageSize && candidate_y + height <= kPageSize) {
+            return page_index;
         }
     }
-
-    AtlasPage page;
-    page.representation = representation;
-    page.profile = profile;
 
     const PixelFormat page_format =
         (representation == GlyphRepresentation::Mtsdf || representation == GlyphRepresentation::Msdf)
             ? PixelFormat::Rgba8Unorm
             : PixelFormat::R8Unorm;
-
     GpuAssetKey asset_key;
     asset_key.content_digest = assets::sha256_string(
         "atlas_page_" + std::to_string(m_pages.size()) + "_" +
@@ -57,34 +67,68 @@ GpuGlyphAtlas::AtlasPage& GpuGlyphAtlas::current_page_or_new(
                 ? TextAtlasEncoding::Coverage
                 : TextAtlasEncoding::PremultipliedRGBA;
 
+    // A page is a residency commitment. GpuAssetCache::acquire validates the
+    // budget, attachment and backend allocation before this page is published.
     const auto result = m_cache.acquire(asset_key, desc, {});
+    if (!result.ok()) {
+        const auto code = result.error.find("budget") != std::string::npos
+            ? GpuGlyphAtlasError::Code::BudgetExceeded
+            : result.error.find("not attached") != std::string::npos
+                ? GpuGlyphAtlasError::Code::NotAttached
+                : GpuGlyphAtlasError::Code::AllocationFailed;
+        ++m_stats.failures;
+        return atlas_error(code, "glyph atlas page allocation failed: " + result.error);
+    }
+
+    AtlasPage page;
     page.handle = result.handle;
+    page.representation = representation;
+    page.profile = profile;
     m_pages.push_back(std::move(page));
     ++m_stats.page_count;
-
-    return m_pages.back();
+    return m_pages.size() - 1;
 }
 
-GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
-                                     std::uint32_t width, std::uint32_t height,
-                                     std::span<const float> coverage,
-                                     GpuGlyphMetrics metrics,
-                                     const DistanceFieldProfile& profile) {
+GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
+    GpuGlyphKey key,
+    std::uint32_t width, std::uint32_t height,
+    std::span<const float> coverage,
+    GpuGlyphMetrics metrics,
+    const DistanceFieldProfile& profile) {
     std::lock_guard lock(m_mutex);
 
-    {
-        const auto it = m_locations.find(key);
-        if (it != m_locations.end()) {
-            ++m_stats.hits;
-            return it->second;
-        }
+    if (!m_cache.backend()) {
+        ++m_stats.failures;
+        return atlas_error(
+            GpuGlyphAtlasError::Code::NotAttached,
+            "GPU glyph atlas is not attached to a backend");
     }
-    ++m_stats.misses;
+    if (width == 0 || height == 0 || width > std::numeric_limits<std::uint16_t>::max() ||
+        height > std::numeric_limits<std::uint16_t>::max()) {
+        ++m_stats.failures;
+        return atlas_error(
+            GpuGlyphAtlasError::Code::InvalidDimensions,
+            "glyph dimensions must be non-zero and fit GlyphLocation");
+    }
 
     const PixelFormat format =
         (key.representation == GlyphRepresentation::Mtsdf || key.representation == GlyphRepresentation::Msdf)
             ? PixelFormat::Rgba8Unorm
             : PixelFormat::R8Unorm;
+    const std::size_t expected_coverage =
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    if (coverage.size() != expected_coverage) {
+        ++m_stats.failures;
+        return atlas_error(
+            GpuGlyphAtlasError::Code::InvalidCoverage,
+            "glyph coverage size does not match glyph dimensions");
+    }
+
+    if (const auto it = m_locations.find(key); it != m_locations.end()) {
+        ++m_stats.hits;
+        return it->second;
+    }
+    ++m_stats.misses;
 
     if (width > kPageSize || height > kPageSize) {
         GpuAssetKey asset_key;
@@ -95,6 +139,7 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
 
         SurfaceDesc desc{width, height, format,
                          ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+        desc.bytes = tight_surface_bytes(format, width, height);
         desc.text_atlas_encoding =
             key.representation == GlyphRepresentation::Mtsdf
                 ? TextAtlasEncoding::MTSDF
@@ -102,6 +147,14 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
                     ? TextAtlasEncoding::Coverage
                     : TextAtlasEncoding::PremultipliedRGBA;
         const auto result = m_cache.acquire(asset_key, desc, coverage);
+        if (!result.ok()) {
+            ++m_stats.failures;
+            const auto code = result.error.find("budget") != std::string::npos
+                ? GpuGlyphAtlasError::Code::BudgetExceeded
+                : GpuGlyphAtlasError::Code::AllocationFailed;
+            return atlas_error(
+                code, "large glyph allocation/upload failed: " + result.error);
+        }
 
         GlyphLocation loc;
         loc.atlas_page = 0;
@@ -109,76 +162,66 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
         loc.atlas_y = 0;
         loc.width = static_cast<std::uint16_t>(width);
         loc.height = static_cast<std::uint16_t>(height);
+        loc.local_x = static_cast<std::int16_t>(metrics.x_offset);
+        loc.local_y = static_cast<std::int16_t>(metrics.y_offset);
         loc.plane_left = static_cast<float>(metrics.x_offset);
         loc.plane_top = static_cast<float>(metrics.y_offset);
         loc.plane_right = static_cast<float>(metrics.x_offset + static_cast<int>(width));
         loc.plane_bottom = static_cast<float>(metrics.y_offset + static_cast<int>(height));
         loc.advance_x = metrics.advance_x;
-        m_locations[key] = loc;
-        m_metrics[key] = metrics;
+        m_locations.emplace(key, loc);
+        m_metrics.emplace(key, metrics);
         ++m_stats.entries;
+        m_stats.total_glyph_bytes += static_cast<std::size_t>(width) * height *
+            (format == PixelFormat::Rgba8Unorm ? 4 : 1);
         return loc;
     }
 
-    auto& page = current_page_or_new(key.representation, profile);
-    if (page.cursor_x + width > kPageSize) {
+    auto page_result = page_for_glyph(key.representation, profile, width, height);
+    if (!page_result.has_value()) {
+        return page_result.error();
+    }
+    const std::size_t page_index = page_result.value();
+    auto& page = m_pages[page_index];
+    if (page.cursor_x + width > kPageSize && page.cursor_x != 0) {
         page.cursor_x = 0;
         page.cursor_y += page.row_height;
         page.row_height = 0;
     }
-    if (page.cursor_y + height > kPageSize) {
-        AtlasPage new_page;
-        new_page.representation = key.representation;
-        new_page.profile = profile;
-
-        GpuAssetKey asset_key;
-        asset_key.content_digest = assets::sha256_string(
-            "atlas_page_" + std::to_string(m_pages.size()) + "_" +
-            std::to_string(static_cast<int>(key.representation)));
-        asset_key.format = format;
-        asset_key.width = kPageSize;
-        asset_key.height = kPageSize;
-
-        SurfaceDesc desc{kPageSize, kPageSize, format,
-                         ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
-        desc.text_atlas_encoding =
-            key.representation == GlyphRepresentation::Mtsdf
-                ? TextAtlasEncoding::MTSDF
-                : key.representation == GlyphRepresentation::Coverage
-                    ? TextAtlasEncoding::Coverage
-                    : TextAtlasEncoding::PremultipliedRGBA;
-        const auto result = m_cache.acquire(asset_key, desc, {});
-        new_page.handle = result.handle;
-        m_pages.push_back(std::move(new_page));
-        ++m_stats.page_count;
-        page = m_pages.back();
-    }
-
     const std::uint32_t px = page.cursor_x;
     const std::uint32_t py = page.cursor_y;
 
-    if (m_cache.backend() && !coverage.empty()) {
-        SurfaceDesc page_desc{kPageSize, kPageSize, format,
-                              ResourceUsage::Storage,
-                              LifetimeClass::JobPersistent,
-                              static_cast<std::size_t>(kPageSize) * kPageSize * (format == PixelFormat::Rgba8Unorm ? 4 : 1)};
-        page_desc.text_atlas_encoding = page.profile.representation == GlyphRepresentation::Mtsdf
-            ? TextAtlasEncoding::MTSDF
-            : page.profile.representation == GlyphRepresentation::Coverage
-                ? TextAtlasEncoding::Coverage
-                : TextAtlasEncoding::PremultipliedRGBA;
+    const PixelFormat page_format =
+        (key.representation == GlyphRepresentation::Mtsdf ||
+         key.representation == GlyphRepresentation::Msdf)
+            ? PixelFormat::Rgba8Unorm
+            : PixelFormat::R8Unorm;
+    SurfaceDesc page_desc{kPageSize, kPageSize, page_format,
+                          ResourceUsage::Storage,
+                          LifetimeClass::JobPersistent,
+                          tight_surface_bytes(page_format, kPageSize, kPageSize)};
+    page_desc.text_atlas_encoding = page.profile.representation == GlyphRepresentation::Mtsdf
+        ? TextAtlasEncoding::MTSDF
+        : page.profile.representation == GlyphRepresentation::Coverage
+            ? TextAtlasEncoding::Coverage
+            : TextAtlasEncoding::PremultipliedRGBA;
 
-        m_cache.backend()->upload_surface_region(
-            page.handle, page_desc,
-            static_cast<std::int32_t>(px), static_cast<std::int32_t>(py),
-            width, height, coverage);
+    auto uploaded = m_cache.backend()->upload_surface_region(
+        page.handle, page_desc,
+        static_cast<std::int32_t>(px), static_cast<std::int32_t>(py),
+        width, height, coverage);
+    if (!uploaded.ok()) {
+        ++m_stats.failures;
+        return atlas_error(
+            GpuGlyphAtlasError::Code::UploadFailed,
+            "glyph atlas upload failed: " + uploaded.error().message);
     }
 
     page.cursor_x += width;
     page.row_height = std::max(page.row_height, height);
 
     GlyphLocation loc;
-    loc.atlas_page = static_cast<std::uint16_t>(m_pages.size() - 1);
+    loc.atlas_page = static_cast<std::uint16_t>(page_index);
     loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));
     loc.atlas_x = static_cast<std::uint16_t>(px);
     loc.atlas_y = static_cast<std::uint16_t>(py);
@@ -192,15 +235,15 @@ GlyphLocation GpuGlyphAtlas::acquire(GpuGlyphKey key,
     loc.plane_bottom = static_cast<float>(metrics.y_offset + static_cast<int>(height));
     loc.advance_x = metrics.advance_x;
 
-    m_locations[key] = loc;
-    m_metrics[key] = metrics;
+    m_locations.emplace(key, loc);
+    m_metrics.emplace(key, metrics);
     ++m_stats.entries;
-    m_stats.total_glyph_bytes += static_cast<std::size_t>(width) * height * (format == PixelFormat::Rgba8Unorm ? 4 : 1);
-
+    m_stats.total_glyph_bytes += static_cast<std::size_t>(width) * height *
+        (format == PixelFormat::Rgba8Unorm ? 4 : 1);
     return loc;
 }
 
-void GpuGlyphAtlas::prepare_batch(
+Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::prepare_batch(
     std::span<const GpuGlyphKey> keys,
     std::span<const std::uint32_t> widths,
     std::span<const std::uint32_t> heights,
@@ -209,20 +252,36 @@ void GpuGlyphAtlas::prepare_batch(
     const DistanceFieldProfile& profile) {
     if (keys.size() != widths.size() || keys.size() != heights.size() ||
         keys.size() != metrics.size()) {
-        return;
+        return atlas_error(
+            GpuGlyphAtlasError::Code::InvalidDimensions,
+            "glyph batch metadata spans have different lengths");
     }
     std::size_t coverage_offset = 0;
     for (std::size_t i = 0; i < keys.size(); ++i) {
         const auto w = widths[i];
         const auto h = heights[i];
+        if (h != 0 && w > std::numeric_limits<std::size_t>::max() / h) {
+            return atlas_error(
+                GpuGlyphAtlasError::Code::InvalidDimensions,
+                "glyph batch dimensions overflow");
+        }
         const auto count = static_cast<std::size_t>(w) * h;
-        if (coverage_offset + count > coverage_data.size()) break;
-        (void)acquire(keys[i], w, h,
-                      coverage_data.subspan(coverage_offset, count),
-                      metrics[i],
-                      profile);
+        if (coverage_offset > coverage_data.size() ||
+            count > coverage_data.size() - coverage_offset) {
+            return atlas_error(
+                GpuGlyphAtlasError::Code::InvalidCoverage,
+                "glyph batch coverage span is truncated");
+        }
+        auto result = acquire(
+            keys[i], w, h,
+            coverage_data.subspan(coverage_offset, count),
+            metrics[i], profile);
+        if (!result.has_value()) {
+            return result.error();
+        }
         coverage_offset += count;
     }
+    return keys.size();
 }
 
 std::optional<GpuGlyphMetrics> GpuGlyphAtlas::metrics(GpuGlyphKey key) const noexcept {

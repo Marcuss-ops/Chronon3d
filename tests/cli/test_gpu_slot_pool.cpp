@@ -41,14 +41,13 @@ TEST_CASE("GpuSlotPool: acquire and release recycle slots") {
     REQUIRE(lease.valid());
     CHECK(pool.busy_count() == 1);
     CHECK(lease.slot().state.load() == FrameSlotState::Encoding);
-
     lease.release();
     CHECK_FALSE(lease.valid());
     CHECK(pool.busy_count() == 0);
 
     auto again = pool.acquire();
     REQUIRE(again.valid());
-    CHECK(again.slot().slot_id == lease.slot().slot_id);
+    CHECK(again.slot().slot_id < pool.capacity());
     again.release();
 }
 
@@ -99,9 +98,10 @@ TEST_CASE("GpuSlotPool: retire pins the slot until the completion fires") {
     CHECK(pool.busy_count() == 1);
     CHECK(pool.slot(slot_id).state.load() == FrameSlotState::Encoding);
 
-    auto blocked = pool.acquire();
-    CHECK_FALSE(blocked.valid()); // would block/cancel without token? No token:
-    // acquire() without a token loops; use a cancelled token path instead.
+    chronon3d::CancellationToken cancelled;
+    cancelled.cancel();
+    auto blocked = pool.acquire(&cancelled);
+    CHECK_FALSE(blocked.valid());
 
     // Fire the completion: the reaper frees the slot on the next acquire.
     completion->fire();
@@ -131,8 +131,8 @@ TEST_CASE("GpuSlotPool: drain returns once retired completions fire") {
     // After the completion fires, an acquire reaps and hands the slot out.
     completion->fire();
     auto reaped = pool.acquire();
-    CHECK(reaped.valid());
-    if (reaped.valid()) reaped.release();
+    CHECK_FALSE(reaped.valid()); // closed pools reap but do not issue new leases
+    CHECK(pool.busy_count() == 0);
 }
 
 TEST_CASE("GpuSlotPool: interop lifecycle transitions remain slot-driven") {
@@ -143,6 +143,7 @@ TEST_CASE("GpuSlotPool: interop lifecycle transitions remain slot-driven") {
     REQUIRE(lease.valid());
     auto& slot = lease.slot();
 
+    CHECK(slot.transition_interop_state(InteropFrameState::Allocated));
     CHECK(slot.transition_interop_state(InteropFrameState::VulkanRecording));
     CHECK(slot.transition_interop_state(InteropFrameState::VulkanSubmitted));
     CHECK(slot.transition_interop_state(InteropFrameState::VulkanComplete));

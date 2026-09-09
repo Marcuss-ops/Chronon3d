@@ -1,0 +1,88 @@
+From: Codebuff <noreply@codebuff.com>
+Date: 2026-05-11
+Subject: [PATCH] H-02: replace ostringstream+sha256 glyph key with xxHash view (FIXING.md)
+Risk: Medium — requires build + tests (GPU glyph path). Do NOT apply without CI.
+Refs: FIXING.md H-02 (src/runtime/gpu_glyph_atlas_core_detail.hpp:4,91)
+
+Problem:
+  glyph_key_string() builds an ostringstream + std::to_string per glyph and
+  then sha256_string() hashes it. That's 3+ heap allocs per glyph on the
+  hot path (large-glyph branch and every page creation). Mtsdf is frequent
+  at 4K → tens of allocs per frame.
+
+Fix:
+  Use the already-vendored xxHash (chronon3d_base links xxHash::xxhash)
+  to hash the GpuGlyphKey directly without an intermediate string. The
+  content_digest for large glyphs becomes an xxHash-derived digest
+  (or reuse the existing GpuGlyphKeyHash combine). Page keys use the
+  same helper instead of sha256_string("atlas_page_...").
+
+  This patch sketches the replacement; adapt ContentDigest construction
+  to the actual type (array<uint8_t,32> vs uint64_t) in your tree.
+
+diff --git a/src/runtime/gpu_glyph_atlas_core_detail.hpp b/src/runtime/gpu_glyph_atlas_core_detail.hpp
+--- a/src/runtime/gpu_glyph_atlas_core_detail.hpp
++++ b/src/runtime/gpu_glyph_atlas_core_detail.hpp
+@@ -1,13 +1,24 @@
++// FIXING.md H-02 — xxHash is already a public dep (chronon3d_base → xxHash::xxhash).
++// Replace ostringstream+sha256_string per-glyph alloc with a zero-alloc view hash.
++#include <xxhash.h>
++
+ namespace {
+ 
+-std::string glyph_key_string(const GpuGlyphKey& key) {
+-    std::ostringstream out;
+-    out << key.font_path << '\x1f' << key.glyph_id << '\x1f'
+-        << key.variation_hash << '\x1f'
+-        << static_cast<int>(key.representation) << '\x1f'
+-        << key.generation_profile;
+-    if (key.representation == GlyphRepresentation::Coverage) {
+-        out << '\x1f' << key.font_size;
+-    }
+-    return out.str();
+-}
++// Zero-alloc key digest: hash font_path view + POD fields. No ostringstream,
++// no std::to_string, no intermediate std::string. Uses XXH3_64bits.
++inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
++    // Seed with glyph_id + representation to decorrelate font_path collisions.
++    std::uint64_t h = XXH3_64bits_withSeed(key.font_path.data(), key.font_path.size(),
++                                           static_cast<std::uint64_t>(key.glyph_id) ^ 0x9e3779b97f4a7c15ULL);
++    h ^= key.variation_hash + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
++    h ^= static_cast<std::uint64_t>(key.representation) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
++    h ^= static_cast<std::uint64_t>(key.generation_profile) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
++    if (key.representation == GlyphRepresentation::Coverage) {
++        h ^= static_cast<std::uint64_t>(key.font_size) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
++    }
++    return h;
++}
++
++// If ContentDigest is 32 bytes, expand the 64-bit hash deterministically
++// (e.g. splitmix64) or keep the existing sha256_string path for large-glyph
++// ContentDigest only and use the 64-bit hash for map lookup. See FIXING.md.
+ 
+ } // namespace
+ 
+@@ -30,8 +41,10 @@
+     GpuAssetKey asset_key;
+-    asset_key.content_digest = assets::sha256_string(
+-        "atlas_page_" + std::to_string(m_pages.size()) + "_" +
+-        std::to_string(static_cast<int>(representation)));
++    // FIXING.md H-02 — page identity is (page_index, representation), not a
++    // content hash. Use a cheap integer-derived digest instead of SHA-256.
++    {
++        const std::uint64_t page_hash = XXH3_64bits_withSeed(
++            &representation, sizeof(representation),
++            static_cast<std::uint64_t>(m_pages.size()) * 0x9e3779b97f4a7c15ULL);
++        asset_key.content_digest = assets::digest_from_u64(page_hash);
++    }
+     asset_key.format = page_format;
+     asset_key.width = kPageSize;
+     asset_key.height = kPageSize;
+@@ -60,7 +73,7 @@
+     if (width > kPageSize || height > kPageSize) {
+         GpuAssetKey asset_key;
+-        asset_key.content_digest = assets::sha256_string(glyph_key_string(key));
++        asset_key.content_digest = assets::digest_from_u64(glyph_key_hash64(key));
+         asset_key.format = format;
+         asset_key.width = width;
+         asset_key.height = height;

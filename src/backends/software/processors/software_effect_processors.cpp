@@ -250,10 +250,11 @@ public:
 class SoftwareRadialBlurEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<RadialBlurParams>(&params)) {
             apply_radial_blur(fb, p->center.x, p->center.y,
-                              p->amount, p->render_samples);
+                              p->amount, p->render_samples,
+                              std::nullopt, context.effect_scratch);
         }
     }
 };

@@ -102,6 +102,42 @@ TEST_CASE("RenderFrameQueue: full queue blocks the producer until drained") {
     CHECK(q.size_approx() == 4);
 }
 
+TEST_CASE("RenderFrameQueue: blocked push preserves DirectYUV payload") {
+    RenderFrameQueue q;
+    for (int i = 0; i < 4; ++i) {
+        RenderFramePackage p = package_for(i + 1);
+        REQUIRE(q.push(p));
+    }
+
+    auto payload = std::make_shared<media::video::DirectYuvFrame>();
+    const auto* expected_payload = payload.get();
+    RenderFramePackage fifth = DirectYuvFramePackage{
+        .frame_number = Frame{5},
+        .direct_yuv = payload};
+    std::atomic<bool> pushed{false};
+    std::thread producer([&] {
+        pushed.store(q.push(fifth), std::memory_order_release);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK_FALSE(pushed.load(std::memory_order_acquire));
+
+    RenderFramePackage out;
+    REQUIRE(q.try_pop(out));
+    producer.join();
+    REQUIRE(pushed.load(std::memory_order_acquire));
+
+    while (q.try_pop(out)) {
+        const auto* direct = std::get_if<DirectYuvFramePackage>(&out);
+        if (direct && direct->frame_number.integral() == 5) {
+            REQUIRE(direct->direct_yuv);
+            CHECK(direct->direct_yuv.get() == expected_payload);
+            return;
+        }
+    }
+    FAIL("the blocked push did not enqueue frame 5");
+}
+
 TEST_CASE("RenderFrameQueue: cancellation unblocks a blocked producer") {
     RenderFrameQueue q;
     for (int i = 0; i < 4; ++i) {
