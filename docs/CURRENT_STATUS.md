@@ -26,7 +26,7 @@
   `FrameExecution`/`RenderGraphContext::frame_parameters`. `JobSession` no
   longer owns `legacy_composition_`; arbitrary `Composition::SceneFunction`
   remains an explicit compatibility adapter until typed Composition lowering is
-  available.- Cross-repo Wave 10 — VERIFIED at `RenderingGen main@3c4de1ec` (see `chronon-wave-closeout-todo` + `TICKET-STAGE-CLOSING-ARCH-WAVES-9-13`): Chronon emits `summary.windows` prewarm/steady-state, RenderingGen `preserveRawTimingSidecar` stores raw bytes opaquely (hash→store); no JSON re-parse/mutate/drop — invariant locked, not a reopen.
+  available.- Cross-repo Wave 10 — VERIFIED at `RenderingGen main@3c4de1ec` (see `TICKET-STAGE-CLOSING-ARCH-WAVES-9-13`; wave closeout chronicle retired to `docs/tickets/`): Chronon emits `summary.windows` prewarm/steady-state, RenderingGen `preserveRawTimingSidecar` stores raw bytes opaquely (hash→store); no JSON re-parse/mutate/drop — invariant locked, not a reopen.
 - Hot-path landed (no-build yet): G41 `reset_glyph_states_in_place` reuse • G43 `RawVideoSink` tight-stride direct `write_bytes` (staging only when padded) • G45 `graph_cache_refresh_fallback_total` • G46-48/H census deferred post-baseline (see `TICKET-COMPILER-DEMOLITION-WAVES` FASE C/D/E/H + `TICKET-FFMPEG-PIPE-SINK-DEMOLITION` F37-F40).
 
 - Baseline inspected before this closeout: `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`.
