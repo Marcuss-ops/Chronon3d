@@ -367,7 +367,7 @@ TEST_CASE("ResourcePreparation — per-phase loader functions lock structured er
 
     SUBCASE("prepare_layout returns MissingAsset") {
         const chronon3d::assets::InternalAssetRef bad_layout{
-            chronon3d::assets::AssetKind::Image, "missing/layout.png", "owner/missing", true
+            chronon3d::assets::AssetKind::Layout, "missing/layout.json", "owner/missing", true
         };
         auto r = chronon3d::runtime::ResourcePreparation::prepare_layout(
             bad_layout, resolver, chronon3d::Frame{0});
@@ -418,4 +418,114 @@ TEST_CASE("ResourcePreparation::prepare — keyed-by-owner maps (1 owner → 1 e
     CHECK(result.value().fonts.count("owner/font") == 1);
     CHECK(result.value().diagnostics.fonts_loaded == 1);
     CHECK(result.value().diagnostics.warnings.empty());
+}
+
+TEST_CASE("ResourcePreparation — manifest authority across scene variants") {
+    chronon3d::runtime::PreparationOptions options;
+    options.prepare_layouts = true;
+    options.prepare_videos = false;  // avoid libav probe on synthetic paths
+
+    SUBCASE("text only: prepares font, does not require or prepare layouts") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_font("present/font.ttf", "text/title");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/font.ttf"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().fonts.count("text/title") == 1);
+        CHECK(result.value().images.empty());
+        CHECK(result.value().layouts.empty());
+        CHECK(result.value().diagnostics.layouts_prepared == 0);
+    }
+
+    SUBCASE("image only: prepares image without preparing layout unless Layout is in manifest") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_image("present/image.png", "bg/image");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/image.png"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().fonts.empty());
+        CHECK(result.value().images.count("bg/image") == 1);
+        // Correctness invariant: images no longer trigger layout preparation
+        CHECK(result.value().layouts.empty());
+        CHECK(result.value().diagnostics.layouts_prepared == 0);
+    }
+
+    SUBCASE("video + subtitles: prepares font, no layout dependencies") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_video("present/video.mp4", "video/layer");
+        manifest.add_font("present/sub.ttf", "subtitle/layer");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/video.mp4", "present/sub.ttf"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().fonts.count("subtitle/layer") == 1);
+        CHECK(result.value().layouts.empty());
+        CHECK(result.value().diagnostics.layouts_prepared == 0);
+    }
+
+    SUBCASE("image + text: prepares both image and font, zero layouts") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_image("present/image.png", "bg/image");
+        manifest.add_font("present/font.ttf", "title/text");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/image.png", "present/font.ttf"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().images.count("bg/image") == 1);
+        CHECK(result.value().fonts.count("title/text") == 1);
+        CHECK(result.value().layouts.empty());
+    }
+
+    SUBCASE("no text: zero fonts loaded") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_image("present/image.png", "bg/image");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/image.png"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().fonts.empty());
+        CHECK(result.value().diagnostics.fonts_loaded == 0);
+    }
+
+    SUBCASE("layout explicit: prepares layout when AssetKind::Layout is in manifest") {
+        chronon3d::assets::AssetManifest manifest;
+        manifest.add_layout("present/layout.json", "card/layout");
+
+        MockResolver resolver(std::unordered_set<std::string>{"present/layout.json"});
+        auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
+        REQUIRE(result.has_value());
+        CHECK(result.value().layouts.count("card/layout") == 1);
+        CHECK(result.value().diagnostics.layouts_prepared == 1);
+    }
+}
+
+TEST_CASE("ResourcePreparation — font validation barrier rejects corrupt font file") {
+    // Create a temporary corrupt font file (garbage bytes)
+    const auto temp_dir = std::filesystem::temp_directory_path();
+    const auto corrupt_font = temp_dir / "chronon_corrupt_test_font.ttf";
+    {
+        std::ofstream out(corrupt_font, std::ios::binary);
+        out << "NOT_A_VALID_FONT_DATA_CORRUPT_HEADER_FOR_TESTING";
+    }
+
+    struct TempFileRemover {
+        std::filesystem::path p;
+        ~TempFileRemover() { std::error_code ec; std::filesystem::remove(p, ec); }
+    } remover{corrupt_font};
+
+    MockResolver resolver(std::unordered_set<std::string>{corrupt_font.string()});
+
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Font,
+        corrupt_font.string(),
+        "test/corrupt_font",
+        /*required=*/true
+    };
+
+    auto result = chronon3d::runtime::ResourcePreparation::load_font(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::CorruptedAsset);
+    CHECK(result.error().phase == "font");
 }
