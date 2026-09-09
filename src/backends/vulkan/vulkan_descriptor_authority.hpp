@@ -98,16 +98,17 @@ private:
 // VulkanBackend::Impl may expose references for migration compatibility, but
 // it must not own a second descriptor pool/set/layout state.
 struct VulkanDescriptorAuthority {
-    std::array<FrameDescriptorAllocator, 3> pass{};
-    std::array<FrameDescriptorAllocator, 3> text_tile_bin{};
-    std::array<FrameDescriptorAllocator, 3> text_tile_raster{};
+    // Depth matches VulkanSubmissionAuthority::kSlotCount (B2 wave: 6).
+    std::array<FrameDescriptorAllocator, 6> pass{};
+    std::array<FrameDescriptorAllocator, 6> text_tile_bin{};
+    std::array<FrameDescriptorAllocator, 6> text_tile_raster{};
 
     VkDescriptorSetLayout descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_bin_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorSetLayout text_tile_raster_descriptor_layout{VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool{VK_NULL_HANDLE};
     VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
-    std::array<VkDescriptorSet, 3> glow_descriptor_sets{};
+    std::array<VkDescriptorSet, 6> glow_descriptor_sets{};
 
     void destroy() noexcept {
         for (auto& allocator : pass) allocator.destroy();

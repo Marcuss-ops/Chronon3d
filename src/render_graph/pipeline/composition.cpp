@@ -463,12 +463,20 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
 
     if (ssaa > 1.0f) {
         const auto t_down0 = profiling::now();
-        std::unique_ptr<Framebuffer> out;
+        std::shared_ptr<Framebuffer> out;
         {
             CHRONON_TRACE_SCOPE("chronon.effect", "downsample_ssaa");
-            out = downsample_fb(*render_fb, w, h);
+            // AUDIT-2026-09-09 N-04 — pooled destination: steady-state SSAA
+            // borrows the downsample target from the renderer's framebuffer
+            // pool (zero heap churn per frame). Pool-less callers (CLI
+            // dry-run, tests) keep the allocating path.
+            cache::FramebufferPool* ssaa_pool = nullptr;
+            if (sw_sidecar != nullptr) {
+                ssaa_pool = sw_sidecar->framebuffer_pool().get();
+            }
+            out = downsample_fb_pooled(*render_fb, w, h, ssaa_pool);
         }
-        return std::shared_ptr<Framebuffer>(out.release());
+        return out;
     }
 
     return render_fb;

@@ -51,6 +51,26 @@ PreparationError make_error(PreparationError::Code    code,
 // ── Internal helper — generic per-failure policy dispatch ───────────
 enum class Policy { EmitError, AppendWarning };
 
+// AUDIT-2026-09-09 N-03/N-05 — ONE authority for the failure policy. Every
+// phase (template helpers and inline phase bodies alike) must ask this
+// predicate instead of re-deriving its own condition; the previous inline
+// mesh copy had already diverged from the template helpers (semantic drift
+// in action) and silently swallowed CorruptedAsset for required refs under
+// WarnAndSkip. A required asset that is missing, unresolvable, or unreadable
+// at its content level can never yield a complete render, so under
+// WarnAndSkip it must still fail loud (FIXING.md E-04 extended to
+// CorruptedAsset).
+[[nodiscard]] bool should_fail_loud(
+    PreparationOptions::FailureMode mode,
+    bool                            required,
+    PreparationError::Code          code) {
+    if (mode == PreparationOptions::FailureMode::FailLoud) return true;
+    if (!required) return false;
+    return code == PreparationError::Code::MissingAsset ||
+           code == PreparationError::Code::UnresolvableAssetPath ||
+           code == PreparationError::Code::CorruptedAsset;
+}
+
 template <typename RefT, typename PhaseFn>
 bool run_phase(Policy                                policy,
                PreparationOptions::FailureMode      mode,
@@ -65,12 +85,8 @@ bool run_phase(Policy                                policy,
     // A missing required font/image/layout would otherwise produce a silent
     // partial snapshot that later renders as black frames without any loud
     // error signal (degraded success without completion).
-    const bool is_required_missing = ref.required &&
-        (result.error().code == PreparationError::Code::MissingAsset ||
-         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud
-        || is_required_missing) {
+        || should_fail_loud(mode, ref.required, result.error().code)) {
         throw result.error();   // bubble up to main loop, fail-loud
     }
     if (warnings_out) {
@@ -98,12 +114,8 @@ auto run_phase_value(Policy                                policy,
     -> std::optional<std::decay_t<decltype(fn(ref).value())>> {
     auto result = fn(ref);
     if (result.has_value()) return std::move(result.value());
-    const bool is_required_missing = ref.required &&
-        (result.error().code == PreparationError::Code::MissingAsset ||
-         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud
-        || is_required_missing) {
+        || should_fail_loud(mode, ref.required, result.error().code)) {
         throw result.error();
     }
     if (warnings_out) {
@@ -128,12 +140,8 @@ bool run_phase_with_frame(Policy                                policy,
                            std::vector<ResourceDiagnostics::Warning>* warnings_out) {
     auto result = fn(ref, frame);
     if (result.has_value()) return true;
-    const bool is_required_missing = ref.required &&
-        (result.error().code == PreparationError::Code::MissingAsset ||
-         result.error().code == PreparationError::Code::UnresolvableAssetPath);
     if (policy == Policy::EmitError
-        || mode == PreparationOptions::FailureMode::FailLoud
-        || is_required_missing) {
+        || should_fail_loud(mode, ref.required, result.error().code)) {
         throw result.error();
     }
     if (warnings_out) {
@@ -183,10 +191,7 @@ ResourcePreparation::prepare(
             for (const auto& ref : manifest.filter(assets::AssetKind::Image)) {
                 auto image_result = decode_image(ref, resolver);
                 if (!image_result.has_value()) {
-                    const bool is_required_missing = ref.required &&
-                        (image_result.error().code == PreparationError::Code::MissingAsset ||
-                         image_result.error().code == PreparationError::Code::UnresolvableAssetPath);
-                    if (options.failure_mode == PreparationOptions::FailureMode::FailLoud || is_required_missing) {
+                    if (should_fail_loud(options.failure_mode, ref.required, image_result.error().code)) {
                         throw image_result.error();
                     }
                     prepared.diagnostics.warnings.push_back({
@@ -237,15 +242,12 @@ ResourcePreparation::prepare(
             for (const auto& ref : manifest.filter(assets::AssetKind::Mesh)) {
                 auto mesh = prepare_mesh(ref, resolver, options.mesh_cache);
                 if (!mesh.has_value()) {
-                    const bool optional_missing =
-                        !ref.required && mesh.error().code == PreparationError::Code::MissingAsset;
-                    // FIXING.md E-04 — also fail-loud for required UnresolvableAssetPath,
-                    // not only MissingAsset (both signal a bad required reference).
-                    const bool required_unresolvable = ref.required &&
-                        mesh.error().code == PreparationError::Code::UnresolvableAssetPath;
-                    if ((!optional_missing &&
-                        options.failure_mode == PreparationOptions::FailureMode::FailLoud) ||
-                        required_unresolvable) {
+                    // AUDIT-2026-09-09 N-03 — this inline copy diverged from the
+                    // run_phase* policy (semantic drift): under WarnAndSkip it
+                    // swallowed CorruptedAsset (and even MissingAsset) for required
+                    // refs, declaring success with a partial snapshot. All phases
+                    // now share the same should_fail_loud predicate.
+                    if (should_fail_loud(options.failure_mode, ref.required, mesh.error().code)) {
                         throw mesh.error();
                     }
                     prepared.diagnostics.warnings.push_back({

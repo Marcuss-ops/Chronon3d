@@ -40,6 +40,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <spdlog/spdlog.h>
 
 // M1.5#7 — `TextRenderResources` is the per-session aggregator of
 // font + glyph + raster + scratch caches.  Forward-declared here so
@@ -119,6 +120,27 @@ struct EffectScratchResources {
         width = 0; height = 0;
     }
 };
+
+/// AUDIT-2026-09-09 N-17 — the scratch=nullptr fallback inside the scalar
+/// effect implementations is a pool-less-compatibility path (tests, CLI
+/// dry-run), never a production path: renderer-driven processors always
+/// pass EffectScratchResources. A silent fallback would reintroduce one
+/// w×h framebuffer heap allocation per frame per effect without any
+/// signal, breaking the steady-state `framebuffer_allocations == 0` gate.
+/// Warn once per thread so a stray call site surfaces loudly in
+/// diagnostics while keeping the fallback functional.
+inline void warn_once_effect_scratch_missing(const char* effect_name) {
+    // thread_local is the warn-once-per-thread state; the effect name is a
+    // call-site literal and must be captured (or better: logged) outside the
+    // initializer lambda, which cannot capture it into static storage.
+    thread_local const bool warned = [] { return true; }();
+    if (!warned) return;
+    spdlog::warn(
+        "effect scratch missing: '{}' allocated its own framebuffer "
+        "(pool-less fallback). Renderer-driven paths must pass "
+        "EffectScratchResources; if this fires on one, it is a bug.",
+        effect_name);
+}
 
 /// Software-backend specific resources attached to a single render job.
 ///

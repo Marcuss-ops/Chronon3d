@@ -172,6 +172,7 @@ void apply_stroke(
     // Save original alpha channel
     std::vector<float> local_orig_alpha;
     if (scratch) scratch->ensure_size(w, h);
+    else warn_once_effect_scratch_missing("stroke");
     auto& orig_alpha = scratch ? scratch->original_alpha : local_orig_alpha;
     orig_alpha.resize(static_cast<std::size_t>(w * h));
     for (int y = 0; y < h; ++y) {
@@ -209,6 +210,7 @@ void apply_stroke(
         dilated = scratch->framebuffer.get();
         eroded = scratch->framebuffer_b.get();
     } else {
+        warn_once_effect_scratch_missing("stroke_buffers");
         local_dilated = std::make_unique<Framebuffer>(w, h);
         local_eroded = std::make_unique<Framebuffer>(w, h);
         dilated = local_dilated.get();

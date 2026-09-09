@@ -235,7 +235,12 @@ TEST_CASE("ResourcePreparation::prepare propagates probed video/audio metadata")
 
 TEST_CASE("ResourcePreparation::prepare — WarnAndSkip policy → diagnostics.warnings populated, no abort") {
     chronon3d::assets::AssetManifest manifest;
-    manifest.add_font("missing/font.ttf", "owner/font/missing");
+    // AUDIT-2026-09-09 — the ref must be OPTIONAL: since the E-04 fix
+    // (f6eb170a6) a REQUIRED missing asset fails loud even under WarnAndSkip
+    // (locked by the dedicated fail-loud test below). This case keeps
+    // covering the original intent: an optional missing asset degrades to a
+    // diagnostic warning without aborting the job.
+    manifest.add_font("missing/font.ttf", "owner/font/missing", /*required=*/false);
 
     MockResolver                    resolver;  // nothing present
     chronon3d::runtime::PreparationOptions options;
@@ -251,6 +256,27 @@ TEST_CASE("ResourcePreparation::prepare — WarnAndSkip policy → diagnostics.w
     CHECK(result.value().diagnostics.warnings[0].code ==
           chronon3d::runtime::PreparationError::Code::MissingAsset);
     CHECK(result.value().diagnostics.warnings[0].phase == "font");
+}
+
+TEST_CASE("ResourcePreparation::prepare — WarnAndSkip: required missing asset fails loud (E-04)") {
+    chronon3d::assets::AssetManifest manifest;
+    // add_font defaults to required=true — the missing required font must
+    // abort preparation even though the caller asked for WarnAndSkip, or the
+    // job would render black frames with ok()==true.
+    manifest.add_font("missing/font.ttf", "owner/font/missing");
+
+    MockResolver resolver;  // nothing present
+    chronon3d::runtime::PreparationOptions options;
+    options.failure_mode =
+        chronon3d::runtime::PreparationOptions::FailureMode::WarnAndSkip;
+
+    auto result = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code ==
+          chronon3d::runtime::PreparationError::Code::MissingAsset);
+    CHECK(result.error().phase == "font");
 }
 
 TEST_CASE("ResourcePreparation::prepare — empty path → UnresolvableAssetPath fail-loud") {

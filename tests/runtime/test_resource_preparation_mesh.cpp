@@ -289,6 +289,81 @@ TEST_CASE("ResourcePreparation::prepare_mesh — missing GLB preserves MissingAs
     CHECK(result.error().message.find("not found") != std::string::npos);
 }
 
+TEST_CASE("ResourcePreparation::prepare — required corrupted mesh fails loud under WarnAndSkip (AUDIT N-03)") {
+    // A truncated GLB fails MeshLoader with CorruptedAsset. Under WarnAndSkip
+    // this used to be swallowed into diagnostics.warnings (silent partial
+    // snapshot → black frames); it must abort preparation like the missing/
+    // unresolvable cases.
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_mesh("broken/triangle.glb", "mesh/broken");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::temp_directory_path());
+
+    // Write a truncated (non-GLB) file at the resolved path under the
+    // mounted temp root (resolver joins mount point + relative path).
+    const auto broken_dir = std::filesystem::temp_directory_path() / "broken";
+    std::error_code ignored;
+    std::filesystem::create_directories(broken_dir, ignored);
+    {
+        std::ofstream fixture(broken_dir / "triangle.glb", std::ios::binary | std::ios::trunc);
+        fixture << "glTFnot-a-real-binary-chunk";
+    }
+
+    chronon3d::runtime::PreparationOptions options;
+    options.failure_mode =
+        chronon3d::runtime::PreparationOptions::FailureMode::WarnAndSkip;
+    options.prepare_fonts = false;
+    options.prepare_images = false;
+    options.prepare_video_metadata = false;
+    options.prepare_audio_index = false;
+    options.prepare_layouts = false;
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::CorruptedAsset);
+    CHECK(result.error().phase == "mesh");
+
+    std::filesystem::remove_all(broken_dir, ignored);
+}
+
+TEST_CASE("ResourcePreparation::prepare — optional corrupted mesh degrades to warning under WarnAndSkip") {
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_mesh("broken/triangle.glb", "mesh/broken-optional", /*required=*/false);
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::temp_directory_path());
+
+    const auto broken_dir = std::filesystem::temp_directory_path() / "broken";
+    std::error_code ignored;
+    std::filesystem::create_directories(broken_dir, ignored);
+    {
+        std::ofstream fixture(broken_dir / "triangle.glb", std::ios::binary | std::ios::trunc);
+        fixture << "glTFnot-a-real-binary-chunk";
+    }
+
+    chronon3d::runtime::PreparationOptions options;
+    options.failure_mode =
+        chronon3d::runtime::PreparationOptions::FailureMode::WarnAndSkip;
+    options.prepare_fonts = false;
+    options.prepare_images = false;
+    options.prepare_video_metadata = false;
+    options.prepare_audio_index = false;
+    options.prepare_layouts = false;
+
+    const auto result = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+
+    REQUIRE(result.has_value());
+    CHECK(result.value().meshes.empty());
+    REQUIRE(result.value().diagnostics.warnings.size() == 1);
+    CHECK(result.value().diagnostics.warnings[0].code ==
+          chronon3d::runtime::PreparationError::Code::CorruptedAsset);
+    CHECK(result.value().diagnostics.warnings[0].phase == "mesh");
+
+    std::filesystem::remove_all(broken_dir, ignored);
+}
+
 TEST_CASE("ResourcePreparation::prepare — mesh missing GLB fails loud") {
     chronon3d::assets::AssetManifest manifest;
     manifest.add_mesh("missing/triangle.glb", "mesh/missing");

@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>   // downsample_fb_pooled (N-04)
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -67,19 +68,17 @@ namespace chronon3d::graph {
 
 // ── Framebuffer downsampling ────────────────────────────────────
 //
-// Box-filter downsample used by the SSAA path in render_compiled_composition_frame().
-[[nodiscard]] inline std::unique_ptr<Framebuffer> downsample_fb(
-    const Framebuffer& src, i32 dst_w, i32 dst_h
-) {
-    profiling::FramebufferAllocationScope allocation_scope(
-        profiling::FramebufferAllocationCategory::Graph);
-    auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
-    const float sx = static_cast<float>(src.width())  / static_cast<float>(dst_w);
-    const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
+// Box-filter core shared by the allocating and pooled variants below.
+// Writes every dst logical pixel exactly once; performs no allocation.
+inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
+    const float sx = static_cast<float>(src.width())  / static_cast<float>(dst.width());
+    const float sy = static_cast<float>(src.height()) / static_cast<float>(dst.height());
     const int src_stride = src.allocated_width();
     const Color* src_data = src.data();
-    const int dst_stride = dst->allocated_width();
-    Color* dst_data = dst->data();
+    const int dst_stride = dst.allocated_width();
+    Color* dst_data = dst.data();
+    const int dst_w = dst.width();
+    const int dst_h = dst.height();
     for (int y = 0; y < dst_h; ++y) {
         for (int x = 0; x < dst_w; ++x) {
             float r = 0, g = 0, b = 0, a = 0;
@@ -106,7 +105,44 @@ namespace chronon3d::graph {
             }
         }
     }
+}
+
+// Allocating fallback for callers without a pool (tests, CLI dry-run).
+[[nodiscard]] inline std::unique_ptr<Framebuffer> downsample_fb(
+    const Framebuffer& src, i32 dst_w, i32 dst_h
+) {
+    profiling::FramebufferAllocationScope allocation_scope(
+        profiling::FramebufferAllocationCategory::Graph);
+    auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
+    box_downsample_into(src, *dst);
     return dst;
+}
+
+// AUDIT-2026-09-09 N-04 — SSAA hot path: borrow the destination from the
+// renderer's FramebufferPool instead of heap-allocating a fresh framebuffer
+// on every frame with ssaa > 1.0. The returned shared_ptr hands the storage
+// back to the pool on destruction (the deleter owns the pool's OwnedFB, so
+// the existing ReturnToPool lifetime machinery runs unchanged). Steady-state
+// SSAA now performs zero framebuffer allocations; `pool == nullptr` falls
+// back to the allocating path for pool-less callers.
+[[nodiscard]] inline std::shared_ptr<Framebuffer> downsample_fb_pooled(
+    const Framebuffer& src, i32 dst_w, i32 dst_h,
+    cache::FramebufferPool* pool
+) {
+    if (pool == nullptr) {
+        return std::shared_ptr<Framebuffer>(downsample_fb(src, dst_w, dst_h).release());
+    }
+    auto owned = pool->acquire_owned(dst_w, dst_h, /*clear=*/false);
+    box_downsample_into(src, *owned);
+    // The deleter must be CopyConstructible for shared_ptr, so the OwnedFB
+    // (move-only) is held through a shared_ptr captured by value. Resetting
+    // it runs the pool's ReturnToPool deleter — storage goes back to the
+    // pool, zero heap churn in steady state.
+    return std::shared_ptr<Framebuffer>(
+        owned.get(),
+        [owner = std::shared_ptr<OwnedFB>(
+             std::make_unique<OwnedFB>(std::move(owned)).release())](
+            Framebuffer*) mutable { owner->reset(); });
 }
 
 // ── RenderGraphContext factory (TICKET-010 — 4 sub-context shape) ──────────

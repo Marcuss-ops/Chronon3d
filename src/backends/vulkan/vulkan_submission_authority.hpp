@@ -26,7 +26,15 @@ namespace chronon3d::backends::vulkan {
 // Keeping upload slots separate prevents transfer staging lifetime from being
 // coupled to graphics/compute submission rotation.
 struct VulkanSubmissionAuthority {
-    static constexpr std::size_t kSlotCount = 3;
+    // B2 (TICKET-100X-PERF-WAVES): submission ring depth 6. The previous
+    // depth of 3 forced the CPU to fence-wait on slot k-3 before recording
+    // frame k, capping pipeline depth at ~2 frames and starving NVENC
+    // (measured 73% avg utilization with frame_batch_drain_wait_us as the
+    // top per-frame stall). Depth 6 matches the CUDA encode ring shape so
+    // record frame k+2 while frame k executes becomes the steady state.
+    // Backpressure is still bounded: when all slots are in flight the next
+    // begin_frame_batch waits, exactly as before but later.
+    static constexpr std::size_t kSlotCount = 6;
     static constexpr std::size_t kCompiledPassTimingCapacity = 256;
 
     bool active{false};
@@ -48,7 +56,7 @@ struct VulkanSubmissionAuthority {
         bool in_flight{false};
         VulkanBufferAllocation params{};
     };
-    static constexpr std::size_t kReplaySlotCount = 3;
+    static constexpr std::size_t kReplaySlotCount = 6;
     std::array<ReplaySlot, kReplaySlotCount> replay_slots{};
     bool replay_prepared{false};
     std::size_t replay_next_slot{0};

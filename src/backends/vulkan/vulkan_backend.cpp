@@ -150,11 +150,17 @@ void VulkanBackend::begin_frame_batch_unlocked() {
         const VkResult wait_result = vkWaitForFences(
             m_impl->device, 1, &batch.fences[slot], VK_TRUE, UINT64_MAX);
         if (wait_result == VK_ERROR_DEVICE_LOST) {
+            std::string in_flight_states;
+            for (std::size_t s = 0; s < Impl::FrameBatchState::kSlotCount; ++s) {
+                in_flight_states += s == 0 ? "[" : ",";
+                in_flight_states += batch.in_flight[s] ? "1" : "0";
+            }
+            in_flight_states += "]";
             spdlog::error(
                 "[vulkan] DEVICE LOST REPORT phase=begin_frame_batch slot={} next_slot={} "
-                "in_flight_slots=[{},{},{}] pending_timeline={} command_batch_active={}",
-                slot, batch.next_slot, batch.in_flight[0], batch.in_flight[1],
-                batch.in_flight[2], m_impl->pending_timeline_value,
+                "in_flight_slots={} pending_timeline={} command_batch_active={}",
+                slot, batch.next_slot, in_flight_states,
+                m_impl->pending_timeline_value,
                 m_impl->command_batch_active);
         }
         check(wait_result, "vkWaitForFences(frame batch slot)");

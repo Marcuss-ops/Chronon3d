@@ -40,11 +40,16 @@ void VulkanBackend::Impl::wait_for_pending() {
         const VkResult wait_result = vkWaitForFences(
             device, 1, &frame_batch.fences[i], VK_TRUE, UINT64_MAX);
         if (wait_result == VK_ERROR_DEVICE_LOST) {
+            std::string in_flight_states;
+            for (std::size_t s = 0; s < FrameBatchState::kSlotCount; ++s) {
+                in_flight_states += s == 0 ? "[" : ",";
+                in_flight_states += frame_batch.in_flight[s] ? "1" : "0";
+            }
+            in_flight_states += "]";
             spdlog::error(
                 "[vulkan] DEVICE LOST REPORT phase=wait_for_pending slot={} "
-                "in_flight_slots=[{},{},{}] pending_timeline={}",
-                i, frame_batch.in_flight[0], frame_batch.in_flight[1],
-                frame_batch.in_flight[2], pending_timeline_value);
+                "in_flight_slots={} pending_timeline={}",
+                i, in_flight_states, pending_timeline_value);
         }
         check(wait_result, "vkWaitForFences(frame batch slot)");
         const auto wait_us = static_cast<std::uint64_t>(

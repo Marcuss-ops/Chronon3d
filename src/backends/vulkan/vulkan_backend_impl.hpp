@@ -99,7 +99,7 @@ struct VulkanBackend::Impl {
         descriptor_arena.text_tile_raster_descriptor_layout};
     VkDescriptorPool& descriptor_pool{descriptor_arena.descriptor_pool};
     VkDescriptorSet& descriptor_set{descriptor_arena.descriptor_set};
-    std::array<VkDescriptorSet, 3>& glow_descriptor_sets{
+    std::array<VkDescriptorSet, 6>& glow_descriptor_sets{
         descriptor_arena.glow_descriptor_sets};
 
     // Submission ownership is likewise externalized. Existing call sites use

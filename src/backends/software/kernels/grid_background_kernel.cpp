@@ -142,8 +142,15 @@ void render_grid_background_kernel(
 
     // ── Precompute column weights (once per tile) ─────────────────────────
     //  We build the vector at full clip width so look-up is simply cols[x].
-    std::vector<ColumnWeight> cols(static_cast<usize>(width));
-    std::vector<i32> active_x;
+    //  AUDIT-2026-09-09 — thread_local reuse: a grid node runs once per
+    //  frame per tile, so these vectors were a per-frame heap churn pair.
+    //  Capacity is retained across calls; TBB workers never share the same
+    //  thread_local concurrently.
+    thread_local std::vector<ColumnWeight> cols;
+    thread_local std::vector<i32> active_x;
+    cols.clear();
+    cols.resize(static_cast<usize>(width));
+    active_x.clear();
     active_x.reserve(static_cast<usize>(width / 4));
 
     for (i32 x = x0; x < x1; ++x) {

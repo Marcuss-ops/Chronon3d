@@ -277,10 +277,11 @@ public:
 class SoftwareOffsetEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<OffsetParams>(&params)) {
             apply_offset(fb, p->offset.x, p->offset.y,
-                         p->edge_mode, p->filter);
+                         p->edge_mode, p->filter, context.clip,
+                         context.effect_scratch);
         }
     }
 };

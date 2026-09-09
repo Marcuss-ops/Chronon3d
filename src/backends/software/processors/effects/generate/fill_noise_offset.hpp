@@ -8,6 +8,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <optional>
 
 namespace chronon3d::renderer {
@@ -29,6 +30,7 @@ void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
 void apply_offset(Framebuffer& fb, float dx, float dy,
                   chronon3d::sampling::EdgeMode edge_mode,
                   chronon3d::sampling::SampleFilter filter,
-                  const std::optional<raster::BBox>& clip = std::nullopt);
+                  const std::optional<raster::BBox>& clip = std::nullopt,
+                  ::chronon3d::EffectScratchResources* scratch = nullptr);
 
 } // namespace chronon3d::renderer

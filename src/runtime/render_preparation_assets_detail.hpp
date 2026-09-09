@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <span>
 
 namespace chronon3d::runtime::detail {
 namespace {
@@ -99,6 +100,12 @@ RenderPreparationResult prepare_render_scene(
     if (renderer->video_decoder() != nullptr) {
         resource_options.prepare_video_metadata = false;
     }
+    // AUDIT-2026-09-09 N-12 — the image manifest slice is needed three more
+    // times below (decode, GPU promotion, metrics snapshot). Filter once and
+    // share the refs instead of rebuilding vector<InternalAssetRef> copies
+    // per phase at the barrier.
+    const auto image_refs = scene.asset_manifest().filter(assets::AssetKind::Image);
+    const auto image_refs_view = std::span<const assets::InternalAssetRef>(image_refs);
     const auto resolve_t0 = profiling::now();
     auto prepared = ResourcePreparation::prepare(
         scene.asset_manifest(), renderer->runtime().resolver(), resource_options);
@@ -136,7 +143,7 @@ RenderPreparationResult prepare_render_scene(
     const auto decode_t0 = profiling::now();
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
     if (options.resources.prepare_images) {
-        for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
+        for (const auto& ref : image_refs_view) {
             const auto image = renderer->runtime().image_cache().get_or_load(ref.path);
             if (!image || !image->valid()) {
                 result.preparation_error = PreparationError{
@@ -161,7 +168,7 @@ RenderPreparationResult prepare_render_scene(
     if (options.resources.prepare_images && renderer->runtime().backend_attached() &&
         renderer->runtime().backend().supports_native_surfaces()) {
         auto& cache = renderer->runtime().gpu_asset_cache();
-        for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
+        for (const auto& ref : image_refs_view) {
             const auto image = renderer->runtime().image_cache().find(ref.path);
             if (!image || !image->valid() || image->gpu_rgba.empty()) {
                 continue;
