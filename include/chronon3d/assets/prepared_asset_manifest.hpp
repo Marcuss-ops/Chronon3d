@@ -32,6 +32,15 @@ struct ContentDigest {
 /// primitive used by prepared assets.
 [[nodiscard]] ContentDigest sha256_string(std::string_view value);
 
+// ── FIXING.md H-02/U-02 — deterministic u64→ContentDigest expansion ─────────
+//
+// Glyph atlas identities are integer hashes, not content digests. Expanding a
+// 64-bit xxHash via splitmix64 avoids the SHA-256 string-hash round-trip for
+// every glyph/page. The expansion is deterministic and collision-negligible
+// for atlas keys; if ContentDigest is ever rehashed content-addressedly, use
+// sha256_string instead.
+[[nodiscard]] ContentDigest digest_from_u64(std::uint64_t value) noexcept;
+
 /// Stream-SHA-256 a file's bytes with the same primitive. Returns nullopt if
 /// the file cannot be opened or fails while being read. This is the canonical
 /// content digest for rendered artifacts (post-render verification, `copy
