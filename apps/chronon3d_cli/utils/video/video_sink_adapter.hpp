@@ -57,7 +57,7 @@ public:
     // ── IVideoEncoder interface ─────────────────────────────────────────
 
     bool open(const FfmpegPipeOptions& options) override;
-    bool write_frame(const Framebuffer& fb) override;
+    bool write_frame(const Framebuffer& fb);
     bool write_frame_async(const Framebuffer& fb,
                            std::shared_ptr<Framebuffer> owner) override;
     bool close() override;

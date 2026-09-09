@@ -503,7 +503,6 @@ struct VulkanBackend::Impl {
     void wait_for_standalone();
     void wait_for_pending();
     std::uint64_t submit(bool wait_for_completion = true);
-    void composite(Framebuffer& destination, const Framebuffer& source);
 };
 
 } // namespace chronon3d::backends::vulkan

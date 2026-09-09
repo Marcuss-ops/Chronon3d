@@ -29,6 +29,11 @@ static int resolve_color_matrix(const FfmpegPipeOptions& opt) {
     }
 }
 
+bool NativeAvEncoder::write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
+    (void)owner;
+    return write_frame(fb);
+}
+
 bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     if (!codec_ || !frame_ || !packet_) {
         return false;

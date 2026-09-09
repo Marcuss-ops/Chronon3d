@@ -264,3 +264,11 @@ paths = [
   "tools/check_perf_regression.sh",
   "tools/visual_regression_gate.py",
 ]
+
+[[forbidden_symbol]]
+name = "vulkan_framebuffer_cpu_composite_demolished"
+description = "Dead CPU-pack Framebuffer composite in Vulkan backend is demolished"
+patterns = ['Impl::composite\s*\(\s*Framebuffer&', 'void\s+composite\s*\(\s*Framebuffer&']
+scan_paths = ["src/backends/vulkan"]
+skip_comments = true
+hint = "Use surface handles and GPU-native composite shaders; do not revive dead CPU-pack Framebuffer composite."

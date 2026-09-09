@@ -5,10 +5,57 @@
 #include <spdlog/spdlog.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 
 namespace chronon3d {
+
+namespace {
+
+// Overlay images are ultimately composited into a 1920x1080 frame. Keeping a
+// very tall source portrait at its original resolution expands the cached
+// linear/GPU representations to hundreds of megabytes and defeats the LRU,
+// causing the same image to be decoded once per frame. Downscale only the
+// runtime copy; the authored/downloaded asset remains unchanged.
+constexpr int kMaxImageDimension = 2048;
+
+void downscale_for_runtime(image::ImageBuffer& buffer) {
+    if (!buffer.pixels || buffer.width <= 0 || buffer.height <= 0 ||
+        std::max(buffer.width, buffer.height) <= kMaxImageDimension) {
+        return;
+    }
+
+    const double scale = static_cast<double>(kMaxImageDimension) /
+                         static_cast<double>(std::max(buffer.width, buffer.height));
+    const int target_width = std::max(1, static_cast<int>(std::lround(buffer.width * scale)));
+    const int target_height = std::max(1, static_cast<int>(std::lround(buffer.height * scale)));
+    auto resized = std::make_unique<u8[]>(static_cast<std::size_t>(target_width) * target_height * 4);
+
+    for (int y = 0; y < target_height; ++y) {
+        const int source_y = std::min(
+            buffer.height - 1,
+            static_cast<int>((static_cast<double>(y) / target_height) * buffer.height));
+        for (int x = 0; x < target_width; ++x) {
+            const int source_x = std::min(
+                buffer.width - 1,
+                static_cast<int>((static_cast<double>(x) / target_width) * buffer.width));
+            const auto source_offset =
+                (static_cast<std::size_t>(source_y) * buffer.width + source_x) * 4;
+            const auto target_offset =
+                (static_cast<std::size_t>(y) * target_width + x) * 4;
+            std::copy_n(buffer.pixels.get() + source_offset, 4, resized.get() + target_offset);
+        }
+    }
+
+    spdlog::info("ImageCache: downscaled runtime image ({}x{} -> {}x{})",
+                 buffer.width, buffer.height, target_width, target_height);
+    buffer.width = target_width;
+    buffer.height = target_height;
+    buffer.pixels = std::move(resized);
+}
+
+} // namespace
 
 ImageCache::ImageCache(size_t capacity_bytes)
     : m_cache(capacity_bytes > 0 ? capacity_bytes : 512ULL * 1024ULL * 1024ULL) {}
@@ -84,6 +131,8 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
             if (!buffer || !buffer->pixels) {
                 return {std::make_shared<CachedImage>(), 1};
             }
+
+            downscale_for_runtime(*buffer);
 
             auto entry = std::make_shared<CachedImage>();
             entry->width = buffer->width;
