@@ -16,11 +16,12 @@ namespace chronon3d::assets {
 // `AssetMetadata::type`).
 // ═══════════════════════════════════════════════════════════════════════════
 enum class AssetKind : unsigned char {
-    Font  = 0,
-    Image = 1,
-    Video = 2,
-    Audio = 3,
-    Mesh  = 4
+    Font   = 0,
+    Image  = 1,
+    Video  = 2,
+    Audio  = 3,
+    Mesh   = 4,
+    Layout = 5
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -97,6 +98,11 @@ public:
     /// preparation concern owned by the existing AssetResolver boundary.
     void add_mesh(std::string path, std::string owner, bool required = true) {
         add({AssetKind::Mesh, std::move(path), std::move(owner), required});
+    }
+
+    /// Add a layout asset reference (owner-keyed; `AssetKind::Layout`).
+    void add_layout(std::string path, std::string owner, bool required = true) {
+        add({AssetKind::Layout, std::move(path), std::move(owner), required});
     }
 
     /// First-inserted-wins lookup by `owner`. Returns `std::nullopt` if

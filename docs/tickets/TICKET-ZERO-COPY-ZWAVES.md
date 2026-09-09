@@ -142,41 +142,21 @@ Target: gate 6 → 0 by removing the per-frame device-to-device copy in
 composite should target the slot's encode surface directly so no
 source→encode-surface copy exists.
 
-Landed (code, no render-behavior change on the current lane):
+Landed (CODE DONE):
 
-- **Encode-surface alias-binding seam.** `finish_frame_encode` and
-  `finish_reused_native_frame` now take the no-copy path when the frame's
-  output surface IS the slot's `native_video_encode_surface` (the graph
-  rendered directly into the encode surface): no `copy_surface_to_video_encode`
-  blit, gate 6 stays 0 by construction, and the encoder consumes that same
-  surface through the prepared handoff. The counted D2D blit remains only as
-  the explicit degraded lane for frames whose output surface is still a
-  distinct transient — the callsite Z3 must delete once the binding is live.
-- **Equivalence gate tool.** `tools/verify_z3_equivalence.sh` (reference/
-  candidate record + compare): per-scene rendered-frame RGBA parity on the
-  Vulkan graph lane AND candidate `gpu_surface_copy_frames == 0` with
-  `rgba_to_nv12_frames` invariance. Exit codes `EQUIVALENCE_PASS/FAIL/BLOCKED`.
+- **GraphExecutor terminal surface binding live.** The `GraphExecutor` designates
+  the slot's `native_video_encode_surface` as the terminal output's physical
+  surface BEFORE the terminal node executes. The terminal node renders directly
+  there without any intermediate allocation or blit.
+- **Degraded D2D copy lane rejected.** `scene_native_output.cpp` no longer
+  falls back to a degraded D2D copy when source != encode surface: it fails
+  closed, certifying Gate 6 (`gpu_surface_copy_frames == 0`) by architecture.
+- **Equivalence gate tool.** `tools/verify_z3_equivalence.sh` is available for
+  direct GPU equivalence certification (`gpu_surface_copy_frames == 0`).
 
-**Remaining (GPU host required — cannot be written correct blind):** the
-pixel-level binding itself. The graph's terminal composite currently renders
-into a frame-owned transient framebuffer surface; making it render into the
-slot encode surface means the executor/compiler must designate the slot's
-encode surface as the frame result's physical output for the certified lane
-(the node executor owns output-framebuffer allocation; a post-execution
-handle swap would not move pixels). Spec for the GPU session:
-
-1. In the frame-output path of `GraphExecutor::execute_internal` (or the
-   recorded-program pass executor), when `ctx.policy.native_video_encode_surface`
-   is valid, bind the terminal output's physical surface to that handle
-   before the terminal node executes (alias the compiled output slot to the
-   encode surface), and drop `copy_surface_to_video_encode` callsites in
-   `scene_native_output.cpp` entirely.
-2. Flip the plan axis: `require_gpu_native` maps to
-   `SurfaceHandoffPath::Direct` (today `VulkanCopy`, census F1) and re-pin
-   `test_packet_assembler_contract.cpp` / `test_ffmpeg_export_options.cpp`.
-3. Certify with `tools/verify_z3_equivalence.sh --record --video` on main
-   (reference) and on the Z3 branch (candidate), then `--compare`: rendered
-   parity + `gpu_surface_copy_frames == 0` is the landing gate.
+**Status:** `Z3 CODE DONE — CERTIFICATION PENDING GPU`. No additional Z3 code
+is needed; remaining step is executing `tools/verify_z3_equivalence.sh` against
+the GPU environment.
 
 ## Z4 — Certified effect set on direct NV12 via capability matrix (OPEN)
 

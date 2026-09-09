@@ -13,13 +13,13 @@
 | H-01, H-02, H-03 | P0 | **LAND** (f6eb170a6 e precedenti) | radial_blur su scratch + LUT taps; `glyph_key_string`/sha256 eliminati; telemetry dispatch su stack array. |
 | C-03, C-04, C-05, E-01, E-02, E-04 (parz.), E-07, S-04 | P0/P1 | **LAND** | Verificati nel codice 2026-09-09. |
 | S-01 (parziale) | P0 | **LAND (esteso oggi, G-04)** | shared_lock fast-path + upload fuori dal lock (vedi G-04). |
-| C-01 | P1 | **DEFER** (già in `patches/README.md`) | Richiede wiring resolver-aware di `FontEngine::probe` nel barrier. Mitigazione esistente: `preflight_fonts` al barrier. |
-| C-02 | P1 | **DEFER** (G-10) | Richiede `AssetKind::Layout` nel manifest pubblico + rimozione `PreparedAssets.layouts` (zero consumer). Cambio di contratto pubblico → bisogno ADR + corpus test. |
+| C-01 | P1 | **LAND (G-12)** | `ResourcePreparation::load_font` valida la face via `FontEngine::can_load`; rigetta font invalide/corrotte al barrier (`CorruptedAsset`). |
+| C-02 | P1 | **LAND (G-10)** | `AssetKind::Layout` aggiunto ad `AssetKind` + `add_layout`; Phase 5 migrata a `manifest.filter(AssetKind::Layout)`. Test di tassonomia e autoritá del manifest. |
 | S-05 | P1 | **DEFER** (decisione prodotto) | Compat path; demolizione già tracciata (`patches/README.md:59`). |
 | S-02 (struttura lock) | P0 | **PARZIALE (G-03)** | Best-fit scan sotto lock eliminato via indice ordinato; sharding del mutex resta dietro gate `m_lock_wait_us` (piano Es.1 dell'audit). |
 | S-03 | P1 | **PARZIALE** | Hot-path rework esistente (1 lock, zero string) + Es.2 dell'audit (TLS batch) resta il passo successivo. |
 
-## Task bonificati (G-01..G-11)
+## Task bonificati (G-01..G-12)
 
 | Task | Finding | Modifica | Test |
 |---|---|---|---|
@@ -32,8 +32,9 @@
 | G-07 | grid kernel | `src/backends/software/kernels/grid_background_kernel.cpp`: `cols`/`active_x` → `thread_local` riusati (zero heap churn per tile; TBB workers non condividono il TLS). | Gate alloc per-frame (bench grid) |
 | G-08 | N-17 | `software_session_resources.hpp` + radial/directional blur, stroke, offset: `warn_once_effect_scratch_missing()` — il fallback `scratch==nullptr` (pool-less) ora avvisa una volta; `apply_offset` riceve anche lo scratch (era l'unico effect senza wiring, allocava w×h per frame). | Log WARN assente sui path renderer-driven |
 | G-09 | D-02 | `job_session.hpp`: `JobSession::arena()` deprecata con `[[deprecated]]` + commento contrattuale (authority = `FrameExecution::arena()`; alias slot-0 = use-after-recycle per caller in prod). Caller esistenti (test/diagnostica) invariati. | Build verde (no `-Werror`); nessun nuovo caller |
-| G-10 | C-02 | **DEFER motivato**: la chiave Image→Layout richiede `AssetKind::Layout` nell'enum pubblico del manifest e la rimozione di `PreparedAssets.layouts` (zero consumer fuori da `resource_preparation.cpp`). È un cambio di contratto pubblico: serve ADR + corpus equivalence test. Tracciato qui e in `docs/AUDIT-2026-09-09.md` §deferral. | — |
+| G-10 | C-02 | `include/chronon3d/assets/asset_manifest.hpp` + `src/runtime/resource_preparation.cpp`: `AssetKind::Layout` introdotto nel manifest; Phase 5 migrata da `filter(Image)` a `manifest.filter(AssetKind::Layout)`. Invariante: immagini/video non innescano più layout preparation accidentale. | `test_resource_preparation.cpp` suite manifest authority (text-only, image-only, video+subtitles, image+text, no-text, layout explicit) |
 | G-11 | docs | `docs/GOVERNANCE.md` H-5/H-6/H-7 aggiornati; `docs/AUDIT-2026-09-09.md` stato finale. | — |
+| G-12 | C-01 | `src/runtime/resource_preparation.cpp`: `load_font` verifica validità FreeType face via `FontEngine::can_load` al barrier al posto del solo path resolver check. | `test_resource_preparation.cpp` corrupt font rejection |
 
 ## Test aggiornati/aggiunti (G-01)
 
