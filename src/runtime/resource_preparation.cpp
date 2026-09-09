@@ -21,8 +21,10 @@
 
 #include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 #include <chrono>
+#include <filesystem>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
@@ -261,11 +263,8 @@ ResourcePreparation::prepare(
 
         // Phase 5 — layout-preparation (per-frame; pre-compile fingerprint)
         if (options.prepare_layouts) {
-            // Layout prep is keyed by image-kind assets for now; the actual
-            // Layout preparation is a deterministic manifest phase. Concrete
-            // runtime layout caches, when present, remain owned by the
-            // renderer runtime and are not duplicated here.
-            for (const auto& ref : manifest.filter(assets::AssetKind::Image)) {
+            // Layout preparation is a deterministic manifest phase keyed on AssetKind::Layout.
+            for (const auto& ref : manifest.filter(assets::AssetKind::Layout)) {
                 const bool prepared_ok = run_phase_with_frame(Policy::AppendWarning,
                                      options.failure_mode,
                                      ref, "layout", chronon3d::Frame{0},
@@ -317,6 +316,20 @@ ResourcePreparation::load_font(
             .owner   = ref.owner,
             .phase   = "font"
         };
+    }
+    if (std::filesystem::exists(*resolved)) {
+        FontEngine engine(resolver);
+        FontSpec spec;
+        spec.font_path = ref.path;
+        if (!engine.can_load(spec)) {
+            return PreparationError{
+                .code    = PreparationError::Code::CorruptedAsset,
+                .message = std::string("invalid or corrupt font face: ") + ref.path,
+                .path    = ref.path,
+                .owner   = ref.owner,
+                .phase   = "font"
+            };
+        }
     }
     return PreparedFont{
         .path   = ref.path,
