@@ -90,12 +90,11 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     std::span<const float> coverage,
     GpuGlyphMetrics metrics,
     const DistanceFieldProfile& profile) {
-    // FIXING.md S-01 — fast-path read: hit is shared_lock only (multiple
-    // readers concurrent). Miss upgrades to unique_lock for the write path
-    // (page alloc + upload + insert). Deferred full shard (4× shared_mutex
-    // + upload outside lock) would remove upload from the critical section
-    // entirely — see FIXING.md S-01 gate; this step already de-serializes
-    // the common hit case with minimal risk.
+    // FIXING.md S-01 + AUDIT-2026-09-09 N-02 — fast-path read: hit is
+    // shared_lock only (multiple readers concurrent). Miss upgrades to
+    // unique_lock for the write path (page alloc + location insert); the
+    // per-glyph driver upload now runs OUTSIDE the lock, so a miss burst
+    // no longer serializes behind device calls.
     {
         std::shared_lock read_lock(m_mutex);
         if (const auto it = m_locations.find(key); it != m_locations.end()) {
@@ -211,6 +210,14 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     }
     const std::uint32_t px = page.cursor_x;
     const std::uint32_t py = page.cursor_y;
+    // AUDIT-2026-09-09 N-02 — RESERVE the region under the lock (cursor
+    // advances here, not after the upload) so concurrent misses can never
+    // claim the same page area. On upload failure the reserved region is
+    // leaked inside the page: bounded by one glyph per failure, and the
+    // glyph is simply not cached (fail-loud to the caller) — the same
+    // observable behaviour as before.
+    page.cursor_x += width;
+    page.row_height = std::max(page.row_height, height);
 
     const PixelFormat page_format =
         (key.representation == GlyphRepresentation::Mtsdf ||
@@ -227,21 +234,6 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
             ? TextAtlasEncoding::Coverage
             : TextAtlasEncoding::PremultipliedRGBA;
 
-    auto uploaded = m_cache.backend()->upload_surface_region(
-        page.handle, page_desc,
-        static_cast<std::int32_t>(px), static_cast<std::int32_t>(py),
-        width, height, coverage);
-    if (!uploaded.ok()) {
-        ++m_stats.failures;
-        spdlog::warn("GpuGlyphAtlas::acquire: upload failed (page={}, {}x{} @ {},{}): {}", page_index, width, height, px, py, uploaded.error().message);
-        return atlas_error(
-            GpuGlyphAtlasError::Code::UploadFailed,
-            "glyph atlas upload failed: " + uploaded.error().message);
-    }
-
-    page.cursor_x += width;
-    page.row_height = std::max(page.row_height, height);
-
     GlyphLocation loc;
     loc.atlas_page = static_cast<std::uint16_t>(page_index);
     loc.uv_index = static_cast<std::uint16_t>(px | (py << 16));
@@ -257,6 +249,35 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     loc.plane_bottom = static_cast<float>(metrics.y_offset + static_cast<int>(height));
     loc.advance_x = metrics.advance_x;
 
+    // AUDIT-2026-09-09 N-02 — the per-glyph driver upload runs OUTSIDE the
+    // atlas mutex: the only state touched while unlocked is the backend
+    // (which serializes its own surface API internally, see GpuAssetCache)
+    // operating on a copied handle + desc + the caller-owned coverage span.
+    // The rare page-creation device call inside page_for_glyph stays under
+    // the lock (once per ~2048px page, not once per glyph).
+    const RenderSurfaceHandle page_handle = page.handle;
+    lock.unlock();
+    auto uploaded = m_cache.backend()->upload_surface_region(
+        page_handle, page_desc,
+        static_cast<std::int32_t>(px), static_cast<std::int32_t>(py),
+        width, height, coverage);
+    lock.lock();
+
+    if (!uploaded.ok()) {
+        ++m_stats.failures;
+        spdlog::warn("GpuGlyphAtlas::acquire: upload failed (page={}, {}x{} @ {},{}): {}", page_index, width, height, px, py, uploaded.error().message);
+        return atlas_error(
+            GpuGlyphAtlasError::Code::UploadFailed,
+            "glyph atlas upload failed: " + uploaded.error().message);
+    }
+
+    // Another thread may have published the same key while this upload was
+    // in flight: keep the first location, the duplicate region is wasted
+    // space (bounded, same policy as the reservation note above).
+    if (const auto it = m_locations.find(key); it != m_locations.end()) {
+        ++m_stats.hits;
+        return it->second;
+    }
     m_locations.emplace(key, loc);
     m_metrics.emplace(key, metrics);
     ++m_stats.entries;

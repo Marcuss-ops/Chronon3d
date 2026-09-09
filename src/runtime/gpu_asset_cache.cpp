@@ -25,8 +25,15 @@ bool GpuAssetCache::release_backend_surface(RenderSurfaceHandle handle) noexcept
     const auto result = m_backend->release_surface(handle);
     // A backend without native surface storage (UnsupportedCapability) never
     // owned the allocation, so the entry's residency accounting is released.
-    return result.ok() ||
-        result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability;
+    // AUDIT-2026-09-09 E-03 — the case is now counted (stats().
+    // unsupported_capability_releases) so the logical-only release stays
+    // observable instead of silently blending into real release failures.
+    if (!result.ok() &&
+        result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability) {
+        m_unsupported_capability_releases.fetch_add(1, std::memory_order_relaxed);
+        return true;
+    }
+    return result.ok();
 }
 
 void GpuAssetCache::release_and_account(
@@ -278,7 +285,10 @@ void GpuAssetCache::set_budget_bytes(std::size_t budget_bytes) noexcept {
 
 GpuAssetCacheStats GpuAssetCache::stats() const noexcept {
     std::lock_guard lock(m_mutex);
-    return m_stats;
+    GpuAssetCacheStats out = m_stats;
+    out.unsupported_capability_releases = static_cast<std::size_t>(
+        m_unsupported_capability_releases.load(std::memory_order_relaxed));
+    return out;
 }
 
 } // namespace chronon3d::runtime

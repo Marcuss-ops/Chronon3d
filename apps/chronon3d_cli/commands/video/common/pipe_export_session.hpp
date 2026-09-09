@@ -37,7 +37,11 @@ struct DirectYuvSession {
 };
 
 struct FullGraphSession {
-    static constexpr std::size_t kGpuEncodeSlotCapacity = 3;
+    // B2 (TICKET-100X-PERF-WAVES): 6 in-flight frame slots instead of 3 so the
+    // render loop stays ~2 submissions ahead of the GPU. This matches the
+    // Vulkan submission ring depth and kills the per-frame batch-drain stall
+    // (NVENC was measured at 73% avg utilization, starved between drains).
+    static constexpr std::size_t kGpuEncodeSlotCapacity = 6;
 
     std::shared_ptr<SoftwareRenderer> renderer;
     graph::RenderBackend* surface_backend{nullptr};

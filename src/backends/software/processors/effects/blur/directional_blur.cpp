@@ -112,6 +112,7 @@ static void apply_directional_blur_horizontal(
         scratch->ensure_size(w, h);
         temp = scratch->framebuffer.get();
     } else {
+        warn_once_effect_scratch_missing("directional_blur_h");
         owned_temp = std::make_unique<Framebuffer>(w, h);
         temp = owned_temp.get();
     }
@@ -164,6 +165,7 @@ static void apply_directional_blur_vertical(
         scratch->ensure_size(w, h);
         temp = scratch->framebuffer.get();
     } else {
+        warn_once_effect_scratch_missing("directional_blur_v");
         owned_temp = std::make_unique<Framebuffer>(w, h);
         temp = owned_temp.get();
     }

@@ -55,9 +55,9 @@ TEST_CASE("wraparound reuses the first frame slot fence") {
     if (!fixture.backend) { WARN("No Vulkan device available"); return; }
 
     const auto before = fixture.backend->stats();
-    // SubmissionRing has depth 3. The fourth frame must wrap to slot 0 and
+    // SubmissionRing has depth 6. The seventh frame must wrap to slot 0 and
     // retire/reuse that slot's fence before recording into it again.
-    for (int frame = 0; frame < 4; ++frame) {
+    for (int frame = 0; frame < 7; ++frame) {
         fixture.backend->begin_frame_batch();
         CHECK(fixture.backend->fill_rect_surface(
                   fixture.handle, 0, 0, 4, 4,
@@ -66,7 +66,7 @@ TEST_CASE("wraparound reuses the first frame slot fence") {
         fixture.backend->end_frame_batch();
     }
     const auto after = fixture.backend->stats();
-    CHECK(after.submissions == before.submissions + 4);
+    CHECK(after.submissions == before.submissions + 7);
     CHECK(after.frame_slot_wait_count >= before.frame_slot_wait_count + 1);
 }
 

@@ -97,17 +97,21 @@ struct GpuGlyphKeyHash {
     }
 };
 
-// Hot-path view hash for atlas digests: XXH3_64bits without intermediate string.
+// AUDIT-2026-09-09 U-01 — the last hand-rolled hash combine is gone: this
+// view hash uses the same core::hash::HashBuilder authority as
+// GpuGlyphKeyHash above (same field set, same Coverage-only font_size
+// rule), so glyph identity has ONE representation in this header. Digest
+// values change once (in-memory GPU keys only; no persisted artifact is
+// keyed by this hash).
 inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
-    std::uint64_t h = XXH3_64bits_withSeed(
-        key.font_path.data(), key.font_path.size(),
-        static_cast<std::uint64_t>(key.glyph_id) ^ 0x9e3779b97f4a7c15ULL);
-    h ^= key.variation_hash + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-    h ^= static_cast<std::uint64_t>(key.representation) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
-    h ^= static_cast<std::uint64_t>(key.generation_profile) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
-    if (key.representation == GlyphRepresentation::Coverage)
-        h ^= static_cast<std::uint64_t>(key.font_size) + 0x9e3779b9ULL + (h << 6) + (h >> 2);
-    return h;
+    auto h = core::hash::HashBuilder{}
+                 .add(std::string_view(key.font_path))
+                 .add(key.glyph_id)
+                 .add(key.variation_hash)
+                 .add_enum(key.representation)
+                 .add(key.generation_profile);
+    if (key.representation == GlyphRepresentation::Coverage) h.add(key.font_size);
+    return h.finish();
 }
 
 /// Pen-relative placement of a glyph, preserved across the CPU→GPU promotion

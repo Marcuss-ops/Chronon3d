@@ -111,6 +111,7 @@ void apply_radial_blur(
     if (resources) {
         temp = resources->framebuffer.get();
     } else {
+        warn_once_effect_scratch_missing("radial_blur");
         owned_temp = std::make_unique<Framebuffer>(w, h);
         temp = owned_temp.get();
     }
@@ -182,6 +183,7 @@ void apply_radial_blur(
         if (resources) {
             recentered = resources->framebuffer_b.get();
         } else {
+            warn_once_effect_scratch_missing("radial_blur_recenter");
             owned_recentered = std::make_unique<Framebuffer>(w, h);
             recentered = owned_recentered.get();
         }
