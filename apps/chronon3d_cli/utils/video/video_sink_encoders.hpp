@@ -19,7 +19,7 @@ public:
         return true;
     }
 
-    bool write_frame(const Framebuffer& /*fb*/) override {
+    bool write_frame(const Framebuffer& /*fb*/) {
         ++frames_written_;
         return true;
     }
@@ -49,7 +49,7 @@ private:
 class NullConvertEncoder final : public IVideoEncoder {
 public:
     bool open(const FfmpegPipeOptions& options) override;
-    bool write_frame(const Framebuffer& fb) override;
+    bool write_frame(const Framebuffer& fb);
     bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override {
         const bool ok = write_frame(fb);
         owner.reset();

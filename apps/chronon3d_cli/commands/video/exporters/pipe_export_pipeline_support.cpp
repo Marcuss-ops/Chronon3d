@@ -44,7 +44,7 @@ void VariantFanoutEncoder::set_counters(RenderCounters* counters) {
 
 bool VariantFanoutEncoder::write_frame(const Framebuffer& framebuffer) {
     for (auto& child : children_) {
-        if (!child.encoder->write_frame(framebuffer)) return false;
+        if (!child.encoder->write_frame_async(framebuffer, nullptr)) return false;
     }
     if (counters_) {
         counters_->simo_variant_submits.fetch_add(children_.size(), std::memory_order_relaxed);
