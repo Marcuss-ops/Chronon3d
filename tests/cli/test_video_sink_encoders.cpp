@@ -269,7 +269,7 @@ TEST_CASE("Null encoders: satisfy IVideoEncoder interface") {
         auto* base = static_cast<IVideoEncoder*>(enc.get());
 
         CHECK(base->open(sink_opts()));
-        CHECK(base->write_frame(sink_fb(32, 32)));
+        CHECK(base->write_frame_async(sink_fb(32, 32), nullptr));
         CHECK(base->frames_written() == 1);
         CHECK(base->close());
     }
@@ -280,7 +280,7 @@ TEST_CASE("Null encoders: satisfy IVideoEncoder interface") {
 
         auto opts = sink_opts(32, 32, PipePixelFormat::YUV420P);
         CHECK(base->open(opts));
-        CHECK(base->write_frame(sink_fb(32, 32)));
+        CHECK(base->write_frame_async(sink_fb(32, 32), nullptr));
         CHECK(base->frames_written() == 1);
         CHECK(base->close());
     }

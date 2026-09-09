@@ -1,0 +1,48 @@
+From: Codebuff <noreply@codebuff.com>
+Date: 2026-05-11
+Subject: [PATCH] E-06: preserve AssetMountFailed in RuntimeContext::create (FIXING.md)
+Risk: Low — requires build + tests (runtime factory). Do NOT apply without CI.
+Refs: FIXING.md E-06 (src/runtime/render_runtime.cpp:124)
+
+Problem:
+  RuntimeContext::create() catches all std::exception as InternalError,
+  losing the AssetMountFailed distinction when resolver.mount(path) fails
+  with a filesystem_error. Observability degrades (wrong runbook).
+
+Fix:
+  Detect filesystem_error / mount-related exceptions before the generic
+  catch and map them to Code::AssetMountFailed. Keep the generic catch
+  as fallback. Adjust the predicate to whatever your AssetResolver
+  actually throws (std::filesystem::filesystem_error, or a custom
+  AssetMountError).
+
+diff --git a/src/runtime/render_runtime.cpp b/src/runtime/render_runtime.cpp
+--- a/src/runtime/render_runtime.cpp
++++ b/src/runtime/render_runtime.cpp
+@@ -108,6 +108,17 @@
+         }
+ 
+         return runtime;  // implicit Result(unique_ptr&&)
++    } catch (const std::filesystem::filesystem_error& e) {
++        // FIXING.md E-06 — mount failures must not be normalized to
++        // InternalError; they have a distinct runbook.
++        return RuntimeBuildError{
++            RuntimeBuildError::Code::AssetMountFailed,
++            std::string{"RuntimeContext::create(): asset mount failed — "} + e.what()
++        };
+     } catch (const std::exception& e) {
++        // Heuristic: AssetResolver::mount wraps filesystem errors with
++        // "mount" / "assets_root" in what(). Preserve the mount code
++        // even when the concrete type is std::runtime_error.
++        const std::string_view what = e.what();
++        const bool is_mount = what.find("mount") != std::string_view::npos ||
++                              what.find("assets_root") != std::string_view::npos;
++        if (is_mount) {
++            return RuntimeBuildError{
++                RuntimeBuildError::Code::AssetMountFailed,
++                std::string{"RuntimeContext::create(): asset mount failed — "} + std::string(what)
++            };
++        }
+         return RuntimeBuildError{
+             RuntimeBuildError::Code::InternalError,
+             std::string{"RuntimeContext::create(): construction failed — "} + e.what()

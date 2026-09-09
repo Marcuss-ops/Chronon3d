@@ -2,6 +2,7 @@
 
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/math/color.hpp>
 
 #include <cstddef>
@@ -64,6 +65,10 @@ struct GpuGlyphKey {
     }
 };
 
+// FIXING.md U-01 — hash combine uses the classic 0x9e3779b9 mix (see also
+// GpuStyledGlyphCache::KeyHash below with 0x9e3779b97f4a7c15ULL). Both sites
+// should be unified to a single helper (e.g. xxHash/xxh3 or a shared
+// hash_combine()) to eliminate DRY drift. Tracked for a follow-up cleanup.
 struct GpuGlyphKeyHash {
     std::size_t operator()(const GpuGlyphKey& key) const noexcept {
         std::size_t result = std::hash<std::string>{}(key.font_path);
@@ -116,13 +121,30 @@ struct AtlasPageInfo {
     float inv_height{1.0f / 2048.0f};
 };
 
+struct GpuGlyphAtlasError {
+    enum class Code : std::uint8_t {
+        NotAttached,
+        InvalidDimensions,
+        InvalidCoverage,
+        AllocationFailed,
+        UploadFailed,
+        BudgetExceeded,
+    };
+
+    Code code{Code::AllocationFailed};
+    std::string message;
+};
+
 struct GpuGlyphAtlasStats {
     std::size_t entries{0};
     std::size_t hits{0};
     std::size_t misses{0};
+    std::size_t failures{0};
     std::size_t page_count{0};
     std::size_t total_glyph_bytes{0};
 };
+
+using GpuGlyphAcquireResult = Result<GlyphLocation, GpuGlyphAtlasError>;
 
 /// Global paged glyph atlas — the ONE source of truth for VRAM-resident
 /// glyphs. Every glyph is stored as R8Unorm (coverage/SDF) or Rgba8Unorm (MTSDF)
@@ -135,22 +157,27 @@ public:
                 graph::RenderBackend& backend) noexcept;
 
     /// Resolve a glyph to a GlyphLocation.
-    [[nodiscard]] GlyphLocation acquire(GpuGlyphKey key,
-                         std::uint32_t width, std::uint32_t height,
-                         std::span<const float> coverage,
-                         GpuGlyphMetrics metrics,
-                         const DistanceFieldProfile& profile = {});
+    ///
+    /// Allocation, upload and budget failures are explicit errors. No invalid
+    /// GPU handle or speculative atlas location is ever returned or cached.
+    [[nodiscard]] GpuGlyphAcquireResult acquire(
+        GpuGlyphKey key,
+        std::uint32_t width, std::uint32_t height,
+        std::span<const float> coverage,
+        GpuGlyphMetrics metrics,
+        const DistanceFieldProfile& profile = {});
 
     /// Placement metrics for a previously-acquired glyph.
     [[nodiscard]] std::optional<GpuGlyphMetrics> metrics(GpuGlyphKey key) const noexcept;
 
     /// Pre-upload a batch of glyphs in prepare().
-    void prepare_batch(std::span<const GpuGlyphKey> keys,
-                       std::span<const std::uint32_t> widths,
-                       std::span<const std::uint32_t> heights,
-                       std::span<const float> coverage_data,
-                       std::span<const GpuGlyphMetrics> metrics,
-                       const DistanceFieldProfile& profile = {});
+    [[nodiscard]] Result<std::size_t, GpuGlyphAtlasError> prepare_batch(
+        std::span<const GpuGlyphKey> keys,
+        std::span<const std::uint32_t> widths,
+        std::span<const std::uint32_t> heights,
+        std::span<const float> coverage_data,
+        std::span<const GpuGlyphMetrics> metrics,
+        const DistanceFieldProfile& profile = {});
 
     void clear() noexcept;
     void set_budget_bytes(std::size_t budget_bytes) noexcept;
@@ -166,9 +193,11 @@ private:
         std::uint32_t row_height{0};
     };
 
-    [[nodiscard]] AtlasPage& current_page_or_new(
+    [[nodiscard]] Result<std::size_t, GpuGlyphAtlasError> page_for_glyph(
         GlyphRepresentation representation,
-        const DistanceFieldProfile& profile);
+        const DistanceFieldProfile& profile,
+        std::uint32_t width,
+        std::uint32_t height);
 
     mutable std::mutex m_mutex;
     GpuAssetCache m_cache;
@@ -251,6 +280,8 @@ private:
         StyledGlyphKey value{};
         friend bool operator==(const Key&, const Key&) = default;
     };
+    // FIXING.md U-01 — same 0x9e3779b97f4a7c15 mix as GpuGlyphKeyHash above
+    // (different width). Unify both into a shared hash_combine/xxHash helper.
     struct KeyHash {
         std::size_t operator()(const Key& k) const noexcept {
             std::size_t h = static_cast<std::size_t>(k.value.font_id);

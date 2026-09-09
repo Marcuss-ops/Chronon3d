@@ -165,33 +165,20 @@ ResourcePreparation::prepare(
         // Phase 2 — image-decode
         if (options.prepare_images) {
             for (const auto& ref : manifest.filter(assets::AssetKind::Image)) {
-                const bool prepared_ok = run_phase(Policy::AppendWarning, options.failure_mode, ref, "image",
-                          [&](const assets::InternalAssetRef& r) {
-                              return decode_image(r, resolver);
-                          }, &prepared.diagnostics, &prepared.diagnostics.warnings);
-                if (!prepared_ok) continue;  // WarnAndSkip: missing asset — skip keyed map
-                const auto resolved = resolver.resolve(ref.path);
-                if (!resolved) continue;
-                const auto digest = assets::sha256_file(*resolved);
-                if (!digest) {
+                auto image_result = decode_image(ref, resolver);
+                if (!image_result.has_value()) {
                     if (options.failure_mode == PreparationOptions::FailureMode::FailLoud) {
-                        throw PreparationError{
-                            .code = PreparationError::Code::CorruptedAsset,
-                            .message = "image content digest failed: " + ref.path,
-                            .path = ref.path,
-                            .owner = ref.owner,
-                            .phase = "image",
-                        };
+                        throw image_result.error();
                     }
+                    prepared.diagnostics.warnings.push_back({
+                        image_result.error().code,
+                        image_result.error().message,
+                        "image"
+                    });
                     continue;
                 }
-                const auto [it, inserted] = prepared.images.emplace(ref.owner, PreparedImage{
-                    .path   = ref.path,
-                    .owner  = ref.owner,
-                    .width  = 0,
-                    .height = 0,
-                    .content_digest = *digest
-                });
+                const auto [it, inserted] = prepared.images.emplace(
+                    ref.owner, std::move(image_result.value()));
                 if (inserted) ++prepared.diagnostics.images_decoded;
             }
         }

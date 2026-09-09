@@ -1,0 +1,49 @@
+From: Codebuff <noreply@codebuff.com>
+Date: 2026-05-11
+Subject: [PATCH] C-04: normalize GpuGlyphKey font_size for distance-field reps (FIXING.md)
+Risk: Medium — requires build + tests (glyph identity). Do NOT apply without CI.
+Refs: FIXING.md C-04 (include/chronon3d/runtime/gpu_glyph_atlas.hpp:34)
+
+Problem:
+  GpuGlyphKey::operator== and GpuGlyphKeyHash ignore font_size for
+  Mtsdf/Msdf/Sdf, but callers may still construct keys with varying
+  font_size. Two logically distinct DistanceFieldProfile glyphs collapse
+  to the same key → wrong distance_range_px in shader. SSOT violation.
+
+Fix:
+  Provide a factory that normalizes font_size to 0 for distance-field
+  representations at construction time. Callers should use it instead
+  of aggregate initialization. Existing hash/equality stays compatible
+  (they already ignore the field); this prevents accidental divergence
+  at the call site.
+
+diff --git a/include/chronon3d/runtime/gpu_glyph_atlas.hpp b/include/chronon3d/runtime/gpu_glyph_atlas.hpp
+--- a/include/chronon3d/runtime/gpu_glyph_atlas.hpp
++++ b/include/chronon3d/runtime/gpu_glyph_atlas.hpp
+@@ -30,6 +30,23 @@
+ struct GpuGlyphKey {
+     std::string font_path;
+     std::uint32_t glyph_id{0};
+     std::uint64_t variation_hash{0};
+     GlyphRepresentation representation{GlyphRepresentation::Mtsdf};
+     std::uint16_t generation_profile{0};
+     std::uint32_t font_size{0};
++
++    // FIXING.md C-04 — canonical factory. For distance-field reps
++    // (Mtsdf/Msdf/Sdf) the runtime font size is a layout concern and
++    // must not participate in identity. Normalize to 0 so that equality
++    // and hashing are SSOT-consistent even when callers pass a stale
++    // font_size.
++    [[nodiscard]] static GpuGlyphKey make(std::string font_path,
++                                          std::uint32_t glyph_id,
++                                          std::uint64_t variation_hash,
++                                          GlyphRepresentation rep,
++                                          std::uint16_t generation_profile,
++                                          std::uint32_t font_size) noexcept {
++        if (rep != GlyphRepresentation::Coverage) font_size = 0;
++        return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
++                           rep, generation_profile, font_size};
++    }
+ 
+     /// Runtime font size is a layout concern for distance fields.  It is part
+     /// of identity only for Coverage, whose pixels are raster-size-specific.

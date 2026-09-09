@@ -6,6 +6,12 @@
 # The runtime keeps an events-only telemetry boundary (NullTelemetryStore
 # default); hosts/collectors observe Chronon out-of-band. No SQLite dependency.
 
+# render_preparation.cpp is a single-TU facade that #includes two private
+# detail headers (render_preparation_assets_detail.hpp /
+# render_preparation_api_detail.hpp). Those headers are not separate
+# translation units and must stay out of CHRONON3D_RUNTIME_SOURCES; they are
+# tracked implicitly via the .cpp include. If they are ever promoted to
+# standalone TUs, add them here and remove the #include indirection.
 set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp

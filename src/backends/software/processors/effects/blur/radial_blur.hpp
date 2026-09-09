@@ -6,6 +6,10 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+
+namespace chronon3d {
+struct EffectScratchResources;
+}
 #include <chronon3d/math/color.hpp>
 #include <optional>
 
@@ -24,6 +28,7 @@ void apply_radial_blur(
     float center_x, float center_y,
     float amount,
     int samples,
-    const std::optional<raster::BBox>& clip = std::nullopt);
+    const std::optional<raster::BBox>& clip = std::nullopt,
+    EffectScratchResources* scratch = nullptr);
 
 } // namespace chronon3d::renderer
