@@ -5,6 +5,7 @@
 #include "vulkan_backend_impl.hpp"
 
 #include <atomic>
+#include <cstdlib>
 #include <unistd.h>
 
 namespace chronon3d::backends::vulkan {
@@ -23,6 +24,25 @@ VkSemaphore VulkanBackend::Impl::make_external_binary_semaphore() {
     if (debug_context) {
         debug_context->set_semaphore_name(semaphore,
                                           "Chronon3D.Semaphore.CudaInterop");
+    }
+    return semaphore;
+}
+
+VkSemaphore VulkanBackend::Impl::make_external_timeline_semaphore() {
+    VkExportSemaphoreCreateInfo export_info{
+        VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
+    export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    const VkSemaphoreTypeCreateInfo timeline_type{
+        VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO, &export_info,
+        VK_SEMAPHORE_TYPE_TIMELINE, 0};
+    const VkSemaphoreCreateInfo info{
+        VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &timeline_type, 0};
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    check(vkCreateSemaphore(device, &info, nullptr, &semaphore),
+          "vkCreateSemaphore(external CUDA timeline interop)");
+    if (debug_context) {
+        debug_context->set_semaphore_name(
+            semaphore, "Chronon3D.Semaphore.CudaInteropTimeline");
     }
     return semaphore;
 }
@@ -46,8 +66,37 @@ void VulkanBackend::Impl::create_cuda_external_surface(
     auto& physical = surfaces.physical_surfaces[slot];
     make_image(physical.image, desc.width, desc.height, true,
                to_vk_format(desc.format));
-    physical.image.cuda_to_vulkan = make_external_binary_semaphore();
-    physical.image.vulkan_to_cuda = make_external_binary_semaphore();
+    try {
+        // Keep an explicit escape hatch while timeline interop is being
+        // validated on each driver. This preserves the proven binary bridge
+        // for render certification without removing the timeline path.
+        const bool disable_timeline =
+            std::getenv("CHRONON3D_DISABLE_CUDA_TIMELINE") != nullptr;
+        if (disable_timeline) {
+            throw std::runtime_error("disabled by CHRONON3D_DISABLE_CUDA_TIMELINE");
+        }
+        // Timeline external semaphores share the same opaque-FD transport as
+        // the binary bridge. If creation is rejected by the selected driver,
+        // fall back atomically to the already-proven binary pair.
+        physical.image.cuda_to_vulkan = make_external_timeline_semaphore();
+        physical.image.vulkan_to_cuda = make_external_timeline_semaphore();
+        physical.image.cuda_timeline = true;
+    } catch (const std::exception& error) {
+        if (physical.image.cuda_to_vulkan != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, physical.image.cuda_to_vulkan, nullptr);
+            physical.image.cuda_to_vulkan = VK_NULL_HANDLE;
+        }
+        if (physical.image.vulkan_to_cuda != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, physical.image.vulkan_to_cuda, nullptr);
+            physical.image.vulkan_to_cuda = VK_NULL_HANDLE;
+        }
+        spdlog::warn(
+            "[Vulkan] external timeline semaphore unavailable; using binary CUDA bridge: {}",
+            error.what());
+        physical.image.cuda_to_vulkan = make_external_binary_semaphore();
+        physical.image.vulkan_to_cuda = make_external_binary_semaphore();
+        physical.image.cuda_timeline = false;
+    }
     physical.desc = desc;
     surfaces.surface_bindings.emplace(handle, slot);
     surfaces.unplanned_surface_handles.insert(handle);
@@ -125,7 +174,7 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
     return CudaExternalMemoryInfo{
         fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
         image_it->second.image.width, image_it->second.image.height,
-        is_u8 ? 2u : 1u};
+        is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline};
 }
 
 void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(

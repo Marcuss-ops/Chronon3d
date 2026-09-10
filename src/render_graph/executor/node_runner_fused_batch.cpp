@@ -18,9 +18,12 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <string>
 #include <array>
@@ -45,11 +48,20 @@ namespace {
 // as the plan dispatcher's thread-local instance storage); clear() keeps
 // steady-state frames pay zero allocations.
 struct FusedWorkerScratch {
+    struct PreparedTextRun {
+        runtime::RuntimeContext* runtime{nullptr};
+        const TextRunShape* shape{nullptr};
+        bool ready{false};
+        std::vector<runtime::GlyphStatic> glyphs;
+        std::vector<runtime::RenderSurfaceHandle> atlas_pages;
+    };
+
     std::vector<runtime::GlyphStatic> glyphs;
     std::vector<runtime::TextRunDynamic> runs;
     std::vector<runtime::RenderSurfaceHandle> atlas_pages;
 #if defined(CHRONON3D_ENABLE_TEXT)
     TextRunFrameState text_frame;
+    std::vector<PreparedTextRun> prepared_text_runs;
 #endif
     std::vector<runtime::RenderSurfaceHandle> resources;
     std::vector<Vec2> resource_sizes;
@@ -89,6 +101,247 @@ struct FusedWorkerScratch {
 };
 
 thread_local FusedWorkerScratch tls_fused_scratch;
+
+#if defined(CHRONON3D_ENABLE_TEXT)
+
+[[nodiscard]] bool can_use_mtsdf_gpu_text(const TextRunShape& shape) noexcept {
+    if (!shape.layout || shape.layout->font_spans.size() > 1 ||
+        !shape.animators.empty() || shape.animated_doc ||
+        shape.paint.fill_style || shape.paint.stroke_style ||
+        shape.material.enabled || shape.shadows.size() > 1) {
+        return false;
+    }
+    if (shape.paint.stroke_enabled &&
+        (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 8.0f)) {
+        return false;
+    }
+    for (const auto& shadow : shape.shadows) {
+        if (!shadow.enabled) continue;
+        if (shadow.blur < 0.0f || shadow.blur > 8.0f ||
+            std::abs(shadow.offset.x) + shadow.blur > 9.0f ||
+            std::abs(shadow.offset.y) + shadow.blur > 9.0f) {
+            return false;
+        }
+    }
+    return shape.glyphs.size() == shape.layout->placed.glyphs.size();
+}
+
+[[nodiscard]] std::uint32_t pack_text_color(const Color& color) noexcept {
+    const auto to_byte = [](float value) {
+        return static_cast<std::uint32_t>(std::clamp(
+            std::lround(value * 255.0f), 0L, 255L));
+    };
+    return to_byte(color.r) |
+           (to_byte(color.g) << 8) |
+           (to_byte(color.b) << 16) |
+           (to_byte(color.a) << 24);
+}
+
+void fill_mtsdf_effects(const TextRunShape& shape,
+                        runtime::TextRunDynamic& run) noexcept {
+    constexpr std::uint32_t kStroke = 1u << 0;
+    constexpr std::uint32_t kShadow = 1u << 1;
+    constexpr std::uint32_t kGlow = 1u << 2;
+
+    if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
+        run.stroke_width = shape.paint.stroke_width;
+        run.stroke_color = pack_text_color(shape.paint.stroke_color);
+        run.effect_flags |= kStroke;
+    }
+
+    for (const auto& shadow : shape.shadows) {
+        if (!shadow.enabled) continue;
+        Color shadow_color = shadow.color;
+        shadow_color.a = std::clamp(shadow_color.a * shadow.opacity, 0.0f, 1.0f);
+        run.shadow_color = pack_text_color(shadow_color);
+        run.shadow_dx = shadow.offset.x;
+        run.shadow_dy = shadow.offset.y;
+        run.shadow_blur = shadow.blur;
+        run.effect_flags |= (std::abs(shadow.offset.x) < 1e-4f &&
+                             std::abs(shadow.offset.y) < 1e-4f)
+            ? kGlow : kShadow;
+        break;
+    }
+}
+
+FusedWorkerScratch::PreparedTextRun* find_prepared_text_run(
+    FusedWorkerScratch& scratch, runtime::RuntimeContext& runtime,
+    TextRenderResources* text_resources, assets::AssetResolver* resolver,
+    const TextRunShape& shape) {
+    for (auto& prepared : scratch.prepared_text_runs) {
+        if (prepared.runtime == &runtime && prepared.shape == &shape) {
+            return &prepared;
+        }
+    }
+
+    FusedWorkerScratch::PreparedTextRun prepared;
+    prepared.runtime = &runtime;
+    prepared.shape = &shape;
+    if (!can_use_mtsdf_gpu_text(shape) || !shape.layout) {
+        scratch.prepared_text_runs.push_back(std::move(prepared));
+        return &scratch.prepared_text_runs.back();
+    }
+
+    const auto& layout_glyphs = shape.layout->placed.glyphs;
+    constexpr std::uint16_t kMtsdfEmPx = 64;
+    constexpr std::uint16_t kMtsdfDistanceRangePx = 8;
+    constexpr std::uint16_t kMtsdfPaddingPx = 10;
+    constexpr std::uint16_t kMtsdfProfileId = 1;
+    const float font_size = std::max(1.0f, shape.layout->font_size);
+    const auto font_path = shape.layout->font.font_path;
+    const runtime::DistanceFieldProfile profile{
+        runtime::GlyphRepresentation::Mtsdf, kMtsdfEmPx,
+        kMtsdfDistanceRangePx, kMtsdfPaddingPx};
+
+    // The first implementation intentionally fails closed for mixed-font
+    // runs. The layout still carries spans, but the fused dispatch currently
+    // binds one atlas page and one font preparation handle per run.
+    if (!resolver || shape.layout->font_spans.size() > 1) {
+        scratch.prepared_text_runs.push_back(std::move(prepared));
+        return &scratch.prepared_text_runs.back();
+    }
+    FontFaceHandle font_handle;
+    try {
+        font_handle = text_resources->resolve_handle(
+            font_path, static_cast<float>(kMtsdfEmPx), *resolver);
+    } catch (...) {
+        scratch.prepared_text_runs.push_back(std::move(prepared));
+        return &scratch.prepared_text_runs.back();
+    }
+    if (!font_handle.ft_face) {
+        scratch.prepared_text_runs.push_back(std::move(prepared));
+        return &scratch.prepared_text_runs.back();
+    }
+
+    std::vector<runtime::GpuGlyphKey> keys;
+    std::vector<std::uint32_t> widths;
+    std::vector<std::uint32_t> heights;
+    std::vector<runtime::GpuGlyphMetrics> metrics;
+    std::vector<runtime::GpuGlyphKey> pending_keys;
+    std::vector<std::uint32_t> pending_widths;
+    std::vector<std::uint32_t> pending_heights;
+    std::vector<runtime::GpuGlyphMetrics> pending_metrics;
+    std::vector<float> pending_pixels;
+    keys.reserve(layout_glyphs.size());
+    widths.reserve(layout_glyphs.size());
+    heights.reserve(layout_glyphs.size());
+    metrics.reserve(layout_glyphs.size());
+    pending_keys.reserve(layout_glyphs.size());
+    pending_widths.reserve(layout_glyphs.size());
+    pending_heights.reserve(layout_glyphs.size());
+    pending_metrics.reserve(layout_glyphs.size());
+
+    for (std::size_t gi = 0; gi < layout_glyphs.size(); ++gi) {
+        const auto& state = shape.glyphs[gi];
+        const auto& placed = layout_glyphs[gi];
+        if (state.glyph_id == 0 || placed.bbox_x1 <= placed.bbox_x0 ||
+            !text_resources) {
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+        const auto key = runtime::GpuGlyphKey::make(
+            font_path, state.glyph_id, 0,
+            runtime::GlyphRepresentation::Mtsdf, kMtsdfProfileId, 0);
+        keys.push_back(key);
+
+        if (const auto resident = runtime.gpu_glyph_atlas().location(key)) {
+            widths.push_back(resident->width);
+            heights.push_back(resident->height);
+            metrics.push_back(runtime.gpu_glyph_atlas().metrics(key).value_or(
+                runtime::GpuGlyphMetrics{0, 0, placed.advance_x}));
+            continue;
+        }
+
+        const auto generated = generate_mtsdf_glyph(
+            font_handle.ft_face, state.glyph_id, profile.em_px,
+            profile.distance_range_px, profile.padding_px);
+        if (!generated || generated->rgba8.empty()) {
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+        const runtime::GpuGlyphMetrics glyph_metrics{
+            generated->x_offset, generated->y_offset, generated->advance_x};
+        widths.push_back(generated->width);
+        heights.push_back(generated->height);
+        metrics.push_back(glyph_metrics);
+        pending_keys.push_back(key);
+        pending_widths.push_back(generated->width);
+        pending_heights.push_back(generated->height);
+        pending_metrics.push_back(glyph_metrics);
+        pending_pixels.insert(pending_pixels.end(), generated->rgba8.begin(),
+                              generated->rgba8.end());
+    }
+
+    if (!pending_keys.empty()) {
+        const auto uploaded = runtime.gpu_glyph_atlas().prepare_batch(
+            pending_keys, pending_widths, pending_heights, pending_pixels,
+            pending_metrics, profile);
+        if (!uploaded.has_value()) {
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+    }
+
+    std::vector<std::uint16_t> page_ids;
+    page_ids.reserve(1);
+    prepared.glyphs.reserve(layout_glyphs.size());
+    for (std::size_t gi = 0; gi < layout_glyphs.size(); ++gi) {
+        const auto location = runtime.gpu_glyph_atlas().acquire(
+            keys[gi], widths[gi], heights[gi], {}, metrics[gi], profile);
+        if (!location.has_value()) {
+            prepared.glyphs.clear();
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+        const auto loc = location.value();
+        auto page_it = std::find(page_ids.begin(), page_ids.end(), loc.atlas_page);
+        if (page_it == page_ids.end()) {
+            page_ids.push_back(loc.atlas_page);
+            page_it = std::prev(page_ids.end());
+        }
+        if (page_ids.size() != 1) {
+            // The backend currently binds one atlas image per dispatch. Do
+            // not silently render a multi-page run with the wrong page.
+            prepared.glyphs.clear();
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+        const auto page = runtime.gpu_glyph_atlas().page_handle(loc.atlas_page);
+        if (!page) {
+            prepared.glyphs.clear();
+            scratch.prepared_text_runs.push_back(std::move(prepared));
+            return &scratch.prepared_text_runs.back();
+        }
+        if (prepared.atlas_pages.empty()) prepared.atlas_pages.push_back(*page);
+
+        const auto& placed = layout_glyphs[gi];
+        runtime::GlyphStatic glyph{};
+        glyph.run_index = 0;
+        glyph.atlas_page = 0;
+        glyph.flags = 0;
+        glyph.atlas_x = loc.atlas_x;
+        glyph.atlas_y = loc.atlas_y;
+        glyph.atlas_w = loc.width;
+        glyph.atlas_h = loc.height;
+        const float scale = font_size / static_cast<float>(profile.em_px);
+        const float pad = static_cast<float>(profile.padding_px) * scale;
+        glyph.plane_left = placed.x + placed.bbox_x0 * scale - pad;
+        glyph.plane_top = placed.y - placed.bbox_y0 * scale - pad;
+        glyph.plane_right = glyph.plane_left +
+            static_cast<float>(loc.width) * scale;
+        glyph.plane_bottom = glyph.plane_top +
+            static_cast<float>(loc.height) * scale;
+        glyph.flags = 1u; // MTSDF atlas sample
+        glyph.draw_order = static_cast<std::uint32_t>(gi);
+        glyph.pad0 = static_cast<std::uint32_t>(gi);
+        prepared.glyphs.push_back(glyph);
+    }
+    prepared.ready = !prepared.glyphs.empty() && prepared.atlas_pages.size() == 1;
+    scratch.prepared_text_runs.push_back(std::move(prepared));
+    return &scratch.prepared_text_runs.back();
+}
+
+#endif
 
 void report_fused_batch_error(
     RenderGraphContext& ctx,
@@ -149,11 +402,57 @@ void execute_fused_batch_impl(
                 opacity *= xform.opacity();
             }
 
-            text_run::prepare_per_frame_shape(
-                *tr_node.shape(), ctx.frame_input.sample_time, scratch.text_frame);
-            if (!scratch.text_frame.render_shape.layout) continue;
+            // Static runs are already compiled at scene preparation time and
+            // must not be copied/reset/evaluated once per frame. Dynamic runs
+            // retain the worker-local adapter until PreparedTextRun replaces
+            // this compatibility branch.
+            const TextRunShape* render_shape = tr_node.shape().get();
+            if (!render_shape->animators.empty() || render_shape->animated_doc) {
+                text_run::prepare_per_frame_shape(
+                    *render_shape, ctx.frame_input.sample_time, scratch.text_frame);
+                render_shape = &scratch.text_frame.render_shape;
+            }
+            if (!render_shape->layout) continue;
 
-            const auto& layout = *scratch.text_frame.render_shape.layout;
+            const auto& layout = *render_shape->layout;
+
+            // Prepared path: FreeType outlines are promoted to the
+            // persistent GpuGlyphAtlas once per (runtime, shape, layout).
+            // Steady-state frames only append already-compiled metadata and
+            // update the small dynamic run record.
+            if (ctx.runtime && can_use_mtsdf_gpu_text(*render_shape)) {
+                auto* prepared = find_prepared_text_run(
+                    scratch, *ctx.runtime, ctx.text_render_resources,
+                    ctx.asset_resolver, *render_shape);
+                if (prepared->ready && prepared->atlas_pages.size() == 1) {
+                    const auto page = prepared->atlas_pages.front();
+                    if (atlas_pages.empty() || atlas_pages.front() == page) {
+                        if (atlas_pages.empty()) atlas_pages.push_back(page);
+                        runtime::TextRunDynamic run_dyn{};
+                        run_dyn.tx = tx;
+                        run_dyn.ty = ty;
+                        run_dyn.sx = sx;
+                        run_dyn.sy = sy;
+                        run_dyn.opacity = opacity;
+                        run_dyn.color = pack_text_color(render_shape->paint.fill);
+                        run_dyn.visible_glyph_count =
+                            std::numeric_limits<std::uint32_t>::max();
+                        run_dyn.flags = 0u;
+                        fill_mtsdf_effects(*render_shape, run_dyn);
+                        const auto run_index = static_cast<std::uint32_t>(all_runs.size());
+                        all_runs.push_back(run_dyn);
+                        const auto first = all_glyphs.size();
+                        all_glyphs.insert(all_glyphs.end(),
+                                          prepared->glyphs.begin(),
+                                          prepared->glyphs.end());
+                        for (std::size_t i = first; i < all_glyphs.size(); ++i) {
+                            all_glyphs[i].run_index = run_index;
+                        }
+                        continue;
+                    }
+                }
+            }
+
             const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
             const auto font_id = glyph_font_id(layout.font.font_path);
 
@@ -164,6 +463,8 @@ void execute_fused_batch_impl(
             run_dyn.sy = sy;
             run_dyn.opacity = opacity;
             run_dyn.color = 0xFFFFFFFF;
+            run_dyn.visible_glyph_count =
+                std::numeric_limits<std::uint32_t>::max();
             all_runs.push_back(run_dyn);
 
             // The current fused text backend exposes one atlas page per
@@ -175,7 +476,7 @@ void execute_fused_batch_impl(
             if (atlas_pages.empty()) atlas_pages.push_back(kFusedTextAtlasPage);
 
             for (std::size_t gi = 0; gi < layout.placed.glyphs.size(); ++gi) {
-                const auto& gstate = scratch.text_frame.render_shape.glyphs[gi];
+                const auto& gstate = render_shape->glyphs[gi];
                 if (gstate.glyph_id == 0) continue;
                 const auto& placed = layout.placed.glyphs[gi];
                 if (placed.bbox_x1 <= placed.bbox_x0) continue;
@@ -198,6 +499,7 @@ void execute_fused_batch_impl(
                 g_stat.plane_right = static_cast<float>(placed.x + entry->image->width());
                 g_stat.plane_bottom = static_cast<float>(placed.y + entry->image->height());
                 g_stat.draw_order = static_cast<uint32_t>(all_glyphs.size());
+                g_stat.pad0 = static_cast<uint32_t>(gi);
                 all_glyphs.push_back(g_stat);
             }
         }

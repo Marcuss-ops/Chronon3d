@@ -29,6 +29,12 @@
 
 namespace chronon3d::graph::text_run {
 
+/// Return true when the text animator stack can be lowered to the GPU text
+/// dynamic record without rebuilding glyph state.  This deliberately covers
+/// only the canonical forward glyph typewriter for now; richer animators keep
+/// the legacy path until their per-glyph dynamic representation is complete.
+[[nodiscard]] bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept;
+
 /// One rasterized glyph bitmap + its destination placement.
 ///
 /// `rgba` is a tightly-packed PREMULTIPLIED RGBA float buffer of exactly

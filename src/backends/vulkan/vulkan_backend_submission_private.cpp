@@ -76,10 +76,12 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     std::vector<VkSemaphore>& wait_semaphores = submit_wait_semaphores_;
     std::vector<VkPipelineStageFlags>& wait_stages = submit_wait_stages_;
     std::vector<VkSemaphore>& signal_semaphores = submit_signal_semaphores_;
+    std::vector<std::uint64_t>& wait_values = submit_wait_values_;
     std::vector<std::uint64_t>& signal_values = submit_signal_values_;
     wait_semaphores.clear();
     wait_stages.clear();
     signal_semaphores.clear();
+    wait_values.clear();
     signal_values.clear();
     signal_semaphores.push_back(timeline_semaphore);
     signal_values.push_back(signal_value);
@@ -89,20 +91,25 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         if (it == surfaces.physical_surfaces.end()) continue;
         wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
         wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        wait_values.push_back(it->second.image.cuda_timeline
+            ? ++it->second.image.cuda_to_vulkan_value : 0);
         signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-        signal_values.push_back(0);
+        signal_values.push_back(it->second.image.cuda_timeline
+            ? ++it->second.image.vulkan_to_cuda_value : 0);
     }
     for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
         if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
         const auto it = surfaces.physical_surfaces.find(physical_slot);
         if (it == surfaces.physical_surfaces.end()) continue;
         signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-        signal_values.push_back(0);
+        signal_values.push_back(it->second.image.cuda_timeline
+            ? ++it->second.image.vulkan_to_cuda_value : 0);
     }
 #endif
     const VkTimelineSemaphoreSubmitInfo timeline_submit{
         VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
-        0, nullptr, static_cast<std::uint32_t>(signal_values.size()),
+        static_cast<std::uint32_t>(wait_values.size()), wait_values.data(),
+        static_cast<std::uint32_t>(signal_values.size()),
         signal_values.data()};
     const VkSubmitInfo submit_info{
         VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit,

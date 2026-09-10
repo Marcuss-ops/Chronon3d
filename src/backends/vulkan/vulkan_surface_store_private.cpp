@@ -239,8 +239,11 @@ namespace chronon3d::backends::vulkan {
     std::uint64_t VulkanBackend::Impl::upload(runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc,
                          std::span<const float> rgba, bool wait_for_completion) {
         auto& image = ensure_surface(handle, desc);
+        // Full uploads use the descriptor's actual storage format.  The old
+        // hard-coded Rgba32Float size rejected persistent Rgba8 MTSDF pages
+        // before their first glyph region upload could even be issued.
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(runtime::tight_surface_bytes(
-            runtime::PixelFormat::Rgba32Float, desc.width, desc.height));
+            desc.format, desc.width, desc.height));
         if (rgba.size_bytes() != bytes) throw std::invalid_argument("Vulkan upload size does not match surface");
         ++stats.upload_calls;
         stats.upload_bytes += bytes;

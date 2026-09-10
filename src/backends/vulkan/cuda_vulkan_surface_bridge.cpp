@@ -30,9 +30,12 @@ void check_cuda(CUresult result, const char* operation) {
     }
 }
 
-CUexternalSemaphore import_semaphore(int fd, const char* operation) {
+CUexternalSemaphore import_semaphore(
+    int fd, bool timeline, const char* operation) {
     CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC desc{};
-    desc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+    desc.type = timeline
+        ? CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_FD
+        : CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
     desc.handle.fd = fd;
     CUexternalSemaphore semaphore = nullptr;
     const CUresult result = cuImportExternalSemaphore(&semaphore, &desc);
@@ -48,7 +51,7 @@ CUexternalSemaphore import_semaphore(int fd, const char* operation) {
 
 CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     const CudaExternalMemoryInfo& info, CUcontext context, CUstream stream)
-    : m_context(context), m_stream(stream) {
+    : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores) {
     if (!m_context || info.fd < 0 || info.cuda_to_vulkan_semaphore_fd < 0 ||
         info.vulkan_to_cuda_semaphore_fd < 0 || info.width == 0 ||
         info.height == 0 || info.allocation_size == 0 ||
@@ -87,9 +90,11 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
         check_cuda(cuSurfObjectCreate(&m_surface, &resource),
                    "cuSurfObjectCreate(surface)");
         m_cuda_to_vulkan = import_semaphore(
-            info.cuda_to_vulkan_semaphore_fd, "cuImportExternalSemaphore(cuda->vulkan)");
+            info.cuda_to_vulkan_semaphore_fd, m_timeline,
+            "cuImportExternalSemaphore(cuda->vulkan)");
         m_vulkan_to_cuda = import_semaphore(
-            info.vulkan_to_cuda_semaphore_fd, "cuImportExternalSemaphore(vulkan->cuda)");
+            info.vulkan_to_cuda_semaphore_fd, m_timeline,
+            "cuImportExternalSemaphore(vulkan->cuda)");
         static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
         if (s_trace) {
             spdlog::info("[interop-trace] IMPORT_BRIDGE ctx={} stream={} V2C_fd={} -> CUextSem={} C2V_fd={} -> CUextSem={}",
@@ -132,6 +137,9 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
                      static_cast<void*>(m_vulkan_to_cuda));
     }
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
+    if (m_timeline) {
+        params.params.fence.value = ++m_vulkan_to_cuda_value;
+    }
     check_cuda(cuWaitExternalSemaphoresAsync(
                    &m_vulkan_to_cuda, &params, 1, stream ? stream : m_stream),
                "cuWaitExternalSemaphoresAsync(vulkan->cuda)");
@@ -154,6 +162,9 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
                      static_cast<void*>(m_cuda_to_vulkan));
     }
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
+    if (m_timeline) {
+        params.params.fence.value = ++m_cuda_to_vulkan_value;
+    }
     check_cuda(cuSignalExternalSemaphoresAsync(
                    &m_cuda_to_vulkan, &params, 1, stream ? stream : m_stream),
                "cuSignalExternalSemaphoresAsync(cuda->vulkan)");

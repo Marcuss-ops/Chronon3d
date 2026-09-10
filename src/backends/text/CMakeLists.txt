@@ -16,6 +16,7 @@ add_library(chronon3d_backend_text OBJECT
     glyph_atlas.cpp                   # canonical impl in resources/glyph_atlas.cpp
     text_render_resources.cpp         # per-renderer text resources
     text_render_resources_cache.cpp   # raster/glyph cache implementation
+    mtsdf_generator.cpp               # canonical FreeType-outline MTSDF prep
 )
 set_target_properties(chronon3d_backend_text PROPERTIES UNITY_BUILD OFF)
 # These are deliberately independent compilation units.  Keep this list

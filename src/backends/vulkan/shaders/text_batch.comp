@@ -26,7 +26,7 @@ struct GpuGlyphStatic {
     uint pad2;
 };
 
-// 32 bytes per text run dynamic entry
+// 64 bytes per text run dynamic entry
 struct GpuTextRunDynamic {
     float tx;
     float ty;
@@ -34,8 +34,16 @@ struct GpuTextRunDynamic {
     float sy;
     float opacity;
     uint color;        // packed RGBA (0xFFFFFFFF = white/identity)
-    float pad0;
-    float pad1;
+    uint visible_glyph_count;
+    uint flags;
+    uint stroke_color;
+    uint shadow_color;
+    uint effect_flags; // bit 0 stroke, bit 1 shadow, bit 2 glow
+    uint distance_range_bits;
+    float stroke_width;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
 };
 
 layout(binding = 3, std430) buffer GlyphStaticBuffer {
@@ -56,6 +64,14 @@ float median3(float a, float b, float c) {
     return max(min(a, b), min(max(a, b), c));
 }
 
+vec4 unpack_color(uint c) {
+    float a = float((c >> 24u) & 0xFFu) / 255.0;
+    float b = float((c >> 16u) & 0xFFu) / 255.0;
+    float g = float((c >> 8u) & 0xFFu) / 255.0;
+    float r = float(c & 0xFFu) / 255.0;
+    return vec4(r, g, b, a);
+}
+
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 dst_size = imageSize(dst_image);
@@ -66,6 +82,8 @@ void main() {
     for (int i = 0; i < params.glyph_count; ++i) {
         GpuGlyphStatic g = glyphs[i];
         GpuTextRunDynamic run = runs[g.run_index];
+        if (run.visible_glyph_count != 0xFFFFFFFFu &&
+            g.pad0 >= run.visible_glyph_count) continue;
 
         float sx = (run.sx != 0.0) ? run.sx : 1.0;
         float sy = (run.sy != 0.0) ? run.sy : 1.0;
@@ -85,7 +103,7 @@ void main() {
         // requires the semantic plane mapping.
         vec2 uv;
         bool inside = false;
-        if ((flags & 1u) != 0u) {
+        if ((flags & 1u) != 0u || (run.flags & 1u) != 0u) {
             vec2 local = (vec2(pixel) + vec2(0.5) - vec2(run.tx, run.ty)) /
                 vec2(sx, sy);
             inside = local.x >= g.plane_left && local.y >= g.plane_top &&
@@ -111,11 +129,41 @@ void main() {
             if ((flags & 1u) != 0u) {
                 // MTSDF representation
                 float msd = median3(sample_val.r, sample_val.g, sample_val.b);
-                float sd = msd - 0.5;
                 float screen_scale = 0.5 * (abs(sx) + abs(sy));
-                float screen_px_range = max(1.0, 8.0 * screen_scale);
-                float alpha = clamp(sd * screen_px_range + 0.5, 0.0, 1.0);
-                src = vec4(alpha);
+                float distance_range = uintBitsToFloat(run.distance_range_bits);
+                if (!(distance_range > 0.0)) distance_range = 8.0;
+                float fill_alpha = clamp((msd - 0.5) * distance_range * screen_scale +
+                                         0.5, 0.0, 1.0);
+                src = vec4(0.0);
+
+                if ((run.effect_flags & 2u) != 0u ||
+                    (run.effect_flags & 4u) != 0u) {
+                    vec2 shadow_uv = uv - vec2(run.shadow_dx / plane_w,
+                                               run.shadow_dy / plane_h);
+                    if (all(greaterThanEqual(shadow_uv, vec2(0.0))) &&
+                        all(lessThan(shadow_uv, vec2(1.0)))) {
+                        ivec2 shadow_offset = ivec2(floor(
+                            shadow_uv * vec2(atlas_w, atlas_h)));
+                        shadow_offset = clamp(shadow_offset, ivec2(0),
+                                              ivec2(atlas_w, atlas_h) - ivec2(1));
+                        vec4 shadow_sample = imageLoad(
+                            atlas_image, ivec2(atlas_x, atlas_y) + shadow_offset);
+                        float shadow_distance = (shadow_sample.a - 0.5) * distance_range;
+                    float shadow_alpha = clamp(
+                        0.5 + shadow_distance /
+                            max(run.shadow_blur, 1.0), 0.0, 1.0);
+                        src = unpack_color(run.shadow_color) * shadow_alpha;
+                    }
+                }
+                if ((run.effect_flags & 1u) != 0u) {
+                    float stroke_alpha = clamp(
+                        ((sample_val.a - 0.5) * distance_range + run.stroke_width) *
+                        screen_scale + 0.5, 0.0, 1.0);
+                    vec4 stroke = unpack_color(run.stroke_color) * stroke_alpha;
+                    src = stroke + src * (1.0 - stroke.a);
+                }
+                vec4 fill = unpack_color(run.color) * fill_alpha;
+                src = fill + src * (1.0 - fill.a);
             } else {
                 // Linear coverage representation
                 src = sample_val;

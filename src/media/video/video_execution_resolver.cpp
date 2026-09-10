@@ -306,15 +306,14 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
             : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
         params.hardware_encoder = "nvenc";
         // Phase 9 CLI/IPC parity: mirror the RenderingGen CLI adapter
-        // (render_args.go). A GPU-requested authored composition with no
-        // source video cannot feed the native NVENC surface path; it must use
-        // the pipe encoder with automatic hot-path selection, exactly like
-        // the CLI subprocess route does.
+        // (render_args.go). An authored composition, including an
+        // image/text-only composition with no source video, uses the native
+        // FullGraph surface path. DirectYUV is only for video-only plans.
         const bool authored_composition =
             requirements.composition_required && !requirements.video_source_required;
         if (authored_composition) {
-            params.encoder_backend = "pipe";
-            params.gpu_hot_path_mode = "auto";
+			params.encoder_backend = "native";
+			params.gpu_hot_path_mode = "require_gpu_native";
         } else {
             params.encoder_backend = "native";
             params.gpu_hot_path_mode = requirements.composition_required

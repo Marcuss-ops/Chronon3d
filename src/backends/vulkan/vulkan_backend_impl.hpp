@@ -82,6 +82,9 @@ struct VulkanBackend::Impl {
             runtime::TextAtlasEncoding::PremultipliedRGBA};
         bool initialized{false};
         bool exportable{false};
+        bool cuda_timeline{false};
+        std::uint64_t cuda_to_vulkan_value{0};
+        std::uint64_t vulkan_to_cuda_value{0};
         VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};
         VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
     };
@@ -215,6 +218,7 @@ struct VulkanBackend::Impl {
     std::vector<VkSemaphore> submit_wait_semaphores_;
     std::vector<VkPipelineStageFlags> submit_wait_stages_;
     std::vector<VkSemaphore> submit_signal_semaphores_;
+    std::vector<std::uint64_t> submit_wait_values_;
     std::vector<std::uint64_t> submit_signal_values_;
 
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
@@ -230,6 +234,7 @@ struct VulkanBackend::Impl {
                     VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT);
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     VkSemaphore make_external_binary_semaphore();
+    VkSemaphore make_external_timeline_semaphore();
     void create_cuda_external_surface(runtime::RenderSurfaceHandle handle,
                                       const runtime::SurfaceDesc& desc);
     [[nodiscard]] CudaExternalMemoryInfo export_cuda_external_memory(

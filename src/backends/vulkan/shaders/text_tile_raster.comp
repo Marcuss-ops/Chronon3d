@@ -31,8 +31,16 @@ struct GpuTextRunDynamic {
     float sy;
     float opacity;
     uint color;
-    float pad0;
-    float pad1;
+    uint visible_glyph_count;
+    uint flags;
+    uint stroke_color;
+    uint shadow_color;
+    uint effect_flags;
+    uint distance_range_bits;
+    float stroke_width;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
 };
 
 layout(std430, set = 0, binding = 2) readonly buffer GlyphBuffer {
@@ -126,6 +134,8 @@ void main() {
         uint gid = s_glyph_indices[i];
         GpuGlyphStatic glyph = glyphs[gid];
         GpuTextRunDynamic run = runs[glyph.run_index];
+        if (run.visible_glyph_count != 0xFFFFFFFFu &&
+            glyph.pad0 >= run.visible_glyph_count) continue;
 
         uint atlas_x = glyph.atlas_pos & 0xFFFFu;
         uint atlas_y = (glyph.atlas_pos >> 16u) & 0xFFFFu;
@@ -137,8 +147,9 @@ void main() {
         bool mtsdf = (flags & 1u) != 0u;
         bool inside = false;
         ivec2 sample_offset = ivec2(0);
+        vec2 glyph_uv = vec2(0.0);
 
-        if (mtsdf) {
+        if (mtsdf || (run.flags & 1u) != 0u) {
             float plane_w = glyph.plane_right - glyph.plane_left;
             float plane_h = glyph.plane_bottom - glyph.plane_top;
             if (plane_w <= 0.0 || plane_h <= 0.0) continue;
@@ -148,13 +159,14 @@ void main() {
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
                      local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;
             if (inside) {
-                vec2 uv = (local - vec2(glyph.plane_left, glyph.plane_top)) /
-                          vec2(plane_w, plane_h);
-                sample_offset = ivec2(floor(uv * vec2(float(atlas_w), float(atlas_h))));
+                glyph_uv = (local - vec2(glyph.plane_left, glyph.plane_top)) /
+                           vec2(plane_w, plane_h);
+                sample_offset = ivec2(floor(glyph_uv *
+                                             vec2(float(atlas_w), float(atlas_h))));
             }
         } else {
-            // Exact bitmap/coverage placement used by the retired text_batch
-            // kernel: rounded run origin and atlas-size-based scaling.
+            // Legacy bitmap-origin placement retained for compatibility
+            // callers; prepared runs opt into plane placement above.
             if (run.sx <= 0.0 || run.sy <= 0.0) continue;
             vec2 local = vec2(pixel_coord) - vec2(round(run.tx), round(run.ty));
             vec2 scaled_size = ceil(vec2(atlas_w, atlas_h) * vec2(run.sx, run.sy));
@@ -174,11 +186,46 @@ void main() {
         vec4 src;
         if (mtsdf) {
             float msd = median3(sample_value.r, sample_value.g, sample_value.b);
-            float sd = msd - 0.5;
+            float distance_range = uintBitsToFloat(run.distance_range_bits);
+            if (!(distance_range > 0.0)) distance_range = 8.0;
             float screen_scale = 0.5 * (abs(run.sx) + abs(run.sy));
-            float screen_px_range = max(1.0, 8.0 * screen_scale);
-            float alpha = clamp(sd * screen_px_range + 0.5, 0.0, 1.0);
-            src = vec4(alpha);
+            float fill_alpha = clamp((msd - 0.5) * distance_range * screen_scale +
+                                     0.5, 0.0, 1.0);
+            src = vec4(0.0);
+            if ((run.effect_flags & 2u) != 0u ||
+                (run.effect_flags & 4u) != 0u) {
+                vec2 shadow_uv = glyph_uv -
+                    vec2(run.shadow_dx / (glyph.plane_right - glyph.plane_left),
+                         run.shadow_dy / (glyph.plane_bottom - glyph.plane_top));
+                if (all(greaterThanEqual(shadow_uv, vec2(0.0))) &&
+                    all(lessThan(shadow_uv, vec2(1.0)))) {
+                    ivec2 shadow_offset = ivec2(floor(
+                        shadow_uv * vec2(float(atlas_w), float(atlas_h))));
+                    shadow_offset = clamp(shadow_offset, ivec2(0),
+                                          ivec2(int(atlas_w) - 1,
+                                               int(atlas_h) - 1));
+                    vec4 shadow_sample = imageLoad(
+                        atlas_image, ivec2(int(atlas_x), int(atlas_y)) + shadow_offset);
+                    float shadow_distance = (shadow_sample.a - 0.5) * distance_range;
+                    // Analytic soft shadow: the distance field is already
+                    // signed, so blur controls the transition width. Adding
+                    // blur to the distance made every outside sample fully
+                    // opaque and produced rectangular glyph boxes.
+                    float shadow_alpha = clamp(
+                        0.5 + shadow_distance /
+                            max(run.shadow_blur, 1.0), 0.0, 1.0);
+                    src = unpack_color(run.shadow_color) * shadow_alpha;
+                }
+            }
+            if ((run.effect_flags & 1u) != 0u) {
+                float stroke_alpha = clamp(
+                    ((sample_value.a - 0.5) * distance_range + run.stroke_width) *
+                    screen_scale + 0.5, 0.0, 1.0);
+                vec4 stroke = unpack_color(run.stroke_color) * stroke_alpha;
+                src = stroke + src * (1.0 - stroke.a);
+            }
+            vec4 fill = unpack_color(run.color) * fill_alpha;
+            src = fill + src * (1.0 - fill.a);
         } else {
             src = sample_value;
         }

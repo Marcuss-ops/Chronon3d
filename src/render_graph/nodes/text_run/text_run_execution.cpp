@@ -189,12 +189,19 @@ graph::RenderOpResult render_text_run_item(
     const TextRunPlacement& placement,
     float opacity
 ) {
-    // A6 immutability: evaluate into worker-owned frame scratch rather than
-    // copying the complete TextRunShape (materials, shadows, animator and
-    // document ownership) for every item.
+    // A6 immutability: dynamic text is evaluated into worker-owned frame
+    // scratch. A fully static run is already compiled and immutable, so it
+    // bypasses the adapter entirely; this removes the per-frame shape copy,
+    // glyph reset and driver call from the common typewriter/export path.
     static thread_local TextRunFrameState frame;
-    prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame);
-    auto& local_shape = frame.render_shape;
+    const TextRunShape* render_shape = &source_shape;
+    if ((!source_shape.animators.empty() &&
+         !can_lower_gpu_text_animation(source_shape)) ||
+        source_shape.animated_doc) {
+        prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame);
+        render_shape = &frame.render_shape;
+    }
+    const auto& local_shape = *render_shape;
 
     // ── Per-frame fail-closed invariants ──────────────────────────────
     // An internally inconsistent shape (missing layout, or per-glyph
