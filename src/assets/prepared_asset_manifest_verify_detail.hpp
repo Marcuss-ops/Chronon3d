@@ -38,7 +38,12 @@ Result<bool, AssetPreflightError> verify_asset_manifest(
             return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                          asset.logical_path,
                          "asset is no longer a regular file");
-        if (!known_extension_matches(asset.kind, lower_extension(canonical)))
+        // Keep the type decision tied to the immutable logical path. The
+        // canonical target may be a content-addressed cache file without an
+        // extension; integrity is independently guaranteed by confinement,
+        // size/timestamp and digest verification below.
+        if (!known_extension_matches(asset.kind, lower_extension(
+                                         std::filesystem::path(asset.logical_path))))
             return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                          asset.logical_path,
                          "asset extension changed after asset preflight");

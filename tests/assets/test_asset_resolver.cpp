@@ -323,6 +323,28 @@ TEST_CASE("PreparedAssetManifest hashes font references as Font assets") {
     CHECK(asset.content_digest == chronon3d::assets::sha256_string("font-bytes"));
 }
 
+TEST_CASE("PreparedAssetManifest accepts content-addressed font targets") {
+    write_file(g_temp.path, "cache/983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+               "font-bytes");
+    const auto logical = g_temp.path / "fonts/custom.ttf";
+    std::filesystem::create_directories(logical.parent_path());
+    std::error_code symlink_ec;
+    std::filesystem::create_symlink(
+        "../cache/983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+        logical, symlink_ec);
+    REQUIRE_FALSE(symlink_ec);
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(g_temp.path);
+    auto result = chronon3d::assets::prepare_asset_manifest(
+        text_plan("fonts/custom.ttf"), resolver);
+    REQUIRE(result);
+    CHECK(only_asset(result.value()).kind ==
+          chronon3d::assets::PreparedAssetKind::Font);
+    CHECK(chronon3d::assets::verify_asset_manifest(
+              result.value(), resolver));
+}
+
 TEST_CASE("PreparedAssetManifest rejects invalid logical paths") {
     chronon3d::assets::AssetResolver resolver;
     resolver.mount(g_temp.path);

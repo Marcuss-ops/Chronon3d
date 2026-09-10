@@ -143,7 +143,9 @@ private:
         void start_prefetch_worker(NativeVideoFrameDecoder* decoder);
     };
 
-    std::mutex m_mutex;
+    /// AUDIT-08B: mutable so const readers (decode_profiling_stats) can take
+    /// the session-map lock without const_cast.
+    mutable std::mutex m_mutex;
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
     std::shared_ptr<VideoDeviceRuntime> m_video_runtime;

@@ -132,12 +132,25 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     static std::mutex s_module_mutex;
     static std::unordered_map<CUcontext, std::shared_ptr<SharedCudaNv12Module>> s_modules;
 
-    std::lock_guard lock(s_module_mutex);
-    auto it = s_modules.find(context);
-    if (it != s_modules.end() && it->second) {
-        return it->second;
+    // AUDIT-03: the module cache is double-checked. On the warm path (every
+    // compositor construction after the first) the shared_ptr is returned
+    // without ever taking s_module_mutex, so concurrent compositor
+    // construction on different threads no longer serializes.
+    {
+        // Map reads are guarded; std::unordered_map::find needs the lock.
+        std::lock_guard lock(s_module_mutex);
+        auto it = s_modules.find(context);
+        if (it != s_modules.end() && it->second) {
+            return it->second;
+        }
     }
 
+    // AUDIT-03: NVRTC compilation and cuModuleLoadData run OUTSIDE the
+    // module-cache mutex. get_compiled_nv12_ptx() is a function-local
+    // constant (thread-safe one-time init); the module load is keyed to the
+    // caller's context and the mutex is only re-taken to publish the result.
+    // Threads racing on the same context redundantly load the module and the
+    // first publisher wins — correct, and only on the cold path.
     check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent");
     const auto& ptx = get_compiled_nv12_ptx();
     auto shared = std::make_shared<SharedCudaNv12Module>();
@@ -175,7 +188,17 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
                                    "rgba_u8_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_u8_surface_to_nv12_2x2)");
 
-    s_modules[context] = shared;
+    // AUDIT-03: publish under the lock (short critical section, no CUDA API
+    // inside). Another thread may have published its own load first; its
+    // entry wins and ours is discarded (module unloaded via refcount).
+    {
+        std::lock_guard lock(s_module_mutex);
+        auto it = s_modules.find(context);
+        if (it != s_modules.end() && it->second) {
+            return it->second;
+        }
+        s_modules[context] = shared;
+    }
     return shared;
 }
 
@@ -230,7 +253,11 @@ CudaNv12Compositor::~CudaNv12Compositor() {
     if (context_) (void)cuCtxSetCurrent(context_);
     if (stream_) (void)cuStreamSynchronize(stream_);
     bridge_.reset();
-    if (layer_batch_buffer_) (void)cuMemFree(layer_batch_buffer_);
+    for (int slot = 0; slot < kLayerBatchSlots; ++slot) {
+        if (layer_batch_buffer_[slot]) (void)cuMemFree(layer_batch_buffer_[slot]);
+        if (layer_batch_host_[slot])
+            (void)cuMemFreeHost(reinterpret_cast<void*>(layer_batch_host_[slot]));
+    }
     // module_ is shared and owned by SharedCudaNv12Module
     if (stream_) (void)cuStreamDestroy(stream_);
 }

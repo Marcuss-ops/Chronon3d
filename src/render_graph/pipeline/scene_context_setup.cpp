@@ -75,6 +75,16 @@ SoftwareRenderer* setup_render_graph_context(
                 std::make_shared<const graph::FrameStaticContext>(
                     graph::FrameStaticContext{root.string()});
         }
+    } else if (ctx.runtime && !ctx.asset_resolver) {
+        ctx.asset_resolver = &ctx.runtime->resolver();
+        if (!ctx.frame_input.static_context) {
+            if (const auto root = ctx.runtime->resolver().mount_root();
+                !root.empty()) {
+                ctx.frame_input.static_context =
+                    std::make_shared<const graph::FrameStaticContext>(
+                        graph::FrameStaticContext{root.string()});
+            }
+        }
     }
 
     ctx.frame_input.light_context = scene.light_context();

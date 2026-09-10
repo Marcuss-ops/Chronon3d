@@ -24,8 +24,31 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     if (!direct_nv12_batch_kernel_ || !bg_y || !bg_uv || !out_y || !out_uv ||
         width == 0 || height == 0 || batch.instances.empty()) return false;
 
-    std::vector<DirectYuvLayerHost> host_layers;
-    host_layers.reserve(batch.instances.size());
+    // AUDIT-02A: the pinned host staging buffer is allocated once per slot
+    // and grown by power-of-two steps; no std::vector allocation per frame.
+    // AUDIT-02B: slot index ping-pongs every call, so consecutive calls never
+    // overwrite the same device slot while a previous stream still owns it.
+    const int slot = layer_batch_slot_;
+    layer_batch_slot_ = (slot + 1) % kLayerBatchSlots;
+    const std::size_t required_bytes = batch.instances.size() * sizeof(DirectYuvLayerHost);
+    std::size_t capacity = layer_batch_capacity_[slot];
+    if (capacity < required_bytes) {
+        std::size_t next = capacity ? capacity : sizeof(DirectYuvLayerHost) * 8;
+        while (next < required_bytes) next *= 2;
+        if (layer_batch_host_[slot])
+            check_cuda(cuMemFreeHost(reinterpret_cast<void*>(layer_batch_host_[slot])),
+                       "cuMemFreeHost(layer batch host)");
+        // cuMemAllocHost hands back a host void*; store it as CUdeviceptr.
+        void* host_ptr = nullptr;
+        check_cuda(cuMemAllocHost(&host_ptr, next),
+                   "cuMemAllocHost(layer batch host)");
+        layer_batch_host_[slot] = reinterpret_cast<CUdeviceptr>(host_ptr);
+        layer_batch_capacity_[slot] = next;
+        capacity = next;
+    }
+
+    auto* host_layers = reinterpret_cast<DirectYuvLayerHost*>(layer_batch_host_[slot]);
+    std::size_t layer_count_host = 0;
     for (const auto& instance : batch.instances) {
         if (instance.resource_index >= resources.size()) return false;
         const auto& resource = resources[instance.resource_index];
@@ -34,7 +57,7 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
         if (instance.blend != BlendMode::Normal && instance.blend != BlendMode::Add) {
             return false;
         }
-        DirectYuvLayerHost layer;
+        DirectYuvLayerHost& layer = host_layers[layer_count_host++];
         layer.rgba = resource.rgba;
         layer.pitch = resource.pitch_bytes;
         layer.source_width = static_cast<int>(resource.width);
@@ -58,23 +81,26 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
             ? 1.0f : instance.src_y1;
         layer.opacity = instance.opacity;
         layer.blend_mode = instance.blend == BlendMode::Add ? 1 : 0;
-        host_layers.push_back(layer);
     }
 
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     const CUstream active = stream ? stream : stream_;
-    const std::size_t bytes = host_layers.size() * sizeof(DirectYuvLayerHost);
-    if (layer_batch_capacity_ < bytes) {
-        if (layer_batch_buffer_) check_cuda(cuMemFree(layer_batch_buffer_), "cuMemFree(layer batch)");
-        check_cuda(cuMemAlloc(&layer_batch_buffer_, bytes), "cuMemAlloc(layer batch)");
-        layer_batch_capacity_ = bytes;
+    const std::size_t bytes = layer_count_host * sizeof(DirectYuvLayerHost);
+    if (layer_batch_buffer_[slot] && layer_batch_capacity_dev_[slot] < bytes) {
+        check_cuda(cuMemFree(layer_batch_buffer_[slot]), "cuMemFree(layer batch)");
+        layer_batch_buffer_[slot] = 0;
+    }
+    if (!layer_batch_buffer_[slot]) {
+        std::size_t dev_bytes = bytes ? bytes : sizeof(DirectYuvLayerHost) * 8;
+        check_cuda(cuMemAlloc(&layer_batch_buffer_[slot], dev_bytes), "cuMemAlloc(layer batch)");
+        layer_batch_capacity_dev_[slot] = dev_bytes;
     }
     const auto started = std::chrono::steady_clock::now();
     check_cuda(cuMemcpyHtoDAsync(
-                   layer_batch_buffer_, host_layers.data(), bytes, active),
+                   layer_batch_buffer_[slot], host_layers, bytes, active),
                "cuMemcpyHtoDAsync(layer batch)");
-    CUdeviceptr layers = layer_batch_buffer_;
-    int layer_count = static_cast<int>(host_layers.size());
+    CUdeviceptr layers = layer_batch_buffer_[slot];
+    int layer_count = static_cast<int>(layer_count_host);
     void* args[] = {&bg_y, &bg_yp, &bg_uv, &bg_uvp, &out_y, &out_yp,
                     &out_uv, &out_uvp, &layers, &layer_count, &width, &height};
     check_cuda(cuLaunchKernel(

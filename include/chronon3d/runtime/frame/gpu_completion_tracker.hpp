@@ -22,6 +22,7 @@ public:
     void retire(FrameSlotId slot_id, std::shared_ptr<GpuCompletion> completion) noexcept;
     [[nodiscard]] bool has_completion(FrameSlotId slot_id) const noexcept;
     [[nodiscard]] bool completion_ready(FrameSlotId slot_id) const noexcept;
+    void wait_completion(FrameSlotId slot_id) noexcept;
     void recycle(FrameSlotId slot_id) noexcept;
     void reset() noexcept;
 

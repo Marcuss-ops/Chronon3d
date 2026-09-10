@@ -24,6 +24,7 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
 // WP-8 PR 8.1 — the renderer-local FontEngine is constructed from
 // `m_runtime->resolver()` in `software_renderer_factory.cpp`.  This TU
@@ -129,8 +130,72 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
             ++summary.preflight_attempted;
             const FontFaceHandle fh =
                 trr->resolve_handle(key.first, key.second, resolver);
-            if (fh.valid()) ++summary.preflight_succeeded;
-            else            ++summary.preflight_missing;
+            if (fh.valid()) {
+                ++summary.preflight_succeeded;
+                if (fh.bl_face) {
+                    BLFont font;
+                    if (font.createFromFace(*fh.bl_face, key.second) == BL_SUCCESS) {
+                        for (const auto& pg : h.value->layout->placed.glyphs) {
+                            if (pg.glyph_id == 0) continue;
+                            const u32 fs = static_cast<u32>(std::max(1.0f, std::round(key.second)));
+                            if (trr->lookup_glyph_atlas(key.first, pg.glyph_id, fs)) continue;
+
+                            BLBoxI bounds{};
+                            u32 gid = pg.glyph_id;
+                            if (font.getGlyphBounds(&gid, intptr_t{0}, &bounds, 1) != BL_SUCCESS) continue;
+                            constexpr double kGlyphUnit = 1.0 / 64.0;
+                            const double bx0 = static_cast<double>(bounds.x0) * kGlyphUnit;
+                            const double by0 = static_cast<double>(bounds.y0) * kGlyphUnit;
+                            const double bx1 = static_cast<double>(bounds.x1) * kGlyphUnit;
+                            const double by1 = static_cast<double>(bounds.y1) * kGlyphUnit;
+                            const int x0 = static_cast<int>(std::floor(bx0));
+                            const int y0 = static_cast<int>(std::floor(by0));
+                            const int width = static_cast<int>(std::ceil(bx1)) - x0;
+                            const int height = static_cast<int>(std::ceil(by1)) - y0;
+                            if (width <= 0 || height <= 0) continue;
+
+                            auto image = std::make_shared<BLImage>(width, height, BL_FORMAT_PRGB32);
+                            BLContext context(*image);
+                            context.setCompOp(BL_COMP_OP_SRC_COPY);
+                            context.setFillStyle(BLRgba32(0, 0, 0, 0));
+                            context.fillAll();
+                            context.setCompOp(BL_COMP_OP_SRC_OVER);
+                            const Color& fill = h.value->paint.fill;
+                            context.setFillStyle(BLRgba32(
+                                static_cast<std::uint32_t>(std::clamp(fill.r, 0.0f, 1.0f) * 255.0f),
+                                static_cast<std::uint32_t>(std::clamp(fill.g, 0.0f, 1.0f) * 255.0f),
+                                static_cast<std::uint32_t>(std::clamp(fill.b, 0.0f, 1.0f) * 255.0f),
+                                static_cast<std::uint32_t>(std::clamp(fill.a, 0.0f, 1.0f) * 255.0f)));
+                            BLGlyphPlacement placement{};
+                            placement.placement.reset(0.0, 0.0);
+                            placement.advance.reset(0.0, 0.0);
+                            BLGlyphRun run{};
+                            run.glyphData = &gid;
+                            run.glyphAdvance = static_cast<int8_t>(sizeof(gid));
+                            run.placementData = &placement;
+                            run.placementAdvance = static_cast<int8_t>(sizeof(placement));
+                            run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
+                            run.size = 1;
+                            context.fillGlyphRun(BLPoint(-x0, -y0), font, run);
+                            context.end();
+
+                            GlyphAtlasEntry entry;
+                            entry.image = std::move(image);
+                            entry.x_offset = x0;
+                            entry.y_offset = y0;
+                            entry.advance_x = pg.advance_x;
+                            entry.fill_color_rgba =
+                                (static_cast<std::uint32_t>(std::clamp(fill.r, 0.0f, 1.0f) * 255.0f) << 24u) |
+                                (static_cast<std::uint32_t>(std::clamp(fill.g, 0.0f, 1.0f) * 255.0f) << 16u) |
+                                (static_cast<std::uint32_t>(std::clamp(fill.b, 0.0f, 1.0f) * 255.0f) << 8u) |
+                                static_cast<std::uint32_t>(std::clamp(fill.a, 0.0f, 1.0f) * 255.0f);
+                            trr->store_glyph_atlas(key.first, gid, fs, entry);
+                        }
+                    }
+                }
+            } else {
+                ++summary.preflight_missing;
+            }
         }
     }
     return summary;

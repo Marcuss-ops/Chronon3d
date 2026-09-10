@@ -24,8 +24,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            ninja-build ccache pkg-config mono-complete \
-            ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+            ninja-build ccache pkg-config mono-complete ffmpeg
+        # libavcodec/libavformat/libavutil/libswscale are now declared as the
+        # vcpkg `native-ffmpeg` manifest feature (vcpkg.json); the ffmpeg CLI
+        # binary remains a system package for the integration contract.
 
       - uses: lukka/run-vcpkg@v11
         with:
@@ -39,7 +41,7 @@ jobs:
             -DCHRONON3D_ENABLE_TEXT=OFF \
             -DCHRONON3D_USE_BLEND2D=OFF \
             -DCHRONON3D_ENABLE_IPC=OFF \
-            -DVCPKG_MANIFEST_FEATURES='cli;tests'
+            -DVCPKG_MANIFEST_FEATURES='cli;native-ffmpeg;tests'
 
       - name: Build native sink certification target
         run: |
