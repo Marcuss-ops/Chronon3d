@@ -156,6 +156,16 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
+        // The CUDA conversion has signaled C2V. Register that handoff so
+        // the next Vulkan frame waits before rewriting this encode surface.
+        const auto cuda_ready = vulkan->prepare_cuda_surface_for_vulkan(destination);
+        if (!cuda_ready.ok()) {
+            spdlog::error("[native_av] failed to register CUDA-to-Vulkan surface handoff: {}",
+                          cuda_ready.error().message);
+            av_frame_unref(gpu_frame);
+            reusable_cuda_frames_.push_back(gpu_frame);
+            return false;
+        }
         if (counters_) {
             counters_->native_surface_yuv_frames.fetch_add(1, std::memory_order_relaxed);
             counters_->native_surface_yuv_bytes.fetch_add(

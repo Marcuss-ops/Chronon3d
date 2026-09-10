@@ -129,6 +129,10 @@ struct CudaExternalMemoryInfo {
     std::uint32_t height{0};
     // 1 = float4 (Chronon render surface), 2 = uchar4 (NVENC BGR0 surface).
     std::uint32_t cuda_array_format{1};
+    // True when the two exported opaque FDs refer to timeline semaphores.
+    // CUDA imports these with TIMELINE_SEMAPHORE_FD; false keeps the binary
+    // semaphore compatibility bridge.
+    bool timeline_semaphores{false};
 };
 #endif
 

@@ -1,5 +1,8 @@
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
 
+#include <spdlog/spdlog.h>
+
+#include <exception>
 #include <stdexcept>
 #include <utility>
 
@@ -52,7 +55,18 @@ void GpuCompletionTracker::wait_completion(FrameSlotId slot_id) noexcept {
     if (completion) {
         try {
             completion->wait();
-        } catch (...) {}
+        } catch (...) {
+            // The noexcept contract forces us to keep running, but a failed
+            // GPU completion wait means the slot's previous frame result is
+            // of unknown validity. recycle() will mark the slot Recyclable
+            // regardless, so this must at least be loud: a device-lost or
+            // interop-timeout failure must never be indistinguishable from
+            // an ordinary completion.
+            spdlog::error(
+                "[gpu-completion] wait for frame slot {} threw an unknown "
+                "exception; the slot's prior frame result is unverified",
+                slot_id);
+        }
     }
 }
 

@@ -122,6 +122,11 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
                               args, nullptr),
                "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
 
+    // The conversion only reads the imported Vulkan image. Return the
+    // ownership token so Vulkan cannot rewrite this ring surface while the
+    // asynchronous CUDA conversion is still using it.
+    bridge_->signal_for_vulkan(active);
+
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {
         // Zero-copy gate 4: every RGBA→NV12 kernel launch is an encoder

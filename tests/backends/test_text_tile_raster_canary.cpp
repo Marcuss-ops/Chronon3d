@@ -69,10 +69,18 @@ struct GpuTextRunDynamic {
     float sy;
     float opacity;
     std::uint32_t color;
-    float pad0;
-    float pad1;
+    std::uint32_t visible_glyph_count;
+    std::uint32_t flags;
+    std::uint32_t stroke_color;
+    std::uint32_t shadow_color;
+    std::uint32_t effect_flags;
+    std::uint32_t distance_range_bits;
+    float stroke_width;
+    float shadow_dx;
+    float shadow_dy;
+    float shadow_blur;
 };
-static_assert(sizeof(GpuTextRunDynamic) == 32);
+static_assert(sizeof(GpuTextRunDynamic) == 64);
 
 struct RasterPush {
     std::uint32_t tiles_x;

@@ -113,6 +113,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         const auto signal_value = ++next_timeline_value;
         std::vector<VkSemaphore> wait_semaphores;
         std::vector<VkPipelineStageFlags> wait_stages;
+        std::vector<std::uint64_t> wait_values;
         std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
         std::vector<std::uint64_t> signal_values{signal_value};
         static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
@@ -122,8 +123,11 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (it == surfaces.physical_surfaces.end()) continue;
             wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            wait_values.push_back(it->second.image.cuda_timeline
+                ? ++it->second.image.cuda_to_vulkan_value : 0);
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-            signal_values.push_back(0);
+            signal_values.push_back(it->second.image.cuda_timeline
+                ? ++it->second.image.vulkan_to_cuda_value : 0);
             if (s_trace) {
                 runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
                 for (const auto& [h, s] : surfaces.surface_bindings) {
@@ -145,7 +149,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             const auto it = surfaces.physical_surfaces.find(physical_slot);
             if (it == surfaces.physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-            signal_values.push_back(0);
+            signal_values.push_back(it->second.image.cuda_timeline
+                ? ++it->second.image.vulkan_to_cuda_value : 0);
             if (s_trace) {
                 runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
                 for (const auto& [h, s] : surfaces.surface_bindings) {
@@ -159,7 +164,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
             VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO, nullptr,
-            0, nullptr, static_cast<std::uint32_t>(signal_values.size()),
+            static_cast<std::uint32_t>(wait_values.size()), wait_values.data(),
+            static_cast<std::uint32_t>(signal_values.size()),
             signal_values.data()};
         const VkSubmitInfo submit_info{
             VK_STRUCTURE_TYPE_SUBMIT_INFO, &timeline_submit,
@@ -172,13 +178,24 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         CHRONON_TRACE_SCOPE("chronon.gpu", "VulkanSubmit");
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         const bool has_cuda_export = !surfaces.cuda_export_ready_surfaces.empty();
+        bool timeline_cuda_export = has_cuda_export;
+        if (has_cuda_export) {
+            for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
+                const auto it = surfaces.physical_surfaces.find(physical_slot);
+                if (it == surfaces.physical_surfaces.end() ||
+                    !it->second.image.cuda_timeline) {
+                    timeline_cuda_export = false;
+                    break;
+                }
+            }
+        }
 #endif
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        if (has_cuda_export) {
+        if (has_cuda_export && !timeline_cuda_export) {
             const auto fence_wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &frame_batch.fences[slot], VK_TRUE, UINT64_MAX),
                   "vkWaitForFences(cuda export slot)");

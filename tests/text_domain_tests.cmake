@@ -17,6 +17,14 @@ if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
     )
+
+    chronon3d_add_test_suite(
+        NAME chronon3d_mtsdf_generator_tests
+        TIER UNIT
+        SOURCES text/test_mtsdf_generator.cpp
+        EXTRA_LINK_TARGETS chronon3d_backend_text
+        LABELS text-mtsdf
+    )
 endif()
 
 if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT)

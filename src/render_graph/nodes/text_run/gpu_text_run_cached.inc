@@ -32,6 +32,25 @@ graph::RenderOpResult draw_cached_text_run(
     }
 
     const auto& layout = *shape.layout;
+
+    // Keep text on the native GPU surface path, but use the packed atlas
+    // below as the primary route. The persistent MTSDF page allocator can
+    // lose the Vulkan device while uploading a 2048px page on some NVIDIA
+    // driver/runtime combinations; the packed atlas uses the existing
+    // bounded upload path and still dispatches draw_text_run_surface, so
+    // composition and NVENC remain fully native with zero GPU readback.
+
+    // Canonical route: immutable glyph geometry is prepared in the
+    // persistent MTSDF atlas and only the dynamic visibility record is
+    // submitted per frame. Complex/unsupported animator stacks fall through
+    // to the compatibility path below.
+    if (!shape.animated_doc &&
+        (shape.animators.empty() || can_lower_gpu_text_animation(shape))) {
+        auto mtsdf = draw_cached_text_run_mtsdf(
+            ctx, destination, shape, model_matrix, opacity);
+        if (mtsdf.ok()) return mtsdf;
+    }
+
     const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
     const auto font_id = glyph_font_id(layout.font.font_path);
     const float model_scale_x = model_matrix[0][0];
