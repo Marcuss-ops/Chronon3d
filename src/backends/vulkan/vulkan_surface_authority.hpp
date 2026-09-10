@@ -49,7 +49,8 @@ public:
         const auto binding = surface_bindings.find(handle);
         if (binding == surface_bindings.end()) return false;
         const auto surface = physical_surfaces.find(binding->second);
-        return surface != physical_surfaces.end() && surface->second.image.initialized;
+        return surface != physical_surfaces.end() &&
+               surface->second.image.image != VK_NULL_HANDLE;
     }
 
     [[nodiscard]] std::size_t physical_count() const noexcept {

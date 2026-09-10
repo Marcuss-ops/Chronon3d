@@ -64,6 +64,9 @@ public:
     bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override;
     bool write_frame(const Framebuffer& fb);
     bool write_direct_yuv(const media::video::DirectYuvFrame& frame) override;
+    bool prepare_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) override;
     bool write_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,

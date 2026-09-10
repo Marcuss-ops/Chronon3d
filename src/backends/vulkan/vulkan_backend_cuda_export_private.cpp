@@ -115,6 +115,13 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
                         fmt == VK_FORMAT_B8G8R8A8_SRGB ||
                         fmt == VK_FORMAT_A8B8G8R8_UNORM_PACK32 ||
                         fmt == VK_FORMAT_A8B8G8R8_SRGB_PACK32);
+    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+    if (s_trace) {
+        spdlog::info("[interop-trace] EXPORT handle={} slot={} image={} V2C_sem={} (fd={}) C2V_sem={} (fd={})",
+                     handle, binding->second, static_cast<void*>(image.image),
+                     static_cast<void*>(image.vulkan_to_cuda), vulkan_to_cuda_fd,
+                     static_cast<void*>(image.cuda_to_vulkan), cuda_to_vulkan_fd);
+    }
     return CudaExternalMemoryInfo{
         fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
         image_it->second.image.width, image_it->second.image.height,

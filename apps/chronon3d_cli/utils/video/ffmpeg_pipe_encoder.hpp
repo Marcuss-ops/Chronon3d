@@ -46,6 +46,12 @@ struct IVideoEncoder {
         (void)frame;
         return false;
     }
+    virtual bool prepare_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle destination) {
+        (void)backend; (void)destination;
+        return true;
+    }
     virtual bool write_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,

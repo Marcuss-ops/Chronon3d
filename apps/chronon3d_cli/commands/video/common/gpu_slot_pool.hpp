@@ -126,14 +126,18 @@ public:
     /// so a closing job never destroys surfaces the encoder still references.
     void drain() {
         std::unique_lock lock(mutex_);
+        spdlog::info("[drain-debug] start drain, capacity={}", slots_.capacity());
         for (FrameSlotId slot_id = 0; slot_id < slots_.capacity(); ++slot_id) {
             if (gpu_completions_.has_completion(slot_id)) {
+                spdlog::info("[drain-debug] slot_id={} has completion, waiting", slot_id);
                 lock.unlock();
                 gpu_completions_.wait_completion(slot_id);
                 lock.lock();
+                spdlog::info("[drain-debug] slot_id={} wait complete", slot_id);
             }
         }
         reap_ready_locked();
+        spdlog::info("[drain-debug] reap done, busy_count={}", slots_.busy_count());
         int loop_count = 0;
         while (slots_.busy_count() > 0) {
             reap_ready_locked();
