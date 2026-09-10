@@ -326,6 +326,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
     if (counters) {
         auto* c = counters;
+        timings.text.prepare_per_frame_ms = static_cast<double>(
+            c->text_prepare_per_frame_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.image_draw_ms = static_cast<double>(
             c->image_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.image_draw_count = c->image_draw_count.load(std::memory_order_relaxed);
@@ -354,6 +356,20 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.text.atlas_upload_bytes = c->gpu_text_atlas_upload_bytes.load(std::memory_order_relaxed);
         timings.text.instance_upload_count = c->gpu_text_instance_upload_count.load(std::memory_order_relaxed);
         timings.text.instance_upload_bytes = c->gpu_text_instance_upload_bytes.load(std::memory_order_relaxed);
+        timings.text.styled_glyph_build_ms = static_cast<double>(
+            c->gpu_text_styled_glyph_build_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_pack_ms = static_cast<double>(
+            c->gpu_text_atlas_pack_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_pixel_copy_ms = static_cast<double>(
+            c->gpu_text_atlas_pixel_copy_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_sha256_ms = static_cast<double>(
+            c->gpu_text_atlas_sha256_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_cache_acquire_ms = static_cast<double>(
+            c->gpu_text_atlas_cache_acquire_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.gpu.vulkan_cuda_export_fence_wait_count =
+            c->vulkan_cuda_export_fence_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.vulkan_cuda_export_fence_wait_us =
+            c->vulkan_cuda_export_fence_wait_us.load(std::memory_order_relaxed);
         timings.cache.node_lookup_ms = static_cast<double>(
             c->node_cache_lookup_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.cache.node_cache_hits = c->node_cache_hits.load(std::memory_order_relaxed);

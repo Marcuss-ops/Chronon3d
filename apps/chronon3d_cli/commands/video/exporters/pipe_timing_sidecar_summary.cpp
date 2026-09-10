@@ -215,6 +215,8 @@ void build_summary_and_job_sections(
     put_gpu_u64("frame_batch_drain_wait_us", timings.gpu.frame_batch_drain_wait_us);
     put_gpu_u64("frame_slot_wait_count", timings.gpu.frame_slot_wait_count);
     put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
+    put_gpu_u64("vulkan_cuda_export_fence_wait_count", timings.gpu.vulkan_cuda_export_fence_wait_count);
+    put_gpu_u64("vulkan_cuda_export_fence_wait_us", timings.gpu.vulkan_cuda_export_fence_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
     put_gpu_u64("cuda_host_upload_bytes", timings.gpu.cuda_host_upload_bytes);
@@ -360,6 +362,7 @@ void build_summary_and_job_sections(
     const auto put_text = [&text](const char* key, const std::optional<double>& value) {
         if (value) text[key] = *value; else text[key] = nullptr;
     };
+    put_text("prepare_per_frame_ms", timings.text.prepare_per_frame_ms);
     put_text("font_resolve_ms", timings.text.font_resolve_ms);
     put_text("shaping_ms", timings.text.shaping_ms);
     put_text("bidi_ms", timings.text.bidi_ms);
@@ -368,6 +371,11 @@ void build_summary_and_job_sections(
     put_text("raster_ms", timings.text.raster_ms);
     put_text("atlas_upload_ms", timings.text.atlas_upload_ms);
     put_text("draw_ms", timings.text.draw_ms);
+    put_text("styled_glyph_build_ms", timings.text.styled_glyph_build_ms);
+    put_text("atlas_pack_ms", timings.text.atlas_pack_ms);
+    put_text("atlas_pixel_copy_ms", timings.text.atlas_pixel_copy_ms);
+    put_text("atlas_sha256_ms", timings.text.atlas_sha256_ms);
+    put_text("atlas_cache_acquire_ms", timings.text.atlas_cache_acquire_ms);
     const auto put_text_u64 = [&text](const char* key, const std::optional<uint64_t>& value) {
         if (value) text[key] = *value; else text[key] = nullptr;
     };

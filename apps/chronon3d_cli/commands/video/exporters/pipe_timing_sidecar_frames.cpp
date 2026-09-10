@@ -91,13 +91,19 @@ nlohmann::json build_image_section(const FrameTelemetry& f) {
 nlohmann::json build_text_section(const FrameTelemetry& f) {
     return nlohmann::json{
         {"font_resolve_ms", nullptr},
+        {"prepare_per_frame_ms", f.text_timing.prepare_per_frame_ms},
         {"shaping_ms", f.text_timing.shaping_ms},
         {"bidi_ms", f.text_timing.bidi_ms},
         {"layout_ms", f.text_timing.layout_ms},
         {"glyph_cache_lookup_ms", f.text_timing.glyph_cache_lookup_ms},
         {"raster_ms", f.text_timing.raster_ms},
         {"atlas_upload_ms", f.text_timing.atlas_upload_ms},
-        {"draw_ms", f.text_timing.draw_ms}
+        {"draw_ms", f.text_timing.draw_ms},
+        {"styled_glyph_build_ms", f.text_timing.styled_glyph_build_ms},
+        {"atlas_pack_ms", f.text_timing.atlas_pack_ms},
+        {"atlas_pixel_copy_ms", f.text_timing.atlas_pixel_copy_ms},
+        {"atlas_sha256_ms", f.text_timing.atlas_sha256_ms},
+        {"atlas_cache_acquire_ms", f.text_timing.atlas_cache_acquire_ms}
     };
 }
 

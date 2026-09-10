@@ -156,6 +156,7 @@ graph::RenderOpResult draw_cached_text_run(
             counter.fetch_add(1, std::memory_order_relaxed);
         }
         if (!styled) {
+            const auto styled_build_start = profiling::now();
             // SOLO generazione bitmap/cache miss
             if (output_width <= 0 || output_height <= 0) {
                 return graph::RenderOpResult(graph::RenderBackendError{
@@ -256,6 +257,11 @@ graph::RenderOpResult draw_cached_text_run(
                 runtime::GpuStyledGlyphCache::StyledGlyphBitmap{
                     static_cast<std::uint32_t>(output_width),
                     static_cast<std::uint32_t>(output_height), std::move(pixels)});
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->gpu_text_styled_glyph_build_wall_us.fetch_add(
+                    static_cast<std::uint64_t>(profiling::elapsed_us(styled_build_start)),
+                    std::memory_order_relaxed);
+            }
         }
 
         // ===========================================
