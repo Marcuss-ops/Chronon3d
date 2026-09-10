@@ -63,6 +63,8 @@ public:
     [[nodiscard]] double scene_eval_ms() const noexcept { return scene_eval_ms_; }
     [[nodiscard]] double watermark_load_ms() const noexcept { return watermark_load_ms_; }
     [[nodiscard]] double watermark_upload_ms() const noexcept { return watermark_upload_ms_; }
+    [[nodiscard]] std::uint64_t template_eval_count() const noexcept { return template_eval_count_; }
+    [[nodiscard]] std::uint64_t template_reuse_count() const noexcept { return template_reuse_count_; }
 
 private:
     DirectYuvProgram() = default;
@@ -77,6 +79,16 @@ private:
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
     mutable ::chronon3d::media::HwFrameRef last_decoded_{};
+
+    bool all_overlay_layers_static_{false};
+    struct CachedCueTemplate {
+        Frame valid_from{-1};
+        Frame valid_until{-1};
+        std::shared_ptr<const DirectYuvTemplate> template_frame;
+    };
+    mutable CachedCueTemplate cached_template_{};
+    mutable std::uint64_t template_eval_count_{0};
+    mutable std::uint64_t template_reuse_count_{0};
 };
 
 } // namespace chronon3d::media::video

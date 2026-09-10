@@ -219,7 +219,7 @@ NodeExecResult SourceNode::execute(
             // can select its native shape path instead of seeing a CPU-only
             // framebuffer and reporting a misleading unsupported capability.
             if (ctx.backend->supports_native_surfaces() &&
-                ctx.surface_registry && !ensure_native_surface(ctx, *fb, "SourceNode.image.fallback")) {
+                ctx.surface_registry && !ensure_empty_native_surface(ctx, *fb)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
                     m_name,
