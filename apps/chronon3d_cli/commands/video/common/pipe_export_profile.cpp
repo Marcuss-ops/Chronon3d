@@ -12,7 +12,19 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
         return c.load(std::memory_order_relaxed);
     };
     s.timeline_eval_us = load(ctx.counters->timeline_eval_wall_us);
-    s.text_us = load(ctx.counters->text_layout_wall_ms) * 1000
+    s.text_prepare_per_frame_us = load(ctx.counters->text_prepare_per_frame_wall_us);
+    s.text_styled_glyph_build_us = load(ctx.counters->gpu_text_styled_glyph_build_wall_us);
+    s.text_atlas_pack_us = load(ctx.counters->gpu_text_atlas_pack_wall_us);
+    s.text_atlas_pixel_copy_us = load(ctx.counters->gpu_text_atlas_pixel_copy_wall_us);
+    s.text_atlas_sha256_us = load(ctx.counters->gpu_text_atlas_sha256_wall_us);
+    s.text_atlas_cache_acquire_us = load(ctx.counters->gpu_text_atlas_cache_acquire_wall_us);
+    s.text_us = s.text_prepare_per_frame_us
+              + s.text_styled_glyph_build_us
+              + s.text_atlas_pack_us
+              + s.text_atlas_pixel_copy_us
+              + s.text_atlas_sha256_us
+              + s.text_atlas_cache_acquire_us
+              + load(ctx.counters->text_layout_wall_ms) * 1000
               + load(ctx.counters->text_rasterization_wall_ms) * 1000
               + load(ctx.counters->text_shaping_wall_ms) * 1000
               + load(ctx.counters->text_bidi_wall_ms) * 1000
@@ -78,6 +90,18 @@ FrameTimingProjection project_frame_timings(
     p.text_timing.raster_ms = static_cast<double>(after.text_raster_ms - before.text_raster_ms);
     p.text_timing.atlas_upload_ms = static_cast<double>(after.text_atlas_upload_us - before.text_atlas_upload_us) / 1000.0;
     p.text_timing.draw_ms = static_cast<double>(after.text_draw_us - before.text_draw_us) / 1000.0;
+    p.text_timing.prepare_per_frame_ms = static_cast<double>(
+        after.text_prepare_per_frame_us - before.text_prepare_per_frame_us) / 1000.0;
+    p.text_timing.styled_glyph_build_ms = static_cast<double>(
+        after.text_styled_glyph_build_us - before.text_styled_glyph_build_us) / 1000.0;
+    p.text_timing.atlas_pack_ms = static_cast<double>(
+        after.text_atlas_pack_us - before.text_atlas_pack_us) / 1000.0;
+    p.text_timing.atlas_pixel_copy_ms = static_cast<double>(
+        after.text_atlas_pixel_copy_us - before.text_atlas_pixel_copy_us) / 1000.0;
+    p.text_timing.atlas_sha256_ms = static_cast<double>(
+        after.text_atlas_sha256_us - before.text_atlas_sha256_us) / 1000.0;
+    p.text_timing.atlas_cache_acquire_ms = static_cast<double>(
+        after.text_atlas_cache_acquire_us - before.text_atlas_cache_acquire_us) / 1000.0;
     p.node_lookup_ms = static_cast<double>(after.node_lookup_us - before.node_lookup_us) / 1000.0;
     return p;
 }
