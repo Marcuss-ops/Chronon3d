@@ -90,7 +90,7 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;native-ffmpeg;tests;ipc"
       }
     },
     {

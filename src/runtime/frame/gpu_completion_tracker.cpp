@@ -46,6 +46,16 @@ bool GpuCompletionTracker::completion_ready(FrameSlotId slot_id) const noexcept 
     return completion && completion->ready();
 }
 
+void GpuCompletionTracker::wait_completion(FrameSlotId slot_id) noexcept {
+    if (slot_id >= capacity_) return;
+    const auto& completion = completions_[slot_id];
+    if (completion) {
+        try {
+            completion->wait();
+        } catch (...) {}
+    }
+}
+
 void GpuCompletionTracker::recycle(FrameSlotId slot_id) noexcept {
     if (slot_id >= capacity_) return;
     completions_[slot_id].reset();

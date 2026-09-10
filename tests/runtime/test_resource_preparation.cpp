@@ -423,7 +423,7 @@ TEST_CASE("ResourcePreparation::prepare — keyed-by-owner maps (1 owner → 1 e
 TEST_CASE("ResourcePreparation — manifest authority across scene variants") {
     chronon3d::runtime::PreparationOptions options;
     options.prepare_layouts = true;
-    options.prepare_videos = false;  // avoid libav probe on synthetic paths
+    options.prepare_video_metadata = false;  // avoid libav probe on synthetic paths
 
     SUBCASE("text only: prepares font, does not require or prepare layouts") {
         chronon3d::assets::AssetManifest manifest;

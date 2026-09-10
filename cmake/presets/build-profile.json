@@ -29,7 +29,7 @@
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "VCPKG_MANIFEST_FEATURES": "cli;text;vulkan"
+        "VCPKG_MANIFEST_FEATURES": "cli;text;vulkan;native-ffmpeg"
       }
     }
   ],

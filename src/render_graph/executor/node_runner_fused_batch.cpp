@@ -61,6 +61,12 @@ struct FusedWorkerScratch {
     std::uint32_t generation{0};
 
     void begin_batch(std::size_t max_resource_id) {
+        // AUDIT-18: max_resource_id is a capacity hint, not a trusted bound.
+        // The compiler enforces dense resource_index < instances.size(), but
+        // the executor must fail closed on a sparse/pathological id instead
+        // of indexing past the table (unbounded pinned growth per worker).
+        if (max_resource_id > kMaxResourceId)
+            max_resource_id = kMaxResourceId;
         ++generation;
         if (generation == 0) {
             std::fill(resource_generation.begin(), resource_generation.end(), 0);
@@ -75,6 +81,11 @@ struct FusedWorkerScratch {
         resource_sizes.clear();
         layer_instances.clear();
     }
+
+    /// AUDIT-18: hard ceiling on the scratch resource table. A compiled id
+    /// at or beyond this value is rejected by the caller (fail closed), not
+    /// silently served from an ever-growing thread-local allocation.
+    static constexpr std::size_t kMaxResourceId = 1u << 20;
 };
 
 thread_local FusedWorkerScratch tls_fused_scratch;
@@ -266,6 +277,15 @@ void execute_fused_batch_impl(
         }
 
         const auto compiled_resource_id = inst.resource_index;
+        // AUDIT-18: the compiled id indexes a worker-local scratch table.
+        // A sparse/pathological id must fail closed here rather than resize
+        // the thread-local table to it (GB of pinned memory per worker).
+        if (compiled_resource_id >= FusedWorkerScratch::kMaxResourceId) {
+            report_fused_batch_error(
+                ctx, RenderBackendErrorCode::InvalidInput,
+                "image batch compiled resource id exceeds the fused scratch bound");
+            return;
+        }
         if (compiled_resource_id >= scratch.resource_slots.size()) {
             report_fused_batch_error(
                 ctx, RenderBackendErrorCode::InvalidInput,

@@ -79,9 +79,18 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
         if (!std::filesystem::is_regular_file(canonical, ec) || ec)
             return error(AssetPreflightErrorCode::ReadFailed, normalized,
                          "asset is not a regular file");
-        if (!known_extension_matches(request.kind, lower_extension(canonical)))
+        // The physical target may be a content-addressed cache file (or a
+        // symlink to one) whose basename intentionally has no media suffix.
+        // Type validation belongs to the untrusted logical reference; the
+        // canonical target is still checked for confinement, regular-file
+        // status, size and SHA-256 below.  Using its suffix here makes the
+        // zero-copy cache path reject valid fonts/images/videos.
+        if (!known_extension_matches(request.kind, lower_extension(
+                                         std::filesystem::path(normalized))))
             return error(AssetPreflightErrorCode::WrongAssetKind, normalized,
-                         "asset extension does not match the requested asset kind");
+                         "asset extension does not match the requested asset kind: logical=" +
+                             normalized + " resolved=" + resolved->string() +
+                             " canonical=" + canonical.string());
 
         const auto metadata_t0 = chronon3d::profiling::now();
         const auto byte_size = std::filesystem::file_size(canonical, ec);

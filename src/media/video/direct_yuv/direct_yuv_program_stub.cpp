@@ -12,7 +12,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 }
 
 std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
-    ::chronon3d::media::NativeVideoFrameDecoder&, Frame) const {
+    ::chronon3d::media::NativeVideoFrameDecoder&, Frame) {
     return nullptr;
 }
 

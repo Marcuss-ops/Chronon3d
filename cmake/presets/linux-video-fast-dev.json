@@ -31,7 +31,7 @@
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "CMAKE_DISABLE_PRECOMPILE_HEADERS": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;native-ffmpeg;ipc"
       }
     },
     {
@@ -43,7 +43,7 @@
       "cacheVariables": {
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;native-ffmpeg;tests;ipc"
       }
     },
     {

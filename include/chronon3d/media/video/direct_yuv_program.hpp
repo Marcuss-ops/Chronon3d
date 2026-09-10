@@ -8,9 +8,12 @@
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -24,9 +27,8 @@ struct DirectLayerResourceEntry {
     std::shared_ptr<const ::chronon3d::media::CudaImageResource> gpu_resource;
     float native_width{0.0f};
     float native_height{0.0f};
-    float local_offset_x{0.0f};
-    float local_offset_y{0.0f};
     float corner_radius{0.0f};
+    // AUDIT-10: local_offset_x/local_offset_y removed (0 readers repo-wide).
 };
 
 struct DirectVideoLayer {
@@ -55,9 +57,13 @@ public:
         std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
         std::string& reason);
 
+    /// AUDIT-04A: execute() is deliberately NON-const. It mutates the
+    /// retained decoder frame and the cue-template cache, so pretending it
+    /// was a const accessor (mutable members) broke the type's contract and
+    /// made thread-safety claims unenforceable.
     [[nodiscard]] std::shared_ptr<DirectYuvFrame> execute(
         ::chronon3d::media::NativeVideoFrameDecoder& decoder,
-        Frame frame) const;
+        Frame frame);
 
     [[nodiscard]] const std::string& video_path() const noexcept { return video_path_; }
     [[nodiscard]] double scene_eval_ms() const noexcept { return scene_eval_ms_; }
@@ -74,11 +80,16 @@ private:
     int height_{0};
     std::shared_ptr<const Composition> composition_;
     std::unordered_map<std::string, DirectLayerResourceEntry> layer_resources_;
+    /// AUDIT-04B: allocation-free per-frame lookup index over layer_resources_.
+    /// string_views point at the map's stable node keys (filled once in
+    /// prepare(), map is read-only afterwards).
+    std::vector<std::pair<std::string_view, const DirectLayerResourceEntry*>> resource_index_;
+    [[nodiscard]] const DirectLayerResourceEntry* find_resource(std::string_view name) const noexcept;
     std::vector<std::shared_ptr<const ::chronon3d::media::CudaImageResource>> persistent_resources_;
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
-    mutable ::chronon3d::media::HwFrameRef last_decoded_{};
+    ::chronon3d::media::HwFrameRef last_decoded_{};
 
     bool all_overlay_layers_static_{false};
     struct CachedCueTemplate {
@@ -86,9 +97,12 @@ private:
         Frame valid_until{-1};
         std::shared_ptr<const DirectYuvTemplate> template_frame;
     };
-    mutable CachedCueTemplate cached_template_{};
-    mutable std::uint64_t template_eval_count_{0};
-    mutable std::uint64_t template_reuse_count_{0};
+    CachedCueTemplate cached_template_{};
+    std::uint64_t template_eval_count_{0};
+    std::uint64_t template_reuse_count_{0};
+    /// AUDIT-02C: monotonic high-water mark of instances per dynamic frame;
+    /// seeds the next template's vector reserves.
+    std::size_t overlay_instances_hint_{8};
 };
 
 } // namespace chronon3d::media::video

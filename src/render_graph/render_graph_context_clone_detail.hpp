@@ -34,6 +34,17 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.effect_catalog = effect_catalog;
     copy.transition_catalog = transition_catalog;
     copy.precomp_builder = precomp_builder;
+    copy.execution = execution;
+    copy.frame_parameters = frame_parameters;
+    copy.build_dependencies = build_dependencies;
+    copy.registry_generation = registry_generation;
+    copy.processor_snapshot_required = processor_snapshot_required;
+    copy.runtime = runtime;
+    copy.compiled_graph_cache = compiled_graph_cache;
+    copy.scheduler = scheduler;
+    copy.asset_resolver = asset_resolver;
+    copy.session = session;
+    copy.program_fingerprint = program_fingerprint;
 
     copy.node_exec.counters         = node_exec.counters;
     copy.node_exec.clip_rect        = node_exec.clip_rect;

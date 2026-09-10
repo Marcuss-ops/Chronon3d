@@ -131,7 +131,9 @@ GpuAssetAcquireResult GpuAssetCache::acquire(
     // reused by every frame (and every job sharing this runtime cache).
     desc.lifetime = LifetimeClass::JobPersistent;
     if (m_budget_bytes != 0 && desc.bytes > m_budget_bytes) {
-        return {kInvalidRenderSurfaceHandle, false, "GPU asset exceeds cache budget"};
+        return {kInvalidRenderSurfaceHandle, false,
+                "GPU asset exceeds cache budget: asset_bytes=" + std::to_string(desc.bytes) +
+                " budget_bytes=" + std::to_string(m_budget_bytes)};
     }
 
     for (;;) {
