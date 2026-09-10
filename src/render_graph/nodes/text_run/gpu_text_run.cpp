@@ -276,7 +276,13 @@ graph::RenderOpResult draw_packed_text_run_surface(
     bool cached_atlas = false;
 
     {
+        const auto pack_start = profiling::now();
         const auto [packed, dims] = pack_glyphs(glyphs);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_atlas_pack_wall_us.fetch_add(
+                static_cast<std::uint64_t>(profiling::elapsed_us(pack_start)),
+                std::memory_order_relaxed);
+        }
 
         // Build the packed atlas buffer and per-glyph instances in one pass.
         std::size_t atlas_pixels = 0;
@@ -288,6 +294,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 graph::RenderBackendErrorCode::InvalidInput,
                 "draw_packed_text_run_surface: atlas dimensions overflow"});
         }
+        const auto pixel_copy_start = profiling::now();
         atlas_buffer.assign(atlas_bytes, 0.0f);
         atlas_desc = runtime::SurfaceDesc::make(
             dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
@@ -316,6 +323,11 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 static_cast<std::int32_t>(glyph.height),
                 glyph.opacity, glyph.scale_x, glyph.scale_y, 0.0f});
         }
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_atlas_pixel_copy_wall_us.fetch_add(
+                static_cast<std::uint64_t>(profiling::elapsed_us(pixel_copy_start)),
+                std::memory_order_relaxed);
+        }
     }
 
     // Keep fallback costs separate from retired persistent-atlas hits: a CPU
@@ -339,13 +351,35 @@ graph::RenderOpResult draw_packed_text_run_surface(
         const std::string_view bytes(
             reinterpret_cast<const char*>(atlas_buffer.data()),
             atlas_buffer.size() * sizeof(float));
+        const auto sha_start = profiling::now();
+        const auto digest = assets::sha256_string(bytes);
+        if (profiling::g_current_counters) {
+            auto* counters = profiling::g_current_counters;
+            counters->gpu_text_atlas_sha256_wall_us.fetch_add(
+                static_cast<std::uint64_t>(profiling::elapsed_us(sha_start)),
+                std::memory_order_relaxed);
+            counters->gpu_text_atlas_key_bytes_hashed.fetch_add(
+                static_cast<std::uint64_t>(bytes.size()),
+                std::memory_order_relaxed);
+        }
         runtime::GpuAssetKey key{
-            assets::sha256_string(bytes),
+            digest,
             runtime::PixelFormat::Rgba32Float,
             atlas_desc.width,
             atlas_desc.height};
+        const auto acquire_start = profiling::now();
         const auto acquired = ctx.runtime->gpu_asset_cache().acquire(
             key, atlas_desc, atlas_buffer);
+        if (profiling::g_current_counters) {
+            auto* counters = profiling::g_current_counters;
+            counters->gpu_text_atlas_cache_acquire_wall_us.fetch_add(
+                static_cast<std::uint64_t>(profiling::elapsed_us(acquire_start)),
+                std::memory_order_relaxed);
+            auto& cache_counter = acquired.cache_hit
+                ? counters->gpu_text_atlas_cache_hits
+                : counters->gpu_text_atlas_cache_misses;
+            cache_counter.fetch_add(1, std::memory_order_relaxed);
+        }
         atlas_handle = acquired.handle;
         cached_atlas = acquired.ok();
         if (!cached_atlas) {

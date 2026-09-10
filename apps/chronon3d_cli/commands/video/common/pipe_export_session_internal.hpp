@@ -11,6 +11,7 @@ namespace chronon3d::cli::detail {
 struct FrameProfileSample {
     uint64_t timeline_eval_us{0};
     uint64_t text_us{0};
+    uint64_t text_prepare_per_frame_us{0};
     uint64_t graph_prepare_us{0};
     uint64_t graph_execute_us{0};
     uint64_t compositing_us{0};
@@ -26,6 +27,11 @@ struct FrameProfileSample {
     uint64_t text_raster_ms{0};
     uint64_t text_atlas_upload_us{0};
     uint64_t text_draw_us{0};
+    uint64_t text_styled_glyph_build_us{0};
+    uint64_t text_atlas_pack_us{0};
+    uint64_t text_atlas_pixel_copy_us{0};
+    uint64_t text_atlas_sha256_us{0};
+    uint64_t text_atlas_cache_acquire_us{0};
     uint64_t node_lookup_us{0};
 };
 

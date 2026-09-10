@@ -84,6 +84,7 @@ namespace chronon3d {
     X(image_draw_count)
 
 #define CHRONON_COUNTERS_TEXT(X) \
+    X(text_prepare_per_frame_wall_us) \
     X(text_glyphs_rasterized) \
     X(text_cache_hits) \
     X(text_cache_misses) \
@@ -117,6 +118,11 @@ namespace chronon3d {
     X(gpu_text_fallback_count) \
     X(gpu_text_instance_upload_count) \
     X(gpu_text_instance_upload_bytes) \
+    X(gpu_text_styled_glyph_build_wall_us) \
+    X(gpu_text_atlas_pack_wall_us) \
+    X(gpu_text_atlas_pixel_copy_wall_us) \
+    X(gpu_text_atlas_sha256_wall_us) \
+    X(gpu_text_atlas_cache_acquire_wall_us) \
     X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
 
 #define CHRONON_COUNTERS_TILE(X) \
@@ -384,6 +390,8 @@ namespace chronon3d {
     X(gpu_encode_failures) \
     X(frame_slot_wait_count) \
     X(frame_slot_wait_us) \
+    X(vulkan_cuda_export_fence_wait_count) \
+    X(vulkan_cuda_export_fence_wait_us) \
     X(cuda_vulkan_wait_count) \
     X(cuda_vulkan_wait_submit_us) \
     X(cuda_vulkan_signal_count) \

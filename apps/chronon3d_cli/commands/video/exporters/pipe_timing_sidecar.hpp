@@ -43,6 +43,7 @@ struct RuntimeMetrics {
 };
 
 struct TextMetrics {
+    std::optional<double> prepare_per_frame_ms;
     std::optional<double> font_resolve_ms;
     std::optional<double> shaping_ms;
     std::optional<double> bidi_ms;
@@ -60,6 +61,11 @@ struct TextMetrics {
     std::optional<std::uint64_t> atlas_upload_bytes;
     std::optional<std::uint64_t> instance_upload_count;
     std::optional<std::uint64_t> instance_upload_bytes;
+    std::optional<double> styled_glyph_build_ms;
+    std::optional<double> atlas_pack_ms;
+    std::optional<double> atlas_pixel_copy_ms;
+    std::optional<double> atlas_sha256_ms;
+    std::optional<double> atlas_cache_acquire_ms;
 };
 
 /// Encoder settings for this job. The `preset`/`rate_control`/`async_depth`
@@ -101,6 +107,8 @@ struct GpuMetrics {
     std::optional<std::uint64_t> frame_batch_drain_wait_us;
     std::optional<std::uint64_t> frame_slot_wait_count;
     std::optional<std::uint64_t> frame_slot_wait_us;
+    std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_count;
+    std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_us;
     std::optional<std::uint64_t> gpu_readback_bytes;
     std::optional<std::uint64_t> gpu_upload_bytes;
     // CUDA-lane host uploads (VideoDeviceRuntime image cache cuMemcpyHtoD),

@@ -179,8 +179,17 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         ++stats.submissions;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         if (has_cuda_export) {
+            const auto fence_wait_start = profiling::now();
             check(vkWaitForFences(device, 1, &frame_batch.fences[slot], VK_TRUE, UINT64_MAX),
                   "vkWaitForFences(cuda export slot)");
+            const auto fence_wait_us = static_cast<std::uint64_t>(
+                profiling::elapsed_us(fence_wait_start));
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->vulkan_cuda_export_fence_wait_count.fetch_add(
+                    1, std::memory_order_relaxed);
+                profiling::g_current_counters->vulkan_cuda_export_fence_wait_us.fetch_add(
+                    fence_wait_us, std::memory_order_relaxed);
+            }
             check(vkResetFences(device, 1, &frame_batch.fences[slot]),
                   "vkResetFences(cuda export slot)");
             frame_batch.in_flight[slot] = false;

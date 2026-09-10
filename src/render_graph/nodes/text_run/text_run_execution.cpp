@@ -8,6 +8,7 @@
 #include "gpu_text_run.hpp"
 #include "../native_surface.hpp"
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/profiling_context.hpp>
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
 #include <glm/gtc/matrix_transform.hpp>
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <vector>
 
 namespace chronon3d::graph::text_run {
@@ -141,6 +143,8 @@ void prepare_per_frame_shape(
     chronon3d::SampleTime sample_time,
     TextRunFrameState& frame
 ) {
+    const auto timing_start = profiling::g_current_counters
+        ? std::optional{profiling::now()} : std::nullopt;
     // A6 immutability: keep the compiled shape read-only. Only the mutable
     // glyph state is written into worker-owned scratch; its capacity survives
     // across invocations to avoid per-item heap reallocations.
@@ -166,6 +170,11 @@ void prepare_per_frame_shape(
         view.dissolve_glyphs.clear();
     }
     chronon3d::update_text_run_shape_per_frame(view, sample_time);
+    if (timing_start && profiling::g_current_counters) {
+        profiling::g_current_counters->text_prepare_per_frame_wall_us.fetch_add(
+            static_cast<std::uint64_t>(profiling::elapsed_us(*timing_start)),
+            std::memory_order_relaxed);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

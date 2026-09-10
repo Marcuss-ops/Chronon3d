@@ -240,6 +240,7 @@ struct FrameImageTiming {
 /// state ≈ 0).  font_resolve is prepare-only, so it is reported at job
 /// level (RenderPreparationTimings / job.text), not per-frame.
 struct FrameTextTiming {
+    double prepare_per_frame_ms{0.0};
     double shaping_ms{0.0};
     double bidi_ms{0.0};
     double layout_ms{0.0};
@@ -247,6 +248,11 @@ struct FrameTextTiming {
     double raster_ms{0.0};
     double atlas_upload_ms{0.0};
     double draw_ms{0.0};
+    double styled_glyph_build_ms{0.0};
+    double atlas_pack_ms{0.0};
+    double atlas_pixel_copy_ms{0.0};
+    double atlas_sha256_ms{0.0};
+    double atlas_cache_acquire_ms{0.0};
 };
 
 /// Architectural breakdown of a single frame's render time (render_ms), in ms.
