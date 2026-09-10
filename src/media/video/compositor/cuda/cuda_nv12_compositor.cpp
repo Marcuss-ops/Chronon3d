@@ -106,37 +106,43 @@ const std::string& get_compiled_nv12_ptx() {
 
 } // namespace cuda_nv12_detail
 
-void CudaNv12Compositor::warm_up(CUcontext context) {
+namespace {
+
+struct SharedCudaNv12Module {
+    CUmodule module{nullptr};
+    CUfunction kernel{nullptr};
+    CUfunction p010_kernel{nullptr};
+    CUfunction direct_nv12_kernel{nullptr};
+    CUfunction direct_nv12_batch_kernel{nullptr};
+    CUfunction rgba_to_nv12_kernel{nullptr};
+    CUfunction rgba_u8_to_nv12_kernel{nullptr};
+
+    ~SharedCudaNv12Module() {
+        if (module) {
+            (void)cuModuleUnload(module);
+        }
+    }
+};
+
+std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
     using cuda_nv12_detail::get_compiled_nv12_ptx;
 
-    if (!context) fail("CudaNv12Compositor::warm_up", "null CUDA context");
-    check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent(warm_up)");
+    static std::mutex s_module_mutex;
+    static std::unordered_map<CUcontext, std::shared_ptr<SharedCudaNv12Module>> s_modules;
+
+    std::lock_guard lock(s_module_mutex);
+    auto it = s_modules.find(context);
+    if (it != s_modules.end() && it->second) {
+        return it->second;
+    }
+
+    check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent");
     const auto& ptx = get_compiled_nv12_ptx();
-    CUmodule module = nullptr;
-    check_cuda(cuModuleLoadData(&module, ptx.c_str()),
-               "cuModuleLoadData(warm_up)");
-    check_cuda(cuModuleUnload(module), "cuModuleUnload(warm_up)");
-}
+    auto shared = std::make_shared<SharedCudaNv12Module>();
 
-CudaNv12Compositor::CudaNv12Compositor(
-    const CudaExternalMemoryInfo& target, CUcontext context)
-    : context_(context), surface_u8_(target.cuda_array_format == 2) {
-    using cuda_nv12_detail::check_cuda;
-    using cuda_nv12_detail::fail;
-    using cuda_nv12_detail::get_compiled_nv12_ptx;
-
-    if (!context_) fail("CudaNv12Compositor", "null CUDA context");
-    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
-    check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
-
-    const auto& ptx = get_compiled_nv12_ptx();
-
-    // The native encoder shares FFmpeg's primary CUDA context.  Surface any
-    // earlier asynchronous failure before loading the compositor module so a
-    // stale context error cannot be misreported as a PTX loading failure.
-    const CUresult module_result = cuModuleLoadData(&module_, ptx.c_str());
+    const CUresult module_result = cuModuleLoadData(&shared->module, ptx.c_str());
     if (module_result != CUDA_SUCCESS) {
         const char* name = nullptr;
         const char* description = nullptr;
@@ -152,22 +158,55 @@ CudaNv12Compositor::CudaNv12Compositor(
         detail += "; ptx_bytes=" + std::to_string(ptx.size());
         fail("cuModuleLoadData", detail);
     }
-    check_cuda(cuModuleGetFunction(&kernel_, module_, "nv12_to_rgba"),
+    check_cuda(cuModuleGetFunction(&shared->kernel, shared->module, "nv12_to_rgba"),
                "cuModuleGetFunction(nv12_to_rgba)");
-    check_cuda(cuModuleGetFunction(&p010_kernel_, module_, "p010_to_rgba"),
+    check_cuda(cuModuleGetFunction(&shared->p010_kernel, shared->module, "p010_to_rgba"),
                "cuModuleGetFunction(p010_to_rgba)");
-    check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
+    check_cuda(cuModuleGetFunction(&shared->direct_nv12_kernel, shared->module,
                                    "nv12_composite_overlay_2x2"),
                "cuModuleGetFunction(nv12_composite_overlay_2x2)");
-    check_cuda(cuModuleGetFunction(&direct_nv12_batch_kernel_, module_,
+    check_cuda(cuModuleGetFunction(&shared->direct_nv12_batch_kernel, shared->module,
                                    "nv12_composite_layer_batch_2x2"),
                "cuModuleGetFunction(nv12_composite_layer_batch_2x2)");
-    check_cuda(cuModuleGetFunction(&rgba_to_nv12_kernel_, module_,
+    check_cuda(cuModuleGetFunction(&shared->rgba_to_nv12_kernel, shared->module,
                                    "rgba_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_surface_to_nv12_2x2)");
-    check_cuda(cuModuleGetFunction(&rgba_u8_to_nv12_kernel_, module_,
+    check_cuda(cuModuleGetFunction(&shared->rgba_u8_to_nv12_kernel, shared->module,
                                    "rgba_u8_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_u8_surface_to_nv12_2x2)");
+
+    s_modules[context] = shared;
+    return shared;
+}
+
+} // namespace
+
+void CudaNv12Compositor::warm_up(CUcontext context) {
+    using cuda_nv12_detail::fail;
+
+    if (!context) fail("CudaNv12Compositor::warm_up", "null CUDA context");
+    (void)get_or_load_module(context);
+}
+
+CudaNv12Compositor::CudaNv12Compositor(
+    const CudaExternalMemoryInfo& target, CUcontext context)
+    : context_(context), surface_u8_(target.cuda_array_format == 2) {
+    using cuda_nv12_detail::check_cuda;
+    using cuda_nv12_detail::fail;
+
+    if (!context_) fail("CudaNv12Compositor", "null CUDA context");
+    check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
+    check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
+
+    auto shared = get_or_load_module(context_);
+    module_ = shared->module;
+    kernel_ = shared->kernel;
+    p010_kernel_ = shared->p010_kernel;
+    direct_nv12_kernel_ = shared->direct_nv12_kernel;
+    direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;
+    rgba_to_nv12_kernel_ = shared->rgba_to_nv12_kernel;
+    rgba_u8_to_nv12_kernel_ = shared->rgba_u8_to_nv12_kernel;
+
     bridge_ = std::make_unique<CudaVulkanSurfaceBridge>(
         target, context_, stream_);
 }
@@ -176,19 +215,15 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     : context_(context), surface_u8_(false) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
-    using cuda_nv12_detail::get_compiled_nv12_ptx;
 
     if (!context_) fail("CudaNv12Compositor", "null CUDA context");
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
-    const auto& ptx = get_compiled_nv12_ptx();
-    check_cuda(cuModuleLoadData(&module_, ptx.c_str()), "cuModuleLoadData");
-    check_cuda(cuModuleGetFunction(&direct_nv12_kernel_, module_,
-                                   "nv12_composite_overlay_2x2"),
-               "cuModuleGetFunction(nv12_composite_overlay_2x2)");
-    check_cuda(cuModuleGetFunction(&direct_nv12_batch_kernel_, module_,
-                                   "nv12_composite_layer_batch_2x2"),
-               "cuModuleGetFunction(nv12_composite_layer_batch_2x2)");
+
+    auto shared = get_or_load_module(context_);
+    module_ = shared->module;
+    direct_nv12_kernel_ = shared->direct_nv12_kernel;
+    direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;
 }
 
 CudaNv12Compositor::~CudaNv12Compositor() {
@@ -196,7 +231,7 @@ CudaNv12Compositor::~CudaNv12Compositor() {
     if (stream_) (void)cuStreamSynchronize(stream_);
     bridge_.reset();
     if (layer_batch_buffer_) (void)cuMemFree(layer_batch_buffer_);
-    if (module_) (void)cuModuleUnload(module_);
+    // module_ is shared and owned by SharedCudaNv12Module
     if (stream_) (void)cuStreamDestroy(stream_);
 }
 

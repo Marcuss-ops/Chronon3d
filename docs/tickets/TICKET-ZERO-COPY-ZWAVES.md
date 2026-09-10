@@ -169,14 +169,14 @@ Target: gates 3/4 → 0 for the certified corpus. The mechanism exists
    content pack. Non-certified scenes keep the honest FullGraph lane with
    counted conversions — never counter-gaming.
 
-## Z5 — Absorb DirectYuvExecutor into the normal execution path (OPEN)
+## Z5 — Absorb DirectYuvExecutor into the normal execution path (LAND)
 
-`DirectYuvExecutor` (`src/media/video/direct_yuv/`) is the second frame loop
-(prepare/run/cancellation/submit/progress/timing) starting from
-`CompiledComposition`. Plan Z5 migrates its semantics into the canonical
-`FrameSlotPool`/writer pipeline and deletes the executor + its second
-cancellation/timing/submit paths. Do not delete before Z4's certified corpus
-runs green on the absorbed path (equivalence: frame timing + gates identical).
+`DirectYuvExecutor` (`src/media/video/direct_yuv/`) was absorbed into
+`DirectYuvProgram` + `pipe_export_direct_yuv.cpp` (commit `6876c242b`),
+migrating its semantics into the canonical CLI slot/writer pipeline and
+deleting the duplicate executor class files (`direct_yuv_executor.hpp/.cpp`).
+The canonical bounded SPSC queue (`session.queue`) and `NativeAvEncoder` handle
+direct YUV frames synchronously with unified progress, cancellation, and metrics.
 
 ## Z6 — Per-slot async overlap and depth tuning (OPEN, measure-first)
 

@@ -312,6 +312,15 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         "[direct-yuv] resource manifest: layers={} static+animated prepare={:.2f}ms "
         "(was per-frame pre-pass)", layer_resources.size(), manifest_prepare_ms);
 
+    bool all_overlay_layers_static = true;
+    for (const auto& layer : scene_0.layers()) {
+        if (layer.video_source) continue;
+        if (!layer_is_static(layer)) {
+            all_overlay_layers_static = false;
+            break;
+        }
+    }
+
     auto program = std::shared_ptr<DirectYuvProgram>(new DirectYuvProgram());
     program->video_path_ = std::move(video_path);
     program->video_layers_ = std::move(video_layers);
@@ -323,6 +332,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->scene_eval_ms_ = scene_eval_ms;
     program->watermark_load_ms_ = watermark_load_ms;
     program->watermark_upload_ms_ = watermark_upload_ms;
+    program->all_overlay_layers_static_ = all_overlay_layers_static;
     return program;
 #endif
 }
@@ -347,11 +357,24 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     auto result = std::make_shared<DirectYuvFrame>();
     result->decoded = std::move(decoded);
+
+    if (all_overlay_layers_static_ && video_layers_.empty()) {
+        if (cached_template_.template_frame &&
+            frame >= cached_template_.valid_from &&
+            frame < cached_template_.valid_until) {
+            ++template_reuse_count_;
+            result->program = cached_template_.template_frame;
+            return result;
+        }
+    }
+
+    ++template_eval_count_;
     auto template_frame = std::make_shared<DirectYuvTemplate>();
     const auto rate = composition_->frame_rate();
+    const auto duration = composition_->duration();
     const auto context = make_frame_context({
         .global_time = SampleTime::from_frame(static_cast<double>(frame.integral()), rate),
-        .duration = composition_->duration(),
+        .duration = duration,
         .width = width_,
         .height = height_,
     });
@@ -551,6 +574,34 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             template_frame->resource_owner = entry.gpu_resource;
         }
         template_frame->resource_owners.push_back(entry.gpu_resource);
+    }
+
+    if (all_overlay_layers_static_ && video_layers_.empty() && !unsupported_blend) {
+        Frame cue_from = Frame{0};
+        Frame cue_until = composition_->duration();
+        for (const auto& layer : scene.layers()) {
+            if (layer.video_source) continue;
+            const Frame l_from = std::max<Frame>(Frame{0}, layer.from);
+            if (l_from <= frame) {
+                cue_from = std::max(cue_from, l_from);
+            } else {
+                cue_until = std::min(cue_until, l_from);
+            }
+            if (layer.duration.integral() > 0) {
+                const Frame l_to = l_from + layer.duration;
+                if (l_to <= frame) {
+                    cue_from = std::max(cue_from, l_to);
+                } else {
+                    cue_until = std::min(cue_until, l_to);
+                }
+            }
+        }
+        if (cue_until <= frame) {
+            cue_until = frame + Frame{1};
+        }
+        cached_template_.valid_from = cue_from;
+        cached_template_.valid_until = cue_until;
+        cached_template_.template_frame = template_frame;
     }
 
     result->program = std::move(template_frame);

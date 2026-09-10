@@ -23,11 +23,12 @@ bool NativeAvEncoder::close() {
     open_complete_ = false;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-    spdlog::info("[native_av] close: draining CUDA pending={}", pending_cuda_frames_.size());
-    if (gpu_nvenc_ && !drain_ready_cuda_frames(true)) {
-        spdlog::error("[native_av] failed to drain pending CUDA frames");
+    while (gpu_nvenc_ && !pending_cuda_frames_.empty()) {
+        if (!drain_ready_cuda_frames(true)) {
+            spdlog::error("[native_av] failed to drain pending CUDA frames");
+            break;
+        }
     }
-    spdlog::info("[native_av] close: CUDA drain complete");
 #endif
 
     const auto t_flush0 = Clock::now();
