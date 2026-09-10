@@ -36,10 +36,9 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
         }
     }
 
-    const PixelFormat page_format =
-        (representation == GlyphRepresentation::Mtsdf || representation == GlyphRepresentation::Msdf)
-            ? PixelFormat::Rgba8Unorm
-            : PixelFormat::R8Unorm;
+    const PixelFormat page_format = glyph_representation_is_rgba(representation)
+        ? PixelFormat::Rgba8Unorm
+        : PixelFormat::R8Unorm;
     GpuAssetKey asset_key;
     // FIXING.md H-02/U-02 — page identity is (page_index, representation), not a content hash.
     {
@@ -63,7 +62,15 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
 
     // A page is a residency commitment. GpuAssetCache::acquire validates the
     // budget, attachment and backend allocation before this page is published.
-    const auto result = m_cache.acquire(asset_key, desc, {});
+    // A newly allocated page must be initialized before region uploads.  The
+    // generic asset cache validates upload spans against the full surface,
+    // so provide one zero page here; this happens once per atlas page, never
+    // once per glyph or frame.  Without it the page was published
+    // uninitialized and the first MTSDF glyph preparation fell back with an
+    // "upload size does not match surface" error.
+    const std::size_t page_pixels = static_cast<std::size_t>(kPageSize) * kPageSize;
+    std::vector<float> zero_page(page_pixels, 0.0f);
+    const auto result = m_cache.acquire(asset_key, desc, zero_page);
     if (!result.ok()) {
         const auto code = result.error.find("budget") != std::string::npos
             ? GpuGlyphAtlasError::Code::BudgetExceeded
@@ -98,10 +105,11 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     {
         std::shared_lock read_lock(m_mutex);
         if (const auto it = m_locations.find(key); it != m_locations.end()) {
-            // stats.hits is not on the hot read path — promote under write
-            // lock to avoid shared→exclusive upgrade complexity.
-            // For now the hit is returned without bumping the counter under
-            // shared_lock; the counter is eventually consistent in stats().
+            // AUDIT-2026-09-10 M-1 — the hit counter must not go dark under
+            // exactly the traffic it exists to measure. Count the fast-path
+            // hit with a relaxed atomic (no shared→exclusive upgrade) and
+            // fold it into stats().hits at snapshot time.
+            m_fast_path_hits.fetch_add(1, std::memory_order_relaxed);
             return it->second;
         }
         // Also validate fast-path invariants under read lock so we can
@@ -133,12 +141,14 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
             "glyph dimensions must be non-zero and fit GlyphLocation");
     }
 
-    const PixelFormat format =
-        (key.representation == GlyphRepresentation::Mtsdf || key.representation == GlyphRepresentation::Msdf)
-            ? PixelFormat::Rgba8Unorm
-            : PixelFormat::R8Unorm;
-    const std::size_t expected_coverage =
+    const PixelFormat format = glyph_representation_is_rgba(key.representation)
+        ? PixelFormat::Rgba8Unorm
+        : PixelFormat::R8Unorm;
+    const std::size_t pixel_count =
         static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    // Rgba8 pages use one float-sized element per pixel as a transport
+    // cell; its four bytes are copied verbatim into the Vulkan texel.
+    const std::size_t expected_coverage = pixel_count;
     if (coverage.size() != expected_coverage) {
         ++m_stats.failures;
         spdlog::warn("GpuGlyphAtlas::acquire: coverage mismatch {} vs {} (glyph_id={})", coverage.size(), expected_coverage, key.glyph_id);
@@ -219,11 +229,9 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
     page.cursor_x += width;
     page.row_height = std::max(page.row_height, height);
 
-    const PixelFormat page_format =
-        (key.representation == GlyphRepresentation::Mtsdf ||
-         key.representation == GlyphRepresentation::Msdf)
-            ? PixelFormat::Rgba8Unorm
-            : PixelFormat::R8Unorm;
+    const PixelFormat page_format = glyph_representation_is_rgba(key.representation)
+        ? PixelFormat::Rgba8Unorm
+        : PixelFormat::R8Unorm;
     SurfaceDesc page_desc{kPageSize, kPageSize, page_format,
                           ResourceUsage::Storage,
                           LifetimeClass::JobPersistent,
@@ -334,12 +342,30 @@ std::optional<GpuGlyphMetrics> GpuGlyphAtlas::metrics(GpuGlyphKey key) const noe
     return it->second;
 }
 
+std::optional<GlyphLocation> GpuGlyphAtlas::location(
+    GpuGlyphKey key) const noexcept {
+    std::shared_lock lock(m_mutex);
+    const auto it = m_locations.find(key);
+    if (it == m_locations.end()) return std::nullopt;
+    return it->second;
+}
+
+std::optional<RenderSurfaceHandle> GpuGlyphAtlas::page_handle(
+    std::uint16_t atlas_page) const noexcept {
+    std::shared_lock lock(m_mutex);
+    if (atlas_page >= m_pages.size()) return std::nullopt;
+    const auto handle = m_pages[atlas_page].handle;
+    if (handle == kInvalidRenderSurfaceHandle) return std::nullopt;
+    return handle;
+}
+
 void GpuGlyphAtlas::clear() noexcept {
     std::unique_lock lock(m_mutex);
     m_locations.clear();
     m_metrics.clear();
     m_pages.clear();
     m_stats = {};
+    m_fast_path_hits.store(0, std::memory_order_relaxed);
     m_cache.clear();
 }
 
@@ -349,5 +375,7 @@ void GpuGlyphAtlas::set_budget_bytes(std::size_t budget_bytes) noexcept {
 
 GpuGlyphAtlasStats GpuGlyphAtlas::stats() const noexcept {
     std::shared_lock lock(m_mutex);
-    return m_stats;
+    auto snapshot = m_stats;
+    snapshot.hits += m_fast_path_hits.load(std::memory_order_relaxed);
+    return snapshot;
 }

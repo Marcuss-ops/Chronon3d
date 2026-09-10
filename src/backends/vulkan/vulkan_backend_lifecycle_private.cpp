@@ -180,7 +180,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule");
         const VkPipelineShaderStageCreateInfo stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             shader, "main", nullptr};
         const VkComputePipelineCreateInfo pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, stage, kernels.general_layout, VK_NULL_HANDLE, -1};
@@ -202,7 +202,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(transform)");
         const VkPipelineShaderStageCreateInfo transform_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             transform_shader, "main", nullptr};
         const VkComputePipelineCreateInfo transform_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -225,7 +225,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(affine transform)");
         const VkPipelineShaderStageCreateInfo affine_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             affine_shader, "main", nullptr};
         const VkComputePipelineCreateInfo affine_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -248,7 +248,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(blur)");
         const VkPipelineShaderStageCreateInfo blur_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             blur_shader, "main", nullptr};
         const VkComputePipelineCreateInfo blur_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -271,7 +271,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(color adjust)");
         const VkPipelineShaderStageCreateInfo color_adjust_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             color_adjust_shader, "main", nullptr};
         const VkComputePipelineCreateInfo color_adjust_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -294,7 +294,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(matte)");
         const VkPipelineShaderStageCreateInfo matte_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             matte_shader, "main", nullptr};
         const VkComputePipelineCreateInfo matte_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -317,7 +317,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(text run)");
         const VkPipelineShaderStageCreateInfo text_run_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             text_run_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_run_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -340,7 +340,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(fill rect)");
         const VkPipelineShaderStageCreateInfo fill_rect_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             fill_rect_shader, "main", nullptr};
         const VkComputePipelineCreateInfo fill_rect_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -363,7 +363,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(layer batch)");
         const VkPipelineShaderStageCreateInfo layer_batch_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             layer_batch_shader, "main", nullptr};
         const VkComputePipelineCreateInfo layer_batch_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -386,7 +386,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(text batch)");
         const VkPipelineShaderStageCreateInfo text_batch_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             text_batch_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_batch_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -410,7 +410,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(text tile bin)");
         const VkPipelineShaderStageCreateInfo text_tile_bin_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             text_tile_bin_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_tile_bin_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
@@ -435,7 +435,7 @@ namespace chronon3d::backends::vulkan {
               "vkCreateShaderModule(text tile raster)");
         const VkPipelineShaderStageCreateInfo text_tile_raster_stage{
             VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT, VK_SHADER_STAGE_COMPUTE_BIT,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
             text_tile_raster_shader, "main", nullptr};
         const VkComputePipelineCreateInfo text_tile_raster_pipeline_info{
             VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,

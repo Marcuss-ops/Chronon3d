@@ -200,11 +200,28 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
             break;
     }
 
+    // VMA is configured with OPAQUE_FD as the external handle type for
+    // device-local memory so CUDA/NVENC interop can import exported buffers.
+    // The Vulkan object must advertise the same handle type whenever that
+    // memory class is selected; otherwise validation reports
+    // VUID-vkBindBufferMemory-memory-02726 and NVIDIA may lose the device.
+    VkExternalMemoryBufferCreateInfo external_buffer{
+        VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO};
+    external_buffer.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    VkBufferCreateInfo compatible_buffer_info = buffer_info;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    if (memory_class == VulkanMemoryClass::DeviceLocal ||
+        memory_class == VulkanMemoryClass::ExternalExportable) {
+        external_buffer.pNext = buffer_info.pNext;
+        compatible_buffer_info.pNext = &external_buffer;
+    }
+#endif
+
     VulkanBufferAllocation result{};
     VmaAllocationInfo result_info{};
 
     const VkResult vk_result = vmaCreateBuffer(
-        allocator_, &buffer_info, &alloc_info,
+        allocator_, &compatible_buffer_info, &alloc_info,
         &result.buffer, &result.allocation, &result_info);
 
     if (vk_result != VK_SUCCESS) {

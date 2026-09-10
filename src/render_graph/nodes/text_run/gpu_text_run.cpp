@@ -11,8 +11,12 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/animation/text_animator_properties.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <blend2d.h>
@@ -30,6 +34,76 @@
 
 namespace chronon3d::graph::text_run {
 
+bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
+    if (!shape.layout || shape.animated_doc ||
+        shape.layout->font_spans.size() > 1 ||
+        shape.paint.fill_style || shape.paint.stroke_style ||
+        shape.material.enabled || shape.shadows.size() > 1 ||
+        shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
+        return false;
+    }
+    if (shape.paint.stroke_enabled &&
+        (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 16.0f)) {
+        return false;
+    }
+    for (const auto& shadow : shape.shadows) {
+        if (!shadow.enabled) continue;
+        if (shadow.blur < 0.0f || shadow.blur > 16.0f ||
+            std::abs(shadow.offset.x) + shadow.blur > 16.0f ||
+            std::abs(shadow.offset.y) + shadow.blur > 16.0f) {
+            return false;
+        }
+    }
+    if (shape.animators.empty()) return true;
+    if (shape.animators.size() != 1) return false;
+    const auto& animator = shape.animators.front();
+    if (!animator.enabled || animator.selectors.size() != 1 ||
+        animator.properties.empty()) {
+        return false;
+    }
+    const auto& selector = animator.selectors.front();
+    // This is the exact lowering contract for the clean typewriter: a
+    // forward glyph window drives an opacity-to-zero property.  The whole
+    // shaped run remains resident; only the visibility prefix changes.
+    if (selector.unit != TextSelectorUnit::Glyph ||
+        selector.shape != TextSelectorShape::Square ||
+        selector.order != TextSelectorOrder::Forward ||
+        selector.combine != SelectorCombineMode::Replace ||
+        selector.randomize_order || selector.offset.is_time_dependent() ||
+        std::abs(selector.offset.evaluate(0.0)) > 1e-6f ||
+        std::abs(selector.amount.evaluate(0.0) - 100.0f) > 1e-6f) {
+        return false;
+    }
+    bool saw_zero_opacity = false;
+    for (const auto& property : animator.properties) {
+        if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
+            if (saw_zero_opacity || opacity->value.has_expression() ||
+                opacity->value.keyframes().empty()) return false;
+            if (!std::all_of(opacity->value.keyframes().begin(),
+                             opacity->value.keyframes().end(),
+                             [](const auto& keyframe) {
+                                 return std::abs(keyframe.value) <= 1e-6f;
+                             })) return false;
+            saw_zero_opacity = true;
+        } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
+            // Square typewriter glyphs with zero selector weight are never
+            // dispatched, so these legacy pop offsets remain invisible to
+            // the MTSDF route until a dedicated per-glyph dynamic record is
+            // available. Keep the property recognized to avoid a needless
+            // CPU atlas fallback for the preset contract.
+            (void)position;
+        } else if (const auto* scale = std::get_if<ScaleProperty>(&property)) {
+            (void)scale;
+        } else {
+            // Dynamic effects must be lowered explicitly before entering the
+            // MTSDF lane. Constant position/scale values are harmless for a
+            // square typewriter because those glyphs are not dispatched yet.
+            return false;
+        }
+    }
+    return saw_zero_opacity;
+}
+
 namespace {
 
 /// Fixed packed-atlas width.  Glyphs are shelf-packed left-to-right and
@@ -45,6 +119,15 @@ bool checked_mul(std::size_t a, std::size_t b, std::size_t& out) {
     }
     out = a * b;
     return true;
+}
+
+std::uint32_t pack_text_color(const Color& color) noexcept {
+    const auto to_byte = [](float value) {
+        return static_cast<std::uint32_t>(std::clamp(
+            std::lround(value * 255.0f), 0L, 255L));
+    };
+    return to_byte(color.r) | (to_byte(color.g) << 8) |
+           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
 }
 
 struct PackedGlyph {
@@ -494,6 +577,323 @@ graph::RenderOpResult draw_packed_text_run(
         highlight_color, highlight_enabled);
     if (!result.ok()) release_native_surface(ctx, destination);
     return result;
+}
+
+// Canonical static text route.  The legacy draw_cached_text_run() below is
+// retained for animated/complex styled callers, but a plain run must never
+// rebuild a phrase bitmap just to discover a cache hit.  This preparation is
+// worker-local and keyed by the immutable (runtime, shape) pair; every later
+// frame submits only GlyphStatic[] + one TextRunDynamic record.
+graph::RenderOpResult draw_cached_text_run_mtsdf(
+    RenderGraphContext& ctx,
+    Framebuffer& destination,
+    const TextRunShape& shape,
+    const glm::mat4& model_matrix,
+    float opacity) {
+    if (!ctx.runtime || !ctx.asset_resolver || !ctx.backend ||
+        !ctx.surface_registry || !shape.layout ||
+        (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) ||
+        shape.animated_doc ||
+        shape.layout->font_spans.size() > 1 || shape.paint.fill_style ||
+        shape.paint.stroke_style || shape.material.enabled ||
+        shape.shadows.size() > 1 ||
+        shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route does not support this run"});
+    }
+    if (shape.paint.stroke_enabled &&
+        (shape.paint.stroke_width < 0.0f || shape.paint.stroke_width > 16.0f)) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route stroke exceeds atlas padding"});
+    }
+    for (const auto& shadow : shape.shadows) {
+        if (!shadow.enabled) continue;
+        if (shadow.blur < 0.0f || shadow.blur > 16.0f ||
+            std::abs(shadow.offset.x) + shadow.blur > 16.0f ||
+            std::abs(shadow.offset.y) + shadow.blur > 16.0f) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "MTSDF text route shadow exceeds atlas padding"});
+        }
+    }
+
+    struct Prepared {
+        struct Batch {
+            runtime::RenderSurfaceHandle page{
+                runtime::kInvalidRenderSurfaceHandle};
+            std::vector<runtime::GlyphStatic> glyphs;
+        };
+        runtime::RuntimeContext* runtime{nullptr};
+        const TextRunLayout* layout{nullptr};
+        bool attempted{false};
+        bool ready{false};
+        std::vector<Batch> batches;
+        // AnimatedValue::evaluate() may lazily update curve caches. Keep the
+        // selector copy private to this worker instead of evaluating the
+        // immutable authoring shape concurrently from multiple workers.
+        // Heap ownership keeps CompiledSelector::spec valid if the prepared
+        // entry itself moves while the worker cache grows.
+        std::shared_ptr<GlyphSelectorSpec> reveal_selector_spec;
+        std::optional<CompiledSelector> reveal_selector;
+    };
+    static thread_local std::vector<Prepared> cache;
+    // A worker must not retain entries from a destroyed runtime: pointer
+    // reuse between jobs would otherwise turn the cache key into ABA.
+    if (!cache.empty() && cache.front().runtime != ctx.runtime) cache.clear();
+    Prepared* prepared = nullptr;
+    for (auto& candidate : cache) {
+        if (candidate.runtime == ctx.runtime &&
+            candidate.layout == shape.layout.get()) {
+            prepared = &candidate;
+            break;
+        }
+    }
+    if (!prepared) {
+        cache.push_back(Prepared{});
+        prepared = &cache.back();
+        prepared->runtime = ctx.runtime;
+        prepared->layout = shape.layout.get();
+    }
+
+    constexpr std::uint16_t kEmPx = 64;
+    constexpr std::uint16_t kRangePx = 8;
+    constexpr std::uint16_t kPaddingPx = 16;
+    constexpr std::uint16_t kProfileId = 1;
+    const runtime::DistanceFieldProfile profile{
+        runtime::GlyphRepresentation::Mtsdf, kEmPx, kRangePx, kPaddingPx};
+    const auto& layout = *shape.layout;
+    const float layout_scale = std::max(1.0f, layout.font_size) /
+        static_cast<float>(kEmPx);
+
+    if (!prepared->attempted) {
+        prepared->attempted = true;
+        if (!shape.animators.empty()) {
+            // Compile the selector against the immutable layout once.  The
+            // frame loop only evaluates its already-compiled scalar curve to
+            // produce visible_glyph_count; it never rebuilds GlyphInstanceState.
+            prepared->reveal_selector_spec = std::make_shared<GlyphSelectorSpec>(
+                shape.animators.front().selectors.front());
+            prepared->reveal_selector = compile_selector(
+                *prepared->reveal_selector_spec,
+                layout.units, layout.source_text, &layout.placed);
+        }
+        FontFaceHandle font;
+        try {
+            font = ctx.text_render_resources
+                ? ctx.text_render_resources->resolve_handle(
+                    layout.font.font_path, static_cast<float>(kEmPx),
+                    *ctx.asset_resolver)
+                : FontFaceHandle{};
+        } catch (...) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "MTSDF text route could not resolve font"});
+        }
+        if (!font.ft_face) {
+            return graph::RenderOpResult(graph::RenderBackendError{
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "MTSDF text route has no FreeType face"});
+        }
+
+        std::vector<runtime::GpuGlyphKey> keys;
+        std::vector<std::uint32_t> widths;
+        std::vector<std::uint32_t> heights;
+        std::vector<runtime::GpuGlyphMetrics> metrics;
+        std::vector<runtime::GpuGlyphKey> pending_keys;
+        std::vector<std::uint32_t> pending_widths;
+        std::vector<std::uint32_t> pending_heights;
+        std::vector<runtime::GpuGlyphMetrics> pending_metrics;
+        std::vector<float> pending_pixels;
+        keys.reserve(layout.placed.glyphs.size());
+        widths.reserve(layout.placed.glyphs.size());
+        heights.reserve(layout.placed.glyphs.size());
+        metrics.reserve(layout.placed.glyphs.size());
+        pending_keys.reserve(layout.placed.glyphs.size());
+        pending_widths.reserve(layout.placed.glyphs.size());
+        pending_heights.reserve(layout.placed.glyphs.size());
+        pending_metrics.reserve(layout.placed.glyphs.size());
+
+        for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
+            const auto& state = shape.glyphs[i];
+            const auto& placed = layout.placed.glyphs[i];
+            if (state.glyph_id == 0 || placed.bbox_x1 <= placed.bbox_x0) continue;
+            const auto key = runtime::GpuGlyphKey::make(
+                layout.font.font_path, state.glyph_id, 0,
+                runtime::GlyphRepresentation::Mtsdf, kProfileId, 0);
+            keys.push_back(key);
+            if (const auto resident = ctx.runtime->gpu_glyph_atlas().location(key)) {
+                widths.push_back(resident->width);
+                heights.push_back(resident->height);
+                metrics.push_back(ctx.runtime->gpu_glyph_atlas().metrics(key).value_or(
+                    runtime::GpuGlyphMetrics{0, 0, placed.advance_x}));
+                continue;
+            }
+            const auto generated = generate_mtsdf_glyph(
+                font.ft_face, state.glyph_id, kEmPx, kRangePx, kPaddingPx);
+            if (!generated || generated->rgba8.empty()) continue;
+            const runtime::GpuGlyphMetrics glyph_metrics{
+                generated->x_offset, generated->y_offset, generated->advance_x};
+            widths.push_back(generated->width);
+            heights.push_back(generated->height);
+            metrics.push_back(glyph_metrics);
+            pending_keys.push_back(key);
+            pending_widths.push_back(generated->width);
+            pending_heights.push_back(generated->height);
+            pending_metrics.push_back(glyph_metrics);
+            pending_pixels.insert(pending_pixels.end(), generated->rgba8.begin(),
+                                  generated->rgba8.end());
+        }
+
+        if (!pending_keys.empty()) {
+            const auto uploaded = ctx.runtime->gpu_glyph_atlas().prepare_batch(
+                pending_keys, pending_widths, pending_heights, pending_pixels,
+                pending_metrics, profile);
+            if (!uploaded.has_value()) {
+                return graph::RenderOpResult(graph::RenderBackendError{
+                    graph::RenderBackendErrorCode::ExecutionFailure,
+                    "MTSDF glyph atlas preparation failed"});
+            }
+        }
+
+        prepared->batches.reserve(1);
+        for (std::size_t key_index = 0; key_index < keys.size(); ++key_index) {
+            const auto location = ctx.runtime->gpu_glyph_atlas().location(keys[key_index]);
+            if (!location) continue;
+            const auto page = ctx.runtime->gpu_glyph_atlas().page_handle(
+                location->atlas_page);
+            if (!page) continue;
+            auto batch = std::find_if(
+                prepared->batches.begin(), prepared->batches.end(),
+                [page](const Prepared::Batch& candidate) {
+                    return candidate.page == *page;
+                });
+            if (batch == prepared->batches.end()) {
+                prepared->batches.push_back(Prepared::Batch{});
+                batch = std::prev(prepared->batches.end());
+                batch->page = *page;
+                batch->glyphs.reserve(keys.size());
+            }
+            // `key_index` counts drawable glyphs, not the original layout
+            // index. Recover the original position by walking the layout so
+            // whitespace glyphs remain harmless and pad0 remains typewriter
+            // stable.
+            std::size_t layout_index = 0;
+            std::size_t drawable_index = 0;
+            while (layout_index < layout.placed.glyphs.size()) {
+                const auto& candidate = layout.placed.glyphs[layout_index];
+                if (shape.glyphs[layout_index].glyph_id != 0 &&
+                    candidate.bbox_x1 > candidate.bbox_x0) {
+                    if (drawable_index++ == key_index) break;
+                }
+                ++layout_index;
+            }
+            if (layout_index >= layout.placed.glyphs.size()) continue;
+            const auto& placed = layout.placed.glyphs[layout_index];
+            runtime::GlyphStatic glyph{};
+            // The backend receives one atlas page per dispatch, so page-local
+            // metadata is deliberately zero. The persistent atlas page is
+            // carried by Prepared::Batch::page and never encoded as a fake
+            // page index in the glyph record.
+            glyph.atlas_page = 0;
+            glyph.flags = 1u;
+            glyph.atlas_x = location->atlas_x;
+            glyph.atlas_y = location->atlas_y;
+            glyph.atlas_w = location->width;
+            glyph.atlas_h = location->height;
+            const float pad = static_cast<float>(kPaddingPx) * layout_scale;
+            glyph.plane_left = placed.x + placed.bbox_x0 * layout_scale - pad;
+            glyph.plane_top = placed.y - placed.bbox_y0 * layout_scale - pad;
+            glyph.plane_right = glyph.plane_left +
+                static_cast<float>(location->width) * layout_scale;
+            glyph.plane_bottom = glyph.plane_top +
+                static_cast<float>(location->height) * layout_scale;
+            glyph.draw_order = static_cast<std::uint32_t>(layout_index);
+            glyph.pad0 = static_cast<std::uint32_t>(layout_index);
+            batch->glyphs.push_back(glyph);
+        }
+        prepared->ready = !prepared->batches.empty() &&
+            std::any_of(prepared->batches.begin(), prepared->batches.end(),
+                        [](const Prepared::Batch& batch) {
+                            return !batch.glyphs.empty() &&
+                                batch.page != runtime::kInvalidRenderSurfaceHandle;
+                        });
+    }
+
+    if (!prepared->ready) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route has no resident glyphs"});
+    }
+
+    runtime::TextRunDynamic run{};
+    run.tx = model_matrix[3][0];
+    run.ty = model_matrix[3][1];
+    run.sx = model_matrix[0][0];
+    run.sy = model_matrix[1][1];
+    run.opacity = opacity;
+    run.color = pack_text_color(shape.paint.fill);
+    // Keep the shader interpretation tied to the atlas profile rather than
+    // duplicating the distance range as a magic constant in GLSL.
+    run.distance_range_bits = std::bit_cast<std::uint32_t>(
+        static_cast<float>(kRangePx));
+    run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
+    if (prepared->reveal_selector) {
+        std::uint32_t visible_limit = 0;
+        const auto sample_time = ctx.frame_input.sample_time;
+        for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
+            if (shape.glyphs[i].glyph_id == 0 ||
+                layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
+                continue;
+            }
+            const auto weight = evaluate_compiled_selector(
+                *prepared->reveal_selector, layout.units,
+                static_cast<std::uint32_t>(i), sample_time);
+            if (weight <= 1e-6f) {
+                visible_limit = static_cast<std::uint32_t>(i + 1);
+            }
+        }
+        run.visible_glyph_count = visible_limit;
+    }
+    if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
+        run.effect_flags |= 1u;
+        run.stroke_width = shape.paint.stroke_width;
+        run.stroke_color = pack_text_color(shape.paint.stroke_color);
+    }
+    for (const auto& shadow : shape.shadows) {
+        if (!shadow.enabled) continue;
+        Color shadow_color = shadow.color;
+        shadow_color.a = std::clamp(shadow_color.a * shadow.opacity, 0.0f, 1.0f);
+        run.shadow_color = pack_text_color(shadow_color);
+        run.shadow_dx = shadow.offset.x;
+        run.shadow_dy = shadow.offset.y;
+        run.shadow_blur = shadow.blur;
+        run.effect_flags |= (std::abs(shadow.offset.x) < 1e-4f &&
+                             std::abs(shadow.offset.y) < 1e-4f) ? 4u : 2u;
+        break;
+    }
+
+    if (!ensure_empty_native_surface(ctx, destination)) {
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route destination has no native surface"});
+    }
+    const auto cleared = ctx.backend->fill_rect_surface(
+        destination.surface_handle(), 0, 0, destination.width(), destination.height(),
+        Color::transparent());
+    if (!cleared.ok()) return cleared;
+    std::size_t items_drawn = 0;
+    for (const auto& batch : prepared->batches) {
+        if (batch.glyphs.empty()) continue;
+        const auto dispatch = ctx.backend->draw_text_batch(
+            destination.surface_handle(), batch.glyphs,
+            std::span<const runtime::TextRunDynamic>(&run, 1),
+            std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+        if (!dispatch.ok()) return dispatch;
+        items_drawn += dispatch.value().items_drawn;
+    }
+    return graph::RenderOpResult(graph::RenderOpOutcome{items_drawn});
 }
 
 #include "gpu_text_run_cached.inc"

@@ -92,11 +92,19 @@ struct alignas(16) GpuTextRunDynamic {
     float sy{1.0f};
     float opacity{1.0f};
     std::uint32_t color{0xFFFFFFFF};
-    float pad0{0.0f};
-    float pad1{0.0f};
+    std::uint32_t visible_glyph_count{0xFFFFFFFFu};
+    std::uint32_t flags{0};
+    std::uint32_t stroke_color{0};
+    std::uint32_t shadow_color{0};
+    std::uint32_t effect_flags{0};
+    std::uint32_t distance_range_bits{0};
+    float stroke_width{0.0f};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
 };
-static_assert(sizeof(GpuTextRunDynamic) == 32,
-              "GpuTextRunDynamic must be 32 bytes");
+static_assert(sizeof(GpuTextRunDynamic) == 64,
+              "GpuTextRunDynamic must be 64 bytes");
 
 } // namespace
 
@@ -157,8 +165,16 @@ void VulkanBackend::Impl::draw_text_batch(
         gr.sy = (run.sy != 0.0f) ? run.sy : 1.0f;
         gr.opacity = run.opacity;
         gr.color = run.color;
-        gr.pad0 = 0.0f;
-        gr.pad1 = 0.0f;
+        gr.visible_glyph_count = run.visible_glyph_count;
+        gr.flags = run.flags;
+        gr.stroke_color = run.stroke_color;
+        gr.shadow_color = run.shadow_color;
+        gr.effect_flags = run.effect_flags;
+        gr.distance_range_bits = run.distance_range_bits;
+        gr.stroke_width = run.stroke_width;
+        gr.shadow_dx = run.shadow_dx;
+        gr.shadow_dy = run.shadow_dy;
+        gr.shadow_blur = run.shadow_blur;
     }
 
     std::int32_t dispatch_x0 = static_cast<std::int32_t>(dst_image.width);
@@ -184,7 +200,9 @@ void VulkanBackend::Impl::draw_text_batch(
             ? gs.plane_bottom : (gs.plane_top + gs.atlas_h);
         gg.draw_order = gs.draw_order != 0
             ? gs.draw_order : static_cast<std::uint32_t>(i);
-        gg.pad0 = gg.pad1 = gg.pad2 = 0;
+        gg.pad0 = gs.pad0;
+        gg.pad1 = gs.pad1;
+        gg.pad2 = gs.pad2;
 
         const auto& run = gpu_runs[gg.run_index];
         const float gx0 = run.tx + gg.plane_left * run.sx;
@@ -253,11 +271,7 @@ void VulkanBackend::Impl::draw_text_batch(
 
     const bool atlas_is_mtsdf =
         atlas_image.text_atlas_encoding == runtime::TextAtlasEncoding::MTSDF;
-    for (std::size_t i = 0; i < glyphs.size(); ++i) {
-        gpu_glyphs[i].atlas_page_and_flags =
-            static_cast<std::uint32_t>(glyphs[i].atlas_page) |
-            (static_cast<std::uint32_t>(atlas_is_mtsdf ? 1u : 0u) << 16);
-    }
+    (void)atlas_is_mtsdf;
 
     if (frame_batch.active) {
         constexpr std::int32_t kTileSize = 16;

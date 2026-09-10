@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <bit>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -29,8 +30,25 @@ enum class GlyphRepresentation : std::uint8_t {
     Coverage = 0,   ///< R8 linear coverage bitmap
     Sdf = 1,        ///< Single-channel signed distance field
     Msdf = 2,       ///< Multi-channel signed distance field (RGB)
-    Mtsdf = 3       ///< Multi-channel + true signed distance field (RGBA)
+    Mtsdf = 3,      ///< Multi-channel + true signed distance field (RGBA)
+    /// RGBA8 coverage used by the current Vulkan tile shader.  The four
+    /// channels contain the same linear coverage value; this is a bridge
+    /// until the R8 tile-raster pipeline is split out.
+    CoverageRgba = 4
 };
+
+[[nodiscard]] constexpr bool glyph_representation_is_rgba(
+    GlyphRepresentation representation) noexcept {
+    return representation == GlyphRepresentation::Msdf ||
+           representation == GlyphRepresentation::Mtsdf ||
+           representation == GlyphRepresentation::CoverageRgba;
+}
+
+[[nodiscard]] constexpr bool glyph_representation_is_raster_size_specific(
+    GlyphRepresentation representation) noexcept {
+    return representation == GlyphRepresentation::Coverage ||
+           representation == GlyphRepresentation::CoverageRgba;
+}
 
 /// Distance field profile for distance-field representations.
 struct DistanceFieldProfile {
@@ -44,7 +62,7 @@ struct DistanceFieldProfile {
 
 /// VRAM-resident glyph identity.
 /// For MTSDF/MSDF/SDF, font_size is NOT in the key (canonical generation scaled at runtime).
-/// For Coverage, font_size is retained for raster-size-specific caching.
+/// For Coverage and CoverageRgba, font_size is retained for raster-size-specific caching.
 struct GpuGlyphKey {
     std::string font_path;
     std::uint32_t glyph_id{0};
@@ -62,7 +80,7 @@ struct GpuGlyphKey {
                                           GlyphRepresentation rep,
                                           std::uint16_t generation_profile,
                                           std::uint32_t font_size) noexcept {
-        if (rep != GlyphRepresentation::Coverage) font_size = 0;
+        if (!glyph_representation_is_raster_size_specific(rep)) font_size = 0;
         return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
                            rep, generation_profile, font_size};
     }
@@ -77,7 +95,7 @@ struct GpuGlyphKey {
             a.generation_profile != b.generation_profile) {
             return false;
         }
-        return a.representation != GlyphRepresentation::Coverage ||
+        return !glyph_representation_is_raster_size_specific(a.representation) ||
                a.font_size == b.font_size;
     }
 };
@@ -92,7 +110,7 @@ struct GpuGlyphKeyHash {
             .add(key.variation_hash)
             .add_enum(key.representation)
             .add(key.generation_profile);
-        if (key.representation == GlyphRepresentation::Coverage) h.add(key.font_size);
+        if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
         return static_cast<std::size_t>(h.finish());
     }
 };
@@ -110,7 +128,7 @@ inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
                  .add(key.variation_hash)
                  .add_enum(key.representation)
                  .add(key.generation_profile);
-    if (key.representation == GlyphRepresentation::Coverage) h.add(key.font_size);
+    if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
     return h.finish();
 }
 
@@ -173,8 +191,9 @@ struct GpuGlyphAtlasStats {
 using GpuGlyphAcquireResult = Result<GlyphLocation, GpuGlyphAtlasError>;
 
 /// Global paged glyph atlas — the ONE source of truth for VRAM-resident
-/// glyphs. Every glyph is stored as R8Unorm (coverage/SDF) or Rgba8Unorm (MTSDF)
-/// in homogeneous atlas pages. Pages are created lazily without host buffer fills.
+/// glyphs. Every glyph is stored as R8Unorm (coverage/SDF) or Rgba8Unorm
+/// (MTSDF/MSDF/compatibility coverage) in homogeneous atlas pages. Pages are
+/// created lazily without host buffer fills.
 class GpuGlyphAtlas {
 public:
     static constexpr std::uint32_t kPageSize = 2048;  // 2048×2048
@@ -195,6 +214,16 @@ public:
 
     /// Placement metrics for a previously-acquired glyph.
     [[nodiscard]] std::optional<GpuGlyphMetrics> metrics(GpuGlyphKey key) const noexcept;
+
+    /// Direct resident lookup used by prepare paths.  A hit must be
+    /// discoverable before generating or copying glyph pixels.
+    [[nodiscard]] std::optional<GlyphLocation> location(
+        GpuGlyphKey key) const noexcept;
+
+    /// Resolve the persistent page handle for a location's atlas_page index.
+    /// The handle remains valid until clear() or runtime teardown.
+    [[nodiscard]] std::optional<RenderSurfaceHandle> page_handle(
+        std::uint16_t atlas_page) const noexcept;
 
     /// Pre-upload a batch of glyphs in prepare().
     [[nodiscard]] Result<std::size_t, GpuGlyphAtlasError> prepare_batch(
@@ -237,6 +266,10 @@ private:
     std::unordered_map<GpuGlyphKey, GlyphLocation, GpuGlyphKeyHash> m_locations;
     std::unordered_map<GpuGlyphKey, GpuGlyphMetrics, GpuGlyphKeyHash> m_metrics;
     GpuGlyphAtlasStats m_stats{};
+    // Fast-path hits (shared_lock reads) cannot bump m_stats.hits without a
+    // lock upgrade; they accumulate here with a relaxed atomic and are folded
+    // into stats().hits by the write-lock-free stats() snapshot.
+    mutable std::atomic<std::size_t> m_fast_path_hits{0};
 };
 
 // ── GpuStyledGlyphCache (formerly GpuTextAtlasCache) ───────────────────────

@@ -14,11 +14,11 @@ namespace chronon3d::backends::vulkan {
 
 /// Imports one Vulkan-exported RGBA surface (float4 or uchar4) into CUDA.
 ///
-/// The imported image remains device-local.  The two external binary
-/// semaphores are the ownership boundary: wait_for_vulkan() must complete
-/// before CUDA writes, and signal_for_vulkan() is the release operation that
-/// lets the next Vulkan submission sample the image.  No host mapping or
-/// staging allocation is used by this class.
+/// The imported image remains device-local. The two external semaphores are
+/// the ownership boundary: wait_for_vulkan() must complete before CUDA writes,
+/// and signal_for_vulkan() is the release operation that lets the next Vulkan
+/// submission sample the image. Timeline handles are used when the Vulkan
+/// export advertises them; binary handles remain a compatibility fallback.
 class CudaVulkanSurfaceBridge final {
 public:
     CudaVulkanSurfaceBridge(const CudaExternalMemoryInfo& info,
@@ -59,6 +59,9 @@ private:
     CUexternalSemaphore m_cuda_to_vulkan{nullptr};
     CUexternalSemaphore m_vulkan_to_cuda{nullptr};
     CUstream m_stream{nullptr};
+    bool m_timeline{false};
+    std::uint64_t m_vulkan_to_cuda_value{0};
+    std::uint64_t m_cuda_to_vulkan_value{0};
 };
 
 #endif

@@ -305,9 +305,23 @@ struct TextRunDynamic {
     float sy{1.0f};
     float opacity{1.0f};
     std::uint32_t color{0xFFFFFFFF};
+    std::uint32_t visible_glyph_count{std::numeric_limits<std::uint32_t>::max()};
+    /// Bit 0 selects shaped plane placement for coverage glyphs. Zero keeps
+    /// the legacy bitmap-origin contract used by compatibility callers.
+    std::uint32_t flags{0};
+    std::uint32_t stroke_color{0};
+    std::uint32_t shadow_color{0};
+    std::uint32_t effect_flags{0};
+    // IEEE-754 bits of the MTSDF page's distance_range_px. Zero means the
+    // shader uses its legacy-safe default for compatibility callers.
+    std::uint32_t distance_range_bits{0};
+    float stroke_width{0.0f};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
 };
-static_assert(sizeof(TextRunDynamic) == 24,
-              "TextRunDynamic must be 24 bytes");
+static_assert(sizeof(TextRunDynamic) == 64,
+              "TextRunDynamic must be 64 bytes matching std430");
 
 struct GlyphInstance {
     std::int32_t dst_x{0};
