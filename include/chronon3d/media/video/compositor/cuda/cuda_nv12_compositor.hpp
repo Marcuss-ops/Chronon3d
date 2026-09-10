@@ -94,8 +94,17 @@ private:
     CUfunction direct_nv12_batch_kernel_{nullptr};
     CUfunction rgba_to_nv12_kernel_{nullptr};
     CUfunction rgba_u8_to_nv12_kernel_{nullptr};
-    CUdeviceptr layer_batch_buffer_{0};
-    std::size_t layer_batch_capacity_{0};
+    // AUDIT-02A/02B: per-slot pinned host staging + device buffers in a
+    // ping-pong pair. Host storage is allocated once (pinned, never per
+    // frame); the two device slots alternate so a caller that switches
+    // streams between frames can never overwrite a device slot whose
+    // H2D copy + kernel read is still in flight on the previous stream.
+    static constexpr int kLayerBatchSlots = 2;
+    CUdeviceptr layer_batch_buffer_[kLayerBatchSlots]{0, 0};
+    std::size_t layer_batch_capacity_dev_[kLayerBatchSlots]{0, 0};
+    CUdeviceptr layer_batch_host_[kLayerBatchSlots]{0, 0};
+    std::size_t layer_batch_capacity_[kLayerBatchSlots]{0, 0};
+    int layer_batch_slot_{0};
     CUstream stream_{nullptr};
     bool first_write_{true};
     bool surface_u8_{false};

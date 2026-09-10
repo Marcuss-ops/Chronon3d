@@ -1,5 +1,4 @@
 add_library(chronon3d_video_compositor OBJECT
-    video_compositor_resolver.cpp
     cuda/cuda_nv12_compositor.cpp
     cuda/cuda_nv12_compositor_paths.cpp
     cuda/cuda_nv12_compositor_batch.cpp)

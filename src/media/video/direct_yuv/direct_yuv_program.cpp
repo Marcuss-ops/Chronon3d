@@ -333,12 +333,27 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->watermark_load_ms_ = watermark_load_ms;
     program->watermark_upload_ms_ = watermark_upload_ms;
     program->all_overlay_layers_static_ = all_overlay_layers_static;
+    // AUDIT-04B: build the allocation-free lookup index once. The map keys
+    // are node-stable (unordered_map never moves node storage), so the
+    // string_views remain valid for the program's lifetime.
+    program->resource_index_.reserve(program->layer_resources_.size());
+    for (const auto& [name, entry] : program->layer_resources_) {
+        program->resource_index_.emplace_back(name, &entry);
+    }
     return program;
 #endif
 }
 
+const DirectLayerResourceEntry* DirectYuvProgram::find_resource(
+    std::string_view name) const noexcept {
+    for (const auto& [key, entry] : resource_index_) {
+        if (key == name) return entry;
+    }
+    return nullptr;
+}
+
 std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
-    media::NativeVideoFrameDecoder& decoder, Frame frame) const {
+    media::NativeVideoFrameDecoder& decoder, Frame frame) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
     (void)decoder; (void)frame;
     return nullptr;
@@ -370,6 +385,12 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     ++template_eval_count_;
     auto template_frame = std::make_shared<DirectYuvTemplate>();
+    // AUDIT-02C: reserve the dynamic path's capacity once at first eval.
+    // push_back stays steady-state allocation-free for typical overlay
+    // counts; the retained vector never shrinks between cues.
+    template_frame->batch.instances.reserve(overlay_instances_hint_);
+    template_frame->resources.reserve(overlay_instances_hint_);
+    template_frame->resource_owners.reserve(overlay_instances_hint_);
     const auto rate = composition_->frame_rate();
     const auto duration = composition_->duration();
     const auto context = make_frame_context({
@@ -397,14 +418,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         return nullptr;
     }
 
-    // Set when any layer in this frame carries a blend mode the fast path
-    // does not implement; the frame is failed below instead of emitting a
-    // visually-wrong program.
-    bool unsupported_blend = false;
+    // AUDIT-13/14: no unsupported_blend flag — every unsupported blend fails
+    // the frame at its emit site, before any instance is pushed.
 
     std::size_t video_layer_index = 0;
     for (const auto& layer : scene.layers()) {
-        if (unsupported_blend) return nullptr;
         if (!layer.visible) continue;
         if (frame.integral() < layer.from.integral() ||
             (layer.duration.integral() > 0 && frame.integral() >= layer.from.integral() + layer.duration.integral())) {
@@ -457,6 +475,14 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             const float cy = static_cast<float>(height_) * 0.5f + layer.transform.position.y;
             const float half_w = base_w * 0.5f * layer.transform.scale.x;
             const float half_h = base_h * 0.5f * layer.transform.scale.y;
+            // AUDIT-13/14: validate BEFORE emitting. The frame is failed
+            // here, never via a fake Normal instance pushed and rejected one
+            // iteration later.
+            if (layer.blend_mode != BlendMode::Add && layer.blend_mode != BlendMode::Normal) {
+                spdlog::error("[direct-yuv] unsupported blend mode for video layer '{}': {}",
+                              layer.name, static_cast<int>(layer.blend_mode));
+                return nullptr;
+            }
             const uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
             template_frame->batch.instances.push_back(runtime::LayerInstance{
                 .kind = runtime::PrimitiveKind::Video,
@@ -465,19 +491,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
                 .dst_x0 = cx - half_w, .dst_y0 = cy - half_h,
                 .dst_x1 = cx + half_w, .dst_y1 = cy + half_h,
             .opacity = std::clamp(layer.transform.opacity, 0.0f, 1.0f),
-            .blend = [&]() {
-                // FAIL-CLOSED on blend semantics: the fast path only
-                // implements Add and Normal. Any other blend mode would be
-                // silently coerced to Normal and visually change the result,
-                // so reject the frame instead.
-                if (layer.blend_mode == BlendMode::Add || layer.blend_mode == BlendMode::Normal) {
-                    return layer.blend_mode;
-                }
-                spdlog::error("[direct-yuv] unsupported blend mode for video layer '{}': {}",
-                              layer.name, static_cast<int>(layer.blend_mode));
-                unsupported_blend = true;
-                return BlendMode::Normal;
-            }()});
+            .blend = layer.blend_mode});
             media::CudaLayerResource resource;
             resource.kind = media::CudaLayerResourceKind::Nv12;
             resource.y = reinterpret_cast<CUdeviceptr>(overlay_frame->data[0]);
@@ -490,8 +504,8 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             result->video_layers.push_back(std::move(overlay_frame));
             continue;
         }
-        auto it = layer_resources_.find(std::string(layer.name));
-        if (it == layer_resources_.end() || !it->second.gpu_resource) {
+        auto* resource_entry = find_resource(layer.name);
+        if (!resource_entry || !resource_entry->gpu_resource) {
             // FAIL-CLOSED: the plan requested this layer, so a missing GPU
             // resource is a render failure — never "render the base video and
             // pretend the overlay never existed".
@@ -499,7 +513,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
                           layer.name, frame.integral());
             return nullptr;
         }
-        const auto& entry = it->second;
+        const auto& entry = *resource_entry;
 
         float base_w = entry.native_width;
         float base_h = entry.native_height;
@@ -542,6 +556,14 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         const float dst_y1 = cy + half_h;
         if (opacity <= 0.001f || dst_x1 <= dst_x0 || dst_y1 <= dst_y0) continue;
 
+        // AUDIT-13/14: validate BEFORE emitting — same contract as video
+        // layers. Only Add and Normal are implemented; anything else fails
+        // the frame here rather than being coerced to Normal.
+        if (layer.blend_mode != BlendMode::Add && layer.blend_mode != BlendMode::Normal) {
+            spdlog::error("[direct-yuv] unsupported blend mode for layer '{}': {}",
+                          layer.name, static_cast<int>(layer.blend_mode));
+            return nullptr;
+        }
         const uint32_t res_idx = static_cast<uint32_t>(template_frame->resources.size());
         template_frame->batch.instances.push_back(runtime::LayerInstance{
             .kind = runtime::PrimitiveKind::Image,
@@ -550,18 +572,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             .dst_x0 = dst_x0, .dst_y0 = dst_y0,
             .dst_x1 = dst_x1, .dst_y1 = dst_y1,
             .opacity = opacity,
-            .blend = [&]() {
-                // FAIL-CLOSED on blend semantics: same contract as video
-                // layers — only Add and Normal are implemented; anything else
-                // fails the frame rather than being coerced to Normal.
-                if (layer.blend_mode == BlendMode::Add || layer.blend_mode == BlendMode::Normal) {
-                    return layer.blend_mode;
-                }
-                spdlog::error("[direct-yuv] unsupported blend mode for layer '{}': {}",
-                              layer.name, static_cast<int>(layer.blend_mode));
-                unsupported_blend = true;
-                return BlendMode::Normal;
-            }(),
+            .blend = layer.blend_mode,
             .corner_radius = entry.corner_radius});
 
         media::CudaLayerResource res;
@@ -576,7 +587,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         template_frame->resource_owners.push_back(entry.gpu_resource);
     }
 
-    if (all_overlay_layers_static_ && video_layers_.empty() && !unsupported_blend) {
+    if (all_overlay_layers_static_ && video_layers_.empty()) {
         Frame cue_from = Frame{0};
         Frame cue_until = composition_->duration();
         for (const auto& layer : scene.layers()) {
@@ -603,6 +614,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         cached_template_.valid_until = cue_until;
         cached_template_.template_frame = template_frame;
     }
+
+    // AUDIT-02C: keep the next dynamic frame's reserve hint at the observed
+    // high-water mark (monotonic; no shrinking).
+    overlay_instances_hint_ = std::max<std::size_t>(
+        overlay_instances_hint_, template_frame->batch.instances.size());
 
     result->program = std::move(template_frame);
     return result;

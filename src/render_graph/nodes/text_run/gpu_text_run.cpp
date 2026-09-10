@@ -66,19 +66,26 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
     const Color& color) {
     const auto handle = resources.resolve_handle(font_path,
         static_cast<float>(font_size), resolver);
-    if (!handle.valid()) return std::nullopt;
+    if (!handle.valid()) {
+        spdlog::error("[rasterize_missing_glyph] handle not valid for font_path='{}'", font_path);
+        return std::nullopt;
+    }
     BLFont font;
     if (font.createFromFace(*handle.bl_face, static_cast<float>(font_size)) != BL_SUCCESS) {
+        spdlog::error("[rasterize_missing_glyph] createFromFace failed for font_path='{}'", font_path);
         return std::nullopt;
     }
     BLBoxI bounds{};
     if (font.getGlyphBounds(&glyph_id, 0, &bounds, 1) != BL_SUCCESS) return std::nullopt;
-    const int x0 = bounds.x0;
-    const int y0 = bounds.y0;
-    const int x1 = bounds.x1;
-    const int y1 = bounds.y1;
-    const int width = x1 - x0;
-    const int height = y1 - y0;
+    constexpr double kGlyphUnit = 1.0 / 64.0;
+    const double bx0 = static_cast<double>(bounds.x0) * kGlyphUnit;
+    const double by0 = static_cast<double>(bounds.y0) * kGlyphUnit;
+    const double bx1 = static_cast<double>(bounds.x1) * kGlyphUnit;
+    const double by1 = static_cast<double>(bounds.y1) * kGlyphUnit;
+    const int x0 = static_cast<int>(std::floor(bx0));
+    const int y0 = static_cast<int>(std::floor(by0));
+    const int width = static_cast<int>(std::ceil(bx1)) - x0;
+    const int height = static_cast<int>(std::ceil(by1)) - y0;
     if (width <= 0 || height <= 0) return std::nullopt;
 
     auto image = std::make_shared<BLImage>(width, height, BL_FORMAT_PRGB32);

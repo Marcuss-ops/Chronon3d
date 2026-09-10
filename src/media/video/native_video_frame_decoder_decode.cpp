@@ -481,25 +481,34 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
     }
     const int64_t target = static_cast<int64_t>(*lookup.sample_index);
 
-    std::unique_lock state_lock(session->mutex);
+    // AUDIT-08A: the prefetch teardown (stop + join + queue drain +
+    // generation bump) is a ONE-TIME cost keyed on direct_prefetch_disabled.
+    // Steady-state direct frames take the session mutex exactly twice —
+    // to reset and to collect the captured frame — with no queue clear, no
+    // generation bump, no CV notify and no CV wait (the joined worker
+    // guarantees prefetch_inflight == -1 for the session's lifetime).
     if (!session->direct_prefetch_disabled && session->prefetch_worker.joinable()) {
+        std::unique_lock state_lock(session->mutex);
         session->prefetch_stop.store(true, std::memory_order_relaxed);
         session->prefetch_cv.notify_all();
         state_lock.unlock();
         session->prefetch_worker.join();
         state_lock.lock();
         session->direct_prefetch_disabled = true;
+        session->prefetch_queue.clear();
+        ++session->prefetch_generation;
+        session->prefetch_next = -1;
+        // prefetch_inflight is guaranteed -1 once the worker has joined: the
+        // worker clears it before re-checking prefetch_stop, and no other
+        // producer exists. No CV wait needed.
+        session->captured_native_frame.reset();
+        session->capture_native_frame = true;
+        state_lock.unlock();
+    } else {
+        std::lock_guard state_lock(session->mutex);
+        session->captured_native_frame.reset();
+        session->capture_native_frame = true;
     }
-    session->prefetch_queue.clear();
-    ++session->prefetch_generation;
-    session->prefetch_next = -1;
-    session->prefetch_cv.notify_all();
-    session->prefetch_cv.wait(state_lock, [&session] {
-        return session->prefetch_inflight < 0 || session->prefetch_stop.load();
-    });
-    session->captured_native_frame.reset();
-    session->capture_native_frame = true;
-    state_lock.unlock();
 
     auto io_read = global_media_io_budget().acquire_required_read();
     const auto decode_start = profiling::now();
@@ -509,20 +518,23 @@ HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(
         static_cast<std::uint64_t>(std::llround(decode_dur_ms)), std::memory_order_relaxed);
     (void)decode_result;
 
-    state_lock.lock();
-    session->capture_native_frame = false;
-    auto result = std::move(session->captured_native_frame);
-    if (result) {
-        session->profiling.decoded_frames++;
-        session->profiling.decode_total_ms += decode_dur_ms;
-        session->profiling.frame_durations_ms.push_back(decode_dur_ms);
+    {
+        std::lock_guard state_lock(session->mutex);
+        session->capture_native_frame = false;
+        auto result = std::move(session->captured_native_frame);
+        if (result) {
+            session->profiling.decoded_frames++;
+            session->profiling.decode_total_ms += decode_dur_ms;
+            session->profiling.frame_durations_ms.push_back(decode_dur_ms);
+        }
+        return result;
     }
-    return result;
 }
 
 NativeVideoFrameDecoder::DecodeProfilingStats NativeVideoFrameDecoder::decode_profiling_stats() const {
     DecodeProfilingStats total;
-    std::lock_guard lock(const_cast<std::mutex&>(m_mutex));
+    // AUDIT-08B: m_mutex is mutable — no const_cast.
+    std::lock_guard lock(m_mutex);
     for (const auto& [_, session] : m_sessions) {
         if (!session) continue;
         std::lock_guard s_lock(session->mutex);

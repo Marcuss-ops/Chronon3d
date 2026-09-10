@@ -104,6 +104,10 @@ graph::RenderOpResult draw_cached_text_run(
             }
         }
         if (!entry || !entry->image || entry->image->empty()) {
+            spdlog::error(
+                "[text-diag] entry empty: font='{}' gid={} size={} has_res={} has_resolver={}",
+                layout.font.font_path, state.glyph_id, font_size,
+                ctx.text_render_resources != nullptr, ctx.asset_resolver != nullptr);
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: glyph bitmap not prewarmed"});
