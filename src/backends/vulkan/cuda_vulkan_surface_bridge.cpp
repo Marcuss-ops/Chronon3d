@@ -9,6 +9,9 @@
 #include <cstdint>
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include <cstdlib>
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::backends::vulkan {
 namespace {
 
@@ -87,6 +90,13 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
             info.cuda_to_vulkan_semaphore_fd, "cuImportExternalSemaphore(cuda->vulkan)");
         m_vulkan_to_cuda = import_semaphore(
             info.vulkan_to_cuda_semaphore_fd, "cuImportExternalSemaphore(vulkan->cuda)");
+        static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+        if (s_trace) {
+            spdlog::info("[interop-trace] IMPORT_BRIDGE ctx={} stream={} V2C_fd={} -> CUextSem={} C2V_fd={} -> CUextSem={}",
+                         static_cast<void*>(m_context), static_cast<void*>(m_stream),
+                         info.vulkan_to_cuda_semaphore_fd, static_cast<void*>(m_vulkan_to_cuda),
+                         info.cuda_to_vulkan_semaphore_fd, static_cast<void*>(m_cuda_to_vulkan));
+        }
     } catch (...) {
         if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
         if (m_cuda_to_vulkan) cuDestroyExternalSemaphore(m_cuda_to_vulkan);
@@ -115,6 +125,12 @@ void CudaVulkanSurfaceBridge::make_current() {
 void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
     const auto started = std::chrono::steady_clock::now();
     make_current();
+    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+    if (s_trace) {
+        spdlog::info("[interop-trace] CUDA_WAIT_V2C ctx={} stream={} sem={}",
+                     static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
+                     static_cast<void*>(m_vulkan_to_cuda));
+    }
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
     check_cuda(cuWaitExternalSemaphoresAsync(
                    &m_vulkan_to_cuda, &params, 1, stream ? stream : m_stream),
@@ -131,6 +147,12 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
 void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
     const auto started = std::chrono::steady_clock::now();
     make_current();
+    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+    if (s_trace) {
+        spdlog::info("[interop-trace] CUDA_SIGNAL_C2V ctx={} stream={} sem={}",
+                     static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
+                     static_cast<void*>(m_cuda_to_vulkan));
+    }
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
     check_cuda(cuSignalExternalSemaphoresAsync(
                    &m_cuda_to_vulkan, &params, 1, stream ? stream : m_stream),

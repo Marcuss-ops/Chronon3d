@@ -5,6 +5,7 @@
 
 DEVELOPER_GATES=(
     check_test_hygiene.sh
+    check_cli_tests.sh
     check_frame_value_convention.sh
     check_conflict_markers.sh
     check_doc_sha_dedup.sh
