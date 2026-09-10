@@ -63,6 +63,7 @@ OUTPUT_DIR="/tmp/z3_equivalence"
 CLI_BIN="${CHRONON3D_CLI:-}"
 if [[ -z "$CLI_BIN" ]]; then
     for candidate in \
+        "$PWD/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli" \
         "$PWD/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli" \
         "$PWD/build/chronon/linux-video-fast-dev/apps/chronon3d_cli/chronon3d_cli" \
         "$PWD/build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli" \

@@ -27,6 +27,8 @@ waves below are the reachable remainder, in expected-gain order.
 
 ## B1 — Persistent overlay layer for static text/watermark (≈1.4–1.6×)
 
+**Status:** `LAND (DirectYUV)` — `DirectYuvProgram` caches the prepared `DirectYuvTemplate` across static cue intervals $[cue\_from, cue\_until)$, skipping `composition_->evaluate(context)` and per-frame quad reconstruction entirely (`template_evals ≈ number_of_cues`, `template_reuses = frames - cues`).
+
 **Problem.** Burned subtitles + watermark are authored as per-cue text layers.
 Chronon re-rasterizes and re-composites glyphs on every frame they span even
 though their pixels change only at cue boundaries. In the E2E, cue layers span

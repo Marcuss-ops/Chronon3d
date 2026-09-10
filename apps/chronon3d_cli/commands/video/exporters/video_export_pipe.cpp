@@ -20,6 +20,16 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+#endif
+
 namespace chronon3d::cli {
 
 PipeExportResult render_and_encode_ffmpeg_pipe(
@@ -40,30 +50,43 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     runtime::DeviceScheduler local_scheduler;
     if (!device_scheduler) {
-        if (opts.encoder.hardware_encoder == "nvenc") {
-            spdlog::error(
-                "[video] hardware encoder 'nvenc' requested but device scheduler is missing; "
-                "refusing unprobed device capabilities");
-            return PipeExportResult{};
-        }
         runtime::DeviceCapabilities capabilities;
         capabilities.id = 0;
         capabilities.name = "cli-device-0";
-        capabilities.cuda = false;
-        capabilities.nvdec = false;
-        capabilities.nvenc = false;
-        capabilities.nv12 = false;
-        capabilities.p010 = false;
-        capabilities.h264 = false;
-        capabilities.hevc = false;
-        capabilities.av1 = false;
+#if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
+        bool has_cuda = (cuInit(0) == CUDA_SUCCESS);
+        int cuda_count = 0;
+        if (has_cuda && cuDeviceGetCount(&cuda_count) == CUDA_SUCCESS && cuda_count > 0) {
+            capabilities.cuda = true;
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+            const auto has_encoder = [](const char* name) {
+                return avcodec_find_encoder_by_name(name) != nullptr;
+            };
+            const auto has_decoder = [](const char* name) {
+                return avcodec_find_decoder_by_name(name) != nullptr;
+            };
+            capabilities.h264 = has_encoder("h264_nvenc") || has_decoder("h264_cuvid");
+            capabilities.hevc = has_encoder("hevc_nvenc") || has_decoder("hevc_cuvid");
+            capabilities.av1 = has_encoder("av1_nvenc") || has_decoder("av1_cuvid");
+            capabilities.nvenc = has_encoder("h264_nvenc") || has_encoder("hevc_nvenc") || has_encoder("av1_nvenc");
+            capabilities.nvdec = has_decoder("h264_cuvid") || has_decoder("hevc_cuvid") || has_decoder("av1_cuvid");
+            capabilities.nv12 = capabilities.cuda && (capabilities.nvenc || capabilities.nvdec);
+            capabilities.p010 = capabilities.cuda && (capabilities.nvenc || capabilities.nvdec);
+#endif
+        }
+#endif
+        if (opts.encoder.hardware_encoder == "nvenc" && !capabilities.nvenc) {
+            spdlog::error(
+                "[video] hardware encoder 'nvenc' requested but probed device capabilities lack nvenc support");
+            return PipeExportResult{};
+        }
         local_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
                 .compute_units = 1.0f,
                 .vram_bytes = 0,
-                .nvdec_sessions = 0,
-                .nvenc_sessions = 0,
+                .nvdec_sessions = capabilities.nvdec ? 1u : 0u,
+                .nvenc_sessions = capabilities.nvenc ? 1u : 0u,
                 .pcie_bandwidth = 1.0f});
         device_scheduler = &local_scheduler;
     }

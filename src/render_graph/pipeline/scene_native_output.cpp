@@ -266,6 +266,15 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
         spdlog::debug(
             "[native-residency] encode-surface alias binding active: reused "
             "frame {} needs no D2D copy", static_cast<int>(frame));
+        const auto copy = backend_.copy_surface_to_video_encode(
+            source, encode_surface);
+        if (!copy.ok()) {
+            spdlog::error("[backend] native encode prepare failed on reused frame {}: {}",
+                          static_cast<int>(frame), copy.error().message);
+            backend_.end_frame_batch();
+            encode_batch_active_ = false;
+            return std::shared_ptr<Framebuffer>{};
+        }
     } else {
         spdlog::error(
             "[native-residency] terminal output is not bound to the encode "
@@ -297,6 +306,13 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
                 "[native-residency] encode-surface alias binding active: frame "
                 "{} rendered directly into encode surface; D2D skipped",
                 static_cast<int>(frame));
+            const auto copy = backend_.copy_surface_to_video_encode(
+                source, encode_surface);
+            if (!copy.ok()) {
+                spdlog::error("[backend] native encode prepare failed for frame {}: {}",
+                              static_cast<int>(frame), copy.error().message);
+                exec_fb.reset();
+            }
         } else {
             spdlog::error(
                 "[native-residency] terminal output is not bound to the encode "

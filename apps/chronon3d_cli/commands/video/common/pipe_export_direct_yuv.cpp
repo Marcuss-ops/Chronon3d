@@ -117,6 +117,11 @@ RenderLoopOutput run_direct_yuv_loop(
     output.render_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - loop_start).count();
     output.render_end = profiling::now();
+    spdlog::info(
+        "[direct-yuv] loop finished: frames={} total_render={:.2f}ms template_evals={} template_reuses={}",
+        status.frames_rendered, output.render_ms,
+        session.direct_yuv_session->program->template_eval_count(),
+        session.direct_yuv_session->program->template_reuse_count());
     session.direct_yuv_session->counters.io_queue_push_wait_ms.fetch_add(
         static_cast<std::uint64_t>(submit_total_ms), std::memory_order_relaxed);
 
