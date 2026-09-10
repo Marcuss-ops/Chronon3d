@@ -35,6 +35,9 @@ namespace chronon3d::cli {
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
 
+/// Phase 5b: Pre-allocate and pre-import execution slots for native NVENC.
+void warmup_pipe_slots(PipeExportSession& session);
+
 /// Phase 7: Close encoder, gather encoder metrics, log benchmark.
 [[nodiscard]] EncoderCloseResult close_pipe_encoder(PipeExportSession& session);
 

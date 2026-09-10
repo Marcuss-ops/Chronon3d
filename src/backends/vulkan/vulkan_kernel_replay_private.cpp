@@ -115,6 +115,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         std::vector<VkPipelineStageFlags> wait_stages;
         std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
         std::vector<std::uint64_t> signal_values{signal_value};
+        static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
             const auto it = surfaces.physical_surfaces.find(physical_slot);
@@ -123,6 +124,18 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
+            if (s_trace) {
+                runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
+                for (const auto& [h, s] : surfaces.surface_bindings) {
+                    if (s == physical_slot) { bound_handle = h; break; }
+                }
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_WAIT_C2V handle={} slot={} image={} sem={}",
+                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
+                             static_cast<void*>(it->second.image.cuda_to_vulkan));
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (ready) handle={} slot={} image={} sem={}",
+                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
+                             static_cast<void*>(it->second.image.vulkan_to_cuda));
+            }
         }
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
             // A reused surface is already waiting on CUDA completion above;
@@ -133,6 +146,15 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (it == surfaces.physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(0);
+            if (s_trace) {
+                runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
+                for (const auto& [h, s] : surfaces.surface_bindings) {
+                    if (s == physical_slot) { bound_handle = h; break; }
+                }
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (export) handle={} slot={} image={} sem={}",
+                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
+                             static_cast<void*>(it->second.image.vulkan_to_cuda));
+            }
         }
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -148,11 +170,27 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             signal_semaphores.data()};
         const auto submit_start = profiling::now();
         CHRONON_TRACE_SCOPE("chronon.gpu", "VulkanSubmit");
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        const bool has_cuda_export = !surfaces.cuda_export_ready_surfaces.empty();
+#endif
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        if (has_cuda_export) {
+            check(vkWaitForFences(device, 1, &frame_batch.fences[slot], VK_TRUE, UINT64_MAX),
+                  "vkWaitForFences(cuda export slot)");
+            check(vkResetFences(device, 1, &frame_batch.fences[slot]),
+                  "vkResetFences(cuda export slot)");
+            frame_batch.in_flight[slot] = false;
+            read_gpu_timestamps(slot);
+        } else {
+            frame_batch.in_flight[slot] = true;
+        }
+#else
         frame_batch.in_flight[slot] = true;
+#endif
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         surfaces.cuda_ready_surfaces.clear();
         surfaces.cuda_export_ready_surfaces.clear();

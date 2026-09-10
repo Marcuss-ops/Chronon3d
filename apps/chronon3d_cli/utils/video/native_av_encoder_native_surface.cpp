@@ -13,6 +13,45 @@
 
 namespace chronon3d::cli {
 
+bool NativeAvEncoder::prepare_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle destination) {
+#if !defined(CHRONON3D_ENABLE_CUDA_INTEROP) || !defined(CHRONON3D_ENABLE_VULKAN)
+    (void)backend; (void)destination;
+    return false;
+#else
+    if (options_.direct_yuv_mode) return false;
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
+        destination == runtime::kInvalidRenderSurfaceHandle) {
+        return false;
+    }
+    if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
+        spdlog::error("[native_av] failed to activate CUDA context before surface prepare");
+        return false;
+    }
+    auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
+    if (!vulkan) return false;
+    if (!vulkan->cuda_context_matches_device(reinterpret_cast<CUcontext>(cuda_context_))) {
+        spdlog::error("[native_av] Vulkan/CUDA physical-device UUID mismatch");
+        return false;
+    }
+    const auto key = static_cast<std::uint64_t>(destination);
+    auto compositor_it = cuda_nv12_compositors_.find(key);
+    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+    if (compositor_it == cuda_nv12_compositors_.end()) {
+        const auto info = vulkan->export_cuda_external_memory(destination);
+        auto compositor = std::make_unique<media::video::CudaNv12Compositor>(
+            info, reinterpret_cast<CUcontext>(cuda_context_));
+        cuda_nv12_compositors_.emplace(key, std::move(compositor));
+        if (s_trace) {
+            spdlog::info("[interop-trace] PREPARE_NATIVE_SURFACE dest={} ctx={}", destination, cuda_context_);
+        }
+    }
+    return true;
+#endif
+}
+
 bool NativeAvEncoder::write_native_surface_impl(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
@@ -43,6 +82,12 @@ bool NativeAvEncoder::write_native_surface_impl(
     if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
         spdlog::error("[native_av] failed to activate CUDA context before surface handoff");
         return false;
+    }
+    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
+    if (s_trace) {
+        spdlog::info("[interop-trace] WRITE_NATIVE_SURFACE pts={} src={} dest={} prepared={} ctx={} stream={}",
+                     frames_submitted_, source, destination, surface_already_prepared,
+                     cuda_context_, static_cast<void*>(cuda_stream_));
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;

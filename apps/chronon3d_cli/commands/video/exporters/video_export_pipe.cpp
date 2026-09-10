@@ -117,6 +117,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         }
         session->prepare_timings.accumulate(warmup_prepare_timings);
         warmup_pipe_pool(*session);
+        warmup_pipe_slots(*session);
     } else {
         spdlog::info("[direct-yuv] bypassed generic warmup_pipe_renderer and 273MB warmup_pipe_pool");
     }
