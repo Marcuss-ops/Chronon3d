@@ -7,17 +7,31 @@
 #include <chronon3d/sdk/render_error.hpp>
 
 TEST_CASE("canonical error taxonomy keeps domain detail payloads") {
-    enum class LegacyCode { BackendFailed = 7 };
-    const auto error = chronon::from_legacy<LegacyCode>(
-        chronon::ErrorKind::FrameFailed, "test", "LegacyCode", "BackendFailed",
+    const auto error = chronon::from_legacy<chronon3d::runtime::ExecutionFailure>(
+        chronon::ErrorKind::FrameFailed, "test",
+        "chronon3d::runtime::ExecutionFailure", "BackendFailure",
         "backend operation failed", "test_backend");
 
     CHECK(error.category == chronon::ErrorCategory::FrameFailed);
     CHECK(error.detail.domain == "test");
-    CHECK(error.detail.legacy_type == "LegacyCode");
-    CHECK(error.detail.legacy_code == "BackendFailed");
+    CHECK(error.detail.legacy_type == "chronon3d::runtime::ExecutionFailure");
+    CHECK(error.detail.legacy_code == "BackendFailure");
     CHECK(error.detail.component == "test_backend");
-    CHECK(chronon::kLegacyErrorMappings.size() >= 28);
+    CHECK(chronon::kLegacyErrorMappings.size() == 28);
+    CHECK(chronon::is_registered_legacy_type(
+        "chronon3d::runtime::ExecutionFailure"));
+    CHECK_FALSE(chronon::is_registered_legacy_type(
+        "chronon3d::runtime::ResourcePreparationError"));
+}
+
+TEST_CASE("canonical error mapping rejects unregistered legacy types") {
+    enum class UnregisteredCode { Failure };
+    const auto error = chronon::from_legacy<UnregisteredCode>(
+        chronon::ErrorCategory::FrameFailed,
+        "test", "chronon3d::test::UnregisteredCode", "Failure", "boom");
+
+    CHECK(error.category == chronon::ErrorCategory::InvariantViolation);
+    CHECK(error.detail.legacy_code == "UnregisteredLegacyErrorType");
 }
 
 TEST_CASE("JobSession promotes a frame error to the canonical failed job state") {
