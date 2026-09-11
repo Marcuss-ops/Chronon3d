@@ -41,6 +41,18 @@ struct GpuTextRunDynamic {
     float shadow_dx;
     float shadow_dy;
     float shadow_blur;
+    float selector_start;
+    float selector_end;
+    float selector_amount;
+    float animator_tracking;
+    float animator_position_x;
+    float animator_position_y;
+    float animator_blur;
+    uint selector_unit_count;
+    float animator_opacity;
+    float animator_scale_x;
+    float animator_scale_y;
+    float animator_reserved2;
 };
 
 layout(std430, set = 0, binding = 2) readonly buffer GlyphBuffer {
@@ -83,6 +95,43 @@ vec4 unpack_color(uint c) {
     float g = float((c >> 8)  & 0xFFu) / 255.0;
     float r = float( c        & 0xFFu) / 255.0;
     return vec4(r, g, b, a);
+}
+
+float selector_weight(GpuTextRunDynamic run, uint glyph_index) {
+    if ((run.flags & 2u) == 0u) return 1.0;
+    float total = max(float(run.selector_unit_count), 1.0);
+    float position = (float(glyph_index) + 0.5) / total;
+    float start = clamp(run.selector_start * 0.01, 0.0, 1.0);
+    float end = clamp(run.selector_end * 0.01, 0.0, 1.0);
+    if (start > end) {
+        float tmp = start;
+        start = end;
+        end = tmp;
+        position = 1.0 - position;
+    }
+    if (position <= start || position >= end) return 0.0;
+    float range = end - start;
+    float t = range > 0.0000001 ? (position - start) / range : 0.5;
+    float weight = 1.0;
+    if ((run.flags & 4u) != 0u) {
+        if (t <= 0.5) {
+            float u = 2.0 * t;
+            float one_minus_u = 1.0 - u;
+            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
+        } else {
+            float u = 2.0 * (1.0 - t);
+            float one_minus_u = 1.0 - u;
+            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
+        }
+    }
+    return clamp(weight * run.selector_amount * 0.01, 0.0, 1.0);
+}
+
+float tracking_prefix(GpuTextRunDynamic run, uint glyph_index) {
+    float result = 0.0;
+    for (uint i = 0u; i < glyph_index; ++i)
+        result += run.animator_tracking * selector_weight(run, i);
+    return result;
 }
 
 void main() {
@@ -142,6 +191,7 @@ void main() {
         uint gid = s_glyph_indices[i];
         GpuGlyphStatic glyph = glyphs[gid];
         GpuTextRunDynamic run = runs[glyph.run_index];
+        float reveal_weight = selector_weight(run, glyph.pad0);
         if (run.visible_glyph_count != 0xFFFFFFFFu &&
             glyph.pad0 >= run.visible_glyph_count) continue;
 
@@ -163,7 +213,15 @@ void main() {
             if (plane_w <= 0.0 || plane_h <= 0.0) continue;
 
             vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
-            vec2 local = (pixel_pos - vec2(run.tx, run.ty)) / vec2(run.sx, run.sy);
+            float tracking = tracking_prefix(run, glyph.pad0);
+            vec2 animator_offset = vec2(
+                run.animator_position_x * reveal_weight + tracking,
+                run.animator_position_y * reveal_weight);
+            vec2 animator_scale = vec2(
+                1.0 + (run.animator_scale_x - 1.0) * reveal_weight,
+                1.0 + (run.animator_scale_y - 1.0) * reveal_weight);
+            vec2 local = (pixel_pos - vec2(run.tx, run.ty) - animator_offset) /
+                         (vec2(run.sx, run.sy) * animator_scale);
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
                      local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;
             if (inside) {
@@ -197,8 +255,14 @@ void main() {
             float distance_range = uintBitsToFloat(run.distance_range_bits);
             if (!(distance_range > 0.0)) distance_range = 8.0;
             float screen_scale = 0.5 * (abs(run.sx) + abs(run.sy));
+            float glyph_blur = max(run.animator_blur * reveal_weight, 0.0);
             float fill_alpha = clamp((msd - 0.5) * distance_range * screen_scale +
                                      0.5, 0.0, 1.0);
+            if (glyph_blur > 0.0) {
+                float softness = max(glyph_blur * screen_scale, 1.0);
+                fill_alpha = clamp(0.5 + ((msd - 0.5) * distance_range * screen_scale) /
+                                   softness, 0.0, 1.0);
+            }
             src = vec4(0.0);
             if ((run.effect_flags & 2u) != 0u ||
                 (run.effect_flags & 4u) != 0u) {
@@ -241,7 +305,7 @@ void main() {
             }
         }
 
-        src *= run.opacity;
+        src *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
 
         current_color = src + current_color * (1.0 - src.a);
     }

@@ -23,6 +23,7 @@
 #include <chrono>
 #include <dlfcn.h>
 #include <filesystem>
+#include <unordered_map>
 #include <system_error>
 
 namespace chronon3d::media::video {
@@ -109,6 +110,7 @@ const std::string& get_compiled_nv12_ptx() {
 namespace {
 
 struct SharedCudaNv12Module {
+    CUcontext context{nullptr};
     CUmodule module{nullptr};
     CUfunction kernel{nullptr};
     CUfunction p010_kernel{nullptr};
@@ -119,9 +121,23 @@ struct SharedCudaNv12Module {
     CUfunction rgba_u8_to_nv12_kernel{nullptr};
 
     ~SharedCudaNv12Module() {
-        if (module) {
-            (void)cuModuleUnload(module);
+        if (!module) return;
+
+        // A compositor owns the last lease in normal operation, so its
+        // context is still alive here. Make the CUDA ownership boundary
+        // explicit and restore the caller's context after unloading. If the
+        // context has already gone away, leak the driver handle rather than
+        // calling into a dead CUDA context during process teardown.
+        CUcontext previous = nullptr;
+        const bool had_previous = cuCtxGetCurrent(&previous) == CUDA_SUCCESS;
+        if (cuCtxSetCurrent(context) != CUDA_SUCCESS) {
+            spdlog::warn("[cuda-nv12] context already unavailable while releasing module; "
+                         "leaking driver handle safely");
+            return;
         }
+        (void)cuModuleUnload(module);
+        module = nullptr;
+        if (had_previous && previous != context) (void)cuCtxSetCurrent(previous);
     }
 };
 
@@ -131,7 +147,12 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     using cuda_nv12_detail::get_compiled_nv12_ptx;
 
     static std::mutex s_module_mutex;
-    static std::unordered_map<CUcontext, std::shared_ptr<SharedCudaNv12Module>> s_modules;
+    // Do not make this process-global map an owner. CUDA modules are owned by
+    // the primary context retained by VideoDeviceRuntime; a strong static
+    // cache can outlive that context and unload a stale CUmodule during C++
+    // static destruction. Compositors retain the actual lease below.
+    static std::unordered_map<CUcontext,
+        std::weak_ptr<SharedCudaNv12Module>> s_modules;
 
     // AUDIT-03: the module cache is double-checked. On the warm path (every
     // compositor construction after the first) the shared_ptr is returned
@@ -141,8 +162,9 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
         // Map reads are guarded; std::unordered_map::find needs the lock.
         std::lock_guard lock(s_module_mutex);
         auto it = s_modules.find(context);
-        if (it != s_modules.end() && it->second) {
-            return it->second;
+        if (it != s_modules.end()) {
+            if (auto cached = it->second.lock()) return cached;
+            s_modules.erase(it);
         }
     }
 
@@ -155,6 +177,7 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent");
     const auto& ptx = get_compiled_nv12_ptx();
     auto shared = std::make_shared<SharedCudaNv12Module>();
+    shared->context = context;
 
     const CUresult module_result = cuModuleLoadData(&shared->module, ptx.c_str());
     if (module_result != CUDA_SUCCESS) {
@@ -198,8 +221,9 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     {
         std::lock_guard lock(s_module_mutex);
         auto it = s_modules.find(context);
-        if (it != s_modules.end() && it->second) {
-            return it->second;
+        if (it != s_modules.end()) {
+            if (auto cached = it->second.lock()) return cached;
+            s_modules.erase(it);
         }
         s_modules[context] = shared;
     }
@@ -226,6 +250,7 @@ CudaNv12Compositor::CudaNv12Compositor(
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
     auto shared = get_or_load_module(context_);
+    module_lease_ = shared;
     module_ = shared->module;
     kernel_ = shared->kernel;
     p010_kernel_ = shared->p010_kernel;
@@ -249,6 +274,7 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
     auto shared = get_or_load_module(context_);
+    module_lease_ = shared;
     module_ = shared->module;
     direct_nv12_kernel_ = shared->direct_nv12_kernel;
     direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;

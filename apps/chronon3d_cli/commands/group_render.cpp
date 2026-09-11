@@ -250,7 +250,7 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
         "Validate composition props, metadata, assets and output settings without rendering");
     command->add_option("input", state->comp_id, "Composition name");
     command->add_option("--plan", state->plan_file,
-                        "Validate a chronon.render-plan.v1 file (RenderPlan-first)");
+                        "Validate a chronon.render-plan.v2 file (RenderPlan-first)");
     command->add_option("--props-file", state->props_file,
                         "Flat JSON object containing composition props");
     command->add_option("-o,--output", state->output,

@@ -100,7 +100,7 @@ struct SemanticError {
 [[nodiscard]] render_plan::RenderPlan compile_semantic_script(
     const SemanticScript& script);
 
-/// Serialize a RenderPlan into a `chronon.render-plan.v1` JSON document that
+/// Serialize a RenderPlan into a `chronon.render-plan.v2` JSON document that
 /// `chronon render --plan` accepts.
 [[nodiscard]] nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan);
 

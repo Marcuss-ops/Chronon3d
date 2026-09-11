@@ -34,6 +34,18 @@ struct GpuTextRunDynamic {
     float shadow_dx;
     float shadow_dy;
     float shadow_blur;
+    float selector_start;
+    float selector_end;
+    float selector_amount;
+    float animator_tracking;
+    float animator_position_x;
+    float animator_position_y;
+    float animator_blur;
+    uint selector_unit_count;
+    float animator_opacity;
+    float animator_scale_x;
+    float animator_scale_y;
+    float animator_reserved2;
 };
 
 layout(std430, binding = 0) readonly buffer GlyphBuffer {
@@ -63,6 +75,36 @@ layout(push_constant) uniform PushConstants {
     uint dst_height;
 } params;
 
+float selector_weight(GpuTextRunDynamic run, uint glyph_index) {
+    if ((run.flags & 2u) == 0u) return 1.0;
+    float total = max(float(run.selector_unit_count), 1.0);
+    float position = (float(glyph_index) + 0.5) / total;
+    float start = clamp(run.selector_start * 0.01, 0.0, 1.0);
+    float end = clamp(run.selector_end * 0.01, 0.0, 1.0);
+    if (start > end) {
+        float tmp = start;
+        start = end;
+        end = tmp;
+        position = 1.0 - position;
+    }
+    if (position <= start || position >= end) return 0.0;
+    float range = end - start;
+    float t = range > 0.0000001 ? (position - start) / range : 0.5;
+    float weight = 1.0;
+    if ((run.flags & 4u) != 0u) {
+        if (t <= 0.5) {
+            float u = 2.0 * t;
+            float one_minus_u = 1.0 - u;
+            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
+        } else {
+            float u = 2.0 * (1.0 - t);
+            float one_minus_u = 1.0 - u;
+            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
+        }
+    }
+    return clamp(weight * run.selector_amount * 0.01, 0.0, 1.0);
+}
+
 void main() {
     const uint kOverflowBit = 0x80000000u;
     uint gid = gl_GlobalInvocationID.x;
@@ -81,10 +123,15 @@ void main() {
 
     if ((flags & 1u) != 0u || (r.flags & 1u) != 0u) {
         // Distance-field glyphs use shaped plane geometry.
-        x0 = r.tx + g.plane_left * r.sx;
-        y0 = r.ty + g.plane_top * r.sy;
-        x1 = r.tx + g.plane_right * r.sx;
-        y1 = r.ty + g.plane_bottom * r.sy;
+        // The dynamic animator can move a glyph and add cumulative tracking.
+        // Use a conservative envelope here; raster computes the exact
+        // per-glyph offset. This avoids dropping a tile contributor.
+        float extent = abs(r.animator_tracking) * float(r.selector_unit_count) +
+                       abs(r.animator_position_x) + abs(r.animator_position_y);
+        x0 = r.tx + g.plane_left * r.sx - extent;
+        y0 = r.ty + g.plane_top * r.sy - extent;
+        x1 = r.tx + g.plane_right * r.sx + extent;
+        y1 = r.ty + g.plane_bottom * r.sy + extent;
     } else {
         if (r.sx <= 0.0 || r.sy <= 0.0) return;
         uint atlas_w = g.atlas_size & 0xFFFFu;

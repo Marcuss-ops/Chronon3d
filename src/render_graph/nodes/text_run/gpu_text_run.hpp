@@ -48,6 +48,15 @@ void sample_gpu_run_level_animation(
     SampleTime sample_time,
     runtime::TextRunDynamic& run) noexcept;
 
+/// Samples the per-glyph GPU animator contract into one dynamic record.
+/// Shaping, glyph atlas generation and selector compilation remain outside
+/// the frame loop; the Vulkan text shaders evaluate the selector and the
+/// cumulative tracking offset per glyph.
+void sample_gpu_text_animation(
+    const TextRunShape& shape,
+    SampleTime sample_time,
+    runtime::TextRunDynamic& run) noexcept;
+
 /// One rasterized glyph bitmap + its destination placement.
 ///
 /// `rgba` is a tightly-packed PREMULTIPLIED RGBA float buffer of exactly

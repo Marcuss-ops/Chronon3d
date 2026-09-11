@@ -319,9 +319,25 @@ struct TextRunDynamic {
     float shadow_dx{0.0f};
     float shadow_dy{0.0f};
     float shadow_blur{0.0f};
+    // GPU text animator parameters. The selector is compiled once; these
+    // values are the small per-frame binding block consumed by both tile
+    // passes. `flags` bit 1 enables the selector and bit 2 selects Smooth
+    // (Square is the default).
+    float selector_start{0.0f};
+    float selector_end{100.0f};
+    float selector_amount{100.0f};
+    float animator_tracking{0.0f};
+    float animator_position_x{0.0f};
+    float animator_position_y{0.0f};
+    float animator_blur{0.0f};
+    std::uint32_t selector_unit_count{0};
+    float animator_opacity{1.0f};
+    float animator_scale_x{1.0f};
+    float animator_scale_y{1.0f};
+    float animator_reserved2{0.0f};
 };
-static_assert(sizeof(TextRunDynamic) == 64,
-              "TextRunDynamic must be 64 bytes matching std430");
+static_assert(sizeof(TextRunDynamic) == 112,
+              "TextRunDynamic must be 112 bytes matching std430");
 
 struct GlyphInstance {
     std::int32_t dst_x{0};

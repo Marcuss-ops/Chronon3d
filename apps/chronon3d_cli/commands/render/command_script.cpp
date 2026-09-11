@@ -67,7 +67,7 @@ void register_script_command(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<ScriptState>();
     auto* command = app.add_subcommand(
         "script",
-        "Transform a semantic overlay-events script into a chronon.render-plan.v1 JSON");
+        "Transform a semantic overlay-events script into a chronon.render-plan.v2 JSON");
     command->add_option("input", state->input, "Semantic overlay-events JSON")->required();
     command->add_option("-o,--output", state->output,
                         "Render plan JSON output (stdout when omitted)");

@@ -156,9 +156,9 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     }
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled) continue;
-        if (shadow.blur < 0.0f || shadow.blur > 16.0f ||
-            std::abs(shadow.offset.x) + shadow.blur > 16.0f ||
-            std::abs(shadow.offset.y) + shadow.blur > 16.0f) {
+        if (shadow.blur < 0.0f || shadow.blur > 64.0f ||
+            std::abs(shadow.offset.x) + shadow.blur > 64.0f ||
+            std::abs(shadow.offset.y) + shadow.blur > 64.0f) {
             return false;
         }
     }
@@ -171,11 +171,11 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     }
     if (can_lower_gpu_run_level_animation(shape)) return true;
     const auto& selector = animator.selectors.front();
-    // This is the exact lowering contract for the clean typewriter: a
-    // forward glyph window drives an opacity-to-zero property.  The whole
-    // shaped run remains resident; only the visibility prefix changes.
+    // This is the canonical per-glyph GPU text contract. The whole shaped
+    // run remains resident; only this small dynamic record changes per frame.
     if (selector.unit != TextSelectorUnit::Glyph ||
-        selector.shape != TextSelectorShape::Square ||
+        (selector.shape != TextSelectorShape::Square &&
+         selector.shape != TextSelectorShape::Smooth) ||
         selector.order != TextSelectorOrder::Forward ||
         selector.combine != SelectorCombineMode::Replace ||
         selector.randomize_order || selector.offset.is_time_dependent() ||
@@ -183,34 +183,68 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         std::abs(selector.amount.evaluate(0.0) - 100.0f) > 1e-6f) {
         return false;
     }
-    bool saw_zero_opacity = false;
+    bool saw_supported_property = false;
     for (const auto& property : animator.properties) {
         if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
-            if (saw_zero_opacity || opacity->value.has_expression() ||
-                opacity->value.keyframes().empty()) return false;
-            if (!std::all_of(opacity->value.keyframes().begin(),
-                             opacity->value.keyframes().end(),
-                             [](const auto& keyframe) {
-                                 return std::abs(keyframe.value) <= 1e-6f;
-                             })) return false;
-            saw_zero_opacity = true;
+            if (opacity->value.has_expression()) return false;
+            saw_supported_property = true;
         } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
-            // Square typewriter glyphs with zero selector weight are never
-            // dispatched, so these legacy pop offsets remain invisible to
-            // the MTSDF route until a dedicated per-glyph dynamic record is
-            // available. Keep the property recognized to avoid a needless
-            // CPU atlas fallback for the preset contract.
-            (void)position;
+            if (position->value.has_expression()) return false;
+            saw_supported_property = true;
         } else if (const auto* scale = std::get_if<ScaleProperty>(&property)) {
-            (void)scale;
+            if (scale->value.has_expression()) return false;
+            saw_supported_property = true;
+        } else if (const auto* tracking = std::get_if<TrackingProperty>(&property)) {
+            if (tracking->pixels.has_expression()) return false;
+            saw_supported_property = true;
+        } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
+            if (blur->radius.has_expression()) return false;
+            saw_supported_property = true;
         } else {
-            // Dynamic effects must be lowered explicitly before entering the
-            // MTSDF lane. Constant position/scale values are harmless for a
-            // square typewriter because those glyphs are not dispatched yet.
             return false;
         }
     }
-    return saw_zero_opacity;
+    return saw_supported_property;
+}
+
+void sample_gpu_text_animation(
+    const TextRunShape& shape,
+    SampleTime sample_time,
+    runtime::TextRunDynamic& run) noexcept {
+    if (!shape.layout || shape.animators.size() != 1 ||
+        !can_lower_gpu_text_animation(shape)) return;
+    const auto& animator = shape.animators.front();
+    if (animator.selectors.size() != 1) return;
+    const auto& selector = animator.selectors.front();
+    if (selector.unit != TextSelectorUnit::Glyph) return;
+
+    // flags bit 0 is shaped-plane placement; bits 1/2 are the dynamic
+    // selector enable/shape contract shared with text_tile_bin/raster.
+    run.flags |= 2u;
+    if (selector.shape == TextSelectorShape::Smooth) run.flags |= 4u;
+    run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
+    run.selector_start = selector.start.evaluate(sample_time);
+    run.selector_end = selector.end.evaluate(sample_time);
+    run.selector_amount = selector.amount.evaluate(sample_time);
+    run.selector_unit_count = shape.layout->units.unit_count(selector.unit);
+
+    for (const auto& property : animator.properties) {
+        if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
+            run.animator_opacity *= opacity->value.evaluate(sample_time);
+        } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
+            const auto value = position->value.evaluate(sample_time);
+            run.animator_position_x += value.x;
+            run.animator_position_y += value.y;
+        } else if (const auto* scale = std::get_if<ScaleProperty>(&property)) {
+            const auto value = scale->value.evaluate(sample_time);
+            run.animator_scale_x *= value.x;
+            run.animator_scale_y *= value.y;
+        } else if (const auto* tracking = std::get_if<TrackingProperty>(&property)) {
+            run.animator_tracking += tracking->pixels.evaluate(sample_time);
+        } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
+            run.animator_blur += std::max(0.0f, blur->radius.evaluate(sample_time));
+        }
+    }
 }
 
 namespace {
@@ -731,9 +765,9 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled) continue;
-        if (shadow.blur < 0.0f || shadow.blur > 16.0f ||
-            std::abs(shadow.offset.x) + shadow.blur > 16.0f ||
-            std::abs(shadow.offset.y) + shadow.blur > 16.0f) {
+        if (shadow.blur < 0.0f || shadow.blur > 64.0f ||
+            std::abs(shadow.offset.x) + shadow.blur > 64.0f ||
+            std::abs(shadow.offset.y) + shadow.blur > 64.0f) {
             return nullptr;
         }
     }
@@ -965,7 +999,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(kRangePx));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    if (prepared->reveal_selector) {
+    // Lowerable glyph selectors stay entirely GPU-native.  The shader uses
+    // the selector scalars populated below, so a CPU per-glyph visibility
+    // pass here would be redundant and would reintroduce frame-loop work.
+    if (prepared->reveal_selector &&
+        !can_lower_gpu_text_animation(shape)) {
         std::uint32_t visible_limit = 0;
         const auto sample_time = ctx.frame_input.sample_time;
         for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
@@ -982,6 +1020,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         }
         run.visible_glyph_count = visible_limit;
     }
+    sample_gpu_text_animation(shape, ctx.frame_input.sample_time, run);
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
         run.stroke_width = shape.paint.stroke_width;

@@ -20,7 +20,7 @@
 //   PREFETCH_ASSET  <asset-path>              warm the asset cache
 //   PREPARE_PLAN    <composition-id>          compile + plan once
 //   RENDER_OVERLAY  "<frame> [output-path]"   render + save a frame
-//   RENDER_JOB      <json>                    render a chronon.render-plan.v1
+//   RENDER_JOB      <json>                    render a chronon.render-plan.v2
 //                                            file: {"plan_path", "assets_root",
 //                                            "output", "backend", "report",
 //                                            "range_enabled", "first_frame",

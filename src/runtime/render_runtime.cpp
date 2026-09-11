@@ -158,7 +158,21 @@ RuntimeContext::create(RuntimeConfig cfg) {
     }
 }
 
-RuntimeContext::~RuntimeContext() = default;
+RuntimeContext::~RuntimeContext() {
+    // RuntimeCaches are declared before ExecutionServices, so C++ would
+    // destroy the backend first and only then destroy GPU caches that retain
+    // non-owning pointers to that backend.  Their destructors would then
+    // release stale RenderSurface handles (the observed teardown SIGSEGV in
+    // GpuAssetCache::release_backend_surface). Drain every backend-bound
+    // cache explicitly while the backend and surface registry are still
+    // alive. The remaining member destruction is then pointer-safe.
+    if (m_caches.framebuffer_pool) {
+        m_caches.framebuffer_pool->clear();
+        m_caches.framebuffer_pool->set_native_surface_releaser({});
+    }
+    m_caches.gpu_glyph_atlas.clear();
+    m_caches.gpu_asset_cache.clear();
+}
 
 void RuntimeContext::reset_compiled_cache() {
     CompiledTopologyCache{m_caches.graph_cache}.reset();
