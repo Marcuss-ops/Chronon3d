@@ -9,26 +9,22 @@
 
 namespace chronon3d::media::video {
 
+/// Prepared MTSDF atlas payload for the DirectYUV lowering. `gpu_rgba` keeps
+/// one bit-preserving float cell per RGBA8 texel, exactly like the Vulkan
+/// paged atlas transport. The CUDA compositor decodes the field at sample
+/// time; no Blend2D or CPU RGBA raster is involved.
 struct RasterizedTextTexture {
     int width{0};
     int height{0};
+    float display_width{0.0f};
+    float display_height{0.0f};
+    float distance_range_px{8.0f};
+    bool mtsdf{false};
     std::vector<float> gpu_rgba;
     assets::ContentDigest digest{};
 };
 
 RasterizedTextTexture rasterize_text_texture(
-    const TextRunShape& prepared_shape,
-    const Color& fill_color,
-    const Color& stroke_color,
-    float stroke_width,
-    bool has_background,
-    const Color& bg_color,
-    float bg_opacity,
-    float bg_radius,
-    float pad_x,
-    float pad_y,
-    float box_w,
-    float box_h,
-    const std::string& alignment);
+    const TextRunShape& prepared_shape);
 
 } // namespace chronon3d::media::video

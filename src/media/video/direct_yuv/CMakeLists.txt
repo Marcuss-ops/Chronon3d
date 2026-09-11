@@ -21,6 +21,10 @@ target_link_libraries(chronon3d_media_direct_yuv PRIVATE
     spdlog::spdlog_header_only
 )
 
+if(TARGET chronon3d_text_mtsdf)
+    target_link_libraries(chronon3d_media_direct_yuv PRIVATE chronon3d_text_mtsdf)
+endif()
+
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_media_direct_yuv PRIVATE
         direct_yuv_program.cpp
@@ -30,11 +34,6 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_media_direct_yuv PUBLIC
         chronon3d_media_native
     )
-
-    if(CHRONON3D_USE_BLEND2D)
-        target_link_libraries(chronon3d_media_direct_yuv PRIVATE blend2d::blend2d)
-        target_compile_definitions(chronon3d_media_direct_yuv PRIVATE CHRONON3D_USE_BLEND2D)
-    endif()
 
     if(CHRONON3D_ENABLE_CUDA_INTEROP)
         target_compile_definitions(chronon3d_media_direct_yuv PRIVATE CHRONON3D_ENABLE_CUDA_INTEROP)

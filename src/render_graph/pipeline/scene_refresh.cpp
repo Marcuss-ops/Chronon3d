@@ -65,16 +65,16 @@ SceneRefreshResult missing_dynamic_data(std::string message) {
     return SceneRefreshResult{SceneRefreshStatus::MissingDynamicData, std::move(message)};
 }
 
-const Layer* find_layer(const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+const Layer* find_layer(const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
                        std::string_view name) {
-    const auto it = resolved_by_name.find(std::string{name});
+    const auto it = resolved_by_name.find(name);
     return it == resolved_by_name.end() || !it->second ? nullptr : it->second->layer;
 }
 
 SceneRefreshResult validate_compiled_structure(
     const CompiledFrameGraph& compiled,
     const Scene& scene,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name)
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name)
 {
     if (compiled.graph.phase() != GraphPhase::Building) {
         return topology_mismatch("compiled graph is immutable; refresh requires a mutable graph candidate");
@@ -259,23 +259,29 @@ SceneRefreshResult refresh_compiled_graph_payloads(
     // Must match the builder path (graph_builder_source_pass.cpp) which uses
     // item.is_static from this cache.  Without this, source_is_static uses
     // only layer.cache_static, missing parent/transition/animated propagation.
-    std::unordered_map<std::string, bool> is_static_cache;
-    compute_static_layers(resolved, is_static_cache);
+    if (!compiled.refresh_static_cache_ready) {
+        compiled.refresh_static_cache.clear();
+        compute_static_layers(resolved, compiled.refresh_static_cache);
+        compiled.refresh_static_cache_ready = true;
+    }
+    const auto& is_static_cache = compiled.refresh_static_cache;
 
     // ── 2. Build resolved layer lookup (by name) ─────────────────────────
-    std::unordered_map<std::string, const ResolvedLayer*> resolved_by_name;
+    auto& resolved_by_name = compiled.refresh_resolved_by_name;
+    resolved_by_name.clear();
     resolved_by_name.reserve(resolved.layers.size());
     for (const auto& rl : resolved.layers) {
         if (rl.layer) {
-            resolved_by_name.emplace(std::string(rl.layer->name), &rl);
+            resolved_by_name.emplace(rl.layer->name, &rl);
         }
     }
 
     // ── 3. Build scene root node lookup (by name) ────────────────────────
-    std::unordered_map<std::string, const RenderNode*> root_nodes_by_name;
+    auto& root_nodes_by_name = compiled.refresh_root_nodes_by_name;
+    root_nodes_by_name.clear();
     root_nodes_by_name.reserve(scene.nodes().size());
     for (const auto& node : scene.nodes()) {
-        root_nodes_by_name.emplace(std::string(node.name), &node);
+        root_nodes_by_name.emplace(node.name, &node);
     }
 
     const auto validation = validate_compiled_structure(compiled, scene, resolved_by_name);
@@ -365,13 +371,17 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 auto* prepared = acquire_refresh_node(
                     compiled.refresh_scratch, node_id, *text_node,
                     ctx.node_exec.counters);
-                bool found = false;
-                for (const auto& [name, rl] : resolved_by_name) {
-                    if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text
-                        || rl->layer->nodes.size() != 1
-                        || rl->layer->name != prepared->layer_id()) {
-                        continue;
-                    }
+                // Text nodes are keyed by their owning layer.  The previous
+                // refresh path scanned every resolved layer for every text
+                // node, turning a typewriter refresh into O(text_nodes ×
+                // layers) work and needlessly rebuilding temporary strings.
+                // The canonical name index already exists; use it directly.
+                const std::string layer_id{prepared->layer_id()};
+                const auto layer_it = resolved_by_name.find(layer_id);
+                const auto* rl = layer_it == resolved_by_name.end()
+                    ? nullptr : layer_it->second;
+                if (rl && rl->layer && rl->layer->kind == LayerKind::Text &&
+                    rl->layer->nodes.size() == 1) {
                     const auto& render_ref = rl->layer->nodes[0];
                     const auto item = make_layer_graph_item_for_refresh(*rl, ctx);
                     f32 opacity = 1.0f;
@@ -386,7 +396,7 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     // build path: projected text matrices are owned by the
                     // downstream TransformNode, not the text raster cache).
                     cache::NodeCacheKey key = cache::NodeCacheIdentityBuilder{
-                        "layer.textrun:" + name + ":" +
+                        "layer.textrun:" + layer_id + ":" +
                         std::string(render_ref.name)
                     }
                         .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
@@ -399,10 +409,9 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     prepared->refresh_placement(
                         render_ref, placement, key,
                         std::optional<f32>(opacity));
-                    found = true;
-                    break;
                 }
-                if (!found) {
+                if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text ||
+                    rl->layer->nodes.size() != 1) {
                     return missing_dynamic_data("text-run refresh data missing for node '" +
                         std::string(graph_node.name()) + "'");
                 }

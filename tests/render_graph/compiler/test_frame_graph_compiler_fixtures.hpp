@@ -17,6 +17,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>

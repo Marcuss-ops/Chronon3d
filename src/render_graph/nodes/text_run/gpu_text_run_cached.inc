@@ -4,6 +4,21 @@ graph::RenderOpResult draw_cached_text_run(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
+    // MTSDF is the canonical lowering shared with DirectYUV. Keep the packed
+    // atlas below as a compatibility fallback for runs outside that contract.
+    if (ctx.runtime && ctx.backend && ctx.surface_registry) {
+        auto mtsdf = draw_cached_text_run_mtsdf(
+            ctx, destination, shape, model_matrix, opacity);
+        if (mtsdf.ok()) return mtsdf;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_mtsdf_fallback_count.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        spdlog::debug(
+            "[text-mtsdf] canonical lowering rejected; using compatibility path: {}",
+            mtsdf.error().message);
+    }
+
     if (!ctx.text_render_resources || !shape.layout ||
         shape.layout->placed.glyphs.empty() ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {

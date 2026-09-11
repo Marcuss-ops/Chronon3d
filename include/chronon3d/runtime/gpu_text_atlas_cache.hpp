@@ -1,11 +1,10 @@
 #pragma once
 
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 
 #include <cstdint>
-#include <mutex>
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 namespace chronon3d::runtime {
@@ -39,6 +38,12 @@ struct PackedTextAtlas {
 /// GPU surface while transforms/opacity/highlight remain frame-dynamic.
 class GpuTextAtlasCache {
 public:
+    static constexpr std::size_t kCapacityBytes = 512ULL * 1024ULL * 1024ULL;
+    static constexpr std::size_t kShardCount = 16;
+
+    GpuTextAtlasCache()
+        : m_entries(kCapacityBytes, kShardCount) {}
+
     void attach(GpuAssetCache& assets) noexcept { m_assets = &assets; }
 
     [[nodiscard]] bool acquire(std::span<const PackedGlyphBitmap> glyphs,
@@ -73,9 +78,11 @@ private:
         PackedTextAtlas placement{};
     };
 
+    using Cache = cache::LruCache<
+        Key, std::shared_ptr<const Entry>, KeyHash>;
+
     GpuAssetCache* m_assets{nullptr};
-    mutable std::mutex m_mutex;
-    std::unordered_map<Key, Entry, KeyHash> m_entries;
+    mutable Cache m_entries;
 };
 
 } // namespace chronon3d::runtime

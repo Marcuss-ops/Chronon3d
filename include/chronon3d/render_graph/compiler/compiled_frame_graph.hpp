@@ -18,6 +18,13 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <string_view>
+
+namespace chronon3d {
+struct ResolvedLayer;
+struct RenderNode;
+}
 
 namespace chronon3d::graph {
 using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
@@ -256,6 +263,21 @@ struct CompiledFrameGraph : CompiledResourceTable {
     // capacities.  This keeps the safety boundary (prepare -> validate ->
     // commit) without rebuilding a patch/vector/unique_ptr set every frame.
     std::vector<std::unique_ptr<RenderGraphNode>> refresh_scratch;
+
+    // Static-layer classification depends on the compiled topology and
+    // authored animation flags, not on the sampled frame.  Keep it beside
+    // the refresh scratch so typewriter frames do not redo the recursive
+    // hierarchy analysis on every refresh.
+    std::unordered_map<std::string, bool> refresh_static_cache;
+    bool refresh_static_cache_ready{false};
+
+    // Reused lookup tables for transactional scene refresh. Keys borrow the
+    // current Scene/ResolvedLayer name storage only for the duration of a
+    // refresh; clear() retains the hash-table capacity for subsequent frames.
+    std::unordered_map<std::string_view, const ::chronon3d::ResolvedLayer*>
+        refresh_resolved_by_name;
+    std::unordered_map<std::string_view, const RenderNode*>
+        refresh_root_nodes_by_name;
 
     [[nodiscard]] CompiledResourceTable& resource_table() noexcept { return *this; }
     [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept { return *this; }

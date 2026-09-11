@@ -107,6 +107,12 @@ if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_pipeline INTERFACE
         chronon3d_backend_video chronon3d_media_video)
 endif()
+if(TARGET chronon3d_text_mtsdf)
+    # gpu_text_run.cpp is part of the graph object set, while the shared
+    # FreeType MTSDF generator is a STATIC leaf. Keep the archive on the
+    # final pipeline boundary so Vulkan-only consumers resolve it as well.
+    target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_text_mtsdf)
+endif()
 
 # `chronon3d_assets` is an OBJECT library, so its private OpenSSL dependency
 # does not reach final consumers through the SDK aggregate.  Publish the

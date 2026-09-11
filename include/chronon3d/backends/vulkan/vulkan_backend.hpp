@@ -14,6 +14,7 @@ typedef struct CUctx_st *CUcontext;
 #endif
 
 #include <memory>
+#include <atomic>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -134,6 +135,27 @@ struct VulkanDeviceInfo {
     bool has_pci_identity{false};
 };
 
+/// Single host-side authority for the two Vulkan↔CUDA timeline values.
+/// The semaphore handles may be exported/imported more than once during a
+/// surface lifetime; the generation object survives bridge recreation.
+struct InteropGeneration {
+    std::atomic<std::uint64_t> vulkan_to_cuda_value{0};
+    std::atomic<std::uint64_t> cuda_to_vulkan_value{0};
+
+    [[nodiscard]] std::uint64_t next_vulkan_to_cuda() noexcept {
+        return vulkan_to_cuda_value.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+    [[nodiscard]] std::uint64_t next_cuda_to_vulkan() noexcept {
+        return cuda_to_vulkan_value.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+    [[nodiscard]] std::uint64_t vulkan_to_cuda() const noexcept {
+        return vulkan_to_cuda_value.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] std::uint64_t cuda_to_vulkan() const noexcept {
+        return cuda_to_vulkan_value.load(std::memory_order_relaxed);
+    }
+};
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 struct CudaExternalMemoryInfo {
     int fd{-1};
@@ -148,6 +170,7 @@ struct CudaExternalMemoryInfo {
     // CUDA imports these with TIMELINE_SEMAPHORE_FD; false keeps the binary
     // semaphore compatibility bridge.
     bool timeline_semaphores{false};
+    std::shared_ptr<InteropGeneration> generation{};
 };
 #endif
 

@@ -191,10 +191,10 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
             wait_values.push_back(it->second.image.cuda_timeline
-                ? ++it->second.image.cuda_to_vulkan_value : 0);
+                ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(it->second.image.cuda_timeline
-                ? ++it->second.image.vulkan_to_cuda_value : 0);
+                ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
             if (s_trace) {
                 runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
                 for (const auto& [h, s] : surfaces.surface_bindings) {
@@ -203,11 +203,11 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 spdlog::info("[interop-trace] SUBMIT_BATCH VK_WAIT_C2V handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
                              static_cast<void*>(it->second.image.cuda_to_vulkan),
-                             it->second.image.cuda_timeline ? it->second.image.cuda_to_vulkan_value : 0);
+                             it->second.image.cuda_timeline ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
                 spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (ready) handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
                              static_cast<void*>(it->second.image.vulkan_to_cuda),
-                             it->second.image.cuda_timeline ? it->second.image.vulkan_to_cuda_value : 0);
+                             it->second.image.cuda_timeline ? it->second.image.interop_generation->vulkan_to_cuda() : 0);
             }
         }
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
@@ -219,7 +219,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (it == surfaces.physical_surfaces.end()) continue;
             signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
             signal_values.push_back(it->second.image.cuda_timeline
-                ? ++it->second.image.vulkan_to_cuda_value : 0);
+                ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
             if (s_trace) {
                 runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
                 for (const auto& [h, s] : surfaces.surface_bindings) {
@@ -228,7 +228,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (export) handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
                              static_cast<void*>(it->second.image.vulkan_to_cuda),
-                             it->second.image.cuda_timeline ? it->second.image.vulkan_to_cuda_value : 0);
+                             it->second.image.cuda_timeline ? it->second.image.interop_generation->vulkan_to_cuda() : 0);
             }
         }
 #endif

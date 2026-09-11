@@ -2,16 +2,12 @@
 
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/text_run_layout.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <unordered_map>
 #include <vector>
-
-namespace chronon3d {
-struct TextRunLayout;
-}
 
 namespace chronon3d::runtime {
 
@@ -24,43 +20,45 @@ struct GpuPreparedTextRun {
     };
     bool ready{false};
     std::vector<Batch> batches;
-    std::shared_ptr<GlyphSelectorSpec> reveal_selector_spec;
     std::optional<CompiledSelector> reveal_selector;
 };
 
 class GpuTextRunPreparedCache {
 public:
+    static constexpr std::size_t kDefaultCapacity = 4096;
+    static constexpr std::size_t kShardCount = 16;
+
+    GpuTextRunPreparedCache()
+        : m_entries(kDefaultCapacity, kShardCount, cache::CapacityMode::Count) {}
+
     [[nodiscard]] std::shared_ptr<const GpuPreparedTextRun> find(
-        const TextRunLayout* layout) const {
-        if (!layout) return nullptr;
-        std::lock_guard lock(m_mutex);
-        auto it = m_entries.find(layout);
-        if (it != m_entries.end()) {
-            return it->second;
+        const TextRunLayout& layout) const {
+        const auto value = m_entries.get(layout.layout_hash());
+        if (!value || !*value) {
+            return nullptr;
         }
-        return nullptr;
+        return *value;
     }
 
-    void store(const TextRunLayout* layout,
+    void store(const TextRunLayout& layout,
                std::shared_ptr<const GpuPreparedTextRun> prepared) {
-        if (!layout || !prepared) return;
-        std::lock_guard lock(m_mutex);
-        m_entries[layout] = std::move(prepared);
+        if (!prepared) return;
+        // The key is the immutable layout fingerprint, never its address.
+        m_entries.put(layout.layout_hash(), std::move(prepared));
     }
 
     void clear() noexcept {
-        std::lock_guard lock(m_mutex);
         m_entries.clear();
     }
 
     [[nodiscard]] std::size_t size() const noexcept {
-        std::lock_guard lock(m_mutex);
-        return m_entries.size();
+        return m_entries.stats().current_size;
     }
 
 private:
-    mutable std::mutex m_mutex;
-    std::unordered_map<const TextRunLayout*, std::shared_ptr<const GpuPreparedTextRun>> m_entries;
+    using Cache = cache::LruCache<
+        std::uint64_t, std::shared_ptr<const GpuPreparedTextRun>>;
+    mutable Cache m_entries;
 };
 
 } // namespace chronon3d::runtime

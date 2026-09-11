@@ -12,7 +12,7 @@ namespace chronon3d::graph::detail {
 
 void refresh_multi_source_node(
     MultiSourceNode& node,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
     RenderGraphContext& ctx)
 {

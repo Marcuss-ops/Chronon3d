@@ -106,15 +106,15 @@ TEST_CASE("FrameGraphCompiler - TextRun bypasses Shape processor validation") {
     CHECK(compiled.valid);
     REQUIRE(compiled.nodes.size() > text_id);
     CHECK(compiled.nodes[text_id].kind == RenderGraphNodeKind::TextRun);
-    CHECK_FALSE(compiled.nodes[text_id].lowered_into_batch);
-    bool text_has_standalone_operation = false;
+    CHECK(compiled.nodes[text_id].lowered_into_batch);
+    bool text_has_execution_operation = false;
     for (const auto& operation : compiled.program.operations) {
         if (operation.node == text_id) {
-            text_has_standalone_operation = true;
-            CHECK_FALSE(operation.is_fused);
+            text_has_execution_operation = true;
+            CHECK(operation.is_fused);
         }
     }
-    CHECK(text_has_standalone_operation);
+    CHECK(text_has_execution_operation);
 }
 
 TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execution") {
