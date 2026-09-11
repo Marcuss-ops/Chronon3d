@@ -120,6 +120,9 @@ public:
     [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
     [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
+    [[nodiscard]] std::uint64_t full_file_reread_count() const override {
+        return mux_ && mux_->checksum_used_reread() ? 1 : 0;
+    }
     [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
     [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
     [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }

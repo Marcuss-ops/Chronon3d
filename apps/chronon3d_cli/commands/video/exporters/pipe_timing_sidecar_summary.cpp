@@ -243,6 +243,7 @@ void build_summary_and_job_sections(
     put_ms("validation_ms", timings.validation_ms);
     put_ms("ffprobe_ms", timings.ffprobe_ms);
     put_ms("sha256_ms", timings.sha256_ms);
+    job["full_file_reread_count"] = timings.full_file_reread_count.value_or(0);
 
     auto& enc_settings = job["encoder_settings"];
     if (timings.encoder_settings.preset) {
