@@ -105,20 +105,31 @@ struct LayerYuvQuery {
                               : DirectYuvSupport::Unsupported;
 
         case DirectYuvEffectClass::ImageOverlay:
-        case DirectYuvEffectClass::TextOverlay:
             // GPU-resident RGBA sampled straight into the NV12 writer.
-            // Blend2D-rasterized text and CUDA-uploaded images qualify; a
-            // host-only texture never does (explicit, not silent).
+            // Blend2D-rasterized image assets qualify; a host-only texture
+            // never does (explicit, not silent).
             if (!query.gpu_resident) return DirectYuvSupport::RequiresFullFrame;
             return (structural && additive_blend)
                 ? DirectYuvSupport::Certified
                 : DirectYuvSupport::Unsupported;
 
+        case DirectYuvEffectClass::TextOverlay:
+            // GPU-resident RGBA sampled straight into the NV12 writer.
+            // The text atlas ABI is not yet visually certified on the CUDA
+            // lane: a bad atlas must never produce a formally successful
+            // dotted watermark. Keep text on the canonical Vulkan graph
+            // until the dedicated coverage/atlas canary passes.
+            (void)query;
+            return DirectYuvSupport::RequiresFullFrame;
+
         case DirectYuvEffectClass::VideoOverlayNv12:
-            // A second NV12 video layer is sampled natively (no RGBA step).
-            return (structural && additive_blend)
-                ? DirectYuvSupport::Certified
-                : DirectYuvSupport::Unsupported;
+            // The scene classifier knows how to describe a second NV12
+            // source, but the current fused batch executor still accepts
+            // only RGBA resources. Advertising this row as certified makes
+            // a background+foreground clip reach the kernel and fail at
+            // frame zero. Route it through the faithful full-frame graph
+            // until the multi-source NV12 kernel is actually shipped.
+            return DirectYuvSupport::RequiresFullFrame;
 
         case DirectYuvEffectClass::ColorMatrixEffect:
             return DirectYuvSupport::Certified;

@@ -31,6 +31,16 @@ namespace media = ::chronon3d::media;
 namespace source_video = ::chronon3d::video;
 namespace {
 
+// DirectYUV programs are short-lived job objects, while the daemon process
+// is persistent. Keep the immutable MTSDF preparation at daemon scope so
+// repeated exports of the same prepared text do not reopen fonts and rebuild
+// the atlas. Device-specific CUDA residency is still handled by the
+// VideoDeviceRuntime image cache below.
+DirectYuvTextTextureCache& text_texture_cache() {
+    static DirectYuvTextTextureCache cache;
+    return cache;
+}
+
 std::uint32_t pack_text_color(const Color& color) noexcept {
     const auto to_byte = [](float value) {
         return static_cast<std::uint32_t>(std::clamp(
@@ -221,25 +231,25 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "text layer has no prepared TextRunShape: " + layer_name;
                 return false;
             }
-            auto rasterized = rasterize_text_texture(*prepared_shape);
+            auto rasterized = text_texture_cache().get_or_create(*prepared_shape);
             watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
 
             bool cache_hit = false;
             double upload_ms = 0.0;
             auto resource = video_runtime->get_or_upload_image(
-                rasterized.digest, ImageDecodeOptions{},
-                static_cast<std::uint32_t>(rasterized.width),
-                static_cast<std::uint32_t>(rasterized.height), rasterized.gpu_rgba,
+                rasterized->digest, ImageDecodeOptions{},
+                static_cast<std::uint32_t>(rasterized->width),
+                static_cast<std::uint32_t>(rasterized->height), rasterized->gpu_rgba,
                 cache_hit, upload_ms, reason, runtime::PixelFormat::Rgba8Unorm);
             if (!resource) return false;
             watermark_upload_ms += upload_ms;
 
             DirectLayerResourceEntry entry;
             entry.gpu_resource = resource;
-            entry.native_width = rasterized.display_width;
-            entry.native_height = rasterized.display_height;
+            entry.native_width = rasterized->display_width;
+            entry.native_height = rasterized->display_height;
             entry.kind = media::CudaLayerResourceKind::Mtsdf;
-            entry.distance_range_px = rasterized.distance_range_px;
+            entry.distance_range_px = rasterized->distance_range_px;
             const Color fill_color = node.color.a > 0.0f
                 ? node.color : prepared_shape->paint.fill;
             entry.color = pack_text_color(fill_color);

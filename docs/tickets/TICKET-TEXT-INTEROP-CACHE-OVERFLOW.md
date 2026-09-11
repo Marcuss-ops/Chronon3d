@@ -48,6 +48,11 @@ surface.  Prepared text and packed-atlas residency use the canonical bounded
   resource index is sorted for allocation-free binary lookup.
 - `TextRunLayout::layout_hash()` includes fallback font spans, preventing
   distinct shaped authorities from aliasing a prepared run.
+- DirectYUV MTSDF rasterization is now daemon-lifetime and coalesced through
+  `DirectYuvTextTextureCache`, a 16-shard byte-weighted LRU keyed by the same
+  immutable layout fingerprint. Repeated programs therefore reuse the CPU
+  atlas preparation; per-device CUDA upload/residency remains owned by
+  `VideoDeviceRuntime`.
 
 GPU execution and same-SHA hardware certification remain `NOT RUN` on hosts
 without Vulkan/CUDA hardware.
