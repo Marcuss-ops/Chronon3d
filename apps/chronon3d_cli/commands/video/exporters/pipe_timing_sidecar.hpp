@@ -251,6 +251,7 @@ struct ExclusiveWallTimeline {
     std::optional<double> validation_ms;
     std::optional<double> ffprobe_ms;
     std::optional<double> sha256_ms;
+    std::optional<std::uint64_t> full_file_reread_count;
     std::optional<double> output_finalize_ms;
     std::optional<double> sidecar_report_ms;
     std::optional<double> unaccounted_ms;

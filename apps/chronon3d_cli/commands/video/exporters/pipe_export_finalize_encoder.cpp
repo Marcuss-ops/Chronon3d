@@ -47,6 +47,7 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.native_receive_ms      = session.encoder->native_receive_packet_ms();
     result.native_mux_ms          = session.encoder->native_mux_write_ms();
     result.native_trailer_ms      = session.encoder->native_trailer_ms();
+    result.full_file_reread_count = session.encoder->full_file_reread_count();
     result.encoder_hwframe_get_buffer_ms = session.encoder->encoder_hwframe_get_buffer_ms();
     result.encoder_surface_acquire_ms    = session.encoder->encoder_surface_acquire_ms();
     result.encoder_nvenc_submit_ms       = session.encoder->encoder_nvenc_submit_ms();
