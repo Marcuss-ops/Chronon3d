@@ -149,6 +149,13 @@ struct RenderJobError {
     }
 };
 
+/// Legacy API adapter: keeps RenderJobErrorCode source/ABI compatibility while
+/// preventing new aggregate constructions from spreading through callers.
+[[nodiscard]] inline RenderJobError make_render_job_error(
+    RenderJobErrorCode code, std::string message) {
+    return RenderJobError{code, std::move(message)};
+}
+
 struct RenderJobOutput {
     RenderMode mode{RenderMode::Still};
     std::string output;
