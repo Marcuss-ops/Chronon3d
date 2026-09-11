@@ -5,6 +5,8 @@ composition.cpp
 cuda_nv12_compositor.hpp
 effect_stack.cpp
 effect_stack.hpp
+# Phase 1 canonical error header plus source-compatible forwarding include.
+error.hpp
 helpers.hpp
 interpolate.hpp
 main.cpp

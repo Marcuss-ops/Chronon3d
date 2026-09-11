@@ -22,3 +22,51 @@ scan_paths = ["include/chronon3d", "src", "tests", "apps"]
 extensions = [".h", ".hpp", ".hh", ".c", ".cc", ".cpp", ".cxx", ".inc"]
 allowlist = "tools/duplicate_basename_allowlist.txt"
 hint = "Use the canonical owner directory; if a compatibility boundary truly needs a duplicate basename, add a reviewed grandfather entry and explain the demolition scope in its ticket."
+
+[[required_path]]
+name = "canonical_error_model_header"
+paths = ["include/chronon3d/core/types/error.hpp"]
+
+[[contract]]
+name = "canonical_error_model_contract"
+file = "include/chronon3d/core/types/error.hpp"
+required_patterns = [
+  "enum class ErrorCategory",
+  "struct ErrorDetail",
+  "struct Error",
+  "kLegacyErrorMappings",
+  "from_legacy",
+]
+
+[[presence]]
+name = "canonical_error_legacy_mapping_inventory"
+scan_paths = ["include/chronon3d/core/types/error.hpp"]
+pattern = "\\{\\\"chronon3d::"
+min_matches = 28
+
+[[scan]]
+name = "canonical_error_construction_gate"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = [
+  "include/chronon3d/core/error.hpp",
+  "include/chronon3d/core/types/error.hpp",
+]
+patterns = [
+  "\\bchronon::Error\\s*\\{",
+  "\\bchronon3d::Error\\s*\\{",
+]
+skip_comments = true
+
+[[scan]]
+name = "silent_catch_continue_forbidden"
+scan_paths = ["include", "src", "apps"]
+patterns = ["catch\\s*\\(\\s*\\.\\.\\.\\s*\\)\\s*\\{(?:(?!\\}).){0,600}\\bcontinue\\s*;"]
+multiline = true
+skip_comments = true
+
+[[scan]]
+name = "render_error_taxonomy_consolidated"
+scan_paths = ["include", "src", "apps", "tests"]
+patterns = ["namespace\\s+chronon3d::render\\s*\\{(?:(?!\\}).){0,1200}enum\\s+class\\s+RenderErrorCode"]
+multiline = true
+skip_comments = true
