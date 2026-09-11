@@ -186,3 +186,17 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/resource_preparation.hpp"]
 patterns = ["\\bPreparationError\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "props_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/timeline/composition_props.hpp"]
+patterns = ["\\bPropsError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "trace_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/core/tracing/trace_session.hpp"]
+patterns = ["Result<bool,\\s*TraceError>\\s*\\(\\s*TraceError::"]
+skip_comments = true
