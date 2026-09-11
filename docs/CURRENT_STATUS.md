@@ -65,8 +65,9 @@
 - `tools/benchmark_gpu_baseline.sh` is the canonical reproducible GPU baseline
   runner. It consumes the authoritative timing sidecar, records fixed
   prewarm/steady-state windows and rejects missing frame or wall-time
-  attribution evidence. A 12-frame native GPU smoke run on `23829045a` passed
-  with 99.37% wall-time attribution.
+  attribution evidence. The sidecar now exposes a canonical
+  `phase_attribution` projection. A 12-frame native GPU smoke run on
+  `23829045a` passed with 99.33% wall-time attribution.
 - `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
   still/pipe/chunked fixture execution remains pending on the working build
   host. No CpuBudget policy change is authorized before that measurement.

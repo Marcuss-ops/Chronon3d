@@ -14,7 +14,8 @@ process log only for diagnostics.
 
 Each case records commit/parameters, output and sidecar paths, exit status,
 frame count, execution path, startup/prepare/encode/finalize timings,
-prewarm/steady-state windows, and exclusive wall-time attribution.
+prewarm/steady-state windows, and canonical `phase_attribution` with phase
+sum, accounted percentage and explicit unaccounted remainder.
 
 The runner rejects a case when the sidecar is missing, the frame count differs
 from the requested count, or less than 95% of process wall time is attributed.
@@ -38,6 +39,6 @@ smoke case is `B00=DarkGridBackground`.
 ## Evidence
 
 The runner was syntax-checked and executed on `23829045a` with a 12-frame
-GPU/NVENC smoke case. It produced a sidecar, 12/12 frames, and 99.37%
+GPU/NVENC smoke case. It produced a sidecar, 12/12 frames, and 99.33%
 exclusive wall-time attribution. The full B00–B11 and GPU_TEXT corpus remains
 measurement work on the host that provides those fixtures.
