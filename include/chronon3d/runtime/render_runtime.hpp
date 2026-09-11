@@ -91,6 +91,7 @@
 #include <optional>
 #include <mutex>
 #include <string>
+#include <utility>
 
 namespace chronon3d {
     struct Config;
@@ -138,6 +139,13 @@ struct RuntimeBuildError {
     Code        code{Code::InternalError};
     std::string message;
 };
+
+// Runtime compatibility boundary. Code remains the legacy detail payload;
+// construction is centralized at the runtime factory boundary.
+[[nodiscard]] inline RuntimeBuildError make_runtime_build_error(
+    RuntimeBuildError::Code code, std::string message) {
+    return RuntimeBuildError{code, std::move(message)};
+}
 
 /// Configuration bundle for the unified RuntimeContext::create() factory.
 /// Wraps engine Config with an optional assets_root path (seeds the
