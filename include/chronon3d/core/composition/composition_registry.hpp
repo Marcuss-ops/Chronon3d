@@ -116,11 +116,9 @@ public:
     resolve(std::string_view name, const CompositionInput& input) const {
         const auto it = descriptors_.find(name);
         if (it == descriptors_.end()) {
-            return PropsError{
-                "",
-                PropsErrorReason::MissingRequired,
-                "Unknown composition: " + std::string(name)
-            };
+            return make_props_error(
+                "", PropsErrorReason::MissingRequired,
+                "Unknown composition: " + std::string(name));
         }
 
         const auto& descriptor = it->second;
@@ -135,12 +133,10 @@ public:
 
         PreparedComposition prepared = std::move(prepared_result).value();
         if (!prepared.construct) {
-            return PropsError{
-                "",
-                PropsErrorReason::InvalidFormat,
+            return make_props_error(
+                "", PropsErrorReason::InvalidFormat,
                 "Composition '" + descriptor.id +
-                    "' preparation returned no constructor"
-            };
+                    "' preparation returned no constructor");
         }
 
         return ResolvedCompositionSpec{

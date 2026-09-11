@@ -32,6 +32,15 @@ struct PropsError {
     std::string message;
 };
 
+// Props compatibility boundary. Keep the public error payload stable while
+// centralizing construction for the canonical error adapter.
+[[nodiscard]] inline PropsError make_props_error(
+    std::string key, PropsErrorReason reason, std::string message) {
+    return PropsError{
+        std::move(key), reason, std::move(message)
+    };
+}
+
 /// Supported prop types for schema introspection and CLI/JSON validation.
 enum class PropType {
     String,

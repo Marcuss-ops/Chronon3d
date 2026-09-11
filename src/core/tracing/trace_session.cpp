@@ -125,16 +125,16 @@ Result<bool, TraceError> TraceSession::finish() {
 
     const std::filesystem::path output = impl_->options.output;
     if (output.empty()) {
-        return Result<bool, TraceError>(TraceError::kWriteFailed);
+        return Result<bool, TraceError>(make_trace_error(TraceError::kWriteFailed));
     }
 
     std::ofstream out(output, std::ios::binary | std::ios::trunc);
     if (!out.is_open()) {
-        return Result<bool, TraceError>(TraceError::kWriteFailed);
+        return Result<bool, TraceError>(make_trace_error(TraceError::kWriteFailed));
     }
     out.write(trace.data(), static_cast<std::streamsize>(trace.size()));
     if (!out) {
-        return Result<bool, TraceError>(TraceError::kWriteFailed);
+        return Result<bool, TraceError>(make_trace_error(TraceError::kWriteFailed));
     }
     return Result<bool, TraceError>(true);
 }

@@ -69,11 +69,8 @@ TypedCompositionDescriptor<PreparedProps> make_descriptor(
                 props.image_path = values.require_string("image_path");
             }
         } catch (const std::exception& error) {
-            return PropsError{
-                "duration_frames",
-                PropsErrorReason::BadType,
-                error.what()
-            };
+            return make_props_error(
+                "duration_frames", PropsErrorReason::BadType, error.what());
         }
         return props;
     };

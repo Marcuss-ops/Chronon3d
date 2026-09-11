@@ -36,6 +36,12 @@ enum class TraceError {
     kWriteFailed,    // trace output file could not be written
 };
 
+// Trace compatibility boundary. Keep the legacy enum in the Result ABI while
+// routing failure values through one named adapter.
+[[nodiscard]] constexpr TraceError make_trace_error(TraceError code) noexcept {
+    return code;
+}
+
 class TraceSession {
 public:
     TraceSession();
