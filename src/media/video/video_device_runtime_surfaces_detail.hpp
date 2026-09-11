@@ -1,3 +1,5 @@
+#include <chronon3d/runtime/cuda_surface_contract.hpp>
+
 namespace chronon3d::media {
 
 bool VideoDeviceRuntime::acquire_slot_surfaces(
@@ -22,10 +24,19 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
         return false;
     }
 
-    const auto desc = runtime::SurfaceDesc::make(
+    auto desc = runtime::SurfaceDesc::make(
         width, height, runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::PipelineSlot);
+    // This ring is the explicit RGBA-copy encode lane. DirectYUV owns a
+    // separate NV12/P010 contract and must never alias these surfaces.
+    desc.kind = runtime::ResourceKind::Color;
+    const auto contract = runtime::validate_cuda_surface_contract(desc);
+    if (!contract.valid()) {
+        (void)slot.transition_interop_state(runtime::InteropFrameState::Recyclable);
+        reason = contract.reason;
+        return false;
+    }
 
     // A slot owns its two PipelineSlot surfaces across frames.  Releasing the
     // lease returns the slot to Recyclable; it must not force a new Vulkan

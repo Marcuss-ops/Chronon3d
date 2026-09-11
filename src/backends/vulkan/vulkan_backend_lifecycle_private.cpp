@@ -49,6 +49,9 @@ namespace chronon3d::backends::vulkan {
           calibrated_ts_supported(calibrated_timestamps_supported),
           debug_context(dbg_ctx) {
         surfaces.owner_ = this;
+        // Retain telemetry capacity across frame retirements and jobs so the
+        // completion record itself does not become a per-frame allocator.
+        completed_frame_timings.reserve(64);
         memory_manager.initialize(instance, physical_device, device);
         VkPhysicalDeviceProperties device_properties{};
         vkGetPhysicalDeviceProperties(physical_device, &device_properties);

@@ -43,6 +43,7 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     switch (options.input_format) {
         case PipePixelFormat::YUV420P: pool_format = video::EncoderPixelFormat::YUV420P; break;
         case PipePixelFormat::NV12: pool_format = video::EncoderPixelFormat::NV12; break;
+        case PipePixelFormat::P010: pool_format = video::EncoderPixelFormat::P010; break;
         case PipePixelFormat::RGBA:
         default: pool_format = video::EncoderPixelFormat::RGBA8; break;
     }
@@ -70,6 +71,7 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     const char* fmt_str = "rgba";
     if (options.input_format == PipePixelFormat::YUV420P) fmt_str = "yuv420p";
     else if (options.input_format == PipePixelFormat::NV12) fmt_str = "nv12";
+    else if (options.input_format == PipePixelFormat::P010) fmt_str = "p010";
     spdlog::info("[video_adapter] Opened {} sink: {}x{} @ {}/{}fps, format={}, codec={}",
                  (sink_type_ == VideoSinkType::RawFile) ? "raw" : "ffmpeg-pipe",
                  width_, height_, options.canonical_fps_num(),

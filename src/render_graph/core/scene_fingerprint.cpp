@@ -13,7 +13,11 @@ FrameFingerprints compute_frame_fingerprints(
     fps.static_fp     = hasher.compute_static_fingerprint(scene);
     fps.active_at_fp  = hasher.compute_active_at_fingerprint(scene, frame);
     fps.structure_fp  = hasher.compute_structure_fingerprint(scene, registry_generation);
-    fps.combined_fp   = fps.static_fp ^ (fps.active_at_fp * 0x9e3779b97f4a7c15ULL);
+    // `active_at_fp` is topology-relevant only. Use the dynamic payload
+    // fingerprint for pixel-reuse decisions so video/transition samples do
+    // not unnecessarily force a compiled graph rebuild.
+    const auto dynamic_fp = hasher.compute_dynamic_fingerprint(scene, frame);
+    fps.combined_fp   = fps.static_fp ^ (dynamic_fp * 0x9e3779b97f4a7c15ULL);
     return fps;
 }
 

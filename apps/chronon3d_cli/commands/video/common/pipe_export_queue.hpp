@@ -20,6 +20,7 @@ namespace chronon3d::cli {
 
 struct FullGraphFramePackage {
     Frame frame_number{0};
+    std::chrono::steady_clock::time_point enqueued_at{};
     runtime::GpuSlotPool::Lease slot;
     std::shared_ptr<Framebuffer> cpu_fallback;
     std::shared_ptr<FramebufferArena> cpu_arena;
@@ -27,6 +28,7 @@ struct FullGraphFramePackage {
 
 struct DirectYuvFramePackage {
     Frame frame_number{0};
+    std::chrono::steady_clock::time_point enqueued_at{};
     std::shared_ptr<media::video::DirectYuvFrame> direct_yuv;
 };
 
@@ -94,7 +96,17 @@ public:
             // DirectYuvFramePackage. Check fullness first; with one producer
             // only the consumer can change this state, therefore a non-full
             // observation cannot become full before try_push executes.
-            if (!ring_.full() && ring_.try_push(std::move(item))) return true;
+            if (!ring_.full()) {
+                // Stamp only after observing capacity and immediately before
+                // publication. A caller-side stamp would include producer
+                // backpressure while the ring is full and would overstate
+                // writer queue residence.
+                const auto published_at = std::chrono::steady_clock::now();
+                std::visit([published_at](auto& package) {
+                    package.enqueued_at = published_at;
+                }, item);
+                if (ring_.try_push(std::move(item))) return true;
+            }
             if (token && token->is_cancelled()) return false;
             // Queue is full: backpressure. Tiny sleep so the producer does not
             // spin-burn a core while the consumer encodes the in-flight frame.

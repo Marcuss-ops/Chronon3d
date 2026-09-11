@@ -250,6 +250,13 @@ struct CompiledFrameGraph : CompiledResourceTable {
     std::shared_ptr<const FrameParameterTable> prepared_parameters;
     std::vector<FrameParameterSlice> parameter_bindings;
 
+    // Detached node storage used by the transactional scene refresh path.
+    // The first refresh allocates one spare node per dynamic graph node; the
+    // subsequent frame refresh swaps active/spare nodes and reuses their
+    // capacities.  This keeps the safety boundary (prepare -> validate ->
+    // commit) without rebuilding a patch/vector/unique_ptr set every frame.
+    std::vector<std::unique_ptr<RenderGraphNode>> refresh_scratch;
+
     [[nodiscard]] CompiledResourceTable& resource_table() noexcept { return *this; }
     [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept { return *this; }
     void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) { parameter_bindings = std::move(bindings); }

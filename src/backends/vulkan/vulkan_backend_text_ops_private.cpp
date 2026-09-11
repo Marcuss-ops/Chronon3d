@@ -118,9 +118,27 @@ void VulkanBackend::Impl::draw_text_batch(
     stats.glyphs_processed += glyphs.size();
 
     auto& dst_image = resolve_image(destination);
-    if (!dst_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
+    // A freshly bound terminal NVENC surface is intentionally uninitialized,
+    // just like the destination accepted by execute_layer_batch().  Text
+    // rasterization blends over destination pixels, so establish transparent
+    // contents before the first text pass instead of rejecting the valid
+    // first-write lifetime state (or reading undefined pixels).
+    if (dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument(
             "Vulkan draw_text_batch references an invalid destination surface");
+    }
+    if (!dst_image.initialized) {
+        const auto clear_descriptors = allocate_pass_descriptor_set();
+        write_fill_rect_descriptors(clear_descriptors, dst_image);
+        const auto clear_cmd = active_command_buffer();
+        emit_unplanned_compute_sync(clear_cmd, {&dst_image});
+        record_fill_rect(clear_cmd, clear_descriptors, dst_image, 0, 0,
+                         static_cast<std::int32_t>(dst_image.width),
+                         static_cast<std::int32_t>(dst_image.height),
+                         Color::transparent());
+        dst_image.initialized = true;
+        emit_unplanned_compute_sync(clear_cmd, {&dst_image});
+        ++stats.passes_executed;
     }
     auto& atlas_image = resolve_image(atlas_pages[0]);
     if (!atlas_image.initialized || atlas_image.width == 0 || atlas_image.height == 0) {
@@ -275,7 +293,7 @@ void VulkanBackend::Impl::draw_text_batch(
 
     if (frame_batch.active) {
         constexpr std::int32_t kTileSize = 16;
-        constexpr std::int32_t kMaxGlyphsPerTile = 64;
+        constexpr std::int32_t kMaxGlyphsPerTile = 256;
         const std::int32_t tiles_x =
             (static_cast<std::int32_t>(dst_image.width) + kTileSize - 1) /
             kTileSize;

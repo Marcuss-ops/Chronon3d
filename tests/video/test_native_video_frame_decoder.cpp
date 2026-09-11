@@ -7,6 +7,7 @@
 
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/decode_result.hpp>
+#include <chronon3d/runtime/cuda_surface_contract.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
 #endif
@@ -80,6 +81,7 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
     CHECK(desc.width == width);
     CHECK(desc.height == height);
     CHECK(desc.format == chronon3d::runtime::PixelFormat::Rgba32Float);
+    CHECK(desc.kind == chronon3d::runtime::ResourceKind::Color);
     CHECK(desc.usage == chronon3d::runtime::ResourceUsage::Storage);
     CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::FrameTransient);
     // float4 write view must fit exactly inside the external allocation.
@@ -92,6 +94,41 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
                            chronon3d::runtime::PixelFormat::Nv12, width, height));
     CHECK(desc.bytes > chronon3d::runtime::tight_surface_bytes(
                            chronon3d::runtime::PixelFormat::P010, width, height));
+}
+
+TEST_CASE("CUDA external surface contract separates RGBA and DirectYUV lanes") {
+    using chronon3d::runtime::CudaSurfaceLane;
+    using chronon3d::runtime::PixelFormat;
+    using chronon3d::runtime::ResourceKind;
+    using chronon3d::runtime::ResourceUsage;
+    using chronon3d::runtime::LifetimeClass;
+
+    auto rgba = chronon3d::runtime::SurfaceDesc::make(
+        1280, 720, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::PipelineSlot);
+    rgba.kind = ResourceKind::Color;
+    CHECK(chronon3d::runtime::validate_cuda_surface_contract(rgba).lane ==
+          CudaSurfaceLane::RgbaCopy);
+
+    auto nv12 = chronon3d::runtime::SurfaceDesc::make(
+        1280, 720, PixelFormat::Nv12, ResourceUsage::Storage,
+        LifetimeClass::PipelineSlot);
+    nv12.kind = ResourceKind::Yuv;
+    CHECK(chronon3d::runtime::validate_cuda_surface_contract(nv12).lane ==
+          CudaSurfaceLane::Nv12DirectYuv);
+
+    auto p010 = nv12;
+    p010.format.pixel = PixelFormat::P010;
+    CHECK(chronon3d::runtime::validate_cuda_surface_contract(p010).lane ==
+          CudaSurfaceLane::P010DirectYuv);
+
+    auto odd = nv12;
+    odd.width = 1279;
+    CHECK(!chronon3d::runtime::validate_cuda_surface_contract(odd).valid());
+
+    auto untyped = rgba;
+    untyped.kind = ResourceKind::Bytes;
+    CHECK(!chronon3d::runtime::validate_cuda_surface_contract(untyped).valid());
 }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

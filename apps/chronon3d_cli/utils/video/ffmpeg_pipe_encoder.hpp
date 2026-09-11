@@ -127,7 +127,8 @@ struct IVideoEncoder {
 enum class PipePixelFormat {
     RGBA,
     YUV420P,
-    NV12
+    NV12,
+    P010
 };
 
 struct FfmpegPipeOptions {

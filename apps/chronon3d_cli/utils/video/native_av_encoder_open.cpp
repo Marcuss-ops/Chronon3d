@@ -212,10 +212,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             return false;
         }
         std::string frames_reason;
+        const AVPixelFormat native_yuv_format =
+            options_.direct_yuv_mode && options_.input_format == PipePixelFormat::P010
+                ? AV_PIX_FMT_P010 : AV_PIX_FMT_NV12;
         cuda_frames_ref_ = device_runtime_->ref_cuda_frames(
             static_cast<std::uint32_t>(options_.width),
             static_cast<std::uint32_t>(options_.height),
-            AV_PIX_FMT_NV12, frames_reason);
+            native_yuv_format, frames_reason);
         if (!cuda_frames_ref_) {
             spdlog::error("[native_av] persistent CUDA frames context unavailable: {}",
                           frames_reason);

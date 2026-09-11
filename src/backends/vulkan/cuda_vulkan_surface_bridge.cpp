@@ -132,9 +132,10 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
     make_current();
     static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
     if (s_trace) {
-        spdlog::info("[interop-trace] CUDA_WAIT_V2C ctx={} stream={} sem={}",
+        spdlog::info("[interop-trace] CUDA_WAIT_V2C ctx={} stream={} sem={} value={}",
                      static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
-                     static_cast<void*>(m_vulkan_to_cuda));
+                     static_cast<void*>(m_vulkan_to_cuda),
+                     m_timeline ? (m_vulkan_to_cuda_value + 1) : 0);
     }
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
     if (m_timeline) {
@@ -157,9 +158,10 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
     make_current();
     static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
     if (s_trace) {
-        spdlog::info("[interop-trace] CUDA_SIGNAL_C2V ctx={} stream={} sem={}",
+        spdlog::info("[interop-trace] CUDA_SIGNAL_C2V ctx={} stream={} sem={} value={}",
                      static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
-                     static_cast<void*>(m_cuda_to_vulkan));
+                     static_cast<void*>(m_cuda_to_vulkan),
+                     m_timeline ? (m_cuda_to_vulkan_value + 1) : 0);
     }
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
     if (m_timeline) {

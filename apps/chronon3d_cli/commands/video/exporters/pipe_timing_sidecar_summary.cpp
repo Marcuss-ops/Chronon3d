@@ -104,6 +104,33 @@ void build_summary_and_job_sections(
     summary["graph_reused_ratio"] = count > 0
         ? static_cast<double>(graph_reused_count) / static_cast<double>(count) : 0.0;
     summary["fast_path_reused_frames"] = fast_path_reused_count;
+    std::uint64_t gpu_timestamped_frames = 0;
+    double gpu_execute_total_ms = 0.0;
+    double gpu_span_total_ms = 0.0;
+    double gpu_span_max_ms = 0.0;
+    double gpu_queue_wait_total_ms = 0.0;
+    double gpu_queue_wait_max_ms = 0.0;
+    for (const auto& f : frames) {
+        if (!f.gpu_timing.timestamp_attributed) continue;
+        ++gpu_timestamped_frames;
+        gpu_execute_total_ms += f.gpu_timing.timestamp_execute_ms;
+        gpu_span_total_ms += f.gpu_timing.device_span_ms;
+        gpu_span_max_ms = std::max(gpu_span_max_ms, f.gpu_timing.device_span_ms);
+        gpu_queue_wait_total_ms += f.gpu_timing.queue_wait_ms;
+        gpu_queue_wait_max_ms = std::max(gpu_queue_wait_max_ms,
+                                         f.gpu_timing.queue_wait_ms);
+    }
+    summary["gpu_device_timing"] = {
+        {"timestamped_frames", gpu_timestamped_frames},
+        {"missing_frames", count >= gpu_timestamped_frames
+            ? count - gpu_timestamped_frames : 0},
+        {"execute_total_ms", gpu_execute_total_ms},
+        {"device_span_total_ms", gpu_span_total_ms},
+        {"device_span_max_ms", gpu_span_max_ms},
+        {"queue_wait_total_ms", gpu_queue_wait_total_ms},
+        {"queue_wait_max_ms", gpu_queue_wait_max_ms},
+        {"attribution", "originating_frame_batch_slot_completion"}
+    };
     const auto window_endpoints = [&frames](std::size_t begin, std::size_t end) {
         nlohmann::json window{
             {"frame_count", end > begin ? end - begin : 0},
@@ -133,6 +160,46 @@ void build_summary_and_job_sections(
         {"semantics", "prewarm includes setup and warmup; steady_state begins immediately before the render loop"}
     };
     summary["first_frame"] = std::move(first_frame);
+
+    // The render loop and writer run concurrently, so a sum of render and
+    // encoder durations would double-count overlap. Preserve the measured
+    // writer intervals and report the span separately; this is the
+    // authoritative frame→NVENC view for diagnosing queue residence and
+    // backpressure.
+    std::size_t encoder_timestamped_frames = 0;
+    double first_encoder_start_ms = 0.0;
+    double last_encoder_end_ms = 0.0;
+    double max_frame_to_encoder_end_ms = 0.0;
+    double writer_queue_wait_total_ms = 0.0;
+    double writer_encode_wall_total_ms = 0.0;
+    for (const auto& frame : frames) {
+        const auto* e = find_encoder_frame(enc, frame.frame_number);
+        if (!e || e->encoder_wall_end_ms <= 0.0) continue;
+        if (encoder_timestamped_frames == 0) {
+            first_encoder_start_ms = e->encoder_wall_start_ms;
+        }
+        ++encoder_timestamped_frames;
+        last_encoder_end_ms = std::max(last_encoder_end_ms, e->encoder_wall_end_ms);
+        max_frame_to_encoder_end_ms = std::max(
+            max_frame_to_encoder_end_ms,
+            e->encoder_wall_end_ms - frame.wall_start_ms);
+        writer_queue_wait_total_ms += e->writer_queue_wait_ms;
+        writer_encode_wall_total_ms += e->writer_encode_wall_ms;
+    }
+    summary["frame_to_nvenc"] = {
+        {"timestamped_frames", encoder_timestamped_frames},
+        {"first_encoder_start_ms", encoder_timestamped_frames > 0
+            ? nlohmann::json(first_encoder_start_ms) : nlohmann::json(nullptr)},
+        {"last_encoder_end_ms", encoder_timestamped_frames > 0
+            ? nlohmann::json(last_encoder_end_ms) : nlohmann::json(nullptr)},
+        {"pipeline_span_ms", encoder_timestamped_frames > 0
+            ? nlohmann::json(last_encoder_end_ms) : nlohmann::json(nullptr)},
+        {"max_frame_to_encoder_end_ms", encoder_timestamped_frames > 0
+            ? nlohmann::json(max_frame_to_encoder_end_ms) : nlohmann::json(nullptr)},
+        {"writer_queue_wait_total_ms", writer_queue_wait_total_ms},
+        {"writer_encode_wall_total_ms", writer_encode_wall_total_ms},
+        {"overlap_model", "render_and_writer_intervals_are_concurrent"}
+    };
     if (timings.target_fps) {
         summary["target_fps"] = *timings.target_fps;
     } else {
@@ -388,6 +455,8 @@ void build_summary_and_job_sections(
     put_text_u64("atlas_upload_bytes", timings.text.atlas_upload_bytes);
     put_text_u64("instance_upload_count", timings.text.instance_upload_count);
     put_text_u64("instance_upload_bytes", timings.text.instance_upload_bytes);
+    put_text_u64("prepared_batch_build_count", timings.text.prepared_batch_build_count);
+    put_text_u64("prepared_batch_reuse_count", timings.text.prepared_batch_reuse_count);
 
     auto& encoder = job["encoder"];
     const auto put_encoder = [&encoder](const char* key, const std::optional<double>& value) {

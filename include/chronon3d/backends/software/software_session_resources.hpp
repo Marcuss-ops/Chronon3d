@@ -130,11 +130,13 @@ struct EffectScratchResources {
 /// Warn once per thread so a stray call site surfaces loudly in
 /// diagnostics while keeping the fallback functional.
 inline void warn_once_effect_scratch_missing(const char* effect_name) {
-    // thread_local is the warn-once-per-thread state; the effect name is a
-    // call-site literal and must be captured (or better: logged) outside the
-    // initializer lambda, which cannot capture it into static storage.
-    thread_local const bool warned = [] { return true; }();
-    if (!warned) return;
+    // thread_local is the warn-once-per-thread state; keep the mutable bit
+    // explicit so the first call logs and subsequent calls return. The old
+    // initializer set this to true immediately, making the `if (!warned)`
+    // guard dead and logging on every fallback invocation.
+    thread_local bool warned = false;
+    if (warned) return;
+    warned = true;
     spdlog::warn(
         "effect scratch missing: '{}' allocated its own framebuffer "
         "(pool-less fallback). Renderer-driven paths must pass "

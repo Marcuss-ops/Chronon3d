@@ -10,6 +10,13 @@ namespace chronon3d::compiler {
 /// authoring bridges or execution-layer state.
 class TypedProgramSampler final {
 public:
+    /// Refill a frame-slot-owned block. The destination keeps its vector
+    /// capacity across leased frames, so steady-state sampling does not
+    /// allocate a new parameter vector.
+    void sample_into(const CompiledProgram& program,
+                     Frame frame,
+                     FrameParameterBlock& destination) const;
+
     [[nodiscard]] FrameParameterBlock sample(const CompiledProgram& program,
                                               Frame frame) const;
 };

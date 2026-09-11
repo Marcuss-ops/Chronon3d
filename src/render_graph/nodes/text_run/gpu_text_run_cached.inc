@@ -33,23 +33,14 @@ graph::RenderOpResult draw_cached_text_run(
 
     const auto& layout = *shape.layout;
 
-    // Keep text on the native GPU surface path, but use the packed atlas
-    // below as the primary route. The persistent MTSDF page allocator can
-    // lose the Vulkan device while uploading a 2048px page on some NVIDIA
-    // driver/runtime combinations; the packed atlas uses the existing
-    // bounded upload path and still dispatches draw_text_run_surface, so
-    // composition and NVENC remain fully native with zero GPU readback.
-
-    // Canonical route: immutable glyph geometry is prepared in the
-    // persistent MTSDF atlas and only the dynamic visibility record is
-    // submitted per frame. Complex/unsupported animator stacks fall through
-    // to the compatibility path below.
-    if (!shape.animated_doc &&
-        (shape.animators.empty() || can_lower_gpu_text_animation(shape))) {
-        auto mtsdf = draw_cached_text_run_mtsdf(
-            ctx, destination, shape, model_matrix, opacity);
-        if (mtsdf.ok()) return mtsdf;
-    }
+    // Canonical route: build a bounded packed RGBA atlas from the already
+    // resolved glyph bitmaps and submit it through draw_text_run_surface.
+    // Do not probe or populate the persistent MTSDF page allocator here: on
+    // NVIDIA driver/runtime combinations used by the native encoder that
+    // allocator can lose the Vulkan device while uploading a 2048px page.
+    // The packed route keeps composition and NVENC fully native with zero
+    // GPU readback. The legacy MTSDF implementation remains available for
+    // dedicated callers/tests, but is intentionally not on this hot path.
 
     const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
     const auto font_id = glyph_font_id(layout.font.font_path);
@@ -111,6 +102,16 @@ graph::RenderOpResult draw_cached_text_run(
             static_cast<u32>(font_size));
         if ((!entry || !entry->image || entry->image->empty()) &&
             ctx.asset_resolver) {
+            // REQUIRE_GPU_NATIVE has a strict preparation barrier: a glyph
+            // missing here is a preparation defect, not permission to do
+            // FreeType/Blend2D work from the frame loop.  The auto/native
+            // path keeps the compatibility warm-up below for standalone
+            // callers, but the native export lane must fail closed.
+            if (ctx.policy.is_gpu_native_required()) {
+                return graph::RenderOpResult(graph::RenderBackendError{
+                    graph::RenderBackendErrorCode::UnsupportedCapability,
+                    "draw_cached_text_run: glyph bitmap was not prepared for GPU-native export"});
+            }
             auto warmed = rasterize_missing_glyph(
                 *ctx.text_render_resources, *ctx.asset_resolver,
                 layout.font.font_path, state.glyph_id,

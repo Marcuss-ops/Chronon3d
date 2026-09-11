@@ -28,7 +28,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         const auto encode_surface = node_exec.terminal_video_encode_surface;
         node_exec.terminal_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
         node_exec.planned_physical_slot = nullptr;
-        auto fb = std::make_shared<Framebuffer>(w, h, clear);
+        auto fb = std::make_shared<Framebuffer>(w, h, static_cast<Color*>(nullptr));
         fb->set_surface_handle(encode_surface);
         fb->mark_gpu_authoritative();
         if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {

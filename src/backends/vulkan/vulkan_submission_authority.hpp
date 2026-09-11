@@ -43,6 +43,9 @@ struct VulkanSubmissionAuthority {
     std::array<VkFence, kSlotCount> fences{};
     std::array<bool, kSlotCount> in_flight{};
     std::array<std::size_t, kSlotCount> submitted_pass_counts{};
+    std::array<std::uint64_t, kSlotCount> submitted_frame_indices{};
+    std::array<bool, kSlotCount> submitted_frame_valid{};
+    std::array<std::int64_t, kSlotCount> submitted_submit_end_trace_ns{};
     std::array<FrameDescriptorAllocator, kSlotCount>& descriptor_allocators;
     std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_bin_allocators;
     std::array<FrameDescriptorAllocator, kSlotCount>& text_tile_raster_allocators;

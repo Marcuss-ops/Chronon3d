@@ -4,8 +4,11 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <chronon3d/runtime/cuda_surface_contract.hpp>
+
 #include <atomic>
 #include <cstdlib>
+#include <string>
 #include <unistd.h>
 
 namespace chronon3d::backends::vulkan {
@@ -50,14 +53,11 @@ VkSemaphore VulkanBackend::Impl::make_external_timeline_semaphore() {
 void VulkanBackend::Impl::create_cuda_external_surface(
     runtime::RenderSurfaceHandle handle,
     const runtime::SurfaceDesc& desc) {
-    if (handle == runtime::kInvalidRenderSurfaceHandle ||
-        desc.width == 0 || desc.height == 0 ||
-        (desc.format != runtime::PixelFormat::Rgba32Float &&
-         desc.format != runtime::PixelFormat::Rgba8Unorm &&
-         desc.format != runtime::PixelFormat::Nv12 &&
-         desc.format != runtime::PixelFormat::P010)) {
+    const auto contract = runtime::validate_cuda_surface_contract(desc);
+    if (handle == runtime::kInvalidRenderSurfaceHandle || !contract.valid()) {
         throw std::invalid_argument(
-            "CUDA external surface requires non-empty supported description");
+            std::string("CUDA external surface contract rejected: ") +
+            contract.reason);
     }
     if (surfaces.surface_bindings.contains(handle)) {
         throw std::invalid_argument("CUDA external surface handle already exists");
@@ -67,17 +67,16 @@ void VulkanBackend::Impl::create_cuda_external_surface(
     make_image(physical.image, desc.width, desc.height, true,
                to_vk_format(desc.format));
     try {
-        // Keep an explicit escape hatch while timeline interop is being
-        // validated on each driver. This preserves the proven binary bridge
-        // for render certification without removing the timeline path.
+        // Timeline is the production-preferred CUDA interop protocol. Binary
+        // semaphores remain a certified compatibility fallback for drivers
+        // that reject external timeline semaphore import/export, or when an
+        // operator explicitly disables the protocol for diagnosis.
         const bool disable_timeline =
             std::getenv("CHRONON3D_DISABLE_CUDA_TIMELINE") != nullptr;
         if (disable_timeline) {
-            throw std::runtime_error("disabled by CHRONON3D_DISABLE_CUDA_TIMELINE");
+            throw std::runtime_error(
+                "timeline bridge explicitly disabled via CHRONON3D_DISABLE_CUDA_TIMELINE");
         }
-        // Timeline external semaphores share the same opaque-FD transport as
-        // the binary bridge. If creation is rejected by the selected driver,
-        // fall back atomically to the already-proven binary pair.
         physical.image.cuda_to_vulkan = make_external_timeline_semaphore();
         physical.image.vulkan_to_cuda = make_external_timeline_semaphore();
         physical.image.cuda_timeline = true;
@@ -212,6 +211,18 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
         throw std::runtime_error(
             "copy_surface_to_cuda_encoder: source surface is uninitialized");
     }
+    // The encoder handoff is a typed lane, not a general-purpose image
+    // conversion node.  A format or extent mismatch used to fall through to
+    // vkCmdBlitImage here, hiding an implicit conversion in the native export
+    // hot path.  Reject it before recording any command; callers that need a
+    // conversion must insert an explicit graph node and hand this function a
+    // matching RGBA surface.
+    if (src.format != dst.format || src.width != dst.width ||
+        src.height != dst.height) {
+        throw std::invalid_argument(
+            "CUDA encoder lane requires matching source/destination RGBA "
+            "format and extent; use an explicit conversion node");
+    }
     const bool record_in_frame_batch = frame_batch.active;
     if (!record_in_frame_batch) begin_command_buffer();
     const VkCommandBuffer command = record_in_frame_batch
@@ -243,26 +254,13 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
     transition(command, dst.image,
                dst.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    if (src.format == dst.format && src.width == dst.width && src.height == dst.height) {
-        VkImageCopy copy_region{};
-        copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        copy_region.extent = {src.width, src.height, 1};
-        vkCmdCopyImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                       dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                       1, &copy_region);
-    } else {
-        VkImageBlit region{};
-        region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.srcOffsets[1] = {static_cast<int>(src.width),
-                                static_cast<int>(src.height), 1};
-        region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.dstOffsets[1] = {static_cast<int>(dst.width),
-                                static_cast<int>(dst.height), 1};
-        vkCmdBlitImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                       dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                       1, &region, VK_FILTER_NEAREST);
-    }
+    VkImageCopy copy_region{};
+    copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copy_region.extent = {src.width, src.height, 1};
+    vkCmdCopyImage(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   1, &copy_region);
     transition(command, src.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                VK_IMAGE_LAYOUT_GENERAL);
     transition(command, dst.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,

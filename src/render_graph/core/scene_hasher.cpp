@@ -194,12 +194,20 @@ uint64_t SceneHasher::compute_active_at_fingerprint(const Scene& scene, Frame fr
     for (const auto& layer : scene.layers()) {
         h = hash_combine(h, hash_string(layer.name));
         h = hash_combine(h, layer.active_at(frame) ? 1 : 0);
-        // A video layer's sampled source frame advances every output frame,
-        // so its content is time-varying even while the layer stays active.
-        // Fold the current frame into the fingerprint so the frame-reuse fast
-        // path never replays a stale video frame (GOLDEN 04/05 light leak).
+    }
+    return h;
+}
+
+uint64_t SceneHasher::compute_dynamic_fingerprint(const Scene& scene, Frame frame) const {
+    uint64_t h = compute_active_at_fingerprint(scene, frame);
+    // A video layer's sampled source frame advances every output frame, so its
+    // content is time-varying while its graph topology remains unchanged.
+    // Keep that distinction explicit: this fingerprint gates pixel reuse,
+    // not compiled graph reuse.
+    for (const auto& layer : scene.layers()) {
         if (layer.kind == LayerKind::Video && layer.video_source &&
             layer.active_at(frame)) {
+            h = hash_combine(h, hash_string(layer.name));
             h = hash_combine(h, static_cast<int64_t>(frame));
         }
     }

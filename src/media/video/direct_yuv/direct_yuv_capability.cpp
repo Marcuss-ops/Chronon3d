@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 #include <cmath>
 #include <exception>
@@ -14,6 +15,31 @@ bool is_2d_transform_for_capability(const Transform& transform) noexcept {
            std::abs(transform.rotation.y) < 1e-3f &&
            std::abs(transform.position.z) < 1e-3f &&
            std::abs(transform.anchor.z) < 1e-3f;
+}
+
+// DirectYUV currently lowers a TextRun to one prepared, static RGBA texture.
+// Keep this gate next to capability resolution: accepting richer text here
+// would silently discard glyph state in text_texture_cache.cpp.
+[[nodiscard]] const char* direct_yuv_text_rejection(
+    const TextRunShape& shape) noexcept {
+    if (!shape.layout) return "text_missing_canonical_layout";
+    if (shape.layout->placed.glyphs.empty()) return "text_layout_has_no_glyphs";
+    if (shape.animated_doc) return "text_animated_document_unsupported";
+    if (shape.dissolve_layout || !shape.dissolve_glyphs.empty()) {
+        return "text_dissolve_unsupported";
+    }
+    for (const auto& animator : shape.animators) {
+        if (animator.enabled) return "text_glyph_animation_unsupported";
+    }
+    if (shape.layout->font_spans.empty()) return "text_missing_font_spans";
+    for (const auto& shadow : shape.shadows) {
+        if (shadow.enabled) return "text_shadow_unsupported";
+    }
+    if (shape.paint.fill_style || shape.paint.stroke_style) {
+        return "text_gradient_paint_unsupported";
+    }
+    if (shape.material.enabled) return "text_material_unsupported";
+    return nullptr;
 }
 
 } // namespace
@@ -63,6 +89,26 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
             } else if (shape == ShapeType::TextRun || layer.kind == LayerKind::Text) {
                 query.effect = DirectYuvEffectClass::TextOverlay;
                 query.gpu_resident = true;
+                if (shape == ShapeType::TextRun) {
+                    const auto& handle = layer.nodes.front().shape.text_run_shape_handle();
+                    if (!handle.value) {
+                        report.support = DirectYuvSupport::Unsupported;
+                        report.reason = "text_missing_prepared_shape (layer '" +
+                            std::string(layer.name) + "')";
+                        return report;
+                    }
+                    if (const char* rejection = direct_yuv_text_rejection(*handle.value)) {
+                        report.support = DirectYuvSupport::Unsupported;
+                        report.reason = std::string(rejection) + " (layer '" +
+                            std::string(layer.name) + "')";
+                        return report;
+                    }
+                } else {
+                    report.support = DirectYuvSupport::Unsupported;
+                    report.reason = "text_not_using_prepared_text_run (layer '" +
+                        std::string(layer.name) + "')";
+                    return report;
+                }
             } else {
                 query.effect = DirectYuvEffectClass::BasicShapeOverlay;
             }
