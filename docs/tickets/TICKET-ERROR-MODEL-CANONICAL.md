@@ -27,7 +27,7 @@ contract before the prepared execution plan migration.
 | `chronon3d::presets::MotionErrorCode` | Presets | Preset lookup detail | zero direct constructions outside preset adapter | preset error tests | motion detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::MediaProbeErrorCode` | Media | Probe detail | zero direct constructions outside media adapter | media probe tests | probe detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::VideoSinkError` | Media | Sink detail | zero direct constructions outside sink adapter | sink lifecycle tests | sink detail enum | ACTIVE |
-| `chronon3d::media::ConversionError` | Media | Conversion detail | zero direct constructions outside conversion adapter | conversion tests | conversion detail enum | ACTIVE |
+| `chronon3d::media::ConversionError` | Media | Conversion detail | zero direct constructions outside conversion adapter | conversion tests | conversion detail enum | ADAPTER_ONLY |
 | `chronon3d::trace::TraceError` | Trace | Trace detail | zero direct constructions outside trace adapter | trace contract tests | trace detail enum | ADAPTER_ONLY |
 | `chronon3d::runtime::ExecutionFailure` | Executor | Frame compatibility ABI | zero direct constructions outside frame adapter | backend failure propagation | execution detail enum | ACTIVE |
 | `chronon3d::media::DecodeFailureReason` | Media | Decode detail | zero direct constructions outside decode adapter | decode failure tests | decode detail enum | ADAPTER_ONLY |

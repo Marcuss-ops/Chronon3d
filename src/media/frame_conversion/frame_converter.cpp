@@ -152,11 +152,8 @@ std::optional<FramePlanes> resolve_frame_planes(
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
     const ConversionError validation = validate_conversion_request(req);
     if (validation != ConversionError::None) {
-        return ConvertFrameResult{
-            .success = false,
-            .backend = FrameConversionBackend::Unavailable,
-            .error = validation,
-        };
+        return make_convert_frame_result(
+            false, FrameConversionBackend::Unavailable, validation);
     }
 
     const FrameConversionBackend choice = select_backend(req);
@@ -166,12 +163,9 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
             const uint64_t t0 = profiling::timestamp_ns();
             packed::convert_fb_to_rgba8(req.src, req.width, req.height,
                                        req.apply_gamma, req.planes.y);
-            return ConvertFrameResult{
-                .success = true,
-                .backend = FrameConversionBackend::Packed,
-                .error = ConversionError::None,
-                .conversion_ns = profiling::timestamp_ns() - t0,
-            };
+            return make_convert_frame_result(
+                true, FrameConversionBackend::Packed, ConversionError::None,
+                profiling::timestamp_ns() - t0);
         }
         case FrameConversionBackend::HighwayDirect:
         case FrameConversionBackend::Swscale: {
@@ -187,21 +181,16 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
             // applications that do not require swscale-grade color science.
             const uint64_t t0 = profiling::timestamp_ns();
             packed::convert_frame_fallback(req);
-            return ConvertFrameResult{
-                .success = true,
-                .backend = FrameConversionBackend::Swscale,
-                .error = ConversionError::None,
-                .conversion_ns = profiling::timestamp_ns() - t0,
-            };
+            return make_convert_frame_result(
+                true, FrameConversionBackend::Swscale, ConversionError::None,
+                profiling::timestamp_ns() - t0);
 #endif
         }
         case FrameConversionBackend::Unavailable:
         default:
-            return ConvertFrameResult{
-                .success = false,
-                .backend = FrameConversionBackend::Unavailable,
-                .error = ConversionError::BackendError,
-            };
+            return make_convert_frame_result(
+                false, FrameConversionBackend::Unavailable,
+                ConversionError::BackendError);
     }
 }
 
@@ -227,10 +216,12 @@ ConvertFrameResult convert_frame_tight(
 ConvertFrameResult composite_overlay_nv12(const CompositeOverlayNv12Request& req) {
     const uint64_t t0 = profiling::timestamp_ns();
     if (req.width <= 0 || req.height <= 0 || (req.width % 2 != 0) || (req.height % 2 != 0)) {
-        return ConvertFrameResult{.success = false, .backend = FrameConversionBackend::Packed, .error = ConversionError::OddDims};
+        return make_convert_frame_result(
+            false, FrameConversionBackend::Packed, ConversionError::OddDims);
     }
     if (!req.bg_planes.y || !req.bg_planes.uv || !req.out_planes.y || !req.out_planes.uv) {
-        return ConvertFrameResult{.success = false, .backend = FrameConversionBackend::Packed, .error = ConversionError::NullPointer};
+        return make_convert_frame_result(
+            false, FrameConversionBackend::Packed, ConversionError::NullPointer);
     }
 
     const int width = req.width;
@@ -314,12 +305,9 @@ ConvertFrameResult composite_overlay_nv12(const CompositeOverlayNv12Request& req
         }
     }
 
-    return ConvertFrameResult{
-        .success = true,
-        .backend = FrameConversionBackend::Packed,
-        .error = ConversionError::None,
-        .conversion_ns = profiling::timestamp_ns() - t0,
-    };
+    return make_convert_frame_result(
+        true, FrameConversionBackend::Packed, ConversionError::None,
+        profiling::timestamp_ns() - t0);
 }
 
 } // namespace chronon3d::video

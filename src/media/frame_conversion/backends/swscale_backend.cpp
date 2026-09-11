@@ -90,11 +90,8 @@ static ConvertFrameResult dispatch(const ConvertFrameRequest& req,
     };
     SwsContext* ctx = get_or_create_sws_context(params);
     if (!ctx) {
-        return ConvertFrameResult{
-            .success = false,
-            .backend = FrameConversionBackend::Swscale,
-            .error = ConversionError::BackendError,
-        };
+        return make_convert_frame_result(
+            false, FrameConversionBackend::Swscale, ConversionError::BackendError);
     }
 
     uint8_t* src_data[4] = { scratch.data(), nullptr, nullptr, nullptr };
@@ -134,12 +131,10 @@ static ConvertFrameResult dispatch(const ConvertFrameRequest& req,
             static_cast<uint64_t>(color_space_ms), std::memory_order_relaxed);
     }
 
-    return ConvertFrameResult{
-        .success = (ret == req.height),
-        .backend = FrameConversionBackend::Swscale,
-        .error = (ret == req.height) ? ConversionError::None : ConversionError::BackendError,
-        .conversion_ns = profiling::timestamp_ns() - t0,
-    };
+    return make_convert_frame_result(
+        ret == req.height, FrameConversionBackend::Swscale,
+        (ret == req.height) ? ConversionError::None : ConversionError::BackendError,
+        profiling::timestamp_ns() - t0);
 }
 
 #endif  // CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -154,11 +149,8 @@ ConvertFrameResult convert_frame_to_yuv(const ConvertFrameRequest& req,
     const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
                          req.format == EncoderPixelFormat::NV12);
     if (is_yuv && ((req.width % 2) != 0 || (req.height % 2) != 0)) {
-        return ConvertFrameResult{
-            .success = false,
-            .backend = FrameConversionBackend::Swscale,
-            .error = ConversionError::OddDims,
-        };
+        return make_convert_frame_result(
+            false, FrameConversionBackend::Swscale, ConversionError::OddDims);
     }
 
     switch (req.format) {
@@ -166,20 +158,15 @@ ConvertFrameResult convert_frame_to_yuv(const ConvertFrameRequest& req,
         case EncoderPixelFormat::NV12:    return dispatch(req, AV_PIX_FMT_NV12, scratch);
         case EncoderPixelFormat::RGB24:   return dispatch(req, AV_PIX_FMT_RGB24, scratch);
         default:
-            return ConvertFrameResult{
-                .success = false,
-                .backend = FrameConversionBackend::Swscale,
-                .error = ConversionError::UnsupportedFormat,
-            };
+            return make_convert_frame_result(
+                false, FrameConversionBackend::Swscale,
+                ConversionError::UnsupportedFormat);
     }
 #else
     (void)req;
     (void)scratch;
-    return ConvertFrameResult{
-        .success = false,
-        .backend = FrameConversionBackend::Unavailable,
-        .error = ConversionError::BackendError,
-    };
+    return make_convert_frame_result(
+        false, FrameConversionBackend::Unavailable, ConversionError::BackendError);
 #endif
 }
 
