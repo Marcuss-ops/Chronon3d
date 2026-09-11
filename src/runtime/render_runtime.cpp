@@ -132,29 +132,29 @@ RuntimeContext::create(RuntimeConfig cfg) {
 
         return runtime;  // implicit Result(unique_ptr&&)
     } catch (const std::filesystem::filesystem_error& e) {
-        return RuntimeBuildError{
+        return make_runtime_build_error(
             RuntimeBuildError::Code::AssetMountFailed,
             std::string{"RuntimeContext::create(): asset mount failed — "} + e.what()
-        };
+        );
     } catch (const std::exception& e) {
         const std::string_view what = e.what();
         if (what.find("mount") != std::string_view::npos ||
             what.find("assets_root") != std::string_view::npos) {
-            return RuntimeBuildError{
+            return make_runtime_build_error(
                 RuntimeBuildError::Code::AssetMountFailed,
                 std::string{"RuntimeContext::create(): asset mount failed — "} +
                     std::string(what)
-            };
+            );
         }
-        return RuntimeBuildError{
+        return make_runtime_build_error(
             RuntimeBuildError::Code::InternalError,
             std::string{"RuntimeContext::create(): construction failed — "} + e.what()
-        };
+        );
     } catch (...) {
-        return RuntimeBuildError{
+        return make_runtime_build_error(
             RuntimeBuildError::Code::InternalError,
             "RuntimeContext::create(): construction failed — unknown exception"
-        };
+        );
     }
 }
 
