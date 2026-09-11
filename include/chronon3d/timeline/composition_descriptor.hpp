@@ -115,21 +115,17 @@ struct TypedCompositionDescriptor {
         ](const CompositionProps& composition_props) -> Result<Props, PropsError> {
             if (!typed_codec) {
                 if (!composition_props.values.empty()) {
-                    return PropsError{
-                        "",
-                        PropsErrorReason::InvalidFormat,
-                        "composition props were supplied but no PropsCodec is declared"
-                    };
+                    return make_props_error(
+                        "", PropsErrorReason::InvalidFormat,
+                        "composition props were supplied but no PropsCodec is declared");
                 }
                 return typed_defaults;
             }
 
             if (!typed_codec->decode) {
-                return PropsError{
-                    "",
-                    PropsErrorReason::InvalidFormat,
-                    "PropsCodec.decode is not configured"
-                };
+                return make_props_error(
+                    "", PropsErrorReason::InvalidFormat,
+                    "PropsCodec.decode is not configured");
             }
             return typed_codec->decode(composition_props.values, typed_defaults);
         };
@@ -151,11 +147,8 @@ struct TypedCompositionDescriptor {
             Props props = std::move(decoded).value();
             if (typed_validate) {
                 if (auto error = typed_validate(props)) {
-                    return PropsError{
-                        "",
-                        PropsErrorReason::InvalidFormat,
-                        std::move(*error)
-                    };
+                    return make_props_error(
+                        "", PropsErrorReason::InvalidFormat, std::move(*error));
                 }
             }
 

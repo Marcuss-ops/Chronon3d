@@ -49,7 +49,7 @@ Result<bool, TraceError> TraceSession::EnsureInitialized() {
     std::call_once(g_perfetto_init_flag, InitPerfettoOnce);
     return Result<bool, TraceError>(true);
 #else
-    return Result<bool, TraceError>(TraceError::kDisabled);
+    return Result<bool, TraceError>(make_trace_error(TraceError::kDisabled));
 #endif
 }
 
