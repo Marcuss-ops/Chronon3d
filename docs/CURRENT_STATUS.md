@@ -63,11 +63,11 @@
 ## Certification harness checkpoint — 2026-09-11
 
 - `tools/benchmark_gpu_baseline.sh` is the canonical reproducible GPU baseline
-  runner. It consumes the authoritative timing sidecar, records fixed
-  prewarm/steady-state windows and rejects missing frame or wall-time
-  attribution evidence. The sidecar now exposes a canonical
-  `phase_attribution` projection. A 12-frame native GPU smoke run on
-  `23829045a` passed with 99.33% wall-time attribution.
+  runner. Manifest v1 now locks B00–B11 + GPU_TEXT_01–05, consumes the
+  authoritative timing sidecar, requires prewarm/steady-state windows and
+  rejects missing frame or wall-time attribution evidence. The sidecar now
+  exposes canonical `phase_attribution` and `job.full_file_reread_count`.
+  Full corpus certification remains pending on the fixture/NVENC host.
 - `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
   still/pipe/chunked fixture execution remains pending on the working build
   host. No CpuBudget policy change is authorized before that measurement.
