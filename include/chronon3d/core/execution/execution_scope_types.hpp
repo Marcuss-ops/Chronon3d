@@ -71,6 +71,18 @@ struct ScopeError {
     chronon3d::u32      requested_chain_length{0u};
 };
 
+// Execution-scope compatibility boundary. ScopeErrorCode remains the
+// structured detail payload, but construction is centralized here so the
+// factory cannot silently invent a second error shape.
+[[nodiscard]] inline ScopeError make_scope_error(
+    ScopeErrorCode code,
+    ExecutionScopeKind kind,
+    GraphInstanceId graph,
+    std::uint64_t owner_key,
+    chronon3d::u32 requested_chain_length) noexcept {
+    return ScopeError{code, kind, graph, owner_key, requested_chain_length};
+}
+
 // ── Stable string-form name helpers ───────────────────────────────────────
 
 /// Convenience: a stable string-form name for each kind (for logging /

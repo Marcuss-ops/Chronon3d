@@ -58,10 +58,9 @@ compile_text_layout(
     const bool is_single_font = paragraph.runs.size() == 1;
 
     if (!tci::check_paragraph_has_font(paragraph.runs)) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::MissingFont,
-            "compile_text_layout: no usable font resolved for paragraph"
-        };
+            "compile_text_layout: no usable font resolved for paragraph");
     }
 
     std::string paragraph_text = tci::build_paragraph_text(paragraph.runs);

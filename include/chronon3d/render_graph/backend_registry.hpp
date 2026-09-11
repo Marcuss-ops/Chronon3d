@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -31,6 +32,13 @@ struct BackendResolveError {
     BackendType requested{BackendType::Software};
     std::string message{};
 };
+
+// Resolver compatibility boundary: BackendResolveErrorCode remains a
+// diagnostic detail, but aggregate construction is owned by this adapter.
+[[nodiscard]] inline BackendResolveError make_backend_resolve_error(
+    BackendResolveErrorCode code, BackendType requested, std::string message) {
+    return BackendResolveError{code, requested, std::move(message)};
+}
 
 using BackendFactory = std::function<std::unique_ptr<RenderBackend>()>;
 

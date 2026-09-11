@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <string>
+#include <utility>
 
 namespace chronon3d {
 
@@ -59,5 +60,12 @@ struct TextError {
     TextErrorCode code{TextErrorCode::EmptyText};
     std::string   message{};
 };
+
+// Text helper compatibility boundary. TextErrorCode stays available to
+// callers as the domain detail, while construction is kept in one adapter.
+[[nodiscard]] inline TextError make_text_error(
+    TextErrorCode code, std::string message) {
+    return TextError{code, std::move(message)};
+}
 
 } // namespace chronon3d

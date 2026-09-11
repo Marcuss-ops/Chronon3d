@@ -27,10 +27,9 @@ validate_layout_request(
 ) {
     // ── Validate pointers ─────────────────────────────────────────
     if (request.doc == nullptr || request.layout == nullptr) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::MalformedLayout,
-            "compile_text_layout: request.doc or request.layout is null"
-        };
+            "compile_text_layout: request.doc or request.layout is null");
     }
     // FU02next — pre-render invariant: MissingFontEngine is the
     // canonical Kind for "no FontEngine wired at compile time".
@@ -39,10 +38,9 @@ validate_layout_request(
     // RenderErrorCode::MissingFontEngine (render_diagnostic.hpp)
     // semantic, kept local to text-complier error vocabulary.
     if (services.engine == nullptr) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::MissingFontEngine,
-            "compile_text_layout: services.engine is null"
-        };
+            "compile_text_layout: services.engine is null");
     }
 
     ValidatedRefs refs{
@@ -53,10 +51,9 @@ validate_layout_request(
 
     // ── Resolve document → paragraph tree (early-out on empty) ─────
     if (refs.doc.utf8.empty() && refs.doc.paragraphs.empty()) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::EmptySource,
-            "compile_text_layout: empty source text"
-        };
+            "compile_text_layout: empty source text");
     }
 
     return refs;
