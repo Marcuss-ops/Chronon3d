@@ -33,7 +33,11 @@
 - **Stage 1 / source consistency:** the Vulkan lifecycle already creates, uses and persists `kernels.pipeline_cache`, but `VulkanKernelStore` had lost the matching `VkPipelineCache` member. This closeout restores one explicit owner, destroys the cache with the kernel store, and adds a regression lock.
 - **Frame-slot migration:** structurally closed. Runtime build registration uses `FrameSlotPool`, `GpuCompletionTracker` and `FrameQueue`; the retired `FrameSlotPipeline` path has been deleted. Do not restore the old `FrameExecutionSlotRing` compatibility facade.
 - **Clean-checkout certification:** NOT YET CERTIFIED on the resulting SHA until the GitHub `Chronon CI` workflow is green. Source-level inconsistency is fixed here; CI is the same-SHA build/test authority for this checkpoint.
-- **No feature expansion:** FrameDelta, Render Ledger, advanced PixelProgram work and further pipeline-cache hardening remain out of this stage.
+- **Compiler-architecture boundary:** the existing `FrameDeltaCompiler` path is
+  now verified in the video-enabled render-graph suite; `FusedPixelProgram`
+  remains a candidate descriptor and is still fail-closed until a certified
+  runtime lowering exists. Render Ledger and further pipeline-cache hardening
+  remain out of this stage.
 
 ## Stage 2 — Wave 0 census
 
@@ -71,6 +75,18 @@
 - `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
   still/pipe/chunked fixture execution remains pending on the working build
   host. No CpuBudget policy change is authorized before that measurement.
+
+## FrameDelta compiler checkpoint — 2026-09-11
+
+- `FrameDeltaCompiler` is an integrated production path for dirty collection,
+  tile execution policy and scene-tile execution; it is not a parallel
+  renderer or a second scheduler.
+- The video-enabled `chronon3d_render_graph_tests` target compiled with
+  `ccache`, `mold` and `-j16`, then passed 1/1 on the current `main` SHA.
+- The next compiler-architecture gate is unchanged: sparse changed
+  regions/tiles and a canonical `PixelProgram` lowering come only after this
+  delta contract is measured and stable. The current fused program remains
+  fail-closed in BitExact mode.
 - `3e4ed832d` closes a real GPU-text ABI gap: the Vulkan tiled text bridge now
   uploads the canonical 112-byte, 16-byte-aligned `TextRunDynamic` record used
   by `text_tile_bin/raster`. Selector, tracking and effect bindings therefore
