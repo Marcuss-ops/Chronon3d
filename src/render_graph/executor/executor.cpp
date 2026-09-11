@@ -172,9 +172,9 @@ bool GraphExecutor::execute(
                         if (item.resource_index == runtime::kInvalidLayerResourceIndex ||
                             item.resource_index >= params.sources.size() ||
                             params.sources[item.resource_index] != item.source) {
-                            return RenderOpResult(RenderBackendError{
+                            return RenderOpResult(make_render_backend_error(
                                 RenderBackendErrorCode::InvalidInput,
-                                "layer batch item has no valid compiled source/resource binding"});
+                                "layer batch item has no valid compiled source/resource binding"));
                         }
                         runtime::LayerInstance instance;
                         instance.resource_index = item.resource_index;
@@ -209,9 +209,9 @@ bool GraphExecutor::execute(
                         params.destination, params.glyphs, params.runs,
                         params.atlas_pages);
                 }
-                return RenderOpResult(RenderBackendError{
+                return RenderOpResult(make_render_backend_error(
                     RenderBackendErrorCode::UnsupportedCapability,
-                    "unsupported command plan pass variant"});
+                    "unsupported command plan pass variant"));
             },
             pass.params);
 

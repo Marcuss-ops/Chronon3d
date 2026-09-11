@@ -226,14 +226,14 @@ graph::RenderOpResult render_text_run_item(
             local_shape.layout ? local_shape.layout->font_size : 0.0f);
     }
     if (!local_shape.layout) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             RenderBackendErrorCode::InvalidInput,
-            "render_text_run_item: missing layout"});
+            "render_text_run_item: missing layout"));
     }
     if (local_shape.glyphs.size() != shaped_glyph_count) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             RenderBackendErrorCode::InvalidInput,
-            "render_text_run_item: shape/layout glyph-count mismatch"});
+            "render_text_run_item: shape/layout glyph-count mismatch"));
     }
 
     // Single matrix authority: identical input to predicted_bbox().
@@ -316,9 +316,9 @@ graph::RenderOpResult render_text_run_item(
         }
         if (!promoted &&
             !ensure_native_surface(mutable_ctx, fb, "TextRun.execution.fallback")) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 RenderBackendErrorCode::ExecutionFailure,
-                "TextRun fallback rendered but could not be uploaded to the native surface"});
+                "TextRun fallback rendered but could not be uploaded to the native surface"));
         }
     }
     return fallback;

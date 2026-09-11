@@ -163,15 +163,15 @@ public:
         m_calls.fetch_add(1, std::memory_order_relaxed);
         switch (m_mode) {
             case Mode::ExecutionFailure:
-                return RenderOpResult{RenderBackendError{
+                return RenderOpResult{make_render_backend_error(
                     graph::RenderBackendErrorCode::ExecutionFailure,
                     "deterministic mock: ExecutionFailure"
-                }};
+                )};
             case Mode::InvalidInput:
-                return RenderOpResult{RenderBackendError{
+                return RenderOpResult{make_render_backend_error(
                     graph::RenderBackendErrorCode::InvalidInput,
                     "deterministic mock: InvalidInput"
-                }};
+                )};
             case Mode::CapabilitiesOff:
             default:
                 // Should never be called — capabilities gate short-circuits.

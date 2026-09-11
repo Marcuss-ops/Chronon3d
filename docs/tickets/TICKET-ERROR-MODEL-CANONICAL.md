@@ -14,7 +14,7 @@ contract before the prepared execution plan migration.
 |---|---|---|---|---|---|---|
 | `chronon3d::sdk::RenderErrorCode` | SDK | Public ABI compatibility | zero direct constructions outside SDK adapter | SDK error formatter + API propagation tests | legacy SDK enum after ABI migration | ADAPTER_ONLY |
 | `chronon3d::render::RenderDiagnosticCode` | Render | Diagnostic-only compatibility | zero direct constructions outside diagnostic adapter | diagnostic serialization tests | diagnostic enum/adapter | ACTIVE |
-| `chronon3d::graph::RenderBackendErrorCode` | Render graph | Backend detail payload | zero direct constructions outside backend adapter | backend failure → frame failure test | backend detail enum | ACTIVE |
+| `chronon3d::graph::RenderBackendErrorCode` | Render graph | Backend detail payload | zero direct constructions outside backend adapter | backend failure → frame failure test | backend detail enum | ADAPTER_ONLY |
 | `chronon3d::graph::BackendResolveErrorCode` | Backend registry | Resolver detail payload | zero direct constructions outside resolver adapter | backend resolver matrix | resolver detail enum | ADAPTER_ONLY |
 | `chronon3d::compiler::CompileErrorCode` | Compiler | Compiler diagnostics | zero direct constructions outside compiler adapter | compiler invalid-plan corpus | compiler detail enum | ADAPTER_ONLY |
 | `chronon3d::RenderJobErrorCode` | Timeline | Job API compatibility | zero direct constructions outside API adapter | render-job API error contract | public legacy job enum | ADAPTER_ONLY |

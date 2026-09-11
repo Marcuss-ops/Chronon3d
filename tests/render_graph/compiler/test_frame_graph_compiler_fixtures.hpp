@@ -95,9 +95,9 @@ public:
         const RenderNode&) const override {
         ++m_validation_calls;
         if (m_missing_processor) {
-            return chronon3d::graph::RenderBackendError{
+            return chronon3d::graph::make_render_backend_error(
                 chronon3d::graph::RenderBackendErrorCode::InvalidInput,
-                "missing shape processor (test backend)"};
+                "missing shape processor (test backend)");
         }
         return std::nullopt;
     }

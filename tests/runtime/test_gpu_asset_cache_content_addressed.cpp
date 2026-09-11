@@ -33,9 +33,9 @@ public:
             std::lock_guard lock(mutex_);
             released.push_back(handle);
             if (fail_releases) {
-                return chronon3d::graph::RenderOpResult(chronon3d::graph::RenderBackendError{
+                return chronon3d::graph::RenderOpResult(chronon3d::graph::make_render_backend_error(
                     chronon3d::graph::RenderBackendErrorCode::ExecutionFailure,
-                    "release_surface: simulated device failure"});
+                    "release_surface: simulated device failure"));
             }
         }
         return chronon3d::graph::RenderOpResult(chronon3d::graph::RenderOpOutcome{});

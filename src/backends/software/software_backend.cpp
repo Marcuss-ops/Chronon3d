@@ -155,10 +155,10 @@ std::optional<graph::RenderBackendError> SoftwareBackend::validate_render_node(
     const auto snapshot = processor_snapshot();
     if (!snapshot || !snapshot->shape_shared(
             snapshot->shape_handle(node.shape.type()))) {
-        return graph::RenderBackendError{
+        return graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "missing shape processor for ShapeType=" +
-                std::to_string(static_cast<int>(node.shape.type()))};
+                std::to_string(static_cast<int>(node.shape.type())));
     }
     return std::nullopt;
 }
@@ -191,8 +191,8 @@ graph::RenderOpResult SoftwareBackend::draw_node(Framebuffer& fb, const RenderNo
         const std::string message = "no processor registered for shape type " +
             std::to_string(static_cast<int>(node.shape.type()));
         spdlog::error("SoftwareBackend::draw_node: {}", message);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput, message});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, message));
     }
     if (m_counters) {
         m_counters->pixels_touched.fetch_add(
@@ -344,12 +344,12 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 ) {
 #ifndef CHRONON3D_USE_BLEND2D
     (void)fb; (void)shape; (void)model_matrix; (void)opacity;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "SoftwareBackend::draw_text_run: Blend2D not enabled at compile time "
         "(capabilities().text_run gated on CHRONON3D_USE_BLEND2D; see "
         "software_backend.cpp::capabilities)."
-    });
+    ));
 #else
     CHRONON_TRACE_SCOPE("chronon.text", "backend_draw_text_run");
 
@@ -359,12 +359,12 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
     // as the loud-fail null-check so the load path stays defensive even
     // when attach_processor_context() was forgotten.
     if (m_asset_resolver == nullptr) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "SoftwareBackend::draw_text_run: asset_resolver is null (REQUIRED "
             "service missing — construction should be routed through "
             "make_software_backend() so the validator surfaces this at startup)."
-        });
+        ));
     }
 
     renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
