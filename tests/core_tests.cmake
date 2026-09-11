@@ -12,6 +12,15 @@ set_tests_properties(chronon3d_architecture_registry PROPERTIES
     LABELS "architecture;gate"
 )
 add_test(
+    NAME chronon3d_frame_slot_transition_lint
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/runtime/test_frame_slot_transition_lint.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_frame_slot_transition_lint PROPERTIES
+    LABELS "architecture;runtime;gate"
+)
+add_test(
     NAME chronon3d_asset_consumer_shell_syntax
     COMMAND bash -n ${CMAKE_SOURCE_DIR}/tools/sdk/run_asset_authoring_consumer.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

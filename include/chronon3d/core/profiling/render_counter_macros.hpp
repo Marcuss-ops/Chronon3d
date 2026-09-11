@@ -43,7 +43,9 @@ namespace chronon3d {
     X(alias_saved_bytes) \
     X(alias_reuse_count) \
     X(new_resource_slot_count) \
-    X(arena_peak_bytes)
+    X(arena_peak_bytes) \
+    X(frame_arena_upstream_allocations) \
+    X(frame_slot_pool_acquire_events)
 
 #define CHRONON_COUNTERS_CACHE(X) \
     X(cache_hits) \

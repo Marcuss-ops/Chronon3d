@@ -65,6 +65,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"gpu_text_prepared_batch_reuse_count", counters.gpu_text_prepared_batch_reuse_count.load(std::memory_order_relaxed)},
         {"frame_slot_wait_count", counters.frame_slot_wait_count.load(std::memory_order_relaxed)},
         {"frame_slot_wait_us", counters.frame_slot_wait_us.load(std::memory_order_relaxed)},
+        {"frame_arena_upstream_allocations", counters.frame_arena_upstream_allocations.load(std::memory_order_relaxed)},
+        {"frame_slot_pool_acquire_events", counters.frame_slot_pool_acquire_events.load(std::memory_order_relaxed)},
         {"vulkan_cuda_export_fence_wait_count", counters.vulkan_cuda_export_fence_wait_count.load(std::memory_order_relaxed)},
         {"vulkan_cuda_export_fence_wait_us", counters.vulkan_cuda_export_fence_wait_us.load(std::memory_order_relaxed)},
         {"cuda_vulkan_wait_count", counters.cuda_vulkan_wait_count.load(std::memory_order_relaxed)},

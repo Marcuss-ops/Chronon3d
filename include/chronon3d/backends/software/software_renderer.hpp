@@ -1,5 +1,4 @@
 #pragma once
-// 06 R3b single-identity orchestrator — Renderer only; backend on m_runtime->backend()
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
@@ -12,7 +11,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
 namespace chronon3d {
 
 struct TextRunAuditSnapshot; struct TextRenderResources; struct FontPreflightSummary;   // TICKET-078 fwd-decl; full def in text_render_resources.hpp
@@ -31,21 +29,15 @@ struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOp
 
 class SoftwareRenderer : public Renderer {
 public:
-    // ── Render entry points ──────────────────────────────────────────
-    // The compiled entry is canonical for graph execution. The authoring
-    // overload below is a boundary adapter only; it must compile once and
-    // delegate to render_compiled().
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_compiled(
         const CompiledComposition& compiled, Frame frame);
     std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame);
 
-    /// @deprecated scene authoring adapter.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height, float fps);
 
-    /// @deprecated scene authoring adapter with optional camera.
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                               const std::optional<Camera2_5D>& camera,
                                               i32 width, i32 height, float fps) override;
@@ -56,8 +48,6 @@ public:
 
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
         const chronon3d::Scene& scene, const chronon3d::assets::AssetResolver& resolver);
-    // ── Construction / destruction ─────────────────────────────────────
-    /// Canonical constructor — borrows an existing RuntimeContext.
     explicit SoftwareRenderer(runtime::RuntimeContext& rt, Config config);
     ~SoftwareRenderer() override;
     SoftwareRenderer(SoftwareRenderer const&) = delete;
@@ -65,14 +55,12 @@ public:
     SoftwareRenderer(SoftwareRenderer&& other) noexcept;
     SoftwareRenderer& operator=(SoftwareRenderer&& other) noexcept;
 
-    // ── Settings / diagnostics ─────────────────────────────────────────
     void set_settings(const RenderSettings& settings);
     void set_motion_blur(MotionBlurSettings mb);
     void set_diagnostic_mode(bool enabled);
     [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
     void reset_counters();
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
-    // ── Cache operations ───────────────────────────────────────────────
     void clear_caches();
 
     /// Reset compiled topology only; frame values and temporal history survive.
@@ -83,7 +71,10 @@ public:
     void reset_temporal_history() noexcept;
 
     void clear_node_cache()   { node_cache().clear(); }
-    void set_composition_registry(const CompositionRegistry* r) { m_registry = r; }
+    void set_composition_registry(const CompositionRegistry* r) {
+        m_registry = r;
+        m_execution_context.registry.compositions = r;
+    }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
 
     // ── Rendering facade ───────────────────────────────────────────────
@@ -103,7 +94,10 @@ public:
 
     // ── Image + video ──────────────────────────────────────────────────
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
-    void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> d) { m_video_decoder = std::move(d); }
+    void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> d) {
+        m_video_decoder = std::move(d);
+        m_execution_context.video_decoder = m_video_decoder.get();
+    }
     [[nodiscard]] media::MediaFrameProvider* video_decoder() const { return m_video_decoder.get(); }
     [[nodiscard]] image::ImageBackend* image_backend() const { return m_image_backend.get(); }
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
@@ -134,13 +128,16 @@ public:
     [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
     [[nodiscard]] runtime::RuntimeContext& runtime() noexcept;
     [[nodiscard]] const runtime::RuntimeContext& runtime() const noexcept;
-    [[nodiscard]] bool has_runtime() const noexcept { return m_runtime != nullptr; }
+    [[nodiscard]] bool has_runtime() const noexcept { return m_session.common.has_runtime(); }
     [[nodiscard]] FontEngine& font_engine();
     [[nodiscard]] const FontEngine& font_engine() const;
     [[nodiscard]] graph::CompiledGraphCache& graph_cache();
     [[nodiscard]] const graph::CompiledGraphCache& graph_cache() const;
     [[nodiscard]] const Config& config() const                            { return m_config; }
     [[nodiscard]] Config& config() { return m_config; }
+    void attach_execution_context(SoftwareExecutionContext context) noexcept { m_execution_context = context; }
+    [[nodiscard]] SoftwareExecutionContext& execution_context() noexcept { return m_execution_context; }
+    [[nodiscard]] const SoftwareExecutionContext& execution_context() const noexcept { return m_execution_context; }
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
     // ── Text render resources ──────────────────────────────────────────
@@ -185,10 +182,11 @@ public:
 
 private:
     void preflight_images(const Scene& scene);
+    void rebind_execution_context_views() noexcept;
     Config            m_config;
     RenderSettings    m_settings{};
     RenderCounters    m_counters;
-    runtime::RuntimeContext* m_runtime{nullptr};
+    SoftwareExecutionContext m_execution_context{};
     ImageRenderer     m_image_renderer;
     std::shared_ptr<media::MediaFrameProvider> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;

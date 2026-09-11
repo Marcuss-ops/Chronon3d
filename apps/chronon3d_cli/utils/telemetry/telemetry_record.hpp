@@ -56,6 +56,13 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.alias_reuse_count = counters.alias_reuse_count.load(std::memory_order_relaxed);
     run.new_resource_slot_count = counters.new_resource_slot_count.load(std::memory_order_relaxed);
     run.arena_peak_bytes = counters.arena_peak_bytes.load(std::memory_order_relaxed);
+    run.frame_arena_upstream_allocations = counters.frame_arena_upstream_allocations.load(std::memory_order_relaxed);
+    run.frame_slot_pool_acquire_events = counters.frame_slot_pool_acquire_events.load(std::memory_order_relaxed);
+    run.steady_state_allocations_per_frame =
+        run.frames_written > 0
+            ? static_cast<double>(run.frame_arena_upstream_allocations) /
+                  static_cast<double>(run.frames_written)
+            : 0.0;
     run.node_cache_hash_collisions = counters.node_cache_hash_collisions.load(std::memory_order_relaxed);
     run.clear_skipped_calls = counters.clear_skipped_calls.load(std::memory_order_relaxed);
     run.clear_skipped_pixels = counters.clear_skipped_pixels.load(std::memory_order_relaxed);

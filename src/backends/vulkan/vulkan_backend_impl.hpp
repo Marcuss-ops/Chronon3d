@@ -18,6 +18,7 @@
 #include "vulkan_submission_authority.hpp"
 #include "vulkan_surface_authority.hpp"
 #include "vulkan_upload_authority.hpp"
+#include "vulkan_stats_authority.hpp"
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -133,8 +134,10 @@ struct VulkanBackend::Impl {
     std::uint64_t calibration_gpu_ts{0};
     std::int64_t calibration_cpu_trace_ns{0};
     std::uint64_t calibration_max_deviation{0};
+    VulkanStatsAuthority stats{};
     std::uint64_t active_frame_index{0};
-    std::vector<VulkanFrameGpuTiming> completed_frame_timings{};
+    std::vector<VulkanFrameGpuTiming>& completed_frame_timings{
+        stats.completed_frame_timings};
     VkCommandBuffer& command_buffer{submission_ring.command_buffer};
     VkFence& fence{submission_ring.fence};
     VkSemaphore& timeline_semaphore{submission_ring.timeline_semaphore};
@@ -208,7 +211,6 @@ struct VulkanBackend::Impl {
     std::uint32_t timestamp_valid_bits{0};
     VulkanMemoryManager memory_manager{};
     VulkanDebugContext* debug_context{nullptr};
-    VulkanBackendStats stats{};
     // Scratch reused by the frame-transient cleanup drains so per-frame
     // release_frame_transient_surfaces()/retire_completed_frame_transient_surfaces()
     // do not re-allocate a handle vector on every call. Impl methods are

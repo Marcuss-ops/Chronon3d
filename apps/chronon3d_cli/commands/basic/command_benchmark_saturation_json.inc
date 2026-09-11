@@ -144,7 +144,17 @@ if (!report_json.empty()) {
             {"pool_allocations", pool_stats.total_allocations},
             {"pool_reuses", pool_stats.total_reuses},
             {"pool_clears", pool_stats.total_clears},
-            {"pool_evictions", pool_stats.evicted_count}
+            {"pool_evictions", pool_stats.evicted_count},
+            {"pool_lock_wait_us", pool_stats.lock_wait_us},
+            {"pool_lock_hold_wall_us", pool_stats.lock_hold_wall_us},
+            {"pool_acquire_count", pool_stats.acquire_count},
+            {"pool_release_count", pool_stats.release_count},
+            {"steady_state_allocations_per_frame",
+             frames_d > 0.0
+                 ? static_cast<double>(counter(&RenderCounters::frame_arena_upstream_allocations)) / frames_d
+                 : 0.0},
+            {"frame_slot_pool_acquire_events",
+             counter(&RenderCounters::frame_slot_pool_acquire_events)}
         }},
         {"hot_path", {
             {"native_surface_yuv_frames", counter(&RenderCounters::native_surface_yuv_frames)},

@@ -13,6 +13,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>   // graph::RenderFrameInfo
 
@@ -106,6 +107,9 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
+
+    renderer->attach_execution_context(
+        backends::software::make_software_execution_context(renderer));
 }
 
 // ── TestRenderer wrapper ──────────────────────────────────────────────────

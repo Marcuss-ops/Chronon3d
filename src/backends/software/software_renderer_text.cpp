@@ -19,7 +19,6 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -90,8 +89,8 @@ const TextRenderResources* SoftwareRenderer::text_render_resources() const {
 // R1 — runtime owns the FontEngine; the renderer delegates to it.
 // The accessor body lives here (single TU) because it dereferences
 // runtime::RuntimeContext, whose complete type is available here.
-FontEngine& SoftwareRenderer::font_engine() { return m_runtime->font_engine(); }
-const FontEngine& SoftwareRenderer::font_engine() const { return m_runtime->font_engine(); }
+FontEngine& SoftwareRenderer::font_engine() { return *m_execution_context.text.fonts; }
+const FontEngine& SoftwareRenderer::font_engine() const { return *m_execution_context.text.fonts; }
 
 // ── preflight_fonts (TICKET-087 / Cat-2) ─────────────────────────────────────
 //
@@ -128,11 +127,13 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
                 h.value->layout->font.font_path,
                 h.value->layout->font_size);
             if (!seen.insert(key).second) continue;
-            if (m_runtime && graph::text_run::can_lower_gpu_text_animation(*h.value)) {
+            if (m_execution_context.text.assets && m_execution_context.text.prepared_cache &&
+                graph::text_run::can_lower_gpu_text_animation(*h.value)) {
                 auto prepared = graph::text_run::prepare_mtsdf_text_run(
-                    *m_runtime, trr, &resolver, *h.value);
+                    m_session.common.runtime(), trr, &resolver, *h.value);
                 if (prepared && prepared->ready) {
-                    m_runtime->gpu_text_prepared_cache().store(h.value->layout.get(), prepared);
+                    m_execution_context.text.prepared_cache->store(
+                        h.value->layout.get(), prepared);
                 }
             }
             ++summary.preflight_attempted;
@@ -222,13 +223,13 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     // Cat-2 font preflight + auto-arm — same pattern as the Camera
     // overload above.  RAII guard disarms on every exit path.
     RenderIOFenceGuard fence_guard(nullptr);
-    if (auto* trr = text_render_resources(); trr && m_runtime) {
-        (void)preflight_fonts(scene, m_runtime->resolver());
+    if (auto* trr = text_render_resources(); trr && m_execution_context.text.assets) {
+        (void)preflight_fonts(scene, *m_execution_context.text.assets);
         fence_guard.fence = &trr->debug_io_fence;
     }
     preflight_images(scene);
 
-    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
+    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
 
     Scene effective_scene = scene.clone();
     if (camera.has_value()) {
@@ -237,7 +238,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
 
     Camera default_camera;
     auto res = graph::render_scene_via_graph(
-        m_runtime->backend(),
+        *m_execution_context.backend,
         node_cache(),
         effective_scene,
         default_camera,
@@ -246,8 +247,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         0,
         0.0f,
         m_settings,
-        m_registry,
-        m_video_decoder.get(),
+        m_execution_context.registry.compositions,
+        m_execution_context.video_decoder,
         fps,
         "scene",
         this

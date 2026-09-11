@@ -1,6 +1,6 @@
 # ADR-029 — Authority-Boundary Doctrine (project-agnostic design and review reference)
 
-**Status**: PROPOSED (promotion to Accepted per `docs/adr/README.md` closure rule; the doctrine itself is prose guidance, so the validating signal is review usage on merged PRs rather than a dedicated CI gate — see *Consequences*).
+**Status**: ACCEPTED
 
 ## Date
 
@@ -36,9 +36,10 @@ Two failure modes must be covered symmetrically:
    several layers, or a trivial responsibility is shattered into five
    `*Helper`/`*Coordinator` classes that always change together.
 
-Per the maintainers' decision, this ADR records the doctrine as **prose
-reference only**: no mechanical gate is added in this change (see
-*Alternatives considered*).
+Per the maintainers' decision, this ADR records the doctrine as a prose
+reference and review standard. Its implementation is covered by the
+authority map, the frame-slot transition lint, and the explicit software
+execution context.
 
 ## Decision
 
@@ -324,6 +325,20 @@ ONE QUEUE
 
 - The doctrine is stable reference material: expect edits only when the tests
   or thresholds themselves change, not per-feature.
+
+### Review usages
+
+The doctrine has three concrete review usages in the current implementation:
+
+1. [`VULKAN-AUTHORITY-MAP.md`](../architecture/VULKAN-AUTHORITY-MAP.md)
+   separates ownership from contention domains and rejects a third global
+   lock for statistics.
+2. [`frame_slot_pool.hpp`](../../include/chronon3d/runtime/frame/frame_slot_pool.hpp)
+   and `JobSession::publish_*` enforce the single-writer transition rule;
+   `test_frame_slot_transition_lint.py` guards the boundary.
+3. [`software_execution_context.hpp`](../../include/chronon3d/backends/software/software_execution_context.hpp)
+   and `RenderPipeline` use an explicit per-job dependency view instead of a
+   stored `RuntimeContext&` orchestration back-pointer.
 
 ## Alternatives considered
 

@@ -58,6 +58,28 @@
 - GPU-native video has demonstrated zero readback/fallback in focused runs, while full zero-copy Vulkan/CUDA/NVENC remains unfinished.
 - Current main must not be called green until same-SHA CI/build/test evidence exists.
 
+## Phase 4/5 evidence checkpoint — 2026-09-11
+
+- **Vulkan independent jobs:** PASS on NVIDIA RTX A4000 / driver 595.84 with
+  validation layers enabled. Two concurrent jobs reached 97.07% of the
+  single-job throughput baseline; see
+  [phase4-vulkan-multijob](evidence/phase4-vulkan-multijob.md).
+- **Framebuffer contention:** PASS with a preserve decision. The two-job
+  corpus measured 1–2 µs lock wait against 3–12 µs hold; sharding is not
+  justified by this evidence. See
+  [phase4-framebuffer-telemetry](evidence/phase4-framebuffer-telemetry.md).
+- **Concurrent determinism:** PASS for the recorded Vulkan corpus at 1/4/8
+  scheduler workers; all six PNG outputs were byte-identical. See
+  [phase4-determinism](evidence/phase4-determinism.md).
+- **Steady-state allocation budget:** PASS at `0.0` unexpected allocations per
+  frame after the instrumented benchmark run; the zero-threshold gate is in
+  `tools/gates/manifest.sh`. See
+  [phase5-allocation-budget](evidence/phase5-allocation-budget.md).
+- **SoftwareExecutionContext:** PARTIAL. The explicit bundle and pipeline
+  wiring are landed, but the legacy `SoftwareRenderer` runtime compatibility
+  surface still has callers. This remains demolition debt and is not reported
+  as a zero-back-pointer closeout.
+
 ## Active blockers
 
 | ID | Area | Stato | Scheda |
