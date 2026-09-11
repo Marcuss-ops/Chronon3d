@@ -203,6 +203,7 @@ int render_and_encode_ffmpeg(
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
+        render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
         spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
                      decision.reason,
                      static_cast<int>(decision.plan.decode),
@@ -230,6 +231,7 @@ int render_and_encode_ffmpeg(
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
+        render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
         spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
                      decision.reason,
                      static_cast<int>(decision.plan.decode),
@@ -263,7 +265,8 @@ int render_and_encode_ffmpeg(
         }
         spdlog::warn(
             "[video] final plan is a structured downgrade (resolver reason: {}); "
-            "executing the downgraded axes", reason);
+            "executing the downgraded axes (count={})", reason,
+            render_opts.resolved_execution_downgrade_count);
     }
 
     // ── Whole-clip packet copy (final plan: PacketCopy both ways) ─────────

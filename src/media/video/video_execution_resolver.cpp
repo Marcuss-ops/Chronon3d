@@ -52,6 +52,7 @@ struct Decision {
     ResolvedPath render_fallback{ResolvedPath::RenderGraph};
     std::string_view reason{"render_graph_default"};
     bool valid{true};
+    std::uint32_t downgrade_count{0};
     std::optional<GopExecutionPlan> gop_plan{};
 };
 
@@ -60,6 +61,7 @@ VideoExecutionDecision to_decision(const Decision& d) noexcept {
     result.plan = d.plan;
     result.reason = d.reason;
     result.valid = d.valid;
+    result.downgrade_count = d.downgrade_count;
     result.gop_plan = d.gop_plan;
     return result;
 }
@@ -300,6 +302,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             ? "gop_copy_preflight_failed"
             : "gop_copy_preflight_unavailable";
         decision.valid = false;
+        decision.downgrade_count = 1;
         return decision;
     }
 
@@ -342,6 +345,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
         } else {
             decision.reason = "gop_reencode_required";
         }
+        decision.downgrade_count = 1;
         return decision;
     }
 

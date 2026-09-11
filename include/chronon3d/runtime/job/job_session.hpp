@@ -2,6 +2,7 @@
 
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
+#include <chronon3d/core/error.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/runtime/frame_history.hpp>
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <mutex>
 
@@ -58,6 +60,13 @@ struct JobCounters {
     std::uint64_t frames_started{0};
     std::uint64_t frames_completed{0};
     std::uint64_t frames_failed{0};
+};
+
+enum class JobState : std::uint8_t {
+    Ready,
+    Running,
+    Completed,
+    Failed,
 };
 
 /// Job-lifetime state. The runtime context is borrowed.  History and pipeline
@@ -107,6 +116,38 @@ public:
 
     [[nodiscard]] JobCounters& counters() noexcept { return counters_; }
     [[nodiscard]] const JobCounters& counters() const noexcept { return counters_; }
+
+    /// Start a new explicit job boundary. A session can be reused for a
+    /// sequence of independent renders, so this clears only the prior job
+    /// outcome; frame-local diagnostics remain separately owned.
+    void begin_job() {
+        std::lock_guard lock(status_->mutex);
+        status_->state = JobState::Running;
+        status_->error.reset();
+    }
+
+    /// Canonical terminal transition. The first error is retained so later
+    /// cleanup failures cannot obscure the root cause.
+    void fail_job(chronon::Error error) {
+        std::lock_guard lock(status_->mutex);
+        if (!status_->error) status_->error = std::move(error);
+        status_->state = JobState::Failed;
+    }
+
+    void complete_job() {
+        std::lock_guard lock(status_->mutex);
+        if (status_->state != JobState::Failed) status_->state = JobState::Completed;
+    }
+
+    [[nodiscard]] JobState state() const {
+        std::lock_guard lock(status_->mutex);
+        return status_->state;
+    }
+
+    [[nodiscard]] std::optional<chronon::Error> job_error() const {
+        std::lock_guard lock(status_->mutex);
+        return status_->error;
+    }
 
     [[nodiscard]] GpuCompletionTracker& gpu_completion() noexcept { return *gpu_completion_; }
     [[nodiscard]] FrameSlotPool& slots() noexcept { return *slots_; }
@@ -287,6 +328,12 @@ public:
     void reset_job();
 
 private:
+    struct JobStatus {
+        mutable std::mutex mutex;
+        JobState state{JobState::Ready};
+        std::optional<chronon::Error> error;
+    };
+
     // FIXING.md H-07 — job-lifetime high-water-mark buffer. Grows on demand,
     // never shrinks until reset_job(). See download_scratch() doc above.
     std::vector<float> download_scratch_{};
@@ -298,6 +345,7 @@ private:
     std::uint64_t job_id_{0};
     CancellationToken cancellation_;
     JobCounters counters_{};
+    std::shared_ptr<JobStatus> status_{std::make_shared<JobStatus>()};
     std::unique_ptr<GpuCompletionTracker> gpu_completion_{
         std::make_unique<GpuCompletionTracker>(kPipelineDepth)};
     std::unique_ptr<FrameSlotPool> slots_{
