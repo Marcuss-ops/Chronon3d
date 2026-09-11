@@ -1,5 +1,5 @@
 schema=chronon3d.phase5.steady-state-allocations.v1
-source_revision=37dffbc0ab5a505f76aecb3496754635fbbf6ea6+worktree
+source_revision=8bdf0f807
 corpus=DarkGridBackground
 backend=vulkan
 host=NVIDIA RTX A4000
