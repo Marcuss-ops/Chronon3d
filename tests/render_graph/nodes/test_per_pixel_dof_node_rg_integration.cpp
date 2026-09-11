@@ -332,7 +332,7 @@ TEST_CASE("PR2-RG-DoF: moving source keeps ROI bounded across 300 frames") {
 
 TEST_CASE("PR2-RG-DoF: cache invalidates when animated position changes") {
     auto r = ctt::make_renderer();
-    r.runtime().node_cache().set_capacity(128 * 1024 * 1024);
+    r.execution_context().scratch.node_cache->set_capacity(128 * 1024 * 1024);
     const auto scene = make_position_animation_dof_scene();
     auto first = r.render(scene, 0);
     REQUIRE(first != nullptr);
@@ -369,7 +369,7 @@ TEST_CASE("PR2-RG-DoF: z animation transitions from focus to blur") {
 
 TEST_CASE("PR2-RG-DoF: cache warm hit preserves DOF output and coverage") {
     auto cached = ctt::make_renderer();
-    cached.runtime().node_cache().set_capacity(128 * 1024 * 1024);
+    cached.execution_context().scratch.node_cache->set_capacity(128 * 1024 * 1024);
     cached.reset_counters();
     auto cold = cached.render(make_sparse_dof_scene(), 0);
     REQUIRE(cold != nullptr);
@@ -385,7 +385,7 @@ TEST_CASE("PR2-RG-DoF: cache warm hit preserves DOF output and coverage") {
     CHECK(warm_counters->dof_roi_pixels.load(std::memory_order_relaxed) > 0);
 
     auto uncached = ctt::make_renderer();
-    uncached.runtime().node_cache().set_capacity(0);
+    uncached.execution_context().scratch.node_cache->set_capacity(0);
     auto uncached_frame = uncached.render(make_sparse_dof_scene(), 0);
     REQUIRE(uncached_frame != nullptr);
     CHECK(ctt::framebuffer_hash(*uncached_frame) == cold_hash);

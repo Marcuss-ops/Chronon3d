@@ -114,7 +114,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         ctx.node_exec.counters = sw_renderer->counters();
     }
     if (sw_renderer) {
-        ctx.surface_registry = &sw_renderer->runtime().surface_registry();
+        ctx.surface_registry = sw_renderer->execution_context().runtime
+            ? &sw_renderer->execution_context().runtime->surface_registry()
+            : nullptr;
     }
 
     if (isolated_temporal_sample) {
@@ -221,7 +223,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             backend, *active_node_cache, scene, camera, width, height,
             frame, frame_time, effective_settings, registry, video_decoder,
             static_cast<float>(fps),
-            sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
+            sw_renderer && sw_renderer->execution_context().runtime
+                ? &sw_renderer->execution_context().runtime->resolver()
+                : nullptr);
         spdlog::info("[graph-preflight] label='{}' frame={} size={}x{}\n{}",
                      diagnostic_label, static_cast<int>(frame), width, height, report.to_text());
         if (!settings.diagnostics.plan_output.empty()) {

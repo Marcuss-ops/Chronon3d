@@ -40,7 +40,7 @@ RenderPreparationResult prepare_render(
     }
     const auto sample = SampleTime::from_frame_int(
         options.reference_frame, composition.frame_rate());
-    const auto& runtime = renderer->runtime();
+    const auto& runtime = *renderer->execution_context().runtime;
     const auto context = make_frame_context({
         .global_time = sample,
         .duration = composition.duration(),
@@ -72,7 +72,7 @@ RenderPreparationResult prepare_render(
         return detail::prepare_render_scene(
             renderer, Scene{}, CompositionSpec{}, options);
     }
-    const auto& runtime = renderer->runtime();
+    const auto& runtime = *renderer->execution_context().runtime;
     const auto context = make_frame_context({
         .global_time = SampleTime::from_frame_int(
             options.reference_frame, compiled.composition->frame_rate()),

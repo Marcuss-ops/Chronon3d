@@ -76,7 +76,9 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     };
     auto holder = std::make_shared<CliRendererHolder>();
     holder->runtime = std::move(runtime_res).value();
-    holder->renderer = std::make_unique<SoftwareRenderer>(*holder->runtime, std::move(cfg));
+    holder->renderer = std::make_unique<SoftwareRenderer>(
+        backends::software::make_software_renderer_context(*holder->runtime),
+        std::move(cfg));
     auto renderer = std::shared_ptr<SoftwareRenderer>(holder, holder->renderer.get());
     renderer->set_composition_registry(&registry);
     renderer->set_settings(settings);
@@ -105,13 +107,13 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // read.
     assert(renderer != nullptr);
     const auto backend_t0 = profiling::now();
-    if (!renderer->runtime().backend_attached()) {
+    if (renderer->execution_context().backend == nullptr) {
         // Fase A2 — unified backend construction via the canonical
         // `attach_software_backend()` factory (runtime_adapter.hpp).
         // Replaces the previously-inlined services bundle +
         // make_software_backend + attach_processor_context duplicate.
         chronon3d::backends::software::attach_software_backend(
-            renderer.get(), renderer->runtime().config().backend_preference());
+            renderer.get(), *holder->runtime, renderer->config().backend_preference());
     }
     if (backend_init_ms) {
         *backend_init_ms = profiling::duration_ms(backend_t0, profiling::now());
@@ -121,11 +123,11 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // to the process CWD: callers must opt in so an unrelated working
     // directory can never silently become the project's asset root.
     if (assets_root.has_value()) {
-        renderer->runtime().resolver().mount(*assets_root);
+        renderer->execution_context().text.assets->mount(*assets_root);
         spdlog::debug("Explicit CLI assets root mounted: {}", assets_root->string());
     } else if (const char* env_assets_root = std::getenv("CHRONON3D_CLI_ASSETS_ROOT");
                env_assets_root && *env_assets_root) {
-        renderer->runtime().resolver().mount(std::filesystem::path{env_assets_root});
+        renderer->execution_context().text.assets->mount(std::filesystem::path{env_assets_root});
         spdlog::debug("CLI assets root mounted: {}", env_assets_root);
     }
 

@@ -68,7 +68,7 @@ RenderPreparationResult prepare_render_scene(
 
     const auto preflight_t0 = profiling::now();
     result.preflight = AssetPreflightResolver::check(
-        scene, renderer->runtime().resolver(), options.preflight_mode,
+        scene, renderer->execution_context().runtime->resolver(), options.preflight_mode,
         options.reference_frame);
     result.timings.asset_preflight_ms =
         profiling::duration_ms(preflight_t0, profiling::now());
@@ -90,7 +90,7 @@ RenderPreparationResult prepare_render_scene(
     }
 
     auto resource_options = options.resources;
-    resource_options.mesh_cache = &renderer->runtime().mesh_cache();
+    resource_options.mesh_cache = &renderer->execution_context().runtime->mesh_cache();
     if (renderer->video_decoder() != nullptr) {
         resource_options.prepare_video_metadata = false;
     }
@@ -102,7 +102,7 @@ RenderPreparationResult prepare_render_scene(
     const auto image_refs_view = std::span<const assets::InternalAssetRef>(image_refs);
     const auto resolve_t0 = profiling::now();
     auto prepared = ResourcePreparation::prepare(
-        scene.asset_manifest(), renderer->runtime().resolver(), resource_options);
+        scene.asset_manifest(), renderer->execution_context().runtime->resolver(), resource_options);
     result.timings.asset_resolve_ms =
         profiling::duration_ms(resolve_t0, profiling::now());
     if (!prepared.has_value()) {
@@ -116,7 +116,7 @@ RenderPreparationResult prepare_render_scene(
     if (options.resources.prepare_fonts &&
         !scene.asset_manifest().filter(assets::AssetKind::Font).empty()) {
         const auto fonts = renderer->preflight_fonts(
-            scene, renderer->runtime().resolver());
+            scene, renderer->execution_context().runtime->resolver());
         result.timings.font_load_ms =
             profiling::duration_ms(font_t0, profiling::now());
         if (fonts.preflight_missing != 0) {
@@ -136,7 +136,7 @@ RenderPreparationResult prepare_render_scene(
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
     if (options.resources.prepare_images) {
         for (const auto& ref : image_refs_view) {
-            const auto image = renderer->runtime().image_cache().get_or_load(ref.path);
+            const auto image = renderer->execution_context().runtime->image_cache().get_or_load(ref.path);
             if (!image || !image->valid()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,
@@ -154,11 +154,11 @@ RenderPreparationResult prepare_render_scene(
     }
     const ImageCounterSnapshot image_after = snapshot_image_counters(*renderer->counters());
 
-    if (options.resources.prepare_images && renderer->runtime().backend_attached() &&
-        renderer->runtime().backend().supports_native_surfaces()) {
-        auto& cache = renderer->runtime().gpu_asset_cache();
+    if (options.resources.prepare_images && renderer->execution_context().runtime->backend_attached() &&
+        renderer->execution_context().runtime->backend().supports_native_surfaces()) {
+        auto& cache = renderer->execution_context().runtime->gpu_asset_cache();
         for (const auto& ref : image_refs_view) {
-            const auto image = renderer->runtime().image_cache().find(ref.path);
+            const auto image = renderer->execution_context().runtime->image_cache().find(ref.path);
             if (!image || !image->valid() || image->gpu_rgba.empty()) {
                 continue;
             }
@@ -200,7 +200,7 @@ RenderPreparationResult prepare_render_scene(
     result.timings.image_cache_misses = image_after.cache_misses - image_before.cache_misses;
 
     const auto publish_t0 = profiling::now();
-    renderer->runtime().publish_prepared_assets(*result.prepared_assets);
+    renderer->execution_context().runtime->publish_prepared_assets(*result.prepared_assets);
     result.timings.backend_prepare_ms =
         profiling::duration_ms(publish_t0, profiling::now());
     return result;

@@ -16,7 +16,7 @@ namespace chronon3d {
 struct TextRunAuditSnapshot; struct TextRenderResources; struct FontPreflightSummary;   // TICKET-078 fwd-decl; full def in text_render_resources.hpp
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
 class CompositionRegistry; namespace media { class MediaFrameProvider; }
-namespace image { class ImageBackend; } namespace runtime { class RuntimeContext; }
+namespace image { class ImageBackend; }
 namespace raster { struct BBox; } namespace cache { class FramebufferPool; class NodeCache; }
 namespace graph { class RenderBackend; class CompiledGraphCache; class GraphNodeCatalog; class SceneHasher; class SceneProgramStore; }
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
@@ -48,7 +48,7 @@ public:
 
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
         const chronon3d::Scene& scene, const chronon3d::assets::AssetResolver& resolver);
-    explicit SoftwareRenderer(runtime::RuntimeContext& rt, Config config);
+    explicit SoftwareRenderer(SoftwareExecutionContext context, Config config);
     ~SoftwareRenderer() override;
     SoftwareRenderer(SoftwareRenderer const&) = delete;
     SoftwareRenderer const& operator=(SoftwareRenderer const&) = delete;
@@ -112,7 +112,7 @@ public:
     [[nodiscard]] graph::FrameExecutionPath last_execution_decision() const { return m_session.common.dirty_telemetry.last_execution_path; }
     [[nodiscard]] int    last_layer_count() const         { return m_session.common.dirty_telemetry.last_layer_count; }
 
-    // ── RuntimeContext forwarders (OOL — avoids pulling runtime/* headers) ──
+    // ── Explicit execution-context views ───────────────────────────────
     [[nodiscard]] renderer::SoftwareRegistry& software_registry();
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const;
     [[nodiscard]] graph::GraphNodeCatalog& graph_node_registry();
@@ -126,9 +126,6 @@ public:
     [[nodiscard]] const RenderCounters* counters() const                 { return &m_counters; }
     [[nodiscard]] chronon3d::ExecutionScheduler& scheduler() noexcept;
     [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
-    [[nodiscard]] runtime::RuntimeContext& runtime() noexcept;
-    [[nodiscard]] const runtime::RuntimeContext& runtime() const noexcept;
-    [[nodiscard]] bool has_runtime() const noexcept { return m_session.common.has_runtime(); }
     [[nodiscard]] FontEngine& font_engine();
     [[nodiscard]] const FontEngine& font_engine() const;
     [[nodiscard]] graph::CompiledGraphCache& graph_cache();

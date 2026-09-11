@@ -165,7 +165,7 @@ TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not 
     // service.  Chincy constructors (e.g., SoftwareBackend ctor with a
     // default-constructed bundles) abort in debug builds.
     auto renderer = test::make_renderer();
-    FontEngine engine{renderer.runtime().resolver()};
+    FontEngine engine{*renderer.execution_context().text.assets};
     TextLayoutSpec layout;
     layout.box = {128.0f, 64.0f};
 
@@ -261,7 +261,7 @@ TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-
         "abcdefghijklmnopqrstuvwxyz0123456";                         // 33 glyphs (LONG)
 
     auto renderer = test::make_renderer();
-    FontEngine engine{renderer.runtime().resolver()};
+    FontEngine engine{*renderer.execution_context().text.assets};
     TextLayoutSpec layout;
     layout.box = {256.0f, 64.0f};
 
@@ -332,7 +332,7 @@ TEST_CASE("draw_text_run: crossfade + stroke produces successful render (E2E ren
     const std::string outgoing_text  = "HelloWorld";                  // 10 glyphs (LONGER)
 
     auto renderer = test::make_renderer();
-    FontEngine engine{renderer.runtime().resolver()};
+    FontEngine engine{*renderer.execution_context().text.assets};
     TextLayoutSpec layout;
     layout.box = {256.0f, 64.0f};
 

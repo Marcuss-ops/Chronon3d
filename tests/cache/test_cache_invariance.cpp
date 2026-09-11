@@ -175,7 +175,7 @@ Composition build_comp(const CompSpec& spec) {
 /// evicts immediately, so cache_hits stays at 0).
 std::shared_ptr<SoftwareRenderer> make_cached_renderer() {
     auto renderer = test::make_renderer_shared();
-    renderer->runtime().node_cache().set_capacity(128 * 1024 * 1024);
+    renderer->execution_context().runtime->node_cache().set_capacity(128 * 1024 * 1024);
     return renderer;
 }
 
@@ -196,7 +196,7 @@ TEST_CASE("Cache invariance: cold/warm identical hash") {
 
     // Capture cache telemetry AFTER the cold render (before the warm
     // render) so the warm render's hit/miss delta is visible.
-    const auto stats_after_cold = renderer->runtime().node_cache().stats();
+    const auto stats_after_cold = renderer->execution_context().runtime->node_cache().stats();
     u64 hits_before_warm   = renderer->counters()->cache_hits.load();
     u64 misses_before_warm = renderer->counters()->cache_misses.load();
     u64 clear_skipped_before = renderer->counters()->clear_skipped_calls.load();
@@ -206,7 +206,7 @@ TEST_CASE("Cache invariance: cold/warm identical hash") {
     REQUIRE(fb_warm != nullptr);
     u64 hash_warm = test::framebuffer_hash(*fb_warm);
 
-    const auto stats_after_warm = renderer->runtime().node_cache().stats();
+    const auto stats_after_warm = renderer->execution_context().runtime->node_cache().stats();
     u64 hits_after_warm   = renderer->counters()->cache_hits.load();
     u64 misses_after_warm = renderer->counters()->cache_misses.load();
     u64 clear_skipped_after = renderer->counters()->clear_skipped_calls.load();

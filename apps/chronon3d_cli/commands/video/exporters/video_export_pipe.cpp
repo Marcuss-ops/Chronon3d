@@ -142,7 +142,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         decode_stats = session->native_decoder->decode_profiling_stats();
     }
     if (session->opts.encoder.encoder_backend == "native" && session->renderer_ptr()) {
-        auto& backend = session->renderer_ptr()->runtime().backend();
+        auto& backend = *session->renderer_ptr()->execution_context().backend;
 #ifdef CHRONON3D_ENABLE_VULKAN
         if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
             (void)vulkan->wait_for_pending_submissions();
@@ -495,7 +495,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cpu_breakdown.video_source_repeated_frames = c->video_source_repeated_frames.load(std::memory_order_relaxed);
     }
     if (session->renderer_ptr()) {
-      const auto atlas_stats = session->renderer_ptr()->runtime().gpu_glyph_atlas().stats();
+      const auto atlas_stats = session->renderer_ptr()->execution_context().runtime
+          ->gpu_glyph_atlas().stats();
       timings.text.atlas_cache_hits = atlas_stats.hits;
       timings.text.atlas_cache_misses = atlas_stats.misses;
       timings.text.atlas_upload_count = atlas_stats.page_count;
@@ -520,9 +521,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
     timings.runtime.encoder_open_nvenc_ms = session->startup_breakdown.encoder_open_nvenc_ms;
 
-    if (session->renderer_ptr() && session->renderer_ptr()->runtime().backend_attached()) {
+    if (session->renderer_ptr() && session->renderer_ptr()->execution_context().backend != nullptr) {
         std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
-      session->renderer_ptr()->runtime().backend().export_gpu_telemetry_counters(gpu_counters);
+      session->renderer_ptr()->execution_context().backend
+          ->export_gpu_telemetry_counters(gpu_counters);
         for (const auto& [name, value] : gpu_counters) {
             if (name == "gpu_execute_us") {
                 timings.gpu.gpu_execute_ms = static_cast<double>(value) / 1000.0;

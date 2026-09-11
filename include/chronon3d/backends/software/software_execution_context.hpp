@@ -28,6 +28,7 @@ namespace cache { class FramebufferPool; class NodeCache; }
 namespace effects { class EffectCatalog; }
 namespace graph {
 class CompiledGraphCache;
+class GraphExecutor;
 class GraphNodeCatalog;
 class RenderBackend;
 }
@@ -35,6 +36,7 @@ namespace image { class ImageBackend; }
 namespace media { class MediaFrameProvider; }
 namespace renderer { class SoftwareRegistry; }
 namespace runtime {
+class RuntimeContext;
 class RenderSurfaceRegistry;
 class GpuTextRunPreparedCache;
 }
@@ -84,6 +86,11 @@ struct SoftwareExecutionContext {
     SoftwareTextServices text{};
     const RenderSettings* settings{nullptr};
 
+    // Explicit orchestration bridge for legacy graph APIs that still require
+    // the engine-lifetime runtime. This is a dependency view, not ownership
+    // and not a renderer back-pointer.
+    runtime::RuntimeContext* runtime{nullptr};
+    graph::GraphExecutor* executor{nullptr};
     graph::RenderBackend* backend{nullptr};
     RenderCounters* counters{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};

@@ -26,7 +26,6 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 // IMPORTANT: include `runtime_adapter.hpp` (NOT `builtin_processors.hpp`).
@@ -46,18 +45,33 @@
 
 namespace chronon3d {
 
+namespace {
+ImageCache& require_image_cache(const SoftwareExecutionContext& context) {
+    if (!context.images.cache) {
+        throw std::invalid_argument(
+            "SoftwareRenderer: execution context has no image cache");
+    }
+    return *context.images.cache;
+}
+} // namespace
+
 // ── Construction ──────────────────────────────────────────────────────────────
 
-// Canonical path — borrows an existing RuntimeContext + overrides Config.
-SoftwareRenderer::SoftwareRenderer(runtime::RuntimeContext& rt, Config config)
+// Canonical path — receives an explicit dependency view; runtime lifetime is
+// owned by the caller and is never stored on SoftwareRenderer.
+SoftwareRenderer::SoftwareRenderer(SoftwareExecutionContext context, Config config)
     : m_config(std::move(config))
-    , m_image_renderer(rt.image_cache())
+    , m_execution_context(std::move(context))
+    , m_image_renderer(require_image_cache(m_execution_context))
     , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
     , m_text_render_resources(std::make_unique<TextRenderResources>())
-    , m_session(rt)
+    , m_session()
 {
-    rt.image_cache().set_asset_resolver(&rt.resolver());
-    m_session.common.bind_runtime(rt);
+    m_execution_context.registry.processors = m_software_registry.get();
+    m_execution_context.images.renderer = &m_image_renderer;
+    m_execution_context.text.resources = m_text_render_resources.get();
+    m_execution_context.settings = &m_settings;
+    m_execution_context.counters = &m_counters;
     backends::software::register_builtin_processors(*m_software_registry);
 }
 

@@ -2,8 +2,8 @@
 // src/backends/software/software_renderer.cpp
 //
 // M1.5#12 main — SoftwareRenderer thin orchestrator (lifecycle + dispatch
-// surface).  Long-lived state lives on `m_runtime` (chronon3d::runtime::
-// RuntimeContext); this TU holds ONLY the bits that MUST stay in one place:
+// surface). Long-lived engine services arrive through
+// SoftwareExecutionContext; this TU holds ONLY the bits that MUST stay in one place:
 //
 //   * Move ops (SoftwareRenderer&& / operator=) — destructor timing
 //     coordination across ImageRenderer, ImageBackend, FontEngine,
@@ -27,9 +27,9 @@
 //     update_dirty_telemetry) — all session.frame_history / dirty_telemetry
 //     writers; consolidated to keep the per-session invariant at one place.
 //
-//   * 14 RuntimeContext forwarders (software_registry / graph_node_registry /
-//     effect_catalog / software_framebuffer_pool / framebuffer_pool /
-//     scheduler / runtime / graph_cache / backend / node_cache + font_engine
+//   * explicit execution-context forwarders (software_registry /
+//     graph_node_registry / effect_catalog / software_framebuffer_pool /
+//     framebuffer_pool / scheduler / graph_cache / backend / node_cache + font_engine
 //     CHRONON3D_ENABLE_TEXT path) — moved OOL from the header to keep
 //     header LOC under the gate-bound (06 R3b).
 //
@@ -50,7 +50,6 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 // Required for `m_software_registry` (unique_ptr<renderer::SoftwareRegistry>)
 // deleter instantiation in the move ops below — without this the compiler
 // raises "incomplete type" on the unique_ptr dtor path.
@@ -61,6 +60,7 @@
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include "internal/software_processor_services.hpp"
 #include <chronon3d/cache/cache_policy.hpp>
 // P1-7 Chore 1 (commit A) — REMOVED the `#include
@@ -316,16 +316,7 @@ void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<r
     m_session.common.dirty_telemetry.last_execution_path = path;
 }
 
-// ── RuntimeContext forwarders (OOL — avoids pulling runtime/* headers) ────────
-//
-// 06 R3b — implementations moved out-of-line; their inline bodies would
-// dereference `m_runtime->X()` / `*m_runtime` which require the complete
-// `runtime::RuntimeContext` type.  Pulling
-// `<chronon3d/runtime/render_runtime.hpp>` into the header would exceed
-// the boundary-gate I3 ≤ 6-include budget, so the implementation lives
-// here where the type is complete (this TU already pulls the header via
-// `software_renderer.hpp`'s user clients).
-//
+// ── Explicit execution-context forwarders ───────────────────────────────────
 // Note: font_engine() lives in `software_renderer_text.cpp` because the
 // unique_ptr<FontEngine> deleter must be instantiated in EXACTLY one TU
 // (WP-8 PR 8.1 — ODR violation risk if split across TUs).
@@ -338,12 +329,8 @@ const effects::EffectCatalog& SoftwareRenderer::effect_catalog() const       { r
 cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool()        { return *m_execution_context.scratch.framebuffer_pool; }
 const cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() const { return *m_execution_context.scratch.framebuffer_pool; }
 std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { return m_execution_context.scratch.framebuffer_pool; }
-// Note: executor forwarder was removed.  See commit message of the
-// baseline-12c295be PR for the architectural rationale.
 chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept        { return *m_execution_context.scratch.scheduler; }
 const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return *m_execution_context.scratch.scheduler; }
-runtime::RuntimeContext& SoftwareRenderer::runtime() noexcept                  { return m_session.common.runtime(); }
-const runtime::RuntimeContext& SoftwareRenderer::runtime() const noexcept      { return m_session.common.runtime(); }
 graph::CompiledGraphCache& SoftwareRenderer::graph_cache()                   { return *m_execution_context.scratch.graph_cache; }
 const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const       { return *m_execution_context.scratch.graph_cache; }
 graph::RenderBackend& SoftwareRenderer::backend()                             { return *m_execution_context.backend; }

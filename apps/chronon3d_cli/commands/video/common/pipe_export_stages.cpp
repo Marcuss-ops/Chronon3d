@@ -31,7 +31,7 @@ NativeSurfacePrep prepare_frame(
     prep.video_settings.require_native_gpu =
         prep.video_settings.retain_native_surface_for_video;
     auto* surface_registry = ctx.sw_renderer
-        ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
+        ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;
     if (!surface_registry || !prep.video_settings.retain_native_surface_for_video) {
         return prep;
     }
@@ -122,7 +122,7 @@ EncodeOutcome encode_frame(
         execution_slot->source_surface = source_surface;
     }
     auto* surface_registry = ctx.sw_renderer
-        ? &ctx.sw_renderer->runtime().surface_registry() : nullptr;
+        ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;
     // When a native encode destination exists, finish_frame_encode() has
     // already copied the rendered source into CUDA/NVENC. Do not require the
     // temporary source handle to survive that copy; this validation is only

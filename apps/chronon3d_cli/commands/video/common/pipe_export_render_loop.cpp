@@ -192,7 +192,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 #ifdef CHRONON3D_ENABLE_VULKAN
                 if (const auto* vulkan = dynamic_cast<const backends::vulkan::VulkanBackend*>(&ctx.backend)) {
                     const auto s = vulkan->stats();
-                    const auto registry_live = ctx.sw_renderer->runtime().surface_registry().size();
+                    const auto registry_live = ctx.sw_renderer->execution_context().images.surfaces
+                        ? ctx.sw_renderer->execution_context().images.surfaces->size() : 0;
                     spdlog::info(
                         "[vulkan-lifecycle] frame={} vram_bytes={} live_surfaces={} "
                         "surface_bindings={} registry_live_handles={} physical_images={} "

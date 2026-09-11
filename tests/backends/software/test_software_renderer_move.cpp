@@ -56,14 +56,14 @@ TEST_CASE("SoftwareRenderer - move-ctor: b receives runtime/session, source is e
     SoftwareRenderer a{Config{}};
     REQUIRE(a.has_runtime());                  // pre-move: a's raw m_runtime is non-null
 
-    auto* const pre_runtime_addr = &a.runtime();
+    auto* const pre_runtime_addr = a.execution_context().runtime;
 
     SoftwareRenderer b{std::move(a)};
 
     // b received the owned runtime (post-move unique_ptr transferred
     // -> m_runtime raw ptr correctly aliases the same backing RT).
     CHECK(b.has_runtime());
-    CHECK(&b.runtime() == pre_runtime_addr);
+    CHECK(b.execution_context().runtime == pre_runtime_addr);
 
     // b.session() is callable: returning its address is impossible to
     // be nullptr for a reference - the call compiling + having an
@@ -85,8 +85,8 @@ TEST_CASE("SoftwareRenderer - move-assign: destination receives source's prior r
     REQUIRE(a.has_runtime());
     REQUIRE(b.has_runtime());
 
-    auto* const a_runtime_addr = &a.runtime();
-    auto* const b_runtime_addr = &b.runtime();
+    auto* const a_runtime_addr = a.execution_context().runtime;
+    auto* const b_runtime_addr = b.execution_context().runtime;
     REQUIRE(a_runtime_addr != b_runtime_addr);  // sanity: distinct backing RTs pre-move
 
     b = std::move(a);
@@ -94,7 +94,7 @@ TEST_CASE("SoftwareRenderer - move-assign: destination receives source's prior r
     // b's m_runtime now references a's prior RT (a.m_runtime was copied
     // before being nulled; a.m_owned_runtime_storage was transferred to b).
     CHECK(b.has_runtime());
-    CHECK(&b.runtime() == a_runtime_addr);
+    CHECK(b.execution_context().runtime == a_runtime_addr);
 
     // a is empty post-move-assign.
     CHECK_FALSE(a.has_runtime());

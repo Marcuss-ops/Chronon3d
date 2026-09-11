@@ -134,7 +134,7 @@ out << "Fused color batches.......... "
 out << "Fused color effects.......... "
     << (render_counters ? render_counters->color_pipeline_effects.load() : 0) << "\n\n";
 
-if (renderer->runtime().backend_attached()) {
+if (renderer->execution_context().backend != nullptr) {
     const std::uint64_t lb_calls = gpu_delta("layer_batch_calls");
     const std::uint64_t l_inst = gpu_delta("layer_instances");
     const std::uint64_t tb_calls = gpu_delta("text_batch_calls");

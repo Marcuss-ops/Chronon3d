@@ -139,7 +139,7 @@ TEST_CASE("cache compatible → reuse available") {
 
 TEST_CASE("cache domains reset independently") {
     auto renderer = chronon3d::test::make_renderer_shared();
-    auto& runtime = renderer->runtime();
+    auto& runtime = *renderer->execution_context().runtime;
 
     chronon3d::cache::NodeCacheKey node_key{
         .scope = "reset-domain-test",
@@ -206,7 +206,7 @@ TEST_CASE("cache domains reset independently") {
 
 TEST_CASE("cache domain facades reset independently in sequential random and reverse orders") {
     auto renderer = chronon3d::test::make_renderer_shared();
-    auto& runtime = renderer->runtime();
+    auto& runtime = *renderer->execution_context().runtime;
     auto topology = chronon3d::runtime::CompiledTopologyCache{runtime.graph_cache()};
     auto values = chronon3d::runtime::FrameValueCache{runtime.node_cache()};
     auto history = renderer->session().history_state();

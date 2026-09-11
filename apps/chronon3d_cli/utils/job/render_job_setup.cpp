@@ -34,7 +34,7 @@ void setup_render_job(const CompositionRegistry& registry,
         out.renderer->reset_temporal_history();
         out.renderer->set_settings(job.settings);
         if (job.execution.assets_root) {
-            out.renderer->runtime().resolver().mount(*job.execution.assets_root);
+            out.renderer->execution_context().text.assets->mount(*job.execution.assets_root);
         }
     } else {
         out.renderer = create_renderer(
@@ -53,7 +53,7 @@ void setup_render_job(const CompositionRegistry& registry,
     // same AssetResolver root, including renderers created through a warm
     // or alternate CLI setup path.
     if (job.execution.assets_root) {
-        out.renderer->runtime().resolver().mount(*job.execution.assets_root);
+        out.renderer->execution_context().text.assets->mount(*job.execution.assets_root);
     }
 
     if (out.renderer->counters()) {

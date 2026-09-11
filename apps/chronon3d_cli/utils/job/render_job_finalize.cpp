@@ -32,7 +32,7 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
 }
 
 void release_transient_resources(RenderJobSetupResult& setup) {
-    auto& rt = setup.renderer->runtime();
+    auto& rt = *setup.renderer->execution_context().runtime;
     rt.backend().release_frame_transient_surfaces();
     for (const auto handle : rt.surface_registry().handles_with_lifetime(
              runtime::LifetimeClass::FrameTransient)) {
@@ -63,7 +63,7 @@ bool finalize_render_job(
 
     if (!job.execution.report) {
         spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot(
-            setup.renderer->runtime().diagnostics()));
+            setup.renderer->execution_context().runtime->diagnostics()));
         release_transient_resources(setup);
         return ok;
     }
@@ -150,7 +150,7 @@ bool finalize_render_job(
     // counter can refer to a transient/global pool during video export and
     // must not override the pool that actually served this render.
     const auto configured_pool_budget =
-        setup.renderer->runtime().config().cache().fb_pool_budget_bytes();
+        setup.renderer->config().cache().fb_pool_budget_bytes();
     counters_list.push_back({
         "framebuffer_pool_budget_bytes",
         configured_pool_budget > 0 ? configured_pool_budget : pool_stats.budget_bytes});
@@ -163,9 +163,9 @@ bool finalize_render_job(
     // GPU backend counters (vkQueueSubmit count + executed command-plan
     // passes).  Software backends contribute nothing; a GPU backend feeds
     // gpu_submissions / passes_executed into the render_counters table.
-    if (setup.renderer->runtime().backend_attached()) {
+    if (setup.renderer->execution_context().backend != nullptr) {
         cli::telemetry::capture_backend_gpu_counters(
-            setup.renderer->runtime().backend(), counters_list, run);
+            *setup.renderer->execution_context().backend, counters_list, run);
     }
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {

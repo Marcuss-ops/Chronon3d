@@ -34,8 +34,8 @@ auto renderer = create_renderer(
 
 auto snapshot_gpu = [&]() {
     std::vector<std::pair<std::string, std::uint64_t>> ordered;
-    if (renderer->runtime().backend_attached()) {
-        renderer->runtime().backend().export_gpu_telemetry_counters(ordered);
+    if (renderer->execution_context().backend != nullptr) {
+        renderer->execution_context().backend->export_gpu_telemetry_counters(ordered);
     }
     std::unordered_map<std::string, std::uint64_t> by_name;
     by_name.reserve(ordered.size());
@@ -180,9 +180,9 @@ const auto logical_cpus = std::thread::hardware_concurrency();
 PerfMetrics perf;
 perf.available = "false";
 
-const bool is_gpu = renderer->runtime().backend_attached() &&
-                    renderer->runtime().backend().supports_native_surfaces();
-const auto backend_name = renderer->runtime().backend_attached()
+const bool is_gpu = renderer->execution_context().backend != nullptr &&
+                    renderer->execution_context().backend->supports_native_surfaces();
+const auto backend_name = renderer->execution_context().backend != nullptr
     ? (is_gpu ? "Vulkan" : "Software")
     : "None";
 

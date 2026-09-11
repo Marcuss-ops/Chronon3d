@@ -189,7 +189,7 @@ void apply_sparse_or_full_decision(
             ? "full_frame_delta" : "dirty_rects_not_active");
         return;
     }
-    if (!sw_renderer || !sw_renderer->has_runtime()) {
+    if (!sw_renderer || !sw_renderer->execution_context().runtime) {
         set_full_rgb(plan, "missing_renderer_runtime");
         return;
     }

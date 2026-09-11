@@ -25,8 +25,8 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
-// WP-8 PR 8.1 — the renderer-local FontEngine is constructed from
-// `m_runtime->resolver()` in `software_renderer_factory.cpp`.  This TU
+// WP-8 PR 8.1 — the renderer-local FontEngine is resolved through the
+// explicit execution context. This TU
 // is the SOLE owner of the `font_engine()` accessor bodies (the per-renderer
 // FontEngine is unique_ptr'd and we must NOT instantiate the deleter in
 // more than one TU — ODR violation risk).
@@ -86,9 +86,8 @@ const TextRenderResources* SoftwareRenderer::text_render_resources() const {
     return m_text_render_resources.get();
 }
 
-// R1 — runtime owns the FontEngine; the renderer delegates to it.
+// R1 — the execution context borrows the runtime-owned FontEngine.
 // The accessor body lives here (single TU) because it dereferences
-// runtime::RuntimeContext, whose complete type is available here.
 FontEngine& SoftwareRenderer::font_engine() { return *m_execution_context.text.fonts; }
 const FontEngine& SoftwareRenderer::font_engine() const { return *m_execution_context.text.fonts; }
 
@@ -130,7 +129,7 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
             if (m_execution_context.text.assets && m_execution_context.text.prepared_cache &&
                 graph::text_run::can_lower_gpu_text_animation(*h.value)) {
                 auto prepared = graph::text_run::prepare_mtsdf_text_run(
-                    m_session.common.runtime(), trr, &resolver, *h.value);
+                    *m_execution_context.runtime, trr, &resolver, *h.value);
                 if (prepared && prepared->ready) {
                     m_execution_context.text.prepared_cache->store(
                         h.value->layout.get(), prepared);

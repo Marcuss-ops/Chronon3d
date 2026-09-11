@@ -177,7 +177,7 @@ TEST_CASE("Cache reuse: diagnostics snapshot covers registered cache domains") {
 
     // P1-10 — CacheDiagnostics is now per-runtime (DI, no singleton).
     // Query the renderer's runtime diagnostics for registered cache domains.
-    auto& diag = renderer.runtime().diagnostics();
+    auto& diag = renderer.execution_context().runtime->diagnostics();
     diag.set_enabled(true);
 
     auto all_domains = diag.snapshot_all_domains();

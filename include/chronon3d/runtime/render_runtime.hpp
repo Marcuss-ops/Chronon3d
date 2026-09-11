@@ -104,18 +104,22 @@ namespace chronon3d {
     class SoftwareRenderer;
 }
 
+namespace chronon3d::runtime { class RuntimeContext; }
+
 // P1-14 — friend function forward declarations for `attach_software_backend`
 // in the production bridge (runtime_adapter) and the test bridge (test_utils).
 // Defined in their respective TUs; the friend declarations inside
 // RuntimeContext grant them access to the now-private attach_backend().
 namespace chronon3d::backends::software {
-    void attach_software_backend(::chronon3d::SoftwareRenderer*);
     void attach_software_backend(
         ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::runtime::RuntimeContext&,
         ::chronon3d::graph::BackendPreference);
 }
 namespace chronon3d::test {
-    void attach_software_backend(::chronon3d::SoftwareRenderer*);
+    void attach_software_backend(
+        ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::runtime::RuntimeContext&);
 }
 
 namespace chronon3d::cache {
@@ -379,11 +383,13 @@ private:
     // surface to a single entry (`create()`) while preserving the
     // established orchestration flow (runtime_adapter for production,
     // test_utils for tests).
-    friend void ::chronon3d::backends::software::attach_software_backend(::chronon3d::SoftwareRenderer*);
     friend void ::chronon3d::backends::software::attach_software_backend(
         ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::runtime::RuntimeContext&,
         ::chronon3d::graph::BackendPreference);
-    friend void ::chronon3d::test::attach_software_backend(::chronon3d::SoftwareRenderer*);
+    friend void ::chronon3d::test::attach_software_backend(
+        ::chronon3d::SoftwareRenderer*,
+        ::chronon3d::runtime::RuntimeContext&);
 
 
 };
