@@ -22,6 +22,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
@@ -57,6 +58,51 @@ Composition make_static_composition() {
 }
 
 } // namespace
+
+TEST_CASE("GPU prepared text cache uses stable fingerprints and bounded LRU") {
+    runtime::GpuTextRunPreparedCache cache;
+    auto original = std::make_shared<TextRunLayout>();
+    original->source_text = "stable-layout";
+    auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
+    prepared->ready = true;
+    cache.store(*original, prepared);
+
+    // A distinct allocation with identical immutable content must resolve to
+    // the same prepared value.  Pointer reuse is neither required nor used.
+    auto equivalent = std::make_shared<TextRunLayout>(*original);
+    CHECK(cache.find(*equivalent) == prepared);
+
+    for (std::size_t i = 0; i < runtime::GpuTextRunPreparedCache::kDefaultCapacity + 1;
+         ++i) {
+        auto layout = std::make_shared<TextRunLayout>();
+        layout->source_text = "layout-" + std::to_string(i);
+        cache.store(*layout, std::make_shared<runtime::GpuPreparedTextRun>());
+    }
+    CHECK(cache.size() <= runtime::GpuTextRunPreparedCache::kDefaultCapacity);
+}
+
+TEST_CASE("Text layout fingerprint includes fallback font spans") {
+    TextRunLayout primary;
+    primary.source_text = "fallback-sensitive";
+    primary.font.font_path = "/fonts/primary.ttf";
+    primary.font.font_family = "Primary";
+    primary.font_spans.push_back(ShapedFontSpan{
+        FontIdentity{"/fonts/primary.ttf", "Primary", 400, "normal"}, 0, 1});
+
+    TextRunLayout fallback = primary;
+    fallback.font_spans.front().font =
+        FontIdentity{"/fonts/fallback.ttf", "Fallback", 400, "normal"};
+
+    CHECK(primary.layout_hash() != fallback.layout_hash());
+
+    runtime::GpuTextRunPreparedCache cache;
+    auto primary_program = std::make_shared<runtime::GpuPreparedTextRun>();
+    auto fallback_program = std::make_shared<runtime::GpuPreparedTextRun>();
+    cache.store(primary, primary_program);
+    cache.store(fallback, fallback_program);
+    CHECK(cache.find(primary) == primary_program);
+    CHECK(cache.find(fallback) == fallback_program);
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // §1: Identical-frame renders produce non-regressing cache hits

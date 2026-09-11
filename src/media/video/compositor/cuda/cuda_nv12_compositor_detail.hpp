@@ -28,8 +28,13 @@ struct alignas(8) DirectYuvLayerHost {
     float src_x0{0.0f}, src_y0{0.0f}, src_x1{1.0f}, src_y1{1.0f};
     float opacity{1.0f};
     int blend_mode{0};
+    int resource_kind{0};
+    float distance_range_px{8.0f};
+    unsigned int color{0xFFFFFFFFu};
+    unsigned int stroke_color{0};
+    float stroke_width{0.0f};
 };
-static_assert(sizeof(DirectYuvLayerHost) == 64);
+static_assert(sizeof(DirectYuvLayerHost) == 96);
 
 // Defined in cuda_nv12_compositor.cpp.
 [[noreturn]] void fail(const char* operation, const std::string& detail);

@@ -7,6 +7,7 @@
 #endif
 
 #include <cstdint>
+#include <memory>
 
 namespace chronon3d::backends::vulkan {
 
@@ -60,8 +61,7 @@ private:
     CUexternalSemaphore m_vulkan_to_cuda{nullptr};
     CUstream m_stream{nullptr};
     bool m_timeline{false};
-    std::uint64_t m_vulkan_to_cuda_value{0};
-    std::uint64_t m_cuda_to_vulkan_value{0};
+    std::shared_ptr<InteropGeneration> m_generation{};
 };
 
 #endif

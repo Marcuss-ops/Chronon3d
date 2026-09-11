@@ -52,6 +52,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"gpu_text_styled_cache_misses", counters.gpu_text_styled_cache_misses.load(std::memory_order_relaxed)},
         {"gpu_text_glyphs_built", counters.gpu_text_glyphs_built.load(std::memory_order_relaxed)},
         {"gpu_text_fast_path_success", counters.gpu_text_fast_path_success.load(std::memory_order_relaxed)},
+        {"gpu_text_mtsdf_fallback_count", counters.gpu_text_mtsdf_fallback_count.load(std::memory_order_relaxed)},
         {"gpu_text_fallback_count", counters.gpu_text_fallback_count.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_count", counters.gpu_text_instance_upload_count.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_bytes", counters.gpu_text_instance_upload_bytes.load(std::memory_order_relaxed)},

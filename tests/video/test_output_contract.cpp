@@ -20,6 +20,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/channel_layout.h>
 }
 
 #include <atomic>
@@ -81,7 +82,11 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
     audio_params->codec_type = AVMEDIA_TYPE_AUDIO;
     audio_params->codec_id = AV_CODEC_ID_AAC;
     audio_params->sample_rate = 8000;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    av_channel_layout_default(&audio_params->ch_layout, 1);
+#else
     audio_params->channel_layout = AV_CH_LAYOUT_MONO;
+#endif
     audio_params->format = AV_SAMPLE_FMT_FLTP;
     audio_params->bit_rate = 64000;
 

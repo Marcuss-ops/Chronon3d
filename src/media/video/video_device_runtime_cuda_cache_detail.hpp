@@ -56,7 +56,8 @@ std::shared_ptr<const CudaImageResource> VideoDeviceRuntime::get_or_upload_image
     std::span<const float> rgba,
     bool& cache_hit,
     double& upload_ms,
-    std::string& reason) {
+    std::string& reason,
+    runtime::PixelFormat format) {
     cache_hit = false;
     upload_ms = 0.0;
     if (width == 0 || height == 0 || rgba.empty()) {
@@ -73,7 +74,7 @@ std::shared_ptr<const CudaImageResource> VideoDeviceRuntime::get_or_upload_image
         return nullptr;
     }
 
-    const CudaImageKey key{digest, options, width, height};
+    const CudaImageKey key{digest, options, width, height, format};
     std::lock_guard lock(mutex_);
     if (const auto it = cuda_images_.find(key); it != cuda_images_.end()) {
         cache_hit = true;
@@ -91,7 +92,7 @@ std::shared_ptr<const CudaImageResource> VideoDeviceRuntime::get_or_upload_image
     auto resource = std::make_shared<CudaImageResource>();
     resource->owner_gpu = gpu_;
     const auto image_desc = runtime::SurfaceDesc::make(
-        width, height, runtime::PixelFormat::Rgba32Float,
+        width, height, format,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::JobPersistent);
     const std::size_t expected = image_desc.bytes;

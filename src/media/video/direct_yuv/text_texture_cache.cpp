@@ -1,234 +1,195 @@
 #include "text_texture_cache.hpp"
 
-#ifdef CHRONON3D_USE_BLEND2D
-#include <blend2d.h>
+#ifdef CHRONON3D_ENABLE_TEXT
+#include <chronon3d/backends/text/mtsdf_generator.hpp>
 #endif
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d::media::video {
+#ifdef CHRONON3D_ENABLE_TEXT
 namespace {
 
-std::string require_prepared_font(const std::string& requested) {
-    if (requested.empty()) {
-        throw std::runtime_error("text layer has no prepared font asset");
+FT_Library text_library() {
+    static FT_Library library = [] {
+        FT_Library result = nullptr;
+        if (FT_Init_FreeType(&result) != 0) {
+            throw std::runtime_error("MTSDF FreeType initialization failed");
+        }
+        return result;
+    }();
+    return library;
+}
+
+struct FaceOwner {
+    FT_Face face{nullptr};
+    FaceOwner() noexcept = default;
+    ~FaceOwner() {
+        if (face) FT_Done_Face(face);
     }
-    if (!std::filesystem::exists(requested)) {
-        throw std::runtime_error("prepared font asset not found: " + requested);
+    FaceOwner(const FaceOwner&) = delete;
+    FaceOwner& operator=(const FaceOwner&) = delete;
+};
+
+std::uint32_t checked_dimension(float value, const char* label) {
+    if (!std::isfinite(value) || value <= 0.0f || value > 65535.0f) {
+        throw std::runtime_error(std::string("invalid MTSDF atlas ") + label);
     }
-    return requested;
+    return static_cast<std::uint32_t>(std::ceil(value));
 }
 
 } // namespace
 
 RasterizedTextTexture rasterize_text_texture(
-    const TextRunShape& prepared_shape,
-    const Color& fill_color,
-    const Color& stroke_color,
-    float stroke_width,
-    bool has_background,
-    const Color& bg_color,
-    float bg_opacity,
-    float bg_radius,
-    float pad_x,
-    float pad_y,
-    float box_w,
-    float box_h,
-    const std::string& alignment) {
-#ifndef CHRONON3D_USE_BLEND2D
-    (void)prepared_shape; (void)fill_color;
-    (void)stroke_color; (void)stroke_width; (void)has_background; (void)bg_color;
-    (void)bg_opacity; (void)bg_radius; (void)pad_x; (void)pad_y; (void)box_w;
-    (void)box_h; (void)alignment;
-    throw std::runtime_error("Blend2D is required for direct text rasterization");
-#else
+    const TextRunShape& prepared_shape) {
     if (!prepared_shape.layout) {
         throw std::runtime_error("text layer has no prepared TextRunLayout");
     }
     const auto& layout = *prepared_shape.layout;
-    const float effective_font_size = layout.font_size > 0.0f
-        ? layout.font_size : 58.0f;
-    // TextRunLayout is the single shaping authority.  Its positions already
-    // include HarfBuzz cluster resolution and tracking; DirectYUV only lowers
-    // those immutable glyphs into a temporary CPU raster for the RGBA image
-    // resource.  It must not call BLFont::shape() a second time.
-    float min_x = 0.0f;
-    float min_y = 0.0f;
-    float max_x = std::max(layout.bounds.x, layout.placed.total_width);
-    float max_y = std::max(layout.bounds.y, layout.placed.total_height);
-    struct SpanRaster {
-        BLFontFace face;
-        BLFont font;
-        std::vector<std::uint32_t> glyph_ids;
-        std::vector<BLPoint> origins;
-    };
-    std::vector<std::unique_ptr<SpanRaster>> spans;
-    spans.reserve(layout.font_spans.size());
+    if (layout.font_spans.empty() ||
+        prepared_shape.glyphs.size() != layout.placed.glyphs.size()) {
+        throw std::runtime_error("prepared text MTSDF payload is incomplete");
+    }
+    std::uint32_t covered_glyphs = 0;
+    for (const auto& span : layout.font_spans) {
+        if (span.glyph_begin != covered_glyphs ||
+            span.glyph_end < span.glyph_begin ||
+            span.glyph_end > layout.placed.glyphs.size()) {
+            throw std::runtime_error("prepared text font spans are not contiguous");
+        }
+        covered_glyphs = span.glyph_end;
+    }
+    if (covered_glyphs != layout.placed.glyphs.size()) {
+        throw std::runtime_error("prepared text font spans do not cover the layout");
+    }
+    const float font_size = layout.font_size;
+    if (!(font_size > 0.0f) || !std::isfinite(font_size)) {
+        throw std::runtime_error("prepared text has no valid font size");
+    }
+
+    constexpr std::uint16_t kEmPx = 64;
+    constexpr std::uint16_t kRangePx = 8;
+    constexpr std::uint16_t kPaddingPx = 16;
+    const float layout_scale = font_size / static_cast<float>(kEmPx);
+
+    std::vector<std::unique_ptr<FaceOwner>> faces;
+    faces.reserve(layout.font_spans.size());
     for (const auto& span : layout.font_spans) {
         if (span.glyph_begin > span.glyph_end ||
-            span.glyph_end > layout.placed.glyphs.size()) {
-            throw std::runtime_error("prepared text font span is out of bounds");
+            span.glyph_end > layout.placed.glyphs.size() ||
+            span.font.font_path.empty() ||
+            !std::filesystem::exists(span.font.font_path)) {
+            throw std::runtime_error("prepared text font span is invalid");
         }
-        auto raster = std::make_unique<SpanRaster>();
-        const std::string font_file = require_prepared_font(span.font.font_path);
-        const BLResult face_res = raster->face.createFromFile(font_file.c_str());
-        if (face_res != BL_SUCCESS) {
-            throw std::runtime_error("prepared font asset could not be loaded: " + font_file);
+        auto owner = std::make_unique<FaceOwner>();
+        if (FT_New_Face(text_library(), span.font.font_path.c_str(), 0,
+                        &owner->face) != 0 || !owner->face ||
+            FT_Set_Pixel_Sizes(owner->face, kEmPx, kEmPx) != 0) {
+            throw std::runtime_error("prepared text font asset could not be loaded: " +
+                                     span.font.font_path);
         }
-        raster->font.createFromFace(raster->face, effective_font_size);
-        raster->glyph_ids.reserve(span.glyph_end - span.glyph_begin);
-        raster->origins.reserve(span.glyph_end - span.glyph_begin);
-        for (std::size_t index = span.glyph_begin; index < span.glyph_end; ++index) {
-            const auto& glyph = layout.placed.glyphs[index];
-            if (glyph.glyph_id == 0) continue;
-            raster->glyph_ids.push_back(glyph.glyph_id);
-            min_x = std::min(min_x, glyph.x + glyph.bbox_x0);
-            min_y = std::min(min_y, glyph.y + glyph.bbox_y0);
-            max_x = std::max(max_x, glyph.x + glyph.bbox_x1);
-            max_y = std::max(max_y, glyph.y + glyph.bbox_y1);
-            BLPoint origin{};
-            origin.reset(glyph.x, glyph.y);
-            raster->origins.push_back(origin);
-        }
-        spans.push_back(std::move(raster));
-    }
-    const float content_w = std::max(1.0f, max_x - min_x);
-    const float content_h = std::max(1.0f, max_y - min_y);
-
-    float target_w = content_w;
-    float target_h = content_h;
-    if (has_background) {
-        target_w = content_w + pad_x * 2.0f;
-        target_h = content_h + pad_y * 2.0f;
-        target_w = std::max(target_w, box_w);
-        target_h = std::max(target_h, box_h);
-    } else {
-        target_w += stroke_width * 2.0f + 24.0f;
-        target_h += stroke_width * 2.0f + 16.0f;
+        faces.push_back(std::move(owner));
     }
 
-    int img_w = (static_cast<int>(std::ceil(target_w)) + 3) & ~3;
-    int img_h = (static_cast<int>(std::ceil(target_h)) + 1) & ~1;
-    img_w = std::max(img_w, 16);
-    img_h = std::max(img_h, 16);
-
-    BLImage bl_img(img_w, img_h, BL_FORMAT_PRGB32);
-    BLContext ctx(bl_img);
-    ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-    ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
-    ctx.fillAll();
-    ctx.setCompOp(BL_COMP_OP_SRC_OVER);
-
-    if (has_background) {
-        const float card_w = std::max(content_w + pad_x * 2.0f, box_w);
-        const float card_h = std::max(content_h + pad_y * 2.0f, box_h);
-        const float card_x = (static_cast<float>(img_w) - card_w) * 0.5f;
-        const float card_y = (static_cast<float>(img_h) - card_h) * 0.5f;
-        const uint32_t a = static_cast<uint32_t>(std::clamp(bg_opacity * bg_color.a, 0.0f, 1.0f) * 255.0f);
-        const uint32_t r = static_cast<uint32_t>(std::clamp(bg_color.r, 0.0f, 1.0f) * 255.0f);
-        const uint32_t g = static_cast<uint32_t>(std::clamp(bg_color.g, 0.0f, 1.0f) * 255.0f);
-        const uint32_t b = static_cast<uint32_t>(std::clamp(bg_color.b, 0.0f, 1.0f) * 255.0f);
-        ctx.setFillStyle(BLRgba32(r, g, b, a));
-        ctx.fillRoundRect(BLRoundRect(card_x, card_y, card_w, card_h, bg_radius, bg_radius));
-    }
-
-    const auto rgba32 = [](const Color& color) {
-        const uint32_t a = static_cast<uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f);
-        const uint32_t r = static_cast<uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f);
-        const uint32_t g = static_cast<uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f);
-        const uint32_t b = static_cast<uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f);
-        return BLRgba32(r, g, b, a);
+    struct PreparedGlyph {
+        MtsdfGlyphBitmap bitmap;
+        float x{0.0f};
+        float y{0.0f};
     };
-    const BLRgba32 bl_fill = rgba32(fill_color);
-    const BLRgba32 bl_stroke = rgba32(stroke_color);
-
-    float text_x = (static_cast<float>(img_w) - content_w) * 0.5f - min_x;
-    if (alignment == "left") {
-        text_x = has_background
-            ? ((static_cast<float>(img_w) - (content_w + pad_x * 2.0f)) * 0.5f + pad_x - min_x)
-            : (12.0f - min_x);
-    } else if (alignment == "right") {
-        text_x = has_background
-            ? ((static_cast<float>(img_w) + (content_w + pad_x * 2.0f)) * 0.5f - pad_x - content_w - min_x)
-            : (static_cast<float>(img_w) - 12.0f - content_w - min_x);
-    }
-    const float text_y = (static_cast<float>(img_h) - content_h) * 0.5f - min_y;
-    for (const auto& span : spans) {
-        BLGlyphPlacement placement{};
-        placement.placement.reset(0.0, 0.0);
-        placement.advance.reset(0.0, 0.0);
-        for (std::size_t glyph_index = 0;
-             glyph_index < span->glyph_ids.size(); ++glyph_index) {
-            std::uint32_t glyph_id = span->glyph_ids[glyph_index];
-            BLGlyphRun run{};
-            run.glyphData = &glyph_id;
-            run.glyphAdvance = static_cast<std::int8_t>(sizeof(glyph_id));
-            run.placementData = &placement;
-            run.placementAdvance = static_cast<std::int8_t>(sizeof(placement));
-            run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
-            run.size = 1;
-            BLPoint origin = span->origins[glyph_index];
-            origin.x += text_x;
-            origin.y += text_y;
-            if (stroke_width > 0.0f && stroke_color.a > 0.0f) {
-                ctx.setStrokeStyle(bl_stroke);
-                ctx.setStrokeWidth(stroke_width);
-                ctx.strokeGlyphRun(origin, span->font, run);
+    std::vector<PreparedGlyph> glyphs;
+    glyphs.reserve(layout.placed.glyphs.size());
+    float min_x = std::numeric_limits<float>::infinity();
+    float min_y = std::numeric_limits<float>::infinity();
+    float max_x = -std::numeric_limits<float>::infinity();
+    float max_y = -std::numeric_limits<float>::infinity();
+    for (std::size_t span_index = 0; span_index < layout.font_spans.size(); ++span_index) {
+        const auto& span = layout.font_spans[span_index];
+        for (std::size_t index = span.glyph_begin; index < span.glyph_end; ++index) {
+            const auto& state = prepared_shape.glyphs[index];
+            if (state.glyph_id == 0) continue;
+            auto bitmap = generate_mtsdf_glyph(
+                faces[span_index]->face, state.glyph_id, kEmPx, kRangePx, kPaddingPx);
+            if (!bitmap || bitmap->rgba8.empty()) {
+                throw std::runtime_error(
+                    "prepared text glyph could not produce an MTSDF bitmap");
             }
-            ctx.setFillStyle(bl_fill);
-            ctx.fillGlyphRun(origin, span->font, run);
+            const auto& placed = layout.placed.glyphs[index];
+            PreparedGlyph glyph{std::move(*bitmap),
+                                placed.x / layout_scale,
+                                placed.y / layout_scale};
+            glyph.x += static_cast<float>(glyph.bitmap.x_offset);
+            glyph.y += static_cast<float>(glyph.bitmap.y_offset);
+            min_x = std::min(min_x, glyph.x);
+            min_y = std::min(min_y, glyph.y);
+            max_x = std::max(max_x, glyph.x + static_cast<float>(glyph.bitmap.width));
+            max_y = std::max(max_y, glyph.y + static_cast<float>(glyph.bitmap.height));
+            glyphs.push_back(std::move(glyph));
         }
     }
-    ctx.end();
+    if (glyphs.empty() || !std::isfinite(min_x) || !std::isfinite(min_y) ||
+        !(max_x > min_x) || !(max_y > min_y)) {
+        throw std::runtime_error("prepared text produced no MTSDF glyphs");
+    }
 
-    BLImageData bl_data;
-    bl_img.getData(&bl_data);
-    std::vector<float> gpu_rgba(static_cast<size_t>(img_w) * img_h * 4);
-    const uint8_t* src = static_cast<const uint8_t*>(bl_data.pixelData);
-    size_t out = 0;
-    for (int y = 0; y < img_h; ++y) {
-        const uint8_t* row = src + y * bl_data.stride;
-        for (int x = 0; x < img_w; ++x) {
-            const float b_byte = row[x * 4 + 0];
-            const float g_byte = row[x * 4 + 1];
-            const float r_byte = row[x * 4 + 2];
-            const float a_byte = row[x * 4 + 3];
-            const float a = a_byte / 255.0f;
-            if (a <= 1e-5f) {
-                gpu_rgba[out++] = 0.0f;
-                gpu_rgba[out++] = 0.0f;
-                gpu_rgba[out++] = 0.0f;
-                gpu_rgba[out++] = 0.0f;
-            } else {
-                const auto color = Color{
-                    (r_byte / 255.0f) / a,
-                    (g_byte / 255.0f) / a,
-                    (b_byte / 255.0f) / a,
-                    a}.to_linear().premultiplied();
-                gpu_rgba[out++] = color.r;
-                gpu_rgba[out++] = color.g;
-                gpu_rgba[out++] = color.b;
-                gpu_rgba[out++] = color.a;
+    const std::uint32_t atlas_width = checked_dimension(max_x - min_x, "width");
+    const std::uint32_t atlas_height = checked_dimension(max_y - min_y, "height");
+    std::vector<float> atlas(static_cast<std::size_t>(atlas_width) * atlas_height,
+                             0.0f);
+    for (const auto& glyph : glyphs) {
+        const auto dst_x = static_cast<std::int64_t>(std::floor(glyph.x - min_x));
+        const auto dst_y = static_cast<std::int64_t>(std::floor(glyph.y - min_y));
+        if (dst_x < 0 || dst_y < 0 ||
+            dst_x + glyph.bitmap.width > atlas_width ||
+            dst_y + glyph.bitmap.height > atlas_height) {
+            throw std::runtime_error("MTSDF glyph does not fit its prepared atlas");
+        }
+        for (std::uint32_t row = 0; row < glyph.bitmap.height; ++row) {
+            auto* destination = atlas.data() +
+                (static_cast<std::size_t>(dst_y + row) * atlas_width + dst_x);
+            const auto* source = glyph.bitmap.rgba8.data() +
+                static_cast<std::size_t>(row) * glyph.bitmap.width * 4u;
+            for (std::uint32_t column = 0; column < glyph.bitmap.width; ++column) {
+                const auto* pixel = source + static_cast<std::size_t>(column) * 4u;
+                const std::uint32_t packed =
+                    static_cast<std::uint32_t>(pixel[0]) |
+                    (static_cast<std::uint32_t>(pixel[1]) << 8u) |
+                    (static_cast<std::uint32_t>(pixel[2]) << 16u) |
+                    (static_cast<std::uint32_t>(pixel[3]) << 24u);
+                destination[column] = std::bit_cast<float>(packed);
             }
         }
     }
 
     const std::string_view bytes(
-        reinterpret_cast<const char*>(gpu_rgba.data()),
-        gpu_rgba.size() * sizeof(float));
+        reinterpret_cast<const char*>(atlas.data()), atlas.size() * sizeof(float));
     RasterizedTextTexture result;
-    result.width = img_w;
-    result.height = img_h;
+    result.width = static_cast<int>(atlas_width);
+    result.height = static_cast<int>(atlas_height);
+    result.display_width = static_cast<float>(atlas_width) * layout_scale;
+    result.display_height = static_cast<float>(atlas_height) * layout_scale;
+    result.distance_range_px = static_cast<float>(kRangePx);
+    result.mtsdf = true;
     result.digest = assets::sha256_string(bytes);
-    result.gpu_rgba = std::move(gpu_rgba);
+    result.gpu_rgba = std::move(atlas);
     return result;
-#endif
 }
 
+#else
+
+RasterizedTextTexture rasterize_text_texture(
+    const TextRunShape&) {
+    throw std::runtime_error("DirectYUV text requires CHRONON3D_ENABLE_TEXT");
+}
+
+#endif
 } // namespace chronon3d::media::video

@@ -1,5 +1,9 @@
 #pragma once
 
+namespace chronon3d::media {
+struct CudaImageResource;
+}
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
 #include <cuda.h>

@@ -17,9 +17,10 @@ bool is_2d_transform_for_capability(const Transform& transform) noexcept {
            std::abs(transform.anchor.z) < 1e-3f;
 }
 
-// DirectYUV currently lowers a TextRun to one prepared, static RGBA texture.
-// Keep this gate next to capability resolution: accepting richer text here
-// would silently discard glyph state in text_texture_cache.cpp.
+// DirectYUV lowers a TextRun from the canonical prepared layout into the
+// shared MTSDF glyph representation. Keep this gate next to capability
+// resolution: accepting richer text here would silently discard glyph state
+// in the CUDA lowering.
 [[nodiscard]] const char* direct_yuv_text_rejection(
     const TextRunShape& shape) noexcept {
     if (!shape.layout) return "text_missing_canonical_layout";
@@ -82,6 +83,12 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
                 : DirectYuvEffectClass::VideoBackground;
             video_seen = true;
         } else if (!layer.nodes.empty()) {
+            if (layer.nodes.size() > 1) {
+                report.support = DirectYuvSupport::Unsupported;
+                report.reason = "multi_node_layer_unsupported (layer '" +
+                    std::string(layer.name) + "')";
+                return report;
+            }
             const auto shape = layer.nodes.front().shape.type();
             if (shape == ShapeType::Image) {
                 query.effect = DirectYuvEffectClass::ImageOverlay;

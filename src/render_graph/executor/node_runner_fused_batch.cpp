@@ -72,11 +72,11 @@ struct FusedWorkerScratch {
     std::vector<std::uint32_t> resource_generation;
     std::unordered_map<const CompiledLayerBatch*, PreparedTextBatch>
         prepared_text_batches;
-    const void* prepared_graph_owner{nullptr};
+    GraphInstanceId prepared_graph_owner{kInvalidGraphInstanceId};
     std::uint32_t generation{0};
 
     void begin_batch(std::size_t max_resource_id,
-                     const void* graph_owner = nullptr) {
+                     GraphInstanceId graph_owner = kInvalidGraphInstanceId) {
         // AUDIT-18: max_resource_id is a capacity hint, not a trusted bound.
         // The compiler enforces dense resource_index < instances.size(), but
         // the executor must fail closed on a sparse/pathological id instead
@@ -169,7 +169,7 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
         // this helper only samples its immutable program for the current
         // frame. Non-lowerable animation is rejected by the reuse preflight.
         auto prepared = ctx.runtime
-            ? ctx.runtime->gpu_text_prepared_cache().find(shape.layout.get())
+            ? ctx.runtime->gpu_text_prepared_cache().find(*shape.layout)
             : nullptr;
         if (prepared && prepared->reveal_selector) {
             std::uint32_t visible_limit = 0;
@@ -233,7 +233,7 @@ void execute_fused_batch_impl(
         auto& all_glyphs = scratch.glyphs;
         auto& all_runs = scratch.runs;
         auto& atlas_pages = scratch.atlas_pages;
-        scratch.begin_batch(batch.instances.size(), &compiled);
+        scratch.begin_batch(batch.instances.size(), compiled.graph_instance_id);
         all_glyphs.clear();
         all_runs.clear();
         atlas_pages.clear();
@@ -267,7 +267,7 @@ void execute_fused_batch_impl(
                         break;
                     }
                     const auto prepared = ctx.runtime->gpu_text_prepared_cache().find(
-                        shape->layout.get());
+                        *shape->layout);
                     if (!prepared || !prepared->ready ||
                         prepared->batches.size() != 1 ||
                         prepared->batches.front().page !=
@@ -367,13 +367,13 @@ void execute_fused_batch_impl(
             // Steady-state frames only append already-compiled metadata and
             // update the small dynamic run record.
             if (ctx.runtime) {
-                auto prepared = ctx.runtime->gpu_text_prepared_cache().find(&layout);
+                auto prepared = ctx.runtime->gpu_text_prepared_cache().find(layout);
                 if (!prepared) {
                     prepared = text_run::prepare_mtsdf_text_run(
                         *ctx.runtime, ctx.text_render_resources,
                         ctx.asset_resolver, *render_shape);
                     if (prepared && prepared->ready) {
-                        ctx.runtime->gpu_text_prepared_cache().store(&layout, prepared);
+                        ctx.runtime->gpu_text_prepared_cache().store(layout, prepared);
                     }
                 }
                 if (prepared && prepared->ready && prepared->batches.size() == 1) {
@@ -443,7 +443,7 @@ void execute_fused_batch_impl(
             // compatibility callers retain the explicitly non-native route.
             if (ctx.policy.is_gpu_native_required()) {
                 const auto prepared_diag = ctx.runtime
-                    ? ctx.runtime->gpu_text_prepared_cache().find(&layout)
+                    ? ctx.runtime->gpu_text_prepared_cache().find(layout)
                     : nullptr;
                 std::string detail =
                     " layout_glyphs=" + std::to_string(layout.placed.glyphs.size()) +
@@ -557,7 +557,7 @@ void execute_fused_batch_impl(
     }
 
     auto& scratch = tls_fused_scratch;
-    scratch.begin_batch(batch.instances.size(), &compiled);
+    scratch.begin_batch(batch.instances.size(), compiled.graph_instance_id);
     runtime::GpuLayerBatch gpu_batch;
     gpu_batch.output_physical_slot = batch.output_physical_slot;
     gpu_batch.is_gpu_fused = batch.is_gpu_fused;

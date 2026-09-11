@@ -6,6 +6,7 @@
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include <chronon3d/media/video/hw_frame_ref.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/media/video/cuda_layer_resource.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <cstddef>
@@ -28,6 +29,11 @@ struct DirectLayerResourceEntry {
     float native_width{0.0f};
     float native_height{0.0f};
     float corner_radius{0.0f};
+    media::CudaLayerResourceKind kind{media::CudaLayerResourceKind::Rgba};
+    float distance_range_px{8.0f};
+    std::uint32_t color{0xFFFFFFFFu};
+    std::uint32_t stroke_color{0};
+    float stroke_width{0.0f};
     // AUDIT-10: local_offset_x/local_offset_y removed (0 readers repo-wide).
 };
 
@@ -104,6 +110,11 @@ private:
     /// allocations for every dynamic frame.
     std::vector<std::shared_ptr<DirectYuvTemplate>> dynamic_template_pool_;
     [[nodiscard]] std::shared_ptr<DirectYuvTemplate> acquire_dynamic_template();
+
+    /// Reclaim only sole-owned wrappers; the hard bound keeps multi-job
+    /// exports from growing an unbounded frame-object pool.
+    std::vector<std::shared_ptr<DirectYuvFrame>> frame_pool_;
+    [[nodiscard]] std::shared_ptr<DirectYuvFrame> acquire_frame();
 
     /// Monotonic high-water mark of instances per dynamic frame; seeds the
     /// first allocation of a newly-created template.

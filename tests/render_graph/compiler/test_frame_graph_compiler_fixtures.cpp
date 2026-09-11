@@ -103,8 +103,10 @@ TEST_CASE("ProcessorRegistrySnapshot survives full engine shutdown and isolates 
         auto runtime_a = std::move(runtime_a_result).value();
         auto runtime_b = std::move(runtime_b_result).value();
 
-        auto renderer_a = std::make_unique<SoftwareRenderer>(*runtime_a, Config{});
-        auto renderer_b = std::make_unique<SoftwareRenderer>(*runtime_b, Config{});
+        auto renderer_a = std::make_unique<SoftwareRenderer>(
+            backends::software::make_software_renderer_context(*runtime_a), Config{});
+        auto renderer_b = std::make_unique<SoftwareRenderer>(
+            backends::software::make_software_renderer_context(*runtime_b), Config{});
         snapshot_a = renderer_a->software_registry().snapshot();
         snapshot_b = renderer_b->software_registry().snapshot();
         REQUIRE(snapshot_a != nullptr);

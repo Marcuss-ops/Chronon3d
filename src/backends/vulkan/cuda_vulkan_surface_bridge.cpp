@@ -51,12 +51,17 @@ CUexternalSemaphore import_semaphore(
 
 CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     const CudaExternalMemoryInfo& info, CUcontext context, CUstream stream)
-    : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores) {
+    : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores),
+      m_generation(info.generation) {
     if (!m_context || info.fd < 0 || info.cuda_to_vulkan_semaphore_fd < 0 ||
         info.vulkan_to_cuda_semaphore_fd < 0 || info.width == 0 ||
         info.height == 0 || info.allocation_size == 0 ||
         (info.cuda_array_format != 1 && info.cuda_array_format != 2)) {
         throw std::invalid_argument("invalid CUDA/Vulkan external surface handles");
+    }
+    if (m_timeline && !m_generation) {
+        throw std::invalid_argument(
+            "timeline CUDA/Vulkan bridge requires the Vulkan interop generation authority");
     }
     make_current();
 
@@ -135,11 +140,11 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
         spdlog::info("[interop-trace] CUDA_WAIT_V2C ctx={} stream={} sem={} value={}",
                      static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
                      static_cast<void*>(m_vulkan_to_cuda),
-                     m_timeline ? (m_vulkan_to_cuda_value + 1) : 0);
+                     m_timeline ? (m_generation->vulkan_to_cuda() + 1) : 0);
     }
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
     if (m_timeline) {
-        params.params.fence.value = ++m_vulkan_to_cuda_value;
+        params.params.fence.value = m_generation->vulkan_to_cuda();
     }
     check_cuda(cuWaitExternalSemaphoresAsync(
                    &m_vulkan_to_cuda, &params, 1, stream ? stream : m_stream),
@@ -161,11 +166,11 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
         spdlog::info("[interop-trace] CUDA_SIGNAL_C2V ctx={} stream={} sem={} value={}",
                      static_cast<void*>(m_context), static_cast<void*>(stream ? stream : m_stream),
                      static_cast<void*>(m_cuda_to_vulkan),
-                     m_timeline ? (m_cuda_to_vulkan_value + 1) : 0);
+                     m_timeline ? (m_generation->cuda_to_vulkan() + 1) : 0);
     }
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
     if (m_timeline) {
-        params.params.fence.value = ++m_cuda_to_vulkan_value;
+        params.params.fence.value = m_generation->next_cuda_to_vulkan();
     }
     check_cuda(cuSignalExternalSemaphoresAsync(
                    &m_cuda_to_vulkan, &params, 1, stream ? stream : m_stream),

@@ -19,7 +19,7 @@ namespace chronon3d::graph::detail {
 /// Handles projected (2.5D camera) and non-projected paths.
 void refresh_transform_node(
     TransformNode& node,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     RenderGraphContext& ctx);
 
 } // namespace chronon3d::graph::detail

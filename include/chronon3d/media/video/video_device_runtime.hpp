@@ -103,7 +103,8 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
         std::span<const float> rgba,
         bool& cache_hit,
         double& upload_ms,
-        std::string& reason);
+        std::string& reason,
+        runtime::PixelFormat format = runtime::PixelFormat::Rgba32Float);
 #endif
 
     /// Pure contract check used by decoder/encoder and by tests. Returns false
@@ -170,6 +171,7 @@ private:
         ImageDecodeOptions options{};
         std::uint32_t width{0};
         std::uint32_t height{0};
+        runtime::PixelFormat format{runtime::PixelFormat::Rgba32Float};
         friend bool operator==(const CudaImageKey&, const CudaImageKey&) = default;
     };
     struct CudaImageKeyHash {

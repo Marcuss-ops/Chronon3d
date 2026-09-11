@@ -89,8 +89,7 @@ struct VulkanBackend::Impl {
         bool initialized{false};
         bool exportable{false};
         bool cuda_timeline{false};
-        std::uint64_t cuda_to_vulkan_value{0};
-        std::uint64_t vulkan_to_cuda_value{0};
+        std::shared_ptr<InteropGeneration> interop_generation{};
         VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};
         VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
     };

@@ -202,7 +202,23 @@ struct DirectYuvLayer {
   float src_x0, src_y0, src_x1, src_y1;
   float opacity;
   int blend_mode;
+  int resource_kind;
+  float distance_range_px;
+  unsigned int color;
+  unsigned int stroke_color;
+  float stroke_width;
 };
+
+__device__ float4 unpack_direct_color(unsigned int color) {
+  return make_float4((float)(color & 0xFFu) / 255.0f,
+                     (float)((color >> 8u) & 0xFFu) / 255.0f,
+                     (float)((color >> 16u) & 0xFFu) / 255.0f,
+                     (float)((color >> 24u) & 0xFFu) / 255.0f);
+}
+
+__device__ float direct_median3(float a, float b, float c) {
+  return max(min(a, b), min(max(a, b), c));
+}
 
 __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
                                     int x, int y, int width, int height) {
@@ -217,6 +233,40 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
   const int sx = min(max((int)floorf(u * (float)layer.source_width), 0), layer.source_width - 1);
   const int sy = min(max((int)floorf(v * (float)layer.source_height), 0), layer.source_height - 1);
   const char* row = (const char*)layer.rgba + sy * layer.pitch;
+  if (layer.resource_kind == 2) {
+    // MTSDF resources use the same bit-preserving RGBA8-in-a-float-cell
+    // upload ABI as the Vulkan atlas. CUDA decodes the field at the final
+    // sample position, so DirectYUV never creates a CPU RGBA texture.
+    const unsigned int packed = ((const unsigned int*)row)[sx];
+    const float r = (float)(packed & 0xFFu) / 255.0f;
+    const float g = (float)((packed >> 8u) & 0xFFu) / 255.0f;
+    const float b = (float)((packed >> 16u) & 0xFFu) / 255.0f;
+    const float a_channel = (float)((packed >> 24u) & 0xFFu) / 255.0f;
+    const float msd = direct_median3(r, g, b);
+    const float source_scale = 0.5f *
+        (fabsf(layer.dst_x1 - layer.dst_x0) / (float)layer.source_width +
+         fabsf(layer.dst_y1 - layer.dst_y0) / (float)layer.source_height);
+    const float range = layer.distance_range_px > 0.0f
+        ? layer.distance_range_px : 8.0f;
+    const float fill_alpha = fminf(fmaxf(
+        (msd - 0.5f) * range * source_scale + 0.5f, 0.0f), 1.0f);
+    float4 src = make_float4(0, 0, 0, 0);
+    if (layer.stroke_width > 0.0f && layer.stroke_color != 0u) {
+      const float stroke_alpha = fminf(fmaxf(
+          ((a_channel - 0.5f) * range + layer.stroke_width) *
+              source_scale + 0.5f, 0.0f), 1.0f);
+      const float4 stroke = unpack_direct_color(layer.stroke_color);
+      src = make_float4(stroke.x, stroke.y, stroke.z, stroke.w * stroke_alpha);
+    }
+    const float4 fill = unpack_direct_color(layer.color);
+    const float4 fill_src = make_float4(fill.x, fill.y, fill.z,
+                                        fill.w * fill_alpha);
+    src.x = fill_src.x * fill_src.w + src.x * (1.0f - fill_src.w);
+    src.y = fill_src.y * fill_src.w + src.y * (1.0f - fill_src.w);
+    src.z = fill_src.z * fill_src.w + src.z * (1.0f - fill_src.w);
+    src.w = fill_src.w + src.w * (1.0f - fill_src.w);
+    return src;
+  }
   return ((const float4*)row)[sx];
 }
 
@@ -224,7 +274,7 @@ __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
                                      int x, int y, int width, int height) {
   float4 accum = make_float4(0, 0, 0, 0);
   for (int i = 0; i < count; ++i) {
-    const DirectYuvLayer layer = layers[i];
+    const DirectYuvLayer& layer = layers[i];
     if (x < layer.dst_x0 || x >= layer.dst_x1 ||
         y < layer.dst_y0 || y >= layer.dst_y1) continue;
     float4 src = direct_layer_load(layer, x, y, width, height);

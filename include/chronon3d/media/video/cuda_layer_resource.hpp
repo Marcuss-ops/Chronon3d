@@ -1,17 +1,20 @@
 #pragma once
 
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-
-#include <cuda.h>
-
 #include <cstdint>
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <cuda.h>
+#endif
 
 namespace chronon3d::media {
 
 enum class CudaLayerResourceKind : std::uint8_t {
     Rgba = 0,
     Nv12 = 1,
+    Mtsdf = 2,
 };
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
 /// Backend-neutral CUDA address table for one GPU overlay resource.  This is
 /// consumed by video compositors and intentionally does not depend on Vulkan.
@@ -24,8 +27,12 @@ struct CudaLayerResource {
     int uv_pitch_bytes{0};
     std::uint32_t width{0};
     std::uint32_t height{0};
+    float distance_range_px{8.0f};
+    std::uint32_t color{0xFFFFFFFFu};
+    std::uint32_t stroke_color{0};
+    float stroke_width{0.0f};
 };
 
-} // namespace chronon3d::media
-
 #endif
+
+} // namespace chronon3d::media

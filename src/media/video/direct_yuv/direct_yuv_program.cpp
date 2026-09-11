@@ -31,6 +31,15 @@ namespace media = ::chronon3d::media;
 namespace source_video = ::chronon3d::video;
 namespace {
 
+std::uint32_t pack_text_color(const Color& color) noexcept {
+    const auto to_byte = [](float value) {
+        return static_cast<std::uint32_t>(std::clamp(
+            std::lround(value * 255.0f), 0L, 255L));
+    };
+    return to_byte(color.r) | (to_byte(color.g) << 8) |
+           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
+}
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 bool is_2d_transform(const Transform& t) {
     return std::abs(t.rotation.x) < 1e-3f &&
@@ -130,6 +139,11 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         const std::string layer_name = std::string(layer.name);
         if (layer_resources.find(layer_name) != layer_resources.end()) return true;
         if (layer.nodes.empty()) return true;
+        if (layer.nodes.size() > 1) {
+            reason = "DirectYUV preparation rejects multi-node overlay layer: " +
+                layer_name;
+            return false;
+        }
 
         const auto& node = layer.nodes[0];
         if (node.shape.type() == ShapeType::Image) {
@@ -162,7 +176,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             return true;
         }
         if (node.shape.type() == ShapeType::TextRun || layer.kind == LayerKind::Text) {
-#ifdef CHRONON3D_USE_BLEND2D
             std::string text_content;
             std::string font_path;
             const TextRunShape* prepared_shape = nullptr;
@@ -171,18 +184,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             // subsystem. A layer without one is a preparation failure, not a
             // license to invent 58px white text.
             float font_size = 0.0f;
-            Color fill_color{1.0f, 1.0f, 1.0f, 1.0f};
-            Color stroke_color{0.0f, 0.0f, 0.0f, 0.0f};
-            float stroke_width = 0.0f;
-            bool has_bg = false;
-            Color bg_color{0.0f, 0.0f, 0.0f, 0.0f};
-            float bg_opacity = 0.0f;
-            float bg_radius = 0.0f;
-            float pad_x = 0.0f;
-            float pad_y = 0.0f;
-            float box_w = 0.0f;
-            float box_h = 0.0f;
-            std::string align = "center";
 
             if (node.shape.type() == ShapeType::TextRun) {
                 const auto handle = node.shape.text_run_shape_handle();
@@ -192,14 +193,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     if (s.layout) {
                         text_content = s.layout->source_text;
                         if (!s.layout->font.font_path.empty()) font_path = s.layout->font.font_path;
+                        if (font_path.empty() && !s.layout->font_spans.empty()) {
+                            font_path = s.layout->font_spans.front().font.font_path;
+                        }
                         if (s.layout->font_size > 0.0f) font_size = s.layout->font_size;
-                        box_w = s.layout->bounds.x;
-                        box_h = s.layout->bounds.y;
-                    }
-                    fill_color = s.paint.fill;
-                    if (s.paint.stroke_enabled && s.paint.stroke_width > 0.0f) {
-                        stroke_color = s.paint.stroke_color;
-                        stroke_width = s.paint.stroke_width;
                     }
                 }
             }
@@ -212,7 +209,6 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "text layer has no prepared font size (TextRun shape must carry the canonical layout): " + layer_name;
                 return false;
             }
-            if (node.color.a > 0.0f) fill_color = node.color;
             if (text_content.empty()) {
                 // A text layer with no prepared source text cannot be
                 // rasterized faithfully from the layer name.
@@ -225,9 +221,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "text layer has no prepared TextRunShape: " + layer_name;
                 return false;
             }
-            auto rasterized = rasterize_text_texture(
-                *prepared_shape, fill_color, stroke_color, stroke_width,
-                has_bg, bg_color, bg_opacity, bg_radius, pad_x, pad_y, box_w, box_h, align);
+            auto rasterized = rasterize_text_texture(*prepared_shape);
             watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
 
             bool cache_hit = false;
@@ -236,21 +230,25 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 rasterized.digest, ImageDecodeOptions{},
                 static_cast<std::uint32_t>(rasterized.width),
                 static_cast<std::uint32_t>(rasterized.height), rasterized.gpu_rgba,
-                cache_hit, upload_ms, reason);
+                cache_hit, upload_ms, reason, runtime::PixelFormat::Rgba8Unorm);
             if (!resource) return false;
             watermark_upload_ms += upload_ms;
 
             DirectLayerResourceEntry entry;
             entry.gpu_resource = resource;
-            entry.native_width = static_cast<float>(rasterized.width);
-            entry.native_height = static_cast<float>(rasterized.height);
+            entry.native_width = rasterized.display_width;
+            entry.native_height = rasterized.display_height;
+            entry.kind = media::CudaLayerResourceKind::Mtsdf;
+            entry.distance_range_px = rasterized.distance_range_px;
+            const Color fill_color = node.color.a > 0.0f
+                ? node.color : prepared_shape->paint.fill;
+            entry.color = pack_text_color(fill_color);
+            entry.stroke_color = pack_text_color(prepared_shape->paint.stroke_color);
+            entry.stroke_width = prepared_shape->paint.stroke_enabled
+                ? prepared_shape->paint.stroke_width : 0.0f;
             layer_resources[layer_name] = entry;
             persistent_resources.push_back(resource);
             return true;
-#else
-            reason = "Blend2D is required for direct text rasterization";
-            return false;
-#endif
         }
         return true;
     };
@@ -346,19 +344,26 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     for (const auto& [name, entry] : program->layer_resources_) {
         program->resource_index_.emplace_back(name, &entry);
     }
+    std::sort(program->resource_index_.begin(), program->resource_index_.end(),
+              [](const auto& lhs, const auto& rhs) {
+                  return lhs.first < rhs.first;
+              });
     return program;
 #endif
 }
 
 const DirectLayerResourceEntry* DirectYuvProgram::find_resource(
     std::string_view name) const noexcept {
-    for (const auto& [key, entry] : resource_index_) {
-        if (key == name) return entry;
-    }
-    return nullptr;
+    const auto it = std::lower_bound(
+        resource_index_.begin(), resource_index_.end(), name,
+        [](const auto& entry, std::string_view value) {
+            return entry.first < value;
+        });
+    return it != resource_index_.end() && it->first == name ? it->second : nullptr;
 }
 
 std::shared_ptr<DirectYuvTemplate> DirectYuvProgram::acquire_dynamic_template() {
+    constexpr std::size_t kMaxPooledTemplates = 16;
     for (auto& candidate : dynamic_template_pool_) {
         if (candidate.use_count() == 1) {
             candidate->reset_for_reuse();
@@ -366,7 +371,26 @@ std::shared_ptr<DirectYuvTemplate> DirectYuvProgram::acquire_dynamic_template() 
         }
     }
     auto candidate = std::make_shared<DirectYuvTemplate>();
-    dynamic_template_pool_.push_back(candidate);
+    if (dynamic_template_pool_.size() < kMaxPooledTemplates) {
+        dynamic_template_pool_.push_back(candidate);
+    }
+    return candidate;
+}
+
+std::shared_ptr<DirectYuvFrame> DirectYuvProgram::acquire_frame() {
+    constexpr std::size_t kMaxPooledFrames = 16;
+    for (auto& candidate : frame_pool_) {
+        if (candidate.use_count() == 1) {
+            candidate->decoded = {};
+            candidate->video_layers.clear();
+            candidate->program.reset();
+            return candidate;
+        }
+    }
+    auto candidate = std::make_shared<DirectYuvFrame>();
+    if (frame_pool_.size() < kMaxPooledFrames) {
+        frame_pool_.push_back(candidate);
+    }
     return candidate;
 }
 
@@ -387,7 +411,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     }
     if (!composition_) return nullptr;
 
-    auto result = std::make_shared<DirectYuvFrame>();
+    auto result = acquire_frame();
     result->decoded = std::move(decoded);
 
     if (all_overlay_layers_static_ && video_layers_.empty()) {
@@ -600,6 +624,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         res.pitch_bytes = static_cast<int>(entry.gpu_resource->pitch_bytes);
         res.width = entry.gpu_resource->width;
         res.height = entry.gpu_resource->height;
+        res.kind = entry.kind;
+        res.distance_range_px = entry.distance_range_px;
+        res.color = entry.color;
+        res.stroke_color = entry.stroke_color;
+        res.stroke_width = entry.stroke_width;
         template_frame->resources.push_back(res);
         if (!template_frame->resource_owner) {
             template_frame->resource_owner = entry.gpu_resource;

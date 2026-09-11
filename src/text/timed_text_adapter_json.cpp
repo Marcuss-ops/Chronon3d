@@ -350,7 +350,12 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                         textcore::classify_quality(words_from_source, cue.words.size());
 
                     if (textcore::cue_is_valid(cue)) {
-                        output.accept(std::move(cue));
+                        if (!output.accept(std::move(cue))) {
+                            // The pre-check and builder share the canonical
+                            // predicate; retain the explicit branch so a
+                            // future builder rule cannot be swallowed here.
+                            continue;
+                        }
                     }
                 }
                 j.skip_whitespace();

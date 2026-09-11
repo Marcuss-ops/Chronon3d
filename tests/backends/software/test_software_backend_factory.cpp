@@ -51,6 +51,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/backends/software/runtime_adapter.hpp>
 
 #include <doctest/doctest.h>
 
@@ -73,7 +74,8 @@ struct RendererFixture {
     RendererFixture()
         : runtime(runtime::RuntimeContext::create(
               runtime::RuntimeConfig{Config{}, std::nullopt}).value())
-        , renderer(*runtime, Config{}) {}
+        , renderer(backends::software::make_software_renderer_context(*runtime),
+                   Config{}) {}
 };
 
 // Build a fully-wired SoftwareBackendServices from a live SoftwareRenderer.

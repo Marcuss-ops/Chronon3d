@@ -719,7 +719,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     if (!shape.layout ||
         (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) ||
         shape.animated_doc ||
-        shape.layout->font_spans.size() > 1 || shape.paint.fill_style ||
+        shape.layout->font_spans.empty() || shape.paint.fill_style ||
         shape.paint.stroke_style || shape.material.enabled ||
         shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
@@ -748,26 +748,45 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     const float layout_scale = std::max(1.0f, layout.font_size) /
         static_cast<float>(kEmPx);
 
+    std::uint32_t covered_glyphs = 0;
+    for (const auto& span : layout.font_spans) {
+        if (span.glyph_begin != covered_glyphs ||
+            span.glyph_end < span.glyph_begin ||
+            span.glyph_end > layout.placed.glyphs.size()) {
+            return nullptr;
+        }
+        covered_glyphs = span.glyph_end;
+    }
+    if (covered_glyphs != layout.placed.glyphs.size()) {
+        return nullptr;
+    }
+
     auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
 
     if (!shape.animators.empty()) {
-        prepared->reveal_selector_spec = std::make_shared<GlyphSelectorSpec>(
-            shape.animators.front().selectors.front());
+        const auto& selector_spec = shape.animators.front().selectors.front();
         prepared->reveal_selector = compile_selector(
-            *prepared->reveal_selector_spec,
+            selector_spec,
             layout.units, layout.source_text, &layout.placed);
     }
-    FontFaceHandle font;
+    std::vector<FontFaceHandle> fonts;
     try {
-        font = (text_resources && resolver)
-            ? text_resources->resolve_handle(
-                layout.font.font_path, static_cast<float>(kEmPx),
-                *resolver)
-            : FontFaceHandle{};
+        if (text_resources && resolver) {
+            fonts.reserve(layout.font_spans.size());
+            for (const auto& span : layout.font_spans) {
+                if (span.font.font_path.empty() ||
+                    span.glyph_begin > span.glyph_end ||
+                    span.glyph_end > layout.placed.glyphs.size()) {
+                    return nullptr;
+                }
+                fonts.push_back(text_resources->resolve_handle(
+                    span.font.font_path, static_cast<float>(kEmPx), *resolver));
+            }
+        }
     } catch (...) {
         return nullptr;
     }
-    if (!font.ft_face) {
+    if (fonts.size() != layout.font_spans.size()) {
         return nullptr;
     }
 
@@ -789,12 +808,17 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     pending_heights.reserve(layout.placed.glyphs.size());
     pending_metrics.reserve(layout.placed.glyphs.size());
 
+    std::size_t span_index = 0;
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
+        while (span_index + 1 < layout.font_spans.size() &&
+               i >= layout.font_spans[span_index].glyph_end) {
+            ++span_index;
+        }
         const auto& state = shape.glyphs[i];
         const auto& placed = layout.placed.glyphs[i];
         if (state.glyph_id == 0 || placed.bbox_x1 <= placed.bbox_x0) continue;
         const auto key = runtime::GpuGlyphKey::make(
-            layout.font.font_path, state.glyph_id, 0,
+            layout.font_spans[span_index].font.font_path, state.glyph_id, 0,
             runtime::GlyphRepresentation::Mtsdf, kProfileId, 0);
         keys.push_back(key);
         if (const auto resident = runtime.gpu_glyph_atlas().location(key)) {
@@ -805,8 +829,13 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             continue;
         }
         const auto generated = generate_mtsdf_glyph(
-            font.ft_face, state.glyph_id, kEmPx, kRangePx, kPaddingPx);
-        if (!generated || generated->rgba8.empty()) continue;
+            fonts[span_index].ft_face, state.glyph_id,
+            kEmPx, kRangePx, kPaddingPx);
+        if (!generated || generated->rgba8.empty()) {
+            // A drawable glyph cannot be silently omitted: a partial batch is
+            // visually non-deterministic and must not be marked GPU-ready.
+            return nullptr;
+        }
         const runtime::GpuGlyphMetrics glyph_metrics{
             generated->x_offset, generated->y_offset, generated->advance_x};
         widths.push_back(generated->width);
@@ -902,7 +931,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "MTSDF text route does not support this run"));
     }
 
-    auto prepared = ctx.runtime->gpu_text_prepared_cache().find(shape.layout.get());
+    auto prepared = ctx.runtime->gpu_text_prepared_cache().find(*shape.layout);
     if (!prepared) {
         auto created = prepare_mtsdf_text_run(*ctx.runtime, ctx.text_render_resources,
                                               ctx.asset_resolver, shape);
@@ -911,7 +940,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "MTSDF text route has no resident glyphs"));
         }
-        ctx.runtime->gpu_text_prepared_cache().store(shape.layout.get(), created);
+        ctx.runtime->gpu_text_prepared_cache().store(*shape.layout, created);
         prepared = created;
     }
 

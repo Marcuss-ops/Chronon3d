@@ -132,7 +132,7 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
                     *m_execution_context.runtime, trr, &resolver, *h.value);
                 if (prepared && prepared->ready) {
                     m_execution_context.text.prepared_cache->store(
-                        h.value->layout.get(), prepared);
+                        *h.value->layout, prepared);
                 }
             }
             ++summary.preflight_attempted;

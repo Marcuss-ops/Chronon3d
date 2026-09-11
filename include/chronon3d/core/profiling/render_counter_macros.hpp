@@ -117,6 +117,7 @@ namespace chronon3d {
     X(gpu_text_styled_cache_misses) \
     X(gpu_text_glyphs_built) \
     X(gpu_text_fast_path_success) \
+    X(gpu_text_mtsdf_fallback_count) \
     X(gpu_text_fallback_count) \
     X(gpu_text_instance_upload_count) \
     X(gpu_text_instance_upload_bytes) \

@@ -85,6 +85,7 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
     chronon3d_path_cache
     chronon3d_ffmpeg_full
     chronon3d_media_native
+    chronon3d_text_mtsdf
 )
 
 # Public SDK dependencies: one SSOT drives both the SDK install-interface link

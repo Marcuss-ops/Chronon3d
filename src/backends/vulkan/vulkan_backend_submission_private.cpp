@@ -92,10 +92,10 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
         wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         wait_values.push_back(it->second.image.cuda_timeline
-            ? ++it->second.image.cuda_to_vulkan_value : 0);
+            ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
         signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
         signal_values.push_back(it->second.image.cuda_timeline
-            ? ++it->second.image.vulkan_to_cuda_value : 0);
+            ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
     }
     for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
         if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
@@ -103,7 +103,7 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         if (it == surfaces.physical_surfaces.end()) continue;
         signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
         signal_values.push_back(it->second.image.cuda_timeline
-            ? ++it->second.image.vulkan_to_cuda_value : 0);
+            ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
     }
 #endif
     const VkTimelineSemaphoreSubmitInfo timeline_submit{

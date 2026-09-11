@@ -52,7 +52,6 @@ std::vector<PackedPosition> pack_positions(
 bool GpuTextAtlasCache::acquire(
     std::span<const PackedGlyphBitmap> glyphs,
     PackedTextAtlas& out) {
-    std::lock_guard lock(m_mutex);
     out = {};
     if (!m_assets || glyphs.empty()) return false;
 
@@ -74,62 +73,73 @@ bool GpuTextAtlasCache::acquire(
     }
     const Key key{assets::sha256_string(key_bytes)};
 
-    auto it = m_entries.find(key);
-    const bool cache_hit = it != m_entries.end();
-    if (it == m_entries.end()) {
+    const auto cached = m_entries.get(key);
+    const bool cache_hit = cached && *cached;
+    std::shared_ptr<const Entry> entry;
+    if (cache_hit) {
+        entry = *cached;
+    } else {
+        entry = m_entries.compute_if_absent(key, [&]() {
         std::uint32_t width = 0;
         std::uint32_t height = 0;
         const auto positions = pack_positions(glyphs, width, height);
-        if (positions.size() != glyphs.size()) return false;
+        if (positions.size() != glyphs.size()) {
+            return std::pair<std::shared_ptr<const Entry>, std::size_t>{nullptr, 1};
+        }
 
-        Entry entry;
-        entry.desc = SurfaceDesc::make(
+        auto built = std::make_shared<Entry>();
+        auto& value = *built;
+        value.desc = SurfaceDesc::make(
             width, height, PixelFormat::Rgba32Float,
             ResourceUsage::Storage, LifetimeClass::JobPersistent);
-        entry.atlas.assign(static_cast<std::size_t>(width) * height * 4u,
+        value.atlas.assign(static_cast<std::size_t>(width) * height * 4u,
                            0.0f);
-        entry.placement.width = width;
-        entry.placement.height = height;
-        entry.placement.origin_x.reserve(positions.size());
-        entry.placement.origin_y.reserve(positions.size());
+        value.placement.width = width;
+        value.placement.height = height;
+        value.placement.origin_x.reserve(positions.size());
+        value.placement.origin_y.reserve(positions.size());
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
             const auto pos = positions[i];
-            entry.placement.origin_x.push_back(pos.x);
-            entry.placement.origin_y.push_back(pos.y);
+            value.placement.origin_x.push_back(pos.x);
+            value.placement.origin_y.push_back(pos.y);
             for (std::uint32_t row = 0; row < glyph.height; ++row) {
                 const auto* source = glyph.rgba.data() +
                     static_cast<std::size_t>(row) * glyph.width * 4u;
-                auto* destination = entry.atlas.data() +
+                auto* destination = value.atlas.data() +
                     (static_cast<std::size_t>(pos.y + row) * width + pos.x) * 4u;
                 std::copy_n(source, static_cast<std::size_t>(glyph.width) * 4u,
                             destination);
             }
         }
-        entry.asset_key = GpuAssetKey{
+        value.asset_key = GpuAssetKey{
             key.digest, PixelFormat::Rgba32Float, width, height};
-        it = m_entries.emplace(key, std::move(entry)).first;
+        const auto weight = std::max<std::size_t>(
+            1, value.atlas.size() * sizeof(float) +
+                value.placement.origin_x.size() * sizeof(std::uint32_t) * 2);
+        return std::pair<std::shared_ptr<const Entry>, std::size_t>{
+            std::move(built), weight};
+        });
     }
 
-    auto& entry = it->second;
+    if (!entry) return false;
+
     const auto acquired = m_assets->acquire(
-        entry.asset_key, entry.desc, entry.atlas);
+        entry->asset_key, entry->desc, entry->atlas);
     if (!acquired.ok()) return false;
-    entry.placement.handle = acquired.handle;
-    entry.placement.cache_hit = cache_hit && acquired.cache_hit;
-    entry.placement.uploaded = !acquired.cache_hit;
-    out = entry.placement;
+    out = entry->placement;
+    out.handle = acquired.handle;
+    out.cache_hit = cache_hit && acquired.cache_hit;
+    out.uploaded = !acquired.cache_hit;
     return true;
 }
 
 void GpuTextAtlasCache::clear() noexcept {
-    std::lock_guard lock(m_mutex);
     m_entries.clear();
 }
 
 std::size_t GpuTextAtlasCache::size() const noexcept {
-    std::lock_guard lock(m_mutex);
-    return m_entries.size();
+    return m_entries.stats().current_size;
 }
 
 } // namespace chronon3d::runtime
