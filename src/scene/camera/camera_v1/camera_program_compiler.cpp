@@ -71,10 +71,10 @@ compile_camera(const CameraDescriptor& descriptor,
         // change to the set; restore by erasing so the parent's
         // leave_scope() call (which will run on return) leaves a clean ctx.
         ctx.visited_ids.erase(descriptor.id);
-        return CameraCompileError{
+        return make_camera_compile_error(
             CameraCompileErrorCode::CircularPresetReference,
             "circular catalog reference: " + path
-        };
+        );
     }
     ctx.resolution_stack.push_back(descriptor.id);
 
@@ -105,17 +105,17 @@ compile_camera(const CameraDescriptor& descriptor,
                 // the ref, or we emit a structured error.
                 if (ref->id.empty()) {
                     leave_scope();
-                    return CameraCompileError{
+                    return make_camera_compile_error(
                         CameraCompileErrorCode::InvalidDescriptor,
                         "RegisteredMotionRef has empty id — must name a preset in the catalog"
-                    };
+                    );
                 }
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::MissingPreset,
                     "motion '" + std::string{ref->id}
                         + "' not found in catalog"
-                };
+                );
             }
         } else {
             // TICKET-PHASE-2: NO silent fallback.  A RegisteredMotionRef
@@ -123,25 +123,25 @@ compile_camera(const CameraDescriptor& descriptor,
             // configuration error: the ref can never be resolved.
             if (ref->id.empty()) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidDescriptor,
                     "RegisteredMotionRef has empty id — must name a preset in the catalog"
-                };
+                );
             }
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::MissingPreset,
                 "motion '" + std::string{ref->id}
                     + "' not found in catalog (catalog is null)"
-            };
+            );
         }
     } else if (auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source)) {
         if (traj->trajectory && traj->trajectory->size() == 0) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidTrajectory,
                 "trajectory has zero segments"
-            };
+            );
         }
     }
 
@@ -149,10 +149,10 @@ compile_camera(const CameraDescriptor& descriptor,
     // ── 2a. Empty ID ─────────────────────────────────────────────────
     if (descriptor.id.empty()) {
         leave_scope();
-        return CameraCompileError{
+        return make_camera_compile_error(
             CameraCompileErrorCode::InvalidDescriptor,
             "descriptor.id is empty — every camera descriptor must have a unique id"
-        };
+        );
     }
 
     // ── 2b. Projection validation (FOV / Zoom) ──────────────────────
@@ -165,35 +165,35 @@ compile_camera(const CameraDescriptor& descriptor,
             if (av.keyframes().empty()) {
                 float v = av.evaluate(0.0);
                 if (!std::isfinite(v)) {
-                    return CameraCompileError{
+                    return make_camera_compile_error(
                         CameraCompileErrorCode::NonFiniteValue,
                         "FOV is not finite (got " + std::to_string(v) + ")"
-                    };
+                    );
                 }
                 if (v <= 0.0f || v >= 179.0f) {
-                    return CameraCompileError{
+                    return make_camera_compile_error(
                         CameraCompileErrorCode::InvalidProjection,
                         "FOV must be positive, and < 179\u00b0 (got " +
                             std::to_string(v) + ")"
-                    };
+                    );
                 }
             } else {
                 for (const auto& kf : av.keyframes()) {
                     float v = kf.value;
                     if (!std::isfinite(v)) {
-                        return CameraCompileError{
+                        return make_camera_compile_error(
                             CameraCompileErrorCode::NonFiniteValue,
                             "FOV keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is not finite (got " + std::to_string(v) + ")"
-                        };
+                        );
                     }
                     if (v <= 0.0f || v >= 179.0f) {
-                        return CameraCompileError{
+                        return make_camera_compile_error(
                             CameraCompileErrorCode::InvalidProjection,
                             "FOV keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is invalid (" + std::to_string(v) +
                                 ") \u2014 must be positive, and < 179\u00b0"
-                        };
+                        );
                     }
                 }
             }
@@ -203,34 +203,34 @@ compile_camera(const CameraDescriptor& descriptor,
             if (av.keyframes().empty()) {
                 float v = av.evaluate(0.0);
                 if (!std::isfinite(v)) {
-                    return CameraCompileError{
+                    return make_camera_compile_error(
                         CameraCompileErrorCode::NonFiniteValue,
                         "zoom is not finite (got " + std::to_string(v) + ")"
-                    };
+                    );
                 }
                 if (v <= 0.0f) {
-                    return CameraCompileError{
+                    return make_camera_compile_error(
                         CameraCompileErrorCode::InvalidProjection,
                         "zoom must be positive (got " + std::to_string(v) + ")"
-                    };
+                    );
                 }
             } else {
                 for (const auto& kf : av.keyframes()) {
                     float v = kf.value;
                     if (!std::isfinite(v)) {
-                        return CameraCompileError{
+                        return make_camera_compile_error(
                             CameraCompileErrorCode::NonFiniteValue,
                             "zoom keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is not finite (got " + std::to_string(v) + ")"
-                        };
+                        );
                     }
                     if (v <= 0.0f) {
-                        return CameraCompileError{
+                        return make_camera_compile_error(
                             CameraCompileErrorCode::InvalidProjection,
                             "zoom keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is invalid (" + std::to_string(v) +
                                 ") \u2014 must be positive"
-                        };
+                        );
                     }
                 }
             }
@@ -259,69 +259,69 @@ compile_camera(const CameraDescriptor& descriptor,
         // distinguish numeric corruption from configuration error.
         if (!std::isfinite(lens.focal_length)) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens focal_length is not finite (got " +
                     std::to_string(lens.focal_length) + ")"
-            };
+            );
         }
         if (lens.focal_length <= 0.0f) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens focal_length must be positive (got " +
                     std::to_string(lens.focal_length) + ")"
-            };
+            );
         }
         if (!std::isfinite(lens.sensor_width) || !std::isfinite(lens.sensor_height)) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens sensor dimensions are not finite (got " +
                     std::to_string(lens.sensor_width) + "\u00d7" +
                     std::to_string(lens.sensor_height) + ")"
-            };
+            );
         }
         if (lens.sensor_width <= 0.0f || lens.sensor_height <= 0.0f) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens sensor dimensions must be positive (got " +
                     std::to_string(lens.sensor_width) + "\u00d7" +
                     std::to_string(lens.sensor_height) + ")"
-            };
+            );
         }
         if (!std::isfinite(lens.pixel_aspect)) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens pixel_aspect is not finite (got " +
                     std::to_string(lens.pixel_aspect) + ")"
-            };
+            );
         }
         if (lens.pixel_aspect <= 0.0f) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens pixel_aspect must be positive (got " +
                     std::to_string(lens.pixel_aspect) + ")"
-            };
+            );
         }
         if (!std::isfinite(lens.anamorphic_squeeze)) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens anamorphic_squeeze is not finite (got " +
                     std::to_string(lens.anamorphic_squeeze) + ")"
-            };
+            );
         }
         if (lens.anamorphic_squeeze <= 0.0f) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens anamorphic_squeeze must be positive (got " +
                     std::to_string(lens.anamorphic_squeeze) + ")"
-            };
+            );
         }
     }
 
@@ -331,35 +331,35 @@ compile_camera(const CameraDescriptor& descriptor,
         if (is_motion_blur_active(mb)) {
             if (!std::isfinite(static_cast<float>(mb.samples))) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "motion_blur.samples is not finite (got " +
                         std::to_string(mb.samples) + ")"
-                };
+                );
             }
             if (mb.samples <= 0) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidLens,
                     "motion_blur.samples must be positive when motion blur is active (got " +
                         std::to_string(mb.samples) + ")"
-                };
+                );
             }
             if (!std::isfinite(mb.shutter_angle_deg)) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "motion_blur.shutter_angle_deg is not finite (got " +
                         std::to_string(mb.shutter_angle_deg) + ")"
-                };
+                );
             }
             if (mb.shutter_angle_deg <= 0.0f || mb.shutter_angle_deg > 360.0f) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidLens,
                     "motion_blur.shutter_angle_deg must be in (0, 360] (got " +
                         std::to_string(mb.shutter_angle_deg) + ")"
-                };
+                );
             }
         }
     }
@@ -369,22 +369,22 @@ compile_camera(const CameraDescriptor& descriptor,
         if (auto* dist = std::get_if<DistanceConstraint>(&descriptor.constraints[i])) {
             if (!std::isfinite(dist->min_distance) || !std::isfinite(dist->max_distance)) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "constraints[" + std::to_string(i) +
                         "] DistanceConstraint: min_distance or max_distance is not finite"
-                };
+                );
             }
             if (dist->min_distance > dist->max_distance) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidConstraint,
                     "constraints[" + std::to_string(i) +
                         "] DistanceConstraint: min_distance (" +
                         std::to_string(dist->min_distance) +
                         ") > max_distance (" +
                         std::to_string(dist->max_distance) + ")"
-                };
+                );
             }
         }
     }
@@ -393,10 +393,10 @@ compile_camera(const CameraDescriptor& descriptor,
     if (auto* traj = std::get_if<TrajectoryMotion>(&program.descriptor_.source)) {
         if (!traj->trajectory) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidTrajectory,
                 "TrajectoryMotion source has null trajectory"
-            };
+            );
         }
         const auto& segs = traj->trajectory->segments();
         const auto n_pts = traj->trajectory->points().size();
@@ -409,32 +409,32 @@ compile_camera(const CameraDescriptor& descriptor,
             if ((!hold_segment && seg.from_idx >= seg.to_idx) ||
                 seg.from_idx >= n_pts || seg.to_idx >= n_pts) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidSegmentIndex,
                     "trajectory segment[" + std::to_string(i) +
                         "] has invalid indices: from_idx=" +
                         std::to_string(seg.from_idx) + " to_idx=" +
                         std::to_string(seg.to_idx) +
                         " (trajectory has " + std::to_string(n_pts) + " points)"
-                };
+                );
             }
             if (!std::isfinite(seg.duration_frames)) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "trajectory segment[" + std::to_string(i) +
                         "] has non-finite duration: " +
                         std::to_string(seg.duration_frames)
-                };
+                );
             }
             if (seg.duration_frames <= 0.0f) {
                 leave_scope();
-                return CameraCompileError{
+                return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidTrajectory,
                     "trajectory segment[" + std::to_string(i) +
                         "] has non-positive duration: " +
                         std::to_string(seg.duration_frames)
-                };
+                );
             }
         }
     }
@@ -452,11 +452,11 @@ compile_camera(const CameraDescriptor& descriptor,
     if (auto* lal = std::get_if<LookAtLayer>(&descriptor.orientation)) {
         if (lal->target.empty()) {
             leave_scope();
-            return CameraCompileError{
+            return make_camera_compile_error(
                 CameraCompileErrorCode::MissingTarget,
                 "LookAtLayer orientation has an empty target string \u2014 "
                 "must name a layer for world-position resolution"
-            };
+            );
         }
     }
 

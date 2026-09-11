@@ -22,8 +22,8 @@ contract before the prepared execution plan migration.
 | `chronon3d::graph::ScopeErrorCode` | Executor | Scope diagnostics | zero direct constructions outside scope adapter | scope validation tests | scope detail enum | ADAPTER_ONLY |
 | `chronon3d::TextErrorCode` | Text | Text domain detail | zero direct constructions outside text adapter | text error corpus | text detail enum | ADAPTER_ONLY |
 | `chronon3d::TextLayoutErrorKind` | Text | Layout detail | zero direct constructions outside text adapter | layout failure tests | layout detail enum | ADAPTER_ONLY |
-| `chronon3d::CameraErrorCode` | Camera | Camera detail | zero direct constructions outside camera adapter | camera failure tests | camera detail enum | ACTIVE |
-| `chronon3d::CameraCompileErrorCode` | Camera/compiler | Compile detail | zero direct constructions outside camera adapter | camera compile tests | camera detail enum | ACTIVE |
+| `chronon3d::CameraErrorCode` | Camera | Camera detail | zero direct constructions outside camera adapter | camera failure tests | camera detail enum | ADAPTER_ONLY |
+| `chronon3d::CameraCompileErrorCode` | Camera/compiler | Compile detail | zero direct constructions outside camera adapter | camera compile tests | camera detail enum | ADAPTER_ONLY |
 | `chronon3d::presets::MotionErrorCode` | Presets | Preset lookup detail | zero direct constructions outside preset adapter | preset error tests | motion detail enum | ACTIVE |
 | `chronon3d::media::video::MediaProbeErrorCode` | Media | Probe detail | zero direct constructions outside media adapter | media probe tests | probe detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::VideoSinkError` | Media | Sink detail | zero direct constructions outside sink adapter | sink lifecycle tests | sink detail enum | ACTIVE |
