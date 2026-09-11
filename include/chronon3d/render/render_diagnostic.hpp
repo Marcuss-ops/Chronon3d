@@ -60,6 +60,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::render {
@@ -157,6 +158,24 @@ struct RenderDiagnostic {
     std::string composition_id;   ///< Empty when not PrecompExecute stage.
     std::string message;          ///< Free-form, never empty in practice.
 };
+
+// Render diagnostic compatibility boundary. The diagnostic code remains a
+// stable detail enum, but aggregate construction is exposed through one
+// named adapter for future producers.
+[[nodiscard]] inline RenderDiagnostic make_render_diagnostic(
+    RenderDiagnosticCode code,
+    RenderDiagnosticSeverity severity,
+    RenderStage stage,
+    chronon3d::Frame frame,
+    std::string composition_id,
+    std::string message) {
+    return RenderDiagnostic{
+        code, severity, stage, frame,
+        chronon3d::graph::kInvalidGraphInstanceId,
+        chronon3d::graph::kInvalidStableNodeId,
+        std::move(composition_id), std::move(message)
+    };
+}
 
 /// Aggregate error report.  Carries the categorical `code` + `stage`
 /// + `frame` of the primary failure, plus a free-form `message` and a

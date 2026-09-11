@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -51,6 +52,20 @@ struct ValidationIssue {
 
     std::string to_string() const;
 };
+
+// Render-plan compatibility boundary. Validator diagnostics keep their
+// legacy detail kind, while construction is centralized at this adapter.
+[[nodiscard]] inline ValidationIssue make_validation_issue(
+    std::string path,
+    ValidationIssueKind kind,
+    std::string expected,
+    std::string actual,
+    std::string detail) {
+    return ValidationIssue{
+        std::move(path), kind, std::move(expected), std::move(actual),
+        std::move(detail)
+    };
+}
 
 struct ValidationResult {
     std::vector<ValidationIssue> issues;

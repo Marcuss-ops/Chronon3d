@@ -67,8 +67,9 @@ ValidationResult validate_render_plan(const nlohmann::json& root) {
         validator.validate(root, handler);
         result.issues = validation::adapt_json_schema_diagnostics(root, handler.errors);
     } catch (const std::exception& error) {
-        result.issues.push_back({"<root>", ValidationIssueKind::SchemaViolation,
-                                 "valid JSON Schema", "validator error", error.what()});
+        result.issues.push_back(make_validation_issue(
+            "<root>", ValidationIssueKind::SchemaViolation,
+            "valid JSON Schema", "validator error", error.what()));
     }
     return result;
 }
