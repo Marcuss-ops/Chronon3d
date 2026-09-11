@@ -85,26 +85,14 @@ struct alignas(16) GpuGlyphStatic {
 static_assert(sizeof(GpuGlyphStatic) == 48,
               "GpuGlyphStatic must be 48 bytes matching std430");
 
-struct alignas(16) GpuTextRunDynamic {
-    float tx{0.0f};
-    float ty{0.0f};
-    float sx{1.0f};
-    float sy{1.0f};
-    float opacity{1.0f};
-    std::uint32_t color{0xFFFFFFFF};
-    std::uint32_t visible_glyph_count{0xFFFFFFFFu};
-    std::uint32_t flags{0};
-    std::uint32_t stroke_color{0};
-    std::uint32_t shadow_color{0};
-    std::uint32_t effect_flags{0};
-    std::uint32_t distance_range_bits{0};
-    float stroke_width{0.0f};
-    float shadow_dx{0.0f};
-    float shadow_dy{0.0f};
-    float shadow_blur{0.0f};
-};
-static_assert(sizeof(GpuTextRunDynamic) == 64,
-              "GpuTextRunDynamic must be 64 bytes");
+// The tiled shaders consume the canonical 112-byte runtime record.  Keeping
+// a second, shorter mirror here used to make the first six dynamic animator
+// fields invisible to Vulkan (and shifted every following array element from
+// the shader's point of view).  The public record is now the sole host/shader
+// layout authority for selector, tracking and effect bindings.
+using GpuTextRunDynamic = runtime::TextRunDynamic;
+static_assert(sizeof(GpuTextRunDynamic) == 112,
+              "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
 
 } // namespace
 
@@ -177,22 +165,9 @@ void VulkanBackend::Impl::draw_text_batch(
     for (std::size_t r = 0; r < runs.size(); ++r) {
         const auto& run = runs[r];
         auto& gr = gpu_runs[r];
-        gr.tx = run.tx;
-        gr.ty = run.ty;
+        gr = run;
         gr.sx = (run.sx != 0.0f) ? run.sx : 1.0f;
         gr.sy = (run.sy != 0.0f) ? run.sy : 1.0f;
-        gr.opacity = run.opacity;
-        gr.color = run.color;
-        gr.visible_glyph_count = run.visible_glyph_count;
-        gr.flags = run.flags;
-        gr.stroke_color = run.stroke_color;
-        gr.shadow_color = run.shadow_color;
-        gr.effect_flags = run.effect_flags;
-        gr.distance_range_bits = run.distance_range_bits;
-        gr.stroke_width = run.stroke_width;
-        gr.shadow_dx = run.shadow_dx;
-        gr.shadow_dy = run.shadow_dy;
-        gr.shadow_blur = run.shadow_blur;
     }
 
     std::int32_t dispatch_x0 = static_cast<std::int32_t>(dst_image.width);
