@@ -200,3 +200,10 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/core/tracing/trace_session.hpp"]
 patterns = ["Result<bool,\\s*TraceError>\\s*\\(\\s*TraceError::"]
 skip_comments = true
+
+[[scan]]
+name = "conversion_result_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/media/frame_conversion/frame_converter.hpp"]
+patterns = ["\\bConvertFrameResult\\s*\\{"]
+skip_comments = true

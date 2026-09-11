@@ -96,6 +96,16 @@ struct ConvertFrameResult {
     uint64_t conversion_ns{0};
 };
 
+// Conversion compatibility boundary. Keep the result ABI aggregate stable,
+// but centralize all failure/success result construction.
+[[nodiscard]] constexpr ConvertFrameResult make_convert_frame_result(
+    bool success,
+    FrameConversionBackend backend,
+    ConversionError error = ConversionError::None,
+    uint64_t conversion_ns = 0) noexcept {
+    return ConvertFrameResult{success, backend, error, conversion_ns};
+}
+
 // ── Capability advertisement ──────────────────────────────────────────────
 
 /// Per-build static capabilities of the available backends.
