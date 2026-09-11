@@ -84,6 +84,11 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
             ? 1.0f : instance.src_y1;
         layer.opacity = instance.opacity;
         layer.blend_mode = instance.blend == BlendMode::Add ? 1 : 0;
+        layer.resource_kind = static_cast<int>(resource.kind);
+        layer.distance_range_px = resource.distance_range_px;
+        layer.color = resource.color;
+        layer.stroke_color = resource.stroke_color;
+        layer.stroke_width = resource.stroke_width;
     }
 
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");

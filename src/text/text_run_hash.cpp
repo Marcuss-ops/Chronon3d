@@ -46,6 +46,17 @@ u64 TextRunLayout::layout_hash() const {
     // advances on ligature-heavy runs).
     seed = hash_combine(seed, hash_string(features));
     seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
+    // Font fallback spans are part of the shaped result. Two layouts with
+    // identical primary-font metadata can still contain different glyph
+    // authorities, so omitting them aliases prepared glyph caches.
+    for (const auto& span : font_spans) {
+        seed = hash_combine(seed, hash_string(span.font.font_path));
+        seed = hash_combine(seed, hash_string(span.font.font_family));
+        seed = hash_combine(seed, hash_value(span.font.font_weight));
+        seed = hash_combine(seed, hash_string(span.font.font_style));
+        seed = hash_combine(seed, hash_value(span.glyph_begin));
+        seed = hash_combine(seed, hash_value(span.glyph_end));
+    }
     return seed;
 }
 

@@ -11,7 +11,7 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <unordered_map>
-#include <string>
+#include <string_view>
 
 namespace chronon3d::graph::detail {
 
@@ -19,7 +19,7 @@ namespace chronon3d::graph::detail {
 /// Currently handles animated blur radius updates.
 void refresh_effect_stack_node(
     EffectStackNode& node,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     RenderGraphContext& ctx);
 
 } // namespace chronon3d::graph::detail

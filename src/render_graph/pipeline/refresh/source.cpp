@@ -12,8 +12,8 @@ namespace chronon3d::graph::detail {
 
 void refresh_source_node(
     SourceNode& node,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
-    const std::unordered_map<std::string, const RenderNode*>& root_nodes_by_name,
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
+    const std::unordered_map<std::string_view, const RenderNode*>& root_nodes_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
     RenderGraphContext& ctx)
 {
@@ -21,7 +21,7 @@ void refresh_source_node(
 
     // ── Case 1: Root-level source (no layer) ──────────────────────────
     if (layer_id.empty()) {
-        const auto it = root_nodes_by_name.find(std::string{node.name()});
+        const auto it = root_nodes_by_name.find(node.name());
         if (it == root_nodes_by_name.end()) return;
         const RenderNode src_node = materialize_mesh_node(*it->second, ctx);
         // Canonical cache identity: the builder folds camera state by

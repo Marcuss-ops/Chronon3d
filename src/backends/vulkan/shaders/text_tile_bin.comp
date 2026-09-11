@@ -64,6 +64,7 @@ layout(push_constant) uniform PushConstants {
 } params;
 
 void main() {
+    const uint kOverflowBit = 0x80000000u;
     uint gid = gl_GlobalInvocationID.x;
     if (gid >= params.glyph_count) return;
 
@@ -115,6 +116,12 @@ void main() {
             uint slot = atomicAdd(tile_glyph_counts[tile_idx], 1);
             if (slot < params.max_glyphs_per_tile) {
                 tile_glyph_indices[tile_idx * params.max_glyphs_per_tile + slot] = gid;
+            } else {
+                // The count buffer doubles as the certification flag.  The
+                // raster pass drops the complete tile when this bit is set,
+                // so an overfull tile can never silently render a truncated
+                // contributor list.
+                atomicOr(tile_glyph_counts[tile_idx], kOverflowBit);
             }
         }
     }

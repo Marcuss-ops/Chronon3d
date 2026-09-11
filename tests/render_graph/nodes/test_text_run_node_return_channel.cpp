@@ -161,6 +161,10 @@ std::shared_ptr<TextRunShape> make_minimal_shape() {
     layout->placed.font_size    = 32.0f;
 
     auto shape = std::make_shared<TextRunShape>();
+    GlyphInstanceState state;
+    state.glyph_id = 0;
+    state.layout_position = Vec2(0.0f, 0.0f);
+    shape->glyphs.push_back(state);
     shape->layout = layout;
     return shape;
 }

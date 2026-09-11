@@ -25,9 +25,10 @@ enum class CudaYuvFormat : std::uint8_t {
 };
 
 /// CUDA address table for the resources referenced by a GpuLayerBatch.
-/// `rgba` points to device-local float4 pixels; no host pixel storage is
-/// involved in the direct YUV path.  The table is indexed by
-/// LayerInstance::resource_index.
+/// `rgba` points to device-local pixels; ordinary RGBA resources use float4
+/// texels while MTSDF resources use the bit-preserving RGBA8-in-a-float-cell
+/// atlas ABI shared with Vulkan. No host pixel storage is involved in the
+/// direct YUV path. The table is indexed by LayerInstance::resource_index.
 using CudaLayerResource = ::chronon3d::media::CudaLayerResource;
 
 /// Owns CUDA kernels for NV12/RGBA interop without host staging. The bridge

@@ -86,13 +86,21 @@ vec4 unpack_color(uint c) {
 }
 
 void main() {
+    const uint kOverflowBit = 0x80000000u;
     uint tx = gl_WorkGroupID.x;
     uint ty = gl_WorkGroupID.y;
     uint tile_idx = ty * params.tiles_x + tx;
     uint tid = gl_LocalInvocationIndex;
 
     if (tid == 0) {
-        s_count = min(min(tile_glyph_counts[tile_idx], params.max_glyphs_per_tile), 256u);
+        const uint raw_count = tile_glyph_counts[tile_idx];
+        // Fail closed: a tile with more contributors than its bounded index
+        // list is not partially rasterized.  Partial output would be a
+        // correctness bug because the missing glyph depends on invocation
+        // order.  The high bit is written by text_tile_bin atomically.
+        s_count = (raw_count & kOverflowBit) != 0u
+            ? 0u
+            : min(min(raw_count, params.max_glyphs_per_tile), 256u);
     }
     barrier();
 

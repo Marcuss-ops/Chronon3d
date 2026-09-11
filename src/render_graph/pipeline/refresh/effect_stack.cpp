@@ -6,7 +6,7 @@ namespace chronon3d::graph::detail {
 
 void refresh_effect_stack_node(
     EffectStackNode& node,
-    const std::unordered_map<std::string, const ResolvedLayer*>& resolved_by_name,
+    const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     RenderGraphContext& ctx)
 {
     const std::string layer_id{node.layer_id()};

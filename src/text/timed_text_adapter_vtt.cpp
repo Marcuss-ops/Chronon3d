@@ -200,7 +200,12 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
         textcore::attach_uniform_words(cue, cue_text,
             /*skip_angle_tags*/true, /*include_cr*/true);
 
-        output.accept(std::move(cue));
+        if (!output.accept(std::move(cue))) {
+            // Keep malformed cues out of the canonical document; the
+            // interval/text checks above are advisory because tag stripping
+            // can still invalidate the final cue.
+            continue;
+        }
     }
 
     return output.finish();

@@ -66,6 +66,7 @@ void VulkanBackend::Impl::create_cuda_external_surface(
     auto& physical = surfaces.physical_surfaces[slot];
     make_image(physical.image, desc.width, desc.height, true,
                to_vk_format(desc.format));
+    physical.image.interop_generation = std::make_shared<InteropGeneration>();
     try {
         // Timeline is the production-preferred CUDA interop protocol. Binary
         // semaphores remain a certified compatibility fallback for drivers
@@ -173,7 +174,8 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
     return CudaExternalMemoryInfo{
         fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
         image_it->second.image.width, image_it->second.image.height,
-        is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline};
+        is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline,
+        image_it->second.image.interop_generation};
 }
 
 void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(
