@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/error.hpp>
 
 namespace chronon3d::graph {
 
@@ -29,6 +30,17 @@ enum class FrameExecutionPath : std::uint8_t {
         case FrameExecutionPath::FullRgb: return "FullRgb";
     }
     return "Unknown";
+}
+
+/// Canonical detail adapter for resolver telemetry. ExecutionPath is a
+/// resolver output, not a replacement for chronon::ErrorCategory.
+[[nodiscard]] inline chronon::Error canonical_error(FrameExecutionPath path) {
+    return chronon::from_legacy<FrameExecutionPath>(
+        chronon::ErrorCategory::Recoverable,
+        "frame_execution_path",
+        "chronon3d::graph::FrameExecutionPath",
+        to_string(path),
+        "frame execution path resolved");
 }
 
 /// Backend-neutral descriptor for one untouched compressed GOP. It contains

@@ -12,6 +12,7 @@
 
 #include <chronon3d/runtime/bounded_channel.hpp>
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
+#include <chronon3d/core/types/error.hpp>
 
 namespace chronon3d::runtime {
 
@@ -28,6 +29,27 @@ enum class AsyncEncoderSinkState : std::uint8_t {
     Flushed,
     Closed,
 };
+
+[[nodiscard]] constexpr std::string_view to_string(AsyncEncoderSinkState state) noexcept {
+    switch (state) {
+        case AsyncEncoderSinkState::Running: return "Running";
+        case AsyncEncoderSinkState::Draining: return "Draining";
+        case AsyncEncoderSinkState::Flushed: return "Flushed";
+        case AsyncEncoderSinkState::Closed: return "Closed";
+    }
+    return "Unknown";
+}
+
+/// Canonical detail adapter for encoder lifecycle telemetry. Lifecycle state
+/// is retained as a state machine and is never used as an error category.
+[[nodiscard]] inline chronon::Error canonical_error(AsyncEncoderSinkState state) {
+    return chronon::from_legacy<AsyncEncoderSinkState>(
+        chronon::ErrorCategory::Recoverable,
+        "encoder_sink",
+        "chronon3d::runtime::AsyncEncoderSinkState",
+        to_string(state),
+        "async encoder sink state");
+}
 
 /// Generic asynchronous encoder & muxer sink that decouples frame rendering
 /// from hardware encoding and bitstream muxing.

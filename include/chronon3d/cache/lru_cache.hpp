@@ -8,6 +8,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chronon3d/core/types/error.hpp>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -36,6 +37,28 @@ enum class CacheRemovalReason {
     Clear,
     Replace,
 };
+
+[[nodiscard]] constexpr std::string_view to_string(CacheRemovalReason reason) noexcept {
+    switch (reason) {
+        case CacheRemovalReason::Capacity: return "Capacity";
+        case CacheRemovalReason::Resize: return "Resize";
+        case CacheRemovalReason::ExplicitErase: return "ExplicitErase";
+        case CacheRemovalReason::Clear: return "Clear";
+        case CacheRemovalReason::Replace: return "Replace";
+    }
+    return "Unknown";
+}
+
+/// Canonical detail adapter for eviction telemetry. Eviction is not itself a
+/// job failure, so it is represented as Recoverable detail at this boundary.
+[[nodiscard]] inline chronon::Error canonical_error(CacheRemovalReason reason) {
+    return chronon::from_legacy<CacheRemovalReason>(
+        chronon::ErrorCategory::Recoverable,
+        "cache",
+        "chronon3d::cache::CacheRemovalReason",
+        to_string(reason),
+        "cache entry removed");
+}
 
 enum class CapacityMode {
     Weight,

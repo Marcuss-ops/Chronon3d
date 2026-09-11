@@ -1,6 +1,6 @@
 # TICKET-ERROR-MODEL-CANONICAL — canonical error model
 
-**Status:** ACTIVE — Phase 1 cleanup checkpoint
+**Status:** COMPLETE — Phase 1 clean-core checkpoint
 **Owner:** Runtime and render-graph maintainers
 
 ## Scope
@@ -35,11 +35,11 @@ contract before the prepared execution plan migration.
 | `chronon3d::render_plan::ValidationIssueKind` | Plan | Validation detail | zero direct constructions outside plan adapter | render-plan validation corpus | validation detail enum | ADAPTER_ONLY |
 | `chronon3d::runtime::RuntimeBuildError::Code` | Runtime | Build detail | zero direct constructions outside runtime adapter | runtime build tests | build detail enum | ADAPTER_ONLY |
 | `chronon3d::runtime::PreparationError::Code` | Runtime | Preparation detail | zero direct constructions outside preparation adapter | preparation tests | preparation detail enum | ADAPTER_ONLY |
-| `chronon3d::scene::CameraFailurePolicy` | Scene | Policy detail | zero direct constructions outside scene adapter | camera policy tests | policy enum | ACTIVE |
-| `chronon3d::graph::FrameExecutionPath` | Executor | Path detail | zero direct constructions outside executor adapter | execution-path tests | path enum | ACTIVE |
-| `chronon3d::cache::CacheRemovalReason` | Cache | Eviction detail | zero direct constructions outside cache adapter | cache eviction tests | cache detail enum | ACTIVE |
-| `chronon3d::runtime::AsyncEncoderSinkState` | Encoder | Sink state detail | zero direct constructions outside encoder adapter | encoder lifecycle tests | sink state enum | ACTIVE |
-| `chronon3d::runtime::GpuMemoryPressure` | Runtime | Memory pressure detail | zero direct constructions outside memory adapter | pressure/device-loss tests | memory detail enum | ACTIVE |
+| `chronon3d::scene::CameraFailurePolicy` | Scene | Policy detail | canonical_error(policy) is the only error-boundary adapter; policy remains control state | canonical state-detail propagation test | policy enum after ABI/source compatibility migration | ADAPTER_ONLY |
+| `chronon3d::graph::FrameExecutionPath` | Executor | Path detail | canonical_error(path) is the only error-boundary adapter; path remains resolver output | canonical state-detail propagation test | path enum after ABI/source compatibility migration | ADAPTER_ONLY |
+| `chronon3d::cache::CacheRemovalReason` | Cache | Eviction detail | canonical_error(reason) is the only error-boundary adapter; reason remains cache telemetry | canonical state-detail propagation test | cache detail enum after ABI/source compatibility migration | ADAPTER_ONLY |
+| `chronon3d::runtime::AsyncEncoderSinkState` | Encoder | Sink state detail | canonical_error(state) is the only error-boundary adapter; state remains lifecycle state | canonical state-detail propagation test | sink state enum after ABI/source compatibility migration | ADAPTER_ONLY |
+| `chronon3d::runtime::GpuMemoryPressure` | Runtime | Memory pressure detail | canonical_error(pressure) is the only error-boundary adapter; pressure remains telemetry | canonical state-detail propagation test | memory detail enum after ABI/source compatibility migration | ADAPTER_ONLY |
 
 ## Exit gate
 
@@ -60,5 +60,8 @@ The inventory is exact: 28 live legacy enum/detail types, with no duplicate
 `MediaProbeErrorCode` row and no rows for retired/non-existent
 `AssetPreflightErrorCode`, `MeshLoadErrorCode`, or `ResourcePreparationError`.
 `from_legacy()` is fail-closed for any type not present in that inventory.
-The remaining ACTIVE rows are real migration debt and stay open until their
-direct constructions move behind adapters.
+All rows are now adapter-only. The five state/policy types are deliberately
+not replaced by ErrorCategory: they are resolver/control-state values, not
+failures. Their explicit canonical_error() adapters make the boundary
+mechanical while preserving source/ABI compatibility until the owning public
+interfaces can be retired.

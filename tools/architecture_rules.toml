@@ -235,3 +235,43 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render/render_diagnostic.hpp"]
 patterns = ["\\bRenderDiagnostic\\s*\\{"]
 skip_comments = true
+
+[[contract]]
+name = "canonical_camera_failure_policy_adapter"
+file = "include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
+required_patterns = [
+  "canonical_error\\(CameraFailurePolicy",
+  "from_legacy<CameraFailurePolicy>",
+]
+
+[[contract]]
+name = "canonical_frame_execution_path_adapter"
+file = "include/chronon3d/render_graph/pipeline/execution_decision.hpp"
+required_patterns = [
+  "canonical_error\\(FrameExecutionPath",
+  "from_legacy<FrameExecutionPath>",
+]
+
+[[contract]]
+name = "canonical_cache_removal_reason_adapter"
+file = "include/chronon3d/cache/lru_cache.hpp"
+required_patterns = [
+  "canonical_error\\(CacheRemovalReason",
+  "from_legacy<CacheRemovalReason>",
+]
+
+[[contract]]
+name = "canonical_async_encoder_state_adapter"
+file = "include/chronon3d/runtime/async_encoder_sink.hpp"
+required_patterns = [
+  "canonical_error\\(AsyncEncoderSinkState",
+  "from_legacy<AsyncEncoderSinkState>",
+]
+
+[[contract]]
+name = "canonical_gpu_memory_pressure_adapter"
+file = "include/chronon3d/runtime/gpu_memory_budget.hpp"
+required_patterns = [
+  "canonical_error\\(GpuMemoryPressure",
+  "from_legacy<GpuMemoryPressure>",
+]

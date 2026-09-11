@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <limits>
 
+#include <chronon3d/core/types/error.hpp>
+
 namespace chronon3d::runtime {
 
 struct GpuMemoryBudgetPolicy {
@@ -19,6 +21,27 @@ enum class GpuMemoryPressure : std::uint8_t {
     Soft,
     Critical,
 };
+
+[[nodiscard]] constexpr std::string_view to_string(GpuMemoryPressure pressure) noexcept {
+    switch (pressure) {
+        case GpuMemoryPressure::Normal: return "Normal";
+        case GpuMemoryPressure::Soft: return "Soft";
+        case GpuMemoryPressure::Critical: return "Critical";
+    }
+    return "Unknown";
+}
+
+/// Canonical detail adapter for the budget resolver snapshot. A critical
+/// pressure reading is telemetry; device loss is assigned only when the
+/// backend actually reports that operation failure.
+[[nodiscard]] inline chronon::Error canonical_error(GpuMemoryPressure pressure) {
+    return chronon::from_legacy<GpuMemoryPressure>(
+        chronon::ErrorCategory::Recoverable,
+        "gpu_memory",
+        "chronon3d::runtime::GpuMemoryPressure",
+        to_string(pressure),
+        "GPU memory pressure resolved");
+}
 
 struct GpuMemoryBudgetSnapshot {
     std::uint64_t usage_bytes{0};
