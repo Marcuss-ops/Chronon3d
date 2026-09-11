@@ -159,6 +159,48 @@ void build_diagnostics_sections(
     put_wt("unaccounted_ms", timings.exclusive_wall.unaccounted_ms);
     put_wt("accounted_percent", timings.exclusive_wall.accounted_percent);
 
+    // Canonical attribution projection.  Keep the legacy
+    // `exclusive_wall_timeline` fields for compatibility, but expose one
+    // machine-readable contract for benchmark runners: the phase sum must
+    // match the process wall within the reported unaccounted remainder.
+    auto& attribution = out["phase_attribution"];
+    const auto phase_value = [](const std::optional<double>& value) {
+        return value.value_or(0.0);
+    };
+    const double attributed_ms =
+        phase_value(timings.exclusive_wall.startup_ms) +
+        phase_value(timings.exclusive_wall.input_open_ms) +
+        phase_value(timings.exclusive_wall.prepare_ms) +
+        phase_value(timings.exclusive_wall.render_loop_ms) +
+        phase_value(timings.exclusive_wall.encoder_drain_finalize_ms) +
+        phase_value(timings.exclusive_wall.mux_finalize_ms) +
+        phase_value(timings.exclusive_wall.validation_ms) +
+        phase_value(timings.exclusive_wall.ffprobe_ms) +
+        phase_value(timings.exclusive_wall.sha256_ms) +
+        phase_value(timings.exclusive_wall.output_finalize_ms);
+    const double process_wall_ms = phase_value(timings.exclusive_wall.process_wall_ms);
+    const double unaccounted_ms = phase_value(timings.exclusive_wall.unaccounted_ms);
+    attribution["schema_version"] = 1;
+    attribution["phases"] = {
+        {"process_startup_ms", phase_value(timings.exclusive_wall.startup_ms)},
+        {"input_open_ms", phase_value(timings.exclusive_wall.input_open_ms)},
+        {"prepare_ms", phase_value(timings.exclusive_wall.prepare_ms)},
+        {"render_loop_ms", phase_value(timings.exclusive_wall.render_loop_ms)},
+        {"encode_drain_ms", phase_value(timings.exclusive_wall.encoder_drain_finalize_ms)},
+        {"mux_finalize_ms", phase_value(timings.exclusive_wall.mux_finalize_ms)},
+        {"validation_ms", phase_value(timings.exclusive_wall.validation_ms)},
+        {"ffprobe_ms", phase_value(timings.exclusive_wall.ffprobe_ms)},
+        {"hashing_ms", phase_value(timings.exclusive_wall.sha256_ms)},
+        {"output_finalize_ms", phase_value(timings.exclusive_wall.output_finalize_ms)},
+    };
+    attribution["process_wall_ms"] = process_wall_ms;
+    attribution["attributed_ms"] = attributed_ms;
+    attribution["unaccounted_ms"] = unaccounted_ms;
+    attribution["accounted_percent"] = process_wall_ms > 0.0
+        ? (attributed_ms / process_wall_ms) * 100.0 : 0.0;
+    attribution["contract"] = "attributed_ms + unaccounted_ms ~= process_wall_ms";
+    attribution["unaccounted_is_explicit"] = true;
+
     auto& internal = out["internal_profiling"];
     auto& dec = internal["decode"];
     if (timings.internal_decode.decoded_frames) dec["decoded_frames"] = *timings.internal_decode.decoded_frames; else dec["decoded_frames"] = nullptr;

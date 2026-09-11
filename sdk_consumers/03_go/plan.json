@@ -1,8 +1,8 @@
 {
-  "schema": "chronon.render-plan",
-  "version": 1,
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
   "job_id": "sdk-consumer-minimal",
-  "canvas": { "width": 64, "height": 64, "fps": 30, "duration_frames": 1 },
+  "canvas": { "width": 64, "height": 64, "fps_num": 30, "fps_den": 1, "duration_frames": 1 },
   "layers": [
     { "id": "background", "type": "color", "color": [0.1, 0.5, 0.8, 1.0] }
   ],
