@@ -283,6 +283,8 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.fps_num = input.fps_num;
     receipt.fps_den = input.fps_den;
     receipt.frames = input.frames;
+    receipt.execution_downgrade_reason = input.execution_downgrade_reason;
+    receipt.execution_downgrade_count = input.execution_downgrade_count;
 
     // Record the verification policy that was requested and the level that
     // will actually run, before any output-dependent work.  The explicit
@@ -481,6 +483,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"fps_num", receipt.fps_num},
         {"fps_den", receipt.fps_den},
         {"frames", receipt.frames},
+        {"execution_downgrade_reason", receipt.execution_downgrade_reason},
+        {"execution_downgrade_count", receipt.execution_downgrade_count},
     };
     js["media"] = {
         {"container", receipt.media.container},
