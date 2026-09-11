@@ -192,12 +192,11 @@ warmup_pipe_renderer(
         if (preparation.preparation_error) {
             return *preparation.preparation_error;
         }
-        return runtime::PreparationError{
-            .code = runtime::PreparationError::Code::InternalError,
-            .message = "render preparation failed without a structured error: " +
+        return runtime::make_preparation_error(
+            runtime::PreparationError::Code::InternalError,
+            "render preparation failed without a structured error: " +
                 preparation.diagnostic(),
-            .phase = "render preparation",
-        };
+            {}, {}, {}, "render preparation");
     }
     if (out_timings) {
         *out_timings = preparation.timings;

@@ -89,11 +89,9 @@ RenderPreparationResult prepare_render(
         options.reference_frame);
     if (!evaluated) {
         RenderPreparationResult result;
-        result.preparation_error = PreparationError{
-            .code = PreparationError::Code::InternalError,
-            .message = evaluated.error().message,
-            .phase = "compiled evaluation",
-        };
+        result.preparation_error = make_preparation_error(
+            PreparationError::Code::InternalError,
+            evaluated.error().message, {}, {}, {}, "compiled evaluation");
         return result;
     }
     auto& evaluated_frame = evaluated.value();

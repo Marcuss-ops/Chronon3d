@@ -57,11 +57,9 @@ RenderPreparationResult prepare_render_scene(
     const RenderPreparationOptions& options) {
     RenderPreparationResult result;
     if (renderer == nullptr) {
-        result.preparation_error = PreparationError{
-            .code = PreparationError::Code::InternalError,
-            .message = "Render preparation requires a renderer",
-            .phase = "setup",
-        };
+        result.preparation_error = make_preparation_error(
+            PreparationError::Code::InternalError,
+            "Render preparation requires a renderer", {}, {}, {}, "setup");
         return result;
     }
 
@@ -82,16 +80,12 @@ RenderPreparationResult prepare_render_scene(
             });
         const auto& error_issue = issue != result.preflight.issues.end()
             ? *issue : result.preflight.issues.front();
-        result.preparation_error = PreparationError{
-            .code = PreparationError::Code::PreflightFailed,
-            .message = error_issue.message.empty()
+        result.preparation_error = make_preparation_error(
+            PreparationError::Code::PreflightFailed,
+            error_issue.message.empty()
                 ? "asset preflight validation failed"
                 : error_issue.message,
-            .cause_code = error_issue.code,
-            .path = error_issue.path,
-            .owner = error_issue.layer_id,
-            .phase = "preflight",
-        };
+            error_issue.code, error_issue.path, error_issue.layer_id, "preflight");
         return result;
     }
 
@@ -126,11 +120,9 @@ RenderPreparationResult prepare_render_scene(
         result.timings.font_load_ms =
             profiling::duration_ms(font_t0, profiling::now());
         if (fonts.preflight_missing != 0) {
-            result.preparation_error = PreparationError{
-                .code = PreparationError::Code::CorruptedAsset,
-                .message = "one or more fonts could not be loaded",
-                .phase = "font",
-            };
+            result.preparation_error = make_preparation_error(
+                PreparationError::Code::CorruptedAsset,
+                "one or more fonts could not be loaded", {}, {}, {}, "font");
             return result;
         }
     }
@@ -146,13 +138,10 @@ RenderPreparationResult prepare_render_scene(
         for (const auto& ref : image_refs_view) {
             const auto image = renderer->runtime().image_cache().get_or_load(ref.path);
             if (!image || !image->valid()) {
-                result.preparation_error = PreparationError{
-                    .code = PreparationError::Code::CorruptedAsset,
-                    .message = "image could not be decoded: " + ref.path,
-                    .path = ref.path,
-                    .owner = ref.owner,
-                    .phase = "image",
-                };
+                result.preparation_error = make_preparation_error(
+                    PreparationError::Code::CorruptedAsset,
+                    "image could not be decoded: " + ref.path,
+                    {}, ref.path, ref.owner, "image");
                 return result;
             }
             if (auto it = result.prepared_assets->images.find(ref.owner);
@@ -175,13 +164,10 @@ RenderPreparationResult prepare_render_scene(
             }
             const auto& key = image->gpu_key;
             if (key.content_digest == assets::ContentDigest{}) {
-                result.preparation_error = PreparationError{
-                    .code = PreparationError::Code::CorruptedAsset,
-                    .message = "static image has no content-addressed GPU key: " + ref.path,
-                    .path = ref.path,
-                    .owner = ref.owner,
-                    .phase = "gpu-image",
-                };
+                result.preparation_error = make_preparation_error(
+                    PreparationError::Code::CorruptedAsset,
+                    "static image has no content-addressed GPU key: " + ref.path,
+                    {}, ref.path, ref.owner, "gpu-image");
                 return result;
             }
             const runtime::SurfaceDesc desc{
@@ -191,13 +177,10 @@ RenderPreparationResult prepare_render_scene(
                 image->gpu_rgba.size() * sizeof(float)};
             const auto acquired = cache.acquire(key, desc, image->gpu_rgba);
             if (!acquired.ok()) {
-                result.preparation_error = PreparationError{
-                    .code = PreparationError::Code::CorruptedAsset,
-                    .message = "static image GPU promotion failed: " + ref.path,
-                    .path = ref.path,
-                    .owner = ref.owner,
-                    .phase = "gpu-image",
-                };
+                result.preparation_error = make_preparation_error(
+                    PreparationError::Code::CorruptedAsset,
+                    "static image GPU promotion failed: " + ref.path,
+                    {}, ref.path, ref.owner, "gpu-image");
                 return result;
             }
         }
