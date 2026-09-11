@@ -51,6 +51,7 @@ graph::GraphExecutor* JobSession::executor() const noexcept {
 }
 
 void JobSession::reset_job() {
+    begin_job();
     reset_frame_values();
     reset_temporal_history();
     reset_scene_state();
@@ -63,6 +64,7 @@ void JobSession::reset_job() {
         download_scratch_.clear();
         download_scratch_.shrink_to_fit();
     }
+    complete_job();
 }
 
 }  // namespace chronon3d::runtime

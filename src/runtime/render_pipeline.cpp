@@ -160,6 +160,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
 
 std::shared_ptr<Framebuffer> RenderPipeline::render(
     JobSession& session, Frame frame) {
+    session.begin_job();
     const auto* program = session.program_ptr().get();
     if (!program) {
         throw std::runtime_error(
@@ -192,6 +193,18 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
 
     try {
         auto output = render_program(*program, frame, &execution);
+        if (!output) {
+            if (const auto frame_error = session.last_frame_error()) {
+                session.fail_job(frame_error->canonical_error(
+                    frame.integral(), session.job_id()));
+            } else {
+                session.fail_job(chronon::make_error(
+                    chronon::ErrorKind::InvariantViolation, "render_pipeline",
+                    "MissingFrameOutput", "executor returned no framebuffer",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+            }
+            throw std::runtime_error("RenderPipeline executor failed the frame");
+        }
         if (!session.publish_rendered(*render_slot)) {
             (void)session.abort(*render_slot);
             throw std::runtime_error("RenderPipeline failed to publish rendered frame");
@@ -206,8 +219,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
             }
             throw std::runtime_error("RenderPipeline failed to release encoded frame slot");
         }
+        session.complete_job();
         return output;
     } catch (...) {
+        if (session.state() != JobState::Failed) {
+            session.fail_job(chronon::make_error(
+                chronon::ErrorKind::FrameFailed, "render_pipeline",
+                "PipelineException", "render pipeline aborted the frame",
+                "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+        }
         execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) !=
                 FrameSlotState::Free) {
@@ -219,6 +239,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
     JobSession& session, const CompiledComposition& compiled, Frame frame) {
+    session.begin_job();
     auto* slot = session.acquire_for_evaluation();
     if (!slot) {
         throw std::runtime_error("RenderPipeline has no free frame slot");
@@ -241,6 +262,18 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
     }
     try {
         auto output = render_compiled_composition(compiled, frame, &execution);
+        if (!output) {
+            if (const auto frame_error = session.last_frame_error()) {
+                session.fail_job(frame_error->canonical_error(
+                    frame.integral(), session.job_id()));
+            } else {
+                session.fail_job(chronon::make_error(
+                    chronon::ErrorKind::InvariantViolation, "render_pipeline",
+                    "MissingFrameOutput", "executor returned no framebuffer",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+            }
+            throw std::runtime_error("RenderPipeline executor failed the frame");
+        }
         if (!session.publish_rendered(*render_slot)) {
             (void)session.abort(*render_slot);
             throw std::runtime_error("RenderPipeline failed to publish rendered frame");
@@ -255,8 +288,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
             }
             throw std::runtime_error("RenderPipeline failed to release encoded frame slot");
         }
+        session.complete_job();
         return output;
     } catch (...) {
+        if (session.state() != JobState::Failed) {
+            session.fail_job(chronon::make_error(
+                chronon::ErrorKind::FrameFailed, "render_pipeline",
+                "PipelineException", "render pipeline aborted the frame",
+                "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+        }
         execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) !=
                 FrameSlotState::Free) {
@@ -275,6 +315,8 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
     if (count.integral() < 0) {
         throw std::invalid_argument("RenderPipeline frame count must not be negative");
     }
+
+    session.begin_job();
 
     // The queues and slot states are already concurrent. Keep one wait
     // mutex/CV per stage so a wake-up or short queue handoff in one stage does
@@ -296,6 +338,9 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
     std::size_t max_queue_depth = 0;
 
     auto fail = [&](Frame frame, std::string message) {
+        session.fail_job(chronon::make_error(
+            chronon::ErrorKind::JobFailed, "render_pipeline", "BatchFailed",
+            message, "render_pipeline", {}, {}, frame.integral(), session.job_id()));
         {
             std::lock_guard lock(error_mutex);
             failed.store(true, std::memory_order_release);
@@ -376,6 +421,10 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
             try {
                 payload.rendered = render_compiled_composition(
                     compiled, slot_frame, &frame_execution);
+                if (!payload.rendered) {
+                    throw std::runtime_error(
+                        "RenderPipeline executor failed the frame");
+                }
                 ++frames_rendered;
                 if (!session.publish_rendered(*slot)) {
                     throw std::runtime_error(
@@ -385,11 +434,13 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
                     max_queue_depth = session.rendered_depth();
                 }
             } catch (const std::exception& exception) {
+                frame_execution.fail();
                 (void)session.abort(*slot);
                 fail(slot_frame, std::string{"RenderPipeline render failed: "} +
                     exception.what());
                 return;
             } catch (...) {
+                frame_execution.fail();
                 (void)session.abort(*slot);
                 fail(slot_frame, "RenderPipeline render failed with an unknown exception");
                 return;
@@ -459,6 +510,7 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
         result.failed_frame = failed_frame;
         result.error = error;
     }
+    if (result.ok) session.complete_job();
     return result;
 }
 

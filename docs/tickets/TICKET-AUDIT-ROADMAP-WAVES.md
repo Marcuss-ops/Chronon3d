@@ -104,9 +104,13 @@ owner:
   runtime "falling back to DirectYuv" / "hybrid pipeline TBD" executor
   decisions removed.  Receipt surface: `resolved_execution_reason` /
   `resolved_execution_valid` added to `FfmpegExportOptions`.
-- Residual (documented): persisting the structured reason into the timing
-  sidecar / SQLite telemetry tables is not wired yet — follow-up when the
-  pipe timing sidecar gains a plan/reason record.
+- Downgrade receipt (closed 2026-09-11): `VideoExecutionDecision` now carries
+  `downgrade_count` alongside the final structured `reason`; the CLI copies it
+  into `FfmpegExportOptions::resolved_execution_downgrade_count` and logs the
+  count whenever the final plan is a downgrade. Native→pipe remains explicit
+  configuration only; the native factory still fails closed when native
+  support is unavailable. Timing-sidecar/SQLite persistence remains outside
+  the engine boundary and is not required for the no-silent-fallback gate.
 
 ## Wave 5 — Composite ownership metrics (code DONE at baseline)
 

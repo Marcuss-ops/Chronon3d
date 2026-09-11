@@ -142,6 +142,7 @@ TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semanti
         video_only, output, capable, true, false, GopAnalysisSummary{});
     CHECK_FALSE(unavailable.valid);
     CHECK(unavailable.reason == "gop_copy_preflight_unavailable");
+    CHECK(unavailable.downgrade_count == 1);
     CHECK(unavailable.plan.decode == DecodePath::Nvdec);
     CHECK(unavailable.plan.composite == CompositePath::DirectYuv);
 }

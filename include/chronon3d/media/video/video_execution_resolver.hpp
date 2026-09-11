@@ -123,6 +123,10 @@ struct VideoExecutionDecision {
     VideoExecutionPlan plan{};
     std::string_view reason{"render_graph_default"};
     bool valid{true};
+    // Non-zero only when the resolver intentionally selected a less capable
+    // final lane. This is the machine-readable downgrade receipt: an
+    // executor may not invent a fallback without incrementing it here.
+    std::uint32_t downgrade_count{0};
     // Populated when the final plan copies packets (whole-clip or per-GOP).
     // Null otherwise.
     std::optional<GopExecutionPlan> gop_plan{};

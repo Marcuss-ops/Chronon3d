@@ -26,30 +26,17 @@ namespace {
         std::string reason = "GPU worker is poisoned after a terminal device-loss failure";
         if (error && !error->message.empty()) reason = error->message;
         return runtime::FrameExecutionResult::failed(
-            runtime::ExecutionFailure::DeviceLost, std::move(reason));
+            chronon::make_error(chronon::ErrorKind::DeviceLost,
+                                "gpu", "DeviceLost", std::move(reason),
+                                "graph_executor"));
     }
     if (!error) {
         return runtime::FrameExecutionResult::failed(
-            runtime::ExecutionFailure::InvalidResource,
-            "graph execution returned no framebuffer without a diagnostic");
+            chronon::make_error(
+                chronon::ErrorKind::InvariantViolation, "graph_executor",
+                "MissingFrameError", "graph execution returned no framebuffer without a diagnostic"));
     }
-    runtime::ExecutionFailure failure = runtime::ExecutionFailure::InvalidResource;
-    switch (error->backend_code) {
-      case RenderBackendErrorCode::UnsupportedCapability:
-      case RenderBackendErrorCode::InvalidInput:
-        // Missing capability or malformed input: the request is at fault,
-        // not the device.
-        failure = runtime::ExecutionFailure::InvalidResource; break;
-      case RenderBackendErrorCode::ExecutionFailure:
-        // Real runtime/backend fault (shaping, raster, surface/device call).
-        // Kept distinct so telemetry and retry policy never mistake an
-        // execution failure for invalid input.
-        failure = runtime::ExecutionFailure::BackendFailure; break;
-    }
-    std::string reason;
-    if (!error->node_name.empty()) reason = error->node_name + ": ";
-    reason += error->message;
-    return runtime::FrameExecutionResult::failed(failure, std::move(reason));
+    return runtime::FrameExecutionResult::failed(error->canonical_error());
 }
 
 } // namespace
@@ -70,15 +57,21 @@ FrameExecutionOutput GraphExecutor::execute(
                 .result = runtime::FrameExecutionResult::succeeded(),
             };
         }
+        auto result = frame_result_from_session(session);
+        session.fail_job(result.error);
         return FrameExecutionOutput{
             .framebuffer = nullptr,
-            .result = frame_result_from_session(session),
+            .result = std::move(result),
         };
     } catch (const runtime::GpuDeviceLostError& error) {
+        auto result = runtime::FrameExecutionResult::failed(
+            chronon::make_error(chronon::ErrorKind::DeviceLost,
+                                "gpu", "DeviceLost", error.what(),
+                                "graph_executor"));
+        session.fail_job(result.error);
         return FrameExecutionOutput{
             .framebuffer = nullptr,
-            .result = runtime::FrameExecutionResult::failed(
-                runtime::ExecutionFailure::DeviceLost, error.what()),
+            .result = std::move(result),
         };
     }
 }

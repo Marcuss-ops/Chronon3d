@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
+#include <chronon3d/core/error.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
@@ -77,6 +78,20 @@ inline const char* render_backend_error_code_name(RenderBackendErrorCode code) n
 struct RenderBackendError {
     RenderBackendErrorCode code{RenderBackendErrorCode::ExecutionFailure};
     std::string message{};
+
+    /// Phase-1 bridge: preserve the legacy backend enum as detail while the
+    /// executor consumes one control taxonomy.
+    [[nodiscard]] chronon::Error canonical_error(
+        std::string component = "render_backend") const {
+        const auto kind = code == RenderBackendErrorCode::InvalidInput
+            ? chronon::ErrorKind::InvalidPlan
+            : code == RenderBackendErrorCode::UnsupportedCapability
+                ? chronon::ErrorKind::Recoverable
+                : chronon::ErrorKind::FrameFailed;
+        return chronon::from_legacy<RenderBackendErrorCode>(
+            kind, "render_backend", "chronon3d::graph::RenderBackendErrorCode",
+            render_backend_error_code_name(code), message, std::move(component));
+    }
 };
 
 struct RenderOpOutcome {
@@ -127,6 +142,19 @@ struct NodeExecutionError {
     RenderBackendErrorCode backend_code{RenderBackendErrorCode::ExecutionFailure};
     std::string node_name{};   // which node reported the failure
     std::string message{};     // free-form diagnostic (source: RenderBackendError::message)
+
+    [[nodiscard]] chronon::Error canonical_error(
+        std::int64_t frame = -1, std::uint64_t job_id = 0) const {
+        const auto kind = backend_code == RenderBackendErrorCode::InvalidInput
+            ? chronon::ErrorKind::InvalidPlan
+            : backend_code == RenderBackendErrorCode::UnsupportedCapability
+                ? chronon::ErrorKind::Recoverable
+                : chronon::ErrorKind::FrameFailed;
+        return chronon::from_legacy<RenderBackendErrorCode>(
+            kind, "render_graph", "chronon3d::graph::RenderBackendErrorCode",
+            render_backend_error_code_name(backend_code), message, "graph",
+            node_name, {}, frame, job_id);
+    }
 };
 
 /// Result type for render-graph node execution.

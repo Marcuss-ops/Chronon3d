@@ -16,6 +16,7 @@
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <cstdint>
+#include <chronon3d/core/error.hpp>
 #include <string>
 
 namespace chronon3d::sdk {
@@ -48,6 +49,11 @@ struct RenderError {
     std::string     component; ///< Stable subsystem name, when known
     std::string     node_id;   ///< Optional logical node identifier
     std::string     asset;     ///< Optional logical asset reference
+
+    /// Phase-1 compatibility bridge. The public legacy code remains ABI/API
+    /// compatible, while callers that need control-flow semantics consume the
+    /// canonical chronon::Error.
+    [[nodiscard]] chronon::Error canonical_error() const;
 };
 
 /// Stable string-form name for each `RenderErrorCode`.  For logging
@@ -74,6 +80,44 @@ inline const char* render_error_code_name(RenderErrorCode c) noexcept {
         case RenderErrorCode::InternalError:      return "InternalError";
     }
     return "Unknown";
+}
+
+inline chronon::Error RenderError::canonical_error() const {
+    chronon::ErrorKind kind = chronon::ErrorKind::JobFailed;
+    switch (code) {
+        case RenderErrorCode::Ok:
+            kind = chronon::ErrorKind::Recoverable;
+            break;
+        case RenderErrorCode::Cancelled:
+            kind = chronon::ErrorKind::Cancelled;
+            break;
+        case RenderErrorCode::InvalidComposition:
+        case RenderErrorCode::InvalidSettings:
+        case RenderErrorCode::InvalidPlan:
+        case RenderErrorCode::UnsupportedSchema:
+            kind = chronon::ErrorKind::InvalidPlan;
+            break;
+        case RenderErrorCode::BackendUnavailable:
+            kind = chronon::ErrorKind::Recoverable;
+            break;
+        case RenderErrorCode::RuntimeFailure:
+        case RenderErrorCode::CompileFailure:
+        case RenderErrorCode::BudgetExceeded:
+        case RenderErrorCode::AssetChanged:
+        case RenderErrorCode::AssetNotFound:
+        case RenderErrorCode::DecodeFailure:
+        case RenderErrorCode::EncodeFailure:
+        case RenderErrorCode::OutOfMemory:
+            kind = chronon::ErrorKind::FrameFailed;
+            break;
+        case RenderErrorCode::AbiMismatch:
+        case RenderErrorCode::InternalError:
+            kind = chronon::ErrorKind::InvariantViolation;
+            break;
+    }
+    return chronon::from_legacy<RenderErrorCode>(
+        kind, "sdk", "chronon3d::sdk::RenderErrorCode",
+        render_error_code_name(code), message, component, node_id, asset);
 }
 
 } // namespace chronon3d::sdk

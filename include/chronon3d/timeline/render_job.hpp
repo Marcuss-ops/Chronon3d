@@ -13,6 +13,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
+#include <chronon3d/core/error.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
@@ -126,6 +127,26 @@ enum class RenderJobErrorCode : std::uint8_t {
 struct RenderJobError {
     RenderJobErrorCode code{RenderJobErrorCode::RenderFailed};
     std::string message;
+
+    [[nodiscard]] chronon::Error canonical_error() const {
+        const auto kind = code == RenderJobErrorCode::InvalidJob ||
+                code == RenderJobErrorCode::ValidationFailed
+            ? chronon::ErrorKind::InvalidPlan
+            : code == RenderJobErrorCode::UnsupportedMode
+                ? chronon::ErrorKind::Recoverable
+                : chronon::ErrorKind::JobFailed;
+        const char* code_name = "RenderFailed";
+        switch (code) {
+            case RenderJobErrorCode::InvalidJob:       code_name = "InvalidJob"; break;
+            case RenderJobErrorCode::UnsupportedMode:  code_name = "UnsupportedMode"; break;
+            case RenderJobErrorCode::SetupFailed:      code_name = "SetupFailed"; break;
+            case RenderJobErrorCode::ValidationFailed: code_name = "ValidationFailed"; break;
+            case RenderJobErrorCode::RenderFailed:     code_name = "RenderFailed"; break;
+        }
+        return chronon::from_legacy<RenderJobErrorCode>(
+            kind, "render_job", "chronon3d::RenderJobErrorCode", code_name,
+            message, "render_job");
+    }
 };
 
 struct RenderJobOutput {

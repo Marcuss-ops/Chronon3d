@@ -93,7 +93,7 @@ enum class RenderDiagnosticSeverity : std::uint8_t {
 ///   - `ProgramCompileFailure`    — SceneProgramStore build miss + fail
 ///   - `InvalidCameraProgram`    — CameraProgram compile failure
 ///   - `AssetResolutionFailure`   — assets_root / resolver miss
-enum class RenderErrorCode : std::uint8_t {
+enum class RenderDiagnosticCode : std::uint8_t {
     MissingRegistry         = 0,
     UnknownComposition       = 1,
     MissingExecutor          = 2,
@@ -144,7 +144,7 @@ struct RenderStats {
 /// sites that use designated-init can populate exactly the fields they
 /// have; the rest stay at their zero defaults.
 struct RenderDiagnostic {
-    RenderErrorCode          code{RenderErrorCode::MissingRegistry};
+    RenderDiagnosticCode     code{RenderDiagnosticCode::MissingRegistry};
     RenderDiagnosticSeverity severity{RenderDiagnosticSeverity::Info};
     RenderStage              stage{RenderStage::CompositionCompile};
 
@@ -163,7 +163,7 @@ struct RenderDiagnostic {
 /// vector of per-context `RenderDiagnostic`s (one per node / stage
 /// that observed the failure).
 struct RenderError {
-    RenderErrorCode code{RenderErrorCode::MissingRegistry};
+    RenderDiagnosticCode code{RenderDiagnosticCode::MissingRegistry};
     RenderStage     stage{RenderStage::CompositionCompile};
     chronon3d::Frame frame{0};
     std::string     message;
@@ -199,18 +199,18 @@ inline const char* render_diagnostic_severity_name(RenderDiagnosticSeverity s) n
     return "Unknown";
 }
 
-inline const char* render_error_code_name(RenderErrorCode c) noexcept {
+inline const char* render_diagnostic_code_name(RenderDiagnosticCode c) noexcept {
     switch (c) {
-        case RenderErrorCode::MissingRegistry:       return "MissingRegistry";
-        case RenderErrorCode::UnknownComposition:    return "UnknownComposition";
-        case RenderErrorCode::MissingExecutor:       return "MissingExecutor";
-        case RenderErrorCode::MissingScheduler:      return "MissingScheduler";
-        case RenderErrorCode::MissingFontEngine:     return "MissingFontEngine";
-        case RenderErrorCode::ScopeChainLimit:       return "ScopeChainLimit";
-        case RenderErrorCode::RecursivePrecomp:      return "RecursivePrecomp";
-        case RenderErrorCode::ProgramCompileFailure: return "ProgramCompileFailure";
-        case RenderErrorCode::InvalidCameraProgram:  return "InvalidCameraProgram";
-        case RenderErrorCode::AssetResolutionFailure:return "AssetResolutionFailure";
+        case RenderDiagnosticCode::MissingRegistry:       return "MissingRegistry";
+        case RenderDiagnosticCode::UnknownComposition:    return "UnknownComposition";
+        case RenderDiagnosticCode::MissingExecutor:       return "MissingExecutor";
+        case RenderDiagnosticCode::MissingScheduler:      return "MissingScheduler";
+        case RenderDiagnosticCode::MissingFontEngine:     return "MissingFontEngine";
+        case RenderDiagnosticCode::ScopeChainLimit:       return "ScopeChainLimit";
+        case RenderDiagnosticCode::RecursivePrecomp:      return "RecursivePrecomp";
+        case RenderDiagnosticCode::ProgramCompileFailure: return "ProgramCompileFailure";
+        case RenderDiagnosticCode::InvalidCameraProgram:  return "InvalidCameraProgram";
+        case RenderDiagnosticCode::AssetResolutionFailure:return "AssetResolutionFailure";
     }
     return "Unknown";
 }

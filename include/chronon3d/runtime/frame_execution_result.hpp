@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <chronon3d/core/error.hpp>
 #include <limits>
 #include <string>
 #include <utility>
@@ -25,6 +26,21 @@ enum class ExecutionFailure : std::uint8_t {
     BackendFailure,
 };
 
+[[nodiscard]] inline const char* execution_failure_name(
+    ExecutionFailure failure) noexcept {
+    switch (failure) {
+        case ExecutionFailure::None:            return "None";
+        case ExecutionFailure::DecodeFailure:   return "DecodeFailure";
+        case ExecutionFailure::InvalidResource: return "InvalidResource";
+        case ExecutionFailure::OutOfMemory:     return "OutOfMemory";
+        case ExecutionFailure::DeviceLost:      return "DeviceLost";
+        case ExecutionFailure::EncodeFailure:   return "EncodeFailure";
+        case ExecutionFailure::MuxFailure:      return "MuxFailure";
+        case ExecutionFailure::BackendFailure:  return "BackendFailure";
+    }
+    return "Unknown";
+}
+
 /// Canonical frame/job failure boundary. It is intentionally a value type: no
 /// recovery manager, global service, or hidden fallback is attached to it.
 /// Callers decide retry/recreate policy after receiving the explicit failure.
@@ -32,6 +48,7 @@ struct FrameExecutionResult {
     ExecutionFailure failure{ExecutionFailure::None};
     PassId failing_pass{kInvalidPassId};
     std::string reason{};
+    chronon::Error error{};
 
     [[nodiscard]] bool ok() const noexcept {
         return failure == ExecutionFailure::None;
@@ -45,10 +62,33 @@ struct FrameExecutionResult {
         ExecutionFailure failure_code,
         std::string failure_reason,
         PassId pass = kInvalidPassId) {
+        const auto kind = failure_code == ExecutionFailure::DeviceLost
+            ? chronon::ErrorKind::DeviceLost
+            : failure_code == ExecutionFailure::InvalidResource
+                ? chronon::ErrorKind::InvalidPlan
+                : failure_code == ExecutionFailure::EncodeFailure ||
+                    failure_code == ExecutionFailure::MuxFailure ||
+                    failure_code == ExecutionFailure::OutOfMemory
+                    ? chronon::ErrorKind::JobFailed
+                    : chronon::ErrorKind::FrameFailed;
         return FrameExecutionResult{
             .failure = failure_code,
             .failing_pass = pass,
-            .reason = std::move(failure_reason),
+            .reason = failure_reason,
+            .error = chronon::from_legacy<ExecutionFailure>(
+                kind, "frame_execution", "chronon3d::runtime::ExecutionFailure",
+                execution_failure_name(failure_code), std::move(failure_reason)),
+        };
+    }
+
+    [[nodiscard]] static FrameExecutionResult failed(
+        chronon::Error canonical_error,
+        PassId pass = kInvalidPassId) {
+        return FrameExecutionResult{
+            .failure = ExecutionFailure::BackendFailure,
+            .failing_pass = pass,
+            .reason = canonical_error.detail.message,
+            .error = std::move(canonical_error),
         };
     }
 };

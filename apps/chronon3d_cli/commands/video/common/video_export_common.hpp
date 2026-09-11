@@ -86,6 +86,9 @@ struct FfmpegExportOptions {
     // such as "hybrid_pipeline_unavailable"). Receipt surface: surfaced in
     // logs today and available for timing-sidecar/telemetry persistence.
     std::string resolved_execution_reason;
+    // Resolver-owned downgrade receipt. Zero means that the final plan was
+    // selected directly; it never means that an executor may fallback.
+    std::uint32_t resolved_execution_downgrade_count{0};
     // Resolver validity for the final plan (false = fail-closed downgrade or
     // unsupported requirement; the exporter still executes the plan axes and
     // downstream failure handling is unchanged).
