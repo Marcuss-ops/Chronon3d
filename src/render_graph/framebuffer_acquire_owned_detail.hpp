@@ -45,11 +45,16 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     if (node_exec.planned_physical_slot) {
         OwnedFB& slot = *node_exec.planned_physical_slot;
         if (!slot) {
-            auto* pool = framebuffer_pool.get();
-            if (pool) {
-                slot = pool->acquire_owned(w, h, clear);
+            if (policy.require_native_gpu) {
+                slot = OwnedFB(new Framebuffer(w, h, static_cast<Color*>(nullptr)),
+                               PoolFbDeleter(DeleteFramebuffer{}));
             } else {
-                slot = OwnedFB(new Framebuffer(w, h, clear), PoolFbDeleter(DeleteFramebuffer{}));
+                auto* pool = framebuffer_pool.get();
+                if (pool) {
+                    slot = pool->acquire_owned(w, h, clear);
+                } else {
+                    slot = OwnedFB(new Framebuffer(w, h, clear), PoolFbDeleter(DeleteFramebuffer{}));
+                }
             }
         } else {
             slot->resize_logical(w, h);
@@ -58,7 +63,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
         slot->set_opaque(false);
         slot->set_content_cleared(false);
         slot->set_key_digest(0);
-        if (clear) {
+        if (clear && !policy.require_native_gpu) {
             slot->clear(Color::transparent());
         }
         if (bounds) {
@@ -71,14 +76,19 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     }
 
     OwnedFB out;
-    auto* pool = framebuffer_pool.get();
     (void)bounds;
     (void)specific_clear_ms;
-    if (pool) {
-        out = pool->acquire_owned(w, h, clear);
-    } else {
-        out = OwnedFB(new Framebuffer(w, h, clear),
+    if (policy.require_native_gpu) {
+        out = OwnedFB(new Framebuffer(w, h, static_cast<Color*>(nullptr)),
                       PoolFbDeleter(DeleteFramebuffer{}));
+    } else {
+        auto* pool = framebuffer_pool.get();
+        if (pool) {
+            out = pool->acquire_owned(w, h, clear);
+        } else {
+            out = OwnedFB(new Framebuffer(w, h, clear),
+                          PoolFbDeleter(DeleteFramebuffer{}));
+        }
     }
     if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {
         out->set_origin(bounds->x0, bounds->y0);
@@ -130,7 +140,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     }
 
     if (!other.data() && other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        auto* fresh = new Framebuffer(other.width(), other.height(), false);
+        auto* fresh = new Framebuffer(other.width(), other.height(), static_cast<Color*>(nullptr));
         fresh->set_surface_handle(other.surface_handle());
         fresh->set_origin(other.origin_x(), other.origin_y());
         fresh->set_opaque(other.is_opaque());
@@ -172,7 +182,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
         return out;
     }
     if (!src->data() && src->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        auto* placeholder = new Framebuffer(src->width(), src->height(), false);
+        auto* placeholder = new Framebuffer(src->width(), src->height(), static_cast<Color*>(nullptr));
         placeholder->set_surface_handle(src->surface_handle());
         placeholder->set_origin(src->origin_x(), src->origin_y());
         placeholder->set_opaque(src->is_opaque());

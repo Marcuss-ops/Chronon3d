@@ -24,6 +24,8 @@
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <exception>
 
 namespace chronon3d {
@@ -251,12 +253,21 @@ evaluate(const CompiledComposition& compiled,
             compiled.camera_program->evaluate(cam_ctx, session);
         if (cam_result.has_value()) {
             result.camera = cam_result->camera;
+        } else {
+            // AUDIT-2026-09-11 — fail-loud: a failed camera evaluation
+            // previously degraded silently to `result.camera == nullopt`,
+            // rendering the frame without the authored camera and making
+            // the visual defect unreproducible from logs. The return
+            // contract is unchanged (camera stays nullopt); this only
+            // surfaces the failure to the observation surface.
+            spdlog::error(
+                "[timeline-evaluate] CameraProgram::evaluate failed at "
+                "frame {}: code={} message='{}' — frame renders without "
+                "the authored camera",
+                sample_time.integral_frame().integral(),
+                static_cast<int>(cam_result.error().code),
+                cam_result.error().message);
         }
-        // Diagnostics on the CameraProgram::evaluate() result are not
-        // surfaced to the V2 evaluate() return channel — they're
-        // implementation-detail (constraint stack fallback, etc.) and the
-        // legacy Composition logs equivalent info via spdlog::info on
-        // every frame.  Out of scope for this staging commit.
     }
 
     return result;

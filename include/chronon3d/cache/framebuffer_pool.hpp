@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <optional>
 #include <string_view>
 #include <set>
@@ -231,7 +232,7 @@ public:
 
     /// Get the current config (thread-safe copy under lock).
     [[nodiscard]] FramebufferPoolConfig config() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::shared_lock lock(m_mutex);
         return m_config;
     }
 
@@ -347,14 +348,14 @@ public:
 
     /// P1-21: get the current clear policy.
     [[nodiscard]] FramebufferPoolClearPolicy clear_policy() const noexcept {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::shared_lock lock(m_mutex);
         return m_clear_policy;
     }
 
     /// P1-21: set the clear policy (thread-safe, takes effect on the
     /// next `trim_after_job()` call).
     void set_clear_policy(FramebufferPoolClearPolicy policy) noexcept {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::unique_lock lock(m_mutex);
         m_clear_policy = policy;
     }
 
@@ -404,7 +405,10 @@ private:
     /// Evict the globally oldest entry across all size classes.
     bool evict_global_lru();
 
-    mutable std::mutex m_mutex;
+    // The pool remains the single budget/residency authority. Shared locking
+    // lets concurrent readers (telemetry/config probes) proceed together;
+    // acquire/release/eviction remain exclusive and preserve one LRU truth.
+    mutable std::shared_mutex m_mutex;
     FramebufferPoolConfig m_config;
     size_t m_current_bytes{0};
     size_t m_peak_retained_bytes{0};

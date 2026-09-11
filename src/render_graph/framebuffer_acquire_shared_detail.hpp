@@ -40,21 +40,34 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     if (node_exec.planned_physical_slot) {
         OwnedFB& slot = *node_exec.planned_physical_slot;
         if (!slot) {
-            auto* pool = framebuffer_pool.get();
-            slot = pool
-                ? pool->acquire_owned(w, h, clear)
-                : OwnedFB(new Framebuffer(w, h, clear),
-                          PoolFbDeleter(DeleteFramebuffer{}));
+            if (policy.require_native_gpu) {
+                slot = OwnedFB(new Framebuffer(w, h, static_cast<Color*>(nullptr)),
+                               PoolFbDeleter(DeleteFramebuffer{}));
+            } else {
+                auto* pool = framebuffer_pool.get();
+                slot = pool
+                    ? pool->acquire_owned(w, h, clear)
+                    : OwnedFB(new Framebuffer(w, h, clear),
+                              PoolFbDeleter(DeleteFramebuffer{}));
+            }
         } else {
             slot->resize_logical(w, h);
         }
         slot->set_origin(0, 0);
         slot->set_opaque(false);
         slot->set_content_cleared(false);
-        if (clear) slot->clear(Color::transparent());
+        if (clear && !policy.require_native_gpu) slot->clear(Color::transparent());
         auto* raw = slot.get();
         node_exec.planned_physical_slot = nullptr;
         return std::shared_ptr<Framebuffer>(raw, [](Framebuffer*) noexcept {});
+    }
+
+    if (policy.require_native_gpu) {
+        auto fb = std::make_shared<Framebuffer>(w, h, static_cast<Color*>(nullptr));
+        if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {
+            fb->set_origin(bounds->x0, bounds->y0);
+        }
+        return fb;
     }
 
     std::shared_ptr<Framebuffer> out;

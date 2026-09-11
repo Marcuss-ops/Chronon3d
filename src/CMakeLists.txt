@@ -131,10 +131,6 @@ endif()
 target_link_libraries(chronon3d_pipeline INTERFACE
     nlohmann_json_schema_validator::validator)
 
-if(CHRONON3D_ENABLE_IPC)
-    target_link_libraries(chronon3d_pipeline INTERFACE
-        nlohmann_json_schema_validator::validator)
-endif()
 chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
 
 if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP

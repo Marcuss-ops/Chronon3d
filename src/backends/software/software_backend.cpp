@@ -323,25 +323,19 @@ void SoftwareBackend::apply_per_pixel_dof(
 //
 // This method forwards into the canonical Blend2D text-run pipeline via
 // `renderer::draw_text_run` (see `text_run_processor.hpp`).  The required
-// `SoftwareProcessorContext` service bundle is sourced from `m_owner`
-// (the orchestrating SoftwareRenderer) using the canonical
-// `make_processor_context(SoftwareRenderer*)` helper.
+// `SoftwareProcessorContext` is the explicitly attached service bundle; the
+// backend does not recover it through the orchestrating SoftwareRenderer.
 //
 // Failure modes (post-construction contract is louder than pre-fix):
 //   - `UnsupportedCapability`: Blend2D not enabled at compile time.
 //   - `InvalidInput` / `ExecutionFailure`: propagated from the renderer
 //     (= defects in shape, font, or context).  Loud by design — no silent
 //     zero-glyph renders.
-//   - Missing `m_owner`            → InvalidInput (TICKET-046 follow-up
-//                                    will source from runtime, then owner
-//                                    becomes null-tolerable).
 //   - Missing `m_asset_resolver`   → InvalidInput (Fase 1 services-
 //                                    validation follow-up).
 //
-// Boundary gate: this method's transient `SoftwareRenderer*` back-pointer
-// is a PR-9-compatible TEMPORARY bridge.  R3 (06-stabilization) will
-// source the context directly from `runtime::RuntimeContext` and drop
-// `m_owner`.
+// Boundary gate: the context is resolved once from explicit service bundles
+// before dispatch and remains independent from SoftwareRenderer construction.
 graph::RenderOpResult SoftwareBackend::draw_text_run(
     Framebuffer& fb,
     const TextRunShape& shape,

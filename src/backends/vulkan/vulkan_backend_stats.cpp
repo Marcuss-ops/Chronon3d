@@ -42,7 +42,8 @@ bool VulkanBackend::requires_processor_snapshot() const noexcept {
 VulkanBackendStats VulkanBackend::stats() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return VulkanBackendStats{};
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     auto s = m_impl->stats;
     const auto vma_stats = m_impl->memory_manager.budget_stats();
     s.vma_allocation_bytes = vma_stats.allocation_bytes;
@@ -65,7 +66,7 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
 void VulkanBackend::set_active_frame_index(std::uint64_t frame_index) noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return;
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     m_impl->active_frame_index = frame_index;
 #else
     (void)frame_index;
@@ -76,7 +77,7 @@ std::vector<VulkanFrameGpuTiming>
 VulkanBackend::consume_completed_frame_timings() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return {};
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     // Copy at the explicit consumer boundary and retain the backend vector's
     // capacity. This keeps future retirements allocation-free after warmup.
     std::vector<VulkanFrameGpuTiming> result = m_impl->completed_frame_timings;
@@ -91,7 +92,8 @@ void VulkanBackend::export_gpu_telemetry_counters(
     std::vector<std::pair<std::string, std::uint64_t>>& out) const {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return;
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
     out.emplace_back("gpu_upload_count", m_impl->stats.upload_calls);
@@ -163,7 +165,9 @@ void VulkanBackend::export_gpu_telemetry_counters(
 
 std::size_t VulkanBackend::physical_surface_count() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return m_impl ? m_impl->surface_physical_count() : 0;
+    if (!m_impl) return 0;
+    std::lock_guard lock(m_impl->surfaces.mutex);
+    return m_impl->surface_physical_count();
 #else
     return 0;
 #endif

@@ -18,6 +18,16 @@ struct DirectYuvTemplate {
     std::shared_ptr<const ::chronon3d::media::CudaImageResource> resource_owner;
     std::vector<std::shared_ptr<const ::chronon3d::media::CudaImageResource>> resource_owners;
 #endif
+
+    void reset_for_reuse() noexcept {
+        batch.instances.clear();
+        batch.resources.clear();
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        resources.clear();
+        resource_owner.reset();
+        resource_owners.clear();
+#endif
+    }
 };
 
 /// Native decoded frame plus the DirectYUV media program required by the

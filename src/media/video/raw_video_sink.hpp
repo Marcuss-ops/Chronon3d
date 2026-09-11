@@ -82,7 +82,8 @@ private:
 
     /// Validate that a frame matches the session contract.
     /// Returns true if valid; sets state to Failed and returns false otherwise.
-    bool validate_frame_match(int width, int height, PixelFormat fmt) noexcept;
+    bool validate_frame_match(int width, int height, PixelFormat fmt);
+    void fail(VideoSinkError error, std::string message);
 
     /// Structured error state (P1-C).
     VideoSinkError last_error_{VideoSinkError::None};

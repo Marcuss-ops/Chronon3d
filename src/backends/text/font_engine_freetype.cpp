@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <shared_mutex>
 #include <string>
@@ -58,6 +59,10 @@ struct FaceEntry {
     std::string style_name;
     bool has_kerning{false};
     FT_UInt notdef_glyph_id{0};
+    // FreeType face objects carry mutable size/glyph state. The lock belongs
+    // to the face, not to the whole FontEngine, so unrelated faces can be
+    // shaped/rasterized concurrently while preserving face safety.
+    mutable std::mutex ops_mutex;
 
     FaceEntry() = default;
     FaceEntry(const FaceEntry&) = delete;
@@ -161,8 +166,6 @@ struct FontEngine::Impl {
     mutable std::mutex face_load_mutex;
     mutable std::atomic<FontFaceId> next_face_id{1};
 
-    // Protect mutable FT_Face/HarfBuzz state; distinct from cache ownership.
-    mutable std::mutex font_ops_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
     std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache;
 
@@ -368,7 +371,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     auto entry = m_impl->get_face_entry(spec);
     if (!entry || !entry->valid()) return std::nullopt;
-    std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
+    std::lock_guard<std::mutex> font_lock(entry->ops_mutex);
 
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
@@ -494,7 +497,7 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
 
     auto entry = m_impl->get_face_entry(spec);
     if (!entry || !entry->valid()) return metrics;
-    std::lock_guard<std::mutex> font_lock(m_impl->font_ops_mutex);
+    std::lock_guard<std::mutex> font_lock(entry->ops_mutex);
 
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
@@ -559,7 +562,7 @@ bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t 
 
     auto entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
-    std::lock_guard<std::mutex> font_lock(engine.m_impl->font_ops_mutex);
+    std::lock_guard<std::mutex> font_lock(entry->ops_mutex);
 
     FT_UInt glyph_index = FT_Get_Char_Index(entry->ft_face, static_cast<FT_ULong>(codepoint));
     if (glyph_index == 0 || glyph_index == entry->notdef_glyph_id) {

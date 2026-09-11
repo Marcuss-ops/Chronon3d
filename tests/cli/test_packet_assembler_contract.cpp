@@ -64,6 +64,44 @@ TEST_CASE("VideoExecutionResolver: public contract hides backend selection") {
     CHECK_FALSE(rejected.valid);
 }
 
+TEST_CASE("VideoExecutionResolver: output contract is validated before planning") {
+    using namespace chronon3d::media;
+    const ExecutionRequirements requirements{
+        .gpu_required = true, .cpu_fallback_allowed = false,
+        .composition_required = false, .video_source_required = true,
+        .packet_copy_allowed = false};
+    const VideoCapabilities capabilities{
+        .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true};
+
+    CHECK_FALSE(resolve_video_execution(
+        requirements, OutputSpec{.codec = "not-a-codec"}, capabilities).valid);
+    CHECK_FALSE(resolve_video_execution(
+        requirements, OutputSpec{.width = 1920, .height = 0}, capabilities).valid);
+    CHECK_FALSE(resolve_video_execution(
+        requirements, OutputSpec{.fps_num = 30, .fps_den = 0}, capabilities).valid);
+}
+
+TEST_CASE("VideoExecutionResolver: image/text composition without source uses pipe") {
+    using namespace chronon3d::media;
+    const ExecutionRequirements requirements{
+        .gpu_required = true, .cpu_fallback_allowed = false,
+        .composition_required = true, .video_source_required = false,
+        .packet_copy_allowed = false};
+    const VideoCapabilities capabilities{.vulkan_graph = true};
+    const auto decision = resolve_video_execution(
+        requirements, OutputSpec{.codec = "h264"}, capabilities);
+    REQUIRE(decision.valid);
+    CHECK(decision.plan.composite == CompositePath::VulkanGraph);
+    CHECK(decision.plan.encode == EncodePath::Pipe);
+    CHECK(decision.plan.handoff == SurfaceHandoffPath::HostUpload);
+
+    const auto parameters = resolve_canonical_execution_parameters(requirements);
+    CHECK(parameters.hardware_encoder == "none");
+    CHECK(parameters.encoder_backend == "pipe");
+    CHECK_FALSE(parameters.native_nvenc);
+    CHECK_FALSE(parameters.direct_yuv);
+}
+
 TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semantic inputs") {
     using namespace chronon3d::media;
     const ExecutionRequirements video_only{

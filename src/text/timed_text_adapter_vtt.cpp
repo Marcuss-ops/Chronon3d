@@ -24,14 +24,18 @@ f32 parse_vtt_timestamp(std::string_view ts) {
     auto colon2 = ts.find(':', colon1 + 1);
     if (colon2 == std::string_view::npos) return -1.0f;
 
-    hh = std::atoi(std::string(ts.substr(0, colon1)).c_str());
-    mm = std::atoi(std::string(ts.substr(colon1 + 1, colon2 - colon1 - 1)).c_str());
+    // AUDIT-2026-09-11: from_chars on the view, no heap temporaries (was
+    // std::atoi(std::string(substr).c_str())); atoi parity preserved.
+    hh = timed_text_adapter_detail::parse_sv_int(ts.substr(0, colon1));
+    mm = timed_text_adapter_detail::parse_sv_int(
+        ts.substr(colon1 + 1, colon2 - colon1 - 1));
 
     // Seconds part (dot-separated)
     auto ss_rest = ts.substr(colon2 + 1);
     auto dot_pos = ss_rest.find('.');
     if (dot_pos == std::string_view::npos) {
-        ss = static_cast<f32>(std::atoi(std::string(ss_rest).c_str()));
+        ss = static_cast<f32>(
+            timed_text_adapter_detail::parse_sv_int(ss_rest));
     } else {
         std::string ss_str(ss_rest);
         ss = std::strtof(ss_str.c_str(), nullptr);

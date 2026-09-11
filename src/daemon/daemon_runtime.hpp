@@ -8,7 +8,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -16,9 +15,10 @@ namespace chronon3d::daemon {
 
 /// Single rendering authority owned by the persistent daemon process.
 ///
-/// IPC handlers may be concurrent, but all calls that touch RenderEngine are
-/// serialized here. This is the safe first step toward a bounded job queue:
-/// transport concurrency never becomes accidental GPU-state concurrency.
+/// IPC handlers may be concurrent. CompositionSession owns map/lifecycle
+/// synchronization and serializes only frames targeting the same prepared
+/// composition, so unrelated daemon clients do not queue behind one global
+/// render mutex.
 class DaemonRuntime {
 public:
     struct RenderOutcome {
@@ -60,7 +60,6 @@ public:
 private:
     std::unique_ptr<RenderEngine> m_engine;
     ipc::CompositionSession m_session;
-    mutable std::mutex m_render_mutex;
     std::atomic<State> m_state{State::Starting};
     std::atomic<std::uint64_t> m_frame_count{0};
     std::atomic<double> m_total_render_ms{0.0};

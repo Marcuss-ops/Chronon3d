@@ -13,7 +13,6 @@ add_library(chronon3d_backend_software OBJECT
     software_renderer_effects.cpp
     software_backend.cpp
     software_backend_factory.cpp
-    software_processor_context.cpp
     software_session_resources.cpp
     # Internal bridge, never installed as public API.
     internal/software_processor_services.cpp

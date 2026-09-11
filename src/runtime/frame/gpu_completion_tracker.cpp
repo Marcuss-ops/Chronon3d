@@ -36,6 +36,7 @@ void GpuCompletionTracker::retire(
     FrameSlotId slot_id,
     std::shared_ptr<GpuCompletion> completion) noexcept {
     if (slot_id >= capacity_) return;
+    completion_failed_[slot_id].store(false, std::memory_order_relaxed);
     completions_[slot_id] = std::move(completion);
 }
 
@@ -49,30 +50,36 @@ bool GpuCompletionTracker::completion_ready(FrameSlotId slot_id) const noexcept 
     return completion && completion->ready();
 }
 
-void GpuCompletionTracker::wait_completion(FrameSlotId slot_id) noexcept {
-    if (slot_id >= capacity_) return;
+bool GpuCompletionTracker::wait_completion(FrameSlotId slot_id) noexcept {
+    if (slot_id >= capacity_) return false;
     const auto& completion = completions_[slot_id];
-    if (completion) {
-        try {
-            completion->wait();
-        } catch (...) {
-            // The noexcept contract forces us to keep running, but a failed
-            // GPU completion wait means the slot's previous frame result is
-            // of unknown validity. recycle() will mark the slot Recyclable
-            // regardless, so this must at least be loud: a device-lost or
-            // interop-timeout failure must never be indistinguishable from
-            // an ordinary completion.
-            spdlog::error(
-                "[gpu-completion] wait for frame slot {} threw an unknown "
-                "exception; the slot's prior frame result is unverified",
-                slot_id);
-        }
+    if (!completion) return true;
+    try {
+        completion->wait();
+        return true;
+    } catch (const std::exception& error) {
+        completion_failed_[slot_id].store(true, std::memory_order_release);
+        spdlog::error(
+            "[gpu-completion] wait for frame slot {} failed: {}",
+            slot_id, error.what());
+    } catch (...) {
+        completion_failed_[slot_id].store(true, std::memory_order_release);
+        spdlog::error(
+            "[gpu-completion] wait for frame slot {} failed with an unknown exception",
+            slot_id);
     }
+    return false;
+}
+
+bool GpuCompletionTracker::completion_failed(FrameSlotId slot_id) const noexcept {
+    return slot_id < capacity_ &&
+        completion_failed_[slot_id].load(std::memory_order_acquire);
 }
 
 void GpuCompletionTracker::recycle(FrameSlotId slot_id) noexcept {
     if (slot_id >= capacity_) return;
     completions_[slot_id].reset();
+    completion_failed_[slot_id].store(false, std::memory_order_relaxed);
     interop_states_[slot_id].value.store(
         InteropFrameState::Recyclable, std::memory_order_release);
 }

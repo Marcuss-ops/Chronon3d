@@ -68,9 +68,6 @@ struct ProcessorSourceExtras {
 /// Build a `chronon3d::SoftwareProcessorContext` from the public
 /// `SoftwareBackendServices` bundle + the orchestrator-supplied extras.
 ///
-/// The `SoftwareProcessorContext::renderer` field is left null:
-/// the backend does not own a back-pointer to the renderer (the
-/// m_owner-transient-bridge has been removed in TICKET-118).
 /// All other fields are populated from `services` first, then
 /// `extras` (which provides registry + image_backend + font_engine).
 ///

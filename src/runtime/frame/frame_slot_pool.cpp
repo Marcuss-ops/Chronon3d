@@ -15,6 +15,7 @@ FrameSlotPool::FrameSlotPool(
         throw std::invalid_argument(
             "FrameSlotPool: invalid capacity or tracker capacity mismatch");
     }
+    payloads_ = std::make_unique<FrameSlotPayload[]>(capacity_);
     for (FrameSlotId slot_id = 0; slot_id < capacity_; ++slot_id) {
         auto& entry = slots_[slot_id];
         entry.slot_id = slot_id;

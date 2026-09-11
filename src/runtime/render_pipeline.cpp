@@ -26,6 +26,7 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <atomic>
 #include <cstdint>
 #include <condition_variable>
 #include <mutex>
@@ -127,7 +128,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     std::shared_ptr<const Scene> topology;
     const auto key = program.fingerprint();
     {
-        std::lock_guard lock(m_topology_mutex);
+        std::shared_lock lock(m_topology_mutex);
         const auto found = m_topologies.find(key);
         if (found != m_topologies.end()) {
             topology = found->second;
@@ -136,7 +137,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     if (!topology) {
         auto fresh = std::make_shared<const Scene>(
             compiler::ProgramSampler{}.materialize_scene(program));
-        std::lock_guard lock(m_topology_mutex);
+        std::unique_lock lock(m_topology_mutex);
         const auto found = m_topologies.find(key);
         if (found != m_topologies.end()) {
             topology = found->second;
@@ -275,11 +276,19 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
         throw std::invalid_argument("RenderPipeline frame count must not be negative");
     }
 
-    std::mutex wait_mutex;
-    std::condition_variable stage_changed;
-    bool evaluation_done = false;
-    bool render_done = false;
-    bool failed = false;
+    // The queues and slot states are already concurrent. Keep one wait
+    // mutex/CV per stage so a wake-up or short queue handoff in one stage does
+    // not convoy evaluation, render and encode behind the same mutex.
+    std::mutex evaluation_wait_mutex;
+    std::mutex render_wait_mutex;
+    std::mutex encoder_wait_mutex;
+    std::mutex error_mutex;
+    std::condition_variable evaluation_changed;
+    std::condition_variable render_changed;
+    std::condition_variable encoder_changed;
+    std::atomic<bool> evaluation_done{false};
+    std::atomic<bool> render_done{false};
+    std::atomic<bool> failed{false};
     Frame failed_frame{-1};
     std::string error;
     std::size_t frames_encoded = 0;
@@ -288,12 +297,14 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
 
     auto fail = [&](Frame frame, std::string message) {
         {
-            std::lock_guard lock(wait_mutex);
-            failed = true;
+            std::lock_guard lock(error_mutex);
+            failed.store(true, std::memory_order_release);
             failed_frame = frame;
             if (error.empty()) error = std::move(message);
         }
-        stage_changed.notify_all();
+        evaluation_changed.notify_all();
+        render_changed.notify_all();
+        encoder_changed.notify_all();
     };
 
     const Frame end = first + count;
@@ -302,12 +313,12 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
         for (Frame frame = first; frame < end; ++frame) {
             FrameExecutionSlot* slot = nullptr;
             {
-                std::unique_lock lock(wait_mutex);
-                stage_changed.wait(lock, [&] {
-                    return failed ||
+                std::unique_lock lock(evaluation_wait_mutex);
+                evaluation_changed.wait(lock, [&] {
+                    return failed.load(std::memory_order_acquire) ||
                         (slot = session.acquire_for_evaluation()) != nullptr;
                 });
-                if (failed) break;
+                if (failed.load(std::memory_order_acquire)) break;
             }
             slot->frame_index = frame.integral();
             auto& payload = session.payload(*slot);
@@ -327,33 +338,29 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
                 fail(frame, "RenderPipeline evaluation failed with an unknown exception");
                 break;
             }
-            stage_changed.notify_all();
+            render_changed.notify_one();
         }
-        {
-            std::lock_guard lock(wait_mutex);
-            evaluation_done = true;
-        }
-        stage_changed.notify_all();
+        evaluation_done.store(true, std::memory_order_release);
+        render_changed.notify_all();
     });
 
     std::thread render_thread([&] {
         for (;;) {
             FrameExecutionSlot* slot = nullptr;
             {
-                std::unique_lock lock(wait_mutex);
-                stage_changed.wait(lock, [&] {
+                std::unique_lock lock(render_wait_mutex);
+                render_changed.wait(lock, [&] {
                     if (slot) return true;
                     if ((slot = session.acquire_for_render()) != nullptr) return true;
-                    return failed || evaluation_done;
+                    return failed.load(std::memory_order_acquire) ||
+                        evaluation_done.load(std::memory_order_acquire);
                 });
                 if (!slot) {
-                    if (failed || evaluation_done) {
+                    if (failed.load(std::memory_order_acquire) ||
+                        evaluation_done.load(std::memory_order_acquire)) {
                         lock.unlock();
-                        {
-                            std::lock_guard done_lock(wait_mutex);
-                            render_done = true;
-                        }
-                        stage_changed.notify_all();
+                        render_done.store(true, std::memory_order_release);
+                        encoder_changed.notify_all();
                         return;
                     }
                     continue;
@@ -387,7 +394,7 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
                 fail(slot_frame, "RenderPipeline render failed with an unknown exception");
                 return;
             }
-            stage_changed.notify_all();
+            encoder_changed.notify_one();
         }
     });
 
@@ -395,14 +402,16 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
         for (;;) {
             FrameExecutionSlot* slot = nullptr;
             {
-                std::unique_lock lock(wait_mutex);
-                stage_changed.wait(lock, [&] {
+                std::unique_lock lock(encoder_wait_mutex);
+                encoder_changed.wait(lock, [&] {
                     if (slot) return true;
                     if ((slot = session.acquire_for_encoding()) != nullptr) return true;
-                    return failed || render_done;
+                    return failed.load(std::memory_order_acquire) ||
+                        render_done.load(std::memory_order_acquire);
                 });
                 if (!slot) {
-                    if (failed || render_done) return;
+                    if (failed.load(std::memory_order_acquire) ||
+                        render_done.load(std::memory_order_acquire)) return;
                     continue;
                 }
             }
@@ -431,7 +440,7 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
             payload.rendered.reset();
             (void)session.release_encoded(*slot);
             ++frames_encoded;
-            stage_changed.notify_all();
+            evaluation_changed.notify_one();
         }
     });
 
@@ -445,8 +454,8 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
     result.frames_encoded = frames_encoded;
     result.max_queue_depth = max_queue_depth;
     {
-        std::lock_guard lock(wait_mutex);
-        result.ok = !failed;
+        std::lock_guard lock(error_mutex);
+        result.ok = !failed.load(std::memory_order_acquire);
         result.failed_frame = failed_frame;
         result.error = error;
     }

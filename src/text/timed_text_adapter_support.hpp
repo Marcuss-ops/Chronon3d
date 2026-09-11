@@ -3,6 +3,7 @@
 #include "timed_text_core.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -32,6 +33,21 @@ struct AdapterDocumentBuilder {
     while (!value.empty() && (value.front() == ' ' || value.front() == '\t')) value.remove_prefix(1);
     while (!value.empty() && (value.back() == ' ' || value.back() == '\t')) value.remove_suffix(1);
     return std::string(value);
+}
+
+// AUDIT-2026-09-11 — allocation-free integer parse with std::atoi parity.
+// Replaces the std::atoi(std::string(view).c_str()) pattern that heap-
+// allocated a temporary per call (per cue per frame on subtitle loads).
+// Semantics preserved: leading '+'/'-' accepted, digits consumed, no digits
+// → 0 (atoi parity), overflow clamps instead of UB.
+[[nodiscard]] inline int parse_sv_int(std::string_view value) {
+    if (!value.empty() && value.front() == '+') value.remove_prefix(1);
+    int result = 0;
+    const auto [ptr, ec] = std::from_chars(
+        value.data(), value.data() + value.size(), result);
+    (void)ptr;
+    if (ec == std::errc::invalid_argument) return 0;
+    return result;
 }
 
 [[nodiscard]] inline bool valid_interval(f32 start, f32 end) {

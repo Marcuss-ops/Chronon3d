@@ -28,6 +28,12 @@ private:
     std::atomic<bool>& ready_;
 };
 
+class ThrowingGpuCompletion final : public GpuCompletion {
+public:
+    [[nodiscard]] bool ready() const noexcept override { return false; }
+    void wait() override { throw std::runtime_error("device lost"); }
+};
+
 TEST_CASE("frame slot pool owns fixed CPU lifecycle while GPU state lives in tracker") {
     GpuCompletionTracker tracker(3);
     FrameSlotPool pool(3, tracker);
@@ -135,6 +141,15 @@ TEST_CASE("GPU completion tracker gates fixed slot recycle explicitly") {
           InteropFrameState::Recyclable);
     pool.release(*reused);
     CHECK(pool.busy_count() == 0);
+}
+
+TEST_CASE("GPU completion tracker exposes failed waits to the lifecycle") {
+    GpuCompletionTracker tracker(1);
+    tracker.retire(0, std::make_shared<ThrowingGpuCompletion>());
+    CHECK_FALSE(tracker.wait_completion(0));
+    CHECK(tracker.completion_failed(0));
+    tracker.recycle(0);
+    CHECK_FALSE(tracker.completion_failed(0));
 }
 
 TEST_CASE("frame component capacities are fixed and fail closed") {

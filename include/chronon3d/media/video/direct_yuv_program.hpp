@@ -89,8 +89,6 @@ private:
     double scene_eval_ms_{0.0};
     double watermark_load_ms_{0.0};
     double watermark_upload_ms_{0.0};
-    ::chronon3d::media::HwFrameRef last_decoded_{};
-
     bool all_overlay_layers_static_{false};
     struct CachedCueTemplate {
         Frame valid_from{-1};
@@ -100,8 +98,15 @@ private:
     CachedCueTemplate cached_template_{};
     std::uint64_t template_eval_count_{0};
     std::uint64_t template_reuse_count_{0};
-    /// AUDIT-02C: monotonic high-water mark of instances per dynamic frame;
-    /// seeds the next template's vector reserves.
+    /// Reusable frame-template objects. A returned template remains leased by
+    /// the encoder, so reuse is allowed only while the pool is the sole owner.
+    /// This preserves frame lifetime while avoiding three fresh vector
+    /// allocations for every dynamic frame.
+    std::vector<std::shared_ptr<DirectYuvTemplate>> dynamic_template_pool_;
+    [[nodiscard]] std::shared_ptr<DirectYuvTemplate> acquire_dynamic_template();
+
+    /// Monotonic high-water mark of instances per dynamic frame; seeds the
+    /// first allocation of a newly-created template.
     std::size_t overlay_instances_hint_{8};
 };
 

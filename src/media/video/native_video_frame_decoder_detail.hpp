@@ -29,6 +29,7 @@ enum AVPixelFormat select_cuda_format(AVCodecContext*,
                                       const enum AVPixelFormat* formats);
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const AVFrame* frame, SwsContext*& sws,
+    std::vector<std::uint8_t>& rgba_staging,
     RenderCounters* counters, bool enable_swscale = true);
 bool build_source_sample_table(AVFormatContext* fmt, int stream_index,
                                SourceSampleTable& out);

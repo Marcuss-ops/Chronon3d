@@ -25,6 +25,7 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -235,7 +236,17 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
         return graph::RenderOpResult(graph::RenderBackendError{
             graph::RenderBackendErrorCode::InvalidInput, message});
     }
-    processor->draw(make_processor_context(this), fb, node, state, camera, width, height);
+    auto* software_backend =
+        dynamic_cast<SoftwareBackend*>(&m_runtime->backend());
+    if (!software_backend) {
+        const std::string message =
+            "SoftwareRenderer::draw_node requires the software backend";
+        spdlog::error("{}", message);
+        return graph::RenderOpResult(graph::RenderBackendError{
+            graph::RenderBackendErrorCode::UnsupportedCapability, message});
+    }
+    processor->draw(software_backend->processor_context(), fb, node, state,
+                    camera, width, height);
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (m_settings.diagnostics.enabled) {
         renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);

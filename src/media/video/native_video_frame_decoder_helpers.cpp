@@ -20,6 +20,7 @@ enum AVPixelFormat select_cuda_format(AVCodecContext*, const enum AVPixelFormat*
 
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const AVFrame* frame, SwsContext*& sws,
+    std::vector<std::uint8_t>& rgba_staging,
     RenderCounters* counters, bool enable_swscale) {
     if (!frame || frame->width <= 0 || frame->height <= 0) return nullptr;
     if (!enable_swscale) {
@@ -31,14 +32,16 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
     if (!sws) return nullptr;
     uint8_t* dst_data[4] = {nullptr, nullptr, nullptr, nullptr};
     int dst_stride[4] = {0, 0, 0, 0};
-    const int image_bytes = av_image_alloc(dst_data, dst_stride,
-                                           frame->width, frame->height,
-                                           AV_PIX_FMT_RGBA, 32);
-    if (image_bytes < 0) return nullptr;
-    struct ImageAllocation {
-        uint8_t** data;
-        ~ImageAllocation() { av_freep(&data[0]); }
-    } image_allocation{dst_data};
+    const int image_bytes = av_image_get_buffer_size(
+        AV_PIX_FMT_RGBA, frame->width, frame->height, 32);
+    if (image_bytes <= 0) return nullptr;
+    if (rgba_staging.size() < static_cast<std::size_t>(image_bytes)) {
+        rgba_staging.resize(static_cast<std::size_t>(image_bytes));
+    }
+    if (av_image_fill_arrays(dst_data, dst_stride, rgba_staging.data(),
+                             AV_PIX_FMT_RGBA, frame->width, frame->height, 32) < 0) {
+        return nullptr;
+    }
     const auto start = profiling::now();
     const int ret = sws_scale(sws, frame->data, frame->linesize, 0, frame->height,
                               dst_data, dst_stride);
