@@ -24,20 +24,21 @@ LayerYuvQuery certified_image_overlay() noexcept {
 } // namespace
 
 TEST_CASE("composition capability: certified effect set classifies in-domain") {
-    // GPU-resident image/text overlays, NV12 video overlays, video
-    // background and simple color matrices are Certified on the 2D
-    // single-node Normal path.
+    // GPU-resident image overlays, video background and simple color matrices
+    // are Certified on the 2D single-node Normal path. Text and secondary
+    // video overlays remain explicit FullGraph fallbacks until their native
+    // NV12 coverage is independently certified.
     CHECK(classify_direct_yuv(certified_image_overlay()) ==
           DirectYuvSupport::Certified);
 
     LayerYuvQuery text;
     text.effect = DirectYuvEffectClass::TextOverlay;
     text.gpu_resident = true;
-    CHECK(classify_direct_yuv(text) == DirectYuvSupport::Certified);
+    CHECK(classify_direct_yuv(text) == DirectYuvSupport::RequiresFullFrame);
 
     LayerYuvQuery video_overlay;
     video_overlay.effect = DirectYuvEffectClass::VideoOverlayNv12;
-    CHECK(classify_direct_yuv(video_overlay) == DirectYuvSupport::Certified);
+    CHECK(classify_direct_yuv(video_overlay) == DirectYuvSupport::RequiresFullFrame);
 
     LayerYuvQuery background;
     background.effect = DirectYuvEffectClass::VideoBackground;
