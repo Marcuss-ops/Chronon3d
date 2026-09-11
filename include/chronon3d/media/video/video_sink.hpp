@@ -29,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace chronon3d::media::video {
 
@@ -98,6 +99,13 @@ struct VideoSinkErrorInfo {
     VideoSinkError code{VideoSinkError::None};
     std::string    message;
 };
+
+// Video sink compatibility boundary. The legacy code remains the operation
+// result detail, while all structured payload construction is named here.
+[[nodiscard]] inline VideoSinkErrorInfo make_video_sink_error(
+    VideoSinkError code, std::string message) {
+    return VideoSinkErrorInfo{code, std::move(message)};
+}
 
 /// Returns a human-readable name for the state.
 [[nodiscard]] inline std::string_view to_string(VideoSinkState s) noexcept {
@@ -229,37 +237,37 @@ public:
     /// open() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> open_result(const VideoSinkConfig& config) {
         if (open(config)) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 
     /// submit() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_result(const VideoFrameView& frame) {
         if (submit(frame)) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 
     /// submit_planar() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_planar_result(const PlanarVideoFrameView& frame) {
         if (submit_planar(frame)) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 
     /// submit_biplanar() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_biplanar_result(const BiplanarVideoFrameView& frame) {
         if (submit_biplanar(frame)) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 
     /// flush() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> flush_result() {
         if (flush()) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 
     /// close() returning structured error info on failure.
     [[nodiscard]] Result<bool, VideoSinkErrorInfo> close_result() noexcept {
         if (close()) return true;
-        return VideoSinkErrorInfo{last_error(), last_error_message()};
+        return make_video_sink_error(last_error(), last_error_message());
     }
 };
 
