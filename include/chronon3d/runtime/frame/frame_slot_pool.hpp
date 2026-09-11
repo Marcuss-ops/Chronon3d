@@ -6,12 +6,14 @@
 #include <cstddef>
 #include <array>
 #include <memory>
+#include <atomic>
 
 namespace chronon3d::runtime {
 
 class GpuCompletionTracker;
 
 /// Owns the fixed slot storage and the CPU-side pipeline lifecycle only.
+/// ADR-029: this is the sole writer authority for FrameSlotState.
 /// No GPU completion tokens and no producer/consumer queues live here.
 class FrameSlotPool {
 public:
@@ -23,11 +25,19 @@ public:
         FrameExecutionSlot& slot,
         FrameSlotState expected,
         FrameSlotState next) noexcept;
-    void set_state(FrameExecutionSlot& slot, FrameSlotState next) noexcept;
     void release(FrameExecutionSlot& slot) noexcept;
     void reset() noexcept;
 
     [[nodiscard]] std::size_t busy_count() const noexcept;
+    /// Successful slot leases are fixed-storage pool hot-path events. This
+    /// counter makes them observable without misclassifying a lease as heap
+    /// allocation.
+    [[nodiscard]] std::uint64_t hot_path_allocation_events() const noexcept {
+        return hot_path_allocation_events_.load(std::memory_order_relaxed);
+    }
+    void reset_hot_path_counters() noexcept {
+        hot_path_allocation_events_.store(0, std::memory_order_relaxed);
+    }
     [[nodiscard]] FrameExecutionSlot& slot(FrameSlotId slot_id);
     [[nodiscard]] const FrameExecutionSlot& slot(FrameSlotId slot_id) const;
     [[nodiscard]] FrameSlotPayload& payload(FrameSlotId slot_id);
@@ -42,6 +52,7 @@ private:
     // three-slot pipeline.
     std::array<FrameExecutionSlot, kMaxFrameExecutionSlots> slots_{};
     std::unique_ptr<FrameSlotPayload[]> payloads_{};
+    std::atomic<std::uint64_t> hot_path_allocation_events_{0};
 };
 
 } // namespace chronon3d::runtime

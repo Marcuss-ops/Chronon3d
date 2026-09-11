@@ -44,7 +44,7 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
     if (!m_impl) return VulkanBackendStats{};
     std::scoped_lock lock(m_impl->surfaces.mutex,
                           m_impl->submission_ring.mutex);
-    auto s = m_impl->stats;
+    auto s = m_impl->stats.snapshot();
     const auto vma_stats = m_impl->memory_manager.budget_stats();
     s.vma_allocation_bytes = vma_stats.allocation_bytes;
     s.vma_block_bytes = vma_stats.block_bytes;

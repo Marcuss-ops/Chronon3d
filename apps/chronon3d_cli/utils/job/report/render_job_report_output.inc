@@ -132,6 +132,8 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
         << " | barriers: " << run.barrier_count << "\n";
     out << "framebuffer_allocations_per_frame: "
         << run.framebuffer_allocations_per_frame << "\n";
+    out << "steady_state_allocations_per_frame: "
+        << run.steady_state_allocations_per_frame << "\n";
 
     write_bottleneck_diagnosis(out, get_counter, run);
 

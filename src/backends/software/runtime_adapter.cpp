@@ -31,6 +31,42 @@ void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg) {
     chronon3d::renderer::register_builtin_processors(reg);
 }
 
+SoftwareExecutionContext make_software_execution_context(
+    chronon3d::SoftwareRenderer* renderer) {
+    assert(renderer && "make_software_execution_context: null renderer");
+    auto& runtime = renderer->runtime();
+
+    SoftwareExecutionContext context{};
+    context.registry.processors = &renderer->software_registry();
+    context.registry.graph_nodes = &runtime.graph_node_registry();
+    context.registry.effects = &runtime.effect_catalog();
+    context.registry.compositions = renderer->composition_registry();
+
+    context.scratch.node_cache = &runtime.node_cache();
+    context.scratch.graph_cache = &runtime.graph_cache();
+    context.scratch.framebuffer_pool = runtime.framebuffer_pool_shared();
+    context.scratch.scheduler = &runtime.scheduler();
+    context.scratch.curve_cache = &runtime.curve_cache();
+
+    context.images.renderer = &renderer->image_renderer();
+    context.images.backend = renderer->image_backend();
+    context.images.cache = &runtime.image_cache();
+    context.images.surfaces = &runtime.surface_registry();
+
+    context.text.resources = renderer->text_render_resources();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    context.text.fonts = &renderer->font_engine();
+#endif
+    context.text.assets = &runtime.resolver();
+    context.text.prepared_cache = &runtime.gpu_text_prepared_cache();
+
+    context.settings = &renderer->render_settings();
+    context.backend = runtime.backend_attached() ? &runtime.backend() : nullptr;
+    context.counters = renderer->counters();
+    context.video_decoder = renderer->video_decoder();
+    return context;
+}
+
 namespace {
 
 std::unique_ptr<chronon3d::graph::RenderBackend>
@@ -131,6 +167,9 @@ void attach_software_backend(
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
+
+    renderer->attach_execution_context(
+        make_software_execution_context(renderer));
 
 }
 

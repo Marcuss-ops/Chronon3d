@@ -33,6 +33,7 @@
 
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
+#include <chronon3d/backends/software/software_execution_context.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <memory>
 #include <string>

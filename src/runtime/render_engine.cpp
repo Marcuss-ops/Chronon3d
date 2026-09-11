@@ -105,7 +105,7 @@ struct RenderEngine::Impl {
 
         chronon3d::backends::software::attach_software_backend(
             m_renderer.get(), m_config.backend_preference());
-        m_pipeline.emplace(m_renderer.get(), *m_runtime);
+        m_pipeline.emplace(m_renderer.get(), m_renderer->execution_context());
 
         if (assets_root.has_value()) {
             set_assets_root(*assets_root);

@@ -105,6 +105,8 @@ struct RenderTelemetryRecord {
     uint64_t alias_reuse_count{0};
     uint64_t new_resource_slot_count{0};
     uint64_t arena_peak_bytes{0};
+    uint64_t frame_arena_upstream_allocations{0};
+    uint64_t frame_slot_pool_acquire_events{0};
     uint64_t unaligned_memory_copies{0};
     uint64_t frame_conversion_copy_wall_ms{0};
     uint64_t video_graph_eval_wall_ms{0};
@@ -174,6 +176,9 @@ struct RenderTelemetryRecord {
     // the only per-frame allocation event rate the engine measures; there is
     // no general heap-allocator counter, so it is never estimated.
     double framebuffer_allocations_per_frame{0.0};
+    // Unexpected upstream arena allocation attempts per rendered frame after
+    // warmup. The certified steady-state gate requires this to be zero.
+    double steady_state_allocations_per_frame{0.0};
 
     // ── GPU overlay-factory counters (queried from render_counters) ──
     // Fed by the GPU backend when it records telemetry; 0 on software runs.

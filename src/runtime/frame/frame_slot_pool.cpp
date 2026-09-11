@@ -1,5 +1,7 @@
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
+#include <chronon3d/core/profiling/profiling_context.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
 
 #include <limits>
 #include <stdexcept>
@@ -34,6 +36,11 @@ FrameExecutionSlot* FrameSlotPool::try_acquire(FrameSlotState acquired_state) no
                 std::memory_order_acq_rel,
                 std::memory_order_acquire)) {
             producer_cursor_ = (slot_id + 1) % capacity_;
+            hot_path_allocation_events_.fetch_add(1, std::memory_order_relaxed);
+            if (profiling::g_current_counters != nullptr) {
+                profiling::g_current_counters->frame_slot_pool_acquire_events.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
             return &candidate;
         }
     }
@@ -48,12 +55,6 @@ bool FrameSlotPool::transition(
         expected, next, std::memory_order_acq_rel, std::memory_order_acquire);
 }
 
-void FrameSlotPool::set_state(
-    FrameExecutionSlot& slot,
-    FrameSlotState next) noexcept {
-    slot.state.store(next, std::memory_order_release);
-}
-
 void FrameSlotPool::release(FrameExecutionSlot& slot) noexcept {
     slot.frame_index = std::numeric_limits<std::uint64_t>::max();
     slot.state.store(FrameSlotState::Free, std::memory_order_release);
@@ -61,6 +62,7 @@ void FrameSlotPool::release(FrameExecutionSlot& slot) noexcept {
 
 void FrameSlotPool::reset() noexcept {
     producer_cursor_ = 0;
+    reset_hot_path_counters();
     for (FrameSlotId slot_id = 0; slot_id < capacity_; ++slot_id) {
         payloads_[slot_id].reset();
         auto& entry = slots_[slot_id];

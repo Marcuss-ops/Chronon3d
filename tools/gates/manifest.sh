@@ -13,6 +13,7 @@ DEVELOPER_GATES=(
     check_no_sqlite.sh
     check_architecture.py
     architecture_gate_selftest.sh
+    check_steady_state_allocations.sh
 )
 
 CI_PHASES=(

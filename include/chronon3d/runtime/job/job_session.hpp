@@ -168,7 +168,10 @@ public:
             return false;
         }
         if (!evaluated_queue_->try_push(slot.slot_id)) {
-            slots_->set_state(slot, FrameSlotState::Evaluating);
+            // Queue publication failed after the forward transition. The
+            // FrameSlotPool remains the sole state writer, including rollback.
+            (void)slots_->transition(slot, FrameSlotState::Evaluated,
+                                     FrameSlotState::Evaluating);
             return false;
         }
         return true;
@@ -183,7 +186,10 @@ public:
             return false;
         }
         if (!rendered_queue_->try_push(slot.slot_id)) {
-            slots_->set_state(slot, FrameSlotState::Evaluated);
+            // Roll back through the same CAS transition authority; no direct
+            // state store is permitted outside FrameSlotPool.
+            (void)slots_->transition(slot, FrameSlotState::Rendered,
+                                     FrameSlotState::Evaluated);
             return false;
         }
         return true;
