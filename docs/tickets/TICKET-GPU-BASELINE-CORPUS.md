@@ -26,7 +26,7 @@ baseline.
 
 ```bash
 bash tools/benchmark_gpu_baseline.sh \
-  --out artifacts/gpu-baseline-23829045a --frames 120 --warmup 10 \
+  --out artifacts/gpu-baseline-<commit> --frames 120 --warmup 10 \
   --case GPU_TEXT_01=Clean --case GPU_TEXT_02=Pop \
   --case GPU_TEXT_03=Neon --case GPU_TEXT_04=Tracking \
   --case GPU_TEXT_05=Glitch
@@ -38,7 +38,9 @@ smoke case is `B00=DarkGridBackground`.
 
 ## Evidence
 
-The runner was syntax-checked and executed on `23829045a` with a 12-frame
-GPU/NVENC smoke case. It produced a sidecar, 12/12 frames, and 99.33%
-exclusive wall-time attribution. The full B00–B11 and GPU_TEXT corpus remains
-measurement work on the host that provides those fixtures.
+The runner was syntax-checked and executed on `cfd178b59` with a 12-frame
+`DarkGridBackground` GPU/NVENC smoke case. It produced a sidecar, 12/12
+frames, and 99.028% wall-time attribution; `cuda_host_upload_bytes` was zero
+in both prewarm and steady-state windows. The exact result is recorded in
+`docs/baselines/gpu-baseline-cfd178b59.md`. The full B00–B11 and GPU_TEXT
+corpus remains measurement work on the host that provides those fixtures.
