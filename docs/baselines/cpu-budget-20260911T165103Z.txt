@@ -1,0 +1,22 @@
+# Chronon3d CpuBudget measurement
+
+commit: 23829045a82bf0021b00b67af89a1800900741ed
+generated_utc: 2026-09-11T16:51:03Z
+host: NVIDIA GPU working build host
+protocol: /usr/bin/time -v; timing sidecar authoritative when present
+fixture: DarkGridBackground, Vulkan, native NVENC, frames 0-59,
+         warmup-framebuffers=2
+
+mode | exit | wall_ms | render_ms | encode_ms | encode_ratio | cpu_percent | peak_rss_kb
+--- | ---: | ---: | ---: | ---: | ---: | ---: | ---:
+pipe | 0 | 6259.4408 | 627.1251 | 877.3481 | 0.5832 | 96.0 | 1027732
+
+sidecar: /tmp/chronon-cpu-budget-real60/render.mp4.timing.json
+job_wall_ms: 4628.4499
+
+decision: ENCODE_IS_SIGNIFICANT; KEEP THE EXISTING BOUNDED PIPE MODE AND
+EXTEND THE SAME CPUBUDGET AUTHORITY ONLY AFTER OVERLAP/STARTUP ISOLATION.
+
+The current pipe path already uses one bounded render-to-writer SPSC queue and
+the existing CpuBudget encode share. No WritePoolV2/EncoderPool or second
+queue authority is introduced by this measurement.

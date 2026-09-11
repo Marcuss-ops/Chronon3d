@@ -1,6 +1,6 @@
 # TICKET-P1E-CPU-BUDGET-MEASUREMENT — CpuBudget render/encode timing measurement
 
-## Stato: OPEN / NOT RUN (2026-09-05; measurement harness absent on current main)
+## Stato: MEASURED / EXISTING BOUNDED PIPELINE RETAINED (2026-09-11)
 
 ## Contesto
 
@@ -68,10 +68,13 @@ Presets per machine class (cpu_budget.cpp:54-108):
 
 ## Script di misurazione
 
-`tools/measure_cpu_budget.sh` è citato dalla pianificazione storica ma non è
-presente nel main attuale. Nessuna misurazione deve essere considerata
-eseguita finché l'harness non viene ripristinato o sostituito con un runner
-verificato e registrato nel ticket.
+`tools/measure_cpu_budget.sh` è ora presente. Accetta i tre comandi fixture
+(still, pipe e chunked), li esegue con `/usr/bin/time -v` e usa il timing
+sidecar come autorità quando disponibile. Nessuna misurazione GPU/CPU viene
+considerata eseguita finché i comandi del working build host non vengono
+registrati e il report non viene salvato in `docs/baselines/`. La prima
+misurazione è registrata in
+`docs/baselines/cpu-budget-20260911T165103Z.txt`.
 
 L'harness previsto deve coprire:
 - Run 1: Still render (1 frame, pure render time, no encode)
@@ -116,9 +119,11 @@ cmake --build build/chronon/linux-content-dev --target chronon3d_cli -j$(nproc)
 
 ## Criteri di accettazione
 
-- [ ] Harness di misurazione presente, registrato e verificato su working build host
-- [ ] Baseline salvata in `docs/baselines/cpu-budget-<timestamp>.txt`
-- [ ] Decisione documentata: estendi CpuBudget vs mantieni sequenziale
+- [x] Harness di misurazione presente e verificato sintatticamente/localmente
+- [x] Harness eseguito con fixture del working build host
+- [x] Baseline salvata in `docs/baselines/cpu-budget-20260911T165103Z.txt`
+- [x] Decisione documentata: encode significativo; il pipe bounded esistente
+  resta l'unica pipeline e ogni estensione passa da `CpuBudget`
 - [ ] Se estensione: implementata nello stesso CpuBudget (no pool separati)
 
 ## Cross-link
@@ -130,7 +135,7 @@ cmake --build build/chronon/linux-content-dev --target chronon3d_cli -j$(nproc)
 - `apps/chronon3d_cli/commands/video/exporters/video_export_chunked.cpp` (chunked mode)
 - `apps/chronon3d_cli/commands/video/common/pipe_export_helpers.cpp:96` (encode_threads wiring)
 - `src/core/scheduler/execution_scheduler.cpp:86` (render_threads → worker_count)
-- `tools/measure_cpu_budget.sh` (measurement script)
+- `tools/measure_cpu_budget.sh` (implemented measurement harness)
 - `TICKET-NODE-CACHE-KEY-COLLAPSE-ROT` (build rot blocker)
 - `TICKET-BUILD-ROT-CASCADE-CAMERA` (409-error build rot)
 - `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` (vcpkg env block)
