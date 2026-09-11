@@ -90,14 +90,14 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
     std::shared_ptr<SoftwareRenderer> warm_renderer,
     std::shared_ptr<media::VideoJobExecutionContext> execution) {
     if (!job.registry) {
-        return RenderJobError{
+        return make_render_job_error(
             RenderJobErrorCode::InvalidJob,
-            "RenderJob has no CompositionRegistry"};
+            "RenderJob has no CompositionRegistry");
     }
     if (!job.program && (!job.compiled || !job.compiled->composition)) {
-        return RenderJobError{
+        return make_render_job_error(
             RenderJobErrorCode::InvalidJob,
-            "RenderJob has neither a compiled program nor a compiled composition"};
+            "RenderJob has neither a compiled program nor a compiled composition");
     }
 
     // --trace: job-scoped Perfetto session covering every render mode.  The
@@ -107,24 +107,24 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
 
     if (job.mode == RenderMode::Video) {
         if (!job.compiled || !job.compiled->composition) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::InvalidJob,
-                "Video RenderJob requires the legacy compiled export view"};
+                "Video RenderJob requires the legacy compiled export view");
         }
         if (!job.selected_frames.empty()) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::InvalidJob,
                 "InvalidRange: video RenderJob cannot use "
-                "non-contiguous selected_frames"};
+                "non-contiguous selected_frames");
         }
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
         if (!validate_video_job(job)) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::ValidationFailed,
                 "EncoderFailed: video export validation failed for composition '" +
                     job.comp_id + "' using codec '" +
                     job.video_settings.codec + "' output '" +
-                    job.output + "'"};
+                    job.output + "'");
         }
 
         int rc = 0;
@@ -153,25 +153,25 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.execution.cpu_budget,
                     std::move(execution));
             } catch (const std::exception& error) {
-                return RenderJobError{
+                return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,
                     "BackendFailed: video export for composition '" +
-                        job.comp_id + "' threw: " + error.what()};
+                        job.comp_id + "' threw: " + error.what());
             } catch (...) {
-                return RenderJobError{
+                return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,
                     "BackendFailed: video export for composition '" +
-                        job.comp_id + "' threw an unknown exception"};
+                        job.comp_id + "' threw an unknown exception");
             }
         }
 
         if (rc != 0) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::RenderFailed,
                 "EncoderFailed: video encoder failed for composition '" +
                     job.comp_id + "' using codec '" +
                     job.video_settings.codec + "' output '" +
-                    job.output + "'"};
+                    job.output + "'");
         }
 
         const int frames = static_cast<int>(
@@ -182,9 +182,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             .frames_written = job.video_settings.dry_run ? 0 : frames,
         };
 #else
-        return RenderJobError{
+        return make_render_job_error(
             RenderJobErrorCode::UnsupportedMode,
-            "Video output requested but the CLI video exporter target is disabled"};
+            "Video output requested but the CLI video exporter target is disabled");
 #endif
     }
 
@@ -192,16 +192,16 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
         RenderJobSetupResult setup;
         setup_render_job(*job.registry, job, setup, std::move(warm_renderer));
         if (!setup.renderer) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::SetupFailed,
                 "Failed to create renderer for composition '" +
-                    job.comp_id + "'"};
+                    job.comp_id + "'");
         }
         if (!setup.preparation_ok) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::SetupFailed,
                 "Render preparation failed for composition '" +
-                    job.comp_id + "': " + setup.preparation_diagnostic};
+                    job.comp_id + "': " + setup.preparation_diagnostic);
         }
 
         const auto motion_blur_suffix =
@@ -254,9 +254,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             loop.loop_start,
             loop.loop_end);
         if (!ok) {
-            return RenderJobError{
+            return make_render_job_error(
                 RenderJobErrorCode::RenderFailed,
-                "Render failed for composition '" + job.comp_id + "'"};
+                "Render failed for composition '" + job.comp_id + "'");
         }
 
         return RenderJobOutput{
@@ -265,9 +265,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             .frames_written = loop.frames_written,
         };
     } catch (const std::exception& error) {
-        return RenderJobError{
+        return make_render_job_error(
             RenderJobErrorCode::RenderFailed,
-            error.what()};
+            error.what());
     }
 }
 
