@@ -116,6 +116,8 @@ if corpus_file:
         manifest = json.loads(pathlib.Path(corpus_file).read_text())
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"invalid corpus manifest: {exc}")
+    if not isinstance(manifest, dict):
+        raise SystemExit("invalid corpus manifest: top-level value must be an object")
     manifest_cases = manifest.get("cases")
     if not isinstance(manifest_cases, list) or not manifest_cases:
         raise SystemExit("invalid corpus manifest: cases must be a non-empty list")
@@ -199,6 +201,7 @@ for spec in cases:
              "process_startup_ms": None, "prepare_ms": None,
              "warmup_ms": None, "steady_state_ms": None,
              "encode_drain_ms": None, "finalize_ms": None,
+             "full_file_reread_count": None,
              "total_wall_ms": process_wall_ms, "attribution": None,
              "execution_path": None, "frames": None, "error": None}
     if not sidecar_path.is_file():
@@ -217,6 +220,7 @@ for spec in cases:
             entry["encode_drain_ms"] = phase(data, "encode_drain_ms")
             entry["finalize_ms"] = phase(data, "finalize_ms")
             entry["attribution"] = data.get("phase_attribution") or data.get("exclusive_wall_timeline", {})
+            entry["full_file_reread_count"] = get(data, "job", "full_file_reread_count")
             entry["windows"] = summary.get("windows", {})
             entry["prewarm_prepare_ms"] = get(data, "prepare_breakdown", "total_prepare_ms")
             accounted = get(data, "exclusive_wall_timeline", "accounted_percent")
@@ -224,6 +228,19 @@ for spec in cases:
                 entry["error"] = "wall-time attribution missing accounted_percent"
             elif float(accounted) < 95.0:
                 entry["error"] = f"wall-time attribution below 95%: {accounted:.2f}%"
+            elif not isinstance(entry["windows"], dict) or not all(
+                isinstance(entry["windows"].get(name), dict)
+                for name in ("prewarm", "steady_state")
+            ):
+                entry["error"] = "prewarm/steady_state windows missing"
+            elif any(not numeric(entry[name]) for name in (
+                "process_startup_ms", "prepare_ms", "warmup_ms",
+                "steady_state_ms", "encode_drain_ms", "finalize_ms")):
+                entry["error"] = "required timing bucket missing or non-numeric"
+            elif not isinstance(entry["full_file_reread_count"], int) or isinstance(
+                entry["full_file_reread_count"], bool
+            ) or entry["full_file_reread_count"] < 0:
+                entry["error"] = "job.full_file_reread_count missing or invalid"
             if entry["frames"] != frames:
                 entry["error"] = f"frame count mismatch: expected {frames}, got {entry['frames']}"
             if encoder_backend == "native":
