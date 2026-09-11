@@ -77,31 +77,28 @@ Result<MediaProbeInfo, MediaProbeError> probe_media(
     const std::filesystem::path& input) {
 #if !defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     (void)input;
-    return MediaProbeError{
-        .code = MediaProbeErrorCode::BackendUnavailable,
-        .native_code = 0,
-        .message = "libavformat probe unavailable: build with CHRONON3D_ENABLE_NATIVE_FFMPEG=ON",
-    };
+    return make_media_probe_error(
+        MediaProbeErrorCode::BackendUnavailable,
+        0,
+        "libavformat probe unavailable: build with CHRONON3D_ENABLE_NATIVE_FFMPEG=ON");
 #else
     FormatContextGuard format;
     const std::string input_path = input.string();
     int ffmpeg_result =
         avformat_open_input(&format.context, input_path.c_str(), nullptr, nullptr);
     if (ffmpeg_result < 0) {
-        return MediaProbeError{
-            .code = MediaProbeErrorCode::OpenInput,
-            .native_code = ffmpeg_result,
-            .message = ffmpeg_error_string(ffmpeg_result),
-        };
+        return make_media_probe_error(
+            MediaProbeErrorCode::OpenInput,
+            ffmpeg_result,
+            ffmpeg_error_string(ffmpeg_result));
     }
 
     ffmpeg_result = avformat_find_stream_info(format.context, nullptr);
     if (ffmpeg_result < 0) {
-        return MediaProbeError{
-            .code = MediaProbeErrorCode::StreamInfo,
-            .native_code = ffmpeg_result,
-            .message = ffmpeg_error_string(ffmpeg_result),
-        };
+        return make_media_probe_error(
+            MediaProbeErrorCode::StreamInfo,
+            ffmpeg_result,
+            ffmpeg_error_string(ffmpeg_result));
     }
 
     MediaProbeInfo info;

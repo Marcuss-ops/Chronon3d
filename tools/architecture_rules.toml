@@ -120,3 +120,20 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/text/text_run_builder.hpp"]
 patterns = ["\\bTextLayoutError\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "media_probe_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/media/video/media_probe.hpp"]
+patterns = ["\\bMediaProbeError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "sdk_render_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = [
+  "include/chronon3d/sdk/render_error.hpp",
+  "include/chronon3d/render/render_diagnostic.hpp",
+]
+patterns = ["\\bRenderError\\s*\\{"]
+skip_comments = true
