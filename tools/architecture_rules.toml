@@ -179,3 +179,10 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/decode_result.hpp"]
 patterns = ["\\bDecodeFailure\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "preparation_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/runtime/resource_preparation.hpp"]
+patterns = ["\\bPreparationError\\s*\\{"]
+skip_comments = true
