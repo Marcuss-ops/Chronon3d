@@ -1,6 +1,6 @@
 # TICKET-ZERO-COPY-ZWAVES — Zero-copy Z-wave census and execution plan
 
-Status: `ACTIVE` (Z0 census DONE; Z1–Z7 adapted plan, host-reachable slice landed 2026-09-07)
+Status: `ACTIVE` (code waves landed; GPU certification remains host-dependent)
 Owner: media/video + rendering-core maintainers
 Created: 2026-09-07
 Baseline: `main@23108742a1d72bd9a6eb6ca208506965f4f40154`
@@ -196,6 +196,27 @@ Remaining Z7:
 - CUDA-lane upload counters or two-window certification (F5/F7);
 - nightlies/CI zero-copy job with the registered scene on a GPU host;
 - keep all old-error counters as regression canaries after paths are removed.
+
+## Wave closure update — 2026-09-11
+
+The CLI render-plan path now invokes `compiler::compile()` exactly once. The
+video exporter receives a temporary scene-evaluation compatibility view built
+from that immutable `CompiledProgram`; the compatibility branch does not call
+`compile_composition()`. A declarative architecture contract prevents the CLI
+preparation layer from reintroducing the second compile.
+
+FullGraph native slots now own one exportable Vulkan backing. The source and
+encode roles alias the same handle, the graph terminal is bound before node
+execution, and the session destructor deduplicates release. FFmpeg CUDA
+hwframes are materialized during native-surface warm-up, then reused by the
+bounded encoder ring.
+
+The static certification is green (`185/185` architecture rules and the
+steady-state allocation gate at `0.0` allocations/frame). RenderingGen
+classifier/argument and processor contract tests are green. The reduced
+runtime Z3 video certification was attempted on 2026-09-11 but this host's
+capability probe reported no NVENC device; it remains pending on an NVENC
+certification host and is not treated as a successful GPU result.
 
 ---
 

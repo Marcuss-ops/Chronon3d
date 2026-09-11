@@ -211,6 +211,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     } else {
         timings.execution_path = "full_graph";
     }
+    if (!session->opts.resolved_execution_reason.empty()) {
+        timings.execution_reason = session->opts.resolved_execution_reason;
+    }
+    timings.execution_downgrade_count = session->opts.resolved_execution_downgrade_count;
     if (session->execution_plan) {
         switch (session->execution_plan->handoff) {
         case media::SurfaceHandoffPath::None:
