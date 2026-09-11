@@ -358,6 +358,18 @@ const DirectLayerResourceEntry* DirectYuvProgram::find_resource(
     return nullptr;
 }
 
+std::shared_ptr<DirectYuvTemplate> DirectYuvProgram::acquire_dynamic_template() {
+    for (auto& candidate : dynamic_template_pool_) {
+        if (candidate.use_count() == 1) {
+            candidate->reset_for_reuse();
+            return candidate;
+        }
+    }
+    auto candidate = std::make_shared<DirectYuvTemplate>();
+    dynamic_template_pool_.push_back(candidate);
+    return candidate;
+}
+
 std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     media::NativeVideoFrameDecoder& decoder, Frame frame) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -366,12 +378,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 #else
     auto decoded = decoder.decode_native_frame_at(
         video_path_, composition_->frame_rate().presentation_time(frame), width_, height_);
-    if (decoded) {
-        last_decoded_ = decoded;
-    } else if (last_decoded_) {
-        decoded = last_decoded_;
-    } else {
-        spdlog::error("[direct-yuv] native decode failed at frame={} without diagnostic", frame.integral());
+    if (!decoded) {
+        // A decode error is a failed frame, not an implicit hold-last-frame
+        // policy. Repeating a previous image produces a formally successful
+        // but visually corrupt export and hides the original failure.
+        spdlog::error("[direct-yuv] native decode failed at frame={}", frame.integral());
         return nullptr;
     }
     if (!composition_) return nullptr;
@@ -390,13 +401,16 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     }
 
     ++template_eval_count_;
-    auto template_frame = std::make_shared<DirectYuvTemplate>();
-    // AUDIT-02C: reserve the dynamic path's capacity once at first eval.
-    // push_back stays steady-state allocation-free for typical overlay
-    // counts; the retained vector never shrinks between cues.
-    template_frame->batch.instances.reserve(overlay_instances_hint_);
-    template_frame->resources.reserve(overlay_instances_hint_);
-    template_frame->resource_owners.reserve(overlay_instances_hint_);
+    auto template_frame = acquire_dynamic_template();
+    if (template_frame->batch.instances.capacity() < overlay_instances_hint_) {
+        template_frame->batch.instances.reserve(overlay_instances_hint_);
+    }
+    if (template_frame->resources.capacity() < overlay_instances_hint_) {
+        template_frame->resources.reserve(overlay_instances_hint_);
+    }
+    if (template_frame->resource_owners.capacity() < overlay_instances_hint_) {
+        template_frame->resource_owners.reserve(overlay_instances_hint_);
+    }
     const auto rate = composition_->frame_rate();
     const auto duration = composition_->duration();
     const auto context = make_frame_context({

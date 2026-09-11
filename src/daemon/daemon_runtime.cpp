@@ -39,7 +39,6 @@ void DaemonRuntime::warmup() {
 void DaemonRuntime::prepare_composition(
     std::string_view composition_id, std::string_view descriptor_json) {
     if (!accepting()) throw std::runtime_error("daemon is not accepting jobs");
-    std::lock_guard lock(m_render_mutex);
     m_session.create_composition(composition_id, descriptor_json);
 }
 
@@ -52,7 +51,6 @@ DaemonRuntime::RenderOutcome DaemonRuntime::render_frame_timed(
     std::string_view composition_id, Frame frame) {
     RenderOutcome outcome;
     if (!accepting()) return {};
-    std::lock_guard lock(m_render_mutex);
     const auto t0 = profiling::now();
     outcome.framebuffer = m_session.render_frame(composition_id, frame);
     outcome.render_ms = profiling::elapsed_ms(t0);
@@ -70,7 +68,6 @@ bool DaemonRuntime::contains(std::string_view composition_id) const noexcept {
 }
 
 void DaemonRuntime::release_composition(std::string_view composition_id) {
-    std::lock_guard lock(m_render_mutex);
     m_session.remove(composition_id);
 }
 

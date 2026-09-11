@@ -18,11 +18,8 @@
 // every processor TU. The forward-decls are sufficient because all
 // fields are pointers; no member-type instantiation is required.
 //
-// Migration helper: `make_processor_context(SoftwareRenderer*)` in
-// `software_processor_context.cpp` constructs the bundle from a
-// renderer instance. Single source of "pull runtime data through the
-// renderer", so processors can be re-pointed to the runtime once R3
-// drops dual identity.
+// Construction is performed by the internal services bridge from explicit
+// bundles. The processor context must not retain an orchestrator back-pointer.
 // ============================================================================
 
 namespace chronon3d {
@@ -52,7 +49,6 @@ class FontEngine;
 #endif
 
 struct SoftwareProcessorContext {
-    class SoftwareRenderer*                           renderer{nullptr};        // back-pointer for incomplete migration
     RenderCounters*                                  counters{nullptr};        // REQUIRED
     const RenderSettings*                            settings{nullptr};        // REQUIRED
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED
@@ -69,11 +65,5 @@ struct SoftwareProcessorContext {
 #endif
     struct TextRenderResources*                      text_resources{nullptr}; // Fase 3: pre-loaded font caches
 };
-
-/// Build a SoftwareProcessorContext from a renderer (the
-/// canonical pre-R3 source). Returns by value; non-owning pointers
-/// only. After R3 (when dual identity is dropped) this helper will
-/// source from the runtime directly.
-[[nodiscard]] SoftwareProcessorContext make_processor_context(class SoftwareRenderer* renderer);
 
 } // namespace chronon3d

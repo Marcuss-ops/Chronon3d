@@ -76,6 +76,19 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDec
                 continue;
             }
 
+            // Demand decode has priority over speculative work. The flag is
+            // published while the foreground thread still owns session::mutex
+            // below, so a prefetch task that has not entered FFmpeg yet can
+            // give the decoder back immediately instead of taking the decode
+            // mutex ahead of the requested frame.
+            if (foreground_decode_pending.load(std::memory_order_acquire)) {
+                std::lock_guard lock(mutex);
+                if (generation == prefetch_generation) prefetch_next = target;
+                if (prefetch_inflight == target) prefetch_inflight = -1;
+                prefetch_cv.notify_all();
+                continue;
+            }
+
             auto decode_result = decoder->decode_frame_internal(*this, target);
             auto* decoded = std::get_if<DecodedFrame>(&decode_result);
             {
@@ -253,7 +266,8 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
                 m_counters->hwframe_transfer_to_cpu_frames.fetch_add(1, std::memory_order_relaxed);
             }
         }
-        framebuffer = frame_to_framebuffer(render, session.sws, m_counters,
+        framebuffer = frame_to_framebuffer(render, session.sws, session.rgba_staging,
+                                           m_counters,
                                            session.test_options.enable_swscale);
         if (!framebuffer) {
             fail(DecodeFailureReason::UnsupportedFormatChange, 0,
@@ -441,12 +455,14 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     session->prefetch_queue.clear();
     ++session->prefetch_generation;
     session->prefetch_next = selected + 1 < session->sample_table.size() ? target + 1 : -1;
+    session->foreground_decode_pending.store(true, std::memory_order_release);
     lock.unlock();
 
     auto io_read = global_media_io_budget().acquire_required_read();
     auto result = decode_frame_internal(*session, target);
 
     lock.lock();
+    session->foreground_decode_pending.store(false, std::memory_order_release);
     session->prefetch_cv.notify_all();
     if (auto* decoded = std::get_if<DecodedFrame>(&result)) {
         const bool native_surface = decoded->framebuffer &&

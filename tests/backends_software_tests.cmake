@@ -16,11 +16,9 @@
 #     land in this same target.
 #
 # Note on dependencies: we link against `chronon3d_sdk` and
-# `chronon3d_sdk_impl`, NOT `chronon3d_backends_software` directly — the
-# header-only POD lives in the public `chronon3d_sdk` and the
-# `make_processor_context(SoftwareRenderer* renderer)` helper symbol is
-# exported by `chronon3d_sdk_impl`. This keeps the test build independent
-# of a full renderer TLB pull.
+# `chronon3d_sdk_impl`, NOT `chronon3d_backends_software` directly. The
+# context is a standalone public POD, so this test stays independent of a
+# full renderer construction.
 
 chronon3d_add_test_suite(
     NAME chronon3d_backends_software_tests

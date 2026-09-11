@@ -2,6 +2,8 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -77,7 +79,12 @@ void release_consumed_framebuffers(
     }
     for (const GraphNodeId id : release_after_level) {
         if (!contains_index(state.temp, id)) continue;
+        const auto fb_t0 = profiling::now();
         state.temp[id].reset();
+        const double fb_ms = profiling::duration_ms(fb_t0, profiling::now());
+        if (fb_ms > 0.5) {
+            spdlog::info("[exec-fb-diag] resetting temp[{}] took {:.3f} ms", id, fb_ms);
+        }
         state.resolved_key_digest[id] = 0;
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;

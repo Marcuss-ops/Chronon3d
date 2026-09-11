@@ -86,18 +86,19 @@ std::string prepared_mesh_key(const PreparedAssets& prepared) {
 } // namespace
 
 void RuntimeContext::publish_prepared_assets(const PreparedAssets& prepared) {
-    std::lock_guard lock(m_prepared_assets_mutex);
-    m_prepared_assets = std::make_shared<const PreparedAssets>(prepared);
-    m_prepared_mesh_manifest_key = prepared_mesh_key(prepared);
+    std::lock_guard lock(m_asset_services.prepared_assets_mutex);
+    m_asset_services.prepared_assets = std::make_shared<const PreparedAssets>(prepared);
+    m_asset_services.prepared_mesh_manifest_key = prepared_mesh_key(prepared);
 }
 
 std::shared_ptr<const PreparedAssets>
 RuntimeContext::prepared_assets_for(const assets::AssetManifest& manifest) const {
     const auto requested_key = mesh_manifest_key(manifest);
     if (requested_key.empty()) return {};
-    std::lock_guard lock(m_prepared_assets_mutex);
-    if (!m_prepared_assets || m_prepared_mesh_manifest_key != requested_key) return {};
-    return m_prepared_assets;
+    std::lock_guard lock(m_asset_services.prepared_assets_mutex);
+    if (!m_asset_services.prepared_assets ||
+        m_asset_services.prepared_mesh_manifest_key != requested_key) return {};
+    return m_asset_services.prepared_assets;
 }
 
 // Fase B2 (DONE) — process_wide_assets_root globals REMOVED.
@@ -160,11 +161,11 @@ RuntimeContext::create(RuntimeConfig cfg) {
 RuntimeContext::~RuntimeContext() = default;
 
 void RuntimeContext::reset_compiled_cache() {
-    CompiledTopologyCache{m_owned_graph_cache}.reset();
+    CompiledTopologyCache{m_caches.graph_cache}.reset();
 }
 
 void RuntimeContext::reset_frame_value_cache() {
-    FrameValueCache{m_owned_node_cache}.reset();
+    FrameValueCache{m_caches.node_cache}.reset();
 }
 
 void RuntimeContext::populate() {
@@ -178,8 +179,8 @@ void RuntimeContext::populate() {
     // TICKET-011 — NodeCache is non-movable (its CacheDiagnostics
     // registration lambdas capture `this`).  Set capacity on the
     // default-constructed member instead of move-assigning a new one.
-    m_owned_node_cache.set_capacity(cache_cfg.node_cache_max_bytes());
-    m_owned_node_cache.set_diagnostics(m_diagnostics);
+    m_caches.node_cache.set_capacity(cache_cfg.node_cache_max_bytes());
+    m_caches.node_cache.set_diagnostics(m_caches.diagnostics);
     // The per-job/CLI budget is the canonical retention limit when present.
     // Previously it was stored in Config but this construction path only read
     // the legacy max-bytes field, making --fb-pool-budget-mb ineffective.
@@ -187,12 +188,12 @@ void RuntimeContext::populate() {
         cache_cfg.fb_pool_budget_bytes() > 0
             ? cache_cfg.fb_pool_budget_bytes()
             : cache_cfg.fb_pool_max_bytes();
-    m_owned_framebuffer_pool =
+    m_caches.framebuffer_pool =
         std::make_shared<cache::FramebufferPool>(pool_limit_bytes);
-    m_owned_executor    = std::make_unique<chronon3d::graph::GraphExecutor>();
-    m_owned_graph_node_registry  = std::make_unique<chronon3d::graph::GraphNodeCatalog>();
-    m_owned_effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
-    m_scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
+    m_execution.executor    = std::make_unique<chronon3d::graph::GraphExecutor>();
+    m_execution.graph_node_registry  = std::make_unique<chronon3d::graph::GraphNodeCatalog>();
+    m_execution.effect_catalog       = std::make_unique<chronon3d::effects::EffectCatalog>();
+    m_execution.scheduler                  = std::make_unique<chronon3d::ExecutionScheduler>(
         make_execution_scheduler(m_config));
     // WP-3 PR 3.1 — no longer populating m_owned_scene_hasher /
     // m_owned_program_store here: both are per-session owned in the
@@ -202,8 +203,8 @@ void RuntimeContext::populate() {
     // It is constructed from the typed AssetResolver and lives as long
     // as the runtime so that every composition lambda sees a stable
     // engine via ctx.runtime->font_engine().
-    m_font_engine_owned = std::make_unique<chronon3d::FontEngine>(
-        m_resolver, &m_text_layout_cache);
+    m_asset_services.font_engine = std::make_unique<chronon3d::FontEngine>(
+        m_asset_services.resolver, &m_caches.text_layout_cache);
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
     // TICKET-011 — these registrations previously lived in
@@ -214,8 +215,8 @@ void RuntimeContext::populate() {
     // Fase 4 — SoftwareRegistry ownership moved to SoftwareRenderer;
     // builtin processors are registered there via
     // backends::software::register_builtin_processors().
-    graph::register_pipeline_graph_nodes(*m_owned_graph_node_registry);
-    m_owned_effect_catalog->freeze();
+    graph::register_pipeline_graph_nodes(*m_execution.graph_node_registry);
+    m_execution.effect_catalog->freeze();
 
     // ── Backend slot: deferred to attach_backend() ───────────────────
     // Producing SoftwareBackend requires the renderer's per-instance
@@ -226,7 +227,7 @@ void RuntimeContext::populate() {
     // ── Unmount the runtime's typed AssetResolver by default.
     //    AssetRegistry no longer holds a mount root; path resolution
     //    is the resolver's job. ─────────────────────────────────────
-    m_resolver.mount(std::filesystem::path{});
+    m_asset_services.resolver.mount(std::filesystem::path{});
 
     m_populated = true;
     spdlog::debug("RuntimeContext::populate(): runtime populated with "
@@ -246,12 +247,12 @@ void RuntimeContext::attach_backend(
         throw std::invalid_argument(
             "RuntimeContext::attach_backend(): nullptr");
     }
-    if (m_backend) {
+    if (m_execution.backend) {
         throw std::runtime_error(
             "RuntimeContext::attach_backend(): backend already attached");
     }
-    m_backend = std::move(backend);
-    m_owned_framebuffer_pool->set_native_surface_releaser(
+    m_execution.backend = std::move(backend);
+    m_caches.framebuffer_pool->set_native_surface_releaser(
         [this](chronon3d::Framebuffer& framebuffer) {
             const auto handle = framebuffer.surface_handle();
             if (handle == runtime::kInvalidRenderSurfaceHandle) return;
@@ -260,20 +261,20 @@ void RuntimeContext::attach_backend(
             // framebuffer pool. Returning that framebuffer must not destroy
             // the persistent ring resource; the job/exporter owns its
             // lifetime and releases it during finalization.
-            if (const auto* record = m_surface_registry.lookup(handle);
+            if (const auto* record = m_asset_services.surface_registry.lookup(handle);
                 record && record->desc.lifetime == runtime::LifetimeClass::JobPersistent) {
                 framebuffer.clear_surface_handle();
                 return;
             }
-            (void)m_backend->release_surface(handle);
-            (void)m_surface_registry.release(handle);
+            (void)m_execution.backend->release_surface(handle);
+            (void)m_asset_services.surface_registry.release(handle);
             framebuffer.clear_surface_handle();
         });
-    m_gpu_asset_cache.attach(m_surface_registry, *m_backend);
-    m_gpu_text_atlas_cache.attach(m_gpu_asset_cache);
+    m_caches.gpu_asset_cache.attach(m_asset_services.surface_registry, *m_execution.backend);
+    m_caches.gpu_text_atlas_cache.attach(m_caches.gpu_asset_cache);
     // Gpu styled glyph cache is CPU-only, no backend attachment needed
-    (void)m_gpu_asset_cache;
-    m_gpu_glyph_atlas.attach(m_surface_registry, *m_backend);
+    (void)m_caches.gpu_asset_cache;
+    m_caches.gpu_glyph_atlas.attach(m_asset_services.surface_registry, *m_execution.backend);
 }
 
 // WP-0 PR 0.1 — `noexcept` REMOVED from both overloads: the body
@@ -283,19 +284,19 @@ void RuntimeContext::attach_backend(
 // declaration; see check [11/12] of
 // `tools/check_architecture_boundaries.sh` for the regression guard.
 chronon3d::graph::RenderBackend& RuntimeContext::backend() {
-    if (!m_backend) {
+    if (!m_execution.backend) {
         throw std::runtime_error(
             "RuntimeContext::backend() called before attach_backend().");
     }
-    return *m_backend;
+    return *m_execution.backend;
 }
 
 const chronon3d::graph::RenderBackend& RuntimeContext::backend() const {
-    if (!m_backend) {
+    if (!m_execution.backend) {
         throw std::runtime_error(
             "RuntimeContext::backend() (const) called before attach_backend().");
     }
-    return *m_backend;
+    return *m_execution.backend;
 }
 
 // Fase B2 (DONE) — process_wide_assets_root() / process_wide_assets_root() /

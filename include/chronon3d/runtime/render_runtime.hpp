@@ -147,6 +147,47 @@ struct RuntimeConfig {
     std::optional<std::filesystem::path>        assets_root;
 };
 
+// Ownership bundles keep RuntimeContext as the composition root while making
+// the three engine-lifetime domains explicit. They are bundles of owned state,
+// not service locators and do not change the public accessor contract.
+struct RuntimeCaches {
+    chronon3d::cache::CacheDiagnostics diagnostics{};
+    chronon3d::cache::NodeCache node_cache{};
+    std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool;
+    chronon3d::graph::CompiledGraphCache graph_cache{};
+    chronon3d::ImageCache image_cache{};
+    chronon3d::CurveCache curve_cache{};
+    GpuAssetCache gpu_asset_cache{};
+    GpuGlyphAtlas gpu_glyph_atlas{};
+    GpuTextAtlasCache gpu_text_atlas_cache{};
+    GpuStyledGlyphCache gpu_styled_glyph_cache{};
+    GpuTextRunPreparedCache gpu_text_prepared_cache{};
+    OverlayTemplateCache overlay_template_cache{};
+    GpuRuntime gpu_runtime{};
+    chronon3d::TextLayoutCache text_layout_cache{};
+};
+
+struct ExecutionServices {
+    chronon3d::graph::PipelineCatalogs catalogs;
+    std::unique_ptr<chronon3d::graph::GraphExecutor> executor;
+    std::unique_ptr<chronon3d::graph::GraphNodeCatalog> graph_node_registry;
+    std::unique_ptr<chronon3d::effects::EffectCatalog> effect_catalog;
+    std::unique_ptr<chronon3d::ExecutionScheduler> scheduler;
+    std::unique_ptr<chronon3d::graph::RenderBackend> backend;
+};
+
+struct AssetServices {
+    chronon3d::AssetRegistry assets;
+    chronon3d::assets::AssetResolver resolver;
+    chronon3d::assets::MeshPreparationCache mesh_cache{};
+    RenderSurfaceRegistry surface_registry{};
+    MediaSessionPool media_sessions{};
+    std::unique_ptr<chronon3d::FontEngine> font_engine;
+    mutable std::mutex prepared_assets_mutex;
+    std::shared_ptr<const PreparedAssets> prepared_assets{};
+    std::string prepared_mesh_manifest_key;
+};
+
 class RuntimeContext;
 
 // P1-15 (DONE) — the graph execution dependency bundle (struct +
@@ -203,17 +244,17 @@ public:
     [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const;
 
     // ── Backend slot predicates ──────────────────────────────────────
-    [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }
+    [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_execution.backend); }
 
     // ── Image cache (Fase B B1 — per-runtime, no longer process-wide) ─
-    [[nodiscard]] chronon3d::ImageCache&       image_cache()       noexcept { return m_image_cache; }
-    [[nodiscard]] const chronon3d::ImageCache& image_cache() const noexcept { return m_image_cache; }
-    [[nodiscard]] chronon3d::CurveCache& curve_cache() noexcept { return m_curve_cache; }
-    [[nodiscard]] const chronon3d::CurveCache& curve_cache() const noexcept { return m_curve_cache; }
+    [[nodiscard]] chronon3d::ImageCache&       image_cache()       noexcept { return m_caches.image_cache; }
+    [[nodiscard]] const chronon3d::ImageCache& image_cache() const noexcept { return m_caches.image_cache; }
+    [[nodiscard]] chronon3d::CurveCache& curve_cache() noexcept { return m_caches.curve_cache; }
+    [[nodiscard]] const chronon3d::CurveCache& curve_cache() const noexcept { return m_caches.curve_cache; }
 
     // ── Pipeline catalogs ────────────────────────────────────────────
-    [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
-    [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
+    [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_execution.catalogs; }
+    [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_execution.catalogs; }
 
     // ── Typed direct accessors (P1-15 canonical surface) ───────────
     // The legacy runtime service accessor and graph dependency bundle
@@ -222,12 +263,12 @@ public:
     // reference / pointer / shared_ptr for that subsystem).  Internal
     // bridges (runtime_adapter, test_utils) do the same — there is no
     // longer a service-locator alternative.
-    [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
+    [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_asset_services.assets; }
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
-    [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
-    [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
-    [[nodiscard]] chronon3d::assets::MeshPreparationCache& mesh_cache() noexcept { return m_mesh_cache; }
-    [[nodiscard]] const chronon3d::assets::MeshPreparationCache& mesh_cache() const noexcept { return m_mesh_cache; }
+    [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_asset_services.resolver; }
+    [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_asset_services.resolver; }
+    [[nodiscard]] chronon3d::assets::MeshPreparationCache& mesh_cache() noexcept { return m_asset_services.mesh_cache; }
+    [[nodiscard]] const chronon3d::assets::MeshPreparationCache& mesh_cache() const noexcept { return m_asset_services.mesh_cache; }
 
     /// Publish the immutable resource snapshot produced by the preparation
     /// barrier. RenderGraph borrows this snapshot and never performs asset I/O.
@@ -243,14 +284,14 @@ public:
     /// RuntimeContext now OWNS the per-runtime FontEngine.  The accessor
     /// returns a reference because the engine is constructed during
     /// populate() and is never null for the lifetime of the runtime.
-    [[nodiscard]] chronon3d::FontEngine& font_engine() const noexcept { return *m_font_engine_owned; }
-    [[nodiscard]] chronon3d::TextLayoutCache& text_layout_cache() noexcept { return m_text_layout_cache; }
-    [[nodiscard]] const chronon3d::TextLayoutCache& text_layout_cache() const noexcept { return m_text_layout_cache; }
+    [[nodiscard]] chronon3d::FontEngine& font_engine() const noexcept { return *m_asset_services.font_engine; }
+    [[nodiscard]] chronon3d::TextLayoutCache& text_layout_cache() noexcept { return m_caches.text_layout_cache; }
+    [[nodiscard]] const chronon3d::TextLayoutCache& text_layout_cache() const noexcept { return m_caches.text_layout_cache; }
 
-    [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
-    [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
-    [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
-    [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
+    [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_caches.diagnostics; }
+    [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_caches.diagnostics; }
+    [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_caches.node_cache; }
+    [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_caches.graph_cache; }
 
     /// Formal compiled-topology domain facade. It is non-owning and returned
     /// by value so RuntimeContext remains the sole owner of the storage.
@@ -262,31 +303,31 @@ public:
     /// and temporal history remain available for reuse.
     void reset_frame_value_cache();
 
-    [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
+    [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_caches.framebuffer_pool; }
     [[nodiscard]] chronon3d::cache::FramebufferPool&       framebuffer_pool() noexcept {
-        return *m_owned_framebuffer_pool;
+        return *m_caches.framebuffer_pool;
     }
-    [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
+    [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_execution.executor; }
 
-    [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
-    [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
-    [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
-    [[nodiscard]] RenderSurfaceRegistry&                   surface_registry() noexcept { return m_surface_registry; }
-    [[nodiscard]] const RenderSurfaceRegistry&             surface_registry() const noexcept { return m_surface_registry; }
-    [[nodiscard]] GpuAssetCache&                           gpu_asset_cache() noexcept { return m_gpu_asset_cache; }
-    [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_gpu_asset_cache; }
-    [[nodiscard]] GpuGlyphAtlas&                           gpu_glyph_atlas() noexcept { return m_gpu_glyph_atlas; }
-    [[nodiscard]] const GpuGlyphAtlas&                     gpu_glyph_atlas() const noexcept { return m_gpu_glyph_atlas; }
-    [[nodiscard]] GpuTextAtlasCache&                       gpu_text_atlas_cache() noexcept { return m_gpu_text_atlas_cache; }
-    [[nodiscard]] GpuStyledGlyphCache&                     gpu_styled_glyph_cache() noexcept { return m_gpu_styled_glyph_cache; }
-    [[nodiscard]] GpuTextRunPreparedCache&                 gpu_text_prepared_cache() noexcept { return m_gpu_text_prepared_cache; }
-    [[nodiscard]] const GpuTextRunPreparedCache&           gpu_text_prepared_cache() const noexcept { return m_gpu_text_prepared_cache; }
-    [[nodiscard]] OverlayTemplateCache&                    overlay_template_cache() noexcept { return m_overlay_template_cache; }
-    [[nodiscard]] const OverlayTemplateCache&              overlay_template_cache() const noexcept { return m_overlay_template_cache; }
-    [[nodiscard]] GpuRuntime&                              gpu_runtime() noexcept { return m_gpu_runtime; }
-    [[nodiscard]] const GpuRuntime&                        gpu_runtime() const noexcept { return m_gpu_runtime; }
-    [[nodiscard]] MediaSessionPool&                        media_sessions() noexcept { return m_media_sessions; }
-    [[nodiscard]] const MediaSessionPool&                  media_sessions() const noexcept { return m_media_sessions; }
+    [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_execution.graph_node_registry; }
+    [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_execution.effect_catalog; }
+    [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_execution.scheduler; }
+    [[nodiscard]] RenderSurfaceRegistry&                   surface_registry() noexcept { return m_asset_services.surface_registry; }
+    [[nodiscard]] const RenderSurfaceRegistry&             surface_registry() const noexcept { return m_asset_services.surface_registry; }
+    [[nodiscard]] GpuAssetCache&                           gpu_asset_cache() noexcept { return m_caches.gpu_asset_cache; }
+    [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_caches.gpu_asset_cache; }
+    [[nodiscard]] GpuGlyphAtlas&                           gpu_glyph_atlas() noexcept { return m_caches.gpu_glyph_atlas; }
+    [[nodiscard]] const GpuGlyphAtlas&                     gpu_glyph_atlas() const noexcept { return m_caches.gpu_glyph_atlas; }
+    [[nodiscard]] GpuTextAtlasCache&                       gpu_text_atlas_cache() noexcept { return m_caches.gpu_text_atlas_cache; }
+    [[nodiscard]] GpuStyledGlyphCache&                     gpu_styled_glyph_cache() noexcept { return m_caches.gpu_styled_glyph_cache; }
+    [[nodiscard]] GpuTextRunPreparedCache&                 gpu_text_prepared_cache() noexcept { return m_caches.gpu_text_prepared_cache; }
+    [[nodiscard]] const GpuTextRunPreparedCache&           gpu_text_prepared_cache() const noexcept { return m_caches.gpu_text_prepared_cache; }
+    [[nodiscard]] OverlayTemplateCache&                    overlay_template_cache() noexcept { return m_caches.overlay_template_cache; }
+    [[nodiscard]] const OverlayTemplateCache&              overlay_template_cache() const noexcept { return m_caches.overlay_template_cache; }
+    [[nodiscard]] GpuRuntime&                              gpu_runtime() noexcept { return m_caches.gpu_runtime; }
+    [[nodiscard]] const GpuRuntime&                        gpu_runtime() const noexcept { return m_caches.gpu_runtime; }
+    [[nodiscard]] MediaSessionPool&                        media_sessions() noexcept { return m_asset_services.media_sessions; }
+    [[nodiscard]] const MediaSessionPool&                  media_sessions() const noexcept { return m_asset_services.media_sessions; }
 
     // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
     // REMOVED here.  Both state engines are now per-session owned; reach
@@ -298,37 +339,9 @@ protected:
     // All members below are engine/process-lifetime infrastructure. Job and
     // frame state is owned by runtime::JobSession and runtime::FrameExecution.
     chronon3d::Config m_config;
-    chronon3d::graph::PipelineCatalogs m_catalogs;
-    chronon3d::AssetRegistry m_assets;
-    chronon3d::assets::AssetResolver m_resolver;
-    chronon3d::assets::MeshPreparationCache m_mesh_cache{};
-    RenderSurfaceRegistry m_surface_registry{};
-    mutable std::mutex m_prepared_assets_mutex;
-    std::shared_ptr<const PreparedAssets> m_prepared_assets{};
-    std::string m_prepared_mesh_manifest_key;
-
-    chronon3d::cache::CacheDiagnostics m_diagnostics{};
-    chronon3d::cache::NodeCache m_owned_node_cache{};
-    std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
-    chronon3d::graph::CompiledGraphCache m_owned_graph_cache{};
-    std::unique_ptr<chronon3d::graph::GraphExecutor> m_owned_executor;
-    std::unique_ptr<chronon3d::graph::GraphNodeCatalog> m_owned_graph_node_registry;
-    std::unique_ptr<chronon3d::effects::EffectCatalog> m_owned_effect_catalog;
-    std::unique_ptr<chronon3d::ExecutionScheduler> m_scheduler;
-
-    chronon3d::ImageCache m_image_cache;
-    chronon3d::CurveCache m_curve_cache;
-    std::unique_ptr<chronon3d::graph::RenderBackend> m_backend;
-    GpuAssetCache m_gpu_asset_cache{};
-    GpuGlyphAtlas m_gpu_glyph_atlas{};
-    GpuTextAtlasCache m_gpu_text_atlas_cache{};
-    GpuStyledGlyphCache m_gpu_styled_glyph_cache{};
-    GpuTextRunPreparedCache m_gpu_text_prepared_cache{};
-    OverlayTemplateCache m_overlay_template_cache{};
-    GpuRuntime m_gpu_runtime{};
-    MediaSessionPool m_media_sessions{};
-    std::unique_ptr<chronon3d::FontEngine> m_font_engine_owned;
-    chronon3d::TextLayoutCache m_text_layout_cache{};
+    RuntimeCaches m_caches{};
+    ExecutionServices m_execution{};
+    AssetServices m_asset_services{};
     bool m_populated{false};
 
 private:

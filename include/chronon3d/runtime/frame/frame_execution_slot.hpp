@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
 
 #include <atomic>
 #include <cstddef>
@@ -78,7 +79,7 @@ enum class InteropFrameState : std::uint8_t {
 /// Tracker-owned atomic storage. FrameExecutionSlot only receives a bound
 /// non-owning reference to one cell, eliminating the second state machine from
 /// slot storage while preserving the existing transition API at call sites.
-struct InteropFrameStateCell {
+struct alignas(kHardwareDestructiveInterferenceSize) InteropFrameStateCell {
     std::atomic<InteropFrameState> value{InteropFrameState::Recyclable};
 };
 

@@ -80,6 +80,7 @@ void execute_single_node(
         RenderGraphContext batch_ctx = ctx.clone_for_node_execution();
         batch_ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
         batch_ctx.node_exec.sampled_layer = typed_layer;
+        const auto& resource_table = compiled.resource_table();
         if (id == compiled.output &&
             ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
             if (ctx.node_exec.terminal_video_encode_physical_slot) {
@@ -90,6 +91,14 @@ void execute_single_node(
                     ctx.policy.native_video_encode_surface;
             }
             batch_ctx.node_exec.reusable_bottom.reset();
+        } else if (id < resource_table.resources.size()) {
+            const auto& allocation = resource_table.resources[id];
+            if (allocation.aliasable() &&
+                allocation.physical_slot != kInvalidPhysicalAllocationId &&
+                allocation.physical_slot < state.physical_slots.size()) {
+                batch_ctx.node_exec.planned_physical_slot =
+                    &state.physical_slots[allocation.physical_slot];
+            }
         }
         if (id < compiled.nodes.size() && compiled.nodes[id].reachable) {
             batch_ctx.node_exec.current_identity = NodeIdentity{

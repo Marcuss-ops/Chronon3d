@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <utility>
 
 namespace chronon3d::media::video {
 
@@ -22,23 +23,23 @@ RawVideoSink::~RawVideoSink() noexcept {
 //  validate_frame_match() — session contract enforcement
 // ============================================================================
 
-bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) noexcept {
+bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) {
     if (width <= 0 || height <= 0) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidFrame, "frame dimensions must be positive");
         return false;
     }
     if (width != expected_width_ || height != expected_height_) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidFrame, "frame dimensions do not match the opened sink");
         return false;
     }
     if (fmt != expected_format_) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidFrame, "frame pixel format does not match the opened sink");
         return false;
     }
     // YUV420P and NV12 require even dimensions.
     if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
         if (width % 2 != 0 || height % 2 != 0) {
-            state_ = VideoSinkState::Failed;
+            fail(VideoSinkError::InvalidFrame, "YUV frame dimensions must be even");
             return false;
         }
     }
@@ -144,7 +145,7 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
     // Validate packed stride (must be >= tight row; YUV planar only tight).
     if (!validate_packed_stride(frame.pixel_format, frame.width,
                                  frame.stride_bytes)) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidStride, "packed frame stride is smaller than the tight row");
         return false;
     }
 
@@ -174,7 +175,7 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
     }
 
     if (!ok) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::WriteFailed, "failed to write packed video frame");
         return false;
     }
 
@@ -197,7 +198,7 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
     }
 
     if (!frame.y_data || !frame.u_data || !frame.v_data) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidFrame, "planar frame is missing one or more planes");
         return false;
     }
 
@@ -208,8 +209,8 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
 
     // Validate dimensions and strides.
     if (!validate_planar_frame(frame.width, frame.height,
-                                frame.y_stride, frame.u_stride, frame.v_stride)) {
-        state_ = VideoSinkState::Failed;
+                                  frame.y_stride, frame.u_stride, frame.v_stride)) {
+        fail(VideoSinkError::InvalidStride, "planar frame stride is invalid");
         return false;
     }
 
@@ -285,7 +286,7 @@ bool RawVideoSink::submit_planar(const PlanarVideoFrameView& frame) {
         }
     }
     if (!ok) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::WriteFailed, "failed to write planar video frame");
         return false;
     }
 
@@ -308,7 +309,7 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     }
 
     if (!frame.y_data || !frame.uv_data) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidFrame, "biplanar frame is missing one or more planes");
         return false;
     }
 
@@ -320,7 +321,7 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     // Validate dimensions and strides.
     if (!validate_biplanar_frame(frame.width, frame.height,
                                   frame.y_stride, frame.uv_stride)) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::InvalidStride, "biplanar frame stride is invalid");
         return false;
     }
 
@@ -377,7 +378,7 @@ bool RawVideoSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
         }
     }
     if (!ok) {
-        state_ = VideoSinkState::Failed;
+        fail(VideoSinkError::WriteFailed, "failed to write biplanar video frame");
         return false;
     }
 
@@ -432,6 +433,12 @@ bool RawVideoSink::close() noexcept {
             // was not durably written. The sink enters Failed (terminal) so
             // callers observe the real outcome instead of Closed.
             last_error_ = VideoSinkError::WriteFailed;
+            try {
+                last_error_msg_ = "final flush failed while closing raw video output";
+            } catch (...) {
+                // close() is noexcept; preserve the error code even if the
+                // diagnostic string cannot be allocated during teardown.
+            }
             file_.close();
             state_ = VideoSinkState::Failed;
             return false;
@@ -464,6 +471,12 @@ bool RawVideoSink::write_bytes(const uint8_t* data, size_t size) {
     }
 
     return true;
+}
+
+void RawVideoSink::fail(VideoSinkError error, std::string message) {
+    last_error_ = error;
+    last_error_msg_ = std::move(message);
+    state_ = VideoSinkState::Failed;
 }
 
 } // namespace chronon3d::media::video

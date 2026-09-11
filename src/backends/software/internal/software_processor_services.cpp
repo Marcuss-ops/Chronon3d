@@ -19,7 +19,6 @@ make_processor_context(
     const ProcessorSourceExtras& extras
 ) {
     chronon3d::SoftwareProcessorContext ctx{};
-    ctx.renderer        = nullptr;          // TICKET-118: owner-pointer removed.
     ctx.counters        = services.counters;
     ctx.settings        = services.settings;
     ctx.registry        = extras.registry;

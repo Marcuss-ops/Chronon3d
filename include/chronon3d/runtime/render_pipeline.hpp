@@ -48,6 +48,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -154,7 +155,7 @@ private:
     RuntimeContext&   m_runtime;
     // Bounded topology cache: Scene is a legacy graph input adapter, never a
     // frame-varying value. Its lifetime must not depend on FrameContext's arena.
-    std::mutex m_topology_mutex;
+    std::shared_mutex m_topology_mutex;
     std::unordered_map<std::uint64_t, std::shared_ptr<const Scene>> m_topologies;
 };
 

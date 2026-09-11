@@ -66,7 +66,11 @@ inline void check(VkResult result, const char* operation) {
 inline constexpr float kIdentityTint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
 struct VulkanBackend::Impl {
-    mutable std::recursive_mutex api_mutex;
+    // Device lifetime remains owned by Impl. Surface state and submission
+    // state have their own locks in VulkanSurfaceAuthority and
+    // VulkanSubmissionAuthority; there is deliberately no backend-wide data
+    // plane mutex here. Destruction still assumes the backend lifetime has
+    // ended before the Impl is torn down.
 
     void require_healthy() const {
         runtime::require_healthy_gpu_worker();

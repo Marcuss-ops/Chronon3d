@@ -128,7 +128,7 @@ std::vector<VulkanDeviceInfo> VulkanBackend::enumerate_devices() {
 
 void VulkanBackend::begin_frame_batch_unlocked() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    // Caller holds api_mutex. P1-7: no re-entry into the recursive mutex.
+    // Caller holds the surface and submission domain locks. No re-entry.
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (batch.active) {
@@ -204,7 +204,7 @@ void VulkanBackend::begin_frame_batch_unlocked() {
 
 void VulkanBackend::begin_command_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     if (m_impl->command_batch_active) {
         throw std::logic_error(
@@ -223,7 +223,8 @@ void VulkanBackend::begin_command_batch() {
 
 void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     if (plan.pass_count() > Impl::FrameBatchState::kCompiledPassTimingCapacity) {
         throw std::length_error(
@@ -335,7 +336,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 
 void VulkanBackend::end_frame_batch_unlocked() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    // Caller holds api_mutex. P1-7: no re-entry into the recursive mutex.
+    // Caller holds the surface and submission domain locks. No re-entry.
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
@@ -353,7 +354,8 @@ void VulkanBackend::begin_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Public entry: synchronized ingress. The single-owner hot path calls
     // the *_unlocked core directly.
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     begin_frame_batch_unlocked();
 #else
     (void)0;
@@ -364,7 +366,8 @@ void VulkanBackend::end_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Public entry: synchronized ingress. The single-owner hot path calls
     // the *_unlocked core directly.
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     end_frame_batch_unlocked();
 #else
     (void)0;
@@ -373,7 +376,8 @@ void VulkanBackend::end_frame_batch() {
 
 void VulkanBackend::end_command_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    std::scoped_lock lock(m_impl->surfaces.mutex,
+                          m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     if (!m_impl->command_batch_active) return;
     if (m_impl->command_batch_started) {
@@ -398,7 +402,7 @@ std::size_t VulkanBackend::replay_slot_count() const noexcept {
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     return m_impl->begin_replay_recording(slot_index);
 }
@@ -406,7 +410,7 @@ VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {
 
 void VulkanBackend::end_replay_recording(std::size_t slot_index) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     m_impl->end_replay_recording(slot_index);
 #else
@@ -418,7 +422,7 @@ void VulkanBackend::replay_submit(std::size_t slot_index,
                                   const void* params,
                                   std::size_t params_size) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->submission_ring.mutex);
     m_impl->require_healthy();
     m_impl->replay_submit(slot_index, params,
                           static_cast<VkDeviceSize>(params_size));

@@ -201,6 +201,9 @@ e sono eseguite da `tools/check_architecture.py`. I gate specialistici che non
 rientrano nel motore dichiarativo devono essere registrati una sola volta in
 `tools/gates/manifest.sh`; wrapper e CI consumano il manifest senza duplicarne
 la lista. CI: `.github/workflows/ci.yml` (Gate 5 / architecture-check).
+La dottrina di riferimento per valutare authority e confini dei componenti
+(decide/possiede/sincronizza/esegue/persiste) è
+[`docs/adr/ADR-029-authority-boundary-doctrine.md`](docs/adr/ADR-029-authority-boundary-doctrine.md).
 
 ---
 

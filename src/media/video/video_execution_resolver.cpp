@@ -3,6 +3,21 @@
 namespace chronon3d::media {
 namespace {
 
+bool valid_output_spec(const OutputSpec& output) noexcept {
+    // Zero is the sentinel for dimensions/frame rate supplied by the
+    // composition. Partial values are not meaningful and must not be
+    // silently ignored by the resolver.
+    if ((output.width == 0) != (output.height == 0)) return false;
+    if (output.fps_den == 0) return false;
+    if (output.codec.empty() || output.codec == "auto" ||
+        output.codec == "h264" || output.codec == "h265" ||
+        output.codec == "hevc" || output.codec == "vp9" ||
+        output.codec == "av1") {
+        return true;
+    }
+    return false;
+}
+
 /// Internal path classification retained only to preserve the resolver's
 /// documented downgrade semantics while deciding.  NOT part of the public
 /// decision: the executor consumes the orthogonal VideoExecutionPlan axes.
@@ -137,6 +152,50 @@ Decision resolve_from_requirements(
     bool has_gop_source,
     bool gop_copy_only,
     bool allow_hybrid_gop) noexcept {
+    if (!valid_output_spec(output)) {
+        return {.plan = software_graph_plan(),
+                .path = ResolvedPath::RenderGraph,
+                .render_fallback = ResolvedPath::RenderGraph,
+                .reason = "invalid_output_spec",
+                .valid = false};
+    }
+
+    // A composition without a source video cannot feed the native NVENC
+    // surface lane. It may still use the GPU compositor, but the final
+    // handoff is a host frame to the pipe encoder. This is the semantic
+    // meaning of video_source_required=false and must be decided here rather
+    // than inferred later by an executor.
+    if (requirements.composition_required && !requirements.video_source_required) {
+        if (requirements.gpu_required) {
+            if (!capabilities.vulkan_graph) {
+                return {.plan = software_graph_plan(),
+                        .path = ResolvedPath::RenderGraph,
+                        .render_fallback = ResolvedPath::RenderGraph,
+                        .reason = "required_gpu_capability_unavailable",
+                        .valid = false};
+            }
+            return {.plan = {DecodePath::Software, CompositePath::VulkanGraph,
+                             EncodePath::Pipe, InteropPath::None,
+                             SurfaceHandoffPath::HostUpload},
+                    .path = ResolvedPath::RenderGraph,
+                    .render_fallback = ResolvedPath::RenderGraph,
+                    .reason = "gpu_composition_pipe_no_video_source",
+                    .valid = true};
+        }
+        if (!requirements.cpu_fallback_allowed) {
+            return {.plan = software_graph_plan(),
+                    .path = ResolvedPath::RenderGraph,
+                    .render_fallback = ResolvedPath::RenderGraph,
+                    .reason = "cpu_fallback_forbidden",
+                    .valid = false};
+        }
+        return {.plan = software_graph_plan(),
+                .path = ResolvedPath::RenderGraph,
+                .render_fallback = ResolvedPath::RenderGraph,
+                .reason = "software_composition_no_video_source",
+                .valid = true};
+    }
+
     // Keep backend naming inside Chronon. The caller-facing overload exposes
     // only requirements, output and discovered capabilities.
     const auto hot_path = requirements.gpu_required
@@ -209,7 +268,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
     // may still provide audio timing, but it must not replace the graph with
     // DirectYuv or packet-copy execution and lose authored layers.
     if (requirements.gpu_required && requirements.composition_required) {
-        return resolve_video_execution(requirements, {}, capabilities,
+        return resolve_video_execution(requirements, output, capabilities,
                                        false, false, false);
     }
 
@@ -304,24 +363,23 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         params.backend = (requested_backend != "auto" && !requested_backend.empty())
             ? std::string{requested_backend}
             : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
-        params.hardware_encoder = "nvenc";
-        // Phase 9 CLI/IPC parity: mirror the RenderingGen CLI adapter
-        // (render_args.go). An authored composition, including an
-        // image/text-only composition with no source video, uses the native
-        // FullGraph surface path. DirectYUV is only for video-only plans.
-        const bool authored_composition =
-            requirements.composition_required && !requirements.video_source_required;
-        if (authored_composition) {
-			params.encoder_backend = "native";
-			params.gpu_hot_path_mode = "require_gpu_native";
+        const bool pipe_composition = requirements.composition_required &&
+            !requirements.video_source_required;
+        params.hardware_encoder = pipe_composition ? "none" : "nvenc";
+        // Phase 9 CLI/IPC parity: a composition with no source video is a
+        // GPU-composited host-frame job, not a native NVENC surface job.
+        // DirectYUV remains reserved for video-only plans.
+        if (pipe_composition) {
+            params.encoder_backend = "pipe";
+            params.gpu_hot_path_mode = "auto";
         } else {
             params.encoder_backend = "native";
             params.gpu_hot_path_mode = requirements.composition_required
                 ? "require_gpu_native"
                 : "require_direct_yuv";
         }
-        params.native_nvenc = true;
-        params.direct_yuv = !requirements.composition_required;
+        params.native_nvenc = !pipe_composition;
+        params.direct_yuv = !pipe_composition && !requirements.composition_required;
         params.codec = requested_codec.empty() ? "h264" : std::string{requested_codec};
     } else {
         params.backend = (requested_backend != "auto" && !requested_backend.empty())

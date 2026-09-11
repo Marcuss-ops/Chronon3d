@@ -1,6 +1,7 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
 #include "timed_text_core.hpp"
+#include "timed_text_adapter_support.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -46,18 +47,21 @@ f32 ass_parse_timestamp(std::string_view ts) {
     const auto colon2 = ts.find(':', colon1 + 1);
     if (colon2 == std::string_view::npos) return -1.0f;
 
-    const int hh = std::atoi(std::string(ts.substr(0, colon1)).c_str());
-    const int mm = std::atoi(std::string(ts.substr(colon1 + 1, colon2 - colon1 - 1)).c_str());
+    // AUDIT-2026-09-11: from_chars on the views, no heap temporaries (was
+    // std::atoi(std::string(substr).c_str())); atoi parity preserved.
+    const int hh = timed_text_adapter_detail::parse_sv_int(ts.substr(0, colon1));
+    const int mm = timed_text_adapter_detail::parse_sv_int(
+        ts.substr(colon1 + 1, colon2 - colon1 - 1));
 
     const auto rest = ts.substr(colon2 + 1);
     const auto dot = rest.find('.');
     const int whole_s = dot == std::string_view::npos
-        ? std::atoi(std::string(rest).c_str())
-        : std::atoi(std::string(rest.substr(0, dot)).c_str());
+        ? timed_text_adapter_detail::parse_sv_int(rest)
+        : timed_text_adapter_detail::parse_sv_int(rest.substr(0, dot));
     // Centiseconds → fractional seconds.
     const int centis = dot == std::string_view::npos
         ? 0
-        : std::atoi(std::string(rest.substr(dot + 1)).c_str());
+        : timed_text_adapter_detail::parse_sv_int(rest.substr(dot + 1));
 
     if (hh < 0 || mm < 0 || mm >= 60 || whole_s < 0 || whole_s >= 60) return -1.0f;
 

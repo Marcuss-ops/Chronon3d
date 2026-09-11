@@ -447,10 +447,10 @@ private:
     template <typename Fn>
     graph::RenderOpResult run_batched_surface_op(Fn&& fn);
 #ifdef CHRONON3D_ENABLE_VULKAN
-    /// Single-owner unlocked hot path (P1-7). The public begin/end entries
-    /// take api_mutex exactly once and delegate here; run_batched_surface_op
-    /// and begin_plan_batch call the unlocked core directly instead of
-    /// re-entering the recursive mutex for every recorded surface operation.
+    /// Single-owner unlocked hot path. The public begin/end entries take the
+    /// submission/surface domain locks exactly once and delegate here;
+    /// run_batched_surface_op and begin_plan_batch call the unlocked core
+    /// directly instead of re-entering either domain for every operation.
     void begin_frame_batch_unlocked();
     void end_frame_batch_unlocked();
 #endif

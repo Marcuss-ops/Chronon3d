@@ -76,6 +76,9 @@ public:
     /// null REQUIRED services) is still owned by
     /// `make_software_backend()`.
     void attach_processor_context(SoftwareProcessorContext proc_ctx);
+    [[nodiscard]] const SoftwareProcessorContext& processor_context() const noexcept {
+        return m_proc_ctx;
+    }
     void attach_image_services(ImageRenderer* renderer,
                                image::ImageBackend* backend) noexcept {
         m_proc_ctx.image_renderer = renderer;
@@ -150,8 +153,8 @@ private:
     // TICKET-118 — m_owner REMOVED.  Replaced by `m_proc_ctx` which holds
     // the orchestrator-supplied processor-context bundle (set via
     // `attach_processor_context()` immediately after construction).  The
-    // `m_proc_ctx.renderer` field is always nullptr after the new
-    // construction path — no back-pointer to the SoftwareRenderer exists.
+    // context contains only explicit service pointers; no back-pointer to the
+    // SoftwareRenderer exists.
     SoftwareProcessorContext                       m_proc_ctx{};                    // TICKET-118 cached ctx
     // Owning snapshot captured when the context is attached. This keeps
     // direct backend dispatch independent from registry shutdown and makes
