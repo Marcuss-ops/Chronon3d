@@ -251,7 +251,6 @@ struct ExclusiveWallTimeline {
     std::optional<double> validation_ms;
     std::optional<double> ffprobe_ms;
     std::optional<double> sha256_ms;
-    std::optional<std::uint64_t> full_file_reread_count;
     std::optional<double> output_finalize_ms;
     std::optional<double> sidecar_report_ms;
     std::optional<double> unaccounted_ms;
@@ -325,6 +324,7 @@ struct JobTimings {
     std::optional<double> validation_ms;
     std::optional<double> ffprobe_ms;
     std::optional<double> sha256_ms;
+    std::optional<std::uint64_t> full_file_reread_count;
     std::optional<std::uint64_t> framebuffer_allocations;
     std::optional<std::uint64_t> framebuffer_alloc_text;
     std::optional<std::uint64_t> framebuffer_alloc_effect;
