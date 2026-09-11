@@ -1,6 +1,6 @@
 namespace {
 
-constexpr const char* kRenderPlanSchema = "chronon.render-plan";
+constexpr const char* kRenderPlanSchema = "chronon.render-plan.v2";
 constexpr const char* kFontRegular = "assets/fonts/Inter-Regular.ttf";
 constexpr const char* kFontBold = "assets/fonts/Inter-Bold.ttf";
 

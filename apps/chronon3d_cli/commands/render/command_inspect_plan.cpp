@@ -324,7 +324,7 @@ int command_inspect_plan(const InspectPlanArgs& args) {
 void register_inspect_plan_command(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<InspectPlanArgs>();
     auto* cmd = app.add_subcommand(
-        "inspect", "Inspect a chronon.render-plan.v1 file (read-only resolved view)");
+        "inspect", "Inspect a chronon.render-plan.v2 file (read-only resolved view)");
     cmd->add_option("--plan", state->plan_file, "Render plan JSON file")->required();
     cmd->add_option("--assets-root", state->assets_root,
                     "Asset root for render-plan resolution");

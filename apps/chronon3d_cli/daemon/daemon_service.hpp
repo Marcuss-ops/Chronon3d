@@ -86,7 +86,7 @@ struct DaemonOptions {
  *   PREFETCH_ASSET <path>         Warm the asset cache
  *   PREPARE_PLAN   <comp-id>      Compile + plan once (PreparedRenderJob)
  *   RENDER_OVERLAY <frame> [out]  Render a frame from the prepared plan
- *   RENDER_JOB     <json>         Render a chronon.render-plan.v1 file
+ *   RENDER_JOB     <json>         Render a chronon.render-plan.v2 file
  *                                 (decoded once by daemon_render_job_payload;
  *                                 normalized once; dispatched as
  *                                 NormalizedRenderJob)

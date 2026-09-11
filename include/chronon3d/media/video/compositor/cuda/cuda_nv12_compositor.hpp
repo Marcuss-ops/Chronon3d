@@ -89,6 +89,11 @@ public:
 
 private:
     CUcontext context_{nullptr};
+    // Keep the loaded module alive for at least as long as every compositor
+    // that uses its CUfunction handles. The cache is only a lookup aid; it
+    // must never be the last owner at process teardown, after the CUDA
+    // primary context has already been released by VideoDeviceRuntime.
+    std::shared_ptr<const void> module_lease_;
     CUmodule module_{nullptr};
     CUfunction kernel_{nullptr};
     CUfunction p010_kernel_{nullptr};
