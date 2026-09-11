@@ -1,9 +1,8 @@
 // ============================================================================
 // tests/backends/software/test_software_processor_context.cpp
 //
-// 06 R2 acceptance test — verifies that `SoftwareProcessorContext`
-// can be constructed from a `SoftwareRenderer&` instance and that the
-// resulting pointers are wired correctly.
+// 06 R3 acceptance test — verifies that `SoftwareProcessorContext` is a
+// standalone dependency bundle without a SoftwareRenderer back-pointer.
 //
 // This test does NOT exercise the rendering pipeline (it would force a
 // full build with software backend + a real Composition); it inspects
@@ -18,8 +17,7 @@
 // this single TU into tests/backends_software_tests.cmake) and  // drift-allow: stale-ref
 // register the new source list under `${CHRONON3D_TEST_TARGETS}` so
 // CTest picks it up.  At that point this file should also start
-// exercising a real `make_processor_context(renderer)` fixture instead
-// of the default-constructed null-check only.
+// exercising the explicit services-bundle construction path.
 // ============================================================================
 
 #if defined(CHRONON3D_BUILD_TESTS)
@@ -27,7 +25,6 @@
 #endif
 
 #include <chronon3d/backends/software/software_processor_context.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
 
 #if defined(CHRONON3D_BUILD_TESTS)
 
@@ -43,6 +40,11 @@ TEST_CASE("SoftwareProcessorContext — header-only type compiles") {
         CHECK(ctx.font_engine == nullptr);
 #endif
     }
+}
+
+TEST_CASE("SoftwareProcessorContext — standalone construction") {
+    chronon3d::SoftwareProcessorContext ctx{};
+    CHECK(sizeof(ctx) > 0);
 }
 
 TEST_CASE("Boundary gate — boundary script pulls in the same field surface") {

@@ -1,9 +1,11 @@
 #include <chronon3d/text/timed_text_document.hpp>
 
 #include "timed_text_core.hpp"
+#include "timed_text_adapter_support.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdlib>
 #include <string_view>
 #include <vector>
@@ -33,11 +35,14 @@ f32 parse_srt_timestamp(std::string_view ts) {
     auto colon2 = ts.find(':', colon1 + 1);
     if (colon2 == std::string_view::npos) return -1.0f;
 
-    // Hours — string_view::substr() is NOT null-terminated; copy to std::string
-    hh = std::atoi(std::string(ts.substr(0, colon1)).c_str());
+    // Hours / Minutes — AUDIT-2026-09-11: from_chars on the view, no heap
+    // temporary (was std::atoi(std::string(substr).c_str())); atoi parity
+    // (garbage → 0) preserved via the shared detail helper.
+    hh = timed_text_adapter_detail::parse_sv_int(ts.substr(0, colon1));
 
     // Minutes
-    mm = std::atoi(std::string(ts.substr(colon1 + 1, colon2 - colon1 - 1)).c_str());
+    mm = timed_text_adapter_detail::parse_sv_int(
+        ts.substr(colon1 + 1, colon2 - colon1 - 1));
 
     // Seconds (may use , or . as decimal separator)
     auto ss_rest = ts.substr(colon2 + 1);

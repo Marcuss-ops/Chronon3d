@@ -3,8 +3,9 @@
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 #include <chronon3d/runtime/frame/frame_slot_payload.hpp>
 
-#include <array>
 #include <cstddef>
+#include <array>
+#include <memory>
 
 namespace chronon3d::runtime {
 
@@ -35,8 +36,12 @@ public:
 private:
     std::size_t capacity_{0};
     std::size_t producer_cursor_{0};
+    // Slot ids remain bounded and pointer-stable, but payload storage is
+    // sized to the actual pipeline depth.  Keeping a 256-element array here
+    // eagerly constructs 256 strict 4 MiB arenas (~1 GiB) for the normal
+    // three-slot pipeline.
     std::array<FrameExecutionSlot, kMaxFrameExecutionSlots> slots_{};
-    std::array<FrameSlotPayload, kMaxFrameExecutionSlots> payloads_{};
+    std::unique_ptr<FrameSlotPayload[]> payloads_{};
 };
 
 } // namespace chronon3d::runtime

@@ -30,7 +30,8 @@ template <typename Fn>
 graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         const bool owns_batch = !m_impl->frame_batch.active;
         // P1-7: single-owner unlocked hot path. The mutex is held exactly
         // once for the whole operation; the batch cores never re-enter it.
@@ -54,7 +55,7 @@ graph::RenderOpResult VulkanBackend::create_surface(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::lock_guard lock(m_impl->surfaces.mutex);
         (void)m_impl->ensure_surface(handle, desc);
         // Generic graph surfaces are transient even when created while a
         // batch is recording. Only CUDA/NVENC external surfaces are unplanned;
@@ -77,7 +78,8 @@ graph::RenderOpResult VulkanBackend::create_surface(
 graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->create_cuda_external_surface(handle, desc);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -91,7 +93,8 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
     runtime::RenderSurfaceHandle destination,
     bool wait_for_completion) {
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->copy_surface_to_cuda_encoder(source, destination, wait_for_completion);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -103,7 +106,8 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
 graph::RenderOpResult VulkanBackend::prepare_cuda_surface_for_vulkan(
     runtime::RenderSurfaceHandle handle) {
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->prepare_cuda_surface_for_vulkan(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -114,12 +118,14 @@ graph::RenderOpResult VulkanBackend::prepare_cuda_surface_for_vulkan(
 
 CudaExternalMemoryInfo VulkanBackend::export_cuda_external_memory(
     runtime::RenderSurfaceHandle handle) const {
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->surfaces.mutex);
     return m_impl->export_cuda_external_memory(handle);
 }
 
 bool VulkanBackend::cuda_context_matches_device(CUcontext context) const noexcept {
-    if (!context || !m_impl || m_impl->physical_device == VK_NULL_HANDLE) return false;
+    if (!context || !m_impl) return false;
+    std::lock_guard lock(m_impl->surfaces.mutex);
+    if (m_impl->physical_device == VK_NULL_HANDLE) return false;
     CUcontext previous = nullptr;
     CUdevice cuda_device{};
     CUuuid cuda_uuid{};
@@ -167,7 +173,8 @@ graph::RenderOpResult VulkanBackend::release_surface(
     runtime::RenderSurfaceHandle handle) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         if (handle == runtime::kInvalidRenderSurfaceHandle) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::InvalidInput,
@@ -202,7 +209,7 @@ bool VulkanBackend::is_native_surface_valid(
     runtime::RenderSurfaceHandle handle) const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl || handle == runtime::kInvalidRenderSurfaceHandle) return false;
-    std::lock_guard lock(m_impl->api_mutex);
+    std::lock_guard lock(m_impl->surfaces.mutex);
     return m_impl->surface_valid(handle);
 #else
     (void)handle;
@@ -214,7 +221,8 @@ bool VulkanBackend::wait_for_pending_submissions() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return false;
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->wait_for_pending();
         return true;
     } catch (const std::exception& error) {
@@ -237,7 +245,8 @@ std::size_t VulkanBackend::native_surface_ring_capacity() const noexcept {
 void VulkanBackend::release_frame_transient_surfaces() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (m_impl) {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->release_frame_transient_surfaces();
     }
 #endif
@@ -246,7 +255,8 @@ void VulkanBackend::release_frame_transient_surfaces() noexcept {
 void VulkanBackend::retire_frame_transient_surfaces() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (m_impl) {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->retire_completed_frame_transient_surfaces();
     }
 #endif
@@ -257,7 +267,8 @@ graph::RenderOpResult VulkanBackend::upload_surface(
     std::span<const float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         (void)m_impl->upload(handle, desc, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -278,7 +289,8 @@ graph::RenderOpResult VulkanBackend::upload_surface_region(
     std::span<const float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         (void)m_impl->upload_region(handle, desc, x, y, width, height, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -298,7 +310,8 @@ graph::RenderOpResult VulkanBackend::upload_surface_async(
     std::span<const float> rgba, runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         ticket.value = m_impl->upload(handle, desc, rgba, false);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -320,7 +333,8 @@ graph::RenderOpResult VulkanBackend::upload_surface_rows_async(
     runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         ticket.value = m_impl->upload_rows(handle, desc, clip, rows, false);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -339,7 +353,7 @@ graph::RenderOpResult VulkanBackend::upload_surface_rows_async(
 graph::RenderOpResult VulkanBackend::wait_upload(const runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::lock_guard lock(m_impl->submission_ring.mutex);
         if (!ticket.valid()) {
             return graph::RenderOpResult(graph::RenderBackendError{
                 graph::RenderBackendErrorCode::InvalidInput,
@@ -368,7 +382,8 @@ graph::RenderOpResult VulkanBackend::download_surface(
     runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::lock_guard lock(m_impl->api_mutex);
+        std::scoped_lock lock(m_impl->surfaces.mutex,
+                              m_impl->submission_ring.mutex);
         m_impl->download(handle, rgba);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {

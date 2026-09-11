@@ -42,7 +42,7 @@ struct NativeDecoderTestOptions {
     std::uint32_t width, std::uint32_t height) noexcept {
     auto desc = runtime::SurfaceDesc::make(
         width, height, runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient);
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::JobPersistent);
     // Native decode imports NV12/P010 into a float4 RGBA CUDA/Vulkan view;
     // this is the explicit RGBA interop lane, never a YUV encode surface.
     desc.kind = runtime::ResourceKind::Color;
@@ -106,6 +106,11 @@ private:
         AVFrame* hw_transfer_frame{nullptr};
         AVFrame* decoded{nullptr};
         AVFrame* closest_frame{nullptr};
+        // High-water-mark RGBA staging used by the CPU fallback. Keeping it
+        // on the decoder session removes an av_image_alloc/free pair from
+        // every decoded frame while preserving the existing framebuffer
+        // format contract.
+        std::vector<std::uint8_t> rgba_staging;
         /// Small window of recently decoded-and-materialized frames (sample
         /// index -> retained ref), so duplicate or slightly-out-of-order
         /// requests — FPS mapping, two layers sharing one source path — can
@@ -132,6 +137,7 @@ private:
         std::deque<PrefetchedFrame> prefetch_queue;
         std::condition_variable prefetch_cv;
         std::atomic<bool> prefetch_stop{false};
+        std::atomic<bool> foreground_decode_pending{false};
         std::thread prefetch_worker;
         int64_t prefetch_next{-1};
         int64_t prefetch_inflight{-1};

@@ -2,6 +2,7 @@
 
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 
+#include <atomic>
 #include <array>
 #include <cstddef>
 #include <memory>
@@ -22,7 +23,11 @@ public:
     void retire(FrameSlotId slot_id, std::shared_ptr<GpuCompletion> completion) noexcept;
     [[nodiscard]] bool has_completion(FrameSlotId slot_id) const noexcept;
     [[nodiscard]] bool completion_ready(FrameSlotId slot_id) const noexcept;
-    void wait_completion(FrameSlotId slot_id) noexcept;
+    /// Waits for the retired completion. Returns false when the completion
+    /// object throws; callers must fail the frame/job instead of recycling an
+    /// unverified GPU result.
+    [[nodiscard]] bool wait_completion(FrameSlotId slot_id) noexcept;
+    [[nodiscard]] bool completion_failed(FrameSlotId slot_id) const noexcept;
     void recycle(FrameSlotId slot_id) noexcept;
     void reset() noexcept;
 
@@ -30,6 +35,7 @@ private:
     std::size_t capacity_{0};
     std::array<InteropFrameStateCell, kMaxFrameExecutionSlots> interop_states_{};
     std::array<std::shared_ptr<GpuCompletion>, kMaxFrameExecutionSlots> completions_{};
+    std::array<std::atomic<bool>, kMaxFrameExecutionSlots> completion_failed_{};
 };
 
 } // namespace chronon3d::runtime

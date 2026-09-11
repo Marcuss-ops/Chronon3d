@@ -92,7 +92,7 @@ FramebufferPool::~FramebufferPool() = default;
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
     m_arena_set_count.fetch_add(1, std::memory_order_relaxed);
     m_arena_set_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
@@ -105,7 +105,7 @@ void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
 void FramebufferPool::attach_arena_provider(
     std::function<FramebufferArena*()> provider) {
     const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
     // One arena-association event per job (Wave-4 acceptance: the pool's
     // arena association is job-lifetime, arena rotation is frame-lifetime).
@@ -117,14 +117,14 @@ void FramebufferPool::attach_arena_provider(
 
 void FramebufferPool::detach_arena_provider() {
     const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
     PoolLockHoldMeter hold(m_lock_hold_wall_us);
     m_arena_provider = {};
 }
 
 void FramebufferPool::set_budget_bytes(size_t max_retained_bytes) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_config.max_retained_bytes = max_retained_bytes;
     // If the new budget is tighter, evict immediately.
     if (max_retained_bytes > 0) {
@@ -189,7 +189,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     const auto lock_t0 = std::chrono::steady_clock::now();
     auto [rounded_w, rounded_h] = round_to_bucket(width, height);
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard lock(m_mutex);
         m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
         m_acquire_count.fetch_add(1, std::memory_order_relaxed);
         PoolLockHoldMeter hold(m_lock_hold_wall_us);
@@ -426,8 +426,17 @@ void FramebufferPool::release(Framebuffer* fb) {
     CHRONON_TRACE_SCOPE("chronon.pipeline", "framebuffer_release");
     if (!fb) return;
 
-    if (m_native_surface_releaser) {
-        m_native_surface_releaser(*fb);
+    // Snapshot the callback under the read side of the pool authority. The
+    // backend cleanup itself must run outside the pool lock: it may touch a
+    // different resource authority and must not extend the pool critical
+    // section.
+    std::function<void(Framebuffer&)> native_surface_releaser;
+    {
+        std::shared_lock lock(m_mutex);
+        native_surface_releaser = m_native_surface_releaser;
+    }
+    if (native_surface_releaser) {
+        native_surface_releaser(*fb);
     }
 
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
@@ -441,7 +450,7 @@ void FramebufferPool::release(Framebuffer* fb) {
     }
 
     const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
     PoolLockHoldMeter hold(m_lock_hold_wall_us);
 
@@ -503,7 +512,7 @@ void FramebufferPool::release(Framebuffer* fb) {
 
 void FramebufferPool::set_native_surface_releaser(
     std::function<void(Framebuffer&)> releaser) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_native_surface_releaser = std::move(releaser);
 }
 
@@ -512,7 +521,7 @@ void FramebufferPool::set_native_surface_releaser(
 // ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::clear() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_free.clear();
     // OPT-POOL-BESTFIT — the index must mirror m_free (non-empty buckets).
     m_free_by_area.clear();
@@ -536,7 +545,7 @@ void FramebufferPool::clear() {
 void FramebufferPool::trim_after_job() {
     FramebufferPoolClearPolicy policy;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::lock_guard lock(m_mutex);
         policy = m_clear_policy;
     }
     switch (policy) {
@@ -556,12 +565,12 @@ void FramebufferPool::trim_after_job() {
 }
 
 size_t FramebufferPool::current_bytes() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     return m_current_bytes;
 }
 
 size_t FramebufferPool::available_count() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     size_t count = 0;
     for (const auto& [key, bucket] : m_free) {
         count += bucket.size();
@@ -573,12 +582,12 @@ size_t FramebufferPool::available_count() const {
 // warm_up / do_preallocate_into_bucket moved to framebuffer_pool_evict.cpp.
 
 size_t FramebufferPool::max_bytes() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     return m_config.max_retained_bytes;
 }
 
 FramebufferPoolStats FramebufferPool::stats() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::shared_lock lock(m_mutex);
 
     size_t count = 0;
     for (const auto& [key, bucket] : m_free) {
@@ -626,7 +635,7 @@ void FramebufferPool::reset_counters() {
     m_release_count.store(0, std::memory_order_relaxed);
     m_arena_set_count.store(0, std::memory_order_relaxed);
     m_arena_set_wait_us.store(0, std::memory_order_relaxed);
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
     m_peak_retained_bytes = m_current_bytes;
     m_evicted_count.store(0, std::memory_order_relaxed);
     m_evicted_bytes.store(0, std::memory_order_relaxed);

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -23,6 +24,14 @@ namespace chronon3d::backends::vulkan {
 template <typename ImageT, typename OwnerT>
 class VulkanSurfaceAuthority {
 public:
+    // The surface store is an independent contention domain.  Callers that
+    // touch the store through VulkanBackend take this lock; command recording
+    // additionally takes VulkanSubmissionAuthority::mutex.  Keeping the lock
+    // beside the state makes the authority boundary explicit and prevents a
+    // backend-wide mutex from becoming the accidental owner of surface
+    // concurrency.
+    mutable std::mutex mutex;
+
     // Frame-transient physical images are expensive to materialize (especially
     // at 1080p). Keep a bounded warm pool after their logical binding is
     // retired; the next compiled frame can rebind the exact slot without

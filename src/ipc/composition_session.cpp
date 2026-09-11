@@ -12,12 +12,13 @@ namespace chronon3d::ipc {
 
 bool CompositionSession::contains(std::string_view id) const noexcept {
     std::lock_guard lock(m_mutex);
-    return m_compositions.contains(std::string(id));
+    // AUDIT-2026-09-11 — heterogeneous lookup: no throwaway std::string key.
+    return m_compositions.contains(id);
 }
 
 void CompositionSession::remove(std::string_view id) {
     std::lock_guard lock(m_mutex);
-    m_compositions.erase(std::string(id));
+    m_compositions.erase(id);
 }
 
 void CompositionSession::clear() noexcept {
@@ -28,6 +29,8 @@ void CompositionSession::clear() noexcept {
 void CompositionSession::create_composition(std::string_view composition_id,
                                             std::string_view descriptor_json) {
     using namespace chronon3d;
+
+    std::lock_guard prepare_lock(m_prepare_mutex);
 
     auto* registry = m_engine->composition_registry();
     if (!registry) {
@@ -72,14 +75,14 @@ void CompositionSession::create_composition(std::string_view composition_id,
     const_cast<CompositionRegistry*>(registry)->add(std::move(descriptor));
     auto comp = const_cast<CompositionRegistry*>(registry)->create(composition_id);
 
-    SessionComposition session;
-    session.composition_id = std::string(composition_id);
+    auto session = std::make_shared<SessionComposition>();
+    session->composition_id = std::string(composition_id);
     // Prepare once at the daemon boundary. This performs resource preparation
     // and renderer warm-up before the composition becomes visible to clients;
     // RenderFrame then reuses the prepared slot/cache pipeline instead of
     // entering the generic compiled-composition path for every frame.
-    session.prepared = std::make_unique<PreparedRenderJob>(m_engine->prepare(comp));
-    session.engine = m_engine;
+    session->prepared = std::make_unique<PreparedRenderJob>(m_engine->prepare(comp));
+    session->engine = m_engine;
 
     std::lock_guard lock(m_mutex);
     m_compositions[std::string(composition_id)] = std::move(session);
@@ -87,10 +90,16 @@ void CompositionSession::create_composition(std::string_view composition_id,
 
 std::shared_ptr<Framebuffer> CompositionSession::render_frame(
     std::string_view composition_id, Frame frame) {
-    std::lock_guard lock(m_mutex);
-    auto it = m_compositions.find(std::string(composition_id));
-    if (it == m_compositions.end()) return nullptr;
-    return it->second.prepared ? it->second.prepared->render(frame) : nullptr;
+    std::shared_ptr<SessionComposition> session;
+    {
+        std::lock_guard lock(m_mutex);
+        auto it = m_compositions.find(composition_id);
+        if (it == m_compositions.end()) return nullptr;
+        session = it->second;
+    }
+    if (!session || !session->prepared) return nullptr;
+    std::lock_guard render_lock(session->render_mutex);
+    return session->prepared->render(frame);
 }
 
 } // namespace chronon3d::ipc

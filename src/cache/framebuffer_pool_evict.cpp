@@ -222,7 +222,7 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
         return 0;
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
 
     const int rounded_w = round_up_bucket(options.width);
     const int rounded_h = round_up_bucket(options.height);
@@ -243,7 +243,7 @@ size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions
         return 0;
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard lock(m_mutex);
 
     const int rounded_w = round_up_bucket(options.width);
     const int rounded_h = round_up_bucket(options.height);

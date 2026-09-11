@@ -21,7 +21,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <map>
 
 namespace chronon3d::ipc {
 
@@ -30,6 +30,10 @@ struct SessionComposition {
     std::string composition_id;
     std::unique_ptr<PreparedRenderJob> prepared;
     RenderEngine* engine{nullptr};
+    // Composition-local lifecycle authority. Independent compositions may be
+    // rendered concurrently; only frames targeting the same prepared job are
+    // serialized because PreparedRenderJob owns mutable temporal state.
+    mutable std::mutex render_mutex;
 };
 
 /// Per-daemon-session composition cache.  Uses the canonical
@@ -53,8 +57,16 @@ public:
 private:
     RenderEngine* m_engine;
     const ContractValidatorRegistry* m_validators;
+    // Engine/registry mutation is a lifecycle operation, separate from the
+    // per-composition render locks below.
+    mutable std::mutex m_prepare_mutex;
     mutable std::mutex m_mutex;
-    std::unordered_map<std::string, SessionComposition> m_compositions;
+    // AUDIT-2026-09-11 — std::map with transparent comparator enables
+    // heterogeneous find/contains/erase on string_view keys (unordered_map
+    // heterogeneous lookup is C++26); the session holds a handful of
+    // compositions so the ordered container's O(log n) is irrelevant, and
+    // every lookup stop allocating a throwaway std::string key.
+    std::map<std::string, std::shared_ptr<SessionComposition>, std::less<>> m_compositions;
 };
 
 } // namespace chronon3d::ipc

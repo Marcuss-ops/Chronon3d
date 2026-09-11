@@ -11,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
@@ -26,6 +27,11 @@ namespace chronon3d::backends::vulkan {
 // Keeping upload slots separate prevents transfer staging lifetime from being
 // coupled to graphics/compute submission rotation.
 struct VulkanSubmissionAuthority {
+    // One command-buffer/ring/queue state machine has one writer authority.
+    // This lock serializes only that state machine; surface-only operations
+    // do not need to wait on it.
+    mutable std::mutex mutex;
+
     // B2 (TICKET-100X-PERF-WAVES): submission ring depth 6. The previous
     // depth of 3 forced the CPU to fence-wait on slot k-3 before recording
     // frame k, capping pipeline depth at ~2 frames and starving NVENC

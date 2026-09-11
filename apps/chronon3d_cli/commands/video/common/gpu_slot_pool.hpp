@@ -131,7 +131,7 @@ public:
             if (gpu_completions_.has_completion(slot_id)) {
                 spdlog::info("[drain-debug] slot_id={} has completion, waiting", slot_id);
                 lock.unlock();
-                gpu_completions_.wait_completion(slot_id);
+                (void)gpu_completions_.wait_completion(slot_id);
                 lock.lock();
                 spdlog::info("[drain-debug] slot_id={} wait complete", slot_id);
             }
