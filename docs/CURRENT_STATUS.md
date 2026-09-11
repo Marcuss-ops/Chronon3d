@@ -75,6 +75,12 @@
 - `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
   still/pipe/chunked fixture execution remains pending on the working build
   host. No CpuBudget policy change is authorized before that measurement.
+- Same-SHA hardware smoke evidence now exists at
+  [`gpu-b00-native-smoke-43d73f149`](evidence/gpu-b00-native-smoke-43d73f149.md):
+  RTX A4000/NVENC, 30/30 native frames, 99.114% wall attribution, zero CPU
+  readback, zero encoder staging bytes, and zero GPU surface-copy frames.
+  This validates the native FullGraph lane only; the official corpus and the
+  final DirectYUV single-backing path remain open.
 
 ## FrameDelta compiler checkpoint — 2026-09-11
 
