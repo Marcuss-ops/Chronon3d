@@ -299,36 +299,26 @@ ResourcePreparation::load_font(
     const assets::AssetResolver&    resolver
 ) {
     if (ref.path.empty()) {
-        return PreparationError{
-            .code    = PreparationError::Code::UnresolvableAssetPath,
-            .message = std::string("empty asset path"),
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "font"
-        };
+        return make_preparation_error(
+            PreparationError::Code::UnresolvableAssetPath,
+            "empty asset path", {}, ref.path, ref.owner, "font");
     }
     auto resolved = resolver.resolve(ref.path);
     if (!resolved.has_value()) {
-        return PreparationError{
-            .code    = PreparationError::Code::MissingAsset,
-            .message = std::string("asset not found: ") + ref.path,
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "font"
-        };
+        return make_preparation_error(
+            PreparationError::Code::MissingAsset,
+            std::string("asset not found: ") + ref.path,
+            {}, ref.path, ref.owner, "font");
     }
     if (std::filesystem::exists(*resolved)) {
         FontEngine engine(resolver);
         FontSpec spec;
         spec.font_path = ref.path;
         if (!engine.can_load(spec)) {
-            return PreparationError{
-                .code    = PreparationError::Code::CorruptedAsset,
-                .message = std::string("invalid or corrupt font face: ") + ref.path,
-                .path    = ref.path,
-                .owner   = ref.owner,
-                .phase   = "font"
-            };
+            return make_preparation_error(
+                PreparationError::Code::CorruptedAsset,
+                std::string("invalid or corrupt font face: ") + ref.path,
+                {}, ref.path, ref.owner, "font");
         }
     }
     return PreparedFont{
@@ -347,33 +337,23 @@ ResourcePreparation::decode_image(
     const assets::AssetResolver&    resolver
 ) {
     if (ref.path.empty()) {
-        return PreparationError{
-            .code    = PreparationError::Code::UnresolvableAssetPath,
-            .message = std::string("empty asset path"),
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "image"
-        };
+        return make_preparation_error(
+            PreparationError::Code::UnresolvableAssetPath,
+            "empty asset path", {}, ref.path, ref.owner, "image");
     }
     auto resolved = resolver.resolve(ref.path);
     if (!resolved.has_value()) {
-        return PreparationError{
-            .code    = PreparationError::Code::MissingAsset,
-            .message = std::string("asset not found: ") + ref.path,
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "image"
-        };
+        return make_preparation_error(
+            PreparationError::Code::MissingAsset,
+            std::string("asset not found: ") + ref.path,
+            {}, ref.path, ref.owner, "image");
     }
     const auto digest = assets::sha256_file(*resolved);
     if (!digest) {
-        return PreparationError{
-            .code = PreparationError::Code::CorruptedAsset,
-            .message = std::string("image content digest failed: ") + ref.path,
-            .path = ref.path,
-            .owner = ref.owner,
-            .phase = "image"
-        };
+        return make_preparation_error(
+            PreparationError::Code::CorruptedAsset,
+            std::string("image content digest failed: ") + ref.path,
+            {}, ref.path, ref.owner, "image");
     }
     return PreparedImage{
         .path   = ref.path,
@@ -422,14 +402,10 @@ ResourcePreparation::prepare_mesh(
             case assets::MeshLoadErrorCode::InvalidGeometry: cause_code = "INVALID_GEOMETRY"; break;
             case assets::MeshLoadErrorCode::InvalidReference: cause_code = "INVALID_REFERENCE"; break;
         }
-        PreparationError error{
-            .code = code,
-            .message = "mesh preparation failed: " + loaded.error().message,
-            .cause_code = cause_code,
-            .path = ref.path,
-            .owner = ref.owner,
-            .phase = "mesh",
-        };
+        PreparationError error = make_preparation_error(
+            code,
+            "mesh preparation failed: " + loaded.error().message,
+            cause_code, ref.path, ref.owner, "mesh");
         return error;
     }
     return PreparedMesh{
@@ -446,23 +422,16 @@ ResourcePreparation::prepare_layout(
     chronon3d::Frame                /*frame*/
 ) {
     if (ref.path.empty()) {
-        return PreparationError{
-            .code    = PreparationError::Code::UnresolvableAssetPath,
-            .message = std::string("empty asset path"),
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "layout"
-        };
+        return make_preparation_error(
+            PreparationError::Code::UnresolvableAssetPath,
+            "empty asset path", {}, ref.path, ref.owner, "layout");
     }
     auto resolved = resolver.resolve(ref.path);
     if (!resolved.has_value()) {
-        return PreparationError{
-            .code    = PreparationError::Code::MissingAsset,
-            .message = std::string("layout asset not found: ") + ref.path,
-            .path    = ref.path,
-            .owner   = ref.owner,
-            .phase   = "layout"
-        };
+        return make_preparation_error(
+            PreparationError::Code::MissingAsset,
+            std::string("layout asset not found: ") + ref.path,
+            {}, ref.path, ref.owner, "layout");
     }
     return PreparedLayout{
         .owner  = ref.owner

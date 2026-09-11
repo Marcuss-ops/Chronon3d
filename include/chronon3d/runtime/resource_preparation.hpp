@@ -47,6 +47,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <unordered_map>
 #include <vector>
 
@@ -97,6 +98,25 @@ struct PreparationError {
     std::string owner;    // manifest owner-key of failing asset (if known)
     std::string phase;    // "font" / "image" / "video" / "audio" / "layout"
 };
+
+// Preparation compatibility boundary. The legacy aggregate remains public,
+// but all new error construction goes through this named adapter.
+[[nodiscard]] inline PreparationError make_preparation_error(
+    PreparationError::Code code,
+    std::string message,
+    std::string cause_code = {},
+    std::string path = {},
+    std::string owner = {},
+    std::string phase = {}) {
+    return PreparationError{
+        code,
+        std::move(message),
+        std::move(cause_code),
+        std::move(path),
+        std::move(owner),
+        std::move(phase),
+    };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Phase result types — per-resource snapshots
