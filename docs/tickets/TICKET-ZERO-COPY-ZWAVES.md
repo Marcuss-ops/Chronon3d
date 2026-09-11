@@ -6,6 +6,12 @@ Created: 2026-09-07
 Baseline: `main@23108742a1d72bd9a6eb6ca208506965f4f40154`
 Gates: [`docs/ZERO_COPY_GATES.md`](../ZERO_COPY_GATES.md)
 
+Latest safe optimization: DirectYUV text preparation now reuses immutable
+MTSDF atlases through the daemon-lifetime `DirectYuvTextTextureCache`. This
+removes repeated font loading/rasterization between short-lived programs but
+does not change the zero-copy gate semantics: CUDA image residency and upload
+accounting remain owned by `VideoDeviceRuntime`.
+
 This ticket executes the Z0–Z7 zero-copy plan (architecture working session,
 2026-09-07) against the *current* codebase. The plan's principle:
 

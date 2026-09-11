@@ -120,8 +120,12 @@ RasterizedTextTexture rasterize_text_texture(
             auto bitmap = generate_mtsdf_glyph(
                 faces[span_index]->face, state.glyph_id, kEmPx, kRangePx, kPaddingPx);
             if (!bitmap || bitmap->rgba8.empty()) {
-                throw std::runtime_error(
-                    "prepared text glyph could not produce an MTSDF bitmap");
+                // Spaces and other advance-only glyphs have no outline by
+                // design. They still participate in shaping/layout, but do
+                // not need an atlas tile. Treating them as a render error
+                // made ordinary watermark strings containing spaces fail
+                // closed before the GPU compositor was reached.
+                continue;
             }
             const auto& placed = layout.placed.glyphs[index];
             PreparedGlyph glyph{std::move(*bitmap),
@@ -192,4 +196,35 @@ RasterizedTextTexture rasterize_text_texture(
 }
 
 #endif
+
+void DirectYuvTextTextureCache::store(
+    const TextRunLayout& layout,
+    std::shared_ptr<const RasterizedTextTexture> texture) {
+    if (!texture || texture->gpu_rgba.empty()) return;
+    const auto weight = sizeof(RasterizedTextTexture) +
+        texture->gpu_rgba.size() * sizeof(float);
+    entries_.put(layout.layout_hash(), std::move(texture), weight);
+}
+
+std::shared_ptr<const RasterizedTextTexture>
+DirectYuvTextTextureCache::get_or_create(const TextRunShape& prepared_shape) {
+    if (!prepared_shape.layout) {
+        throw std::runtime_error("DirectYUV text cache requires a prepared layout");
+    }
+    const auto key = prepared_shape.layout->layout_hash();
+    return entries_.compute_if_absent(key, [&]() {
+        auto texture = std::make_shared<RasterizedTextTexture>(
+            rasterize_text_texture(prepared_shape));
+        if (texture->gpu_rgba.empty() || !texture->mtsdf) {
+            throw std::runtime_error(
+                "DirectYUV text cache received an incomplete MTSDF texture");
+        }
+        const auto weight = sizeof(RasterizedTextTexture) +
+            texture->gpu_rgba.size() * sizeof(float);
+        return std::pair{
+            std::shared_ptr<const RasterizedTextTexture>(std::move(texture)),
+            weight};
+    });
+}
+
 } // namespace chronon3d::media::video

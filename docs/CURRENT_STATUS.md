@@ -92,6 +92,10 @@
   frame after the instrumented benchmark run; the zero-threshold gate is in
   `tools/gates/manifest.sh`. See
   [phase5-allocation-budget](evidence/phase5-allocation-budget.md).
+- **DirectYUV prepared text reuse:** IMPLEMENTED. A daemon-lifetime,
+  coalesced, byte-bounded MTSDF preparation cache reuses immutable text
+  atlases across `DirectYuvProgram` instances; device upload/residency remains
+  under the existing `VideoDeviceRuntime` authority.
 - **SoftwareExecutionContext:** PARTIAL. The explicit bundle and pipeline
   wiring are landed, but the legacy `SoftwareRenderer` runtime compatibility
   surface still has callers. This remains demolition debt and is not reported

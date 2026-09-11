@@ -143,6 +143,14 @@ chronon3d_add_test_suite(
 if(CHRONON3D_ENABLE_VIDEO)
     target_sources(chronon3d_cache_tests PRIVATE cache/test_hash_builder.cpp)
 endif()
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_direct_yuv)
+    # The DirectYUV text-preparation cache is part of the native media
+    # authority; keep its fingerprint/reuse contract in the cache suite.
+    target_sources(chronon3d_cache_tests PRIVATE
+        cache/test_direct_yuv_text_cache.cpp)
+    target_link_libraries(chronon3d_cache_tests PRIVATE
+        chronon3d_media_direct_yuv)
+endif()
 chronon3d_add_test_suite(
     NAME chronon3d_parse_framebuffer_pool_clear_policy_tests
     TIER UNIT
