@@ -80,11 +80,9 @@ std::vector<ValidationIssue> adapt_json_schema_diagnostics(
 
     for (const auto& raw : raw_errors) {
         const auto& actual = instance_at_pointer(instance, raw.pointer);
-        issues.push_back({path_from_pointer(raw.pointer),
-                          ValidationIssueKind::SchemaViolation,
-                          "JSON Schema constraint",
-                          describe_value(actual),
-                          raw.detail});
+        issues.push_back(make_validation_issue(
+            path_from_pointer(raw.pointer), ValidationIssueKind::SchemaViolation,
+            "JSON Schema constraint", describe_value(actual), raw.detail));
     }
     return issues;
 }

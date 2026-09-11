@@ -207,3 +207,31 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/media/frame_conversion/frame_converter.hpp"]
 patterns = ["\\bConvertFrameResult\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "video_sink_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/media/video/video_sink.hpp"]
+patterns = ["\\bVideoSinkErrorInfo\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "frame_execution_result_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/runtime/frame_execution_result.hpp"]
+patterns = ["\\bFrameExecutionResult\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "validation_issue_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/render_plan/render_plan_validator.hpp"]
+patterns = ["\\bValidationIssue\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "render_diagnostic_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/render/render_diagnostic.hpp"]
+patterns = ["\\bRenderDiagnostic\\s*\\{"]
+skip_comments = true
