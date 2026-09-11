@@ -1,0 +1,25 @@
+{
+  "$schema": "https://chronon3d.dev/schemas/gpu-corpus.v1.json",
+  "id": "chronon3d-gpu-corpus-v1",
+  "version": "1.0",
+  "description": "Versioned GPU baseline cases. Scene names are resolved by the active content pack; the runner supplies one shared parameter set to every case.",
+  "cases": [
+    {"id": "B00", "scene": "BenchB00_EmptyFrame", "category": "baseline"},
+    {"id": "B01", "scene": "BenchB01_StaticText1080p", "category": "text"},
+    {"id": "B02", "scene": "BenchB02_Typewriter200Glyphs", "category": "text"},
+    {"id": "B03", "scene": "BenchB03_CinematicGlow1080p", "category": "glow"},
+    {"id": "B04", "scene": "BenchB04_Layers100", "category": "layers"},
+    {"id": "B05", "scene": "BenchB05_Blur4K", "category": "memory"},
+    {"id": "B06", "scene": "BenchB06_VideoOverlay1080p", "category": "asset"},
+    {"id": "B07", "scene": "BenchB07_NestedPrecomps", "category": "graph"},
+    {"id": "B08", "scene": "BenchB08_DirtyRectSmallMotion", "category": "dirtyrect"},
+    {"id": "B09", "scene": "BenchB09_LongForm10Minutes", "category": "stability"},
+    {"id": "B10", "scene": "BenchB10_RandomFrameAccess", "category": "cache"},
+    {"id": "B11", "scene": "BenchB11_Portrait1080x1920", "category": "portrait"},
+    {"id": "GPU_TEXT_01", "scene": "Clean", "category": "typewriter"},
+    {"id": "GPU_TEXT_02", "scene": "Pop", "category": "typewriter"},
+    {"id": "GPU_TEXT_03", "scene": "Neon", "category": "typewriter"},
+    {"id": "GPU_TEXT_04", "scene": "Tracking", "category": "typewriter"},
+    {"id": "GPU_TEXT_05", "scene": "Glitch", "category": "typewriter"}
+  ]
+}
