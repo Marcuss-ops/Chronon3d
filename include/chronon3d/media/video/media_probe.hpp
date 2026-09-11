@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::media::video {
@@ -62,6 +63,13 @@ struct MediaProbeError {
     int native_code{0};
     std::string message;
 };
+
+// Media probe compatibility boundary. The probe code owns construction; the
+// enum remains available as a structured backend detail to API callers.
+[[nodiscard]] inline MediaProbeError make_media_probe_error(
+    MediaProbeErrorCode code, int native_code, std::string message) {
+    return MediaProbeError{code, native_code, std::move(message)};
+}
 
 /// Inspect an input/container through the canonical in-process libavformat
 /// backend. Lean builds without native FFmpeg support fail closed with

@@ -105,8 +105,7 @@ RenderError runtime_error(std::string message) {
             std::string::npos
         ? RenderErrorCode::AssetChanged
         : RenderErrorCode::RuntimeFailure;
-    return RenderError{.code = code, .message = std::move(message),
-                       .component = "render"};
+    return make_render_error(code, std::move(message), "render");
 }
 
 #if CHRONON3D_ENABLE_VIDEO
@@ -188,11 +187,10 @@ struct RenderEngine::Impl {
         std::lock_guard lock(state_mutex);
         try {
             if (settings.width <= 0 || settings.height <= 0) {
-                auto result = RenderError{
-                    .code = RenderErrorCode::InvalidSettings,
-                    .message = "RenderSettings width and height must be positive",
-                    .component = "render",
-                };
+                auto result = make_render_error(
+                    RenderErrorCode::InvalidSettings,
+                    "RenderSettings width and height must be positive",
+                    "render");
                 log(LogLevel::Error, result.component, result.message);
                 return result;
             }
@@ -246,11 +244,10 @@ struct RenderEngine::Impl {
             log(LogLevel::Error, result.component, result.message);
             return result;
         } catch (...) {
-            auto result = RenderError{
-                .code = RenderErrorCode::InternalError,
-                .message = "render: unknown exception",
-                .component = "render",
-            };
+            auto result = make_render_error(
+                RenderErrorCode::InternalError,
+                "render: unknown exception",
+                "render");
             log(LogLevel::Error, result.component, result.message);
             return result;
         }
