@@ -33,7 +33,7 @@ contract before the prepared execution plan migration.
 | `chronon3d::media::DecodeFailureReason` | Media | Decode detail | zero direct constructions outside decode adapter | decode failure tests | decode detail enum | ACTIVE |
 | `chronon3d::PropsErrorReason` | Composition | Props validation detail | zero direct constructions outside props adapter | props validation tests | props detail enum | ACTIVE |
 | `chronon3d::render_plan::ValidationIssueKind` | Plan | Validation detail | zero direct constructions outside plan adapter | render-plan validation corpus | validation detail enum | ACTIVE |
-| `chronon3d::runtime::RuntimeBuildError::Code` | Runtime | Build detail | zero direct constructions outside runtime adapter | runtime build tests | build detail enum | ACTIVE |
+| `chronon3d::runtime::RuntimeBuildError::Code` | Runtime | Build detail | zero direct constructions outside runtime adapter | runtime build tests | build detail enum | ADAPTER_ONLY |
 | `chronon3d::runtime::PreparationError::Code` | Runtime | Preparation detail | zero direct constructions outside preparation adapter | preparation tests | preparation detail enum | ACTIVE |
 | `chronon3d::scene::CameraFailurePolicy` | Scene | Policy detail | zero direct constructions outside scene adapter | camera policy tests | policy enum | ACTIVE |
 | `chronon3d::graph::FrameExecutionPath` | Executor | Path detail | zero direct constructions outside executor adapter | execution-path tests | path enum | ACTIVE |
