@@ -221,8 +221,8 @@ TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not 
     Framebuffer fb(64, 64);
     const Mat4 model = Mat4(1.0f);  // identity
     graph::RenderOpResult result{
-        graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput, "uninitialised"}};
+        graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, "uninitialised")};
     REQUIRE_NOTHROW(result = renderer.backend().draw_text_run(fb, *shape, model, 1.0f));
 
     if (result.has_value()) {
@@ -291,8 +291,8 @@ TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-
     Framebuffer fb(128, 64);
     const Mat4 model = Mat4(1.0f);
     graph::RenderOpResult result{
-        graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput, "uninitialised"}};
+        graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, "uninitialised")};
     REQUIRE_NOTHROW(result = renderer.backend().draw_text_run(fb, *shape, model, 1.0f));
 
     if (result.has_value()) {

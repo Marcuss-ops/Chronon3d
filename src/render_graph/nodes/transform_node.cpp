@@ -283,9 +283,9 @@ NodeExecResult TransformNode::execute(
                 const auto handle = ctx.surface_registry->create(desc);
                 const auto created = handle != runtime::kInvalidRenderSurfaceHandle
                     ? ctx.backend->create_surface(handle, desc)
-                    : RenderOpResult(RenderBackendError{
+                    : RenderOpResult(make_render_backend_error(
                         RenderBackendErrorCode::InvalidInput,
-                        "TransformNode: unable to allocate native output handle"});
+                        "TransformNode: unable to allocate native output handle"));
                 if (created.ok()) {
                     const auto transformed = ctx.backend->transform_surface(
                         handle, input->surface_handle(),
@@ -366,9 +366,9 @@ NodeExecResult TransformNode::execute(
         const auto handle = ctx.surface_registry->create(desc);
         const auto created = handle != runtime::kInvalidRenderSurfaceHandle
             ? ctx.backend->create_surface(handle, desc)
-            : RenderOpResult(RenderBackendError{
+            : RenderOpResult(make_render_backend_error(
                 RenderBackendErrorCode::InvalidInput,
-                "TransformNode: unable to allocate native affine output handle"});
+                "TransformNode: unable to allocate native affine output handle"));
         if (created.ok()) {
             const auto transformed = ctx.backend->transform_surface_affine(
                 handle, input->surface_handle(), transform);
