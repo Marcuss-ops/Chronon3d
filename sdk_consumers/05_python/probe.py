@@ -23,13 +23,13 @@ CHRONON_OK = 0
 CHRONON_ERROR_BUFFER_TOO_SMALL = 9
 
 VALID_PLAN = (
-    b'{"schema":"chronon.render-plan","version":1,'
-    b'"canvas":{"width":8,"height":8,"fps":30,"duration_frames":1},'
+    b'{"schema":"chronon.render-plan.v2","version":2,'
+    b'"canvas":{"width":8,"height":8,"fps_num":30,"fps_den":1,"duration_frames":1},'
     b'"layers":[{"id":"bg","type":"color","color":[0.2,0.4,0.6,1.0]}],'
     b'"output":{"path":"out.png"}}'
 )
 INVALID_PLAN = (
-    b'{"schema":"chronon.render-plan","version":1,'
+    b'{"schema":"chronon.render-plan.v2","version":2,'
     b'"layers":[],"output":{"path":"out.png"}}'
 )
 
