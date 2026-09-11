@@ -8,31 +8,36 @@ Certificare che il video pipeline Chronon3D achieve **zero-copy end-to-end**:
 NVDEC → native surface → CUDA/Vulkan compose → NVENC
 ```
 
-Senza copie CPU, senza conversioni di formato, senza intermedi.
+Senza copie CPU/GPU evitabili e senza intermedi di staging. La conversione
+colore necessaria del FullGraph (`RGBA→NV12`) resta sul device GPU; il path
+DirectYUV può invece evitarla del tutto.
 
-## I 13 Gate Mandatori (Phase 13)
+## I 15 Gate Mandatori (Phase 13)
 
 **Non esistono gate opzionali** (Phase 13): ogni gate sottostante è mandatory.
 Un gate il cui valore non può essere verificato produce `ZERO_COPY_BLOCKED`,
-mai un PASS. Gli otto contatori di copia devono essere **= 0**, i due
-contatori di identità nativa devono essere **> 0**, e le tre identità di
-esecuzione devono corrispondere esattamente:
+mai un PASS. I contatori di copia e conversione CPU devono essere **= 0**;
+`rgba_to_nv12_frames` è invece **>= 0** perché nel FullGraph la conversione
+colore GPU è necessaria; i due contatori di identità nativa devono essere
+**> 0**, e le tre identità di esecuzione devono corrispondere esattamente:
 
 | # | Gate | Metrica | Target | Cosa misura |
 |---|---|---|---|---|
 | 1 | **host_upload_bytes** | `gpu_upload_bytes` | = 0 | Byte caricati da CPU→GPU |
 | 2 | **host_readback_bytes** | `gpu_readback_bytes` | = 0 | Byte letti da GPU→CPU |
 | 3 | **nv12_to_rgba_frames** | `nv12_to_rgba_frames` | = 0 | Frame convertiti NV12→RGBA |
-| 4 | **rgba_to_nv12_frames** | `rgba_to_nv12_frames` | = 0 | Frame convertiti RGBA→NV12 |
-| 5 | **encoder_staging_copy_bytes** | `encoder_staging_copy_bytes` | = 0 | Byte copiati per staging encoder |
-| 6 | **gpu_surface_copy_frames** | `gpu_surface_copy_frames` | = 0 | Frame con copie superficie GPU |
-| 7 | **cpu_pixel_readback_bytes** | `cpu_pixel_readback_bytes` | = 0 | Byte pixel letti da CPU |
-| 8 | **video_surface_upload_bytes** | `video_surface_upload_bytes` | = 0 | Byte superficie video caricati |
-| 9 | **native_surface_frames** | `gpu_native_surface_frames` | > 0 | Frame con superfici GPU native |
-| 10 | **native_encode_frames** | `gpu_native_encode_frames` | > 0 | Frame codificati nativamente via NVENC |
-| 11 | **effective_backend** | `effective_backend` | = `vulkan` | Il backend effettivo di rendering |
-| 12 | **encoder_backend** | `encoder_backend` | = `nvenc` | L'autorità encoder nativa |
-| 13 | **surface_handoff_path** | `surface_handoff_path` | = `direct` | Handoff superficie senza indirezione |
+| 4 | **rgba_to_nv12_frames** | `rgba_to_nv12_frames` | ≥ 0, GPU | Conversione colore GPU necessaria nel FullGraph |
+| 5 | **software_color_convert_frames** | `software_color_convert_frames` | = 0 | Nessuna conversione software |
+| 6 | **cpu_pixel_conversion_ms** | `cpu_pixel_conversion_ms` | = 0 | Nessuna conversione pixel CPU |
+| 7 | **encoder_staging_copy_bytes** | `encoder_staging_copy_bytes` | = 0 | Byte copiati per staging encoder |
+| 8 | **gpu_surface_copy_frames** | `gpu_surface_copy_frames` | = 0 | Frame con copie superficie GPU |
+| 9 | **cpu_pixel_readback_bytes** | `cpu_pixel_readback_bytes` | = 0 | Byte pixel letti da CPU |
+| 10 | **video_surface_upload_bytes** | `video_surface_upload_bytes` | = 0 | Byte superficie video caricati |
+| 11 | **native_surface_frames** | `gpu_native_surface_frames` | > 0 | Frame con superfici GPU native |
+| 12 | **native_encode_frames** | `gpu_native_encode_frames` | > 0 | Frame codificati nativamente via NVENC |
+| 13 | **effective_backend** | `effective_backend` | = `vulkan` | Il backend effettivo di rendering |
+| 14 | **encoder_backend** | `encoder_backend` | = `nvenc` | L'autorità encoder nativa |
+| 15 | **surface_handoff_path** | `surface_handoff_path` | = `direct` | Handoff superficie senza indirezione |
 
 ### Autorità: il timing sidecar, non il log
 
@@ -102,10 +107,11 @@ GPU render → CPU readback → PNG encode → disk I/O
 ```
 NVDEC → native surface → CUDA/Vulkan compose → NVENC → MP4
        ↑                  ↑                     ↑
-  gpu_native_surface   zero conversion      gpu_native_encode
-  frames > 0           nv12_to_rgba = 0     frames > 0
-                       rgba_to_nv12 = 0
-                       encoder_staging = 0
+  gpu_native_surface   GPU color conversion  gpu_native_encode
+  frames > 0           (FullGraph allowed)  frames > 0
+                       CPU conversion = 0
+                       surface copies = 0
+                       encoder staging = 0
 ```
 
 ## Roadmap Alignment
@@ -160,9 +166,10 @@ quindi `rgba_to_nv12_frames` e `gpu_surface_copy_frames` risultano `≠ 0` finch
 non viene usato il percorso direct-YUV (`composite_direct_nv12*`), che compone
 l'overlay direttamente nel dominio NV12 senza passare da RGBA.
 
-## Percorso zero-copy target (direct-YUV)
+## Percorso zero-copy target (DirectYUV)
 
-Il percorso che azzera i gate 3/4/6 è già implementato nei kernel CUDA:
+Il percorso che azzera la conversione colore oltre ai gate di copia è già
+implementato nei kernel CUDA:
 
 ```
 NVDEC (NV12/P010) → media::video::CudaNv12Compositor::composite_direct_nv12*

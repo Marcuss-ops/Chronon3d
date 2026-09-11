@@ -372,15 +372,21 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         params.hardware_encoder = pipe_composition ? "none" : "nvenc";
         // Phase 9 CLI/IPC parity: a composition with no source video is a
         // GPU-composited host-frame job, not a native NVENC surface job.
-        // DirectYUV remains reserved for video-only plans.
+        // This is a native-surface job; the compiled-program classifier may
+        // still select DirectYUV for certified simple overlays or FullGraph
+        // for richer compositions.
         if (pipe_composition) {
             params.encoder_backend = "pipe";
             params.gpu_hot_path_mode = "auto";
         } else {
             params.encoder_backend = "native";
-            params.gpu_hot_path_mode = requirements.composition_required
-                ? "require_gpu_native"
-                : "require_direct_yuv";
+            // CompositionRequired is a semantic requirement, not a render
+            // path selection.  Keep the request on the automatic lane so
+            // the compiled composition can be classified by Chronon after
+            // compilation: certified simple overlays use DirectYUV, while
+            // masks/effects/3D resolve to FullGraph.  RenderingGen must not
+            // create a second copy of that capability matrix.
+            params.gpu_hot_path_mode = "auto";
         }
         params.native_nvenc = !pipe_composition;
         params.direct_yuv = !pipe_composition && !requirements.composition_required;

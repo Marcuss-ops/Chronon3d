@@ -28,8 +28,8 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
         width, height, runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::PipelineSlot);
-    // This ring is the explicit RGBA-copy encode lane. DirectYUV owns a
-    // separate NV12/P010 contract and must never alias these surfaces.
+    // This is the persistent FullGraph encode backing. DirectYUV owns a
+    // separate NV12/P010 contract and never enters this pool.
     desc.kind = runtime::ResourceKind::Color;
     const auto contract = runtime::validate_cuda_surface_contract(desc);
     if (!contract.valid()) {
@@ -38,10 +38,11 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
         return false;
     }
 
-    // A slot owns its two PipelineSlot surfaces across frames.  Releasing the
-    // lease returns the slot to Recyclable; it must not force a new Vulkan
-    // allocation on the next acquisition.  Validate the retained bindings and
-    // reuse them, which keeps physical surface count bounded by the ring.
+    // A slot owns one PipelineSlot backing across frames. Releasing the lease
+    // returns the slot to Recyclable; it must not force a new Vulkan allocation
+    // on the next acquisition. The source and encode roles intentionally alias
+    // this same backing so the graph terminal output cannot reintroduce a
+    // source→encode device copy.
     if (slot.native_surface != runtime::kInvalidRenderSurfaceHandle ||
         slot.source_surface != runtime::kInvalidRenderSurfaceHandle) {
         const auto* encode_desc = registry.lookup(slot.native_surface);
@@ -53,9 +54,9 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
             source_desc->desc.width == desc.width &&
             source_desc->desc.height == desc.height &&
             source_desc->desc.format == desc.format &&
+            slot.source_surface == slot.native_surface &&
             // The encode destination must remain bound in the backend across
-            // the asynchronous NVENC ring.  The retained source binding is a
-            // fallback/ownership handle in the prepared native path.
+            // the asynchronous NVENC ring.
             backend.is_native_surface_valid(slot.native_surface);
         if (reusable) {
             slot.backend = &backend;
@@ -67,11 +68,7 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
     }
 
     const auto encode = registry.create(desc);
-    const auto source = registry.create(desc);
-    if (encode == runtime::kInvalidRenderSurfaceHandle ||
-        source == runtime::kInvalidRenderSurfaceHandle) {
-        if (encode != runtime::kInvalidRenderSurfaceHandle) registry.release(encode);
-        if (source != runtime::kInvalidRenderSurfaceHandle) registry.release(source);
+    if (encode == runtime::kInvalidRenderSurfaceHandle) {
         (void)slot.transition_interop_state(runtime::InteropFrameState::Recyclable);
         reason = "surface registry rejected native video surface";
         return false;
@@ -80,24 +77,14 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
     const auto encode_result = backend.create_video_encode_surface(encode, desc);
     if (!encode_result.ok()) {
         registry.release(encode);
-        registry.release(source);
         (void)slot.transition_interop_state(runtime::InteropFrameState::Recyclable);
         reason = encode_result.error().message;
-        return false;
-    }
-    const auto source_result = backend.create_surface(source, desc);
-    if (!source_result.ok()) {
-        (void)backend.release_surface(encode);
-        registry.release(encode);
-        registry.release(source);
-        (void)slot.transition_interop_state(runtime::InteropFrameState::Recyclable);
-        reason = source_result.error().message;
         return false;
     }
 
     slot.backend = &backend;
     slot.native_surface = encode;
-    slot.source_surface = source;
+    slot.source_surface = encode;
     return true;
 }
 

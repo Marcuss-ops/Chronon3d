@@ -1,7 +1,9 @@
 #include "video_export_support.hpp"
 #include "gop_smart_copy.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
+#include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
+#include <chronon3d/media/video/direct_yuv_program.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
@@ -143,6 +145,45 @@ media::VideoCapabilities cli_effective_capabilities(
     };
 }
 
+// The semantic resolver can only select a DirectYUV candidate before it sees
+// the compiled scene. This is the single Chronon-owned composition
+// classification step that turns that candidate into the final plan. The
+// lower-level pipeline receives the result and must not repeat this decision.
+media::VideoExecutionDecision finalize_composition_execution(
+    const CompiledComposition& compiled,
+    const FfmpegExportOptions& opts,
+    media::VideoExecutionDecision decision) {
+    if (decision.plan.composite != media::CompositePath::DirectYuv) {
+        return decision;
+    }
+
+    const auto policy = opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv
+        ? media::video::DirectYuvPolicy::Require
+        : media::video::DirectYuvPolicy::Auto;
+    const auto capability = media::video::DirectYuvProgram::resolve_support(
+        compiled, policy);
+    if (capability.eligible) {
+        return decision;
+    }
+
+    spdlog::info(
+        "[video] DirectYUV composition classification rejected the candidate: {}",
+        capability.reason);
+    if (policy == media::video::DirectYuvPolicy::Require) {
+        decision.valid = false;
+        decision.reason = "direct_yuv_capability_required";
+        return decision;
+    }
+
+    // Auto is an explicit resolver outcome: FullGraph is the final plan, not
+    // a runtime fallback discovered by the exporter.
+    decision.plan = detail::render_graph_fallback_plan(opts);
+    decision.reason = "direct_yuv_capability_rejected";
+    decision.valid = true;
+    decision.downgrade_count = 1;
+    return decision;
+}
+
 } // namespace
 
 int render_and_encode_ffmpeg(
@@ -197,9 +238,10 @@ int render_and_encode_ffmpeg(
     // policy and never downgrades at runtime (audit Wave 1 closeout).
     auto render_opts = opts;
     if (opts.gop_source.empty()) {
-        const auto decision = media::resolve_video_execution(
+        auto decision = media::resolve_video_execution(
             cli_execution_requirements(opts), media::OutputSpec{},
             cli_effective_capabilities(opts));
+        decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -222,12 +264,13 @@ int render_and_encode_ffmpeg(
                              (summary.hybrid ? ", hybrid" : ""),
                          summary.safe_to_splice);
         }
-        const auto decision = media::resolve_video_execution_with_gop_analysis(
+        auto decision = media::resolve_video_execution_with_gop_analysis(
             cli_execution_requirements(opts), media::OutputSpec{},
             cli_effective_capabilities(opts),
             opts.gop_copy_only,
             !opts.gop_copy_only,
             summary);
+        decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -256,7 +299,8 @@ int render_and_encode_ffmpeg(
         const bool capability_denied =
             reason == "required_gpu_capability_unavailable" ||
             reason == "cpu_fallback_forbidden" ||
-            reason == "direct_yuv_requires_native_nvenc";
+            reason == "direct_yuv_requires_native_nvenc" ||
+            reason == "direct_yuv_capability_required";
         if (capability_denied) {
             spdlog::error(
                 "[video] FAIL_CLOSED: requested execution cannot run on this host "

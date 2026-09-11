@@ -219,6 +219,13 @@ void build_summary_and_job_sections(
     if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
     else job["measurement_kind"] = nullptr;
     job["execution_path"] = timings.execution_path.value_or("unknown");
+    if (timings.execution_reason) job["execution_reason"] = *timings.execution_reason;
+    else job["execution_reason"] = nullptr;
+    if (timings.execution_downgrade_count) {
+        job["execution_downgrade_count"] = *timings.execution_downgrade_count;
+    } else {
+        job["execution_downgrade_count"] = nullptr;
+    }
     job["surface_handoff_path"] = timings.surface_handoff_path.value_or("unknown");
     put_ms("job_wall_ms", timings.job_wall_ms);
     put_ms("engine_init_ms", timings.engine_init_ms);

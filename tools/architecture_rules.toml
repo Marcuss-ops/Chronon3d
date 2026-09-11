@@ -275,3 +275,29 @@ required_patterns = [
   "canonical_error\\(GpuMemoryPressure",
   "from_legacy<GpuMemoryPressure>",
 ]
+
+[[contract]]
+name = "full_graph_encode_slot_has_one_physical_backing"
+description = "FullGraph native video slots must alias source and encode roles"
+file = "src/media/video/video_device_runtime_surfaces_detail.hpp"
+required_patterns = [
+  "slot\\.source_surface == slot\\.native_surface",
+  "slot\\.source_surface = encode",
+]
+forbidden_patterns = [
+  "registry\\.create\\(source\\)",
+  "backend\\.create_surface\\(source",
+]
+
+[[contract]]
+name = "render_plan_video_uses_one_canonical_compilation"
+description = "CLI video preparation must consume the canonical CompiledProgram"
+file = "apps/chronon3d_cli/commands/render/render_plan_preparation.cpp"
+required_patterns = [
+  "compiler::compile\\(plan, resolver, compile_options\\)",
+  "make_video_compatibility_view",
+]
+forbidden_patterns = [
+  "compile_render_plan\\(",
+  "compile_composition\\(",
+]

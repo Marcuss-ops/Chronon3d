@@ -390,7 +390,8 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
     }
 
     // The GPU-semantic subcases below assert the VIDEO resolver's canonical
-    // back-fill (nvenc/native/require_gpu_native from gpu_required + codec).
+    // back-fill (nvenc/native/auto from gpu_required + codec).  The semantic
+    // composition request leaves the DirectYUV/FullGraph choice to Chronon.
     // That decision exists only where CHRONON3D_ENABLE_VIDEO is compiled; in
     // video-off matrix builds normalize_render_job deliberately keeps the
     // non-video defaults (none/pipe/auto) and cannot reproduce an explicitly
@@ -400,10 +401,10 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
     // canonical resolver it pins is compiled.
 #if defined(CHRONON3D_ENABLE_VIDEO)
     SUBCASE("NVENC source-video composition on a Vulkan host") {
-        // CLI spells nvenc/native/require_gpu_native; the IPC payload carries
+        // CLI spells nvenc/native/auto; the IPC payload carries
         // only semantics — normalize must back-fill the same resolution.
         JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
-                                         "require_gpu_native", /*report=*/true);
+                                         "auto", /*report=*/true);
         cli.output.codec = "h264";
         cli.output.encode_preset = "p3";
         cli.receipt_verification = "normal";
@@ -435,7 +436,7 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
 
     SUBCASE("rate control + codec carried through the wire exactly once") {
         JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
-                                         "require_gpu_native");
+                                         "auto");
         cli.output.codec = "hevc";
         cli.output.rate_control_mode = "crf";
         cli.output.crf = 18;
