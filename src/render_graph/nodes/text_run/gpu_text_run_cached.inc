@@ -7,9 +7,9 @@ graph::RenderOpResult draw_cached_text_run(
     if (!ctx.text_render_resources || !shape.layout ||
         shape.layout->placed.glyphs.empty() ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_cached_text_run: CPU glyph atlas is not ready"});
+            "draw_cached_text_run: CPU glyph atlas is not ready"));
     }
 
     // The surface text kernel consumes integer pixel quads. Fold a diagonal
@@ -26,9 +26,9 @@ graph::RenderOpResult draw_cached_text_run(
         std::abs(model_matrix[2][3]) > 1e-4f ||
         model_matrix[0][0] <= 0.0f || model_matrix[1][1] <= 0.0f ||
         std::abs(model_matrix[3][3] - 1.0f) > 1e-4f) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_cached_text_run: non-translation transform"});
+            "draw_cached_text_run: non-translation transform"));
     }
 
     const auto& layout = *shape.layout;
@@ -93,9 +93,9 @@ graph::RenderOpResult draw_cached_text_run(
             std::abs(state.rotation.y) > 1e-4f ||
             std::abs(state.rotation.z) > 1e-4f ||
             std::abs(state.skew) > 1e-4f || state.blur > 1e-4f) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: animated/style feature requires canonical software text path"});
+                "draw_cached_text_run: animated/style feature requires canonical software text path"));
         }
         auto entry = ctx.text_render_resources->lookup_glyph_atlas(
             font_id, state.glyph_id,
@@ -108,9 +108,9 @@ graph::RenderOpResult draw_cached_text_run(
             // path keeps the compatibility warm-up below for standalone
             // callers, but the native export lane must fail closed.
             if (ctx.policy.is_gpu_native_required()) {
-                return graph::RenderOpResult(graph::RenderBackendError{
+                return graph::RenderOpResult(graph::make_render_backend_error(
                     graph::RenderBackendErrorCode::UnsupportedCapability,
-                    "draw_cached_text_run: glyph bitmap was not prepared for GPU-native export"});
+                    "draw_cached_text_run: glyph bitmap was not prepared for GPU-native export"));
             }
             auto warmed = rasterize_missing_glyph(
                 *ctx.text_render_resources, *ctx.asset_resolver,
@@ -128,16 +128,16 @@ graph::RenderOpResult draw_cached_text_run(
                 "[text-diag] entry empty: font='{}' gid={} size={} has_res={} has_resolver={}",
                 layout.font.font_path, state.glyph_id, font_size,
                 ctx.text_render_resources != nullptr, ctx.asset_resolver != nullptr);
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: glyph bitmap not prewarmed"});
+                "draw_cached_text_run: glyph bitmap not prewarmed"));
         }
         BLImageData data{};
         if (entry->image->getData(&data) != BL_SUCCESS ||
             data.format != BL_FORMAT_PRGB32 || data.size.w <= 0 || data.size.h <= 0) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "draw_cached_text_run: unsupported glyph bitmap format"});
+                "draw_cached_text_run: unsupported glyph bitmap format"));
         }
         const int stroke_radius = state.stroke.a > 1e-4f
             ? static_cast<int>(std::ceil(std::max(0.0f, state.stroke_width))) : 0;
@@ -179,18 +179,18 @@ graph::RenderOpResult draw_cached_text_run(
             const auto styled_build_start = profiling::now();
             // SOLO generazione bitmap/cache miss
             if (output_width <= 0 || output_height <= 0) {
-                return graph::RenderOpResult(graph::RenderBackendError{
+                return graph::RenderOpResult(graph::make_render_backend_error(
                     graph::RenderBackendErrorCode::InvalidInput,
-                    "draw_cached_text_run: invalid styled glyph raster dimensions"});
+                    "draw_cached_text_run: invalid styled glyph raster dimensions"));
             }
             std::size_t raster_pixels = 0;
             std::size_t raster_floats = 0;
             if (!checked_mul(static_cast<std::size_t>(output_width),
                              static_cast<std::size_t>(output_height), raster_pixels) ||
                 !checked_mul(raster_pixels, 4u, raster_floats)) {
-                return graph::RenderOpResult(graph::RenderBackendError{
+                return graph::RenderOpResult(graph::make_render_backend_error(
                     graph::RenderBackendErrorCode::InvalidInput,
-                    "draw_cached_text_run: styled glyph raster size overflow"});
+                    "draw_cached_text_run: styled glyph raster size overflow"));
             }
             std::vector<float> rgba(raster_floats, 0.0f);
             auto source_alpha = [&](int x, int y) {
@@ -289,9 +289,9 @@ graph::RenderOpResult draw_cached_text_run(
         // ===========================================
 
         if (!styled || !styled->rgba) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::ExecutionFailure,
-                "draw_cached_text_run: styled glyph cache returned no pixels"});
+                "draw_cached_text_run: styled glyph cache returned no pixels"));
         }
 
         std::size_t glyph_pixels = 0;
@@ -300,9 +300,9 @@ graph::RenderOpResult draw_cached_text_run(
                          static_cast<std::size_t>(styled->height), glyph_pixels) ||
             !checked_mul(glyph_pixels, 4u, expected_pixels) ||
             styled->rgba->size() != expected_pixels) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "draw_cached_text_run: cached glyph pixel-size mismatch"});
+                "draw_cached_text_run: cached glyph pixel-size mismatch"));
         }
 
         const float highlight_start =
@@ -354,9 +354,9 @@ graph::RenderOpResult draw_cached_text_run(
     // once per text layer and frame even though the text kernel writes only
     // the glyph result.
     if (!ensure_empty_native_surface(ctx, destination)) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_cached_text_run: destination has no native surface"});
+            "draw_cached_text_run: destination has no native surface"));
     }
     const auto cleared = ctx.backend->fill_rect_surface(
         destination.surface_handle(), 0, 0, destination.width(), destination.height(), Color{});

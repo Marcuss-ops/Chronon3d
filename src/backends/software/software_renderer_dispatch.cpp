@@ -233,8 +233,8 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
     if (!processor) {
         const std::string message = "No processor registered for shape type";
         spdlog::error("{}", message);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput, message});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, message));
     }
     auto* software_backend =
         dynamic_cast<SoftwareBackend*>(m_execution_context.backend);
@@ -242,8 +242,8 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
         const std::string message =
             "SoftwareRenderer::draw_node requires the software backend";
         spdlog::error("{}", message);
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::UnsupportedCapability, message});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability, message));
     }
     processor->draw(software_backend->processor_context(), fb, node, state,
                     camera, width, height);

@@ -40,14 +40,14 @@ graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
         if (owns_batch) end_frame_batch_unlocked();
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)fn;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend: Vulkan support is disabled"});
+        "VulkanBackend: Vulkan support is disabled"));
 #endif
 }
 
@@ -63,14 +63,14 @@ graph::RenderOpResult VulkanBackend::create_surface(
         ++m_impl->stats.surface_creations;
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::InvalidInput, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput, error.what()));
     }
 #else
     (void)handle; (void)desc;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::create_surface: Vulkan support is disabled"});
+        "VulkanBackend::create_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -83,8 +83,8 @@ graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
         m_impl->create_cuda_external_surface(handle, desc);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 }
 
@@ -98,8 +98,8 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
         m_impl->copy_surface_to_cuda_encoder(source, destination, wait_for_completion);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 }
 
@@ -111,8 +111,8 @@ graph::RenderOpResult VulkanBackend::prepare_cuda_surface_for_vulkan(
         m_impl->prepare_cuda_surface_for_vulkan(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 }
 
@@ -151,9 +151,9 @@ graph::RenderOpResult VulkanBackend::create_video_encode_surface(
     return create_cuda_external_surface(handle, desc);
 #else
     (void)handle; (void)desc;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::create_video_encode_surface: CUDA interop is disabled"});
+        "VulkanBackend::create_video_encode_surface: CUDA interop is disabled"));
 #endif
 }
 
@@ -163,9 +163,9 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_video_encode(
     return copy_surface_to_cuda_encoder(source, destination);
 #else
     (void)source; (void)destination;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::copy_surface_to_video_encode: CUDA interop is disabled"});
+        "VulkanBackend::copy_surface_to_video_encode: CUDA interop is disabled"));
 #endif
 }
 
@@ -176,9 +176,9 @@ graph::RenderOpResult VulkanBackend::release_surface(
         std::scoped_lock lock(m_impl->surfaces.mutex,
                               m_impl->submission_ring.mutex);
         if (handle == runtime::kInvalidRenderSurfaceHandle) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "VulkanBackend::release_surface: invalid handle"});
+                "VulkanBackend::release_surface: invalid handle"));
         }
         // A command buffer may still reference any surface created during the
         // active batch.  "Unplanned" only means that the barrier planner does
@@ -194,14 +194,14 @@ graph::RenderOpResult VulkanBackend::release_surface(
         m_impl->release_surface_now(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::release_surface: Vulkan support is disabled"});
+        "VulkanBackend::release_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -272,14 +272,14 @@ graph::RenderOpResult VulkanBackend::upload_surface(
         (void)m_impl->upload(handle, desc, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle; (void)desc; (void)rgba;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::upload_surface: Vulkan support is disabled"});
+        "VulkanBackend::upload_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -294,14 +294,14 @@ graph::RenderOpResult VulkanBackend::upload_surface_region(
         (void)m_impl->upload_region(handle, desc, x, y, width, height, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle; (void)desc; (void)x; (void)y; (void)width; (void)height; (void)rgba;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::upload_surface_region: Vulkan support is disabled"});
+        "VulkanBackend::upload_surface_region: Vulkan support is disabled"));
 #endif
 }
 
@@ -316,14 +316,14 @@ graph::RenderOpResult VulkanBackend::upload_surface_async(
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         ticket = {};
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle; (void)desc; (void)rgba; (void)ticket;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::upload_surface_async: Vulkan support is disabled"});
+        "VulkanBackend::upload_surface_async: Vulkan support is disabled"));
 #endif
 }
 
@@ -339,14 +339,14 @@ graph::RenderOpResult VulkanBackend::upload_surface_rows_async(
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         ticket = {};
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle; (void)desc; (void)clip; (void)rows; (void)ticket;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::upload_surface_rows_async: Vulkan support is disabled"});
+        "VulkanBackend::upload_surface_rows_async: Vulkan support is disabled"));
 #endif
 }
 
@@ -355,26 +355,26 @@ graph::RenderOpResult VulkanBackend::wait_upload(const runtime::UploadTicket& ti
     try {
         std::lock_guard lock(m_impl->submission_ring.mutex);
         if (!ticket.valid()) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "VulkanBackend::wait_upload: invalid ticket"});
+                "VulkanBackend::wait_upload: invalid ticket"));
         }
         if (ticket.value > m_impl->next_timeline_value) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "VulkanBackend::wait_upload: unknown ticket"});
+                "VulkanBackend::wait_upload: unknown ticket"));
         }
         m_impl->wait_upload_ticket(ticket.value);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)ticket;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::wait_upload: Vulkan support is disabled"});
+        "VulkanBackend::wait_upload: Vulkan support is disabled"));
 #endif
 }
 
@@ -387,14 +387,14 @@ graph::RenderOpResult VulkanBackend::download_surface(
         m_impl->download(handle, rgba);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            graph::RenderBackendErrorCode::ExecutionFailure, error.what()});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
     (void)handle; (void)rgba;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::download_surface: Vulkan support is disabled"});
+        "VulkanBackend::download_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -404,9 +404,9 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
     const std::optional<raster::BBox>& clip) {
     if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
         op != CompositeOperator::SourceOver) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "VulkanBackend::composite_surfaces: only Normal/Add SourceOver is implemented"});
+            "VulkanBackend::composite_surfaces: only Normal/Add SourceOver is implemented"));
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
     return run_batched_surface_op([&] {
@@ -414,9 +414,9 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
     });
 #else
     (void)destination; (void)source;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::composite_surfaces: Vulkan support is disabled"});
+        "VulkanBackend::composite_surfaces: Vulkan support is disabled"));
 #endif
 }
 
@@ -430,9 +430,9 @@ graph::RenderOpResult VulkanBackend::copy_surface(
     });
 #else
     (void)destination; (void)source; (void)clip;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::copy_surface: Vulkan support is disabled"});
+        "VulkanBackend::copy_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -447,9 +447,9 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
     });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)color;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::fill_rect_surface: Vulkan support is disabled"});
+        "VulkanBackend::fill_rect_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -461,9 +461,9 @@ graph::RenderOpResult VulkanBackend::initialize_transparent_surface(
     });
 #else
     (void)destination;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::initialize_transparent_surface: Vulkan support is disabled"});
+        "VulkanBackend::initialize_transparent_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -479,9 +479,9 @@ graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1;
     (void)shape; (void)line; (void)color;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::fill_solid_shape_surface: Vulkan support is disabled"});
+        "VulkanBackend::fill_solid_shape_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -494,9 +494,9 @@ graph::RenderOpResult VulkanBackend::fill_path_surface(
     });
 #else
     (void)destination; (void)vertices; (void)color;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::fill_path_surface: Vulkan support is disabled"});
+        "VulkanBackend::fill_path_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -533,9 +533,9 @@ graph::RenderOpResult VulkanBackend::fill_grid_surface(
     });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)params;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::fill_grid_surface: Vulkan support is disabled"});
+        "VulkanBackend::fill_grid_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -549,9 +549,9 @@ graph::RenderOpResult VulkanBackend::transform_surface(
     });
 #else
     (void)destination; (void)source; (void)offset_x; (void)offset_y; (void)opacity;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::transform_surface: Vulkan support is disabled"});
+        "VulkanBackend::transform_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -565,9 +565,9 @@ graph::RenderOpResult VulkanBackend::transform_surface_affine(
     });
 #else
     (void)destination; (void)source; (void)transform;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::transform_surface_affine: Vulkan support is disabled"});
+        "VulkanBackend::transform_surface_affine: Vulkan support is disabled"));
 #endif
 }
 
@@ -580,9 +580,9 @@ graph::RenderOpResult VulkanBackend::blur_surface(
     });
 #else
     (void)destination; (void)source; (void)radius; (void)horizontal;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::blur_surface: Vulkan support is disabled"});
+        "VulkanBackend::blur_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -600,9 +600,9 @@ graph::RenderOpResult VulkanBackend::glow_surfaces(
 #else
     (void)destination; (void)source; (void)scratch_horizontal;
     (void)scratch_vertical; (void)radius; (void)intensity; (void)tint;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::glow_surfaces: Vulkan support is disabled"});
+        "VulkanBackend::glow_surfaces: Vulkan support is disabled"));
 #endif
 }
 
@@ -617,9 +617,9 @@ graph::RenderOpResult VulkanBackend::color_adjust_surface(
 #else
     (void)destination; (void)source; (void)brightness; (void)contrast;
     (void)tint; (void)tint_amount;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::color_adjust_surface: Vulkan support is disabled"});
+        "VulkanBackend::color_adjust_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -634,9 +634,9 @@ graph::RenderOpResult VulkanBackend::matte_surface(
     });
 #else
     (void)destination; (void)target; (void)matte; (void)luma; (void)inverted;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::matte_surface: Vulkan support is disabled"});
+        "VulkanBackend::matte_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -650,9 +650,9 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface(
     });
 #else
     (void)destination; (void)atlas; (void)glyphs;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::draw_text_run_surface: Vulkan support is disabled"});
+        "VulkanBackend::draw_text_run_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -671,9 +671,9 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
 #else
     (void)destination; (void)atlas; (void)glyphs; (void)current_frame;
     (void)highlight_color; (void)highlight_enabled;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::draw_text_run_surface_timed: Vulkan support is disabled"});
+        "VulkanBackend::draw_text_run_surface_timed: Vulkan support is disabled"));
 #endif
 }
 
@@ -688,9 +688,9 @@ graph::RenderOpResult VulkanBackend::draw_text_batch(
     });
 #else
     (void)destination; (void)glyphs; (void)runs; (void)atlas_pages;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::draw_text_batch: Vulkan support is disabled"});
+        "VulkanBackend::draw_text_batch: Vulkan support is disabled"));
 #endif
 }
 
@@ -708,9 +708,9 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 #else
     (void)destination; (void)instances; (void)resources;
     (void)transforms; (void)paints;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::execute_layer_batch: Vulkan support is disabled"});
+        "VulkanBackend::execute_layer_batch: Vulkan support is disabled"));
 #endif
 }
 

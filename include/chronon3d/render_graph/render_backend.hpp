@@ -21,6 +21,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <typeindex>
 #include <utility>
 #include <variant>
@@ -93,6 +94,14 @@ struct RenderBackendError {
             render_backend_error_code_name(code), message, std::move(component));
     }
 };
+
+// Backend compatibility boundary. RenderBackendErrorCode remains the
+// operation-level detail payload, while all construction is centralized so
+// the executor receives one stable error shape.
+[[nodiscard]] inline RenderBackendError make_render_backend_error(
+    RenderBackendErrorCode code, std::string message) {
+    return RenderBackendError{code, std::move(message)};
+}
 
 struct RenderOpOutcome {
     /// Number of items successfully processed (e.g. glyphs rasterized,
@@ -213,17 +222,17 @@ public:
     virtual RenderOpResult create_video_encode_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::create_video_encode_surface: unsupported"});
+            "RenderBackend::create_video_encode_surface: unsupported"));
     }
 
     virtual RenderOpResult copy_surface_to_video_encode(
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*destination*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::copy_surface_to_video_encode: unsupported"});
+            "RenderBackend::copy_surface_to_video_encode: unsupported"));
     }
 
 
@@ -286,9 +295,9 @@ public:
         int /*width*/,
         int /*height*/
     ) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::draw_node: node drawing is not supported by this backend"});
+            "RenderBackend::draw_node: node drawing is not supported by this backend"));
     }
 
     /// Validate a renderable shape before the graph reaches execution.
@@ -343,16 +352,16 @@ public:
     virtual RenderOpResult create_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::create_surface: native surfaces are not supported"});
+            "RenderBackend::create_surface: native surfaces are not supported"));
     }
 
     virtual RenderOpResult release_surface(
         runtime::RenderSurfaceHandle /*handle*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::release_surface: native surfaces are not supported"});
+            "RenderBackend::release_surface: native surfaces are not supported"));
     }
 
     /// Returns whether a logical native surface still has a live backend
@@ -375,9 +384,9 @@ public:
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,
         std::span<const float> /*rgba*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::upload_surface: native surfaces are not supported"});
+            "RenderBackend::upload_surface: native surfaces are not supported"));
     }
 
     /// Upload a tightly packed RGBA rectangle into an existing surface.
@@ -388,9 +397,9 @@ public:
         std::int32_t /*x*/, std::int32_t /*y*/,
         std::uint32_t /*width*/, std::uint32_t /*height*/,
         std::span<const float> /*rgba*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::upload_surface_region: native surfaces are not supported"});
+            "RenderBackend::upload_surface_region: native surfaces are not supported"));
     }
 
     virtual RenderOpResult upload_surface_async(
@@ -398,9 +407,9 @@ public:
         const runtime::SurfaceDesc& /*desc*/,
         std::span<const float> /*rgba*/,
         runtime::UploadTicket& /*ticket*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::upload_surface_async: native surfaces are not supported"});
+            "RenderBackend::upload_surface_async: native surfaces are not supported"));
     }
 
     struct UploadRows {
@@ -414,23 +423,23 @@ public:
         const raster::BBox& /*clip*/,
         const UploadRows& /*rows*/,
         runtime::UploadTicket& /*ticket*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::upload_surface_rows_async: native surfaces are not supported"});
+            "RenderBackend::upload_surface_rows_async: native surfaces are not supported"));
     }
 
     virtual RenderOpResult wait_upload(const runtime::UploadTicket& /*ticket*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::wait_upload: native surfaces are not supported"});
+            "RenderBackend::wait_upload: native surfaces are not supported"));
     }
 
     virtual RenderOpResult download_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         std::span<float> /*rgba*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::download_surface: native surfaces are not supported"});
+            "RenderBackend::download_surface: native surfaces are not supported"));
     }
 
     virtual RenderOpResult composite_surfaces(
@@ -439,9 +448,9 @@ public:
         BlendMode /*mode*/ = BlendMode::Normal,
         CompositeOperator /*op*/ = CompositeOperator::SourceOver,
         const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::composite_surfaces: native surfaces are not supported"});
+            "RenderBackend::composite_surfaces: native surfaces are not supported"));
     }
 
     /// Replace-copy a native surface, optionally limited to a canvas clip.
@@ -451,9 +460,9 @@ public:
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::copy_surface: native surfaces are not supported"});
+            "RenderBackend::copy_surface: native surfaces are not supported"));
     }
 
     /// Solid-color axis-aligned rectangle fill into a native surface.  The
@@ -467,36 +476,36 @@ public:
         std::int32_t /*x0*/, std::int32_t /*y0*/,
         std::int32_t /*x1*/, std::int32_t /*y1*/,
         const Color& /*color*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::fill_rect_surface: native surfaces are not supported"});
+            "RenderBackend::fill_rect_surface: native surfaces are not supported"));
     }
 
     /// Initialize a newly-created native surface to transparent without
     /// consuming a compiled render-plan pass slot.
     virtual RenderOpResult initialize_transparent_surface(
         runtime::RenderSurfaceHandle /*destination*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::initialize_transparent_surface: native surfaces are not supported"});
+            "RenderBackend::initialize_transparent_surface: native surfaces are not supported"));
     }
 
     virtual RenderOpResult transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         int /*offset_x*/, int /*offset_y*/, float /*opacity*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::transform_surface: native surfaces are not supported"});
+            "RenderBackend::transform_surface: native surfaces are not supported"));
     }
 
     virtual RenderOpResult transform_surface_affine(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const runtime::SurfaceAffineTransform& /*transform*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::transform_surface_affine: native surfaces are not supported"});
+            "RenderBackend::transform_surface_affine: native surfaces are not supported"));
     }
 
     /// Apply one separable blur pass to native surfaces. Callers can issue
@@ -505,9 +514,9 @@ public:
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*radius*/, bool /*horizontal*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::blur_surface: native surfaces are not supported"});
+            "RenderBackend::blur_surface: native surfaces are not supported"));
     }
 
     /// Execute the canonical glow sequence using caller-planned scratch
@@ -519,9 +528,9 @@ public:
         runtime::RenderSurfaceHandle /*scratch_horizontal*/,
         runtime::RenderSurfaceHandle /*scratch_vertical*/,
         float /*radius*/, float /*intensity*/, const Color& /*tint*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::glow_surfaces: native surfaces are not supported"});
+            "RenderBackend::glow_surfaces: native surfaces are not supported"));
     }
 
     /// Apply brightness/contrast/tint to native surfaces without a CPU
@@ -535,9 +544,9 @@ public:
         runtime::PixelFormat /*format*/,
         const std::optional<raster::BBox>& /*dirty_region*/,
         runtime::YuvExecutionMode /*mode*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::yuv_overlay_surface: native YUV is not supported"});
+            "RenderBackend::yuv_overlay_surface: native YUV is not supported"));
     }
 
     virtual RenderOpResult color_adjust_surface(
@@ -545,9 +554,9 @@ public:
         runtime::RenderSurfaceHandle /*source*/,
         float /*brightness*/, float /*contrast*/,
         const Color& /*tint*/, float /*tint_amount*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::color_adjust_surface: native surfaces are not supported"});
+            "RenderBackend::color_adjust_surface: native surfaces are not supported"));
     }
 
     virtual RenderOpResult matte_surface(
@@ -555,9 +564,9 @@ public:
         runtime::RenderSurfaceHandle /*target*/,
         runtime::RenderSurfaceHandle /*matte*/,
         bool /*luma*/, bool /*inverted*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::matte_surface: native surfaces are not supported"});
+            "RenderBackend::matte_surface: native surfaces are not supported"));
     }
 
     /// Draw a batched text run with per-glyph animation state.
@@ -575,10 +584,10 @@ public:
         const glm::mat4& /*model_matrix*/,
         float /*opacity*/
     ) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::draw_text_run: not supported by this backend (capabilities().text_run == false)"
-        });
+        ));
     }
 
     /// Draw a batched text run by sampling a packed glyph atlas.  Each
@@ -591,9 +600,9 @@ public:
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*atlas*/,
         std::span<const runtime::GlyphInstance> /*glyphs*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::draw_text_run_surface: not supported by this backend"});
+            "RenderBackend::draw_text_run_surface: not supported by this backend"));
     }
 
     /// Timed text variant. Backends without GPU timed highlighting fall back
@@ -622,9 +631,9 @@ public:
         std::span<const runtime::GlyphStatic> /*glyphs*/,
         std::span<const runtime::TextRunDynamic> /*runs*/,
         std::span<const runtime::RenderSurfaceHandle> /*atlas_pages*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::draw_text_batch: not supported by this backend"});
+            "RenderBackend::draw_text_batch: not supported by this backend"));
     }
 
     /// Execute a compiled GPU layer batch.  Every instance in `instances` is
@@ -640,9 +649,9 @@ public:
         std::span<const runtime::RenderSurfaceHandle> /*resources*/,
         std::span<const float> /*transforms*/,
         std::span<const float> /*paints*/) {
-        return RenderOpResult(RenderBackendError{
+        return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
-            "RenderBackend::execute_layer_batch: not supported by this backend"});
+            "RenderBackend::execute_layer_batch: not supported by this backend"));
     }
 
     /// Canonical GpuLayerBatch entry point.  Keep the backend-facing IR in

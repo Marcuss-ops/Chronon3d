@@ -356,11 +356,11 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
     if (try_native_path_stroke(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     if (try_native_solid_rect(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
     (void)camera; (void)width; (void)height;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_node: no legacy-node fallback attached; node='" +
         std::string(node.name) + "' shape_type=" +
-        std::to_string(static_cast<int>(node.shape.type()))});
+        std::to_string(static_cast<int>(node.shape.type()))));
 }
 
 void VulkanBackend::apply_effect_stack(
@@ -400,9 +400,9 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
     Framebuffer& framebuffer, const TextRunShape& shape,
     const glm::mat4& model_matrix, float opacity) {
     (void)framebuffer; (void)shape; (void)model_matrix; (void)opacity;
-    return graph::RenderOpResult(graph::RenderBackendError{
+    return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
-        "VulkanBackend::draw_text_run: no legacy-node fallback attached"});
+        "VulkanBackend::draw_text_run: no legacy-node fallback attached"));
 }
 
 void VulkanBackend::apply_blur(

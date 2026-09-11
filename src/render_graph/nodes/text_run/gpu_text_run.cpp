@@ -433,14 +433,14 @@ graph::RenderOpResult draw_packed_text_run_surface(
         // fallback, which produced all-black frames for every preset-driven render.
         // Returning an UnsupportedCapability error forces the caller to fall
         // back to the legacy text path that actually draws pixels.
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_packed_text_run_surface: empty glyph vector; fall back to legacy text path"});
+            "draw_packed_text_run_surface: empty glyph vector; fall back to legacy text path"));
     }
     if (!ctx.backend || !ctx.surface_registry) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_packed_text_run: no backend or surface registry"});
+            "draw_packed_text_run: no backend or surface registry"));
     }
 
     // Reject malformed glyph buffers before touching the device so the
@@ -454,9 +454,9 @@ graph::RenderOpResult draw_packed_text_run_surface(
                          static_cast<std::size_t>(glyph.height), quad) ||
             !checked_mul(quad, 4u, expected) ||
             pixels.size() != expected) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "draw_packed_text_run: glyph rgba size mismatch"});
+                "draw_packed_text_run: glyph rgba size mismatch"));
         }
     }
 
@@ -538,9 +538,9 @@ graph::RenderOpResult draw_packed_text_run_surface(
         if (!checked_mul(static_cast<std::size_t>(dims.width),
                          static_cast<std::size_t>(dims.height), atlas_pixels) ||
             !checked_mul(atlas_pixels, 4u, atlas_bytes)) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "draw_packed_text_run_surface: atlas dimensions overflow"});
+                "draw_packed_text_run_surface: atlas dimensions overflow"));
         }
         const auto pixel_copy_start = profiling::now();
         atlas_buffer.assign(atlas_bytes, 0.0f);
@@ -601,16 +601,16 @@ graph::RenderOpResult draw_packed_text_run_surface(
         // in the normal production path.
         atlas_handle = ctx.surface_registry->create(atlas_desc);
         if (atlas_handle == runtime::kInvalidRenderSurfaceHandle) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::ExecutionFailure,
-                "draw_packed_text_run: failed to create atlas surface"});
+                "draw_packed_text_run: failed to create atlas surface"));
         }
         auto created = ctx.backend->create_surface(atlas_handle, atlas_desc);
         if (!created.ok()) {
             ctx.surface_registry->release(atlas_handle);
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::ExecutionFailure,
-                "draw_packed_text_run: create_surface: " + created.error().message});
+                "draw_packed_text_run: create_surface: " + created.error().message));
         }
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Text);
@@ -619,9 +619,9 @@ graph::RenderOpResult draw_packed_text_run_surface(
         if (!uploaded.ok()) {
             (void)ctx.backend->release_surface(atlas_handle);
             ctx.surface_registry->release(atlas_handle);
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::ExecutionFailure,
-                "draw_packed_text_run: upload_surface: " + uploaded.error().message});
+                "draw_packed_text_run: upload_surface: " + uploaded.error().message));
         }
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_atlas_upload_count.fetch_add(
@@ -659,8 +659,8 @@ graph::RenderOpResult draw_packed_text_run_surface(
     }
 
     if (!drawn.ok()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
-            drawn.error().code, drawn.error().message});
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            drawn.error().code, drawn.error().message));
     }
     return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
 }
@@ -687,18 +687,18 @@ graph::RenderOpResult draw_packed_text_run(
                          static_cast<std::size_t>(glyph.height), quad) ||
             !checked_mul(quad, 4u, expected) ||
             pixels.size() != expected) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
-                "draw_packed_text_run: glyph rgba size mismatch"});
+                "draw_packed_text_run: glyph rgba size mismatch"));
         }
     }
     // TextRun output is an independent transparent surface. Avoid uploading
     // the CPU framebuffer before the glyph pass; this was a full-canvas
     // CPU->GPU transfer for every watermark/subtitle layer and frame.
     if (!ensure_empty_native_surface(ctx, destination)) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_packed_text_run: destination has no native surface support"});
+            "draw_packed_text_run: destination has no native surface support"));
     }
     const auto cleared = ctx.backend->fill_rect_surface(
         destination.surface_handle(), 0, 0, destination.width(), destination.height(),
@@ -897,9 +897,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     float opacity) {
     if (!ctx.runtime || !ctx.asset_resolver || !ctx.backend ||
         !ctx.surface_registry || !shape.layout) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "MTSDF text route does not support this run"});
+            "MTSDF text route does not support this run"));
     }
 
     auto prepared = ctx.runtime->gpu_text_prepared_cache().find(shape.layout.get());
@@ -907,18 +907,18 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         auto created = prepare_mtsdf_text_run(*ctx.runtime, ctx.text_render_resources,
                                               ctx.asset_resolver, shape);
         if (!created || !created->ready) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
-                "MTSDF text route has no resident glyphs"});
+                "MTSDF text route has no resident glyphs"));
         }
         ctx.runtime->gpu_text_prepared_cache().store(shape.layout.get(), created);
         prepared = created;
     }
 
     if (!prepared->ready) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "MTSDF text route has no resident glyphs"});
+            "MTSDF text route has no resident glyphs"));
     }
 
     const auto& layout = *shape.layout;
@@ -972,9 +972,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
 
     if (!ensure_empty_native_surface(ctx, destination)) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "MTSDF text route destination has no native surface"});
+            "MTSDF text route destination has no native surface"));
     }
     const auto cleared = ctx.backend->fill_rect_surface(
         destination.surface_handle(), 0, 0, destination.width(), destination.height(),

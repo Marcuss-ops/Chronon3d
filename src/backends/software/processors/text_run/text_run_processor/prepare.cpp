@@ -72,18 +72,18 @@ namespace chronon3d::renderer::text_run_stages {
 
     // ── Stage 0 input validation ─────────────────────────────────────────
     if (!shape.layout || shape.glyphs.empty()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "prepare_text_run: empty layout or empty glyph set"
-        });
+        ));
     }
 
     const auto& layout = *shape.layout;
     if (layout.font.font_path.empty()) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "prepare_text_run: empty layout.font.font_path"
-        });
+        ));
     }
 
     // TICKET-TEXT-CLEANUP-4: world-bbox vs framebuffer intersection
@@ -95,27 +95,27 @@ namespace chronon3d::renderer::text_run_stages {
 
     // ── Empty-framebuffer guard ───────────────────────────────────────────
     if (params.fb.width() == 0 || params.fb.height() == 0) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "prepare_text_run: zero-dimension framebuffer"
-        });
+        ));
     }
 
     // ── Text resources + asset_resolver presence ─────────────────────────
     if (!rctx.text_resources || !rctx.asset_resolver) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::InvalidInput,
             "prepare_text_run: text_resources or asset_resolver is null"
-        });
+        ));
     }
 
     // ── Scratch Handle acquire (RAII; released on scope exit) ─────────────
     s.scratch_handle = acquire_scratch_handle(rctx);
     if (!s.scratch_handle) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::ExecutionFailure,
             "prepare_text_run: failed to acquire scratch state from TextScratchManager"
-        });
+        ));
     }
 
     // ── Stage 2 early: supersample factor precomputation ──────────────
@@ -137,11 +137,11 @@ namespace chronon3d::renderer::text_run_stages {
             FontFaceHandle span_handle = rctx.text_resources->resolve_handle(
                 spn.font.font_path, layout.font_size, *rctx.asset_resolver);
             if (!span_handle.valid()) {
-                return graph::RenderOpResult(graph::RenderBackendError{
+                return graph::RenderOpResult(graph::make_render_backend_error(
                     graph::RenderBackendErrorCode::ExecutionFailure,
                     "prepare_text_run: failed to load font face for span ('" +
                     spn.font.font_path + "', Phase 1.4 multi-font path)"
-                });
+                ));
             }
             s.span_handles.push_back(std::move(span_handle));
             BLFont span_blfont;
@@ -163,11 +163,11 @@ namespace chronon3d::renderer::text_run_stages {
         FontFaceHandle single_handle = rctx.text_resources->resolve_handle(
             layout.font.font_path, layout.font_size, *rctx.asset_resolver);
         if (!single_handle.valid()) {
-            return graph::RenderOpResult(graph::RenderBackendError{
+            return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::ExecutionFailure,
                 "prepare_text_run: failed to load font face for " +
                 layout.font.font_path
-            });
+            ));
         }
         s.span_handles.push_back(std::move(single_handle));
         BLFont single_blfont;
@@ -314,19 +314,19 @@ namespace chronon3d::renderer::text_run_stages {
     if (!std::isfinite(raw_w) || !std::isfinite(raw_h) ||
         raw_w < 1.0 || raw_h < 1.0 ||
         raw_w > kMaxTextSurface || raw_h > kMaxTextSurface) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::ExecutionFailure,
             "prepare_text_run: invalid or oversized text surface bounds"
-        });
+        ));
     }
     const int scale = std::max(1, s.raster_space.scale);
     const double max_int = static_cast<double>(
         std::numeric_limits<int>::max());
     if (raw_w > max_int / scale || raw_h > max_int / scale) {
-        return graph::RenderOpResult(graph::RenderBackendError{
+        return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::ExecutionFailure,
             "prepare_text_run: supersampled text surface dimensions overflow"
-        });
+        ));
     }
     s.img_w = static_cast<int>(raw_w);
     s.img_h = static_cast<int>(raw_h);
