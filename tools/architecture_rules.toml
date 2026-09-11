@@ -165,3 +165,17 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/render_runtime.hpp"]
 patterns = ["\\bRuntimeBuildError\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "motion_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/presets/motion_error.hpp"]
+patterns = ["\\bMotionError\\s*\\("]
+skip_comments = true
+
+[[scan]]
+name = "decode_failure_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/media/decode_result.hpp"]
+patterns = ["\\bDecodeFailure\\s*\\{"]
+skip_comments = true

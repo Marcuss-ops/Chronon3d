@@ -134,5 +134,11 @@ public:
     }
 };
 
-} // namespace chronon3d::presets
+// Preset compatibility boundary. MotionError remains an exception for ABI
+// compatibility, while new construction is routed through one named adapter.
+[[nodiscard]] inline MotionError make_motion_error(
+    MotionErrorCode code, std::string path) {
+    return MotionError::from_code_path(code, std::move(path));
+}
 
+} // namespace chronon3d::presets

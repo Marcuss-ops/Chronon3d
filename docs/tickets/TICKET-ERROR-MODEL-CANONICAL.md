@@ -24,13 +24,13 @@ contract before the prepared execution plan migration.
 | `chronon3d::TextLayoutErrorKind` | Text | Layout detail | zero direct constructions outside text adapter | layout failure tests | layout detail enum | ADAPTER_ONLY |
 | `chronon3d::CameraErrorCode` | Camera | Camera detail | zero direct constructions outside camera adapter | camera failure tests | camera detail enum | ADAPTER_ONLY |
 | `chronon3d::CameraCompileErrorCode` | Camera/compiler | Compile detail | zero direct constructions outside camera adapter | camera compile tests | camera detail enum | ADAPTER_ONLY |
-| `chronon3d::presets::MotionErrorCode` | Presets | Preset lookup detail | zero direct constructions outside preset adapter | preset error tests | motion detail enum | ACTIVE |
+| `chronon3d::presets::MotionErrorCode` | Presets | Preset lookup detail | zero direct constructions outside preset adapter | preset error tests | motion detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::MediaProbeErrorCode` | Media | Probe detail | zero direct constructions outside media adapter | media probe tests | probe detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::VideoSinkError` | Media | Sink detail | zero direct constructions outside sink adapter | sink lifecycle tests | sink detail enum | ACTIVE |
 | `chronon3d::media::ConversionError` | Media | Conversion detail | zero direct constructions outside conversion adapter | conversion tests | conversion detail enum | ACTIVE |
 | `chronon3d::trace::TraceError` | Trace | Trace detail | zero direct constructions outside trace adapter | trace contract tests | trace detail enum | ACTIVE |
 | `chronon3d::runtime::ExecutionFailure` | Executor | Frame compatibility ABI | zero direct constructions outside frame adapter | backend failure propagation | execution detail enum | ACTIVE |
-| `chronon3d::media::DecodeFailureReason` | Media | Decode detail | zero direct constructions outside decode adapter | decode failure tests | decode detail enum | ACTIVE |
+| `chronon3d::media::DecodeFailureReason` | Media | Decode detail | zero direct constructions outside decode adapter | decode failure tests | decode detail enum | ADAPTER_ONLY |
 | `chronon3d::PropsErrorReason` | Composition | Props validation detail | zero direct constructions outside props adapter | props validation tests | props detail enum | ACTIVE |
 | `chronon3d::render_plan::ValidationIssueKind` | Plan | Validation detail | zero direct constructions outside plan adapter | render-plan validation corpus | validation detail enum | ACTIVE |
 | `chronon3d::runtime::RuntimeBuildError::Code` | Runtime | Build detail | zero direct constructions outside runtime adapter | runtime build tests | build detail enum | ADAPTER_ONLY |

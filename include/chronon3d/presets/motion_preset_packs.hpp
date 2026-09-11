@@ -91,8 +91,8 @@ public:
             // remains std::runtime_error — out of §5.0b scope per
             // user-spec "Migrate `apply(lb, id)`" wording. Future §5.x
             // forward-point commit will re-evaluate those sites.
-            throw MotionError(MotionErrorCode::MotionPresetNotFound,
-                              std::string(preset_id));
+            throw make_motion_error(MotionErrorCode::MotionPresetNotFound,
+                                    std::string(preset_id));
         }
         it->apply(lb, params);
     }
@@ -523,4 +523,3 @@ inline const MotionPresetCatalog kBuiltinMotionPresetCatalog = []() {
 }
 
 } // namespace chronon3d::presets
-
