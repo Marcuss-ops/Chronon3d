@@ -28,6 +28,12 @@ namespace chronon3d::backends::software {
 /// Called once during software-renderer construction.
 void register_builtin_processors(chronon3d::renderer::SoftwareRegistry& reg);
 
+/// Resolve the five explicit software execution domains once for a renderer
+/// job. The returned view is installed after backend attachment and is the
+/// dependency boundary consumed by RenderPipeline.
+[[nodiscard]] SoftwareExecutionContext
+make_software_execution_context(chronon3d::SoftwareRenderer* renderer);
+
 /// M4 init-order closure: attach a `SoftwareBackend` to the renderer's
 /// runtime.  Idempotent — a no-op when the runtime already has a backend.
 /// Gathers the SAME service bundle `cli_render_utils::create_renderer`

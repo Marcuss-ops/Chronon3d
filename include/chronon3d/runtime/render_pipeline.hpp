@@ -6,21 +6,16 @@
 // TICKET-011a follow-up #1 — typed facade over the underlying graph
 // orchestration functions.
 //
-// RenderPipeline holds a `(SoftwareRenderer &, RuntimeContext&)` pair
+// RenderPipeline holds a `(SoftwareRenderer*, SoftwareExecutionContext&)` pair
 // constructed after the SoftwareBackend is attached in
 // `RenderEngine::Impl`.  Its member methods delegate 1:1 to the
 // existing free functions in `<chronon3d/render_graph/pipeline/
 // render_pipeline.hpp>` (`graph::render_scene_via_graph`,
 // `graph::render_composition_frame`, `graph::debug_scene_graph`),
-// but read node cache / framebuffer pool / graph cache from the
-// runtime via its typed direct accessors (`runtime.node_cache()`,
-// `runtime.framebuffer_pool()`, `runtime.graph_cache()` — canonical
-// P1-15 surface; the legacy `runtime.services()` pointer bundle
-// has been REMOVED wholesale) so callers do not have to thread
-// all those pointers on every call.
+// but reads already-resolved dependency views from the execution context.
 //
 // Why a class and not a free function:
-//   - Encapsulates the (renderer, runtime) pair wiring so callers
+//   - Encapsulates the (renderer, execution-context) pair wiring so callers
 //     cannot accidentally mismatch them.
 //   - Provides a stable surface for SDK consumers once the
 //     orchestrating free functions are demoted to internal-virtual.
@@ -55,13 +50,13 @@
 
 namespace chronon3d {
 class SoftwareRenderer;
+struct SoftwareExecutionContext;
 struct CompiledComposition;
 namespace compiler { class CompiledProgram; }
 namespace media { class MediaFrameProvider; }
 }
 
 namespace chronon3d::runtime {
-class RuntimeContext;
 class FrameExecution;
 class JobSession;
 
@@ -95,7 +90,8 @@ public:
     /// `SoftwareRenderer &` to keep the public surface free of the
     /// boundary-gate I5 substring.  Pointer nullability is documented at
     /// the call site (the owning engine's renderer is always wired).
-    RenderPipeline(SoftwareRenderer* renderer, RuntimeContext& runtime) noexcept;
+    RenderPipeline(SoftwareRenderer* renderer,
+                   ::chronon3d::SoftwareExecutionContext& context) noexcept;
 
     // ── Canonical prepared-plan execution entry ────────────────────
     /// Compatibility adapter for an immutable CompiledComposition. New typed
@@ -152,7 +148,7 @@ public:
 
 private:
     SoftwareRenderer* m_renderer;
-    RuntimeContext&   m_runtime;
+    ::chronon3d::SoftwareExecutionContext& m_context;
     // Bounded topology cache: Scene is a legacy graph input adapter, never a
     // frame-varying value. Its lifetime must not depend on FrameContext's arena.
     std::shared_mutex m_topology_mutex;

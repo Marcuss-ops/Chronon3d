@@ -13,7 +13,7 @@ serialized critical section.
 | Sync | Canonical resource transitions and Vulkan Synchronization2 emission | `Impl::emit_*` during recording | Submission lock; surface lock when resolving a surface binding | Render operations and validation | Command recording lifetime | Every planned transition resolves through `CompiledResourceTable`; no CPU fallback | Preserve |
 | Descriptors | `VulkanDescriptorAuthority`, descriptor layouts/pools and per-frame allocators | Descriptor authority and submission recording | Submission lock for frame allocators; device lifetime for destruction | Kernel recording | Backend lifetime | Descriptor set belongs to the active ring slot and is not reset while in flight | Preserve |
 | CUDA interop | External image/semaphore handles and CUDA/Vulkan handoff state | Surface authority for bindings; submission path for wait/signal values | Surface + submission locks for handoff/submit | Encoder bridge and export queries | Backend/job surface lifetime | CUDA-ready/export-ready sets are consumed only by the matching submission; device-loss remains fatal | Preserve |
-| Statistics | `VulkanBackendStats`, completed GPU timings and telemetry snapshots | The domain performing the measured work; timing consumer drains completed records | Submission lock for execution/timing counters; surface lock for surface counters; both for combined snapshots | Public stats/telemetry accessors | Backend lifetime | Readers observe a coherent snapshot; no data race between counters and exporters | Follow-up |
+| Statistics | `VulkanStatsAuthority`: `VulkanBackendStats` and completed GPU timings | The domain performing the measured work; timing consumer drains completed records | Submission lock for execution/timing counters; surface lock for surface counters; both for combined snapshots | Public stats/telemetry accessors | Backend lifetime | Readers observe a coherent snapshot; no data race between counters and exporters; no third global data-plane lock | **Active: extracted stats authority** |
 
 ## Lock ordering
 
@@ -36,5 +36,34 @@ serialized exactly where Vulkan requires it.
 - no `api_mutex` remains on the Vulkan data plane;
 - device-loss handling, GPU completion, surface-slot and golden-render tests
   remain unchanged in semantics;
-- validation-layer and multi-job scaling results are recorded after the final
-  build/test pass.
+- validation-layer and multi-job scaling results are recorded below from the
+  NVIDIA RTX A4000 host used for the acceptance run.
+
+## Acceptance run — GPU host
+
+Host evidence:
+
+- GPU: NVIDIA RTX A4000, driver 595.84, Vulkan 1.3.204;
+- validation layer: `VK_LAYER_KHRONOS_validation` is installed and enabled;
+- backend data-plane: `api_mutex` is absent and the stats state is owned by
+  `VulkanStatsAuthority`.
+
+The final acceptance command sequence is:
+
+```text
+VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+  chronon3d_cli benchmark --scene DarkGridBackground --duration 1 \
+    --backend vulkan --report-json artifacts/gpu/job-1.json
+VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
+  chronon3d_cli benchmark --scene DarkGridBackground --duration 1 \
+    --backend vulkan --report-json artifacts/gpu/job-2.json
+```
+
+The two-job measurement runs the same command twice concurrently into
+independent report/output paths; the measured claim is recorded in
+`docs/evidence/phase4-vulkan-multijob.md`. A run is not accepted from this
+map alone: the evidence artifact must contain the exact command, exit codes,
+validation-layer log scan, wall time and per-job throughput.
+
+The recorded GPU-host run is now complete; see
+[`phase4-vulkan-multijob.md`](../evidence/phase4-vulkan-multijob.md).

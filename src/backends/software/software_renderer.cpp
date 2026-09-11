@@ -79,21 +79,15 @@ namespace chronon3d {
 namespace {
 
 void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
-    auto* runtime = &renderer.runtime();
-    // runtime::JobSession owns the service back-pointers used by nested precomp
-    // execution. Move operations transfer the session object, so refresh
-    // those pointers together with the backend processor context; otherwise
-    // a moved renderer silently loses its GraphExecutor/session wiring.
-    if (!runtime->backend_attached()) return;
-
-    auto* backend = dynamic_cast<SoftwareBackend*>(&runtime->backend());
+    auto& execution = renderer.execution_context();
+    auto* backend = dynamic_cast<SoftwareBackend*>(execution.backend);
     if (!backend) return;
 
     SoftwareBackendServices services{};
     services.counters = renderer.counters();
     services.settings = &renderer.render_settings();
-    services.framebuffer_pool = renderer.framebuffer_pool();
-    services.asset_resolver = &runtime->resolver();
+    services.framebuffer_pool = execution.scratch.framebuffer_pool;
+    services.asset_resolver = execution.text.assets;
     services.text_resources = renderer.text_render_resources();
     services.images = &renderer.image_renderer();
 
@@ -101,7 +95,7 @@ void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
     extras.registry = &renderer.software_registry();
     extras.image_backend = renderer.image_backend();
     extras.image_renderer = &renderer.image_renderer();
-    extras.curve_cache = &runtime->curve_cache();
+    extras.curve_cache = execution.scratch.curve_cache;
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine = &renderer.font_engine();
 #endif
@@ -133,7 +127,7 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
     : m_config(std::move(other.m_config))
     , m_settings(std::move(other.m_settings))
     , m_counters(std::move(other.m_counters))
-    , m_runtime(other.m_runtime)
+    , m_execution_context(std::move(other.m_execution_context))
     , m_image_renderer(std::move(other.m_image_renderer))
     , m_video_decoder(std::move(other.m_video_decoder))
     , m_image_backend(std::move(other.m_image_backend))
@@ -144,8 +138,8 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
           std::move(other.m_software_registry))
     , m_session(std::move(other.m_session))
 {
-    other.m_runtime = nullptr;
     other.m_registry = nullptr;
+    rebind_execution_context_views();
     rebind_moved_renderer_services(*this);
 }
 
@@ -155,16 +149,16 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_config        = std::move(other.m_config);
     m_settings      = std::move(other.m_settings);
     m_counters      = std::move(other.m_counters);
+    m_execution_context = std::move(other.m_execution_context);
     m_video_decoder  = std::move(other.m_video_decoder);
     m_image_backend  = std::move(other.m_image_backend);
     m_registry       = other.m_registry;
-    m_runtime        = other.m_runtime;
     m_image_renderer = std::move(other.m_image_renderer);
     m_text_render_resources = std::move(other.m_text_render_resources);
     m_software_registry = std::move(other.m_software_registry);
     m_session        = std::move(other.m_session);
-    other.m_runtime = nullptr;
     other.m_registry = nullptr;
+    rebind_execution_context_views();
     rebind_moved_renderer_services(*this);
     return *this;
 }
@@ -177,6 +171,7 @@ SoftwareRenderer::~SoftwareRenderer() = default;
 // into the I2 ≤ 200 bound.
 void SoftwareRenderer::set_settings(const RenderSettings& settings) {
     m_settings = settings;
+    m_execution_context.settings = &m_settings;
     m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
     m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
 }
@@ -200,7 +195,7 @@ void SoftwareRenderer::clear_caches() {
     // were deleted wholesale with the `software_text_processor` tree
     // (M1.5#9 step 4).  Modern text effects are routed through the
     // per-renderer `TextRenderResources` and the canonical EffectStack.
-    if (auto* pool = m_runtime->framebuffer_pool_shared().get()) {
+    if (auto* pool = m_execution_context.scratch.framebuffer_pool.get()) {
         pool->clear();
     }
     reset_compiled_cache();
@@ -213,12 +208,27 @@ void SoftwareRenderer::clear_caches() {
     m_session.common.program_store().clear();
 }
 
+void SoftwareRenderer::rebind_execution_context_views() noexcept {
+    m_execution_context.registry.processors = m_software_registry.get();
+    m_execution_context.registry.compositions = m_registry;
+    m_execution_context.images.renderer = &m_image_renderer;
+    m_execution_context.images.backend = m_image_backend.get();
+    m_execution_context.text.resources = m_text_render_resources.get();
+    m_execution_context.settings = &m_settings;
+    m_execution_context.counters = &m_counters;
+    m_execution_context.video_decoder = m_video_decoder.get();
+}
+
 void SoftwareRenderer::reset_compiled_cache() {
-    m_runtime->reset_compiled_cache();
+    if (m_execution_context.scratch.graph_cache) {
+        m_execution_context.scratch.graph_cache->reset();
+    }
 }
 
 void SoftwareRenderer::reset_frame_value_cache() {
-    m_runtime->reset_frame_value_cache();
+    if (m_execution_context.scratch.node_cache) {
+        m_execution_context.scratch.node_cache->clear();
+    }
     m_session.reset_frame_values();
 }
 
@@ -229,6 +239,7 @@ void SoftwareRenderer::reset_temporal_history() noexcept {
 void SoftwareRenderer::set_image_backend(std::shared_ptr<image::ImageBackend> backend) {
     m_image_backend = std::move(backend);
     m_image_renderer.set_backend(m_image_backend);
+    m_execution_context.images.backend = m_image_backend.get();
 }
 
 // ── Graph-pipeline orchestration (per-session writers) ───────────────────────
@@ -320,25 +331,25 @@ void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<r
 // (WP-8 PR 8.1 — ODR violation risk if split across TUs).
 renderer::SoftwareRegistry& SoftwareRenderer::software_registry()             { return *m_software_registry; }
 const renderer::SoftwareRegistry& SoftwareRenderer::software_registry() const { return *m_software_registry; }
-graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry()             { return m_runtime->graph_node_registry(); }
-const graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry() const { return m_runtime->graph_node_registry(); }
-effects::EffectCatalog& SoftwareRenderer::effect_catalog()                   { return m_runtime->effect_catalog(); }
-const effects::EffectCatalog& SoftwareRenderer::effect_catalog() const       { return m_runtime->effect_catalog(); }
-cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool()        { return m_runtime->framebuffer_pool(); }
-const cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() const { return m_runtime->framebuffer_pool(); }
-std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { return m_runtime->framebuffer_pool_shared(); }
+graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry()             { return *m_execution_context.registry.graph_nodes; }
+const graph::GraphNodeCatalog& SoftwareRenderer::graph_node_registry() const { return *m_execution_context.registry.graph_nodes; }
+effects::EffectCatalog& SoftwareRenderer::effect_catalog()                   { return *m_execution_context.registry.effects; }
+const effects::EffectCatalog& SoftwareRenderer::effect_catalog() const       { return *m_execution_context.registry.effects; }
+cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool()        { return *m_execution_context.scratch.framebuffer_pool; }
+const cache::FramebufferPool& SoftwareRenderer::software_framebuffer_pool() const { return *m_execution_context.scratch.framebuffer_pool; }
+std::shared_ptr<cache::FramebufferPool> SoftwareRenderer::framebuffer_pool() { return m_execution_context.scratch.framebuffer_pool; }
 // Note: executor forwarder was removed.  See commit message of the
 // baseline-12c295be PR for the architectural rationale.
-chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept        { return m_runtime->scheduler(); }
-const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return m_runtime->scheduler(); }
-runtime::RuntimeContext& SoftwareRenderer::runtime() noexcept                  { return *m_runtime; }
-const runtime::RuntimeContext& SoftwareRenderer::runtime() const noexcept      { return *m_runtime; }
-graph::CompiledGraphCache& SoftwareRenderer::graph_cache()                   { return m_runtime->graph_cache(); }
-const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const       { return m_runtime->graph_cache(); }
-graph::RenderBackend& SoftwareRenderer::backend()                             { return m_runtime->backend(); }
-const graph::RenderBackend& SoftwareRenderer::backend() const                 { return m_runtime->backend(); }
-cache::NodeCache& SoftwareRenderer::node_cache() noexcept                     { return m_runtime->node_cache(); }
-const cache::NodeCache& SoftwareRenderer::node_cache() const noexcept         { return m_runtime->node_cache(); }
+chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() noexcept        { return *m_execution_context.scratch.scheduler; }
+const chronon3d::ExecutionScheduler& SoftwareRenderer::scheduler() const noexcept { return *m_execution_context.scratch.scheduler; }
+runtime::RuntimeContext& SoftwareRenderer::runtime() noexcept                  { return m_session.common.runtime(); }
+const runtime::RuntimeContext& SoftwareRenderer::runtime() const noexcept      { return m_session.common.runtime(); }
+graph::CompiledGraphCache& SoftwareRenderer::graph_cache()                   { return *m_execution_context.scratch.graph_cache; }
+const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const       { return *m_execution_context.scratch.graph_cache; }
+graph::RenderBackend& SoftwareRenderer::backend()                             { return *m_execution_context.backend; }
+const graph::RenderBackend& SoftwareRenderer::backend() const                 { return *m_execution_context.backend; }
+cache::NodeCache& SoftwareRenderer::node_cache() noexcept                     { return *m_execution_context.scratch.node_cache; }
+const cache::NodeCache& SoftwareRenderer::node_cache() const noexcept         { return *m_execution_context.scratch.node_cache; }
 // font_engine() intentionally NOT here — see software_renderer_text.cpp.
 
 } // namespace chronon3d

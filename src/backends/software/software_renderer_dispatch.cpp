@@ -2,7 +2,7 @@
 // src/backends/software/software_renderer_dispatch.cpp
 //
 // M1.5#12 2/4 — SoftwareRenderer dispatch surface: render entry points +
-// shape/composite/effect-blur/DOF dispatch to `m_runtime->backend()`.
+// shape/composite/effect-blur/DOF dispatch to the resolved execution context.
 //
 // Single source of truth for the renderer's "dispatch to backend" methods
 // that do NOT touch text resources.  The text-aware `render_scene(scene,
@@ -17,7 +17,6 @@
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -76,7 +75,7 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 void SoftwareRenderer::preflight_images(const Scene& scene) {
     for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
-        const auto cached = m_runtime->image_cache().get_or_load(ref.path);
+        const auto cached = m_execution_context.images.cache->get_or_load(ref.path);
         if (!cached || !cached->valid()) {
             throw std::runtime_error("Render preparation failed for scene image: " + ref.path);
         }
@@ -90,7 +89,7 @@ void SoftwareRenderer::preflight_images(const Scene& scene) {
                 default: break;
             }
             if (!image || image->path.empty()) continue;
-            const auto cached = m_runtime->image_cache().get_or_load(
+            const auto cached = m_execution_context.images.cache->get_or_load(
                 image->path, image->decode_options);
             if (!cached || !cached->valid()) {
                 throw std::runtime_error(
@@ -142,16 +141,17 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
         m_session.software.prepared_composition = &compiled;
     }
 
-    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
+    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
     return graph::render_compiled_composition_frame(
-        m_runtime->backend(), node_cache(), m_settings, m_registry,
-        m_video_decoder.get(), compiled, frame, this);
+        *m_execution_context.backend, node_cache(), m_settings,
+        m_execution_context.registry.compositions,
+        m_execution_context.video_decoder, compiled, frame, this);
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     m_session.common.clear_last_frame_error();
-    return runtime::RenderPipeline(this, *m_runtime).render_program(program, frame);
+    return runtime::RenderPipeline(this, m_execution_context).render_program(program, frame);
 }
 
 /// @deprecated Fase C3 — use render(Composition, Frame) instead.
@@ -167,8 +167,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
     //
     // preflight_fonts() body lives in software_renderer_text.cpp; declared
     // canonically here via the class header, so link works.
-    if (auto* trr = text_render_resources(); trr && m_runtime) {
-        (void)preflight_fonts(scene, m_runtime->resolver());
+    if (auto* trr = text_render_resources(); trr && m_execution_context.text.assets) {
+        (void)preflight_fonts(scene, *m_execution_context.text.assets);
     }
 
     // This deprecated scene wrapper predates the compiled preparation
@@ -177,10 +177,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
     // lookup-only. The canonical composition path uses prepare_render()
     // instead and does not enter this wrapper.
     preflight_images(scene);
-    profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
+    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
 
     auto res = graph::render_scene_via_graph(
-        m_runtime->backend(),
+        *m_execution_context.backend,
         node_cache(),
         scene,
         camera,
@@ -189,8 +189,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         0,
         0.0f,
         m_settings,
-        m_registry,
-        m_video_decoder.get(),
+        m_execution_context.registry.compositions,
+        m_execution_context.video_decoder,
         fps,
         "scene",
         this
@@ -203,7 +203,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                   i32 width, i32 height, float fps, Frame frame,
                                                   f32 frame_time) const {
     return graph::debug_scene_graph(
-        m_runtime->backend(),
+        *m_execution_context.backend,
         const_cast<cache::NodeCache&>(node_cache()),
         scene,
         camera,
@@ -212,8 +212,8 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
         frame,
         frame_time,
         m_settings,
-        m_registry,
-        m_video_decoder.get(),
+        m_execution_context.registry.compositions,
+        m_execution_context.video_decoder,
         fps
     );
 }
@@ -228,7 +228,7 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
     // The backend owns the immutable processor snapshot and refreshes it only
     // when the registry generation changes. Creating a registry snapshot per
     // shape dispatch allocates vectors/shared ownership in the render hot path.
-    const auto snapshot = m_runtime->backend().processor_snapshot();
+    const auto snapshot = m_execution_context.backend->processor_snapshot();
     const auto processor = snapshot->shape_shared(snapshot->shape_handle(node.shape.type()));
     if (!processor) {
         const std::string message = "No processor registered for shape type";
@@ -237,7 +237,7 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
             graph::RenderBackendErrorCode::InvalidInput, message});
     }
     auto* software_backend =
-        dynamic_cast<SoftwareBackend*>(&m_runtime->backend());
+        dynamic_cast<SoftwareBackend*>(m_execution_context.backend);
     if (!software_backend) {
         const std::string message =
             "SoftwareRenderer::draw_node requires the software backend";
@@ -256,11 +256,11 @@ graph::RenderOpResult SoftwareRenderer::draw_node(Framebuffer& fb, const RenderN
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
-    m_runtime->backend().composite_layer(dst, src, mode, clip, op);
+    m_execution_context.backend->composite_layer(dst, src, mode, clip, op);
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
-    m_runtime->backend().apply_blur(fb, radius, clip);
+    m_execution_context.backend->apply_blur(fb, radius, clip);
 }
 
 void SoftwareRenderer::apply_per_pixel_dof(
@@ -270,7 +270,7 @@ void SoftwareRenderer::apply_per_pixel_dof(
     const LensModel& lens,
     const std::optional<raster::BBox>& clip)
 {
-    m_runtime->backend().apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
+    m_execution_context.backend->apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
 }
 
 } // namespace chronon3d

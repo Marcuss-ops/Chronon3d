@@ -64,3 +64,23 @@ compiler/runtime and final video-plan contracts replace older entry points.
 - **Status:** `REMOVED` — helper renamed to `resolve_plan_from_capabilities`;
   no `resolve_legacy_internal` symbol remains; the final GOP equivalence matrix
   passes in `tests/cli/test_packet_assembler_contract.cpp`.
+
+## Software renderer execution-context migration
+
+- **Owner:** software backend/runtime boundary.
+- **Reason:** `SoftwareRenderer` historically exposed a `RuntimeContext&`
+  back-pointer to every dispatch TU. This made the renderer a service locator
+  and let hot paths re-resolve caches, backend, resolver and scheduler.
+- **Landed boundary:** `SoftwareExecutionContext` groups the resolved registry,
+  scratch, image, text and settings views; `RenderPipeline` and graph/effect
+  dispatch consume that bundle. It is constructed once during backend
+  attachment and is rebuilt only after renderer move operations.
+- **Remaining exit work:** remove the compatibility `SoftwareRenderer::runtime()`
+  surface and migrate the non-hot legacy SDK/CLI callers to explicit runtime
+  ownership. The current context migration is therefore `PARTIAL`, not a
+  false closeout.
+- **Acceptance:** processor construction and render-pipeline dispatch no
+  longer need a runtime lookup; final exit remains zero software-backend
+  `runtime()` calls and a software-target compile without runtime-header
+  coupling.
+- **Status:** `PARTIAL — context landed, legacy surface retained`

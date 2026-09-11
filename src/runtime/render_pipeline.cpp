@@ -6,17 +6,16 @@
 // The facade exists for type safety + forward-compat with the TICKET-011
 // final-stage split.
 //
-// All paths read the shared typed accessors on `m_runtime` (P1-15
-// canonical surface: `runtime.node_cache()`, `runtime.backend()`, etc.)
-// and per-instance state from `m_renderer` (SoftwareRenderer counts as
-// the RenderBackend for graph dispatch).
+// All paths read the explicit per-job SoftwareExecutionContext. RuntimeContext
+// remains the lifetime owner, but is no longer a stored orchestration
+// dependency on this hot path.
 // ===========================================================================
 
 #include <chronon3d/runtime/render_pipeline.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_execution_context.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
@@ -37,26 +36,24 @@ namespace chronon3d::runtime {
 
 // 06 R3b — SoftwareRenderer passed in by pointer (a single canonical type
 // the RenderPipeline FACADE stores and forwards to graph free functions).
-RenderPipeline::RenderPipeline(SoftwareRenderer* renderer, RuntimeContext& runtime) noexcept
-    : m_renderer(renderer), m_runtime(runtime) {}
+RenderPipeline::RenderPipeline(
+    SoftwareRenderer* renderer, ::chronon3d::SoftwareExecutionContext& context) noexcept
+    : m_renderer(renderer), m_context(context) {}
 
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     const Scene& scene, const Camera& camera, i32 width, i32 height,
     float fps)
 {
-    // Pull shared caches/catalogs from the runtime; per-instance
-    // state from the renderer (settings, registry, video_decoder).
-    // The pipeline dispatches to the graph via the runtime's
-    // attached backend (m_runtime.backend()), bypassing
-    // SoftwareRenderer (06 R3b single-identity boundary).
+    // Dispatch through the already-resolved backend and dependency views;
+    // RuntimeContext lookup is intentionally absent from this hot path.
     return chronon3d::graph::render_scene_via_graph(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
+        *m_context.backend,
+        *m_context.scratch.node_cache,
         scene, camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
+        *m_context.settings,
+        m_context.registry.compositions,
+        m_context.video_decoder,
         fps, "scene", m_renderer
     );
 }
@@ -76,13 +73,13 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     }
     Camera default_camera;
     return chronon3d::graph::render_scene_via_graph(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
+        *m_context.backend,
+        *m_context.scratch.node_cache,
         effective, default_camera, width, height,
         /*frame=*/0, /*frame_time=*/0.0f,
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
+        *m_context.settings,
+        m_context.registry.compositions,
+        m_context.video_decoder,
         fps, "scene", m_renderer
     );
 }
@@ -91,11 +88,11 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
     const CompiledComposition& compiled, Frame frame, FrameExecution* execution)
 {
     return chronon3d::graph::render_compiled_composition_frame(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
+        *m_context.backend,
+        *m_context.scratch.node_cache,
+        *m_context.settings,
+        m_context.registry.compositions,
+        m_context.video_decoder,
         compiled,
         frame,
         m_renderer /* R3 sidecar */, execution
@@ -150,10 +147,10 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         }
     }
     return chronon3d::graph::render_scene_via_graph(
-        m_runtime.backend(), m_runtime.node_cache(), *topology, Camera{},
+        *m_context.backend, *m_context.scratch.node_cache, *topology, Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
-        m_renderer->render_settings(), m_renderer->composition_registry(),
-        m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),
+        *m_context.settings, m_context.registry.compositions,
+        m_context.video_decoder, static_cast<float>(canvas_fps.fps()),
         metadata.job_id, m_renderer, execution, frame_parameters,
         program.fingerprint());
 }
@@ -533,13 +530,13 @@ std::string RenderPipeline::debug_graph(
     float fps, Frame frame, f32 frame_time)
 {
     return chronon3d::graph::debug_scene_graph(
-        m_runtime.backend(),
-        m_runtime.node_cache(),
+        *m_context.backend,
+        *m_context.scratch.node_cache,
         scene, camera, width, height,
         frame, frame_time,
-        m_renderer->render_settings(),
-        m_renderer->composition_registry(),
-        m_renderer->video_decoder(),
+        *m_context.settings,
+        m_context.registry.compositions,
+        m_context.video_decoder,
         fps
     );
 }
