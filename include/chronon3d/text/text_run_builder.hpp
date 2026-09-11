@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -250,6 +251,13 @@ struct TextLayoutError {
     TextLayoutErrorKind kind{TextLayoutErrorKind::EmptySource};
     std::string         message{};
 };
+
+// Text compiler compatibility boundary. TextLayoutErrorKind remains the
+// detailed compiler diagnostic; aggregate construction is adapter-owned.
+[[nodiscard]] inline TextLayoutError make_text_layout_error(
+    TextLayoutErrorKind kind, std::string message) {
+    return TextLayoutError{kind, std::move(message)};
+}
 
 /// Lightweight services bundle for `compile_text_layout`.  Intentionally
 /// a STRICT SUBSET of the future full `TextServices` (FontStore,

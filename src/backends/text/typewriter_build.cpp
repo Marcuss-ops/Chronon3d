@@ -141,9 +141,9 @@ Result<bool, TextError> typewriter_build(
         cache.put(key, entry);
     }
 
-    if (entry->layout.chars.empty()) return TextError{
+    if (entry->layout.chars.empty()) return make_text_error(
         TextErrorCode::NoLayoutChars,
-        "typewriter_build: layout has zero characters"};
+        "typewriter_build: layout has zero characters");
 
     const f32 total_chars = static_cast<f32>(entry->layout.chars.size());
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(opts.start_delay);

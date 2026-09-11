@@ -78,3 +78,45 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/timeline/render_job.hpp"]
 patterns = ["\\bRenderJobError\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "render_job_request_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/runtime/job/render_job_request.hpp"]
+patterns = ["\\bRenderJobRequestError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "backend_resolve_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/render_graph/backend_registry.hpp"]
+patterns = ["\\bBackendResolveError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "compile_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/compiler/compile_error.hpp"]
+patterns = ["\\bCompileError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "scope_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/core/execution/execution_scope_types.hpp"]
+patterns = ["\\bScopeError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "text_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/text/text_error.hpp"]
+patterns = ["\\bTextError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "text_layout_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/text/text_run_builder.hpp"]
+patterns = ["\\bTextLayoutError\\s*\\{"]
+skip_comments = true

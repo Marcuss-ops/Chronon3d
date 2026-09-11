@@ -36,28 +36,28 @@ normalize_render_job(
     const RenderJobRequest& request,
     const RuntimeCapabilities& capabilities) {
     if (request.plan_path.empty()) {
-        return RenderJobRequestError{
+        return make_render_job_request_error(
             RenderJobRequestErrorCode::MissingPlan,
-            "render job requires a plan_path"};
+            "render job requires a plan_path");
     }
     if (!valid_backend(request.backend) || !valid_backend(capabilities.backend)) {
-        return RenderJobRequestError{
+        return make_render_job_request_error(
             RenderJobRequestErrorCode::InvalidBackend,
-            "render job backend must be auto, software, or vulkan"};
+            "render job backend must be auto, software, or vulkan");
     }
     if (capabilities.backend != "auto" && request.backend != "auto" &&
         request.backend != capabilities.backend) {
-        return RenderJobRequestError{
+        return make_render_job_request_error(
             RenderJobRequestErrorCode::InvalidBackend,
-            "render job backend does not match the host backend"};
+            "render job backend does not match the host backend");
     }
     if (request.frame_range &&
         (request.frame_range->first < 0 ||
          request.frame_range->last < 0 ||
          request.frame_range->last < request.frame_range->first)) {
-        return RenderJobRequestError{
+        return make_render_job_request_error(
             RenderJobRequestErrorCode::InvalidFrameRange,
-            "render job frame range is invalid"};
+            "render job frame range is invalid");
     }
 
     NormalizedRenderJob resolved;

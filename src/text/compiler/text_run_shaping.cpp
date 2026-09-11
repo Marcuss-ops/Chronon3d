@@ -163,13 +163,13 @@ shape_paragraph_runs(
         // glyph coverage for a script).  Encode that as a per-run
         // Err; apply_failure_policy consumes it on the next stage.
         if (placed.glyphs.empty() && !run.text.empty()) {
-            per_run_results.push_back(TextLayoutError{
+            per_run_results.push_back(make_text_layout_error(
                 TextLayoutErrorKind::PerRunShapingFailed,
                 "compile_text_layout: run " + std::to_string(ri)
                 + " of " + std::to_string(para_runs.size())
                 + " failed shaping (HarfBuzz produced zero glyphs"
                 + " for non-empty text '" + run.text + "')"
-            });
+            ));
             continue;
         }
 
@@ -232,10 +232,9 @@ validate_concatenated_run(
     // from per-run shaping failures (PerRunShapingFailed) and from
     // upstream font-absence failures (MissingFont).
     if (merged.glyphs.empty() && !para_text.empty()) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::ShapingProducedNoGlyphs,
-            "compile_text_layout: HarfBuzz produced no glyphs for non-empty paragraph"
-        };
+            "compile_text_layout: HarfBuzz produced no glyphs for non-empty paragraph");
     }
     return true;  // Ok — bool marker (Result<void, E> is ill-formed in this project)
 }

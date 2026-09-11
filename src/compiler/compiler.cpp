@@ -57,11 +57,11 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     const CompileOptions& options) const {
     auto asset_res = chronon3d::assets::prepare_asset_manifest(plan, resolver);
     if (!asset_res) {
-        return CompileError{
+        return make_compile_error(
             CompileErrorCode::InvalidInput,
             "assets." + asset_res.error().logical_path,
             asset_res.error().message,
-            "asset_resolver"};
+            "asset_resolver");
     }
     auto data = std::make_shared<CompiledProgramData>();
     data->metadata.schema = plan.schema;
