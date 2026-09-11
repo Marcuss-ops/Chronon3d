@@ -180,9 +180,9 @@ public:
         std::vector<double> frame_durations_ms;
     };
     DecodeResult decode_frame_at(const std::string&, RationalTime, int, int) override {
-        return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "native FFmpeg decoder support is disabled"}};
+            "native FFmpeg decoder support is disabled"});
     }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
     [[nodiscard]] HwFrameRef decode_native_frame_at(const std::string&, RationalTime, int, int) { return {}; }

@@ -36,17 +36,17 @@ TEST_CASE("motion_error::typed error remains an exception") {
     bool standard = false;
 
     try {
-        throw MotionError(MotionErrorCode::MotionPresetNotFound, "typed");
+        throw make_motion_error(MotionErrorCode::MotionPresetNotFound, "typed");
     } catch (const MotionError&) {
         typed = true;
     }
     try {
-        throw MotionError(MotionErrorCode::UnknownPackId, "runtime");
+        throw make_motion_error(MotionErrorCode::UnknownPackId, "runtime");
     } catch (const std::runtime_error&) {
         runtime = true;
     }
     try {
-        throw MotionError(MotionErrorCode::MotionPresetNotFound, "standard");
+        throw make_motion_error(MotionErrorCode::MotionPresetNotFound, "standard");
     } catch (const std::exception&) {
         standard = true;
     }

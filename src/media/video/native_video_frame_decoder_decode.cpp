@@ -15,8 +15,8 @@ DecodeFailure lookup_failure(SampleLookupDisposition disposition,
         reason = DecodeFailureReason::BeforeStart;
         message = "presentation time is before the first source sample";
     }
-    return DecodeFailure{DecodeDiagnostic{
-        reason, 0, kNoDecodeTimestamp, kNoDecodeTimestamp, 0, message}};
+    return make_decode_failure(DecodeDiagnostic{
+        reason, 0, kNoDecodeTimestamp, kNoDecodeTimestamp, 0, message});
 }
 
 DecodedFrame decoded_frame_from_sample(std::shared_ptr<Framebuffer> framebuffer,
@@ -111,18 +111,18 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
     Session& session, int64_t target) {
     std::lock_guard decode_lock(session.decode_mutex);
     if (target < 0 || static_cast<std::size_t>(target) >= session.sample_table.size()) {
-        return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::UnexpectedEof, 0,
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnexpectedEof, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "requested sample index is outside the source sample table"}};
+            "requested sample index is outside the source sample table"});
     }
 
     const std::size_t target_index = static_cast<std::size_t>(target);
     const auto& target_sample = session.sample_table[target_index];
     const int64_t target_pts = target_sample.pts;
     if (!session.decoded || !session.packet || !session.codec || !session.fmt) {
-        return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
             target_sample.pts, target_sample.dts, target_sample.source_order,
-            "decoder session is missing required native state"}};
+            "decoder session is missing required native state"});
     }
 
     const std::size_t last_index = session.last_sample_index >= 0
@@ -191,9 +191,9 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
             session.fmt, session.stream_index, seek_sample.pts, AVSEEK_FLAG_BACKWARD);
         if (seek_result < 0) {
             spdlog::error("[native-decoder] PTS seek failed: sample={} pts={}", target, seek_sample.pts);
-            return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::SeekFailure, seek_result,
+            return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::SeekFailure, seek_result,
                 seek_sample.pts, seek_sample.dts, seek_sample.source_order,
-                "failed to seek to the keyframe preceding the requested PTS"}};
+                "failed to seek to the keyframe preceding the requested PTS"});
         }
         avformat_flush(session.fmt);
         avcodec_flush_buffers(session.codec);
@@ -320,7 +320,7 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
             return DecodedFrame{std::move(framebuffer), target_sample.pts,
                 target_sample.dts, target_sample.source_order};
         }
-        if (drained < 0) return DecodeFailure{std::move(failure_diagnostic)};
+        if (drained < 0) return make_decode_failure(std::move(failure_diagnostic));
     }
 
     bool eof = false;
@@ -396,15 +396,15 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
         spdlog::error("[native-decoder] exact sample={} FAILED: pts={} continuity={} eof={}",
                       target, target_pts, target_sample.continuity_id, eof);
     }
-    return DecodeFailure{std::move(failure_diagnostic)};
+    return make_decode_failure(std::move(failure_diagnostic));
 }
 
 DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     const std::string& path, RationalTime presentation_time, int, int) {
     if (path.empty()) {
-        return DecodeFailure{DecodeDiagnostic{DecodeFailureReason::OpenInput, 0,
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::OpenInput, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "decode source path is empty"}};
+            "decode source path is empty"});
     }
 
     DecodeDiagnostic open_diagnostic;
@@ -419,7 +419,7 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
                 kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
                 "decoder session could not be opened"};
         }
-        return DecodeFailure{std::move(open_diagnostic)};
+        return make_decode_failure(std::move(open_diagnostic));
     }
 
     const auto lookup = session->sample_table.lookup(presentation_time);
