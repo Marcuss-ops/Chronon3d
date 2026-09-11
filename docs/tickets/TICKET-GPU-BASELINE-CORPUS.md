@@ -2,7 +2,7 @@
 
 ## Stato
 
-IMPLEMENTED / MEASUREMENT-READY (2026-09-11)
+IMPLEMENTED / MANIFEST-LOCKED / HOST-CERTIFICATION-PENDING (2026-09-11)
 
 ## Contract
 
@@ -11,6 +11,13 @@ baseline measurements. It invokes the canonical `render` command with fixed
 backend, encoder, frame count and framebuffer warm-up options. It reads only
 the authoritative `*.timing.json` sidecar for Chronon timings and retains the
 process log only for diagnostics.
+
+The versioned case list is
+`docs/benchmarks/gpu-corpus-v1.json`. Pass it with `--corpus` to run the
+complete B00–B11 + GPU_TEXT_01–05 set under one shared parameter set; use
+repeatable `--case ID=SCENE` only for an explicit smoke or content-pack
+override. The manifest names are resolved by the active content pack; it does
+not add a second composition registry or fabricate fixtures.
 
 Each case records commit/parameters, output and sidecar paths, exit status,
 frame count, execution path, startup/prepare/encode/finalize timings,
@@ -27,9 +34,7 @@ baseline.
 ```bash
 bash tools/benchmark_gpu_baseline.sh \
   --out artifacts/gpu-baseline-<commit> --frames 120 --warmup 10 \
-  --case GPU_TEXT_01=Clean --case GPU_TEXT_02=Pop \
-  --case GPU_TEXT_03=Neon --case GPU_TEXT_04=Tracking \
-  --case GPU_TEXT_05=Glitch
+  --corpus docs/benchmarks/gpu-corpus-v1.json
 ```
 
 The typewriter names are supplied by the active content pack; Chronon does
@@ -43,4 +48,6 @@ The runner was syntax-checked and executed on `cfd178b59` with a 12-frame
 frames, and 99.028% wall-time attribution; `cuda_host_upload_bytes` was zero
 in both prewarm and steady-state windows. The exact result is recorded in
 `docs/baselines/gpu-baseline-cfd178b59.md`. The full B00–B11 and GPU_TEXT
-corpus remains measurement work on the host that provides those fixtures.
+corpus remains measurement work on the host that provides those fixtures; the
+case contract is now versioned and gated by
+`tests/test_gpu_corpus_manifest.py`.

@@ -15,6 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLI_BIN="${CHRONON3D_CLI:-}"
 OUTPUT_DIR="${CHRONON3D_BASELINE_DIR:-$REPO_ROOT/artifacts/gpu-baseline}"
+CORPUS_FILE=""
 FRAMES="${CHRONON3D_BENCH_FRAMES:-120}"
 WARMUP_FRAMEBUFFERS="${CHRONON3D_BENCH_WARMUP_FRAMEBUFFERS:-10}"
 BACKEND="${CHRONON3D_BENCH_BACKEND:-vulkan}"
@@ -31,6 +32,7 @@ usage() {
 Options:
   --cli PATH                 chronon3d_cli binary
   --out DIR                  output/report directory
+  --corpus FILE              versioned JSON corpus manifest
   --case ID=SCENE            case to run (repeatable)
   --frames N                 rendered frames (default: 120)
   --warmup N                 framebuffers to prewarm (default: 10)
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --cli)                 CLI_BIN="$2"; shift 2 ;;
         --out)                 OUTPUT_DIR="$2"; shift 2 ;;
+        --corpus)              CORPUS_FILE="$2"; shift 2 ;;
         --case)                CASES+=("$2"); shift 2 ;;
         --frames)              FRAMES="$2"; shift 2 ;;
         --warmup)              WARMUP_FRAMEBUFFERS="$2"; shift 2 ;;
@@ -70,11 +73,19 @@ fi
 [[ -x "$CLI_BIN" ]] || { echo "[ERROR] chronon3d_cli not found: $CLI_BIN" >&2; exit 2; }
 [[ "$FRAMES" =~ ^[1-9][0-9]*$ ]] || { echo "[ERROR] --frames must be positive" >&2; exit 2; }
 [[ "$WARMUP_FRAMEBUFFERS" =~ ^[0-9]+$ ]] || { echo "[ERROR] --warmup must be non-negative" >&2; exit 2; }
-if [[ ${#CASES[@]} -eq 0 ]]; then CASES+=("B00=DarkGridBackground"); fi
+if [[ -n "$CORPUS_FILE" && ${#CASES[@]} -gt 0 ]]; then
+    echo "[ERROR] --corpus and --case are mutually exclusive" >&2
+    exit 2
+fi
+if [[ -n "$CORPUS_FILE" && ! -f "$CORPUS_FILE" ]]; then
+    echo "[ERROR] corpus manifest not found: $CORPUS_FILE" >&2
+    exit 2
+fi
+if [[ -z "$CORPUS_FILE" && ${#CASES[@]} -eq 0 ]]; then CASES+=("B00=DarkGridBackground"); fi
 
 mkdir -p "$OUTPUT_DIR"
 REPORT_JSON="$OUTPUT_DIR/gpu-baseline.json"
-export CLI_BIN OUTPUT_DIR FRAMES WARMUP_FRAMEBUFFERS BACKEND HARDWARE ENCODER_BACKEND GPU_HOT_PATH ASSETS_ROOT
+export CLI_BIN OUTPUT_DIR CORPUS_FILE FRAMES WARMUP_FRAMEBUFFERS BACKEND HARDWARE ENCODER_BACKEND GPU_HOT_PATH ASSETS_ROOT
 export REPO_ROOT
 
 python3 - "$REPORT_JSON" "${CASES[@]}" <<'PY'
@@ -90,6 +101,7 @@ report_path = pathlib.Path(sys.argv[1])
 cases = sys.argv[2:]
 cli = os.environ["CLI_BIN"]
 out_root = pathlib.Path(os.environ["OUTPUT_DIR"])
+corpus_file = os.environ.get("CORPUS_FILE", "")
 frames = int(os.environ["FRAMES"])
 warmup_framebuffers = int(os.environ["WARMUP_FRAMEBUFFERS"])
 backend = os.environ["BACKEND"]
@@ -97,6 +109,29 @@ hardware = os.environ["HARDWARE"]
 encoder_backend = os.environ["ENCODER_BACKEND"]
 gpu_hot_path = os.environ["GPU_HOT_PATH"]
 assets_root = os.environ["ASSETS_ROOT"]
+
+manifest = None
+if corpus_file:
+    try:
+        manifest = json.loads(pathlib.Path(corpus_file).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"invalid corpus manifest: {exc}")
+    manifest_cases = manifest.get("cases")
+    if not isinstance(manifest_cases, list) or not manifest_cases:
+        raise SystemExit("invalid corpus manifest: cases must be a non-empty list")
+    cases = []
+    seen_ids = set()
+    for item in manifest_cases:
+        if not isinstance(item, dict):
+            raise SystemExit("invalid corpus manifest: each case must be an object")
+        case_id = item.get("id")
+        scene = item.get("scene")
+        if not isinstance(case_id, str) or not case_id or not isinstance(scene, str) or not scene:
+            raise SystemExit("invalid corpus manifest: each case needs non-empty id and scene")
+        if case_id in seen_ids:
+            raise SystemExit(f"invalid corpus manifest: duplicate case id {case_id!r}")
+        seen_ids.add(case_id)
+        cases.append(f"{case_id}={scene}")
 
 def safe_name(value):
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._") or "case"
@@ -132,6 +167,8 @@ except (OSError, subprocess.CalledProcessError):
 result = {
     "schema_version": 1,
     "commit": commit,
+    "corpus": manifest.get("id") if manifest else None,
+    "requested_cases": cases,
     "parameters": {"frames": frames, "warmup_framebuffers": warmup_framebuffers, "backend": backend,
                    "hardware": hardware, "encoder_backend": encoder_backend,
                    "gpu_hot_path_mode": gpu_hot_path},
