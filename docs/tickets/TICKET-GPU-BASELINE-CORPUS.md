@@ -48,11 +48,10 @@ smoke case is `B00=DarkGridBackground`.
 
 ## Evidence
 
-The runner was syntax-checked and executed on `cfd178b59` with a 12-frame
-`DarkGridBackground` GPU/NVENC smoke case. It produced a sidecar, 12/12
-frames, and 99.028% wall-time attribution; `cuda_host_upload_bytes` was zero
-in both prewarm and steady-state windows. The exact result is recorded in
-`docs/baselines/gpu-baseline-cfd178b59.md`. The full B00–B11 and GPU_TEXT
-corpus remains measurement work on the host that provides those fixtures; the
-case contract is now versioned and gated by
-`tests/test_gpu_corpus_manifest.py`.
+The current same-SHA hardware smoke is recorded in
+[`gpu-b00-native-smoke-43d73f149`](../evidence/gpu-b00-native-smoke-43d73f149.md).
+The 30-frame `DarkGridBackground` case on an RTX A4000/NVENC lane reached
+99.114% wall-time attribution, with zero CPU readback, zero encoder staging
+bytes, and zero GPU surface-copy frames. The full B00–B11 and GPU_TEXT corpus
+remains pending the external fixture/content pack; the case contract is
+versioned and gated by `tests/test_gpu_corpus_manifest.py`.
