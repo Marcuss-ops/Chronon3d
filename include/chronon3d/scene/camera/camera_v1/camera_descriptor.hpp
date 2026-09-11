@@ -32,6 +32,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>    // CameraTrajectory
 #include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: FramingBBox
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>             // Camera2_5D, DepthOfFieldSettings, MotionBlurSettings, LensModel
+#include <chronon3d/core/types/error.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -51,6 +52,27 @@ enum class CameraFailurePolicy : std::uint8_t {
     SkipFailedConstraint = 1, // skip the failing constraint, continue the stack
     KeepLastValidCamera = 2,  // return last camera that passed all constraints
 };
+
+[[nodiscard]] constexpr std::string_view to_string(CameraFailurePolicy policy) noexcept {
+    switch (policy) {
+        case CameraFailurePolicy::Stop: return "Stop";
+        case CameraFailurePolicy::SkipFailedConstraint: return "SkipFailedConstraint";
+        case CameraFailurePolicy::KeepLastValidCamera: return "KeepLastValidCamera";
+    }
+    return "Unknown";
+}
+
+/// Canonical detail adapter for the authoring policy. The policy remains a
+/// control input; this adapter is used whenever it crosses an error/diagnostic
+/// boundary and prevents a second engine-level error taxonomy.
+[[nodiscard]] inline chronon::Error canonical_error(CameraFailurePolicy policy) {
+    return chronon::from_legacy<CameraFailurePolicy>(
+        chronon::ErrorCategory::Recoverable,
+        "camera_policy",
+        "chronon3d::scene::CameraFailurePolicy",
+        to_string(policy),
+        "camera failure policy selected");
+}
 
 // =============================================================================
 // ProjectionSpec — variant avoids ambiguous zoom + FOV state.

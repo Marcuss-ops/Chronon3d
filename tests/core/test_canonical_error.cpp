@@ -5,6 +5,11 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/sdk/render_error.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/render_graph/pipeline/execution_decision.hpp>
+#include <chronon3d/runtime/async_encoder_sink.hpp>
+#include <chronon3d/runtime/gpu_memory_budget.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 
 TEST_CASE("canonical error taxonomy keeps domain detail payloads") {
     const auto error = chronon::from_legacy<chronon3d::runtime::ExecutionFailure>(
@@ -103,4 +108,36 @@ TEST_CASE("backend failure stops the frame and transitions the job") {
     CHECK(session.job_error()->detail.node_id == "text_run");
     CHECK(session.job_error()->detail.frame == 12);
     CHECK(session.job_error()->detail.job_id == 99);
+}
+
+TEST_CASE("remaining legacy state and policy enums cross the canonical boundary") {
+    const auto camera = chronon3d::camera_v1::canonical_error(
+        chronon3d::camera_v1::CameraFailurePolicy::KeepLastValidCamera);
+    CHECK(camera.category == chronon::ErrorCategory::Recoverable);
+    CHECK(camera.detail.legacy_type ==
+          "chronon3d::scene::CameraFailurePolicy");
+    CHECK(camera.detail.legacy_code == "KeepLastValidCamera");
+
+    const auto path = chronon3d::graph::canonical_error(
+        chronon3d::graph::FrameExecutionPath::SparseTiles);
+    CHECK(path.detail.legacy_type == "chronon3d::graph::FrameExecutionPath");
+    CHECK(path.detail.legacy_code == "SparseTiles");
+
+    const auto removal = chronon3d::cache::canonical_error(
+        chronon3d::cache::CacheRemovalReason::Capacity);
+    CHECK(removal.detail.legacy_type ==
+          "chronon3d::cache::CacheRemovalReason");
+    CHECK(removal.detail.legacy_code == "Capacity");
+
+    const auto sink = chronon3d::runtime::canonical_error(
+        chronon3d::runtime::AsyncEncoderSinkState::Draining);
+    CHECK(sink.detail.legacy_type ==
+          "chronon3d::runtime::AsyncEncoderSinkState");
+    CHECK(sink.detail.legacy_code == "Draining");
+
+    const auto memory = chronon3d::runtime::canonical_error(
+        chronon3d::runtime::GpuMemoryPressure::Critical);
+    CHECK(memory.detail.legacy_type ==
+          "chronon3d::runtime::GpuMemoryPressure");
+    CHECK(memory.detail.legacy_code == "Critical");
 }
