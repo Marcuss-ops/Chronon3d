@@ -12,7 +12,7 @@ contract before the prepared execution plan migration.
 
 | Legacy enum | Owner | Reason retained | Exit condition | Equivalence test/gate | Removal scope | Status |
 |---|---|---|---|---|---|---|
-| `chronon3d::sdk::RenderErrorCode` | SDK | Public ABI compatibility | zero direct constructions outside SDK adapter | SDK error formatter + API propagation tests | legacy SDK enum after ABI migration | ACTIVE |
+| `chronon3d::sdk::RenderErrorCode` | SDK | Public ABI compatibility | zero direct constructions outside SDK adapter | SDK error formatter + API propagation tests | legacy SDK enum after ABI migration | ADAPTER_ONLY |
 | `chronon3d::render::RenderDiagnosticCode` | Render | Diagnostic-only compatibility | zero direct constructions outside diagnostic adapter | diagnostic serialization tests | diagnostic enum/adapter | ACTIVE |
 | `chronon3d::graph::RenderBackendErrorCode` | Render graph | Backend detail payload | zero direct constructions outside backend adapter | backend failure → frame failure test | backend detail enum | ACTIVE |
 | `chronon3d::graph::BackendResolveErrorCode` | Backend registry | Resolver detail payload | zero direct constructions outside resolver adapter | backend resolver matrix | resolver detail enum | ADAPTER_ONLY |
@@ -25,7 +25,7 @@ contract before the prepared execution plan migration.
 | `chronon3d::CameraErrorCode` | Camera | Camera detail | zero direct constructions outside camera adapter | camera failure tests | camera detail enum | ACTIVE |
 | `chronon3d::CameraCompileErrorCode` | Camera/compiler | Compile detail | zero direct constructions outside camera adapter | camera compile tests | camera detail enum | ACTIVE |
 | `chronon3d::presets::MotionErrorCode` | Presets | Preset lookup detail | zero direct constructions outside preset adapter | preset error tests | motion detail enum | ACTIVE |
-| `chronon3d::media::video::MediaProbeErrorCode` | Media | Probe detail | zero direct constructions outside media adapter | media probe tests | probe detail enum | ACTIVE |
+| `chronon3d::media::video::MediaProbeErrorCode` | Media | Probe detail | zero direct constructions outside media adapter | media probe tests | probe detail enum | ADAPTER_ONLY |
 | `chronon3d::media::video::VideoSinkError` | Media | Sink detail | zero direct constructions outside sink adapter | sink lifecycle tests | sink detail enum | ACTIVE |
 | `chronon3d::media::ConversionError` | Media | Conversion detail | zero direct constructions outside conversion adapter | conversion tests | conversion detail enum | ACTIVE |
 | `chronon3d::trace::TraceError` | Trace | Trace detail | zero direct constructions outside trace adapter | trace contract tests | trace detail enum | ACTIVE |

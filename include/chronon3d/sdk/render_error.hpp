@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <chronon3d/core/error.hpp>
 #include <string>
+#include <utility>
 
 namespace chronon3d::sdk {
 
@@ -55,6 +56,20 @@ struct RenderError {
     /// canonical chronon::Error.
     [[nodiscard]] chronon::Error canonical_error() const;
 };
+
+// SDK compatibility boundary. RenderErrorCode remains the public ABI detail;
+// all new SDK error creation goes through this adapter so the legacy payload
+// cannot acquire competing construction conventions.
+[[nodiscard]] inline RenderError make_render_error(
+    RenderErrorCode code,
+    std::string message,
+    std::string component = {},
+    std::string node_id = {},
+    std::string asset = {}) {
+    return RenderError{
+        code, std::move(message), std::move(component),
+        std::move(node_id), std::move(asset)};
+}
 
 /// Stable string-form name for each `RenderErrorCode`.  For logging
 /// and diagnostics only; never use for equality — enum storage may

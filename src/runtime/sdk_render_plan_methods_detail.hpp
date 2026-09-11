@@ -6,8 +6,8 @@ RenderEngine::compile_plan_json(std::string_view json) {
         const auto root = nlohmann::json::parse(json.begin(), json.end());
         const auto decoded = chronon3d::render_plan::decode_render_plan(root);
         if (!decoded) {
-            return RenderError{RenderErrorCode::InvalidPlan,
-                               decoded.error().message, "render_plan"};
+            return make_render_error(RenderErrorCode::InvalidPlan,
+                                     decoded.error().message, "render_plan");
         }
         chronon3d::compiler::CompileOptions compile_options;
         compile_options.fingerprint.render_settings.width = decoded->canvas.width;
@@ -17,8 +17,8 @@ RenderEngine::compile_plan_json(std::string_view json) {
         auto compiled = chronon3d::compiler::compile(
             decoded.value(), m_impl->resolver, compile_options);
         if (!compiled) {
-            return RenderError{RenderErrorCode::InvalidPlan,
-                               compiled.error().message, "render_plan"};
+            return make_render_error(RenderErrorCode::InvalidPlan,
+                                     compiled.error().message, "render_plan");
         }
         RenderSettings settings = m_impl->settings;
         settings.width = decoded->canvas.width;
@@ -30,9 +30,9 @@ RenderEngine::compile_plan_json(std::string_view json) {
         return std::make_shared<const chronon3d::compiler::CompiledProgram>(
             std::move(compiled).value());
     } catch (const std::exception& error) {
-        return RenderError{RenderErrorCode::DecodeFailure,
+        return make_render_error(RenderErrorCode::DecodeFailure,
             std::string{"render plan JSON parse failed: "} + error.what(),
-            "render_plan"};
+            "render_plan");
     }
 }
 
@@ -42,9 +42,9 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
                                std::filesystem::path assets_root) {
     std::ifstream input(plan_path);
     if (!input) {
-        return RenderError{RenderErrorCode::DecodeFailure,
-                           "cannot open render plan: " + plan_path.string(),
-                           "render_plan"};
+        return make_render_error(RenderErrorCode::DecodeFailure,
+                                 "cannot open render plan: " + plan_path.string(),
+                                 "render_plan");
     }
     std::ostringstream contents;
     contents << input.rdbuf();
@@ -61,8 +61,8 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             const auto root = nlohmann::json::parse(contents.str());
             const auto decoded = chronon3d::render_plan::decode_render_plan(root);
             if (!decoded) {
-                return RenderError{RenderErrorCode::InvalidPlan,
-                                   decoded.error().message, "render_plan"};
+                return make_render_error(RenderErrorCode::InvalidPlan,
+                                         decoded.error().message, "render_plan");
             }
             chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
             fingerprint_options.render_settings.width = decoded->canvas.width;
@@ -74,8 +74,8 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             auto compiled = chronon3d::compiler::compile(
                 decoded.value(), m_impl->resolver, compile_options);
             if (!compiled) {
-                return RenderError{RenderErrorCode::InvalidPlan,
-                                   compiled.error().message, "render_plan"};
+                return make_render_error(RenderErrorCode::InvalidPlan,
+                                         compiled.error().message, "render_plan");
             }
             program_holder = std::make_shared<const chronon3d::compiler::CompiledProgram>(
                 std::move(compiled).value());
@@ -100,9 +100,9 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             request.end_frame = Frame{duration > 0 ? duration - 1 : 0};
             request.frame_rate = chronon3d::sdk::FrameRate{fps_num, fps_den};
         } catch (const std::exception& error) {
-            return RenderError{RenderErrorCode::DecodeFailure,
+            return make_render_error(RenderErrorCode::DecodeFailure,
                 std::string{"render plan error: "} + error.what(),
-                "render_plan"};
+                "render_plan");
         }
     }
 

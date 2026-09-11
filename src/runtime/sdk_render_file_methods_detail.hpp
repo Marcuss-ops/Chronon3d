@@ -20,16 +20,16 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     };
 
     if (!request.composition && !request.compiled_composition && !request.program) {
-        return reject(RenderError{RenderErrorCode::InvalidComposition,
-                                   "RenderFileRequest requires a composition, compiled_composition, or program"});
+        return reject(make_render_error(RenderErrorCode::InvalidComposition,
+            "RenderFileRequest requires a composition, compiled_composition, or program"));
     }
     if (request.output_path.empty()) {
-        return reject(RenderError{RenderErrorCode::InvalidSettings,
-                                   "RenderFileRequest output_path must not be empty"});
+        return reject(make_render_error(RenderErrorCode::InvalidSettings,
+            "RenderFileRequest output_path must not be empty"));
     }
     if (!request.video.overwrite && std::filesystem::exists(request.output_path)) {
-        return reject(RenderError{RenderErrorCode::InvalidSettings,
-                                   "output already exists and overwrite is disabled"});
+        return reject(make_render_error(RenderErrorCode::InvalidSettings,
+            "output already exists and overwrite is disabled"));
     }
 
     const auto start = request.start_frame.integral();
@@ -37,14 +37,13 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     const auto step = request.step.integral();
     if (end < start || step <= 0 || request.frame_rate.numerator <= 0 ||
         request.frame_rate.denominator <= 0) {
-        return reject(RenderError{RenderErrorCode::InvalidSettings,
-                                   "invalid frame range or frame rate"});
+        return reject(make_render_error(RenderErrorCode::InvalidSettings,
+            "invalid frame range or frame rate"));
     }
     const auto total = static_cast<std::uint64_t>(((end - start) / step) + 1);
     if (request.limits.max_frames != 0 && total > request.limits.max_frames) {
-        return reject(RenderError{RenderErrorCode::BudgetExceeded,
-                                   "render job frame limit exceeded",
-                                   "render_job"});
+        return reject(make_render_error(RenderErrorCode::BudgetExceeded,
+            "render job frame limit exceeded", "render_job"));
     }
 
     // Snapshot the engine settings used for the whole job under the lock.
@@ -59,34 +58,30 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         return m_impl->settings.height;
     }();
     if (width <= 0 || height <= 0) {
-        return reject(RenderError{RenderErrorCode::InvalidSettings,
-                                   "RenderSettings width and height must be positive"});
+        return reject(make_render_error(RenderErrorCode::InvalidSettings,
+            "RenderSettings width and height must be positive"));
     }
     if (request.limits.max_width != 0 &&
         static_cast<std::uint64_t>(width) > request.limits.max_width) {
-        return reject(RenderError{RenderErrorCode::BudgetExceeded,
-                                   "render job width limit exceeded",
-                                   "render_job"});
+        return reject(make_render_error(RenderErrorCode::BudgetExceeded,
+            "render job width limit exceeded", "render_job"));
     }
     if (request.limits.max_height != 0 &&
         static_cast<std::uint64_t>(height) > request.limits.max_height) {
-        return reject(RenderError{RenderErrorCode::BudgetExceeded,
-                                   "render job height limit exceeded",
-                                   "render_job"});
+        return reject(make_render_error(RenderErrorCode::BudgetExceeded,
+            "render job height limit exceeded", "render_job"));
     }
     if (width != 0 && static_cast<std::uint64_t>(height) >
             std::numeric_limits<std::uint64_t>::max() / static_cast<std::uint64_t>(width) / 16) {
-        return reject(RenderError{RenderErrorCode::OutOfMemory,
-                                   "render job memory estimate overflow",
-                                   "memory"});
+        return reject(make_render_error(RenderErrorCode::OutOfMemory,
+            "render job memory estimate overflow", "memory"));
     }
     const auto estimated_frame_bytes = runtime::tight_surface_bytes(
         runtime::PixelFormat::Rgba32Float, width, height);
     if (request.limits.max_memory_bytes != 0 &&
         estimated_frame_bytes > request.limits.max_memory_bytes) {
-        return reject(RenderError{RenderErrorCode::BudgetExceeded,
-                                   "render job memory limit exceeded",
-                                   "memory"});
+        return reject(make_render_error(RenderErrorCode::BudgetExceeded,
+            "render job memory limit exceeded", "memory"));
     }
 
 #if CHRONON3D_ENABLE_VIDEO
@@ -115,9 +110,9 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     if (!sink || !sink->open(config)) {
         const auto message = sink ? sink->last_error_message()
                                   : std::string{"video sink unavailable"};
-        return reject(RenderError{RenderErrorCode::BackendUnavailable,
-                                   message.empty() ? "failed to open video sink" : message,
-                                   "encoder"});
+        return reject(make_render_error(RenderErrorCode::BackendUnavailable,
+            message.empty() ? "failed to open video sink" : message,
+            "encoder"));
     }
 
     const auto started = std::chrono::steady_clock::now();
@@ -147,9 +142,9 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         auto compiled = chronon3d::compile_composition(
             *request.composition, chronon3d::CompositionCompileContext{});
         if (!compiled) {
-            return fail(RenderError{
+            return fail(make_render_error(
                 RenderErrorCode::InvalidComposition,
-                "composition compilation failed: " + compiled.error().message});
+                "composition compilation failed: " + compiled.error().message));
         }
         local_compiled.emplace(std::move(compiled).value());
         active_compiled = &*local_compiled;
@@ -164,8 +159,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         // Host cancellation/progress callbacks run with NO engine lock held:
         // a callback may legally call set_settings()/render() on this engine.
         if (callbacks.is_cancelled && callbacks.is_cancelled()) {
-            return fail(RenderError{RenderErrorCode::Cancelled,
-                                    "render cancelled by callback"});
+            return fail(make_render_error(RenderErrorCode::Cancelled,
+                "render cancelled by callback"));
         }
 
         std::shared_ptr<chronon3d::Framebuffer> framebuffer;
@@ -220,8 +215,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         view.pts = static_cast<std::int64_t>(rendered);
         if (!sink->submit(view)) {
             const auto message = sink->last_error_message();
-            return fail(RenderError{RenderErrorCode::RuntimeFailure,
-                message.empty() ? "video sink rejected a rendered frame" : message});
+            return fail(make_render_error(RenderErrorCode::RuntimeFailure,
+                message.empty() ? "video sink rejected a rendered frame" : message));
         }
 
         ++rendered;
@@ -235,8 +230,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         const auto message = sink->last_error_message();
         std::error_code cleanup_error;
         std::filesystem::remove(temp_path, cleanup_error);
-        return RenderError{RenderErrorCode::RuntimeFailure,
-            message.empty() ? "video sink failed while finalizing output" : message};
+        return make_render_error(RenderErrorCode::RuntimeFailure,
+            message.empty() ? "video sink failed while finalizing output" : message);
     }
 
     std::error_code publish_error;
@@ -244,8 +239,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
     if (publish_error) {
         std::error_code cleanup_error;
         std::filesystem::remove(temp_path, cleanup_error);
-        return RenderError{RenderErrorCode::RuntimeFailure,
-            "cannot publish output atomically: " + publish_error.message()};
+        return make_render_error(RenderErrorCode::RuntimeFailure,
+            "cannot publish output atomically: " + publish_error.message());
     }
 
     return RenderReport{
@@ -255,9 +250,8 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
             std::chrono::steady_clock::now() - started).count(),
     };
 #else
-    return reject(RenderError{RenderErrorCode::BackendUnavailable,
-                               "Built without CHRONON3D_ENABLE_VIDEO support.",
-                               "encoder"});
+    return reject(make_render_error(RenderErrorCode::BackendUnavailable,
+        "Built without CHRONON3D_ENABLE_VIDEO support.", "encoder"));
 #endif
 }
 
