@@ -179,7 +179,7 @@ for spec in cases:
             entry["steady_state_ms"] = summary.get("steady_avg_ms")
             entry["encode_drain_ms"] = phase(data, "encode_drain_ms")
             entry["finalize_ms"] = phase(data, "finalize_ms")
-            entry["attribution"] = data.get("exclusive_wall_timeline", {})
+            entry["attribution"] = data.get("phase_attribution") or data.get("exclusive_wall_timeline", {})
             entry["windows"] = summary.get("windows", {})
             entry["prewarm_prepare_ms"] = get(data, "prepare_breakdown", "total_prepare_ms")
             accounted = get(data, "exclusive_wall_timeline", "accounted_percent")

@@ -23,7 +23,7 @@ zero external assets.
    `../../include`, `../../src`, in-tree CMake targets, or any
    `chronon3d_*_impl` / `chronon3d_graph` / `chronon3d_pipeline` target.
 2. **One canonical plan protocol.** They all drive the same
-   `chronon.render-plan` v1 JSON (`plan.json`) through the C ABI
+   `chronon.render-plan.v2` JSON (`plan.json`) through the C ABI
    (`chronon_plan_compile_json_n`) or the C++ facade
    (`sdk::RenderEngine::compile_plan_json`).
 3. **Self-contained C ABI.** They link only `libchronon3d_c.so` (all

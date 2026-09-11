@@ -295,11 +295,23 @@ NodeExecResult TransformNode::execute(
                         result->set_surface_handle(handle);
                         return NodeExecResult{std::move(result)};
                     }
+                    spdlog::warn("[transform-native] integer transform failed node='{}' source={} dest={} error='{}'",
+                                 name(), input->surface_handle(), handle,
+                                 transformed.error().message);
+                } else {
+                    spdlog::warn("[transform-native] integer output surface creation failed node='{}' error='{}'",
+                                 name(), created.error().message);
                 }
                 if (handle != runtime::kInvalidRenderSurfaceHandle) {
                     (void)ctx.backend->release_surface(handle);
                     ctx.surface_registry->release(handle);
                 }
+            }
+            if (ctx.policy.require_native_gpu) {
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()),
+                    "native integer transform failed"});
             }
             detail::execute_translate_clamped(
                 result.get(), input.get(),
@@ -311,7 +323,13 @@ NodeExecResult TransformNode::execute(
     }
 
     // Fast-path 2: affine + no scale/shear (effectively translation)
-    const bool is_affine = std::abs(H[2][0]) < 1e-9f && std::abs(H[2][1]) < 1e-9f;
+    // In the homogeneous 3x3 layout used here, H[2][0]/H[2][1] are the
+    // translation terms.  Affine transforms are allowed to translate; the
+    // perspective terms are the third-row coefficients H[0][2]/H[1][2].
+    // Checking the translation terms incorrectly classified every centred
+    // scale (and ordinary non-zero translation) as projective, bypassing the
+    // native affine compositor and, in strict GPU mode, failing the frame.
+    const bool is_affine = std::abs(H[0][2]) < 1e-9f && std::abs(H[1][2]) < 1e-9f;
 
     if (is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
         std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f) {
@@ -376,11 +394,24 @@ NodeExecResult TransformNode::execute(
                 result->set_surface_handle(handle);
                 return NodeExecResult{std::move(result)};
             }
+            spdlog::warn("[transform-native] affine transform failed node='{}' source={} dest={} error='{}'",
+                         name(), input->surface_handle(), handle,
+                         transformed.error().message);
+        } else {
+            spdlog::warn("[transform-native] affine output surface creation failed node='{}' error='{}'",
+                         name(), created.error().message);
         }
         if (handle != runtime::kInvalidRenderSurfaceHandle) {
             (void)ctx.backend->release_surface(handle);
             ctx.surface_registry->release(handle);
         }
+    }
+
+    if (ctx.policy.require_native_gpu) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            std::string(name()),
+            "native affine transform failed"});
     }
 
     // General path: affine or projective, row-based
