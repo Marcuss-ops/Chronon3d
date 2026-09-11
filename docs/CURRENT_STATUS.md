@@ -71,6 +71,11 @@
 - `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
   still/pipe/chunked fixture execution remains pending on the working build
   host. No CpuBudget policy change is authorized before that measurement.
+- `3e4ed832d` closes a real GPU-text ABI gap: the Vulkan tiled text bridge now
+  uploads the canonical 112-byte, 16-byte-aligned `TextRunDynamic` record used
+  by `text_tile_bin/raster`. Selector, tracking and effect bindings therefore
+  share one host/shader layout authority; the old 64-byte local mirror is gone.
+  The change is build-verified and passed the full developer gate chain.
 
 - **Vulkan independent jobs:** PASS on NVIDIA RTX A4000 / driver 595.84 with
   validation layers enabled. Two concurrent jobs reached 97.07% of the
