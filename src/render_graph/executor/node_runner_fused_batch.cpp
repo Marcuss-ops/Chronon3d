@@ -171,7 +171,12 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
         auto prepared = ctx.runtime
             ? ctx.runtime->gpu_text_prepared_cache().find(*shape.layout)
             : nullptr;
-        if (prepared && prepared->reveal_selector) {
+        // Lowerable glyph selectors are evaluated by the GPU text shader from
+        // the compact dynamic run record.  Do not walk every glyph here: that
+        // both defeats the hot path and can dereference an incomplete
+        // compatibility selector sample (notably for Tracking).
+        if (prepared && prepared->reveal_selector &&
+            !text_run::can_lower_gpu_text_animation(shape)) {
             std::uint32_t visible_limit = 0;
             const auto sample_time = ctx.frame_input.sample_time;
             for (std::size_t i = 0; i < shape.layout->placed.glyphs.size(); ++i) {
@@ -190,6 +195,8 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
     }
     run.flags = 0u;
     fill_mtsdf_effects(shape, run);
+    text_run::sample_gpu_text_animation(
+        shape, ctx.frame_input.sample_time, run);
     return run;
 }
 
@@ -393,7 +400,8 @@ void execute_fused_batch_impl(
                         run_dyn.distance_range_bits = std::bit_cast<std::uint32_t>(8.0f);
                         run_dyn.visible_glyph_count =
                             std::numeric_limits<std::uint32_t>::max();
-                        if (prepared->reveal_selector) {
+                        if (prepared->reveal_selector &&
+                            !text_run::can_lower_gpu_text_animation(*render_shape)) {
                             std::uint32_t visible_limit = 0;
                             const auto sample_time = ctx.frame_input.sample_time;
                             for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
@@ -412,6 +420,8 @@ void execute_fused_batch_impl(
                         }
                         run_dyn.flags = 0u;
                         fill_mtsdf_effects(*render_shape, run_dyn);
+                        text_run::sample_gpu_text_animation(
+                            *render_shape, ctx.frame_input.sample_time, run_dyn);
                         const auto run_index = static_cast<std::uint32_t>(all_runs.size());
                         all_runs.push_back(run_dyn);
                         const auto first = all_glyphs.size();

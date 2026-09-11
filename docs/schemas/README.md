@@ -21,7 +21,7 @@ schemas are the canonical structural contracts:
 | Schema | Boundary payload | Required root fields |
 |---|---|---|
 | [`chronon.composition.v1.schema.json`](chronon.composition.v1.schema.json) | `CreateCompositionRequest.descriptor_json` | `schema`, `version`, `id` |
-| [`chronon.render-plan.v1.schema.json`](chronon.render-plan.v1.schema.json) | render-plan compile input | `schema`, `version`, `canvas`, `layers`, `output` |
+| [`chronon.render-plan.v2.schema.json`](chronon.render-plan.v2.schema.json) | render-plan compile input | `schema`, `version`, `canvas`, `layers`, `output` |
 | [`chronon.render-settings.v1.schema.json`](chronon.render-settings.v1.schema.json) | neutral SDK/daemon settings | `schema`, `version` |
 
 All three roots are sealed with `additionalProperties: false`. Structural
