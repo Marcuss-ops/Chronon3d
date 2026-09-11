@@ -104,6 +104,9 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double cuda_compositor_warmup_ms() const { return 0.0; }
     [[nodiscard]] virtual double open_nvenc_ms() const { return 0.0; }
     [[nodiscard]] virtual double open_mux_header_ms() const { return 0.0; }
+    // Number of mux checksum finalizations that had to reread the finished
+    // file because the container performed a seek/backpatch.
+    [[nodiscard]] virtual std::uint64_t full_file_reread_count() const { return 0; }
 
     // Encoder settings actually applied at open() time (post-default
     // resolution). Empty/0 means "not applicable" (e.g. software encoder or

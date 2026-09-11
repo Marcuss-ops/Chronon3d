@@ -304,6 +304,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.validation_ms = result.validation_ms;
     timings.ffprobe_ms = result.ffprobe_ms;
     timings.sha256_ms = result.sha256_ms;
+    timings.full_file_reread_count = close_result.full_file_reread_count;
     timings.target_fps = session->opts.output.fps_value();
     timings.target_fps_num = session->opts.output.frame_rate().numerator;
     timings.target_fps_den = session->opts.output.frame_rate().denominator;

@@ -24,6 +24,11 @@ frame count, execution path, startup/prepare/encode/finalize timings,
 prewarm/steady-state windows, and canonical `phase_attribution` with phase
 sum, accounted percentage and explicit unaccounted remainder.
 
+The authoritative `job.full_file_reread_count` field reports whether mux
+finalization had to reread the completed file after a container seek/backpatch.
+Certified append-only runs must report zero; non-zero values are an explicit
+container fallback and cannot be mistaken for an incremental-hash result.
+
 The runner rejects a case when the sidecar is missing, the frame count differs
 from the requested count, or less than 95% of process wall time is attributed.
 This prevents an FPS number with unexplained wall time from becoming a
