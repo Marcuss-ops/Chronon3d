@@ -114,6 +114,7 @@ struct SharedCudaNv12Module {
     CUfunction p010_kernel{nullptr};
     CUfunction direct_nv12_kernel{nullptr};
     CUfunction direct_nv12_batch_kernel{nullptr};
+    CUfunction direct_p010_batch_kernel{nullptr};
     CUfunction rgba_to_nv12_kernel{nullptr};
     CUfunction rgba_u8_to_nv12_kernel{nullptr};
 
@@ -181,6 +182,9 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
     check_cuda(cuModuleGetFunction(&shared->direct_nv12_batch_kernel, shared->module,
                                    "nv12_composite_layer_batch_2x2"),
                "cuModuleGetFunction(nv12_composite_layer_batch_2x2)");
+    check_cuda(cuModuleGetFunction(&shared->direct_p010_batch_kernel, shared->module,
+                                   "p010_composite_layer_batch_2x2"),
+               "cuModuleGetFunction(p010_composite_layer_batch_2x2)");
     check_cuda(cuModuleGetFunction(&shared->rgba_to_nv12_kernel, shared->module,
                                    "rgba_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_surface_to_nv12_2x2)");
@@ -227,6 +231,7 @@ CudaNv12Compositor::CudaNv12Compositor(
     p010_kernel_ = shared->p010_kernel;
     direct_nv12_kernel_ = shared->direct_nv12_kernel;
     direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;
+    direct_p010_batch_kernel_ = shared->direct_p010_batch_kernel;
     rgba_to_nv12_kernel_ = shared->rgba_to_nv12_kernel;
     rgba_u8_to_nv12_kernel_ = shared->rgba_u8_to_nv12_kernel;
 
@@ -247,6 +252,7 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     module_ = shared->module;
     direct_nv12_kernel_ = shared->direct_nv12_kernel;
     direct_nv12_batch_kernel_ = shared->direct_nv12_batch_kernel;
+    direct_p010_batch_kernel_ = shared->direct_p010_batch_kernel;
 }
 
 CudaNv12Compositor::~CudaNv12Compositor() {

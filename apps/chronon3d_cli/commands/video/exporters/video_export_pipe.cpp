@@ -146,6 +146,36 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 #ifdef CHRONON3D_ENABLE_VULKAN
         if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
             (void)vulkan->wait_for_pending_submissions();
+            // Fence completion is the first point at which Vulkan timestamp
+            // queries are readable. The backend retains the originating frame
+            // index in the ring slot, so apply exact device timing to that
+            // frame instead of attributing it to whichever frame performed
+            // the drain.
+            for (const auto& gpu : vulkan->consume_completed_frame_timings()) {
+                const auto it = std::find_if(
+                    loop_output.telemetry_frames.begin(),
+                    loop_output.telemetry_frames.end(),
+                    [&gpu](const auto& frame) {
+                        return frame.frame_number ==
+                            static_cast<int>(gpu.frame_index);
+                    });
+                if (it == loop_output.telemetry_frames.end()) {
+                    spdlog::warn(
+                        "[vulkan] GPU timing completion has no telemetry frame: "
+                        "frame={} slot={}",
+                        gpu.frame_index, gpu.frame_batch_slot);
+                    continue;
+                }
+                it->gpu_timing.timestamp_attributed = gpu.timestamp_valid;
+                it->gpu_timing.frame_batch_slot = gpu.frame_batch_slot;
+                it->gpu_timing.timestamp_execute_ms = gpu.execute_ms;
+                it->gpu_timing.device_span_ms = gpu.device_span_ms;
+                it->gpu_timing.queue_wait_ms = gpu.queue_wait_ms;
+                it->gpu_timing.device_start_trace_ns =
+                    gpu.device_start_trace_ns;
+                it->gpu_timing.device_end_trace_ns =
+                    gpu.device_end_trace_ns;
+            }
         }
 #endif
         session->native_decoder.reset();
@@ -366,6 +396,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
             c->gpu_text_atlas_sha256_wall_us.load(std::memory_order_relaxed)) / 1000.0;
         timings.text.atlas_cache_acquire_ms = static_cast<double>(
             c->gpu_text_atlas_cache_acquire_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.prepared_batch_build_count =
+            c->gpu_text_prepared_batch_build_count.load(std::memory_order_relaxed);
+        timings.text.prepared_batch_reuse_count =
+            c->gpu_text_prepared_batch_reuse_count.load(std::memory_order_relaxed);
         timings.gpu.vulkan_cuda_export_fence_wait_count =
             c->vulkan_cuda_export_fence_wait_count.load(std::memory_order_relaxed);
         timings.gpu.vulkan_cuda_export_fence_wait_us =
@@ -451,6 +485,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         timings.cpu_breakdown.effect_stack_total_ms = static_cast<double>(c->effect_stack_total_wall_ms.load(std::memory_order_relaxed));
         timings.cpu_breakdown.graph_executed_frames = c->graph_executed_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.graph_reused_frames = c->graph_reused_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.graph_refresh_scratch_node_builds =
+            c->graph_refresh_scratch_node_builds.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.graph_refresh_scratch_node_reuses =
+            c->graph_refresh_scratch_node_reuses.load(std::memory_order_relaxed);
         timings.cpu_breakdown.fast_path_reused_frames = c->fast_path_reused_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.video_source_requested_frames = c->video_source_requested_frames.load(std::memory_order_relaxed);
         timings.cpu_breakdown.video_source_inactive_frames = c->video_source_inactive_frames.load(std::memory_order_relaxed);

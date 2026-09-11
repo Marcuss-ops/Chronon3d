@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 #include <string>
 #include <vector>
@@ -16,9 +17,7 @@ struct RasterizedTextTexture {
 };
 
 RasterizedTextTexture rasterize_text_texture(
-    const std::string& text,
-    const std::string& prepared_font_path,
-    float font_size,
+    const TextRunShape& prepared_shape,
     const Color& fill_color,
     const Color& stroke_color,
     float stroke_width,

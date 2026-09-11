@@ -69,6 +69,7 @@ struct WriterThreadContext {
     std::atomic<int>& frames_encoded;
     bool require_native_gpu{false};
     std::vector<chronon3d::telemetry::FrameTelemetry>& frame_encoder_telemetry;
+    std::atomic<std::int64_t>& telemetry_anchor_ns;
     std::uint64_t trace_job_id{0};
 };
 
@@ -92,6 +93,7 @@ struct RenderLoopContext {
     TripleBufferArena* triple_arena{nullptr};
     RenderCounters* counters;
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;
+    std::atomic<std::int64_t>& telemetry_anchor_ns;
     std::uint64_t trace_job_id{0};
 };
 

@@ -51,6 +51,21 @@ populate_font_spans(
         text_layout.font_spans.push_back(std::move(span));
     }
 
+    // A single resolved font with a non-empty merged run is still a valid
+    // canonical span even when an older shaping adapter did not preserve its
+    // one-element `placed_runs` vector.  Repair that representation at the
+    // compiler boundary so every consumer (including DirectYUV) sees the
+    // immutable font-range contract; never make a backend guess the font.
+    if (text_layout.font_spans.empty() &&
+        !text_layout.placed.glyphs.empty() && para_runs.size() == 1) {
+        ShapedFontSpan span;
+        span.font = font_identity_of(para_runs.front().font);
+        span.glyph_begin = 0;
+        span.glyph_end = static_cast<std::uint32_t>(
+            text_layout.placed.glyphs.size());
+        text_layout.font_spans.push_back(std::move(span));
+    }
+
     // ── PHASE 1.4 debug signal ──
     // A multi-font input whose shaping produced zero glyphs has collapsed
     // font_spans to empty AND the renderer treats it as an empty paragraph

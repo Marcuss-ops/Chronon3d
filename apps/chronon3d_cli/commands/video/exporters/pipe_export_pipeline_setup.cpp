@@ -399,6 +399,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             opts.encoder.encoder_backend == "native" &&
             opts.encoder.hardware_encoder == "nvenc",
         .frame_encoder_telemetry = session->frame_encoder_telemetry,
+        .telemetry_anchor_ns = session->telemetry_anchor_ns,
         .trace_job_id = session->trace_job_id,
     });
     const auto spawn_t0 = profiling::now();

@@ -9,6 +9,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/tracing/tracing.hpp>
 #include <chronon3d/runtime/gpu_device_lost_error.hpp>
 #include "memory/vulkan_memory_manager.hpp"
 #include "debug/vulkan_debug_context.hpp"
@@ -128,6 +129,8 @@ struct VulkanBackend::Impl {
     std::uint64_t calibration_gpu_ts{0};
     std::int64_t calibration_cpu_trace_ns{0};
     std::uint64_t calibration_max_deviation{0};
+    std::uint64_t active_frame_index{0};
+    std::vector<VulkanFrameGpuTiming> completed_frame_timings{};
     VkCommandBuffer& command_buffer{submission_ring.command_buffer};
     VkFence& fence{submission_ring.fence};
     VkSemaphore& timeline_semaphore{submission_ring.timeline_semaphore};

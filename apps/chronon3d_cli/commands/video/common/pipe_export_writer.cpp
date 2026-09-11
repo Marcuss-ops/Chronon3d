@@ -3,11 +3,30 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <chrono>
 
 namespace chronon3d::cli {
 
 namespace {
+
+double anchor_offset_ms(const WriterThreadContext& ctx,
+                        std::chrono::steady_clock::time_point point) noexcept {
+    const auto anchor_ns = ctx.telemetry_anchor_ns.load(std::memory_order_acquire);
+    if (anchor_ns == 0 || point == std::chrono::steady_clock::time_point{}) {
+        return 0.0;
+    }
+    const auto point_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        point.time_since_epoch()).count();
+    return static_cast<double>(point_ns - anchor_ns) / 1'000'000.0;
+}
+
+double queue_wait_ms(std::chrono::steady_clock::time_point enqueue_start,
+                     std::chrono::steady_clock::time_point dequeue_start) noexcept {
+    if (enqueue_start == std::chrono::steady_clock::time_point{}) return 0.0;
+    return std::max(0.0, std::chrono::duration<double, std::milli>(
+        dequeue_start - enqueue_start).count());
+}
 
 class EncoderGpuCompletion final : public runtime::GpuCompletion {
 public:
@@ -136,6 +155,12 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 .native_send_ms = direct_telemetry.native_send_ms,
                 .native_receive_ms = direct_telemetry.native_receive_ms,
                 .native_mux_ms = direct_telemetry.native_mux_ms,
+                .encoder_wall_start_ms = anchor_offset_ms(ctx, enc_t0),
+                .encoder_wall_end_ms = anchor_offset_ms(ctx, enc_t1),
+                .writer_queue_wait_ms = queue_wait_ms(
+                    direct->enqueued_at, enc_t0),
+                .writer_encode_wall_ms = std::chrono::duration<double, std::milli>(
+                    enc_t1 - enc_t0).count(),
             });
             continue;
         }
@@ -285,6 +310,12 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 .native_send_ms = telemetry.native_send_ms,
                 .native_receive_ms = telemetry.native_receive_ms,
                 .native_mux_ms = telemetry.native_mux_ms,
+                .encoder_wall_start_ms = anchor_offset_ms(ctx, enc_t0),
+                .encoder_wall_end_ms = anchor_offset_ms(ctx, enc_t1),
+                .writer_queue_wait_ms = queue_wait_ms(
+                    full->enqueued_at, enc_t0),
+                .writer_encode_wall_ms = std::chrono::duration<double, std::milli>(
+                    enc_t1 - enc_t0).count(),
             });
         }
 

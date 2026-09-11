@@ -24,13 +24,15 @@
 namespace chronon3d::graph {
 
 /// Aggregated fingerprints for the current frame.
-/// Combined fingerprint = static_fp ^ (active_at_fp * 0x9e3779b97f4a7c15ULL)
-/// to match the format stored in FrameHistory for consistent comparison.
+/// Combined fingerprint = static_fp ^ (dynamic frame payload fingerprint *
+/// 0x9e3779b97f4a7c15ULL). `active_at_fp` remains the topology-relevant
+/// active-layer set; dynamic video/transition values are folded only into the
+/// combined pixel-reuse fingerprint.
 struct FrameFingerprints {
     uint64_t static_fp{0};      // layer structure + static properties
     uint64_t active_at_fp{0};   // layer active-at mask for this frame
     uint64_t structure_fp{0};   // topological graph structure
-    uint64_t combined_fp{0};    // static_fp ^ (active_at_fp * C)
+    uint64_t combined_fp{0};    // static_fp ^ (dynamic payload fp * C)
 };
 
 /// Compute all three fingerprints for the given scene + frame.

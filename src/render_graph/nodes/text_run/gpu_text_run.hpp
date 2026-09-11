@@ -19,6 +19,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
@@ -30,10 +31,22 @@
 namespace chronon3d::graph::text_run {
 
 /// Return true when the text animator stack can be lowered to the GPU text
-/// dynamic record without rebuilding glyph state.  This deliberately covers
-/// only the canonical forward glyph typewriter for now; richer animators keep
-/// the legacy path until their per-glyph dynamic representation is complete.
+/// dynamic record without rebuilding glyph state. The supported profiles are
+/// the canonical forward glyph typewriter and a full-run word emphasis whose
+/// position/scale/opacity/fill are uniform across the run.
 [[nodiscard]] bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept;
+
+/// True when the run-level emphasis profile can be sampled directly into one
+/// TextRunDynamic record (one word, one selector, no per-glyph variation).
+[[nodiscard]] bool can_lower_gpu_run_level_animation(const TextRunShape& shape) noexcept;
+
+/// Sample the run-level emphasis profile into the caller-owned dynamic record.
+/// The caller initializes transform/opacity/color before invoking this helper;
+/// the animation values are composed onto those fields.
+void sample_gpu_run_level_animation(
+    const TextRunShape& shape,
+    SampleTime sample_time,
+    runtime::TextRunDynamic& run) noexcept;
 
 /// One rasterized glyph bitmap + its destination placement.
 ///
@@ -93,5 +106,13 @@ struct GpuTextGlyph {
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity);
+
+/// Prepare the MTSDF representation of a TextRun into the persistent GPU glyph atlas
+/// and return a prepared record suitable for cached dispatch.
+[[nodiscard]] std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
+    runtime::RuntimeContext& runtime,
+    TextRenderResources* text_resources,
+    const assets::AssetResolver* resolver,
+    const TextRunShape& shape);
 
 } // namespace chronon3d::graph::text_run

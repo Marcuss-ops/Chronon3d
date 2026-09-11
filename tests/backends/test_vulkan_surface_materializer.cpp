@@ -228,7 +228,7 @@ TEST_CASE("unplanned ensure never steals an uninitialized persistent reservation
           runtime::LifetimeClass::JobPersistent);
 }
 
-TEST_CASE("released transient slot is deterministically reusable after prune") {
+TEST_CASE("released transient slot stays warm and is deterministically reusable") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
     FakeSurfaceOwner owner;
     authority.owner_ = &owner;
@@ -241,19 +241,21 @@ TEST_CASE("released transient slot is deterministically reusable after prune") {
     authority.bind(first_handle, planned_slot, desc);
     CHECK(authority.physical_count() == 1);
 
-    // Logical release (the Impl drain erases the binding and the transient
-    // backing becomes eligible for destruction).
+    // Logical release (the Impl drain erases the binding). The bounded warm
+    // pool retains the physical image so the next frame does not recreate it.
     authority.surface_bindings.erase(first_handle);
     authority.prune_unused_slots();
-    CHECK(authority.physical_count() == 0);
-    CHECK(owner.destroy_count == 1);
+    CHECK(authority.physical_count() == 1);
+    CHECK(owner.destroy_count == 0);
 
-    // Re-bind to the same planned slot: fresh materialization, exact same
-    // placement, no resurrected state from the previous occupant.
+    // Re-bind to the same planned slot: exact placement and no new image
+    // materialization. The command-plan transition owns the first write of
+    // the next frame, so the previous initialized bit is not a correctness
+    // gate here.
     auto& image = authority.bind(second_handle, planned_slot, desc);
     CHECK(authority.bound_slot(second_handle) == planned_slot);
     CHECK(authority.physical_count() == 1);
-    CHECK(owner.make_count == 2);
+    CHECK(owner.make_count == 1);
     CHECK_FALSE(image.initialized);
 }
 

@@ -19,12 +19,45 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         const auto slot_base = static_cast<std::uint32_t>(slot) * queries_per_slot;
         const auto pass_count = frame_batch.submitted_pass_counts[slot];
         frame_batch.submitted_pass_counts[slot] = 0;
+        const bool frame_valid = frame_batch.submitted_frame_valid[slot];
+        const auto frame_index = frame_batch.submitted_frame_indices[slot];
+        frame_batch.submitted_frame_valid[slot] = false;
 
         const auto gpu_to_cpu = [this](std::uint64_t gpu) {
             return calibration_cpu_trace_ns +
                 static_cast<std::int64_t>(
                     static_cast<double>(gpu - calibration_gpu_ts) *
                     timestamp_period_ns);
+        };
+
+        const auto publish_timing = [&](double execute_ms,
+                                        std::uint64_t start,
+                                        std::uint64_t end,
+                                        bool timestamp_valid) {
+            if (!frame_valid) return;
+            VulkanFrameGpuTiming timing;
+            timing.frame_index = frame_index;
+            timing.frame_batch_slot = static_cast<std::uint32_t>(slot);
+            timing.timestamp_valid = timestamp_valid;
+            timing.execute_ms = execute_ms;
+            if (timestamp_valid && end >= start) {
+                timing.device_span_ms = static_cast<double>(end - start) *
+                    timestamp_period_ns / 1'000'000.0;
+                if (gpu_timestamps_calibrated &&
+                    start >= calibration_gpu_ts && end >= start) {
+                    timing.device_start_trace_ns = gpu_to_cpu(start);
+                    timing.device_end_trace_ns = gpu_to_cpu(end);
+                    const auto submit_end =
+                        frame_batch.submitted_submit_end_trace_ns[slot];
+                    if (submit_end > 0 &&
+                        timing.device_start_trace_ns > submit_end) {
+                        timing.queue_wait_ms = static_cast<double>(
+                            timing.device_start_trace_ns - submit_end) /
+                            1'000'000.0;
+                    }
+                }
+            }
+            completed_frame_timings.push_back(timing);
         };
 
         if (pass_count != 0) {
@@ -34,16 +67,29 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 device, timestamp_pool, slot_base + 2, query_count,
                 stamps.size() * sizeof(std::uint64_t), stamps.data(),
                 sizeof(std::uint64_t), VK_QUERY_RESULT_64_BIT);
-            if (result != VK_SUCCESS) return;
+            if (result != VK_SUCCESS) {
+                publish_timing(0.0, 0, 0, false);
+                return;
+            }
 
+            std::uint64_t first_start = 0;
+            std::uint64_t last_end = 0;
+            bool have_range = false;
+            double execute_ms = 0.0;
             for (std::size_t pass = 0; pass < pass_count; ++pass) {
                 const auto start = stamps[2 * pass];
                 const auto end = stamps[2 * pass + 1];
                 if (end < start) continue;
                 const double elapsed_ns =
                     static_cast<double>(end - start) * timestamp_period_ns;
+                execute_ms += elapsed_ns / 1'000'000.0;
                 stats.gpu_execute_us +=
                     static_cast<std::uint64_t>(elapsed_ns / 1000.0);
+                if (!have_range) {
+                    first_start = start;
+                    have_range = true;
+                }
+                last_end = end;
                 if (gpu_timestamps_calibrated && start >= calibration_gpu_ts &&
                     end > start) {
                     const auto start_ns = gpu_to_cpu(start);
@@ -54,6 +100,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                     }
                 }
             }
+            publish_timing(execute_ms, first_start, last_end, have_range);
             return;
         }
 
@@ -62,7 +109,15 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             device, timestamp_pool, slot_base, 2,
             sizeof(stamps), stamps, sizeof(std::uint64_t),
             VK_QUERY_RESULT_64_BIT);
-        if (result != VK_SUCCESS) return;
+        if (result != VK_SUCCESS) {
+            publish_timing(0.0, 0, 0, false);
+            return;
+        }
+        const bool valid = stamps[1] >= stamps[0];
+        const double execute_ms = valid
+            ? static_cast<double>(stamps[1] - stamps[0]) * timestamp_period_ns /
+                  1'000'000.0
+            : 0.0;
         if (stamps[1] >= stamps[0]) {
             const double elapsed_ns =
                 static_cast<double>(stamps[1] - stamps[0]) * timestamp_period_ns;
@@ -77,6 +132,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 CHRONON_TRACE_GPU_END(end_ns);
             }
         }
+        publish_timing(execute_ms, stamps[0], stamps[1], valid);
     }
 
     // End the active frame batch's command buffer and submit it exactly once
@@ -111,11 +167,22 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
         const auto signal_value = ++next_timeline_value;
-        std::vector<VkSemaphore> wait_semaphores;
-        std::vector<VkPipelineStageFlags> wait_stages;
-        std::vector<std::uint64_t> wait_values;
-        std::vector<VkSemaphore> signal_semaphores{timeline_semaphore};
-        std::vector<std::uint64_t> signal_values{signal_value};
+        // Reuse the Impl-owned submission scratch just like submit(). The
+        // frame-batch and command-replay paths are serialized on the single
+        // Vulkan submission owner, so this retains capacity without creating
+        // vectors in the steady-state frame loop.
+        auto& wait_semaphores = submit_wait_semaphores_;
+        auto& wait_stages = submit_wait_stages_;
+        auto& wait_values = submit_wait_values_;
+        auto& signal_semaphores = submit_signal_semaphores_;
+        auto& signal_values = submit_signal_values_;
+        wait_semaphores.clear();
+        wait_stages.clear();
+        wait_values.clear();
+        signal_semaphores.clear();
+        signal_values.clear();
+        signal_semaphores.push_back(timeline_semaphore);
+        signal_values.push_back(signal_value);
         static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
@@ -133,12 +200,14 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 for (const auto& [h, s] : surfaces.surface_bindings) {
                     if (s == physical_slot) { bound_handle = h; break; }
                 }
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_WAIT_C2V handle={} slot={} image={} sem={}",
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_WAIT_C2V handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.cuda_to_vulkan));
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (ready) handle={} slot={} image={} sem={}",
+                             static_cast<void*>(it->second.image.cuda_to_vulkan),
+                             it->second.image.cuda_timeline ? it->second.image.cuda_to_vulkan_value : 0);
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (ready) handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.vulkan_to_cuda));
+                             static_cast<void*>(it->second.image.vulkan_to_cuda),
+                             it->second.image.cuda_timeline ? it->second.image.vulkan_to_cuda_value : 0);
             }
         }
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
@@ -156,9 +225,10 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 for (const auto& [h, s] : surfaces.surface_bindings) {
                     if (s == physical_slot) { bound_handle = h; break; }
                 }
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (export) handle={} slot={} image={} sem={}",
+                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (export) handle={} slot={} image={} sem={} value={}",
                              bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.vulkan_to_cuda));
+                             static_cast<void*>(it->second.image.vulkan_to_cuda),
+                             it->second.image.cuda_timeline ? it->second.image.vulkan_to_cuda_value : 0);
             }
         }
 #endif
@@ -176,44 +246,22 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             signal_semaphores.data()};
         const auto submit_start = profiling::now();
         CHRONON_TRACE_SCOPE("chronon.gpu", "VulkanSubmit");
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        const bool has_cuda_export = !surfaces.cuda_export_ready_surfaces.empty();
-        bool timeline_cuda_export = has_cuda_export;
-        if (has_cuda_export) {
-            for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
-                const auto it = surfaces.physical_surfaces.find(physical_slot);
-                if (it == surfaces.physical_surfaces.end() ||
-                    !it->second.image.cuda_timeline) {
-                    timeline_cuda_export = false;
-                    break;
-                }
-            }
-        }
-#endif
         check(vkQueueSubmit(queue, 1, &submit_info, frame_batch.fences[slot]),
               "vkQueueSubmit(frame batch)");
         stats.gpu_submit_cpu_us += static_cast<std::uint64_t>(profiling::elapsed_us(submit_start));
         ++stats.submissions;
+        frame_batch.submitted_frame_indices[slot] = active_frame_index;
+        frame_batch.submitted_frame_valid[slot] = true;
+        frame_batch.submitted_submit_end_trace_ns[slot] =
+            chronon3d::tracing::TraceTimeNs();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        if (has_cuda_export && !timeline_cuda_export) {
-            const auto fence_wait_start = profiling::now();
-            check(vkWaitForFences(device, 1, &frame_batch.fences[slot], VK_TRUE, UINT64_MAX),
-                  "vkWaitForFences(cuda export slot)");
-            const auto fence_wait_us = static_cast<std::uint64_t>(
-                profiling::elapsed_us(fence_wait_start));
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->vulkan_cuda_export_fence_wait_count.fetch_add(
-                    1, std::memory_order_relaxed);
-                profiling::g_current_counters->vulkan_cuda_export_fence_wait_us.fetch_add(
-                    fence_wait_us, std::memory_order_relaxed);
-            }
-            check(vkResetFences(device, 1, &frame_batch.fences[slot]),
-                  "vkResetFences(cuda export slot)");
-            frame_batch.in_flight[slot] = false;
-            read_gpu_timestamps(slot);
-        } else {
-            frame_batch.in_flight[slot] = true;
-        }
+        // Binary CUDA interop used to wait for this fence immediately, which
+        // serialized every frame behind CUDA/NVENC.  Reuse is already gated
+        // by the next submission's Vulkan wait on C2V; the ring-slot fence is
+        // waited only when that slot comes around in begin_frame_batch().
+        // Keeping the fence in flight preserves the six-slot pipeline while
+        // retaining the same ownership order for the exported surface.
+        frame_batch.in_flight[slot] = true;
 #else
         frame_batch.in_flight[slot] = true;
 #endif

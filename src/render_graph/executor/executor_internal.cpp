@@ -91,15 +91,21 @@ std::shared_ptr<Framebuffer> execute_internal(
             terminal_encode_slot =
                 &state.physical_slots[output_resource->physical_slot];
         } else {
+            // REQUIRE_GPU_NATIVE owns the terminal image directly.  Do not
+            // allocate a CPU shadow framebuffer for every frame: the encoder
+            // surface is already the authoritative destination and the
+            // native nodes write it through Vulkan.
             state.physical_slots.emplace_back(
-                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height, false),
+                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height,
+                                static_cast<Color*>(nullptr)),
                 PoolFbDeleter(DeleteFramebuffer{}));
             terminal_encode_slot = &state.physical_slots.back();
         }
         auto& slot = *terminal_encode_slot;
         if (!slot) {
             slot = OwnedFB(
-                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height, false),
+                new Framebuffer(ctx.frame_input.width, ctx.frame_input.height,
+                                static_cast<Color*>(nullptr)),
                 PoolFbDeleter(DeleteFramebuffer{}));
         }
         slot->set_surface_handle(ctx.policy.native_video_encode_surface);

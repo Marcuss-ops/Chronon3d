@@ -37,7 +37,12 @@ void VulkanBackend::Impl::execute_layer_batch(
     stats.layer_instances_processed += instances.size();
 
     auto& dst_image = resolve_image(destination);
-    if (!dst_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
+    // A freshly bound terminal NVENC surface is intentionally uninitialized:
+    // the compiled pass transition takes it from UNDEFINED before the first
+    // fused write.  Requiring initialized=true here rejected valid first
+    // image batches (and made the native destination look invalid) while the
+    // text/fill paths already accept the same Vulkan lifetime state.
+    if (dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument(
             "Vulkan layer batch references an invalid destination surface");
     }

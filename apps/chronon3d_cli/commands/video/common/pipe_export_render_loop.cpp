@@ -66,6 +66,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     const int total = static_cast<int>(ctx.end - ctx.start);
     Frame current_frame = ctx.start;
     const auto loop_t0 = profiling::now();
+    ctx.telemetry_anchor_ns.store(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            loop_t0.time_since_epoch()).count(),
+        std::memory_order_release);
 
     // Wave 4 — pool association is a JOB-lifetime event. The software
     // renderer's pool is attached to a job-scoped provider; per-frame arena
@@ -96,6 +100,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 spdlog::info("[video]   {}/{} frames", done_count, total);
             }
 
+            const auto frame_loop_t0 = profiling::now();
             auto current_arena = ctx.triple_arena->acquire();
             // Wave 4 — per-frame rotation is a publish to the job-scoped
             // provider (a single atomic store), NOT a pool reconfiguration
@@ -106,6 +111,12 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             NativeSurfacePrep prep = prepare_frame(ctx, ctx.settings, current_frame);
+#ifdef CHRONON3D_ENABLE_VULKAN
+            if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&ctx.backend)) {
+                vulkan->set_active_frame_index(
+                    static_cast<std::uint64_t>(current_frame.integral()));
+            }
+#endif
             RenderOutcome shot = render_frame(ctx, prep.video_settings, current_frame);
             const auto& breakdown = shot.timing.breakdown;
             const auto& image_timing = shot.timing.image_timing;
@@ -147,6 +158,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 current_frame, status);
             result.queue_wait_ms += enc.wait_ms;
             const double wait_ms = enc.wait_ms;
+            const double frame_loop_ms = profiling::duration_ms(
+                frame_loop_t0, profiling::now());
+            const double preparation_ms = profiling::duration_ms(
+                frame_loop_t0, shot.wall_start);
 
             if (enc.source_residency_failed) {
                 ctx.triple_arena->release(current_arena);
@@ -197,8 +212,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 (enc.node_cache_hits_after > node_cache_hits_before);
             ctx.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
-                .wall_start_ms = profiling::duration_ms(loop_t0, shot.wall_start),
-                .duration_ms = frame_ms + wait_ms,
+                .wall_start_ms = profiling::duration_ms(loop_t0, frame_loop_t0),
+                .duration_ms = frame_loop_ms,
+                .preparation_ms = preparation_ms,
+                .encode_handoff_ms = wait_ms,
                 .cache_hit = cache_hit,
                 .dirty_area_ratio = shot.dirty_ratio,
                 .node_lookup_ms = node_lookup_ms,
@@ -207,6 +224,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 .render_breakdown = breakdown,
                 .image_timing = image_timing,
                 .text_timing = text_timing,
+                .gpu_timing = shot.timing.gpu_timing,
                 .dirty_rect_enabled = shot.dirty_rect_enabled,
                 .dirty_rect_x0 = shot.dirty_rect ? shot.dirty_rect->x0 : 0,
                 .dirty_rect_y0 = shot.dirty_rect ? shot.dirty_rect->y0 : 0,

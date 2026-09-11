@@ -7,6 +7,8 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
+#include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/media_session_pool.hpp>
 #include <chronon3d/runtime/overlay_template.hpp>
@@ -275,7 +277,10 @@ public:
     [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_gpu_asset_cache; }
     [[nodiscard]] GpuGlyphAtlas&                           gpu_glyph_atlas() noexcept { return m_gpu_glyph_atlas; }
     [[nodiscard]] const GpuGlyphAtlas&                     gpu_glyph_atlas() const noexcept { return m_gpu_glyph_atlas; }
+    [[nodiscard]] GpuTextAtlasCache&                       gpu_text_atlas_cache() noexcept { return m_gpu_text_atlas_cache; }
     [[nodiscard]] GpuStyledGlyphCache&                     gpu_styled_glyph_cache() noexcept { return m_gpu_styled_glyph_cache; }
+    [[nodiscard]] GpuTextRunPreparedCache&                 gpu_text_prepared_cache() noexcept { return m_gpu_text_prepared_cache; }
+    [[nodiscard]] const GpuTextRunPreparedCache&           gpu_text_prepared_cache() const noexcept { return m_gpu_text_prepared_cache; }
     [[nodiscard]] OverlayTemplateCache&                    overlay_template_cache() noexcept { return m_overlay_template_cache; }
     [[nodiscard]] const OverlayTemplateCache&              overlay_template_cache() const noexcept { return m_overlay_template_cache; }
     [[nodiscard]] GpuRuntime&                              gpu_runtime() noexcept { return m_gpu_runtime; }
@@ -316,7 +321,9 @@ protected:
     std::unique_ptr<chronon3d::graph::RenderBackend> m_backend;
     GpuAssetCache m_gpu_asset_cache{};
     GpuGlyphAtlas m_gpu_glyph_atlas{};
+    GpuTextAtlasCache m_gpu_text_atlas_cache{};
     GpuStyledGlyphCache m_gpu_styled_glyph_cache{};
+    GpuTextRunPreparedCache m_gpu_text_prepared_cache{};
     OverlayTemplateCache m_overlay_template_cache{};
     GpuRuntime m_gpu_runtime{};
     MediaSessionPool m_media_sessions{};

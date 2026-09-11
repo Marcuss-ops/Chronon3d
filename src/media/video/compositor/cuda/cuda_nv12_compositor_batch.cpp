@@ -17,11 +17,14 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     std::span<const CudaLayerResource> resources,
     CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
-    std::uint32_t width, std::uint32_t height, CUstream stream) {
+    std::uint32_t width, std::uint32_t height, CUstream stream,
+    CudaYuvFormat format) {
     using cuda_nv12_detail::DirectYuvLayerHost;
     using cuda_nv12_detail::check_cuda;
 
-    if (!direct_nv12_batch_kernel_ || !bg_y || !bg_uv || !out_y || !out_uv ||
+    const CUfunction kernel = format == CudaYuvFormat::P010
+        ? direct_p010_batch_kernel_ : direct_nv12_batch_kernel_;
+    if (!kernel || !bg_y || !bg_uv || !out_y || !out_uv ||
         width == 0 || height == 0 || batch.instances.empty()) return false;
 
     // AUDIT-02A: the pinned host staging buffer is allocated once per slot
@@ -104,9 +107,11 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     void* args[] = {&bg_y, &bg_yp, &bg_uv, &bg_uvp, &out_y, &out_yp,
                     &out_uv, &out_uvp, &layers, &layer_count, &width, &height};
     check_cuda(cuLaunchKernel(
-                   direct_nv12_batch_kernel_, (width + 31) / 32,
+                   kernel, (width + 31) / 32,
                    (height + 31) / 32, 1, 16, 16, 1, 0, active, args, nullptr),
-               "cuLaunchKernel(nv12_composite_layer_batch_2x2)");
+               format == CudaYuvFormat::P010
+                   ? "cuLaunchKernel(p010_composite_layer_batch_2x2)"
+                   : "cuLaunchKernel(nv12_composite_layer_batch_2x2)");
     if (auto* counters = profiling::g_current_counters) {
         const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - started).count();

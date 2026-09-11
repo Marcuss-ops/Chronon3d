@@ -253,6 +253,31 @@ struct FrameTextTiming {
     double atlas_pixel_copy_ms{0.0};
     double atlas_sha256_ms{0.0};
     double atlas_cache_acquire_ms{0.0};
+    uint64_t prepared_batch_build_count{0};
+    uint64_t prepared_batch_reuse_count{0};
+};
+
+/// Per-frame projection of cumulative Vulkan backend counters. The Vulkan
+/// frame ring resolves fences and timestamp queries asynchronously, so these
+/// values are explicitly labelled "observed": a delta can be attributed to
+/// the frame that observed slot completion, not necessarily the frame that
+/// originally submitted that slot.
+struct FrameGpuTiming {
+    double timestamp_execute_ms{0.0};
+    double submit_cpu_ms{0.0};
+    double wait_cpu_ms{0.0};
+    double drain_wait_ms{0.0};
+    uint64_t submissions{0};
+    uint64_t drain_wait_count{0};
+    // Exact device timestamps, populated when the originating frame-batch
+    // slot completes. Unlike the cumulative fields above, these are mapped
+    // to the submitting frame rather than the frame that observed completion.
+    bool timestamp_attributed{false};
+    uint64_t frame_batch_slot{0};
+    double device_span_ms{0.0};
+    double queue_wait_ms{0.0};
+    int64_t device_start_trace_ns{0};
+    int64_t device_end_trace_ns{0};
 };
 
 /// Architectural breakdown of a single frame's render time (render_ms), in ms.
@@ -283,7 +308,12 @@ struct FrameTelemetry {
     // This is intentionally a measured timestamp, not a presentation-time
     // estimate derived from FPS.
     double wall_start_ms{0.0};
+    // End-to-end render-thread wall duration for this frame. This includes
+    // per-frame preparation, graph execution and the encoder handoff.
     double duration_ms{0.0};
+    // Explicit non-overlapping outer buckets used to reconcile duration_ms.
+    double preparation_ms{0.0};
+    double encode_handoff_ms{0.0};
     bool cache_hit{false};
     double dirty_area_ratio{1.0};
     double node_lookup_ms{0.0};
@@ -295,6 +325,7 @@ struct FrameTelemetry {
     FrameRenderBreakdown render_breakdown{};
     FrameImageTiming image_timing{};
     FrameTextTiming text_timing{};
+    FrameGpuTiming gpu_timing{};
     double conversion_copy_ms{0.0};
     double pixel_format_convert_ms{0.0};
     double color_space_convert_ms{0.0};
@@ -321,6 +352,15 @@ struct FrameTelemetry {
     /// Current SceneProgramCache capacity at this frame.
     /// Populated by the render loop for per-frame trend charts.
     int program_cache_capacity{0};
+
+    // Writer-side monotonic timestamps, relative to the render-loop anchor.
+    // These fields are populated only on the encoder copy of the record and
+    // make asynchronous render→writer overlap observable without pretending
+    // that encoder time is part of the render-thread duration.
+    double encoder_wall_start_ms{0.0};
+    double encoder_wall_end_ms{0.0};
+    double writer_queue_wait_ms{0.0};
+    double writer_encode_wall_ms{0.0};
 };
 
 struct PhaseTelemetryRecord {

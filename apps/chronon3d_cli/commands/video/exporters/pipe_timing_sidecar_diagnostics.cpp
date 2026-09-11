@@ -98,6 +98,8 @@ void build_diagnostics_sections(
     put_cpu("effect_stack_total_ms", timings.cpu_breakdown.effect_stack_total_ms);
     put_cpu_u64("graph_executed_frames", timings.cpu_breakdown.graph_executed_frames);
     put_cpu_u64("graph_reused_frames", timings.cpu_breakdown.graph_reused_frames);
+    put_cpu_u64("graph_refresh_scratch_node_builds", timings.cpu_breakdown.graph_refresh_scratch_node_builds);
+    put_cpu_u64("graph_refresh_scratch_node_reuses", timings.cpu_breakdown.graph_refresh_scratch_node_reuses);
     put_cpu_u64("fast_path_reused_frames", timings.cpu_breakdown.fast_path_reused_frames);
     put_cpu_u64("video_source_requested_frames", timings.cpu_breakdown.video_source_requested_frames);
     put_cpu_u64("video_source_inactive_frames", timings.cpu_breakdown.video_source_inactive_frames);

@@ -38,6 +38,10 @@ RenderLoopOutput run_direct_yuv_loop(
     std::vector<FrameTiming> timings;
     if (total > 0) timings.reserve(static_cast<std::size_t>(total));
     const auto loop_start = std::chrono::steady_clock::now();
+    session.telemetry_anchor_ns.store(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            loop_start.time_since_epoch()).count(),
+        std::memory_order_release);
     double execute_total_ms = 0.0;
     double submit_total_ms = 0.0;
     bool completed = true;
@@ -131,6 +135,8 @@ RenderLoopOutput run_direct_yuv_loop(
             .frame_number = static_cast<int>(timing.frame),
             .wall_start_ms = timing.wall_start_ms,
             .duration_ms = timing.execute_ms + timing.submit_wait_ms,
+            .preparation_ms = 0.0,
+            .encode_handoff_ms = timing.submit_wait_ms,
             .cache_hit = true,
             .dirty_area_ratio = 0.0,
             .node_lookup_ms = 0.0,

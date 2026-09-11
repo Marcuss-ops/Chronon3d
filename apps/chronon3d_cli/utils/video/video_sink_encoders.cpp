@@ -63,6 +63,11 @@ size_t convert_to_selected_format(
                 color_transform.apply_gamma);
             return res.success ? y_size + y_size / 2u : 0;
         }
+        case PipePixelFormat::P010:
+            // CPU pipe conversion has no P010 lowering yet. Keep this lane
+            // fail-closed; silently routing it through the RGBA default would
+            // both violate the format contract and overrun the 16-bit pool.
+            return 0;
         case PipePixelFormat::RGBA:
         default: {
             // video::convert_frame_tight with RGB24 outputs 3 bytes/pixel (no alpha).
@@ -101,6 +106,8 @@ bool NullConvertEncoder::open(const FfmpegPipeOptions& options) {
     const size_t bytes =
         options.input_format == PipePixelFormat::RGBA
             ? static_cast<size_t>(options.width) * options.height * 4u
+            : options.input_format == PipePixelFormat::P010
+            ? static_cast<size_t>(options.width) * options.height * 3u
             : static_cast<size_t>(options.width) * options.height * 3u / 2u;
     buffer_.resize(bytes);
     return true;

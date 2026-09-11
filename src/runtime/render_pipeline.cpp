@@ -108,8 +108,19 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     // TypedProgramSampler is the only frame-varying producer on this route.
     // The scene below is immutable graph topology; activity, transforms and
-    // typed payloads come from the borrowed FrameParameterBlock.
-    const auto frame_parameters = compiler::TypedProgramSampler{}.sample(program, frame);
+    // typed payloads come from the leased FrameExecution block.  Reusing the
+    // slot-owned vector keeps the steady-state frame path allocation-free.
+    compiler::FrameParameterBlock compatibility_parameters;
+    const compiler::FrameParameterBlock* frame_parameters = nullptr;
+    if (execution) {
+        compiler::TypedProgramSampler{}.sample_into(
+            program, frame, execution->parameters());
+        frame_parameters = &execution->parameters();
+    } else {
+        compiler::TypedProgramSampler{}.sample_into(
+            program, frame, compatibility_parameters);
+        frame_parameters = &compatibility_parameters;
+    }
     // FIXING.md S-04 — double-checked locking: allocate outside lock.
     // materialize_scene (Scene::clone + topology build) is heavy and must
     // not be held under m_topology_mutex when multiple jobs race.
@@ -142,7 +153,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         m_renderer->render_settings(), m_renderer->composition_registry(),
         m_renderer->video_decoder(), static_cast<float>(canvas_fps.fps()),
-        metadata.job_id, m_renderer, execution, &frame_parameters,
+        metadata.job_id, m_renderer, execution, frame_parameters,
         program.fingerprint());
 }
 

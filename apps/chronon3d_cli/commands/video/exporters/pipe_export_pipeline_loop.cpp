@@ -102,6 +102,7 @@ RenderLoopOutput run_pipe_export_loop(
         .triple_arena = session.full_graph_session->triple_arena.get(),
         .counters = session.renderer_ptr()->counters(),
         .telemetry_frames = telemetry_frames,
+        .telemetry_anchor_ns = session.telemetry_anchor_ns,
         .trace_job_id = session.trace_job_id,
         };
         output.loop_result = run_render_loop(loop_ctx);

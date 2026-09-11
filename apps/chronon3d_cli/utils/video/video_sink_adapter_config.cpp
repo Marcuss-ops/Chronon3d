@@ -39,6 +39,7 @@ VideoSinkEncoderAdapter::map_pixel_format(PipePixelFormat fmt) {
         case PipePixelFormat::RGBA: return PixelFormat::RGBA8;
         case PipePixelFormat::YUV420P: return PixelFormat::YUV420P;
         case PipePixelFormat::NV12: return PixelFormat::NV12;
+        case PipePixelFormat::P010: return PixelFormat::P010;
     }
     return PixelFormat::RGBA8;
 }

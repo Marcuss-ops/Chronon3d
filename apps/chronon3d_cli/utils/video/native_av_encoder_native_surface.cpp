@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <chrono>
 #include <exception>
 #include <mutex>
 
@@ -144,6 +145,7 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
+        const auto conversion_t0 = std::chrono::steady_clock::now();
         if (!compositor_it->second->composite_surface_to_nv12(
                 reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]),
                 gpu_frame->linesize[0],
@@ -156,6 +158,11 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
+        const double conversion_ms = static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - conversion_t0).count()) /
+            1000.0;
+        native_convert_ms_ += conversion_ms;
         // The CUDA conversion has signaled C2V. Register that handoff so
         // the next Vulkan frame waits before rewriting this encode surface.
         const auto cuda_ready = vulkan->prepare_cuda_surface_for_vulkan(destination);
@@ -200,7 +207,16 @@ bool NativeAvEncoder::write_native_surface_impl(
                    !counters_->cuda_encode_queue_peak.compare_exchange_weak(
                        observed, current, std::memory_order_relaxed)) {}
         }
-        return drain_ready_cuda_frames(false);
+        const bool drained = drain_ready_cuda_frames(false);
+        // The current write call owns the conversion interval above even
+        // when NVENC submission is deferred in pending_cuda_frames_. Keep the
+        // per-frame encoder record aligned with the package being written;
+        // asynchronous packet timing remains reported by the writer interval.
+        last_frame_telemetry_ = EncoderFrameTelemetry{};
+        last_frame_telemetry_.conversion_copy_ms = conversion_ms;
+        last_frame_telemetry_.native_convert_ms = conversion_ms;
+        last_frame_telemetry_.frame_submit_ms = conversion_ms;
+        return drained;
     } catch (const std::exception& error) {
         spdlog::error("[native_av] CUDA/Vulkan frame handoff failed: {}", error.what());
         return false;

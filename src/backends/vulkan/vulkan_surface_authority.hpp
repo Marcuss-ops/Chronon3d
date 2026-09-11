@@ -23,6 +23,13 @@ namespace chronon3d::backends::vulkan {
 template <typename ImageT, typename OwnerT>
 class VulkanSurfaceAuthority {
 public:
+    // Frame-transient physical images are expensive to materialize (especially
+    // at 1080p). Keep a bounded warm pool after their logical binding is
+    // retired; the next compiled frame can rebind the exact slot without
+    // recreating VkImage/device memory. Persistent CUDA/NVENC surfaces are
+    // never counted or evicted by this policy.
+    static constexpr std::size_t kMaxRetainedTransientSlots = 64;
+
     struct PhysicalSurface {
         ImageT image{};
         runtime::SurfaceDesc desc{};
@@ -187,6 +194,16 @@ public:
 
     void prune_unused_slots() {
         require_owner();
+        std::size_t unused_transient = 0;
+        for (const auto& [slot, physical] : physical_surfaces) {
+            (void)slot;
+            if (physical.desc.lifetime != runtime::LifetimeClass::JobPersistent &&
+                !slot_in_use(slot)) {
+                ++unused_transient;
+            }
+        }
+        if (unused_transient <= kMaxRetainedTransientSlots) return;
+
         for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
             if (slot_in_use(it->first) ||
                 it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
@@ -195,6 +212,7 @@ public:
             }
             materializer_.destroy(it->second.image);
             it = physical_surfaces.erase(it);
+            if (--unused_transient <= kMaxRetainedTransientSlots) break;
         }
     }
 

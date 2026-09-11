@@ -6,7 +6,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
 #include <string_view>
 
@@ -26,9 +28,7 @@ std::string require_prepared_font(const std::string& requested) {
 } // namespace
 
 RasterizedTextTexture rasterize_text_texture(
-    const std::string& text,
-    const std::string& prepared_font_path,
-    float font_size,
+    const TextRunShape& prepared_shape,
     const Color& fill_color,
     const Color& stroke_color,
     float stroke_width,
@@ -42,61 +42,70 @@ RasterizedTextTexture rasterize_text_texture(
     float box_h,
     const std::string& alignment) {
 #ifndef CHRONON3D_USE_BLEND2D
-    (void)text; (void)prepared_font_path; (void)font_size; (void)fill_color;
+    (void)prepared_shape; (void)fill_color;
     (void)stroke_color; (void)stroke_width; (void)has_background; (void)bg_color;
     (void)bg_opacity; (void)bg_radius; (void)pad_x; (void)pad_y; (void)box_w;
     (void)box_h; (void)alignment;
     throw std::runtime_error("Blend2D is required for direct text rasterization");
 #else
-    const std::string font_file = require_prepared_font(prepared_font_path);
-    BLFontFace face;
-    const BLResult face_res = face.createFromFile(font_file.c_str());
-    if (face_res != BL_SUCCESS) {
-        throw std::runtime_error("prepared font asset could not be loaded: " + font_file);
+    if (!prepared_shape.layout) {
+        throw std::runtime_error("text layer has no prepared TextRunLayout");
     }
-
-    const float effective_font_size = font_size > 0.0f ? font_size : 58.0f;
-    BLFont font;
-    font.createFromFace(face, effective_font_size);
-    const BLFontMetrics fm = font.metrics();
-
-    std::vector<std::string> lines;
-    size_t start = 0;
-    while (start < text.size()) {
-        const size_t end = text.find('\n', start);
-        if (end == std::string::npos) {
-            lines.push_back(text.substr(start));
-            break;
+    const auto& layout = *prepared_shape.layout;
+    const float effective_font_size = layout.font_size > 0.0f
+        ? layout.font_size : 58.0f;
+    // TextRunLayout is the single shaping authority.  Its positions already
+    // include HarfBuzz cluster resolution and tracking; DirectYUV only lowers
+    // those immutable glyphs into a temporary CPU raster for the RGBA image
+    // resource.  It must not call BLFont::shape() a second time.
+    float min_x = 0.0f;
+    float min_y = 0.0f;
+    float max_x = std::max(layout.bounds.x, layout.placed.total_width);
+    float max_y = std::max(layout.bounds.y, layout.placed.total_height);
+    struct SpanRaster {
+        BLFontFace face;
+        BLFont font;
+        std::vector<std::uint32_t> glyph_ids;
+        std::vector<BLPoint> origins;
+    };
+    std::vector<std::unique_ptr<SpanRaster>> spans;
+    spans.reserve(layout.font_spans.size());
+    for (const auto& span : layout.font_spans) {
+        if (span.glyph_begin > span.glyph_end ||
+            span.glyph_end > layout.placed.glyphs.size()) {
+            throw std::runtime_error("prepared text font span is out of bounds");
         }
-        lines.push_back(text.substr(start, end - start));
-        start = end + 1;
+        auto raster = std::make_unique<SpanRaster>();
+        const std::string font_file = require_prepared_font(span.font.font_path);
+        const BLResult face_res = raster->face.createFromFile(font_file.c_str());
+        if (face_res != BL_SUCCESS) {
+            throw std::runtime_error("prepared font asset could not be loaded: " + font_file);
+        }
+        raster->font.createFromFace(raster->face, effective_font_size);
+        raster->glyph_ids.reserve(span.glyph_end - span.glyph_begin);
+        raster->origins.reserve(span.glyph_end - span.glyph_begin);
+        for (std::size_t index = span.glyph_begin; index < span.glyph_end; ++index) {
+            const auto& glyph = layout.placed.glyphs[index];
+            if (glyph.glyph_id == 0) continue;
+            raster->glyph_ids.push_back(glyph.glyph_id);
+            min_x = std::min(min_x, glyph.x + glyph.bbox_x0);
+            min_y = std::min(min_y, glyph.y + glyph.bbox_y0);
+            max_x = std::max(max_x, glyph.x + glyph.bbox_x1);
+            max_y = std::max(max_y, glyph.y + glyph.bbox_y1);
+            BLPoint origin{};
+            origin.reset(glyph.x, glyph.y);
+            raster->origins.push_back(origin);
+        }
+        spans.push_back(std::move(raster));
     }
-    if (lines.empty()) lines.push_back(text.empty() ? " " : text);
+    const float content_w = std::max(1.0f, max_x - min_x);
+    const float content_h = std::max(1.0f, max_y - min_y);
 
-    std::vector<float> line_widths;
-    float max_line_w = 0.0f;
-    for (const auto& line : lines) {
-        BLGlyphBuffer gb;
-        gb.setUtf8Text(line.data(), line.size());
-        font.shape(gb);
-        BLTextMetrics tm{};
-        font.getTextMetrics(gb, tm);
-        float w = static_cast<float>(tm.advance.x);
-        if (w <= 0.0f) w = static_cast<float>(line.size()) * effective_font_size * 0.55f;
-        line_widths.push_back(w);
-        max_line_w = std::max(max_line_w, w);
-    }
-
-    const float line_spacing = fm.ascent + fm.descent + fm.lineGap;
-    const float total_text_h = lines.size() > 1
-        ? (fm.ascent + fm.descent + static_cast<float>(lines.size() - 1) * line_spacing)
-        : (fm.ascent + fm.descent);
-
-    float target_w = max_line_w;
-    float target_h = total_text_h;
+    float target_w = content_w;
+    float target_h = content_h;
     if (has_background) {
-        target_w += pad_x * 2.0f;
-        target_h += pad_y * 2.0f;
+        target_w = content_w + pad_x * 2.0f;
+        target_h = content_h + pad_y * 2.0f;
         target_w = std::max(target_w, box_w);
         target_h = std::max(target_h, box_h);
     } else {
@@ -117,8 +126,8 @@ RasterizedTextTexture rasterize_text_texture(
     ctx.setCompOp(BL_COMP_OP_SRC_OVER);
 
     if (has_background) {
-        const float card_w = max_line_w + pad_x * 2.0f;
-        const float card_h = total_text_h + pad_y * 2.0f;
+        const float card_w = std::max(content_w + pad_x * 2.0f, box_w);
+        const float card_h = std::max(content_h + pad_y * 2.0f, box_h);
         const float card_x = (static_cast<float>(img_w) - card_w) * 0.5f;
         const float card_y = (static_cast<float>(img_h) - card_h) * 0.5f;
         const uint32_t a = static_cast<uint32_t>(std::clamp(bg_opacity * bg_color.a, 0.0f, 1.0f) * 255.0f);
@@ -139,28 +148,42 @@ RasterizedTextTexture rasterize_text_texture(
     const BLRgba32 bl_fill = rgba32(fill_color);
     const BLRgba32 bl_stroke = rgba32(stroke_color);
 
-    const float base_y = (static_cast<float>(img_h) - total_text_h) * 0.5f + fm.ascent;
-    for (size_t i = 0; i < lines.size(); ++i) {
-        const auto& line = lines[i];
-        const float line_w = line_widths[i];
-        float tx = (static_cast<float>(img_w) - line_w) * 0.5f;
-        if (alignment == "left") {
-            tx = has_background
-                ? ((static_cast<float>(img_w) - (max_line_w + pad_x * 2.0f)) * 0.5f + pad_x)
-                : 12.0f;
-        } else if (alignment == "right") {
-            tx = has_background
-                ? ((static_cast<float>(img_w) + (max_line_w + pad_x * 2.0f)) * 0.5f - pad_x - line_w)
-                : (static_cast<float>(img_w) - 12.0f - line_w);
+    float text_x = (static_cast<float>(img_w) - content_w) * 0.5f - min_x;
+    if (alignment == "left") {
+        text_x = has_background
+            ? ((static_cast<float>(img_w) - (content_w + pad_x * 2.0f)) * 0.5f + pad_x - min_x)
+            : (12.0f - min_x);
+    } else if (alignment == "right") {
+        text_x = has_background
+            ? ((static_cast<float>(img_w) + (content_w + pad_x * 2.0f)) * 0.5f - pad_x - content_w - min_x)
+            : (static_cast<float>(img_w) - 12.0f - content_w - min_x);
+    }
+    const float text_y = (static_cast<float>(img_h) - content_h) * 0.5f - min_y;
+    for (const auto& span : spans) {
+        BLGlyphPlacement placement{};
+        placement.placement.reset(0.0, 0.0);
+        placement.advance.reset(0.0, 0.0);
+        for (std::size_t glyph_index = 0;
+             glyph_index < span->glyph_ids.size(); ++glyph_index) {
+            std::uint32_t glyph_id = span->glyph_ids[glyph_index];
+            BLGlyphRun run{};
+            run.glyphData = &glyph_id;
+            run.glyphAdvance = static_cast<std::int8_t>(sizeof(glyph_id));
+            run.placementData = &placement;
+            run.placementAdvance = static_cast<std::int8_t>(sizeof(placement));
+            run.placementType = BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET;
+            run.size = 1;
+            BLPoint origin = span->origins[glyph_index];
+            origin.x += text_x;
+            origin.y += text_y;
+            if (stroke_width > 0.0f && stroke_color.a > 0.0f) {
+                ctx.setStrokeStyle(bl_stroke);
+                ctx.setStrokeWidth(stroke_width);
+                ctx.strokeGlyphRun(origin, span->font, run);
+            }
+            ctx.setFillStyle(bl_fill);
+            ctx.fillGlyphRun(origin, span->font, run);
         }
-        const float ty = base_y + static_cast<float>(i) * line_spacing;
-        if (stroke_width > 0.0f && stroke_color.a > 0.0f) {
-            ctx.setStrokeStyle(bl_stroke);
-            ctx.setStrokeWidth(stroke_width);
-            ctx.strokeUtf8Text(BLPoint(tx, ty), font, line.data(), line.size());
-        }
-        ctx.setFillStyle(bl_fill);
-        ctx.fillUtf8Text(BLPoint(tx, ty), font, line.data(), line.size());
     }
     ctx.end();
 

@@ -17,10 +17,10 @@
 //   FusedContinuation → may extend an ALREADY-OPEN batch; without an open
 //                       batch it degrades to StandaloneOnly behaviour.
 //
-// Current V1 payload gate: the GPU layer batch executor accepts only Image
-// payloads, so Source/Video nodes are FusedSource ONLY when their shape
-// payload is image-only. TextRun is StandaloneOnly until CompiledLayerBatch
-// semantically owns draw_text_run (flip its single row here to change that).
+// Current payload gate: image Source/Video nodes and prepared TextRun nodes
+// are valid fused sources. The executor keeps those payload families in
+// separate batches; a batch must never mix image resources with text atlas
+// pages.
 // ═══════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/render_graph/core/node_identity.hpp>
@@ -59,7 +59,8 @@ struct LayerFusionContext {
         case RenderGraphNodeKind::Composite:
             return FusionSupport::FusedContinuation;
 
-        case RenderGraphNodeKind::TextRun:      // until batch owns draw_text_run
+        case RenderGraphNodeKind::TextRun:
+            return FusionSupport::FusedSource;
         case RenderGraphNodeKind::Effect:
         case RenderGraphNodeKind::Mask:
         case RenderGraphNodeKind::Precomp:

@@ -67,13 +67,20 @@ public:
     /// frames 120-149 are effectively static (scale has settled at 1.0).
     [[nodiscard]] bool is_static_scene_at(const Scene& scene, Frame frame) const;
 
-    /// Frame-dependent fingerprint that captures which layers are active at a
-    /// specific frame. Unlike compute_static_fingerprint() (which hashes all
-    /// layers unconditionally), this incorporates active_at(frame) — so scenes
-    /// where layers activate/deactivate across frames produce different fingerprints.
-    /// Used by the static fast-path to ensure we only skip rendering when the
-    /// set of active layers is also unchanged (not just the layer definitions).
+    /// Fingerprint of which layers are active at a specific frame. Unlike
+    /// compute_static_fingerprint() (which hashes all layers unconditionally),
+    /// this incorporates active_at(frame) so scenes where layers
+    /// activate/deactivate produce different fingerprints. Dynamic sampled
+    /// values such as video frame and transition phase are deliberately not
+    /// included: graph-cache topology reuse must not be disabled by payload
+    /// changes that the refresh path can update.
     uint64_t compute_active_at_fingerprint(const Scene& scene, Frame frame) const;
+
+    /// Frame-dependent payload fingerprint used by the surface-reuse gate.
+    /// It extends the active-layer fingerprint with video sample position and
+    /// transition phase, preventing stale pixels while leaving the compiled
+    /// graph eligible for dynamic refresh.
+    uint64_t compute_dynamic_fingerprint(const Scene& scene, Frame frame) const;
 
     void clear() {
         // No cached state to clear — hashing is stateless.

@@ -66,6 +66,8 @@ struct TextMetrics {
     std::optional<double> atlas_pixel_copy_ms;
     std::optional<double> atlas_sha256_ms;
     std::optional<double> atlas_cache_acquire_ms;
+    std::optional<std::uint64_t> prepared_batch_build_count;
+    std::optional<std::uint64_t> prepared_batch_reuse_count;
 };
 
 /// Encoder settings for this job. The `preset`/`rate_control`/`async_depth`
@@ -218,6 +220,8 @@ struct CpuBreakdownMetrics {
     std::optional<double> effect_stack_total_ms;
     std::optional<std::uint64_t> graph_executed_frames;
     std::optional<std::uint64_t> graph_reused_frames;
+    std::optional<std::uint64_t> graph_refresh_scratch_node_builds;
+    std::optional<std::uint64_t> graph_refresh_scratch_node_reuses;
     std::optional<std::uint64_t> fast_path_reused_frames;
     std::optional<std::uint64_t> video_source_requested_frames;
     std::optional<std::uint64_t> video_source_inactive_frames;

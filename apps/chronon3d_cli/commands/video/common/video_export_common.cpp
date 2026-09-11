@@ -66,6 +66,7 @@ bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend) {
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt) {
     if (fmt == "yuv420p") return PipePixelFormat::YUV420P;
     if (fmt == "nv12")    return PipePixelFormat::NV12;
+    if (fmt == "p010" || fmt == "p010le") return PipePixelFormat::P010;
     return PipePixelFormat::RGBA;
 }
 

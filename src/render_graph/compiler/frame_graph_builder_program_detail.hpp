@@ -77,12 +77,41 @@ bool is_fusible_layer_node(
     const bool is_canonical_layer_source =
         (dynamic_cast<const SourceNode*>(&graph_node) != nullptr && source_is_image) ||
         (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr && multi_source_is_image_only);
-    return (is_canonical_layer_source &&
+    const bool is_text_layer_source =
+        node_info.kind == RenderGraphNodeKind::TextRun &&
+        dynamic_cast<const TextRunNode*>(&graph_node) != nullptr;
+    return ((is_canonical_layer_source || is_text_layer_source) &&
             (node_info.kind == RenderGraphNodeKind::Source ||
-             node_info.kind == RenderGraphNodeKind::Video)) ||
+             node_info.kind == RenderGraphNodeKind::Video ||
+             node_info.kind == RenderGraphNodeKind::TextRun)) ||
            (current_batch_active &&
             (dynamic_cast<const TransformNode*>(&graph_node) != nullptr ||
              dynamic_cast<const CompositeNode*>(&graph_node) != nullptr));
+}
+
+bool fused_batch_payload_compatible(
+    const CompiledFrameGraph& compiled,
+    const std::vector<GraphNodeId>& current_batch,
+    const CompiledNodeInfo& candidate) {
+    const bool candidate_text = candidate.kind == RenderGraphNodeKind::TextRun;
+    const bool candidate_image =
+        candidate.kind == RenderGraphNodeKind::Source ||
+        candidate.kind == RenderGraphNodeKind::Video;
+    if (!candidate_text && !candidate_image) return true;
+
+    for (const auto existing_id : current_batch) {
+        if (existing_id >= compiled.nodes.size()) continue;
+        const auto existing_kind = compiled.nodes[existing_id].kind;
+        if (candidate_text &&
+            (existing_kind == RenderGraphNodeKind::Source ||
+             existing_kind == RenderGraphNodeKind::Video)) {
+            return false;
+        }
+        if (candidate_image && existing_kind == RenderGraphNodeKind::TextRun) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
@@ -93,7 +122,19 @@ std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
             const auto& node_info = compiled.nodes[node_id];
             CompiledOperation operation = make_base_operation(compiled, node_id);
             resolve_operation_recorder(compiled, node_info, operation);
-            if (is_fusible_layer_node(compiled, node_id, node_info, !current_fused_batch.empty())) {
+            const bool candidate_fusible = is_fusible_layer_node(
+                compiled, node_id, node_info, !current_fused_batch.empty());
+            if (candidate_fusible && !fused_batch_payload_compatible(
+                    compiled, current_fused_batch, node_info)) {
+                CompiledLayerBatch batch;
+                batch.member_nodes = std::move(current_fused_batch);
+                batch.root_node = batch.member_nodes.back();
+                batch.output_physical_slot = operation.output_physical_slot;
+                batch.is_gpu_fused = true;
+                compiled.program.layer_batches.push_back(std::move(batch));
+                current_fused_batch.clear();
+            }
+            if (candidate_fusible) {
                 current_fused_batch.push_back(node_id);
             } else if (!current_fused_batch.empty()) {
                 CompiledLayerBatch batch;

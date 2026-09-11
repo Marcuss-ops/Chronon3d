@@ -28,7 +28,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
         const auto encode_surface = node_exec.terminal_video_encode_surface;
         node_exec.terminal_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
         node_exec.planned_physical_slot = nullptr;
-        auto* fb = new Framebuffer(w, h, clear);
+        auto* fb = new Framebuffer(w, h, static_cast<Color*>(nullptr));
         fb->set_surface_handle(encode_surface);
         fb->mark_gpu_authoritative();
         if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {

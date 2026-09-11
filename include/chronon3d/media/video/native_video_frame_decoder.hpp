@@ -40,8 +40,13 @@ struct NativeDecoderTestOptions {
 
 [[nodiscard]] inline runtime::SurfaceDesc native_decode_surface_desc(
     std::uint32_t width, std::uint32_t height) noexcept {
-    return runtime::SurfaceDesc::make(width, height, runtime::PixelFormat::Rgba32Float,
+    auto desc = runtime::SurfaceDesc::make(
+        width, height, runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient);
+    // Native decode imports NV12/P010 into a float4 RGBA CUDA/Vulkan view;
+    // this is the explicit RGBA interop lane, never a YUV encode surface.
+    desc.kind = runtime::ResourceKind::Color;
+    return desc;
 }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG

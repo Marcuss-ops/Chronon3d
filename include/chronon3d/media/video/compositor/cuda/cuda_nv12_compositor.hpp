@@ -76,7 +76,8 @@ public:
         std::span<const CudaLayerResource> resources,
         CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
         CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
-        std::uint32_t width, std::uint32_t height, CUstream stream);
+        std::uint32_t width, std::uint32_t height, CUstream stream,
+        CudaYuvFormat format = CudaYuvFormat::Nv12);
 
     /// Converts the already-composited imported RGBA surface directly into
     /// CUDA NV12 planes. This is the native encoder handoff: no intermediate
@@ -92,6 +93,7 @@ private:
     CUfunction p010_kernel_{nullptr};
     CUfunction direct_nv12_kernel_{nullptr};
     CUfunction direct_nv12_batch_kernel_{nullptr};
+    CUfunction direct_p010_batch_kernel_{nullptr};
     CUfunction rgba_to_nv12_kernel_{nullptr};
     CUfunction rgba_u8_to_nv12_kernel_{nullptr};
     // AUDIT-02A/02B: per-slot pinned host staging + device buffers in a

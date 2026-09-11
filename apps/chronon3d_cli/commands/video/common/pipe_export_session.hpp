@@ -145,6 +145,9 @@ struct PipeExportSession {
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};
     std::atomic<int> frames_encoded{0};
+    // Published once at render-loop start and shared with the writer so both
+    // sides use the same steady-clock origin for per-frame wall telemetry.
+    std::atomic<std::int64_t> telemetry_anchor_ns{0};
 
     std::vector<chronon3d::telemetry::FrameTelemetry> frame_encoder_telemetry;
 

@@ -145,6 +145,19 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(frame.layers.front().matrix[3][0] == doctest::Approx(10.0f));
     CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
 
+    // Production FrameExecution slots retain this destination between
+    // frames.  Sampling must refill it without growing the layer vector after
+    // the first warm-up pass.
+    chronon3d::compiler::FrameParameterBlock reused;
+    chronon3d::compiler::TypedProgramSampler sampler;
+    sampler.sample_into(program, chronon3d::Frame{6}, reused);
+    const auto warmed_capacity = reused.layers.capacity();
+    REQUIRE(warmed_capacity >= reused.layers.size());
+    sampler.sample_into(program, chronon3d::Frame{12}, reused);
+    CHECK(reused.layers.capacity() == warmed_capacity);
+    CHECK(reused.frame == chronon3d::Frame{12});
+    CHECK(reused.layers.front().opacity == doctest::Approx(1.0f));
+
     const auto scene = chronon3d::compiler::ProgramSampler{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
 }
