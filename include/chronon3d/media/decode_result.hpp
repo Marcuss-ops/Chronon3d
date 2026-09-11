@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <variant>
+#include <utility>
 
 namespace chronon3d::media {
 
@@ -30,6 +31,13 @@ struct DecodeEndOfStream {
 struct DecodeFailure {
     DecodeDiagnostic diagnostic;
 };
+
+// Decode compatibility boundary. DecodeFailureReason remains inside the
+// diagnostic detail; result construction is centralized here.
+[[nodiscard]] inline DecodeFailure make_decode_failure(
+    DecodeDiagnostic diagnostic) {
+    return DecodeFailure{std::move(diagnostic)};
+}
 
 using DecodeResult = std::variant<DecodedFrame, DecodeEndOfStream, DecodeFailure>;
 
