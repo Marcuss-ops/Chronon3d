@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <atomic>
+#ifdef CHRONON3D_ENABLE_VULKAN
+#include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#endif
 
 namespace chronon3d::cli::detail {
 
@@ -18,6 +21,8 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
     s.text_atlas_pixel_copy_us = load(ctx.counters->gpu_text_atlas_pixel_copy_wall_us);
     s.text_atlas_sha256_us = load(ctx.counters->gpu_text_atlas_sha256_wall_us);
     s.text_atlas_cache_acquire_us = load(ctx.counters->gpu_text_atlas_cache_acquire_wall_us);
+    s.text_prepared_batch_build_count = load(ctx.counters->gpu_text_prepared_batch_build_count);
+    s.text_prepared_batch_reuse_count = load(ctx.counters->gpu_text_prepared_batch_reuse_count);
     s.text_us = s.text_prepare_per_frame_us
               + s.text_styled_glyph_build_us
               + s.text_atlas_pack_us
@@ -58,6 +63,17 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
     s.text_atlas_upload_us = load(ctx.counters->glyph_atlas_upload_wall_us);
     s.text_draw_us = load(ctx.counters->text_draw_wall_us);
     s.node_lookup_us = load(ctx.counters->node_cache_lookup_wall_us);
+#ifdef CHRONON3D_ENABLE_VULKAN
+    if (const auto* vulkan = dynamic_cast<const backends::vulkan::VulkanBackend*>(&ctx.backend)) {
+        const auto stats = vulkan->stats();
+        s.gpu_execute_us = stats.gpu_execute_us;
+        s.gpu_submit_cpu_us = stats.gpu_submit_cpu_us;
+        s.gpu_wait_cpu_us = stats.gpu_wait_cpu_us;
+        s.gpu_drain_wait_us = stats.frame_batch_drain_wait_us;
+        s.gpu_submissions = stats.submissions;
+        s.gpu_drain_wait_count = stats.frame_batch_drain_wait_count;
+    }
+#endif
     return s;
 }
 
@@ -102,7 +118,25 @@ FrameTimingProjection project_frame_timings(
         after.text_atlas_sha256_us - before.text_atlas_sha256_us) / 1000.0;
     p.text_timing.atlas_cache_acquire_ms = static_cast<double>(
         after.text_atlas_cache_acquire_us - before.text_atlas_cache_acquire_us) / 1000.0;
+    p.text_timing.prepared_batch_build_count =
+        after.text_prepared_batch_build_count >= before.text_prepared_batch_build_count
+            ? after.text_prepared_batch_build_count - before.text_prepared_batch_build_count : 0;
+    p.text_timing.prepared_batch_reuse_count =
+        after.text_prepared_batch_reuse_count >= before.text_prepared_batch_reuse_count
+            ? after.text_prepared_batch_reuse_count - before.text_prepared_batch_reuse_count : 0;
     p.node_lookup_ms = static_cast<double>(after.node_lookup_us - before.node_lookup_us) / 1000.0;
+    p.gpu_timing.timestamp_execute_ms = static_cast<double>(
+        after.gpu_execute_us - before.gpu_execute_us) / 1000.0;
+    p.gpu_timing.submit_cpu_ms = static_cast<double>(
+        after.gpu_submit_cpu_us - before.gpu_submit_cpu_us) / 1000.0;
+    p.gpu_timing.wait_cpu_ms = static_cast<double>(
+        after.gpu_wait_cpu_us - before.gpu_wait_cpu_us) / 1000.0;
+    p.gpu_timing.drain_wait_ms = static_cast<double>(
+        after.gpu_drain_wait_us - before.gpu_drain_wait_us) / 1000.0;
+    p.gpu_timing.submissions = after.gpu_submissions >= before.gpu_submissions
+        ? after.gpu_submissions - before.gpu_submissions : 0;
+    p.gpu_timing.drain_wait_count = after.gpu_drain_wait_count >= before.gpu_drain_wait_count
+        ? after.gpu_drain_wait_count - before.gpu_drain_wait_count : 0;
     return p;
 }
 

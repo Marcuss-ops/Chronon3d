@@ -10,6 +10,7 @@
 #include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 
 #include "../builder/graph_builder_pipeline.hpp"
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -25,6 +26,32 @@
 namespace chronon3d::graph::detail {
 
 namespace {
+
+template <typename Node>
+Node* acquire_refresh_node(
+    std::vector<std::unique_ptr<RenderGraphNode>>& scratch,
+    GraphNodeId id,
+    const Node& original,
+    RenderCounters* counters)
+{
+    auto& spare = scratch[id];
+    if (auto* typed = dynamic_cast<Node*>(spare.get())) {
+        // Keep the spare allocation and its vector/string capacities.  The
+        // copy is still isolated from the live graph until the commit swap.
+        *typed = original;
+        if (counters) {
+            counters->graph_refresh_scratch_node_reuses.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        return typed;
+    }
+    spare = std::make_unique<Node>(original);
+    if (counters) {
+        counters->graph_refresh_scratch_node_builds.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+    return static_cast<Node*>(spare.get());
+}
 
 SceneRefreshResult topology_mismatch(std::string message) {
     return SceneRefreshResult{SceneRefreshStatus::TopologyMismatch, std::move(message)};
@@ -254,23 +281,12 @@ SceneRefreshResult refresh_compiled_graph_payloads(
     const auto validation = validate_compiled_structure(compiled, scene, resolved_by_name);
     if (!validation) return validation;
 
-    // ── 4. Build the complete refresh patch ─────────────────────────────
-    // Prepare each dynamic payload on a copy of its original node. Helpers
-    // can allocate and mutate these copies freely; the compiled graph remains
-    // untouched until every node has been prepared successfully.
-    struct NodeRefreshPatch {
-        GraphNodeId id{k_invalid_node};
-        std::variant<
-            std::unique_ptr<SourceNode>,
-            std::unique_ptr<MultiSourceNode>,
-            std::unique_ptr<EffectStackNode>,
-            std::unique_ptr<TransformNode>,
-            std::unique_ptr<TextRunNode>> prepared;
-    };
-    struct GraphRefreshPatch {
-        std::vector<NodeRefreshPatch> nodes;
-    } patch;
-    patch.nodes.reserve(compiled.graph.live_count());
+    // ── 4. Prepare the complete refresh patch ───────────────────────────
+    // `refresh_scratch` owns one detached spare per dynamic node.  On the
+    // first refresh a spare is cloned; subsequent refreshes copy into the
+    // same typed object and retain its capacities.  The live graph remains
+    // untouched until the commit loop below.
+    compiled.refresh_scratch.resize(compiled.graph.size());
 
     for (size_t id = 0; id < compiled.graph.size(); ++id) {
         const auto node_id = static_cast<GraphNodeId>(id);
@@ -283,15 +299,17 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         switch (graph_node.kind()) {
             case RenderGraphNodeKind::Source:
                 if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph_node)) {
-                    auto prepared = std::make_unique<SourceNode>(*source_node);
+                    auto* prepared = acquire_refresh_node(
+                        compiled.refresh_scratch, node_id, *source_node,
+                        ctx.node_exec.counters);
                     refresh_source_node(*prepared, resolved_by_name,
                         root_nodes_by_name, is_static_cache, ctx);
-                    patch.nodes.push_back({node_id, std::move(prepared)});
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&graph_node)) {
-                    auto prepared = std::make_unique<MultiSourceNode>(*multi);
+                    auto* prepared = acquire_refresh_node(
+                        compiled.refresh_scratch, node_id, *multi,
+                        ctx.node_exec.counters);
                     refresh_multi_source_node(*prepared, resolved_by_name,
                         is_static_cache, ctx);
-                    patch.nodes.push_back({node_id, std::move(prepared)});
                 } else {
                     return topology_mismatch("source graph node has an unknown concrete implementation at node " + std::to_string(id));
                 }
@@ -301,9 +319,10 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 if (!effect_node) {
                     return topology_mismatch("effect graph node has an invalid concrete implementation at node " + std::to_string(id));
                 }
-                auto prepared = std::make_unique<EffectStackNode>(*effect_node);
+                auto* prepared = acquire_refresh_node(
+                    compiled.refresh_scratch, node_id, *effect_node,
+                    ctx.node_exec.counters);
                 refresh_effect_stack_node(*prepared, resolved_by_name, ctx);
-                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
             case RenderGraphNodeKind::Transform: {
@@ -311,7 +330,9 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 if (!transform_node) {
                     return topology_mismatch("transform graph node has an invalid concrete implementation at node " + std::to_string(id));
                 }
-                auto prepared = std::make_unique<TransformNode>(*transform_node);
+                auto* prepared = acquire_refresh_node(
+                    compiled.refresh_scratch, node_id, *transform_node,
+                    ctx.node_exec.counters);
                 bool typed_applied = false;
                 if (ctx.frame_parameters &&
                     compiled.nodes[node_id].binding_meta.has_binding()) {
@@ -334,7 +355,6 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                         "typed transform parameters missing for node " +
                         std::to_string(id));
                 }
-                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
             case RenderGraphNodeKind::TextRun: {
@@ -342,7 +362,9 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 if (!text_node) {
                     return topology_mismatch("text-run graph node has an invalid concrete implementation at node " + std::to_string(id));
                 }
-                auto prepared = std::make_unique<TextRunNode>(*text_node);
+                auto* prepared = acquire_refresh_node(
+                    compiled.refresh_scratch, node_id, *text_node,
+                    ctx.node_exec.counters);
                 bool found = false;
                 for (const auto& [name, rl] : resolved_by_name) {
                     if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text
@@ -384,7 +406,6 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     return missing_dynamic_data("text-run refresh data missing for node '" +
                         std::string(graph_node.name()) + "'");
                 }
-                patch.nodes.push_back({node_id, std::move(prepared)});
                 break;
             }
             case RenderGraphNodeKind::Mask:
@@ -412,21 +433,17 @@ SceneRefreshResult refresh_compiled_graph_payloads(
     // every structural discriminator and the node cache policy captured by
     // the compiler. If a helper ever attempts to cross that boundary, fail
     // without touching the original graph.
-    for (const auto& node_patch : patch.nodes) {
-        if (node_patch.id >= compiled.nodes.size()) {
-            return topology_mismatch("refresh patch contains an unknown node id " +
-                std::to_string(node_patch.id));
+    for (size_t id = 0; id < compiled.graph.size(); ++id) {
+        const auto node_id = static_cast<GraphNodeId>(id);
+        if (!compiled.graph.has_node(node_id) ||
+            node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable ||
+            !compiled.refresh_scratch[node_id]) {
+            continue;
         }
-        const auto& original_info = compiled.nodes[node_patch.id];
+        const auto& original_info = compiled.nodes[node_id];
         bool structural_mismatch = false;
         bool invalid_renderable = false;
-        std::visit([&](const auto& prepared) {
-            using Prepared = std::decay_t<decltype(prepared)>;
-            if (!prepared) {
-                structural_mismatch = true;
-                return;
-            }
-            const auto& prepared_node = *prepared;
+        const auto& prepared_node = *compiled.refresh_scratch[node_id];
             std::string prepared_processor_id;
             if (const auto* source = dynamic_cast<const SourceNode*>(&prepared_node)) {
                 const auto shape_type = source->render_node().shape.type();
@@ -469,34 +486,33 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                 prepared_node.cache_policy().mode != original_info.cache_policy.mode ||
                 prepared_node.cache_policy().invalidation != original_info.cache_policy.invalidation ||
                 prepared_node.cache_policy().reason != original_info.cache_policy.reason;
-        }, node_patch.prepared);
         if (invalid_renderable) {
             return SceneRefreshResult{SceneRefreshStatus::InvalidRenderableNode,
                 "refresh prepared an invalid renderable node at node " +
-                std::to_string(node_patch.id)};
+                std::to_string(node_id)};
         }
         if (structural_mismatch) {
             return topology_mismatch(
                 "scene refresh prepared a node with changed structural metadata at node " +
-                std::to_string(node_patch.id));
+                std::to_string(node_id));
         }
     }
 
     // ── 6. Commit the complete patch ────────────────────────────────────
-    // No refresh helper runs here. Each assignment transfers an already
-    // prepared typed state into its original node; all fallible preparation
-    // has completed before the first original node is touched.
-    for (auto& node_patch : patch.nodes) {
-        std::visit([&](auto& prepared) {
-            using Prepared = std::decay_t<decltype(prepared)>;
-            if constexpr (std::is_same_v<Prepared, std::unique_ptr<SourceNode>> ||
-                          std::is_same_v<Prepared, std::unique_ptr<MultiSourceNode>> ||
-                          std::is_same_v<Prepared, std::unique_ptr<EffectStackNode>> ||
-                          std::is_same_v<Prepared, std::unique_ptr<TransformNode>> ||
-                          std::is_same_v<Prepared, std::unique_ptr<TextRunNode>>) {
-                compiled.graph.replace_node(node_patch.id, std::move(prepared));
-            }
-        }, node_patch.prepared);
+    // No refresh helper runs here.  Swap each prepared node into the graph;
+    // the displaced node becomes the spare for the next frame.  Unique_ptr
+    // moves are non-allocating, and every fallible operation has completed
+    // before the first live node is touched.
+    for (size_t id = 0; id < compiled.graph.size(); ++id) {
+        const auto node_id = static_cast<GraphNodeId>(id);
+        if (!compiled.graph.has_node(node_id) ||
+            node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable ||
+            !compiled.refresh_scratch[node_id]) {
+            continue;
+        }
+        compiled.refresh_scratch[node_id] =
+            compiled.graph.replace_node(
+                node_id, std::move(compiled.refresh_scratch[node_id]));
     }
     return SceneRefreshResult{};
 }

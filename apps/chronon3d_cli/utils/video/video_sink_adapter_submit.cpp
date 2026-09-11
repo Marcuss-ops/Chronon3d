@@ -19,6 +19,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     switch (input_format_) {
         case PipePixelFormat::YUV420P: enc_fmt = video::EncoderPixelFormat::YUV420P; break;
         case PipePixelFormat::NV12: enc_fmt = video::EncoderPixelFormat::NV12; break;
+        case PipePixelFormat::P010: enc_fmt = video::EncoderPixelFormat::P010; break;
         case PipePixelFormat::RGBA:
         default: enc_fmt = video::EncoderPixelFormat::RGBA8; break;
     }

@@ -52,6 +52,7 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 
 #include <memory>
+#include <utility>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -94,6 +95,22 @@ SceneStructureKey make_key(const Scene& scene, int width = 100, int height = 100
 }
 
 } // namespace
+
+TEST_CASE("scene_program: active-set fingerprint ignores dynamic video sample") {
+    SceneBuilder builder;
+    video::VideoSource source;
+    source.path = "Pale-Olive.mp4";
+    source.size = Vec2{1920.0f, 1080.0f};
+    source.source_fps = 24.0f;
+    builder.video_layer("bg_video", std::move(source), [](LayerBuilder&) {});
+    const auto scene = builder.build();
+
+    SceneHasher hasher;
+    CHECK(hasher.compute_active_at_fingerprint(scene, Frame{0}) ==
+          hasher.compute_active_at_fingerprint(scene, Frame{1}));
+    CHECK(hasher.compute_dynamic_fingerprint(scene, Frame{0}) !=
+          hasher.compute_dynamic_fingerprint(scene, Frame{1}));
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // §1: Hash invariants — structure key unchanged for dynamic params

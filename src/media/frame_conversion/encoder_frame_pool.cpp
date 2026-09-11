@@ -45,6 +45,11 @@ std::size_t EncoderFramePool::encoded_size(
         case EncoderPixelFormat::NV12:
             if ((width & 1) != 0 || (height & 1) != 0) return 0;
             return y + y / 2;
+        case EncoderPixelFormat::P010:
+            if ((width & 1) != 0 || (height & 1) != 0) return 0;
+            // 16-bit luma plus 16-bit interleaved chroma.
+            return y > std::numeric_limits<std::size_t>::max() / 3
+                ? 0 : y * 3;
         case EncoderPixelFormat::RGB24:
             return y > std::numeric_limits<std::size_t>::max() / 3
                 ? 0 : y * 3;
@@ -103,6 +108,12 @@ BorrowedEncoderFrame EncoderFramePool::acquire() noexcept {
                 planes.uv = bytes + y_size;
                 planes.stride_y = config_.width;
                 planes.stride_uv = config_.width;
+                break;
+            case EncoderPixelFormat::P010:
+                planes.y = bytes;
+                planes.uv = bytes + y_size * 2;
+                planes.stride_y = config_.width * 2;
+                planes.stride_uv = config_.width * 2;
                 break;
             case EncoderPixelFormat::RGB24:
             case EncoderPixelFormat::RGBA8:

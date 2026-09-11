@@ -92,7 +92,7 @@ void main() {
     uint tid = gl_LocalInvocationIndex;
 
     if (tid == 0) {
-        s_count = min(tile_glyph_counts[tile_idx], params.max_glyphs_per_tile);
+        s_count = min(min(tile_glyph_counts[tile_idx], params.max_glyphs_per_tile), 256u);
     }
     barrier();
 
@@ -228,12 +228,12 @@ void main() {
             src = fill + src * (1.0 - fill.a);
         } else {
             src = sample_value;
+            if (run.color != 0xFFFFFFFFu && run.color != 0u) {
+                src *= unpack_color(run.color);
+            }
         }
 
         src *= run.opacity;
-        if (run.color != 0xFFFFFFFFu && run.color != 0u) {
-            src *= unpack_color(run.color);
-        }
 
         current_color = src + current_color * (1.0 - src.a);
     }

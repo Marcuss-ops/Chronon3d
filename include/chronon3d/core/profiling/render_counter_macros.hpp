@@ -123,6 +123,8 @@ namespace chronon3d {
     X(gpu_text_atlas_pixel_copy_wall_us) \
     X(gpu_text_atlas_sha256_wall_us) \
     X(gpu_text_atlas_cache_acquire_wall_us) \
+    X(gpu_text_prepared_batch_build_count) \
+    X(gpu_text_prepared_batch_reuse_count) \
     X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
 
 #define CHRONON_COUNTERS_TILE(X) \
@@ -300,6 +302,8 @@ namespace chronon3d {
     X(framebuffer_acquire_wall_us) \
     X(framebuffer_clear_wall_us) \
     X(graph_reused_frames) \
+    X(graph_refresh_scratch_node_builds) \
+    X(graph_refresh_scratch_node_reuses) \
     X(fast_path_reused_frames) \
     X(graph_executed_frames) \
     X(graph_skipped_frames) \

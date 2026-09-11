@@ -165,6 +165,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 #ifdef CHRONON3D_USE_BLEND2D
             std::string text_content;
             std::string font_path;
+            const TextRunShape* prepared_shape = nullptr;
             // No fast-path typography defaults: every value must come from the
             // prepared TextRun shape produced by the canonical text/layout
             // subsystem. A layer without one is a preparation failure, not a
@@ -187,6 +188,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 const auto handle = node.shape.text_run_shape_handle();
                 if (handle.value) {
                     const auto& s = *handle.value;
+                    prepared_shape = &s;
                     if (s.layout) {
                         text_content = s.layout->source_text;
                         if (!s.layout->font.font_path.empty()) font_path = s.layout->font.font_path;
@@ -219,8 +221,12 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             }
 
             const auto text_t0 = profiling::now();
+            if (!prepared_shape) {
+                reason = "text layer has no prepared TextRunShape: " + layer_name;
+                return false;
+            }
             auto rasterized = rasterize_text_texture(
-                text_content, font_path, font_size, fill_color, stroke_color, stroke_width,
+                *prepared_shape, fill_color, stroke_color, stroke_width,
                 has_bg, bg_color, bg_opacity, bg_radius, pad_x, pad_y, box_w, box_h, align);
             watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
 

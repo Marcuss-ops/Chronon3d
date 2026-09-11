@@ -108,6 +108,7 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
                       out_y, out_uv, width, height);
         return false;
     }
+    const auto started = std::chrono::steady_clock::now();
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     const CUstream active = stream ? stream : stream_;
     // The imported surface was populated by Vulkan immediately before the
@@ -129,6 +130,15 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
 
     first_write_ = false;
     if (auto* counters = profiling::g_current_counters) {
+        // This is the FullGraph encoder's explicit GPU RGBA→NV12 conversion.
+        // Count its host launch interval alongside the direct-YUV compositor
+        // timings, while the per-frame Vulkan timestamp remains the authority
+        // for device execution time.
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - started).count();
+        counters->cuda_composite_frames.fetch_add(1, std::memory_order_relaxed);
+        counters->cuda_composite_wall_us.fetch_add(
+            static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
         // Zero-copy gate 4: every RGBA→NV12 kernel launch is an encoder
         // staging conversion.  composite_direct_nv12* keeps this at zero.
         counters->rgba_to_nv12_frames.fetch_add(1, std::memory_order_relaxed);

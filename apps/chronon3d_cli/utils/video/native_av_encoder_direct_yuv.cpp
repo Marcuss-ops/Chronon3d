@@ -110,8 +110,21 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     auto* frames = direct.decoded->hw_frames_ctx
         ? reinterpret_cast<AVHWFramesContext*>(direct.decoded->hw_frames_ctx->data)
         : nullptr;
-    if (!frames || frames->sw_format != AV_PIX_FMT_NV12) {
-        spdlog::error("[native_av] DirectCudaYuv currently requires NV12 input");
+    if (!frames || (frames->sw_format != AV_PIX_FMT_NV12 &&
+                    frames->sw_format != AV_PIX_FMT_P010)) {
+        spdlog::error("[native_av] DirectCudaYuv requires NV12 or P010 input");
+        av_frame_unref(gpu_frame);
+        reusable_cuda_frames_.push_back(gpu_frame);
+        return false;
+    }
+    const bool p010 = frames->sw_format == AV_PIX_FMT_P010;
+    if (p010 && (gpu_frame->linesize[0] < options_.width * 2 ||
+                 gpu_frame->linesize[1] < options_.width * 2)) {
+        spdlog::error(
+            "[native_av] DirectCudaYuv P010 rejected: CUDA hwframe stride "
+            "does not expose the required 16-bit layout (y_stride={} uv_stride={} "
+            "required={})",
+            gpu_frame->linesize[0], gpu_frame->linesize[1], options_.width * 2);
         av_frame_unref(gpu_frame);
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
@@ -130,7 +143,9 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
             gpu_frame->linesize[1],
             static_cast<std::uint32_t>(options_.width),
-            static_cast<std::uint32_t>(options_.height), cuda_stream_);
+            static_cast<std::uint32_t>(options_.height), cuda_stream_,
+            p010 ? media::video::CudaYuvFormat::P010
+                 : media::video::CudaYuvFormat::Nv12);
     } else {
         CUDA_MEMCPY2D copy{};
         copy.srcMemoryType = CU_MEMORYTYPE_DEVICE;
@@ -139,7 +154,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         copy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
         copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]);
         copy.dstPitch = gpu_frame->linesize[0];
-        copy.WidthInBytes = static_cast<std::size_t>(options_.width);
+        copy.WidthInBytes = static_cast<std::size_t>(options_.width) * (p010 ? 2u : 1u);
         copy.Height = static_cast<std::size_t>(options_.height);
         CUresult copy_result = cuMemcpy2DAsync(&copy, cuda_stream_);
         launch_ok = copy_result == CUDA_SUCCESS;
@@ -148,8 +163,14 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             const char* detail = nullptr;
             cuGetErrorName(copy_result, &name);
             cuGetErrorString(copy_result, &detail);
-            spdlog::error("[native_av] DirectYuv luma copy failed: {} ({})",
-                          name ? name : "CUDA error", detail ? detail : "unknown");
+            spdlog::error(
+                "[native_av] DirectYuv luma copy failed: {} ({}) format={} "
+                "src_pitch={} dst_pitch={} width_bytes={} height={} src={} dst={}",
+                name ? name : "CUDA error", detail ? detail : "unknown",
+                p010 ? "p010" : "nv12", direct.decoded->linesize[0],
+                gpu_frame->linesize[0], copy.WidthInBytes, copy.Height,
+                reinterpret_cast<void*>(copy.srcDevice),
+                reinterpret_cast<void*>(copy.dstDevice));
         }
         if (launch_ok) {
             copy.srcDevice = reinterpret_cast<CUdeviceptr>(direct.decoded->data[1]);
@@ -164,8 +185,14 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
                 const char* detail = nullptr;
                 cuGetErrorName(copy_result, &name);
                 cuGetErrorString(copy_result, &detail);
-                spdlog::error("[native_av] DirectYuv chroma copy failed: {} ({})",
-                              name ? name : "CUDA error", detail ? detail : "unknown");
+                spdlog::error(
+                    "[native_av] DirectYuv chroma copy failed: {} ({}) format={} "
+                    "src_pitch={} dst_pitch={} width_bytes={} height={} src={} dst={}",
+                    name ? name : "CUDA error", detail ? detail : "unknown",
+                    p010 ? "p010" : "nv12", direct.decoded->linesize[1],
+                    gpu_frame->linesize[1], copy.WidthInBytes, copy.Height,
+                    reinterpret_cast<void*>(copy.srcDevice),
+                    reinterpret_cast<void*>(copy.dstDevice));
             }
         }
     }

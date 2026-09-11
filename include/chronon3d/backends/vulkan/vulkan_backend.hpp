@@ -100,6 +100,21 @@ struct VulkanBackendStats {
     bool command_batch_started{false};
 };
 
+/// Exact GPU timestamp result for one submitted frame-batch slot. The result
+/// is delivered only after the slot fence has completed, so consumers can
+/// associate device execution with the originating render frame without
+/// blocking the render loop or reading pixels back to the CPU.
+struct VulkanFrameGpuTiming {
+    std::uint64_t frame_index{0};
+    std::uint32_t frame_batch_slot{0};
+    bool timestamp_valid{false};
+    double execute_ms{0.0};
+    double device_span_ms{0.0};
+    double queue_wait_ms{0.0};
+    std::int64_t device_start_trace_ns{0};
+    std::int64_t device_end_trace_ns{0};
+};
+
 /// Hardware descriptors returned by the backend-owned physical-device
 /// enumeration. Indices are stable for the lifetime of the Vulkan instance
 /// and are the only IDs accepted by VulkanBackend's device selector.
@@ -189,6 +204,15 @@ public:
     [[nodiscard]] bool requires_processor_snapshot() const noexcept override;
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
+
+    /// Associates the next frame-batch submission with a render-frame index.
+    /// This is metadata only; it never waits for or changes GPU execution.
+    void set_active_frame_index(std::uint64_t frame_index) noexcept;
+
+    /// Returns timestamp results observed since the previous call. Results
+    /// are produced by non-blocking retirement or explicit submission drain.
+    [[nodiscard]] std::vector<VulkanFrameGpuTiming>
+    consume_completed_frame_timings();
 
     /// Feeds the backend's GPU counters into the telemetry run record as
     /// name/value pairs (`gpu_submissions`, `passes_executed`,

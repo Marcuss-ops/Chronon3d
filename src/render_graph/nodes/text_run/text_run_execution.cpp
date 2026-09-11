@@ -266,10 +266,20 @@ graph::RenderOpResult render_text_run_item(
         profiling::g_current_counters->gpu_text_fallback_count.fetch_add(
             1, std::memory_order_relaxed);
     }
+    spdlog::warn(
+        "[text-run] native surface path fell back: {}",
+        native.error().message);
     if (text_debug) {
         spdlog::debug(
             "[text-run] native surface path fell back: {}",
             native.error().message);
+    }
+    if (ctx.policy.is_gpu_native_required()) {
+        // REQUIRE_GPU_NATIVE is a correctness contract.  Returning the
+        // native-path error is preferable to silently rendering text through
+        // the software backend and invalidating the zero-readback/GPU-only
+        // receipt for the whole export.
+        return native;
     }
     // The GPU atlas path is an optimization, not a correctness boundary.
     // Stale atlas/surface state must fall back to Chronon's canonical text

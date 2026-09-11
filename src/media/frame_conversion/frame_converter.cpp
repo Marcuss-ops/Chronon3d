@@ -60,7 +60,7 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
     if (req.format == EncoderPixelFormat::RGBA8) {
         return FrameConversionBackend::Packed;
     }
-    // PR4B: All YUV420P/NV12/RGB24/BT.2020 route through swscale.  When the
+    // PR4B: All YUV420P/NV12/P010/RGB24/BT.2020 route through swscale.  When the
     // build disables CHRONON3D_ENABLE_NATIVE_FFMPEG, caps.swscale is false;
     // the dispatcher still returns Swscale here so the Swscale case can
     // transparently fall back to packed::convert_frame_fallback().
@@ -71,7 +71,8 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
 ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
     if (req.width <= 0 || req.height <= 0) return ConversionError::OddDims;
     const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
-                         req.format == EncoderPixelFormat::NV12);
+                         req.format == EncoderPixelFormat::NV12 ||
+                         req.format == EncoderPixelFormat::P010);
     if (is_yuv && ((req.width % 2) != 0 || (req.height % 2) != 0)) {
         return ConversionError::OddDims;
     }
@@ -80,6 +81,8 @@ ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
         if (req.format == EncoderPixelFormat::YUV420P &&
             (!req.planes.u || !req.planes.v))              return ConversionError::NullPointer;
         if (req.format == EncoderPixelFormat::NV12 &&
+            !req.planes.uv)                                return ConversionError::NullPointer;
+        if (req.format == EncoderPixelFormat::P010 &&
             !req.planes.uv)                                return ConversionError::NullPointer;
     }
     if (req.format == EncoderPixelFormat::RGB24 && !req.planes.y) {

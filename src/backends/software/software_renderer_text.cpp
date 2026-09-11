@@ -33,6 +33,7 @@
 // more than one TU — ODR violation risk).
 #include <chronon3d/text/font_engine.hpp>
 #endif
+#include "../../render_graph/nodes/text_run/gpu_text_run.hpp"
 // CHRONON3D_BUILD_DIAGNOSTICS=ON enables the draw_null_overlay()
 // call below; include its header so the namespace resolves.
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -127,6 +128,13 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
                 h.value->layout->font.font_path,
                 h.value->layout->font_size);
             if (!seen.insert(key).second) continue;
+            if (m_runtime && graph::text_run::can_lower_gpu_text_animation(*h.value)) {
+                auto prepared = graph::text_run::prepare_mtsdf_text_run(
+                    *m_runtime, trr, &resolver, *h.value);
+                if (prepared && prepared->ready) {
+                    m_runtime->gpu_text_prepared_cache().store(h.value->layout.get(), prepared);
+                }
+            }
             ++summary.preflight_attempted;
             const FontFaceHandle fh =
                 trr->resolve_handle(key.first, key.second, resolver);

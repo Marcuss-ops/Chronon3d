@@ -149,22 +149,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     profiling::ProfilingGuard profiling_guard(
         ctx.node_exec.counters, ctx.framebuffer_pool.get());
 
-    // The SDK contract is fail-closed for unresolved assets. Run the same
-    // graph preflight against the owning runtime resolver before any backend
-    // can substitute a diagnostic placeholder for a missing image.
-    if (effective_settings.fail_on_missing_assets) {
-        auto report = debug_preflight_render_graph(
-            backend, *active_node_cache, scene, camera, width, height,
-            frame, frame_time, effective_settings, registry, video_decoder,
-            static_cast<float>(fps),
-            sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
-        if (report.has_warning_containing("MISSING_ASSET") ||
-            report.has_warning_containing("ASSET_RESOLVER_UNAVAILABLE")) {
-            spdlog::error("[graph-preflight] render rejected because an asset "
-                          "could not be resolved");
-            return nullptr;
-        }
-    }
+    // Asset integrity is a preparation-barrier concern.  The public SDK and
+    // render-plan entry points run AssetPreflightResolver before the frame
+    // loop starts; repeating debug_preflight_render_graph() here would rebuild
+    // and re-analyse the graph for every frame.  Keep the per-frame path free
+    // of graph compilation and filesystem validation.  Diagnostic plan output
+    // below remains explicitly opt-in and is still allowed to build a report.
 
     // Keep the native encode destination in the same Vulkan submission as the
     // graph work. This also covers the early framebuffer-reuse exits below:
@@ -175,11 +165,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
 
     // ── 1-3. Canonical early execution-plan resolution ──
     FrameExecutionPlan execution_plan;
-    if (!isolated_temporal_sample && !ctx.policy.require_native_gpu) {
+    if (!isolated_temporal_sample) {
         execution_plan = ExecutionResolver::resolve_early_reuse(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
-        if (execution_plan.reuse_surface) {
+        if (execution_plan.reuse_surface && !ctx.policy.require_native_gpu) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
                 ctx.node_exec.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
@@ -396,12 +386,21 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // session + compiled-graph identity for the entire execute phase so
     // child scopes (tile / precomp) can walk the parent chain.  Arena
     // reset happens inside execute_tile_or_fallback at scope exit.
-    runtime::JobSession fallback_session;   // for !sw_renderer test paths
-    auto& session_ref = isolated_temporal_sample && temporal_context->session
-        ? static_cast<runtime::JobSession&>(*temporal_context->session)
-        : (sw_renderer
-            ? static_cast<runtime::JobSession&>(sw_renderer->session())
-            : fallback_session);
+    // Do not construct the compatibility JobSession on production frames.
+    // Its frame-slot payloads own several MiB arenas; constructing and
+    // destroying that unused session once per frame was the dominant CPU
+    // cost in native video exports (perf: ~70% memset in the arena teardown).
+    std::optional<runtime::JobSession> fallback_session;
+    runtime::JobSession* session_ptr = nullptr;
+    if (isolated_temporal_sample && temporal_context->session) {
+        session_ptr = temporal_context->session;
+    } else if (sw_renderer) {
+        session_ptr = &sw_renderer->session();
+    } else {
+        fallback_session.emplace();
+        session_ptr = &*fallback_session;
+    }
+    auto& session_ref = *session_ptr;
     // Wave 7: production frames use the leased FrameExecution payload arena.
     // The JobSession arena remains only as an explicit compatibility fallback
     // for standalone/preflight callers that do not provide a frame lease.

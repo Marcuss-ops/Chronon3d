@@ -27,6 +27,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     gpu_runtime.cpp
     gpu_asset_cache.cpp
     gpu_glyph_atlas.cpp
+    gpu_text_atlas_cache.cpp
     gpu_layer_batch.cpp
     # Fixed-slot frame execution authorities: FrameSlotPool owns slot payloads,
     # GpuCompletionTracker owns native GPU protocol/completion state, and

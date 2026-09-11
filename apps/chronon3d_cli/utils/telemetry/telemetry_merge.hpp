@@ -37,6 +37,8 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.graph_execute_wall_ms.fetch_add(src.graph_execute_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.graph_total_wall_ms.fetch_add(src.graph_total_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.compiled_graph_refresh_wall_ms.fetch_add(src.compiled_graph_refresh_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_refresh_scratch_node_builds.fetch_add(src.graph_refresh_scratch_node_builds.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_refresh_scratch_node_reuses.fetch_add(src.graph_refresh_scratch_node_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.cache_eval_wall_ms.fetch_add(src.cache_eval_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_eval_wall_ms.fetch_add(src.dirty_eval_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.input_resolve_wall_ms.fetch_add(src.input_resolve_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);

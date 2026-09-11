@@ -39,11 +39,14 @@ float sample_track(const CompiledProgram& program,
 
 }  // namespace
 
-FrameParameterBlock TypedProgramSampler::sample(const CompiledProgram& program,
-                                                Frame frame) const {
-    FrameParameterBlock block;
+void TypedProgramSampler::sample_into(const CompiledProgram& program,
+                                      Frame frame,
+                                      FrameParameterBlock& block) const {
     block.frame = frame;
-    block.layers.reserve(program.layers().size());
+    block.layers.clear();
+    if (block.layers.capacity() < program.layers().size()) {
+        block.layers.reserve(program.layers().size());
+    }
 
     for (const auto& layer : program.layers()) {
         SampledLayerParameters sampled;
@@ -112,8 +115,14 @@ FrameParameterBlock TypedProgramSampler::sample(const CompiledProgram& program,
         transform.rotation = Quat(glm::radians(layer.rotation[2]), Vec3{0.0f, 0.0f, 1.0f});
         transform.opacity = sampled.opacity;
         sampled.matrix = transform.to_matrix();
-        block.layers.push_back(sampled);
+        block.layers.push_back(std::move(sampled));
     }
+}
+
+FrameParameterBlock TypedProgramSampler::sample(const CompiledProgram& program,
+                                                Frame frame) const {
+    FrameParameterBlock block;
+    sample_into(program, frame, block);
     return block;
 }
 
