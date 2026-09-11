@@ -144,3 +144,17 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render_graph/render_backend.hpp"]
 patterns = ["\\bRenderBackendError\\s*\\{"]
 skip_comments = true
+
+[[scan]]
+name = "camera_evaluation_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/scene/camera/camera_v1/camera_program.hpp"]
+patterns = ["\\bCameraEvaluationError\\s*\\{"]
+skip_comments = true
+
+[[scan]]
+name = "camera_compile_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp"]
+patterns = ["\\bCameraCompileError\\s*\\{"]
+skip_comments = true

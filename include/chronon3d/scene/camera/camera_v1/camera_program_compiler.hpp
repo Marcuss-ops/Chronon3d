@@ -29,6 +29,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 #include <unordered_set>
 #include <vector>
 
@@ -50,6 +51,13 @@ struct CameraCompileError {
     CameraCompileErrorCode code{CameraCompileErrorCode::InvalidDescriptor};
     std::string            message;
 };
+
+// Camera compiler compatibility boundary. CameraCompileErrorCode stays as
+// the structured compiler detail while construction is adapter-owned.
+[[nodiscard]] inline CameraCompileError make_camera_compile_error(
+    CameraCompileErrorCode code, std::string message) {
+    return CameraCompileError{code, std::move(message)};
+}
 
 // =============================================================================
 // CameraCompileContext — CAM-02 cycle-detection state.

@@ -31,10 +31,10 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
     EvaluatedCamera result;
 
     if (!compiled_) {
-        return CameraEvaluationError{
+        return make_camera_evaluation_error(
             CameraErrorCode::Uncompiled,
             "CameraProgram not compiled — call compile_camera() first"
-        };
+        );
     }
 
     // Evaluate source directly (no registry lookup).
@@ -182,10 +182,10 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
             switch (failure_policy_) {
             case CameraFailurePolicy::Stop:
                 // CAM-03: Stop = true failure.  Return error.
-                return CameraEvaluationError{
+                return make_camera_evaluation_error(
                     CameraErrorCode::ConstraintFailure,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason
-                };
+                );
             case CameraFailurePolicy::KeepLastValidCamera:
                 // ──────────────────────────────────────────────────────────────────────
                 // TICKET-A3-SESSION-POLICY (Agent3 mission DoD gate (c)):
@@ -223,11 +223,11 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
                     return result;
                 }
                 // No cached valid camera to recover — true error (same code as Stop).
-                return CameraEvaluationError{
+                return make_camera_evaluation_error(
                     CameraErrorCode::ConstraintFailure,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason +
                         " (KeepLastValidCamera policy, but no valid camera cached)"
-                };
+                );
             case CameraFailurePolicy::SkipFailedConstraint:
                 continue;
             }
@@ -274,16 +274,16 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
                std::isinf(v.x) || std::isinf(v.y) || std::isinf(v.z);
     };
     if (has_nan_or_inf(intermediate.position)) {
-        return CameraEvaluationError{
+        return make_camera_evaluation_error(
             CameraErrorCode::ConstraintFailure,
             "validation finale: NaN/Inf in final camera position"
-        };
+        );
     }
     if (has_nan_or_inf(intermediate.rotation)) {
-        return CameraEvaluationError{
+        return make_camera_evaluation_error(
             CameraErrorCode::ConstraintFailure,
             "validation finale: NaN/Inf in final camera rotation"
-        };
+        );
     }
 
     result.camera = intermediate;

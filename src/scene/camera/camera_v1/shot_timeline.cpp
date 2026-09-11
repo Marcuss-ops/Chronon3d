@@ -459,12 +459,12 @@ ShotTimelineResolver::evaluate(SampleTime time,
                                         static_cast<int>(frame), fps);
             auto eval_result = pair.next->program.evaluate(ctx, lease.session());
             if (!eval_result) {
-                return CameraEvaluationError{
+                return make_camera_evaluation_error(
                     .code    = CameraErrorCode::TransitionEvaluationFailed,
                     .message = std::string("ShotTimeline one-frame transition to-shot '") +
                                pair.next->name + "' evaluate failed: " +
                                eval_result.error().message
-                };
+                );
             }
             lease.commit(eval_result.value().camera);
             EvaluatedCamera enriched = eval_result.value();
@@ -491,11 +491,11 @@ ShotTimelineResolver::evaluate(SampleTime time,
                                             static_cast<int>(frame), fps);
             auto  eval_from = shot.program.evaluate(ctx_from, lease_from.session());
             if (!eval_from) {
-                return CameraEvaluationError{
+                return make_camera_evaluation_error(
                     .code    = CameraErrorCode::TransitionEvaluationFailed,
                     .message = std::string("ShotTimeline transition from-shot '") + shot.name +
                                "' evaluate failed: " + eval_from.error().message
-                };
+                );
             }
             lease_from.commit(eval_from.value().camera);
 
@@ -504,11 +504,11 @@ ShotTimelineResolver::evaluate(SampleTime time,
                                             static_cast<int>(frame), fps);
             auto  eval_to = pair.next->program.evaluate(ctx_to, lease_to.session());
             if (!eval_to) {
-                return CameraEvaluationError{
+                return make_camera_evaluation_error(
                     .code    = CameraErrorCode::TransitionEvaluationFailed,
                     .message = std::string("ShotTimeline transition to-shot '") + pair.next->name +
                                "' evaluate failed: " + eval_to.error().message
-                };
+                );
             }
             lease_to.commit(eval_to.value().camera);
 
@@ -562,11 +562,11 @@ ShotTimelineResolver::evaluate(SampleTime time,
                                  shot.start_frame, static_cast<int>(frame), fps);
     auto eval_result = shot.program.evaluate(ctx, lease.session());
     if (!eval_result) {
-        return CameraEvaluationError{
+        return make_camera_evaluation_error(
             .code    = CameraErrorCode::TransitionEvaluationFailed,
             .message = std::string("ShotTimeline evaluate failed for shot '") + shot.name +
                        "': " + eval_result.error().message
-        };
+        );
     }
     // P3-H + sub-ticket C — lease-commit persists the working session
     // back into the cache's checkpoint slot (this is the commit step that
