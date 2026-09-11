@@ -17,6 +17,9 @@ case "$GATE" in
   check_commit_subject_length.sh)
     exec bash "$SCRIPT_DIR/$GATE" "$REMOTE/$BRANCH"
     ;;
+  check_steady_state_allocations.sh)
+    exec bash "$SCRIPT_DIR/gates/$GATE"
+    ;;
   *)
     exec bash "$SCRIPT_DIR/$GATE"
     ;;
