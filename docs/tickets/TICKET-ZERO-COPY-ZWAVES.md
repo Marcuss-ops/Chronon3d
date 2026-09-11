@@ -175,6 +175,13 @@ the certified corpus (scene + expected gates) must run in CI without a content
 pack. Non-certified scenes keep the honest FullGraph lane with counted
 conversions — never counter-gaming.
 
+The canonical prepared MTSDF text lowering is now admitted by the matrix only
+when the resolver has validated a `TextRunShape` and sets
+`LayerYuvQuery::prepared_mtsdf`. Generic GPU-resident text remains an explicit
+FullGraph fallback. This makes the existing DirectYUV MTSDF kernel reachable
+without weakening the fail-closed contract; visual Vulkan↔CUDA equivalence
+and same-SHA GPU certification remain required evidence.
+
 ## Z5 — Absorb DirectYuvExecutor into the normal execution path (LAND)
 
 `DirectYuvExecutor` (`src/media/video/direct_yuv/`) was absorbed into

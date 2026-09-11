@@ -79,6 +79,11 @@ struct LayerYuvQuery {
     /// True when the layer resolves to exactly one shape node per frame
     /// (the fast path composites one primitive per layer).
     bool single_shape_node{true};
+    /// True only after the canonical TextRunShape has been validated and
+    /// prepared as an MTSDF resource. TextOverlay is never admitted from a
+    /// generic RGBA/host texture claim: the DirectYUV kernel needs the shared
+    /// PreparedTextRun/MTSDF ABI.
+    bool prepared_mtsdf{false};
     ::chronon3d::BlendMode blend{::chronon3d::BlendMode::Normal};
 };
 
@@ -114,13 +119,15 @@ struct LayerYuvQuery {
                 : DirectYuvSupport::Unsupported;
 
         case DirectYuvEffectClass::TextOverlay:
-            // GPU-resident RGBA sampled straight into the NV12 writer.
-            // The text atlas ABI is not yet visually certified on the CUDA
-            // lane: a bad atlas must never produce a formally successful
-            // dotted watermark. Keep text on the canonical Vulkan graph
-            // until the dedicated coverage/atlas canary passes.
-            (void)query;
-            return DirectYuvSupport::RequiresFullFrame;
+            // Only the canonical prepared MTSDF resource is supported. A
+            // generic GPU-resident text texture is not enough to establish
+            // the field encoding and glyph/layout contract.
+            if (!query.gpu_resident || !query.prepared_mtsdf) {
+                return DirectYuvSupport::RequiresFullFrame;
+            }
+            return (structural && additive_blend)
+                ? DirectYuvSupport::Certified
+                : DirectYuvSupport::Unsupported;
 
         case DirectYuvEffectClass::VideoOverlayNv12:
             // The scene classifier knows how to describe a second NV12
