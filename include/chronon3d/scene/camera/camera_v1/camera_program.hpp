@@ -28,6 +28,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::camera_v1 {
@@ -140,6 +141,13 @@ struct CameraEvaluationError {
     CameraErrorCode code{CameraErrorCode::Unknown};
     std::string    message;
 };
+
+// Camera evaluation compatibility boundary. CameraErrorCode remains the
+// domain detail payload; construction is centralized for the runtime path.
+[[nodiscard]] inline CameraEvaluationError make_camera_evaluation_error(
+    CameraErrorCode code, std::string message) {
+    return CameraEvaluationError{code, std::move(message)};
+}
 
 /// Source evaluation result — carries the evaluated camera plus optional
 /// trajectory tangent and roll that the orientation stage (OrientAlongPath)
