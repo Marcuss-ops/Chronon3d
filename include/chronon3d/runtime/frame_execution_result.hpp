@@ -91,6 +91,15 @@ struct FrameExecutionResult {
             .error = std::move(canonical_error),
         };
     }
+
+    [[nodiscard]] static FrameExecutionResult cancelled(
+        std::string reason,
+        PassId pass = kInvalidPassId) {
+        return failed(chronon::from_legacy<ExecutionFailure>(
+            chronon::ErrorKind::Cancelled, "frame_execution",
+            "chronon3d::runtime::ExecutionFailure", "Cancelled",
+            std::move(reason)), pass);
+    }
 };
 
 } // namespace chronon3d::runtime

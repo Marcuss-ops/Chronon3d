@@ -51,6 +51,10 @@ TEST_CASE("SDK legacy RenderError maps to canonical control semantics") {
 }
 
 TEST_CASE("cancellation and device loss use the canonical taxonomy") {
+    const auto cancellation = chronon3d::runtime::FrameExecutionResult::cancelled(
+        "cancelled by caller");
+    CHECK(cancellation.error.category == chronon::ErrorCategory::Cancelled);
+
     const auto cancelled = chronon3d::runtime::FrameExecutionResult::failed(
         chronon3d::runtime::ExecutionFailure::DecodeFailure,
         "cancelled by caller");

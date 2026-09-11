@@ -12,6 +12,8 @@ TEST_CASE("render receipt reports missing video without dumping probe payload") 
     input.fps_num = 24;
     input.fps_den = 1;
     input.frames = 1;
+    input.execution_downgrade_reason = "gop_splice_unsafe";
+    input.execution_downgrade_count = 1;
 
     const std::filesystem::path missing =
         "/tmp/chronon3d_receipt_missing_video.mp4";
@@ -24,4 +26,6 @@ TEST_CASE("render receipt reports missing video without dumping probe payload") 
     CHECK_FALSE(receipt.copy_eligible);
     CHECK(receipt.media.container.empty());
     CHECK(receipt.media.codec.empty());
+    CHECK(receipt.execution_downgrade_reason == "gop_splice_unsafe");
+    CHECK(receipt.execution_downgrade_count == 1);
 }

@@ -117,6 +117,10 @@ struct RenderReceiptInput {
     int fps_num{0};
     int fps_den{1};
     std::int64_t frames{0};
+    // Final resolver receipt. A non-zero count is mandatory evidence for a
+    // planned downgrade; an executor must never create an unrecorded fallback.
+    std::string execution_downgrade_reason;
+    std::uint32_t execution_downgrade_count{0};
 
     // output contract
     std::string requested_codec{"auto"};  // "auto" = any codec accepted
@@ -151,6 +155,8 @@ struct RenderReceipt {
     int fps_num{0};
     int fps_den{1};
     std::int64_t frames{0};
+    std::string execution_downgrade_reason;
+    std::uint32_t execution_downgrade_count{0};
 
     // media + verification
     MediaContract media;

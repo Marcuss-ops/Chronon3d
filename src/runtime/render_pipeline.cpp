@@ -223,10 +223,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
         return output;
     } catch (...) {
         if (session.state() != JobState::Failed) {
-            session.fail_job(chronon::make_error(
-                chronon::ErrorKind::FrameFailed, "render_pipeline",
-                "PipelineException", "render pipeline aborted the frame",
-                "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+            session.fail_job(session.cancellation().is_cancelled()
+                ? chronon::make_error(
+                    chronon::ErrorKind::Cancelled, "render_pipeline",
+                    "Cancelled", "render pipeline cancelled by caller",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id())
+                : chronon::make_error(
+                    chronon::ErrorKind::FrameFailed, "render_pipeline",
+                    "PipelineException", "render pipeline aborted the frame",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
         }
         execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) !=
@@ -292,10 +297,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
         return output;
     } catch (...) {
         if (session.state() != JobState::Failed) {
-            session.fail_job(chronon::make_error(
-                chronon::ErrorKind::FrameFailed, "render_pipeline",
-                "PipelineException", "render pipeline aborted the frame",
-                "render_pipeline", {}, {}, frame.integral(), session.job_id()));
+            session.fail_job(session.cancellation().is_cancelled()
+                ? chronon::make_error(
+                    chronon::ErrorKind::Cancelled, "render_pipeline",
+                    "Cancelled", "render pipeline cancelled by caller",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id())
+                : chronon::make_error(
+                    chronon::ErrorKind::FrameFailed, "render_pipeline",
+                    "PipelineException", "render pipeline aborted the frame",
+                    "render_pipeline", {}, {}, frame.integral(), session.job_id()));
         }
         execution.fail();
         if (render_slot && render_slot->state.load(std::memory_order_acquire) !=
@@ -339,7 +349,11 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
 
     auto fail = [&](Frame frame, std::string message) {
         session.fail_job(chronon::make_error(
-            chronon::ErrorKind::JobFailed, "render_pipeline", "BatchFailed",
+            session.cancellation().is_cancelled()
+                ? chronon::ErrorKind::Cancelled
+                : chronon::ErrorKind::JobFailed,
+            "render_pipeline",
+            session.cancellation().is_cancelled() ? "Cancelled" : "BatchFailed",
             message, "render_pipeline", {}, {}, frame.integral(), session.job_id()));
         {
             std::lock_guard lock(error_mutex);

@@ -52,6 +52,7 @@ contract before the prepared execution plan migration.
   the structured payload.
 - Cancellation and device loss use the same taxonomy.
 - Native→pipe downgrade is never silent: the final resolver decision carries
-  a reason and increments its downgrade counter.
+  a reason and increments its downgrade counter; the render receipt now
+  persists both fields.
 - Every row above reaches zero direct constructions outside its adapter before
   the enum is deleted.
