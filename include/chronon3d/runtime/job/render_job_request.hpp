@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace chronon3d::runtime::job {
 
@@ -68,6 +69,14 @@ struct RenderJobRequestError {
     RenderJobRequestErrorCode code{RenderJobRequestErrorCode::MissingPlan};
     std::string message;
 };
+
+// Compatibility boundary for the legacy request error payload. New request
+// validation code must enter through this adapter so the legacy enum remains
+// a detail payload while its construction surface is reduced to one place.
+[[nodiscard]] inline RenderJobRequestError make_render_job_request_error(
+    RenderJobRequestErrorCode code, std::string message) {
+    return RenderJobRequestError{code, std::move(message)};
+}
 
 struct NormalizedRenderJob {
     std::filesystem::path plan_path;

@@ -41,19 +41,19 @@ Result<TypewriterLayout, TextError> compute_typewriter_layout(
 {
     (void)engine;
     TypewriterLayout result;
-    if (text.empty()) return TextError{
+    if (text.empty()) return make_text_error(
         TextErrorCode::EmptyText,
-        "compute_typewriter_layout: text is empty"};
+        "compute_typewriter_layout: text is empty");
 
     auto run = engine.shape_text(text, font_spec, font_size);
-    if (!run || run->glyphs.empty()) return TextError{
+    if (!run || run->glyphs.empty()) return make_text_error(
         TextErrorCode::ShapingFailed,
-        "compute_typewriter_layout: shaping produced no glyphs"};
+        "compute_typewriter_layout: shaping produced no glyphs");
 
     auto placed = resolve_placed_glyph_run(*run, tracking, text);
-    if (placed.clusters.empty()) return TextError{
+    if (placed.clusters.empty()) return make_text_error(
         TextErrorCode::NoClusters,
-        "compute_typewriter_layout: placed clusters are empty"};
+        "compute_typewriter_layout: placed clusters are empty");
 
     struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
     std::vector<CharAdv> char_advances;
@@ -206,9 +206,9 @@ Result<TypewriterLayout, TextError> compute_typewriter_layout(
         size_t max_lines = std::max(static_cast<size_t>(box.y / line_step), size_t{1});
         if (lines.size() > max_lines) lines.resize(max_lines);
     }
-    if (lines.empty()) return TextError{
+    if (lines.empty()) return make_text_error(
         TextErrorCode::NoLayoutLines,
-        "compute_typewriter_layout: word-wrap produced zero lines"};
+        "compute_typewriter_layout: word-wrap produced zero lines");
 
     f32 max_w = 0.0f;
     for (auto& ln : lines) max_w = std::max(max_w, ln.width);

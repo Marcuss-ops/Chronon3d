@@ -243,40 +243,35 @@ inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
     std::uint64_t                       owner_key
 ) noexcept {
     if (kind == ExecutionScopeKind::Root) {
-        return ScopeError{
+        return make_scope_error(
             ScopeErrorCode::InvalidChildKind,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
-        };
+            static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1));
     }
     if (!parent) {
-        return ScopeError{
+        return make_scope_error(
             ScopeErrorCode::ParentRequired,
-            kind, graph_id, owner_key, 1u
-        };
+            kind, graph_id, owner_key, 1u);
     }
     if (&arena == &parent->arena()) {
-        return ScopeError{
+        return make_scope_error(
             ScopeErrorCode::ArenaAliasesParent,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
-        };
+            static_cast<chronon3d::u32>(parent->chain_length() + 1));
     }
     if (parent->chain_length() >= kMaxScopeChainLength) {
-        return ScopeError{
+        return make_scope_error(
             ScopeErrorCode::ChainLimitExceeded,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
-        };
+            static_cast<chronon3d::u32>(parent->chain_length() + 1));
     }
     if (kind == ExecutionScopeKind::Precomp
         && owner_key != 0u
         && parent->would_recurse(owner_key)) {
-        return ScopeError{
+        return make_scope_error(
             ScopeErrorCode::RecursiveOwner,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
-        };
+            static_cast<chronon3d::u32>(parent->chain_length() + 1));
     }
     ExecutionScope child(
         kind, session, arena, graph_id, parent);

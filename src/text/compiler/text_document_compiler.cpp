@@ -96,11 +96,11 @@ TextDocumentCompileResult compile_text_document(
             if (divergent) {
                 result.paragraphs.push_back(CompiledParagraphResult{
                     index,
-                    TextLayoutError{
+                    make_text_layout_error(
                         TextLayoutErrorKind::UnsupportedMultiFontRun,
                         "compile_text_document: paragraph " + std::to_string(index)
                             + " is multi-font (span font differs from run 0)"
-                    }
+                    )
                 });
                 result.complete = false;
                 continue;

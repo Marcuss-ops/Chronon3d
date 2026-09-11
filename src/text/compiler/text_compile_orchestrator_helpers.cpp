@@ -36,16 +36,16 @@ resolve_target_paragraph(
                doc, *services.engine, services.bundled_fonts_root), local_storage);
 
     if (tree.paragraphs.empty()) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::EmptySource,
             "resolve_target_paragraph: resolved tree has no paragraphs"
-        };
+        );
     }
     if (paragraph_index >= tree.paragraphs.size()) {
-        return TextLayoutError{
+        return make_text_layout_error(
             TextLayoutErrorKind::MalformedLayout,
             "resolve_target_paragraph: paragraph_index out of range"
-        };
+        );
     }
     return &tree.paragraphs[paragraph_index];
 }

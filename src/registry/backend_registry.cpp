@@ -78,26 +78,26 @@ BackendResolver::resolve(BackendPreference preference,
                 return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(std::move(backend));
             }
         } catch (const std::exception& error) {
-            return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(BackendResolveError{
+            return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(make_backend_resolve_error(
                 BackendResolveErrorCode::FactoryFailed, type,
-                std::string{"backend factory failed for "} + backend_type_name(type) + ": " + error.what()});
+                std::string{"backend factory failed for "} + backend_type_name(type) + ": " + error.what()));
         } catch (...) {
-            return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(BackendResolveError{
+            return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(make_backend_resolve_error(
                 BackendResolveErrorCode::FactoryFailed, type,
-                std::string{"backend factory failed for "} + backend_type_name(type) + ": unknown exception"});
+                std::string{"backend factory failed for "} + backend_type_name(type) + ": unknown exception"));
         }
-        return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(BackendResolveError{
+        return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(make_backend_resolve_error(
             BackendResolveErrorCode::FactoryFailed, type,
-            std::string{"backend factory returned nullptr for "} + backend_type_name(type)});
+            std::string{"backend factory returned nullptr for "} + backend_type_name(type)));
     }
 
     const auto requested = preference == BackendPreference::GPU
         ? BackendType::Vulkan : BackendType::Software;
     const auto code = registered ? BackendResolveErrorCode::NoMatchingBackend
                                  : BackendResolveErrorCode::NotRegistered;
-    return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(BackendResolveError{
+    return Result<std::unique_ptr<RenderBackend>, BackendResolveError>(make_backend_resolve_error(
         code, requested,
-        std::string{"no backend satisfies preference="} + backend_preference_name(preference)});
+        std::string{"no backend satisfies preference="} + backend_preference_name(preference)));
 }
 
 const char* backend_type_name(BackendType type) noexcept {
