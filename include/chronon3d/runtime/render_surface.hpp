@@ -298,7 +298,7 @@ struct alignas(16) GlyphStatic {
 static_assert(sizeof(GlyphStatic) == 48,
               "GlyphStatic must be 48 bytes matching std430 layout");
 
-struct TextRunDynamic {
+struct alignas(16) TextRunDynamic {
     float tx{0.0f};
     float ty{0.0f};
     float sx{1.0f};
@@ -338,6 +338,8 @@ struct TextRunDynamic {
 };
 static_assert(sizeof(TextRunDynamic) == 112,
               "TextRunDynamic must be 112 bytes matching std430");
+static_assert(alignof(TextRunDynamic) == 16,
+              "TextRunDynamic must be 16-byte aligned for std430 arrays");
 
 struct GlyphInstance {
     std::int32_t dst_x{0};
