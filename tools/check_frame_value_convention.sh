@@ -110,7 +110,7 @@ CANONICAL_HEADER='include/chronon3d/core/types/frame.hpp'
 # reads always terminate with `;`, `)`, `+`, whitespace, EOL, or are
 # followed by an operator that confirms the primitive-read semantics.
 HITS=$(grep -RnE \
-    '\b([Ff]rame|[Ff]|sequence_start|sequence_end|local_frame|global_frame|sequenceFrame|sequence_frame)\w*\.value\b|\b\w+\.frame\.value\b' \
+    '\b([Ff]rame\w*|[Ff]|sequence_start\w*|sequence_end\w*|local_frame\w*|global_frame\w*|sequenceFrame\w*|sequence_frame\w*)\.value\b|\b\w+\.frame\.value\b' \
     "${REPO_ROOT}/src"     \
     "${REPO_ROOT}/include" \
     "${REPO_ROOT}/tests"   \
