@@ -5,10 +5,10 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-// TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
+// TICKET-038/TXT-00 — canonical explicit executor view.
 // RuntimeContext (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
 // owner of GraphExecutor per TICKET-011.  Calling
-// sw_renderer->runtime().executor().execute_with_scope(...) below at the
+// sw_renderer->execution_context().executor->execute_with_scope(...) below at the
 // fallback path needs the FULL type of RuntimeContext (the .executor()
 // accessor + the GraphExecutor& return — only declared in the full
 // type).  `render_session.hpp` alone forward-declares RuntimeContext via
@@ -153,7 +153,7 @@ TileExecutionResult execute_tile_or_fallback(
             CHRONON_TRACE_SCOPE("chronon.graph", "graph_execute");
             // Section 5 violation fix: executor is engine-owned by RuntimeContext,
             // not by SoftwareRenderer.  Reach it via runtime().executor().
-            if (!sw_renderer || !sw_renderer->has_runtime()) {
+            if (!sw_renderer || !sw_renderer->execution_context().executor) {
                 // Direct graph-pipeline tests may provide a backend without
                 // the SoftwareRenderer sidecar. Preserve that explicit
                 // compatibility path; production renderer calls always use
@@ -167,7 +167,7 @@ TileExecutionResult execute_tile_or_fallback(
                 // PR 6.2 — root_scope constructed in
                 // render_scene_via_graph() binds session + graph identity;
                 // production calls use the sole runtime-owned executor.
-                result.fb = sw_renderer->runtime().executor().execute(
+                result.fb = sw_renderer->execution_context().executor->execute(
                     compiled, ctx, root_scope,
                     sw_renderer->scheduler()).framebuffer;
             }

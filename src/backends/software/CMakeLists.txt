@@ -17,7 +17,6 @@ add_library(chronon3d_backend_software OBJECT
     # Internal bridge, never installed as public API.
     internal/software_processor_services.cpp
     internal/frame_alloc_counter.cpp
-    runtime_adapter.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
     depth_buffer_pool.cpp

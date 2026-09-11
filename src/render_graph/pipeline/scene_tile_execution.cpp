@@ -1,9 +1,9 @@
 #include "scene_tile_execution.hpp"
 
-// TICKET-038/TXT-00 — canonical include for sw_renderer->runtime().
+// TICKET-038/TXT-00 — canonical explicit executor view.
 // RuntimeContext (in <chronon3d/runtime/render_runtime.hpp>) is the SOLE
 // owner of GraphExecutor per TICKET-011.  Calling
-// sw_renderer->runtime().executor().execute(...) below
+// sw_renderer->execution_context().executor->execute(...) below
 // needs the FULL type of RuntimeContext (the .executor() accessor +
 // the GraphExecutor& return — only declared in the full type).
 // graph_executor.hpp transitively forward-declares RuntimeContext; the
@@ -72,14 +72,14 @@ namespace chronon3d::graph::detail {
     // when ExecutionResolver has a renderer with a runtime-owned executor.
     // Do not construct a second GraphExecutor here; a missing runtime is a
     // violated pipeline precondition and must fail loudly.
-    if (!sw_renderer || !sw_renderer->has_runtime()) {
+    if (!sw_renderer || !sw_renderer->execution_context().executor) {
         throw std::logic_error(
             "tile execution requires the RuntimeContext-owned GraphExecutor");
     }
     auto& tile_scheduler = ctx.scheduler
         ? *ctx.scheduler
         : sw_renderer->scheduler();
-    tile_fb = sw_renderer->runtime().executor().execute(
+    tile_fb = sw_renderer->execution_context().executor->execute(
         compiled, tile_ctx, tile_scope,
         tile_scheduler).framebuffer;
 

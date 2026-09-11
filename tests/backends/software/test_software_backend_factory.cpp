@@ -92,8 +92,8 @@ SoftwareBackendServices services_from_renderer(SoftwareRenderer& r) noexcept {
         /* owner REMOVED IN TICKET-118 — was: &r, */
         /* counters           = */ r.counters(),
         /* settings           = */ &r.render_settings(),
-        /* framebuffer_pool   = */ r.runtime().framebuffer_pool_shared(),
-        /* asset_resolver     = */ &r.runtime().resolver(),
+        /* framebuffer_pool   = */ r.execution_context().scratch.framebuffer_pool,
+        /* asset_resolver     = */ r.execution_context().text.assets,
         /* text_resources     = */ r.text_render_resources(),
         /* images             = */ nullptr,
         /* text_raster        = */ nullptr,

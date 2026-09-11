@@ -67,13 +67,16 @@ SoftwareRenderer* setup_render_graph_context(
     // shared immutable FrameStaticContext: per-node context clones copy a
     // shared_ptr instead of deep-copying the string (hot-path tax C).
     if (sw_renderer) {
-        ctx.runtime = &sw_renderer->runtime();
-        ctx.asset_resolver = &sw_renderer->runtime().resolver();
-        if (const auto root = sw_renderer->runtime().resolver().mount_root();
-            !root.empty()) {
-            ctx.frame_input.static_context =
-                std::make_shared<const graph::FrameStaticContext>(
-                    graph::FrameStaticContext{root.string()});
+        ctx.runtime = sw_renderer->execution_context().runtime;
+        ctx.asset_resolver = sw_renderer->execution_context().runtime
+            ? &sw_renderer->execution_context().runtime->resolver() : nullptr;
+        if (sw_renderer->execution_context().runtime) {
+            if (const auto root = sw_renderer->execution_context().runtime->resolver().mount_root();
+                !root.empty()) {
+                ctx.frame_input.static_context =
+                    std::make_shared<const graph::FrameStaticContext>(
+                        graph::FrameStaticContext{root.string()});
+            }
         }
     } else if (ctx.runtime && !ctx.asset_resolver) {
         ctx.asset_resolver = &ctx.runtime->resolver();

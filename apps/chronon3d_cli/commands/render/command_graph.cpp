@@ -201,13 +201,14 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
         ? std::optional<std::filesystem::path>{}
         : std::optional<std::filesystem::path>{args.assets_root};
     auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
+    auto& runtime = *renderer->execution_context().runtime;
     auto scene = comp.evaluate(make_frame_context({
         .global_time = SampleTime::from_frame_int(args.frame, comp.frame_rate()),
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = renderer->runtime().resolver().mount_root().string(),
-        .runtime = &renderer->runtime(),
+        .assets_root = runtime.resolver().mount_root().string(),
+        .runtime = &runtime,
     }));
 
     if (args.plan) {
@@ -241,7 +242,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             /*execute=*/true, /*include_dot=*/need_dot
         );
         fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats,
-                                         renderer->runtime().diagnostics()));
+                                         runtime.diagnostics()));
         if (need_dot && !write_dot(stats.dot, args.output)) return 1;
         return 0;
     }
