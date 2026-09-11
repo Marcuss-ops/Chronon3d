@@ -71,3 +71,10 @@ scan_paths = ["include", "src", "apps", "tests"]
 patterns = ["namespace\\s+chronon3d::render\\s*\\{(?:(?!\\}).){0,1200}enum\\s+class\\s+RenderErrorCode"]
 multiline = true
 skip_comments = true
+
+[[scan]]
+name = "render_job_error_construction_adapter_only"
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = ["include/chronon3d/timeline/render_job.hpp"]
+patterns = ["\\bRenderJobError\\s*\\{"]
+skip_comments = true

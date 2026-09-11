@@ -149,13 +149,13 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     if (!compiled && !request.compiled_program) {
         auto registry_result = registry.resolve(composition_id, request.input);
         if (!registry_result) {
-            return RenderJobError{RenderJobErrorCode::ValidationFailed,
-                "Failed to resolve composition '" + composition_id + "': " + registry_result.error().message};
+            return make_render_job_error(RenderJobErrorCode::ValidationFailed,
+                "Failed to resolve composition '" + composition_id + "': " + registry_result.error().message);
         }
         resolved = std::move(registry_result.value());
         if (!resolved->construct) {
-            return RenderJobError{RenderJobErrorCode::InvalidJob,
-                "Composition '" + composition_id + "' has no prepared constructor"};
+            return make_render_job_error(RenderJobErrorCode::InvalidJob,
+                "Composition '" + composition_id + "' has no prepared constructor");
         }
     }
 
@@ -164,8 +164,8 @@ Result<RenderJob, RenderJobError> resolve_render_request(
             Composition comp = resolved->construct();
             auto compiled_result = chronon3d::compile_composition(comp, CompositionCompileContext{});
             if (!compiled_result) {
-                return RenderJobError{RenderJobErrorCode::SetupFailed,
-                    "Composition compilation failed for '" + composition_id + "': " + compiled_result.error().message};
+                return make_render_job_error(RenderJobErrorCode::SetupFailed,
+                    "Composition compilation failed for '" + composition_id + "': " + compiled_result.error().message);
             }
             compiled = std::make_shared<const CompiledComposition>(std::move(compiled_result).value());
         }
@@ -191,8 +191,8 @@ Result<RenderJob, RenderJobError> resolve_render_request(
                 .duration = job.compiled->composition->duration(),
             };
         } else {
-            return RenderJobError{RenderJobErrorCode::InvalidJob,
-                "RenderJob has neither a compiled program nor a compiled composition"};
+            return make_render_job_error(RenderJobErrorCode::InvalidJob,
+                "RenderJob has neither a compiled program nor a compiled composition");
         }
         if (resolved && resolved->metadata) job.metadata = *resolved->metadata;
         job.mode = request.mode;
@@ -218,8 +218,8 @@ Result<RenderJob, RenderJobError> resolve_render_request(
         if (job.mode == RenderMode::Video) finalize_video_settings(job);
         return job;
     } catch (const std::exception& error) {
-        return RenderJobError{RenderJobErrorCode::SetupFailed,
-            "Composition construction failed for '" + composition_id + "': " + error.what()};
+        return make_render_job_error(RenderJobErrorCode::SetupFailed,
+            "Composition construction failed for '" + composition_id + "': " + error.what());
     }
 }
 
