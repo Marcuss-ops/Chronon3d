@@ -302,6 +302,11 @@ struct JobTimings {
     // counter heuristics. This is the single authoritative field; the
     // gpu.effective_backend field is kept as a compatibility projection.
     std::optional<std::string> execution_path;
+    // Structured reason and downgrade receipt from the final Chronon plan.
+    // These are persisted beside execution_path so an automatic path choice
+    // remains auditable after the render process exits.
+    std::optional<std::string> execution_reason;
+    std::optional<std::uint32_t> execution_downgrade_count;
     std::optional<std::string> surface_handoff_path;
     std::optional<double> job_wall_ms;
     std::optional<double> engine_init_ms;

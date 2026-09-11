@@ -56,7 +56,9 @@ NativeSurfacePrep prepare_frame(
         return prep;
     }
     prep.video_settings.native_video_encode_surface = execution_slot.native_surface;
-    prep.video_settings.native_video_source_surface = execution_slot.source_surface;
+    // FullGraph has one physical encode backing per slot. The source role is
+    // an alias used by the writer contract, never a second allocation.
+    prep.video_settings.native_video_source_surface = execution_slot.native_surface;
     return prep;
 }
 
@@ -118,8 +120,21 @@ EncodeOutcome encode_frame(
         ctx.backend.is_native_surface_valid(execution_slot->source_surface)) {
         source_surface = execution_slot->source_surface;
     }
-    if (execution_slot && source_surface != runtime::kInvalidRenderSurfaceHandle) {
-        execution_slot->source_surface = source_surface;
+    if (execution_slot && execution_slot->native_surface != runtime::kInvalidRenderSurfaceHandle) {
+        // Z3 invariant: the graph output and encoder input are the same
+        // exportable backing. A distinct source would require a device copy;
+        // fail closed so the copy can never silently return to production.
+        if (source_surface != runtime::kInvalidRenderSurfaceHandle &&
+            source_surface != execution_slot->native_surface) {
+            spdlog::error(
+                "[video] FullGraph output escaped encode surface at frame {} "
+                "source={} encode={}", static_cast<int>(current_frame),
+                source_surface, execution_slot->native_surface);
+            out.source_residency_failed = true;
+            return out;
+        }
+        source_surface = execution_slot->native_surface;
+        execution_slot->source_surface = execution_slot->native_surface;
     }
     auto* surface_registry = ctx.sw_renderer
         ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;

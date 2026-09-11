@@ -49,6 +49,26 @@ bool NativeAvEncoder::prepare_native_surface(
             spdlog::info("[interop-trace] PREPARE_NATIVE_SURFACE dest={} ctx={}", destination, cuda_context_);
         }
     }
+    // Materialize FFmpeg's CUDA frame pool before the render loop. The frame
+    // objects are retained and reused by write_native_surface_impl; this
+    // moves the first-use AVFrame/hwframe allocations into the explicit
+    // warm-up phase instead of allowing them to appear as hot-loop stalls.
+    while (reusable_cuda_frames_.size() + pending_cuda_frames_.size() <
+           kCudaEncodeRingSlots) {
+        AVFrame* frame = av_frame_alloc();
+        if (!frame) return false;
+        frame->format = AV_PIX_FMT_CUDA;
+        frame->width = options_.width;
+        frame->height = options_.height;
+        frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
+        if (!frame->hw_frames_ctx ||
+            av_hwframe_get_buffer(cuda_frames_ref_, frame, 0) < 0) {
+            av_frame_free(&frame);
+            return false;
+        }
+        av_frame_unref(frame);
+        reusable_cuda_frames_.push_back(frame);
+    }
     return true;
 #endif
 }

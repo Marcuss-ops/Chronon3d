@@ -57,11 +57,15 @@ struct FullGraphSession {
         if (!surface_backend || !surface_registry) return;
         for (std::size_t i = 0; i < execution_slots.capacity(); ++i) {
             auto& slot = execution_slots.slot(i);
-            for (const auto handle : {slot.native_surface, slot.source_surface}) {
-                if (handle != runtime::kInvalidRenderSurfaceHandle) {
-                    (void)surface_backend->release_surface(handle);
-                    (void)surface_registry->release(handle);
-                }
+            const auto native = slot.native_surface;
+            const auto source = slot.source_surface;
+            if (native != runtime::kInvalidRenderSurfaceHandle) {
+                (void)surface_backend->release_surface(native);
+                (void)surface_registry->release(native);
+            }
+            if (source != runtime::kInvalidRenderSurfaceHandle && source != native) {
+                (void)surface_backend->release_surface(source);
+                (void)surface_registry->release(source);
             }
             slot.native_surface = runtime::kInvalidRenderSurfaceHandle;
             slot.source_surface = runtime::kInvalidRenderSurfaceHandle;

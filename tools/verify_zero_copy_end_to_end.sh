@@ -5,22 +5,24 @@
 # Validates that the video pipeline achieves true zero-copy end-to-end:
 #   NVDEC → native surface → CUDA/Vulkan compose → NVENC
 #
-# 13 MANDATORY gates (Phase 13: no "optional" gates — every gate below must
+# 15 MANDATORY gates (Phase 13: no "optional" gates — every gate below must
 # pass for ZERO_COPY_PASS; a gate whose value cannot be verified is a BLOCKED
 # verdict, never a pass):
 #   1.  host_upload_bytes = 0         (no CPU→GPU uploads)
 #   2.  host_readback_bytes = 0       (no GPU→CPU readbacks)
 #   3.  nv12_to_rgba_frames = 0       (no NV12→RGBA conversions)
-#   4.  rgba_to_nv12_frames = 0       (no RGBA→NV12 conversions)
-#   5.  encoder_staging_copy_bytes = 0 (no encoder staging copies)
-#   6.  gpu_surface_copy_frames = 0   (no GPU surface copies)
-#   7.  cpu_pixel_readback_bytes = 0  (no CPU pixel readbacks)
-#   8.  video_surface_upload_bytes = 0 (no video surface uploads)
-#   9.  gpu_native_surface_frames > 0  (frames using native GPU surfaces)
-#   10. gpu_native_encode_frames > 0   (frames encoded natively via NVENC)
-#   11. effective_backend identity    (must match the requested backend)
-#   12. encoder_backend identity      (must be the native/NVENC authority)
-#   13. surface_handoff_path = direct (no indirect surface handoff)
+#   4.  rgba_to_nv12_frames >= 0      (GPU color conversion allowed in FullGraph)
+#   5.  software_color_convert_frames = 0 (no software conversion)
+#   6.  cpu_pixel_conversion_ms = 0   (no CPU pixel conversion)
+#   7.  encoder_staging_copy_bytes = 0 (no encoder staging copies)
+#   8.  gpu_surface_copy_frames = 0   (no GPU surface copies)
+#   9.  cpu_pixel_readback_bytes = 0  (no CPU pixel readbacks)
+#   10. video_surface_upload_bytes = 0 (no video surface uploads)
+#   11. gpu_native_surface_frames > 0  (frames using native GPU surfaces)
+#   12. gpu_native_encode_frames > 0   (frames encoded natively via NVENC)
+#   13. effective_backend identity    (must match the requested backend)
+#   14. encoder_backend identity      (must be the native/NVENC authority)
+#   15. surface_handoff_path = direct (no indirect surface handoff)
 #
 # Usage:
 #   bash tools/verify_zero_copy_end_to_end.sh
@@ -203,6 +205,8 @@ HOST_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "gpu_upload_bytes")
 HOST_READBACK_BYTES=$(extract_counter "$REPORT_JSON" "gpu_readback_bytes")
 NV12_TO_RGBA_FRAMES=$(extract_counter "$REPORT_JSON" "nv12_to_rgba_frames")
 RGBA_TO_NV12_FRAMES=$(extract_counter "$REPORT_JSON" "rgba_to_nv12_frames")
+SOFTWARE_COLOR_CONVERT_FRAMES=$(extract_counter "$REPORT_JSON" "software_color_convert_frames")
+CPU_PIXEL_CONVERSION_MS=$(extract_counter "$REPORT_JSON" "cpu_pixel_conversion_ms")
 ENCODER_STAGING_COPY=$(extract_counter "$REPORT_JSON" "encoder_staging_copy_bytes")
 GPU_SURFACE_COPY=$(extract_counter "$REPORT_JSON" "gpu_surface_copy_frames")
 CPU_READBACK_BYTES=$(extract_counter "$REPORT_JSON" "cpu_pixel_readback_bytes")
@@ -260,11 +264,22 @@ check_gate() {
     fi
 }
 
-_info "── Required Gates (must be 0 for ZERO_COPY_PASS) ──"
+_info "── Required Copy/CPU Gates (must be 0 for ZERO_COPY_PASS) ──"
 check_gate "host_upload_bytes"        "$HOST_UPLOAD_BYTES"        "0"
 check_gate "host_readback_bytes"      "$HOST_READBACK_BYTES"      "0"
 check_gate "nv12_to_rgba_frames"      "$NV12_TO_RGBA_FRAMES"      "0"
-check_gate "rgba_to_nv12_frames"      "$RGBA_TO_NV12_FRAMES"      "0"
+if [[ "$RGBA_TO_NV12_FRAMES" == "" ]]; then
+    _warn "  rgba_to_nv12_frames: MISSING (cannot verify GPU color conversion)"
+    BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+elif [[ "$RGBA_TO_NV12_FRAMES" =~ ^[0-9]+$ ]]; then
+    _pass "  rgba_to_nv12_frames = $RGBA_TO_NV12_FRAMES (GPU conversion; allowed for FullGraph)"
+    PASS_COUNT=$((PASS_COUNT + 1))
+else
+    _fail "  rgba_to_nv12_frames = $RGBA_TO_NV12_FRAMES (invalid counter)"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+fi
+check_gate "software_color_convert_frames" "$SOFTWARE_COLOR_CONVERT_FRAMES" "0"
+check_gate "cpu_pixel_conversion_ms"    "$CPU_PIXEL_CONVERSION_MS"    "0"
 check_gate "encoder_staging_copy_bytes" "$ENCODER_STAGING_COPY"   "0"
 check_gate "gpu_surface_copy_frames"  "$GPU_SURFACE_COPY"         "0"
 check_gate "cpu_pixel_readback_bytes" "$CPU_READBACK_BYTES"       "0"

@@ -25,7 +25,6 @@
 
 namespace chronon3d::cli {
 using detail::VariantFanoutEncoder;
-using detail::render_graph_fallback_plan;
 
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
@@ -198,30 +197,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     if (direct_yuv_requested) {
-        const auto capability = media::video::DirectYuvProgram::resolve_support(
-            compiled,
-            opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv
-                ? media::video::DirectYuvPolicy::Require
-                : media::video::DirectYuvPolicy::Auto);
-        if (!capability.eligible) {
-            if (opts.gpu_hot_path_mode == GpuHotPathMode::Auto) {
-                spdlog::info(
-                    "[direct-yuv] capability pre-screen rejected lane; "
-                    "falling back to FullGraph: {}", capability.reason);
-                direct_yuv_requested = false;
-                session->execution_plan = render_graph_fallback_plan(opts);
-            } else {
-                spdlog::error(
-                    "[direct-yuv] capability pre-screen failed closed: {}",
-                    capability.reason);
-                session->direct_yuv_session = std::make_unique<DirectYuvSession>();
-                session->direct_yuv_session->required_but_unavailable = true;
-                return session;
-            }
-        }
-    }
-
-    if (direct_yuv_requested) {
         session->direct_yuv_session = std::make_unique<DirectYuvSession>();
         auto& direct = *session->direct_yuv_session;
         direct.asset_resolver = std::make_unique<assets::AssetResolver>();
@@ -242,18 +217,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
-            if (opts.gpu_hot_path_mode == GpuHotPathMode::Auto) {
-                spdlog::info("[direct-yuv] auto candidate rejected; falling back to FullGraph: {}",
-                             direct_reason);
-                session->device_runtime->image_cache().set_asset_resolver(nullptr);
-                session->direct_yuv_session.reset();
-                direct_yuv_requested = false;
-                session->execution_plan = render_graph_fallback_plan(opts);
-            } else {
-                spdlog::error("[direct-yuv] REQUIRE_DIRECT_YUV failed closed: {}", direct_reason);
-                session->direct_yuv_session->required_but_unavailable = true;
-                return session;
-            }
+            // Path classification already happened once in the dispatcher.
+            // A prepare failure is an execution/setup error, never permission
+            // to silently switch the final plan after resources are acquired.
+            spdlog::error("[direct-yuv] final plan preparation failed: {}", direct_reason);
+            session->direct_yuv_session->required_but_unavailable = true;
+            return session;
         }
         if (session->direct_yuv_selected()) {
             spdlog::info("[direct-yuv] selected for video source '{}'",
@@ -261,10 +230,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
     }
 
-    // Z1 (TICKET-ZERO-COPY-ZWAVES): open the encoder only AFTER the DirectYuv
-    // candidate decision, so the typed feed capability (`direct_yuv_mode`) is
-    // the FINAL session feed. An Auto-rejected DirectYuv candidate falls back
-    // to FullGraph above and the encoder is opened for graph frames; a frame
+    // Z1 (TICKET-ZERO-COPY-ZWAVES): open the encoder only AFTER the final
+    // DirectYuv/FullGraph decision, so the typed feed capability
+    // (`direct_yuv_mode`) is the FINAL session feed. An Auto rejection has
+    // already been resolved by the dispatcher before entering this setup;
+    // this layer never changes lanes after resources are acquired. A frame
     // feed must never cross lanes, and the write endpoints fail closed on it.
     // (A REQUIRE_DIRECT_YUV rejection returns earlier with no encoder open.)
     if (session->execution_plan) {
