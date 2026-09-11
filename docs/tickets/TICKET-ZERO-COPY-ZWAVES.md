@@ -203,6 +203,11 @@ Remaining Z7:
 - nightlies/CI zero-copy job with the registered scene on a GPU host;
 - keep all old-error counters as regression canaries after paths are removed.
 
+The certified timing sidecar now also reports
+`job.full_file_reread_count`. This keeps mux checksum backpatch fallbacks
+explicit in the same artifact as the zero-copy counters; a non-zero value is
+not treated as incremental hashing.
+
 ## Wave closure update — 2026-09-11
 
 The CLI render-plan path now invokes `compiler::compile()` exactly once. The
