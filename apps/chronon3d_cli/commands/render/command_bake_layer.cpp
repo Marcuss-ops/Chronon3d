@@ -34,6 +34,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
         ? std::optional<std::filesystem::path>{}
         : std::optional<std::filesystem::path>{args.assets_root};
     auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
+    auto& runtime = *renderer->execution_context().runtime;
 
     const auto frame = static_cast<Frame>(args.frame);
     auto scene = comp.evaluate(make_frame_context({
@@ -41,8 +42,8 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = renderer->runtime().resolver().mount_root().string(),
-        .runtime = &renderer->runtime(),
+        .assets_root = runtime.resolver().mount_root().string(),
+        .runtime = &runtime,
     }));
 
     // Build the full render graph for the scene
@@ -92,7 +93,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     // through make_root() with the session's own arena.
     graph::ExecutionScope root_scope = graph::ExecutionScope::make_root(
         session, session.arena(), compiled.graph_instance_id);
-    auto& executor = renderer->runtime().executor(); // Section 5 fix.
+    auto& executor = *renderer->execution_context().executor; // Section 5 fix.
     auto fb = executor.execute(
         compiled, graph_ctx, root_scope, scheduler).framebuffer;
 

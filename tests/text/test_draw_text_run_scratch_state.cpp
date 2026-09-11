@@ -215,7 +215,7 @@ TEST_CASE("draw_text_run: stroke render succeeds with per-span font_handle + scr
     const std::string text = "Hello";
 
     auto renderer = test::make_renderer();
-    FontEngine engine{renderer.runtime().resolver()};
+    FontEngine engine{*renderer.execution_context().text.assets};
     TextLayoutSpec layout;
     layout.box = {256.0f, 64.0f};
 

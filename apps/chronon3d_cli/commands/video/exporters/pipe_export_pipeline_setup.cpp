@@ -325,7 +325,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         ? session->full_graph_session->renderer.get() : nullptr;
     if (session->full_graph_session && sw_renderer) {
         session->full_graph_session->surface_backend = &sw_renderer->backend();
-        session->full_graph_session->surface_registry = &sw_renderer->runtime().surface_registry();
+        session->full_graph_session->surface_registry =
+            sw_renderer->execution_context().images.surfaces;
     }
     // Exclusive-wall startup is anchored to THIS job, never to the process:
     // in a persistent daemon `process_start_time()` is daemon boot, which

@@ -100,11 +100,11 @@ struct RenderEngine::Impl {
                 runtime_result.error().message);
         }
         m_runtime = std::move(runtime_result).value();
-        m_renderer = std::make_unique<SoftwareRenderer>(*m_runtime, m_config);
+        m_renderer = backends::software::make_software_renderer(*m_runtime, m_config);
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
         chronon3d::backends::software::attach_software_backend(
-            m_renderer.get(), m_config.backend_preference());
+            m_renderer.get(), *m_runtime, m_config.backend_preference());
         m_pipeline.emplace(m_renderer.get(), m_renderer->execution_context());
 
         if (assets_root.has_value()) {

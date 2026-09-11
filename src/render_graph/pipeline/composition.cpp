@@ -120,7 +120,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     // is null — the materializer's resolve_engine() provides a process-wide
     // fallback (F1.D) so text still renders.
     const chronon3d::runtime::RuntimeContext* frame_runtime =
-        (sw_sidecar != nullptr) ? &sw_sidecar->runtime() : nullptr;
+        (sw_sidecar != nullptr) ? sw_sidecar->execution_context().runtime : nullptr;
     const auto hits_before = node_cache.stats().hits;
     if (!std::isfinite(settings.ssaa_factor)) {
         throw std::invalid_argument("SSAA factor must be finite");

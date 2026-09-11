@@ -63,13 +63,14 @@ inline std::string bundled_font_path(const std::string& rel) {
 ///
 /// TICKET-079: takes `SoftwareRenderer*` (pointer) instead of
 /// `SoftwareRenderer&` (lvalue ref) — gate-3 I5 compliance.
-inline void attach_software_backend(SoftwareRenderer* renderer) {
+inline void attach_software_backend(SoftwareRenderer* renderer,
+                                    runtime::RuntimeContext& runtime) {
     chronon3d::SoftwareBackendServices services{
         /* owner REMOVED IN TICKET-118 — was: renderer, */
         /* counters           = */ renderer->counters(),
         /* settings           = */ &renderer->render_settings(),
-        /* framebuffer_pool   = */ renderer->runtime().framebuffer_pool_shared(),
-        /* asset_resolver     = */ &renderer->runtime().resolver(),
+        /* framebuffer_pool   = */ runtime.framebuffer_pool_shared(),
+        /* asset_resolver     = */ &runtime.resolver(),
         /* text_resources     = */ renderer->text_render_resources(),
         /* images             = */ &renderer->image_renderer(),
         /* text_raster        = */ nullptr,
@@ -103,13 +104,13 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    renderer->runtime().attach_backend(std::move(backend));
+    runtime.attach_backend(std::move(backend));
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
     renderer->attach_execution_context(
-        backends::software::make_software_execution_context(renderer));
+        backends::software::make_software_execution_context(renderer, runtime));
 }
 
 // ── TestRenderer wrapper ──────────────────────────────────────────────────
@@ -133,13 +134,15 @@ class TestRenderer : private TestRuntimeOwner, public SoftwareRenderer {
 public:
     explicit TestRenderer(Config config = Config{}, float ssaa = 1.0f)
         : TestRuntimeOwner(config)
-        , SoftwareRenderer(*m_test_runtime, std::move(config))
+        , SoftwareRenderer(
+            backends::software::make_software_renderer_context(*m_test_runtime),
+            std::move(config))
     {
         RenderSettings settings;
         if (ssaa > 1.0f) settings.ssaa_factor = ssaa;
         set_settings(settings);
         set_image_backend(std::make_shared<image::StbImageBackend>());
-        attach_software_backend(this);
+        attach_software_backend(this, *m_test_runtime);
     }
 
     TestRenderer(TestRenderer&& other) noexcept

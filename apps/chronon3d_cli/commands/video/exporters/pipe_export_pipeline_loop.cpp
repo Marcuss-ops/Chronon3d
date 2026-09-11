@@ -55,7 +55,7 @@ RenderLoopOutput run_pipe_export_loop(
             native_video_setup_failed = true;
         } else {
             auto importer = media::create_native_frame_importer_for_backend(
-                *vulkan, session.renderer_ptr()->runtime().surface_registry(), cuda_context);
+                *vulkan, *session.renderer_ptr()->execution_context().images.surfaces, cuda_context);
             if (importer) {
                 native_decoder->set_native_frame_importer(std::move(importer));
             } else {
@@ -142,7 +142,7 @@ RenderLoopOutput run_pipe_export_loop(
 
     const bool native_encoder = session.opts.encoder.encoder_backend == "native";
     if (session.renderer_ptr() && !native_encoder) {
-        auto& rt = session.renderer_ptr()->runtime();
+        auto& rt = *session.renderer_ptr()->execution_context().runtime;
         rt.backend().release_frame_transient_surfaces();
         std::size_t release_failures = 0;
         for (const auto handle : rt.surface_registry().handles_with_lifetime(

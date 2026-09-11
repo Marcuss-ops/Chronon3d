@@ -70,8 +70,6 @@ struct SoftwareRenderSession {
     SoftwareSessionResources software;
 
     SoftwareRenderSession() = default;
-    explicit SoftwareRenderSession(runtime::RuntimeContext& runtime)
-        : common(runtime) {}
     SoftwareRenderSession(const SoftwareRenderSession&) = delete;
     SoftwareRenderSession& operator=(const SoftwareRenderSession&) = delete;
     SoftwareRenderSession(SoftwareRenderSession&&) noexcept = default;
