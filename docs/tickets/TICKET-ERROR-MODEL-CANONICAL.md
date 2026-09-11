@@ -1,6 +1,6 @@
 # TICKET-ERROR-MODEL-CANONICAL — canonical error model
 
-**Status:** ACTIVE — Phase 1 checkpoint
+**Status:** ACTIVE — Phase 1 cleanup checkpoint
 **Owner:** Runtime and render-graph maintainers
 
 ## Scope
@@ -35,13 +35,10 @@ contract before the prepared execution plan migration.
 | `chronon3d::render_plan::ValidationIssueKind` | Plan | Validation detail | zero direct constructions outside plan adapter | render-plan validation corpus | validation detail enum | ACTIVE |
 | `chronon3d::runtime::RuntimeBuildError::Code` | Runtime | Build detail | zero direct constructions outside runtime adapter | runtime build tests | build detail enum | ACTIVE |
 | `chronon3d::runtime::PreparationError::Code` | Runtime | Preparation detail | zero direct constructions outside preparation adapter | preparation tests | preparation detail enum | ACTIVE |
-| `chronon3d::assets::AssetPreflightErrorCode` | Assets | Asset preflight detail | zero direct constructions outside asset adapter | asset preflight tests | preflight detail enum | ACTIVE |
-| `chronon3d::assets::MeshLoadErrorCode` | Assets | Mesh detail | zero direct constructions outside mesh adapter | mesh load tests | mesh detail enum | ACTIVE |
 | `chronon3d::scene::CameraFailurePolicy` | Scene | Policy detail | zero direct constructions outside scene adapter | camera policy tests | policy enum | ACTIVE |
 | `chronon3d::graph::FrameExecutionPath` | Executor | Path detail | zero direct constructions outside executor adapter | execution-path tests | path enum | ACTIVE |
 | `chronon3d::cache::CacheRemovalReason` | Cache | Eviction detail | zero direct constructions outside cache adapter | cache eviction tests | cache detail enum | ACTIVE |
 | `chronon3d::runtime::AsyncEncoderSinkState` | Encoder | Sink state detail | zero direct constructions outside encoder adapter | encoder lifecycle tests | sink state enum | ACTIVE |
-| `chronon3d::runtime::ResourcePreparationError` | Runtime | Resource detail | zero direct constructions outside resource adapter | resource preparation tests | resource detail enum | ACTIVE |
 | `chronon3d::runtime::GpuMemoryPressure` | Runtime | Memory pressure detail | zero direct constructions outside memory adapter | pressure/device-loss tests | memory detail enum | ACTIVE |
 
 ## Exit gate
@@ -56,3 +53,12 @@ contract before the prepared execution plan migration.
   persists both fields.
 - Every row above reaches zero direct constructions outside its adapter before
   the enum is deleted.
+
+## Cleanup checkpoint
+
+The inventory is exact: 28 live legacy enum/detail types, with no duplicate
+`MediaProbeErrorCode` row and no rows for retired/non-existent
+`AssetPreflightErrorCode`, `MeshLoadErrorCode`, or `ResourcePreparationError`.
+`from_legacy()` is fail-closed for any type not present in that inventory.
+The remaining ACTIVE rows are real migration debt and stay open until their
+direct constructions move behind adapters.

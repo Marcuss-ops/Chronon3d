@@ -36,6 +36,7 @@ required_patterns = [
   "struct Error",
   "kLegacyErrorMappings",
   "from_legacy",
+  "is_registered_legacy_type",
 ]
 
 [[presence]]

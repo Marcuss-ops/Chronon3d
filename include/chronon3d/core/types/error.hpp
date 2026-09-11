@@ -61,7 +61,8 @@ struct LegacyErrorMapping {
 
 // Every legacy error enum has a recorded migration slot. Removing an entry
 // requires removing the enum or moving all direct construction to an adapter.
-inline constexpr std::array<LegacyErrorMapping, 32> kLegacyErrorMappings{{
+// Keep this list exact: stale or duplicate rows make the migration gate lie.
+inline constexpr std::array<LegacyErrorMapping, 28> kLegacyErrorMappings{{
     {"chronon3d::sdk::RenderErrorCode", "sdk"},
     {"chronon3d::render::RenderDiagnosticCode", "render_diagnostic"},
     {"chronon3d::graph::RenderBackendErrorCode", "render_backend"},
@@ -85,16 +86,22 @@ inline constexpr std::array<LegacyErrorMapping, 32> kLegacyErrorMappings{{
     {"chronon3d::render_plan::ValidationIssueKind", "render_plan"},
     {"chronon3d::runtime::RuntimeBuildError::Code", "runtime"},
     {"chronon3d::runtime::PreparationError::Code", "preparation"},
-    {"chronon3d::assets::AssetPreflightErrorCode", "asset_preflight"},
-    {"chronon3d::assets::MeshLoadErrorCode", "mesh"},
     {"chronon3d::scene::CameraFailurePolicy", "camera_policy"},
     {"chronon3d::graph::FrameExecutionPath", "frame_execution_path"},
     {"chronon3d::cache::CacheRemovalReason", "cache"},
     {"chronon3d::runtime::AsyncEncoderSinkState", "encoder_sink"},
-    {"chronon3d::media::video::MediaProbeErrorCode", "video_probe"},
-    {"chronon3d::runtime::ResourcePreparationError", "resource_preparation"},
     {"chronon3d::runtime::GpuMemoryPressure", "gpu_memory"},
 }};
+
+[[nodiscard]] inline bool is_registered_legacy_type(
+    std::string_view legacy_type) noexcept {
+    for (const auto& mapping : kLegacyErrorMappings) {
+        if (mapping.legacy_type == legacy_type) {
+            return true;
+        }
+    }
+    return false;
+}
 
 [[nodiscard]] inline const char* error_category_name(ErrorCategory category) noexcept {
     switch (category) {
@@ -128,6 +135,20 @@ template <typename LegacyEnum>
     static_assert(std::is_enum_v<LegacyEnum>,
                   "chronon::from_legacy requires an enum detail payload");
     (void)sizeof(LegacyEnum);
+    if (!is_registered_legacy_type(legacy_type)) {
+        return Error{
+            .category = ErrorCategory::InvariantViolation,
+            .detail = ErrorDetail{
+                .domain = "canonical_error",
+                .legacy_type = std::string(legacy_type),
+                .legacy_code = "UnregisteredLegacyErrorType",
+                .message = "legacy error type is absent from the canonical mapping inventory",
+                .component = "from_legacy",
+                .frame = frame,
+                .job_id = job_id,
+            },
+        };
+    }
     return Error{
         .category = category,
         .detail = ErrorDetail{
