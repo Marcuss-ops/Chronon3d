@@ -110,6 +110,10 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
                             std::string(layer.name) + "')";
                         return report;
                     }
+                    // These checks establish the canonical
+                    // PreparedTextRun/MTSDF contract consumed by the CUDA
+                    // lowering. Do not admit arbitrary GPU text textures.
+                    query.prepared_mtsdf = true;
                 } else {
                     report.support = DirectYuvSupport::Unsupported;
                     report.reason = "text_not_using_prepared_text_run (layer '" +
