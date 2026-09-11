@@ -158,16 +158,16 @@ Landed (CODE DONE):
 is needed; remaining step is executing `tools/verify_z3_equivalence.sh` against
 the GPU environment.
 
-## Z4 — Certified effect set on direct NV12 via capability matrix (OPEN)
+## Z4 — Certified effect set on direct NV12 via capability matrix (PARTIAL — matrix landed)
 
-Target: gates 3/4 → 0 for the certified corpus. The mechanism exists
-(`composite_direct_nv12_batch`, DirectYuv lane, F6). Remaining:
-1. the effect/compositor capability matrix feeding the canonical resolver —
-   `supports(effect, NativeYuvComposition)` with `RequireDirectYuv → hard fail`
-   vs `Auto → explicit fallback` (never silent), and
-2. a certified *corpus* (scene + expected gates) runnable in CI without a
-   content pack. Non-certified scenes keep the honest FullGraph lane with
-   counted conversions — never counter-gaming.
+Target: gates 3/4 → 0 for the certified corpus. The mechanism and the
+effect/compositor capability matrix are landed:
+`composite_direct_nv12_batch`, the DirectYuv lane, and
+`resolve_direct_yuv_support()` provide `Require → hard fail` versus
+`Auto → explicit FullGraph fallback` (never silent). Remaining is evidence:
+the certified corpus (scene + expected gates) must run in CI without a content
+pack. Non-certified scenes keep the honest FullGraph lane with counted
+conversions — never counter-gaming.
 
 ## Z5 — Absorb DirectYuvExecutor into the normal execution path (LAND)
 
@@ -210,6 +210,11 @@ encode roles alias the same handle, the graph terminal is bound before node
 execution, and the session destructor deduplicates release. FFmpeg CUDA
 hwframes are materialized during native-surface warm-up, then reused by the
 bounded encoder ring.
+
+The Vulkan tiled text bridge was then aligned with the canonical
+`runtime::TextRunDynamic` ABI (`3e4ed832d`). The shader declares 112 bytes and
+the host now uploads exactly that record, including selector/tracking/effect
+bindings; no second 64-byte host layout remains in that path.
 
 The static certification is green (`185/185` architecture rules and the
 steady-state allocation gate at `0.0` allocations/frame). RenderingGen
