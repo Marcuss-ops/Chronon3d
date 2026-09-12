@@ -181,6 +181,9 @@ media::VideoExecutionDecision finalize_composition_execution(
     decision.reason = "direct_yuv_capability_rejected";
     decision.valid = true;
     decision.downgrade_count = 1;
+    // The render-graph plan re-encodes every frame, so the reported codec
+    // boundary stays consistent with the final plan.
+    decision.codec_path = media::VideoExecutionPath::FullReencode;
     return decision;
 }
 
@@ -246,13 +249,14 @@ int render_and_encode_ffmpeg(
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
-        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
+        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={} codec={}",
                      decision.reason,
                      static_cast<int>(decision.plan.decode),
                      static_cast<int>(decision.plan.composite),
                      static_cast<int>(decision.plan.encode),
                      static_cast<int>(decision.plan.interop),
-                     static_cast<int>(decision.plan.handoff));
+                     static_cast<int>(decision.plan.handoff),
+                     static_cast<int>(decision.codec_path));
     } else {
         const media::GopAnalysisSummary summary = inspect_source_once(
             opts, compiled, start_sec, end_sec);
@@ -275,13 +279,14 @@ int render_and_encode_ffmpeg(
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
-        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={}",
+        spdlog::info("[video] execution plan resolved (reason: {}); decode={} composite={} encode={} interop={} handoff={} codec={}",
                      decision.reason,
                      static_cast<int>(decision.plan.decode),
                      static_cast<int>(decision.plan.composite),
                      static_cast<int>(decision.plan.encode),
                      static_cast<int>(decision.plan.interop),
-                     static_cast<int>(decision.plan.handoff));
+                     static_cast<int>(decision.plan.handoff),
+                     static_cast<int>(decision.codec_path));
     }
 
     // ── Enforce the resolver validity contract ─────────────────────────────

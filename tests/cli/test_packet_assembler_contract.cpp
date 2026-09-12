@@ -11,6 +11,9 @@
 using chronon3d::media::AudioExecutionPath;
 using chronon3d::media::resolve_audio_execution;
 using chronon3d::media::resolve_video_execution;
+using chronon3d::media::resolve_video_execution_path;
+using chronon3d::media::resolve_video_execution_path_from_gop_analysis;
+using chronon3d::media::VideoExecutionPath;
 
 TEST_CASE("VideoExecutionResolver: semantic GPU contract selects direct composition") {
     const auto decision = resolve_video_execution(
@@ -162,6 +165,120 @@ TEST_CASE("PacketAssembler audio resolver copies unchanged compatible packets") 
     CHECK(resolve_audio_execution(false, true, true) == AudioExecutionPath::TrimPackets);
     CHECK(resolve_audio_execution(true, true, true) == AudioExecutionPath::BoundaryReencode);
     CHECK(resolve_audio_execution(false, false, false) == AudioExecutionPath::FullReencode);
+}
+
+TEST_CASE("VideoExecutionResolver: codec boundary mirrors the audio decision table") {
+    // Same four states as AudioExecutionPath, plus the splice-safety fact that
+    // only video has: an unsafe splice forbids a boundary re-encode even when
+    // the change is confined to the boundary.
+    CHECK(resolve_video_execution_path(false, false, true, true) ==
+          VideoExecutionPath::CopyPackets);
+    CHECK(resolve_video_execution_path(false, true, true, true) ==
+          VideoExecutionPath::TrimPackets);
+    CHECK(resolve_video_execution_path(true, true, true, true) ==
+          VideoExecutionPath::BoundaryReencode);
+    CHECK(resolve_video_execution_path(false, false, false, true) ==
+          VideoExecutionPath::FullReencode);
+    // Interior change: the copied interior would reference rebuilt pixels.
+    CHECK(resolve_video_execution_path(true, false, true, true) ==
+          VideoExecutionPath::FullReencode);
+    // Unsafe splice: concatenating copied + encoded packets is undecodable.
+    CHECK(resolve_video_execution_path(true, true, true, false) ==
+          VideoExecutionPath::FullReencode);
+    // Codec mismatch always forces a full re-encode.
+    CHECK(resolve_video_execution_path(false, true, false, true) ==
+          VideoExecutionPath::FullReencode);
+}
+
+TEST_CASE("VideoExecutionResolver: GOP analysis is the codec-boundary authority") {
+    using chronon3d::media::GopAnalysisSummary;
+
+    const GopAnalysisSummary all_copy{.available = true, .total_gops = 3,
+                                      .copy_gops = 3, .reencode_gops = 0,
+                                      .all_copy = true, .hybrid = false,
+                                      .safe_to_splice = true};
+    // An untouched, codec-compatible segment is copied, whether the intent was
+    // an explicit copy or an eligible hybrid.
+    CHECK(resolve_video_execution_path_from_gop_analysis(true, false, all_copy) ==
+          VideoExecutionPath::CopyPackets);
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, true, all_copy) ==
+          VideoExecutionPath::CopyPackets);
+    // No reuse intent: the source is not a copy candidate at all.
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, false, all_copy) ==
+          VideoExecutionPath::FullReencode);
+
+    const GopAnalysisSummary hybrid_safe{.available = true, .total_gops = 3,
+                                         .copy_gops = 1, .reencode_gops = 2,
+                                         .all_copy = false, .hybrid = true,
+                                         .safe_to_splice = true};
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, true, hybrid_safe) ==
+          VideoExecutionPath::BoundaryReencode);
+
+    auto hybrid_unsafe = hybrid_safe;
+    hybrid_unsafe.safe_to_splice = false;
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, true, hybrid_unsafe) ==
+          VideoExecutionPath::FullReencode);
+
+    const GopAnalysisSummary all_reencode{.available = true, .total_gops = 2,
+                                          .copy_gops = 0, .reencode_gops = 2,
+                                          .all_copy = false, .hybrid = false,
+                                          .safe_to_splice = true};
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, true, all_reencode) ==
+          VideoExecutionPath::FullReencode);
+
+    // Fail closed: an explicit copy intent the preflight cannot prove, and an
+    // uninspectable source, both collapse to FullReencode.
+    CHECK(resolve_video_execution_path_from_gop_analysis(true, false, GopAnalysisSummary{}) ==
+          VideoExecutionPath::FullReencode);
+    CHECK(resolve_video_execution_path_from_gop_analysis(false, true, GopAnalysisSummary{}) ==
+          VideoExecutionPath::FullReencode);
+}
+
+TEST_CASE("VideoExecutionResolver: decisions report a plan-consistent codec boundary") {
+    using namespace chronon3d::media;
+    const ExecutionRequirements video_only{
+        .gpu_required = false, .cpu_fallback_allowed = true,
+        .composition_required = false, .video_source_required = true,
+        .packet_copy_allowed = true};
+    const OutputSpec output{.codec = "h264", .width = 1920, .height = 1080,
+                            .fps_num = 30, .fps_den = 1};
+    const VideoCapabilities capable{
+        .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true};
+    const GopAnalysisSummary all_copy{.available = true, .total_gops = 2,
+                                      .copy_gops = 2, .reencode_gops = 0,
+                                      .all_copy = true, .hybrid = false,
+                                      .safe_to_splice = true};
+
+    // Intent-only resolution already speaks the codec-boundary language.
+    CHECK(resolve_video_execution(video_only, output, capable, true, true, false)
+              .codec_path == VideoExecutionPath::CopyPackets);
+    CHECK(resolve_video_execution(video_only, output, capable, true, false, true)
+              .codec_path == VideoExecutionPath::BoundaryReencode);
+
+    // Final resolution: a proven whole-clip copy stays a copy.
+    CHECK(resolve_video_execution_with_gop_analysis(
+              video_only, output, capable, false, true, all_copy)
+              .codec_path == VideoExecutionPath::CopyPackets);
+
+    // A downgraded plan re-encodes every frame, so it must not claim reuse.
+    auto hybrid_unsafe = all_copy;
+    hybrid_unsafe.hybrid = true;
+    hybrid_unsafe.all_copy = false;
+    hybrid_unsafe.copy_gops = 1;
+    hybrid_unsafe.reencode_gops = 1;
+    hybrid_unsafe.safe_to_splice = false;
+    const auto downgraded = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, false, true, hybrid_unsafe);
+    CHECK(downgraded.downgrade_count == 1);
+    CHECK(downgraded.codec_path == VideoExecutionPath::FullReencode);
+
+    // A composition is re-rendered end to end even with a copy-capable source.
+    const auto composed = resolve_video_execution_with_gop_analysis(
+        ExecutionRequirements{.gpu_required = true, .cpu_fallback_allowed = false,
+                              .composition_required = true,
+                              .packet_copy_allowed = true},
+        output, capable, false, true, all_copy);
+    CHECK(composed.codec_path == VideoExecutionPath::FullReencode);
 }
 
 TEST_CASE("PacketAssembler exposes one mux finalization boundary") {
