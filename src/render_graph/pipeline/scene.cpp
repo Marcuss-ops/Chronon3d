@@ -282,10 +282,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // ── 7. Complete canonical execution plan ──
     if (!isolated_temporal_sample) {
         CHRONON_TRACE_SCOPE("chronon.frame", "execution_plan_resolve");
-        const auto output_format = (ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle &&
-                                    ctx.surface_registry &&
-                                    ctx.surface_registry->lookup(ctx.policy.native_video_encode_surface))
-            ? ctx.surface_registry->lookup(ctx.policy.native_video_encode_surface)->desc.format.pixel
+        // One lookup, used once: the record is a snapshot of the registry at
+        // this instant, and asking twice could observe two different answers.
+        const auto encode_surface =
+            (ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle &&
+             ctx.surface_registry)
+                ? ctx.surface_registry->lookup(ctx.policy.native_video_encode_surface)
+                : std::nullopt;
+        const auto output_format = encode_surface
+            ? encode_surface->desc.format.pixel
             : runtime::PixelFormat::Rgba32Float;
 
         execution_plan = ExecutionResolver::resolve(
@@ -415,6 +420,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     } else if (sw_renderer) {
         session_ptr = &sw_renderer->session();
     } else {
+        // Compatibility fallback for standalone/preflight callers that carry
+        // neither a temporal session nor a software renderer.  Production
+        // frames must never land here (that is the whole point of the comment
+        // above), but the guard is a runtime branch, not a static invariant —
+        // so it is counted.  Any non-zero delta on a production export means a
+        // caller lost its frame lease and re-introduced the arena cost.
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->fallback_session_constructions.fetch_add(
+                1, std::memory_order_relaxed);
+        }
         fallback_session.emplace();
         session_ptr = &*fallback_session;
     }

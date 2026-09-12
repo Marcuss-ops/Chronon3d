@@ -45,8 +45,8 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
     // source→encode device copy.
     if (slot.native_surface != runtime::kInvalidRenderSurfaceHandle ||
         slot.source_surface != runtime::kInvalidRenderSurfaceHandle) {
-        const auto* encode_desc = registry.lookup(slot.native_surface);
-        const auto* source_desc = registry.lookup(slot.source_surface);
+        const auto encode_desc = registry.lookup(slot.native_surface);
+        const auto source_desc = registry.lookup(slot.source_surface);
         const bool reusable = encode_desc && source_desc &&
             encode_desc->desc.width == desc.width &&
             encode_desc->desc.height == desc.height &&

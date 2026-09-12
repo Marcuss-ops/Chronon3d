@@ -281,7 +281,7 @@ void RuntimeContext::attach_backend(
             // framebuffer pool. Returning that framebuffer must not destroy
             // the persistent ring resource; the job/exporter owns its
             // lifetime and releases it during finalization.
-            if (const auto* record = m_asset_services.surface_registry.lookup(handle);
+            if (const auto record = m_asset_services.surface_registry.lookup(handle);
                 record && record->desc.lifetime == runtime::LifetimeClass::JobPersistent) {
                 framebuffer.clear_surface_handle();
                 return;

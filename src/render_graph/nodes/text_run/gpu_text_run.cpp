@@ -27,6 +27,7 @@
 #include <bit>
 #include <cstdint>
 #include <cmath>
+#include <exception>
 #include <limits>
 #include <string_view>
 #include <utility>
@@ -812,16 +813,38 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         if (text_resources && resolver) {
             fonts.reserve(layout.font_spans.size());
             for (const auto& span : layout.font_spans) {
-                if (span.font.font_path.empty() ||
-                    span.glyph_begin > span.glyph_end ||
-                    span.glyph_end > layout.placed.glyphs.size()) {
+                // The glyph-span continuity/bounds invariants are already
+                // enforced by the canonical loop above (the one that walks
+                // covered_glyphs), so they are not re-checked here: one
+                // decision, one place.
+                if (span.font.font_path.empty()) {
                     return nullptr;
                 }
                 fonts.push_back(text_resources->resolve_handle(
                     span.font.font_path, static_cast<float>(kEmPx), *resolver));
             }
         }
+    } catch (const std::exception& e) {
+        // A font-handle resolution throw is NOT the same thing as "GPU text
+        // unsupported": the caller still falls back to the compatibility path
+        // and the composition renders, so without this signal a real resolve
+        // failure is invisible.  Count it, name it, and keep fail-closed.
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_font_resolve_failures.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        spdlog::warn(
+            "[text-mtsdf] font handle resolution failed; GPU text run rejected: {}",
+            e.what());
+        return nullptr;
     } catch (...) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_font_resolve_failures.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        spdlog::warn(
+            "[text-mtsdf] font handle resolution failed (non-standard exception); "
+            "GPU text run rejected");
         return nullptr;
     }
     if (fonts.size() != layout.font_spans.size()) {

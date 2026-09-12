@@ -114,6 +114,35 @@ TEST_CASE("canonical execution parameters: cpu_fallback_forbidden contract acros
         const auto params = resolve_canonical_execution_parameters(req);
         CHECK_FALSE(params.cpu_fallback_forbidden);
     }
+    {
+        // Strict image/text compositions must stay on the native GPU lane;
+        // otherwise an NVENC preset can leak into the software pipe encoder.
+        ExecutionRequirements req;
+        req.gpu_required = true;
+        req.cpu_fallback_allowed = false;
+        req.composition_required = true;
+        req.video_source_required = false;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK(params.hardware_encoder == "nvenc");
+        CHECK(params.encoder_backend == "native");
+        CHECK(params.gpu_hot_path_mode == "require_gpu_native");
+        CHECK(params.native_nvenc);
+        CHECK_FALSE(params.direct_yuv);
+    }
+    {
+        // A non-strict image/text composition may intentionally use the host
+        // frame pipe lane when CPU fallback is allowed.
+        ExecutionRequirements req;
+        req.gpu_required = true;
+        req.cpu_fallback_allowed = true;
+        req.composition_required = true;
+        req.video_source_required = false;
+        const auto params = resolve_canonical_execution_parameters(req);
+        CHECK(params.hardware_encoder == "none");
+        CHECK(params.encoder_backend == "pipe");
+        CHECK(params.gpu_hot_path_mode == "auto");
+        CHECK_FALSE(params.native_nvenc);
+    }
 
     // ── Lane 2: Pipe / non-native execution lane ─────────────────────────
     {
@@ -156,4 +185,3 @@ TEST_CASE("canonical execution parameters: cpu_fallback_forbidden contract acros
         CHECK(decision.valid);
     }
 }
-

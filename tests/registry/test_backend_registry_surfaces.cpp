@@ -155,14 +155,14 @@ TEST_CASE("surface registry owns logical identity independently of physical slot
         16, 8, PixelFormat::Rgba8Unorm, ResourceUsage::Storage,
         LifetimeClass::FrameTransient, 0});
     REQUIRE(handle != kInvalidRenderSurfaceHandle);
-    REQUIRE(registry.lookup(handle) != nullptr);
+    REQUIRE(registry.lookup(handle).has_value());
     CHECK(registry.lookup(handle)->desc.bytes == 16u * 8u * 4u);
     CHECK(registry.lookup(handle)->physical_slot == std::numeric_limits<std::size_t>::max());
     CHECK(registry.bind_physical_slot(handle, 3));
     CHECK(registry.lookup(handle)->physical_slot == 3);
     CHECK(registry.size() == 1);
     CHECK(registry.release(handle));
-    CHECK(registry.lookup(handle) == nullptr);
+    CHECK_FALSE(registry.lookup(handle).has_value());
     CHECK_FALSE(registry.release(handle));
 }
 
@@ -315,12 +315,12 @@ TEST_CASE("plan slot binding propagates aliasing to the surface registry") {
     const auto plan = planner.build();
     bind_plan_slots(plan.resources, registry);
 
-    const auto* input_record = registry.lookup(input);
-    const auto* scratch_record = registry.lookup(scratch);
-    const auto* output_record = registry.lookup(output);
-    REQUIRE(input_record != nullptr);
-    REQUIRE(scratch_record != nullptr);
-    REQUIRE(output_record != nullptr);
+    const auto input_record = registry.lookup(input);
+    const auto scratch_record = registry.lookup(scratch);
+    const auto output_record = registry.lookup(output);
+    REQUIRE(input_record.has_value());
+    REQUIRE(scratch_record.has_value());
+    REQUIRE(output_record.has_value());
     CHECK(input_record->physical_slot != std::numeric_limits<std::size_t>::max());
     CHECK(scratch_record->physical_slot != std::numeric_limits<std::size_t>::max());
     CHECK(output_record->physical_slot != std::numeric_limits<std::size_t>::max());
@@ -426,8 +426,8 @@ TEST_CASE("RenderSurfaceRegistry supports NV12 and P010 multi-format surfaces wi
     const auto handle = registry.create(nv12_desc);
     REQUIRE(handle != kInvalidRenderSurfaceHandle);
 
-    const auto* record = registry.lookup(handle);
-    REQUIRE(record != nullptr);
+    const auto record = registry.lookup(handle);
+    REQUIRE(record.has_value());
     CHECK(record->desc.format.pixel == PixelFormat::Nv12);
     CHECK(record->desc.bytes == 1920 * 1080 * 3 / 2);
     CHECK(record->desc.format.matrix == ColorMatrix::Bt709);
