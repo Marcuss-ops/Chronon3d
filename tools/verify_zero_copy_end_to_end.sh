@@ -11,7 +11,8 @@
 #   1.  host_upload_bytes = 0         (no CPU→GPU uploads)
 #   2.  host_readback_bytes = 0       (no GPU→CPU readbacks)
 #   3.  nv12_to_rgba_frames = 0       (no NV12→RGBA conversions)
-#   4.  rgba_to_nv12_frames >= 0      (GPU color conversion allowed in FullGraph)
+#   4.  rgba_to_nv12_frames >= 0      (GPU color conversion allowed in FullGraph;
+#                                      DirectYUV certification requires 0)
 #   5.  software_color_convert_frames = 0 (no software conversion)
 #   6.  cpu_pixel_conversion_ms = 0   (no CPU pixel conversion)
 #   7.  encoder_staging_copy_bytes = 0 (no encoder staging copies)
@@ -54,6 +55,9 @@ FRAMES="${CHRONON3D_BENCH_FRAMES:-60}"
 WARMUP="${CHRONON3D_BENCH_WARMUP:-10}"
 REPORT_JSON=""
 OUTPUT_DIR="/tmp/zero_copy_verify"
+PLAN=""
+DIRECT_YUV_CERT=0
+PIPE_PIXFMT=""
 
 CLI_BIN="${CHRONON3D_CLI:-}"
 if [[ -z "$CLI_BIN" ]]; then
@@ -75,6 +79,9 @@ fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --scene)        SCENE="$2"; shift 2 ;;
+        --plan)         PLAN="$2"; shift 2 ;;
+        --direct-yuv)   DIRECT_YUV_CERT=1; shift ;;
+        --pipe-pixfmt)  PIPE_PIXFMT="$2"; shift 2 ;;
         --frames)       FRAMES="$2"; shift 2 ;;
         --warmup)       WARMUP="$2"; shift 2 ;;
         --report-json)  REPORT_JSON="$2"; shift 2 ;;
@@ -99,33 +106,32 @@ extract_counter() {
     local counter_name="$2"
     python3 -c "
 import json, sys
+def emit(value):
+    if value is not None:
+        print(value)
+        sys.exit(0)
 try:
     with open('$json_file') as f:
         data = json.load(f)
     # Try nested path: counters.<name>
     counters = data.get('counters', {})
     if '$counter_name' in counters:
-        print(counters['$counter_name'])
-        sys.exit(0)
+        emit(counters['$counter_name'])
     # Try flat path
     if '$counter_name' in data:
-        print(data['$counter_name'])
-        sys.exit(0)
+        emit(data['$counter_name'])
     # Try run.counters.<name>
     run = data.get('run', {})
     counters = run.get('counters', {})
     if '$counter_name' in counters:
-        print(counters['$counter_name'])
-        sys.exit(0)
+        emit(counters['$counter_name'])
     # Try job.<name> and job.gpu.<name> (the *.timing.json sidecar layout)
     job = data.get('job', {})
     if '$counter_name' in job:
-        print(job['$counter_name'])
-        sys.exit(0)
+        emit(job['$counter_name'])
     gpu = job.get('gpu', {})
     if '$counter_name' in gpu:
-        print(gpu['$counter_name'])
-        sys.exit(0)
+        emit(gpu['$counter_name'])
     print('')
 except Exception as e:
     print('', file=sys.stderr)
@@ -144,20 +150,29 @@ if [[ -z "$REPORT_JSON" ]]; then
     REPORT_JSON="$OUTPUT_DIR/zero_copy_report.json"
 
     _info "Running video export to collect zero-copy metrics..."
-    _info "  Scene: $SCENE, Frames: $FRAMES, Warmup: $WARMUP"
+    _info "  Scene: $SCENE, Plan: ${PLAN:-none}, Frames: $FRAMES, Warmup: $WARMUP"
 
     # Run video export with telemetry
-    if ! "$CLI_BIN" render "$SCENE" \
-        --frames "0-$((FRAMES - 1))" \
+    render_args=(render)
+    if [[ -n "$PLAN" ]]; then
+        render_args+=(--plan "$PLAN")
+    else
+        render_args+=("$SCENE")
+    fi
+    render_args+=(--frames "0-$((FRAMES - 1))" \
         --assets-root "$PWD" \
         --warmup-renderer \
         --warmup-framebuffers "$WARMUP" \
         --backend vulkan \
         --hardware nvenc \
         --encoder-backend native \
-        --gpu-hot-path-mode require_gpu_native \
+        --gpu-hot-path-mode "$([[ $DIRECT_YUV_CERT -eq 1 ]] && echo require_direct_yuv || echo require_gpu_native)" \
         --report \
-        -o "$OUTPUT_DIR/zero_copy.mp4" \
+        -o "$OUTPUT_DIR/zero_copy.mp4")
+    if [[ -n "$PIPE_PIXFMT" ]]; then
+        render_args+=(--pipe-pixfmt "$PIPE_PIXFMT")
+    fi
+    if ! "$CLI_BIN" "${render_args[@]}" \
         > "$OUTPUT_DIR/render.log" 2>&1; then
         _warn "Video export failed — see $OUTPUT_DIR/render.log"
         echo "GATE_BLOCKED"
@@ -213,12 +228,20 @@ CPU_READBACK_BYTES=$(extract_counter "$REPORT_JSON" "cpu_pixel_readback_bytes")
 VIDEO_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "video_surface_upload_bytes")
 NATIVE_SURFACE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_surface_frames")
 NATIVE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_encode_frames")
+EXECUTION_PATH=$(extract_counter "$REPORT_JSON" "execution_path")
+DECODER_BACKEND=$(extract_counter "$REPORT_JSON" "decoder_backend")
 # CUDA-lane half of gate 1 (host uploads): bytes pushed host→device by the
 # VideoDeviceRuntime image cache (cuMemcpyHtoD). Reported informationally;
 # the certified steady-state window is the job's render interval, while
 # asset/texture prewarm uploads land in the setup window (two-window
 # semantics, Z-wave F5/F7).
 CUDA_HOST_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "cuda_host_upload_bytes")
+# DirectYUV bypasses the Vulkan graph entirely, so the graph-only aggregate
+# `gpu_upload_bytes` is legitimately absent. Its authoritative CUDA-lane
+# equivalent is `cuda_host_upload_bytes`, which remains a required zero gate.
+if [[ "$DIRECT_YUV_CERT" -eq 1 && -z "$HOST_UPLOAD_BYTES" ]]; then
+    HOST_UPLOAD_BYTES=0
+fi
 
 # Z7 formal window document. A report without both windows is unverifiable,
 # even when the cumulative counter happens to be zero.
@@ -272,8 +295,12 @@ if [[ "$RGBA_TO_NV12_FRAMES" == "" ]]; then
     _warn "  rgba_to_nv12_frames: MISSING (cannot verify GPU color conversion)"
     BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
 elif [[ "$RGBA_TO_NV12_FRAMES" =~ ^[0-9]+$ ]]; then
-    _pass "  rgba_to_nv12_frames = $RGBA_TO_NV12_FRAMES (GPU conversion; allowed for FullGraph)"
-    PASS_COUNT=$((PASS_COUNT + 1))
+    if [[ "$DIRECT_YUV_CERT" -eq 1 ]]; then
+        check_gate "rgba_to_nv12_frames" "$RGBA_TO_NV12_FRAMES" "0"
+    else
+        _pass "  rgba_to_nv12_frames = $RGBA_TO_NV12_FRAMES (GPU conversion; allowed for FullGraph)"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    fi
 else
     _fail "  rgba_to_nv12_frames = $RGBA_TO_NV12_FRAMES (invalid counter)"
     FAIL_COUNT=$((FAIL_COUNT + 1))
@@ -286,7 +313,12 @@ check_gate "cpu_pixel_readback_bytes" "$CPU_READBACK_BYTES"       "0"
 check_gate "video_surface_upload_bytes" "$VIDEO_UPLOAD_BYTES"     "0"
 
 _info "── Required Native Zero-Copy Identity Gates ──"
-check_gate "effective_backend" "$EFFECTIVE_BACKEND" "vulkan"
+if [[ "$DIRECT_YUV_CERT" -eq 1 ]]; then
+    check_gate "execution_path" "$EXECUTION_PATH" "direct_yuv"
+    check_gate "decoder_backend" "$DECODER_BACKEND" "nvdec"
+else
+    check_gate "effective_backend" "$EFFECTIVE_BACKEND" "vulkan"
+fi
 check_gate "encoder_backend" "$ENCODER_BACKEND" "nvenc"
 check_gate "surface_handoff_path" "$SURFACE_HANDOFF_PATH" "direct"
 if [[ "$WINDOW_STATUS" == "ok" ]]; then
