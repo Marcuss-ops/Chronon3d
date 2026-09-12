@@ -16,6 +16,7 @@
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 | Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
+| CLI/IPC hot-path parity (video build) | P1 | OPEN (pre-existing) | [CLI-IPC-HOTPATH-PARITY](tickets/TICKET-CLI-IPC-HOTPATH-PARITY.md) — la suite video-gated ha 1 rosso: il sottocaso `pure-video GPU job routes to DirectYUV` autora un asse *risolto* (`output.gpu_hot_path_mode`) che il transport IPC non porta e la normalizzazione non ricostruisce; invisibile senza `CHRONON3D_ENABLE_VIDEO`. Precedente al codec boundary (sottocaso del 2026-09-07) |
 
 ## Demolition Debt (exit-condition driven)
 
@@ -44,6 +45,7 @@
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | Zero-copy Z-waves | P2 | ACTIVE | [ZERO-COPY-ZWAVES](tickets/TICKET-ZERO-COPY-ZWAVES.md) — Z0 census done; Z1 typed encoder feed capability + Z4 capability matrix + Z6 depth telemetry + Z7 CUDA-lane gate-1 counter landed; Z3/Z4-corpus/Z5 GPU-driven follow-up and depth sweep remain open |
+| Video codec boundary | P2 | PROTOTYPE LANDED | [VIDEO-CODEC-BOUNDARY](tickets/TICKET-VIDEO-CODEC-BOUNDARY.md) — `VideoExecutionPath` (4 stati) + tabella pura `resolve_video_execution_path` + ponte GOP-analysis fail-closed + `VideoExecutionDecision::codec_path`; esecuzione `BoundaryReencode`/`TrimPackets` e decisione per-layer ancora da fare (§5 di `AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY`) |
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
 | Telemetry granular emitter | P2 | SUPERSEDED (Wave 1D) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emettitori granulari gated su SQLite rimossi; resta l'API eventi in-memory (`record_*`) per store host |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
