@@ -13,7 +13,7 @@ add_library(chronon3d_backend_text OBJECT
     typewriter_build.cpp              # typewriter_build + typewriter_text
     bidi_segmenter.cpp
     text_layout_inline.cpp
-    glyph_atlas.cpp                   # canonical impl in resources/glyph_atlas.cpp
+    glyph_atlas.cpp                   # canonical atlas impl (public surface: include/chronon3d/text/glyph_atlas.hpp)
     text_render_resources.cpp         # per-renderer text resources
     text_render_resources_cache.cpp   # raster/glyph cache implementation
 )

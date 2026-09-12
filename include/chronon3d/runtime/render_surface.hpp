@@ -9,6 +9,8 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -365,6 +367,13 @@ struct SurfaceRecord {
     std::size_t physical_slot{std::numeric_limits<std::size_t>::max()};
 };
 
+// lookup() hands the record back by value out of a noexcept method, so the copy
+// must not be able to throw. The record is all scalars today; this keeps it
+// that way instead of discovering the violation as a terminate() in the field.
+static_assert(std::is_nothrow_copy_constructible_v<SurfaceRecord>,
+              "RenderSurfaceRegistry::lookup() returns SurfaceRecord by value "
+              "from a noexcept method");
+
 class RenderSurfaceRegistry {
 public:
     [[nodiscard]] RenderSurfaceHandle create(SurfaceDesc desc) {
@@ -392,10 +401,18 @@ public:
         return false;
     }
 
-    [[nodiscard]] const SurfaceRecord* lookup(RenderSurfaceHandle handle) const noexcept {
+    /// Returns a copy of the record, or nullopt when the handle is unknown.
+    ///
+    /// It deliberately does NOT hand out a pointer into the map. Callers use
+    /// the record after the lock is released, and a concurrent release() of the
+    /// same handle would leave that pointer addressing an erased element — the
+    /// mutex would then guard the lookup without protecting the read. Copying
+    /// is what makes the lock sufficient.
+    [[nodiscard]] std::optional<SurfaceRecord> lookup(RenderSurfaceHandle handle) const noexcept {
         std::lock_guard lock(m_mutex);
         const auto it = m_surfaces.find(handle);
-        return it == m_surfaces.end() ? nullptr : &it->second;
+        if (it == m_surfaces.end()) return std::nullopt;
+        return it->second;
     }
 
     bool bind_physical_slot(RenderSurfaceHandle handle, std::size_t slot) noexcept {

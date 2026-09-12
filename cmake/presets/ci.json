@@ -43,6 +43,7 @@
       "name": "linux-ci-full-validation",
       "inherits": "base-linux",
       "displayName": "Linux CI Full Validation",
+      "description": "Compile-coverage authority for feature-gated TUs (AUDIT-2026-09-12 P0-1): every optional CMake flag that gates a translation unit is switched ON here — SVG, EXR, MESH, C-API, DAEMON, CRASH_HANDLER, DEV_WATCH — so the lane that compiles them cannot silently rot. OpenColorIO keeps its dedicated weekly lane (.github/workflows/ocio.yml) because the dependency is heavy; it is the only feature-gated TU not covered here.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -60,10 +61,12 @@
         "CHRONON3D_ENABLE_IPC": "ON",
         "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_DAEMON": "ON",
+        "CHRONON3D_ENABLE_CRASH_HANDLER": "ON",
+        "CHRONON3D_ENABLE_DEV_WATCH": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TRACING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;svg;exr;tests;benchmarks;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;svg;exr;tests;benchmarks;ipc;crash-handler;dev-watch"
       }
     },
     {

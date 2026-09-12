@@ -91,6 +91,16 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
     // FASE 5 — ExecutionScope public direct-ctor is closed; route
     // through make_root() with the session's own arena.
+    //
+    // AUDIT-2026-09-09 D-02 keeps `JobSession::arena()` deprecated for the
+    // render path but its own deprecation contract names
+    // `ExecutionScope::make_root(session, session.arena(), ...)` as the
+    // sanctioned PRE-FRAME setup path (include/chronon3d/runtime/job/
+    // job_session.hpp).  This command is a one-shot bake: no frame loop, no
+    // concurrent slot owner, so the slot-0 aliasing hazard D-02 guards
+    // against cannot occur and a lease would add ownership with nothing to
+    // protect.  Production frame loops must go through
+    // FrameExecution::arena().
     graph::ExecutionScope root_scope = graph::ExecutionScope::make_root(
         session, session.arena(), compiled.graph_instance_id);
     auto& executor = *renderer->execution_context().executor; // Section 5 fix.

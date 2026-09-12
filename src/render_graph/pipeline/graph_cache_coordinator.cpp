@@ -42,16 +42,34 @@ public:
         , height_(height) {}
 
     CachedGraphLease(const CachedGraphLease&) = delete;
-    CachedGraphLease& operator=(const CachedGraphLease&) = delete;
-
-    ~CachedGraphLease() noexcept {
+    CachedGraphLease& operator=(const CachedGraphLease&) = delete;        ~CachedGraphLease() noexcept {
         if (!candidate_) return;
         try {
             cache_.store(std::move(*candidate_), width_, height_);
-        } catch (...) {
+        } catch (const std::exception& e) {
             // Cache restoration is the last line of defense against losing a
             // valid graph. An allocation failure here cannot be recovered
-            // without violating the cache ownership contract.
+            // without violating the cache ownership contract, so the policy
+            // stays terminate() — but it is now observable: a silent hard
+            // crash is indistinguishable from any other abort.
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->graph_cache_restore_failures.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            spdlog::critical(
+                "[graph-cache] restore of a checked-out compiled graph failed; "
+                "terminating rather than silently invalidating it: {}",
+                e.what());
+            std::terminate();
+        } catch (...) {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->graph_cache_restore_failures.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            spdlog::critical(
+                "[graph-cache] restore of a checked-out compiled graph failed "
+                "(non-standard exception); terminating rather than silently "
+                "invalidating it");
             std::terminate();
         }
     }
