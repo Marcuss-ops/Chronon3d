@@ -28,6 +28,7 @@ struct RenderPlanVideoOverrides {
     std::int64_t bitrate{0};
     std::string gop_source;
     bool gop_copy_only{false};
+    std::string pipe_pixfmt;
 };
 
 int run_render_plan_file(

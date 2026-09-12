@@ -51,6 +51,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.bitrate = args.video.bitrate;
     request.output.audio_source_path = args.video.gop_source;
     request.output.gop_copy_only = args.video.gop_copy_only;
+    request.output.pipe_pixfmt = args.video.pipe_pixfmt;
     request.output.fps_num = args.fps_num == 30 && args.fps_den == 1
         ? 0U : args.fps_num;
     request.output.fps_den = args.fps_den;
@@ -166,6 +167,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         // dropping it here produces a valid video-only MP4 silently.
         request.video_settings.gop_source = normalized_job.output.audio_source_path;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
+        request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
         if (!normalized_job.output.ffmpeg_mode.empty())
             request.video_settings.ffmpeg_mode = normalized_job.output.ffmpeg_mode;
         if (!normalized_job.output.rate_control_mode.empty()) {

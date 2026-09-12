@@ -112,6 +112,7 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     out.bitrate = spec_or_root_int(request, "bitrate", 0);
     out.audio_source_path = request.value("audio_source_path", "");
     out.gop_copy_only = request.value("gop_copy_only", false);
+    out.pipe_pixfmt = spec_or_root(request, "pipe_pixfmt");
     out.fps_num = static_cast<std::uint32_t>(
         spec_or_root_int(request, "fps_num", 0));
     out.fps_den = static_cast<std::uint32_t>(
