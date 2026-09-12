@@ -66,6 +66,15 @@ struct SoftwareRenderSession {
     // ── Diagnostic text-run snapshots (last rendered frame) ─────────────
     std::vector<TextRunAuditSnapshot> text_audit_snapshots;
 
+    /// Capture gate for `text_audit_snapshots`. Producing the snapshots costs
+    /// one heap allocation per TextRun node per frame (a `std::string` copy of
+    /// the node name plus a `shared_ptr` copy of its shape), and their only
+    /// consumers are the diagnostics build's `inspect-text` command and the
+    /// opt-in `--debug-text-layout-json` report. Production video renders were
+    /// paying that cost on every frame for data nothing read, so the capture is
+    /// now opt-in and defaults to OFF.
+    bool text_audit_capture{false};
+
     // ── Software-backend-specific part ─────────────────────────────────
     SoftwareSessionResources software;
 

@@ -19,6 +19,7 @@
 #include "command_inspect_text.hpp"
 #include "text_inspection_collector.hpp"   // Step 9 §B — audit + status mapping
 #include "text_audit_helpers.hpp"          // canonical json_escape (no TU-local duplicate)
+#include "../../utils/job/cli_render_utils.hpp"  // canonical create_renderer() factory
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -93,20 +94,32 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
     auto comp = registry.create(args.comp_id);
 
     // Render the composition.  The render call populates
-    // `renderer.text_audit_snapshots()` via the graph builder's source
-    // pass (scene.cpp §8a) — one snapshot per TextRun node carrying
+    // `renderer->text_audit_snapshots()` via the graph builder's source
+    // pass (scene.cpp §9a) — one snapshot per TextRun node carrying
     // the real `TextRunShape`, real per-node world matrix, and
     // producer-supplied predicted/clip bboxes (the 4 inputs to
     // `audit_text_visibility()`).
-    auto runtime_result = runtime::RuntimeContext::create(
-        runtime::RuntimeConfig{Config{}, std::nullopt});
-    if (!runtime_result) {
+    //
+    // The renderer MUST come from the canonical `create_renderer()` factory
+    // (cli_render_utils.hpp), exactly like the sibling `text-def-inspect`
+    // command: constructing `SoftwareRenderer` directly here had drifted from
+    // the constructor contract, so this command did not compile in a
+    // CHRONON3D_BUILD_DIAGNOSTICS build.
+    // Dirty-rect/fast-path reuse is meaningless for a single diagnostic frame
+    // and would make the audited frame depend on history; the sibling
+    // text-def-inspect command disables it for the same reason.
+    RenderSettings settings;
+    settings.dirty.enabled = false;
+    auto renderer = create_renderer(registry, settings, std::nullopt, std::nullopt);
+    if (!renderer) {
         emit_error_json("render_runtime_failed", args.comp_id,
                         args.frame.integral());
         return 1;
     }
-    auto runtime = std::move(runtime_result).value();
-    SoftwareRenderer renderer{*runtime, Config{}};
+    // This command is the reason the capture gate exists: it reads
+    // `renderer->text_audit_snapshots()`, which a production render no longer
+    // pays to populate.
+    renderer->set_text_audit_capture(true);
     auto compiled = chronon3d::compile_composition(
         comp, CompositionCompileContext{});
     if (!compiled) {
@@ -115,13 +128,13 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
         return 1;
     }
     auto compiled_value = std::move(compiled).value();
-    auto fb = renderer.render_compiled(compiled_value, args.frame);
+    auto fb = renderer->render_compiled(compiled_value, args.frame);
     if (!fb) {
         emit_error_json("render_failed", args.comp_id, args.frame.integral());
         return 1;
     }
 
-    const auto& snapshots = renderer.text_audit_snapshots();
+    const auto& snapshots = renderer->text_audit_snapshots();
 
     // Early-fail (§8 FU): the graph builder found zero TextRun nodes.
     // Emit an explicit error JSON and return 1.  Without this guard

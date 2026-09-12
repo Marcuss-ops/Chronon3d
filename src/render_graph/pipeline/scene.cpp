@@ -346,31 +346,45 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // ── 9a. Capture TextRunNode snapshots (chronon3d_cli inspect-text) ──
     // Snapshot while graph is fully built and frozen, before execution
     // mutates any state.  Real TextRunShape + world matrix + predicted bbox.
+    //
+    // HOT-PATH GATE: populating the vector costs one heap allocation and one
+    // `shared_ptr` refcount per TextRun node per frame, and only two diagnostics
+    // consumers ever read it — the `inspect-text` / `text-def-inspect` commands
+    // (which opt in explicitly, see SoftwareRenderer::set_text_audit_capture)
+    // and the opt-in `--debug-text-layout-json` report (gated here by its own
+    // configured output path). Every production frame used to pay for data
+    // nothing consumed. The container is still cleared on every frame so the
+    // per-frame lifetime contract is unchanged even while capture is off.
     if (sw_renderer && !isolated_temporal_sample) {
-        sw_renderer->text_audit_snapshots().clear();
-        const auto& graph = graph_result.compiled.graph;
-        for (GraphNodeId i = 0; i < graph.size(); ++i) {
-            if (!graph.has_node(i)) continue;
-            const auto& node = graph.node(i);
-            if (node.kind() != RenderGraphNodeKind::TextRun) continue;
-            const auto* tr_node = static_cast<const TextRunNode*>(&node);
-            if (!tr_node->shape()) continue;
-            TextRunAuditSnapshot snap;
-            snap.name = std::string(tr_node->name());
-            snap.shape = tr_node->shape();
-            snap.world_matrix = tr_node->placement().matrix;
-            if (auto pred = tr_node->predicted_bbox(ctx, {})) {
-                snap.predicted_bbox = Rect{
-                    {static_cast<float>(pred->x0), static_cast<float>(pred->y0)},
-                    {static_cast<float>(pred->x1 - pred->x0),
-                     static_cast<float>(pred->y1 - pred->y0)}};
-            } else {
-                snap.predicted_bbox = Rect{
-                    {0.0f, 0.0f},
-                    {static_cast<float>(width), static_cast<float>(height)}};
+        auto& audit_snapshots = sw_renderer->text_audit_snapshots();
+        audit_snapshots.clear();
+        const bool capture_audit = sw_renderer->text_audit_capture() ||
+            !effective_settings.text_layout_debug_json_path.empty();
+        if (capture_audit) {
+            const auto& graph = graph_result.compiled.graph;
+            for (GraphNodeId i = 0; i < graph.size(); ++i) {
+                if (!graph.has_node(i)) continue;
+                const auto& node = graph.node(i);
+                if (node.kind() != RenderGraphNodeKind::TextRun) continue;
+                const auto* tr_node = static_cast<const TextRunNode*>(&node);
+                if (!tr_node->shape()) continue;
+                TextRunAuditSnapshot snap;
+                snap.name = std::string(tr_node->name());
+                snap.shape = tr_node->shape();
+                snap.world_matrix = tr_node->placement().matrix;
+                if (auto pred = tr_node->predicted_bbox(ctx, {})) {
+                    snap.predicted_bbox = Rect{
+                        {static_cast<float>(pred->x0), static_cast<float>(pred->y0)},
+                        {static_cast<float>(pred->x1 - pred->x0),
+                         static_cast<float>(pred->y1 - pred->y0)}};
+                } else {
+                    snap.predicted_bbox = Rect{
+                        {0.0f, 0.0f},
+                        {static_cast<float>(width), static_cast<float>(height)}};
+                }
+                snap.clip_rect = snap.predicted_bbox;
+                audit_snapshots.push_back(std::move(snap));
             }
-            snap.clip_rect = snap.predicted_bbox;
-            sw_renderer->text_audit_snapshots().push_back(std::move(snap));
         }
     }
 
