@@ -179,4 +179,4 @@ Do not advance to new compiler architecture while Stage 1 same-SHA CI is red or 
 - [`CHRONON_PLAN.md`](CHRONON_PLAN.md)
 - [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md)
 - [`EXECUTOR_OWNERSHIP.md`](EXECUTOR_OWNERSHIP.md)
-- WBH toolchain contract: `tools/check_wbh_toolchain.sh` + `tools/wbh_toolchain_manifest.env` (verify presence before use)
+- WBH protocol (P1, OPEN): the gate groups live in `tools/gates/manifest.sh` (`WBH_GATES`); the protocol doc and the toolchain-manifest contract are still to be delivered — see [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md)

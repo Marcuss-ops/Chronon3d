@@ -104,6 +104,13 @@ bool fused_batch_payload_compatible(
         return false;
     }
     const bool candidate_text = candidate.kind == RenderGraphNodeKind::TextRun;
+    // Distinct TextRun nodes represent independent text layers (e.g. watermark, subtitles)
+    // which produce distinct framebuffers for distinct Composite nodes.
+    // Fusing them into a single batch causes all but the last node to be skipped,
+    // starving upstream composite nodes of their input framebuffers.
+    if (batch_has_text && candidate_text) {
+        return false;
+    }
     const bool candidate_image =
         candidate.kind == RenderGraphNodeKind::Source ||
         candidate.kind == RenderGraphNodeKind::Video;
