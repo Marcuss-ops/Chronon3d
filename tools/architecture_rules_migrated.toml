@@ -279,20 +279,6 @@ required_patterns = [
 ]
 
 [[contract]]
-name = "render_to_media_serializer_contract"
-file = "include/chronon3d/render_graph/compiler/compiled_frame_graph_serializer.hpp"
-required_patterns = [
-  'serialize_compiled_frame_graph\s*\(',
-  'serialize_compiled_frame_graph_dot\s*\(',
-  'physical_allocations',
-  'dependencies',
-  'make_render_receipt\s*\(',
-  'receipt.output = sink.finalize\(\)',
-  'receipt.pass_timings',
-  'receipt.total_gpu_time_ns',
-]
-
-[[contract]]
 name = "render_to_media_output_sink_contract"
 file = "include/chronon3d/runtime/output_sink.hpp"
 # Mode-member accessor spelling follows the implementation (mode_); the

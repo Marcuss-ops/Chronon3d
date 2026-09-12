@@ -13,17 +13,48 @@
 
 namespace chronon3d {
 
+namespace {
+// A release policy that cannot reclaim the storage is a programming error that
+// used to be invisible: the deleter returned and the framebuffer lived until
+// the pool was trimmed. Count it so a wrong policy is observable instead of a
+// silent leak. Kept allocation-free and noexcept: this runs from a noexcept
+// destructor (including during unwinding).
+inline void note_unexpected_release_policy() noexcept {
+    auto* counters = profiling::g_current_counters;
+    if (counters != nullptr) {
+        counters->unexpected_pool_release_policy_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+}
+} // namespace
+
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
     std::visit([fb](const auto& p) {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, RestoreScratchHandle>) {
-            return;  // cleanup lambda handles restoration
+            // The handle carries the callback that restores the scratch slot.
+            // Invoke it. An empty callback means the storage can never be
+            // reclaimed: that is the unexpected-policy case, and deleting is
+            // the only non-leaking fallback.
+            if (p.cleanup) {
+                p.cleanup();
+            } else {
+                note_unexpected_release_policy();
+                delete fb;
+            }
         } else if constexpr (std::is_same_v<T, RendererOwned>) {
-            return;  // renderer manages lifetime
+            // Deliberate no-op: the renderer manages the planned physical slot.
+            return;
         } else if constexpr (std::is_same_v<T, ReturnToScratch>) {
-            fb->clear(Color::transparent());
-            if (p.slot) *p.slot = fb;
+            if (p.slot) {
+                fb->clear(Color::transparent());
+                *p.slot = fb;
+            } else {
+                // No slot to restore into — this used to leak silently.
+                note_unexpected_release_policy();
+                delete fb;
+            }
         } else if constexpr (std::is_same_v<T, ReturnToPool>) {
             if (auto pool = p.pool.lock()) {
                 pool->release(fb);

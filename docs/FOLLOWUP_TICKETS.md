@@ -26,6 +26,18 @@
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
 | PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato); record: ADR-024 + git history |
 | Legacy composition adapter | P1 | ACTIVE | [WAVE-CLOSEOUT-DEMOLITION-DEBT](tickets/TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT.md) — `Composition::SceneFunction` compatibility route remains until typed Composition lowering has corpus equivalence |
+| MTSDF FreeType guard granularity | P1 | ACTIVE | [HOTPATH-TEXT-MTSDF-CONTENTION](tickets/TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md) — heavy SDF work now runs outside the lock; guard is still process-wide instead of per-face |
+| CPU per-glyph text selector compat | P1 | ACTIVE | [GPU-TEXT-CPU-SELECTOR-COMPAT](tickets/TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT.md) — counters landed (`gpu_text_cpu_selector_compat_*`); delete only after the official corpus proves 0 hits |
+
+## Hot-path closeout (2026-09-12 working session)
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| Effect scratch wiring regression | P0 | FIXED (build pending) | [EFFECT-SCRATCH-WIRING-REGRESSION](tickets/TICKET-EFFECT-SCRATCH-WIRING-REGRESSION.md) — `effect_scratch`/`depth_buffer_pool`/`dof_scratch` were never wired into `SoftwareProcessorContext`; effects/mesh/DOF allocated a heap framebuffer per frame. Restored in `make_processor_context` + effect scratch is now a required reference |
+| FramebufferPool release policy | P2 | LANDED | [POOL-RELEASE-POLICY-DIAGNOSTICS](tickets/TICKET-POOL-RELEASE-POLICY-DIAGNOSTICS.md) — `RestoreScratchHandle` cleanup now invoked, `ReturnToScratch` null-slot no longer leaks, `unexpected_pool_release_policy_count` added |
+| Dead headers + orphan contract | P2 | REMOVED | 7 zero-consumer headers deleted (`render_to_media_compiler`, `fusion_support`, `compiled_frame_graph_serializer`, `magic_enum_safe`, `text_box`, `text_spec`, `resolved_render_job`) + `render_to_media_serializer_contract` removed from `tools/architecture_rules_migrated.toml`; census: no include/symbol consumer, not in `Chronon3DPublicHeaders.cmake` |
+| `pipe_pixfmt` single authority | P0 | CODE DONE (build pending) | one parser (`runtime::try_parse_pixel_format`) + CLI projection + `InvalidPipePixelFormat` at the job boundary; unknown values now fail loud instead of silently becoming RGBA |
+| NodeMemoryTracker lock metering | P1 | INSTRUMENTED | `node_memory_lock_{acquires,wait_us,max_wait_us,hold_wall_us}` added; the restructure is data-gated on those counters |
 
 ## Backlog P2/P3 (non bloccante)
 
