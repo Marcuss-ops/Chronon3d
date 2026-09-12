@@ -426,18 +426,22 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     const chronon3d::runtime::GpuGlyphKey glyph_a{"font.ttf", 65, 32};
     const chronon3d::runtime::GpuGlyphMetrics metrics_a{-1, -2, 8.0f};
 
+    // acquire() returns GpuGlyphAcquireResult (Result<GlyphLocation, ...>),
+    // not a bare GlyphLocation — unwrap before reading placement fields.
     const auto first = atlas.acquire(glyph_a, 4, 4, glyph_coverage, metrics_a);
-    CHECK(first.local_x == -1);
-    CHECK(first.local_y == -2);
-    CHECK(first.width == 4);
-    CHECK(first.height == 4);
-    CHECK(first.advance_x == 8.0f);
+    REQUIRE(first.has_value());
+    CHECK(first->local_x == -1);
+    CHECK(first->local_y == -2);
+    CHECK(first->width == 4);
+    CHECK(first->height == 4);
+    CHECK(first->advance_x == 8.0f);
 
     // Same glyph again: device-resident hit, same page, same uv_index
     const auto second = atlas.acquire(glyph_a, 4, 4, glyph_coverage, metrics_a);
-    CHECK(second.atlas_page == first.atlas_page);
-    CHECK(second.uv_index == first.uv_index);
-    CHECK(second.advance_x == 8.0f);
+    REQUIRE(second.has_value());
+    CHECK(second->atlas_page == first->atlas_page);
+    CHECK(second->uv_index == first->uv_index);
+    CHECK(second->advance_x == 8.0f);
 
     // Metrics are queryable without touching the device.
     const auto stored = atlas.metrics(glyph_a);
@@ -448,7 +452,8 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     const chronon3d::runtime::GpuGlyphKey glyph_b{"font.ttf", 66, 32};
     const auto third = atlas.acquire(glyph_b, 4, 4, glyph_coverage,
                                      chronon3d::runtime::GpuGlyphMetrics{0, 0, 9.0f});
-    CHECK(third.uv_index != first.uv_index);
+    REQUIRE(third.has_value());
+    CHECK(third->uv_index != first->uv_index);
     CHECK(atlas.stats().hits == 1);
     CHECK(atlas.stats().misses == 2);
     CHECK(atlas.stats().entries == 2);
