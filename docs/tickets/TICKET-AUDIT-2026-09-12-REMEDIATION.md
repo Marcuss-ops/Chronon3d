@@ -1,6 +1,6 @@
 # TICKET-AUDIT-2026-09-12-REMEDIATION — Bonifica dell'action list "Technical Audit Report"
 
-> **Stato:** CODE DONE — verifica build/CI in corso (nessuna misura runtime).
+> **Stato:** CODE DONE — build verde su `linux-video-test`; 1 blocker pre-esistente emerso (§7).
 > **Origine:** `Chronon3D Technical Audit Report` (2026-09-12), action list ordinata.
 > **Scope:** P0-1, P0-2, P1-1, P1-3, P2-1, P2-2, P2-3, P2-4, P2-5.
 > **Vedi anche:** `docs/AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md` (audit diverso, stesso giorno).
@@ -52,8 +52,15 @@ avrebbe coperti.
 17, ma `opencolorio` è una dipendenza pesante che non giustifica l'install su
 ogni PR. È l'unico TU feature-gated non compilato ad ogni PR; tracciato qui.
 
+**Estensione della stessa classe (scoperta durante la verifica):** la suite
+`chronon3d_backend_registry_tests` è compilata **solo** con
+`CHRONON3D_ENABLE_VULKAN=ON` (default `OFF`); nessun workflow in
+`.github/workflows/` usa un preset Vulkan (`native-video.yml` lo forza `OFF`).
+Di conseguenza la suite non è mai stata compilata in CI, e al 2026-09-10 ha
+smesso di compilare senza che nessuno se ne accorgesse (§7).
+
 **Regression risk:** Low (nessuna modifica ai sorgenti di engine). **NOT RUN:**
-la compilazione effettiva di `crash_handler.cpp`/`watch_service.cpp` — vedi §4.
+la compilazione effettiva di `crash_handler.cpp`/`watch_service.cpp` — vedi §6.
 
 ---
 
@@ -116,13 +123,68 @@ indistinguibile da una regressione.
 
 ## 6. Verifica
 
-- **Build:** `linux-video-test` (`-j12`, RAM controllata) → target
-  `chronon3d_media_video_tests`, `chronon3d_render_job_contract_tests`,
-  `chronon3d_core_tests`.
-- **Test:** `chronon3d_media_video_tests` (include `test_encoder_capability`),
-  `chronon3d_render_job_contract_tests`, suite registry/`render_counters`.
-- **NOT RUN:** compilazione effettiva di `crash_handler.cpp` /
-  `watch_service.cpp` (richiedono `cpptrace`/`efsw` non installati localmente);
-  la prima esecuzione della lane CI `full-validation` su PR è la verifica
-  autoritativa. Se uno dei due TU è marcio, la lane lo scopre — è l'intento di
-  P0-1.
+Build: `linux-video-test` (`-j8`, RAM controllata, mai oltre ~25 GB/costantemente
+sotto la soglia OOM). Il cambio all'X-macro dei contatori invalida ogni TU che
+include `counters.hpp`, quindi la ricompilazione è ampia per costruzione:
+`509/509` step sui test target, `331/331` sui target registry/render_graph.
+
+| Suite (ctest canonico) | Esito |
+|---|---|
+| `chronon3d_zero_copy_capability_tests` (include `test_encoder_capability`) | **PASS** 14/14 |
+| `chronon3d_compositor_tests` | **PASS** 69/69 |
+| `chronon3d_render_job_contract_tests` | **PASS** 11/11 |
+| `chronon3d_render_graph_tests` | **PASS** 376/376 (81.7s) |
+| `chronon3d_media_video_tests` | **PASS** 29.9s |
+| `chronon3d_core_tests` — filtro `*RenderCounters*` | **PASS** 8/8 (gate naming/timing OK) |
+| `chronon3d_backend_registry_tests` | **FAIL** 46/58 — pre-esistente, §7 |
+
+I 4 TU modificati (`gpu_text_run.cpp`, `scene.cpp`,
+`graph_cache_coordinator.cpp`, `command_bake_layer.cpp`) sono anche passati da
+un `-fsyntax-only` isolato con gli include/define reali del preset.
+
+**NOT RUN:** compilazione effettiva di `crash_handler.cpp` /
+`watch_service.cpp` (richiedono `cpptrace`/`efsw` non installati localmente);
+la prima esecuzione della lane CI `full-validation` su PR è la verifica
+autoritativa. Se uno dei due TU è marcio, la lane lo scopre — è l'intento di
+P0-1.
+
+---
+
+## 7. Blocker emerso: suite Vulkan-gated rossa (pre-esistente)
+
+**Sintomo.** `chronon3d_backend_registry_tests`: 58 casi, 46 PASS, **12 FAIL**
+(14 assertion). Dominante:
+`std::logic_error("Vulkan planned surface physical slot is already reserved")`
+da `src/backends/vulkan/vulkan_surface_authority.hpp::bind_planned_exact`,
+che fa fallire i casi di aliasing (`physical slots back several logical handles
+with one VkImage`). Secondari: `Vulkan transform references incompatible
+surfaces` e i pixel-check del text-run Vulkan.
+
+**Perché non è causato da questo lavoro.**
+
+1. Il check che lancia è stato introdotto da `077a44275` (2026-09-05,
+   "prevent plan from aliasing reserved video/NVENC slots") — nessuno dei TU
+   toccati in questa bonifica lo sfiora.
+2. Il TU del test non compilava dal commit `4a6b58ce1` (2026-09-10), quando
+   `GpuGlyphAtlas::acquire` è passato a `Result<GlyphLocation, ...>` senza
+   aggiornare `test_backend_registry_parity.cpp`. La suite era quindi
+   *impossibile da eseguire*, non "verde".
+3. Riparare il compile (§ sotto) fa emergere i 12 fallimenti: sono lo stato
+   reale che il compile error mascherava.
+
+**Fix di sblocco incluso in questo ticket** (necessario: `backend_registry` è
+nella suite minima pre-push di `AGENTS.md`): in
+`tests/registry/test_backend_registry_parity.cpp` il caso
+`VRAM glyph atlas keeps glyphs resident and preserves placement metrics` ora
+fa `REQUIRE(x.has_value())` e legge i campi via `x->` invece di `x.`. Prima:
+12 errori di compilazione; dopo: `-fsyntax-only` pulito.
+
+**Aperto (fuori scope, richiede un host/driver Vulkan e il contesto
+NVENC-slot):** ripristinare la semantica di aliasing del planner Vulkan
+rispetto al check `bind_planned_exact`, oppure dimostrare che i test
+presuppongono un ring NVENC che in produzione non esiste. Tracciato in
+`docs/FOLLOWUP_TICKETS.md`.
+
+**Coverage gap correlato:** aggiungere una lane CI che compili un preset
+Vulkan (`linux-video-test`) è il passo che avrebbe scoperto *entrambi* i
+problemi; oggi nessun workflow lo fa.
