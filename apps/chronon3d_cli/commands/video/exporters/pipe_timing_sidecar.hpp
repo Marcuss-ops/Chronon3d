@@ -98,6 +98,21 @@ struct EncoderMetrics {
     std::optional<double> pipe_backpressure_wait_ms;
 };
 
+struct HashMetrics {
+    std::optional<std::uint64_t> output_write_bytes;
+    std::optional<std::uint64_t> output_seek_count;
+    std::optional<std::uint64_t> output_overwrite_bytes;
+    std::optional<std::uint64_t> incremental_hash_invalidations;
+    std::optional<std::uint64_t> final_reread_bytes;
+};
+
+struct PipelineMetrics {
+    std::optional<std::uint64_t> queue_depth_peak;
+    std::optional<double> queue_depth_average;
+    std::optional<std::uint64_t> render_slots_in_flight_peak;
+    std::optional<std::uint64_t> encode_frames_in_flight_peak;
+};
+
 struct GpuMetrics {
     std::optional<double> gpu_execute_ms;
     std::optional<double> gpu_readback_ms;
@@ -338,6 +353,8 @@ struct JobTimings {
     CacheMetrics cache;
     TextMetrics text;
     EncoderMetrics encoder;
+    HashMetrics hash;
+    PipelineMetrics pipeline;
     AppliedEncoderSettings encoder_settings;
     GpuMetrics gpu;
     RuntimeMetrics runtime;

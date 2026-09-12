@@ -123,6 +123,9 @@ public:
     [[nodiscard]] std::uint64_t full_file_reread_count() const override {
         return mux_ && mux_->checksum_used_reread() ? 1 : 0;
     }
+    [[nodiscard]] chronon3d::media::MuxHashMetrics hash_metrics() const override {
+        return mux_ ? mux_->hash_metrics() : chronon3d::media::MuxHashMetrics{};
+    }
     [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
     [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
     [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }

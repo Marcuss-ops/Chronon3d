@@ -2,6 +2,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <vector>
 #include <algorithm>
+#include "apps/chronon3d_cli/utils/telemetry/telemetry_merge.hpp"
 using namespace chronon3d;
 
 
@@ -63,6 +64,22 @@ TEST_CASE("Telemetry Semantic: Framebuffer acquire is not confused with framebuf
     // Acquire != clear (semantically distinct)
     CHECK(c.framebuffer_acquire_wall_ms.load() != c.framebuffer_clear_wall_ms.load());
     CHECK(c.framebuffer_clear_wall_ms.load() != c.framebuffer_pool_clear_wall_ms.load());
+}
+
+TEST_CASE("Telemetry Semantic: queue peak merge uses maximum, not sum") {
+    RenderCounters dst;
+    RenderCounters src;
+    reset_counters(dst);
+    reset_counters(src);
+
+    dst.io_queue_peak_depth.store(5, std::memory_order_relaxed);
+    src.io_queue_peak_depth.store(3, std::memory_order_relaxed);
+    chronon3d::cli::telemetry::add_counters(dst, src);
+    CHECK(dst.io_queue_peak_depth.load(std::memory_order_relaxed) == 5);
+
+    src.io_queue_peak_depth.store(8, std::memory_order_relaxed);
+    chronon3d::cli::telemetry::add_counters(dst, src);
+    CHECK(dst.io_queue_peak_depth.load(std::memory_order_relaxed) == 8);
 }
 
 TEST_CASE("Telemetry Semantic: frame_conversion_copy_wall_ms does not include pipe write") {

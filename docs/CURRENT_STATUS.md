@@ -66,21 +66,36 @@
 
 ## Certification harness checkpoint — 2026-09-11
 
+- Same-SHA CI pre-execution diagnosis is recorded in
+  [`ci-preexecution-a16c86de2`](evidence/ci-preexecution-a16c86de2.md):
+  GitHub creates all jobs with `runner_id=0` and `steps=[]`, across Linux,
+  Windows and unrelated workflows. Local YAML shape validation and
+  `actionlint` are clean; the remaining action is external runner/dispatch
+  recovery, not production-code repair.
 - `tools/benchmark_gpu_baseline.sh` is the canonical reproducible GPU baseline
   runner. Manifest v1 now locks B00–B11 + GPU_TEXT_01–05, consumes the
   authoritative timing sidecar, requires prewarm/steady-state windows and
   rejects missing frame or wall-time attribution evidence. The sidecar now
   exposes canonical `phase_attribution` and `job.full_file_reread_count`.
   Full corpus certification remains pending on the fixture/NVENC host.
-- `tools/measure_cpu_budget.sh` is present and syntax/local smoke verified;
-  still/pipe/chunked fixture execution remains pending on the working build
-  host. No CpuBudget policy change is authorized before that measurement.
+- `tools/measure_cpu_budget.sh` is now measured on `a16c86de2` with still,
+  pipe and chunked-via-pipe modes; pipe encode share is 67.15% and chunked
+  encode share is 69.73%, both above the 25% decision threshold. The existing
+  bounded pipe authority remains the only approved architecture; see
+  [`cpu-budget-a16c86de2-run2`](baselines/cpu-budget-a16c86de2-run2.txt).
 - Same-SHA hardware smoke evidence now exists at
-  [`gpu-b00-native-smoke-43d73f149`](evidence/gpu-b00-native-smoke-43d73f149.md):
-  RTX A4000/NVENC, 30/30 native frames, 99.114% wall attribution, zero CPU
+  [`gpu-b00-native-smoke-a16c86de2`](evidence/gpu-b00-native-smoke-a16c86de2.md):
+  RTX A4000/NVENC, 120/120 native frames, 99.247% wall attribution, zero CPU
   readback, zero encoder staging bytes, and zero GPU surface-copy frames.
   This validates the native FullGraph lane only; the official corpus and the
   final DirectYUV single-backing path remain open.
+- Z6 pipeline-depth telemetry now uses the existing bounded SPSC queue and
+  `GpuSlotPool` authorities. A same-SHA B00 smoke records queue average/peak,
+  render-slot peak, and encode-in-flight peak; the controlled ring-depth sweep
+  remains open. See [`z6-pipeline-depth-a16c86de2`](evidence/z6-pipeline-depth-a16c86de2.md).
+- Mux hash finalization now reports seek count, overwritten bytes, hash
+  invalidations, and final reread bytes. The B00 smoke confirms one honest MP4
+  backpatch invalidation and reread; see [`hash-finalization-a16c86de2`](evidence/hash-finalization-a16c86de2.md).
 
 ## FrameDelta compiler checkpoint — 2026-09-11
 

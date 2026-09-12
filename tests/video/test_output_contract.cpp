@@ -119,6 +119,18 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
     }
     REQUIRE(mux.finalize());
 
+    const auto hash_metrics = mux.hash_metrics();
+    CHECK(hash_metrics.output_write_bytes > 0);
+    CHECK(hash_metrics.output_seek_count > 0);
+    CHECK(hash_metrics.output_overwrite_bytes > 0);
+    CHECK(hash_metrics.incremental_hash_invalidations == 1);
+    if (mux.checksum_used_reread()) {
+        CHECK(hash_metrics.final_reread_bytes ==
+              static_cast<std::uint64_t>(std::filesystem::file_size(artifact)));
+    } else {
+        CHECK(hash_metrics.final_reread_bytes == 0);
+    }
+
     AVFormatContext* input = nullptr;
     REQUIRE(avformat_open_input(&input, artifact.c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
