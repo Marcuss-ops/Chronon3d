@@ -55,7 +55,7 @@ Se uno di questi salta, la rotta è persa. Tutto il resto è riparabile.
 |---|---|---|
 | **Lunedì** | `git log --oneline --since="1 week" --stat \| head -40` + `git diff --stat HEAD~20` | Sai quali 3 file sono più toccati. Se uno è hotspot H-1, apri ticket. |
 | **Mercoledì** | Apri `docs/FOLLOWUP_TICKETS.md` + `docs/AUDIT-2026-09-09.md` (P0 residui: C-01, C-02, S-05). Quanti chiusi questa settimana? | ≥1 mosso, o motivazione scritta in `docs/FOLLOWUP_TICKETS.md`. |
-| **Venerdì** | `python tools/check_architecture.py` + `bash tools/check_architecture_boundaries.sh` + `bash tools/gates/manifest.sh` (se presente) | Tutto verde. Su `NOT RUN` non apri release. |
+| **Venerdì** | `bash tools/run_developer_gates.sh origin main` (catena canonica: il gate set vive in `tools/gates/manifest.sh`, che include `check_architecture.py`) | Tutto verde. Su `NOT RUN` non apri release. |
 
 **Regola d'oro:** ogni nuova feature deve lasciare **meno duplicazione di quella che ha trovato** (AGENTS.md: "No duplicazione" + Demolition Debt). Se non ci riesci, la feature è disegnata male, non è il codice.
 

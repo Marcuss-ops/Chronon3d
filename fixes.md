@@ -5,6 +5,7 @@
 > **Scope:** data-plane per-frame (`src/runtime`, `src/render_graph`, `src/backends`, `src/media`, `src/cache`), boundary I/O/codec, governance tooling.
 > **Classificazione:** P0 = rischio correctness/perf sul path certificato · P1 = costo strutturale · P2 = igiene.
 > **Metodo:** le evidenze sono `path:line` del checkout corrente; le frequenze ("per frame") derivano dalla lettura dei call-site, non da profiling runtime. Gli arbitri per la priorizzazione a valle sono i contatori già instrumentati (`m_lock_wait_us`, `node_memory_lock_*`, zero-copy sidecar `*.timing.json`).
+> **Verifica (2026-09-12, checkout `5af91243a`):** la Parte B (e la citazione 4.4) è stata ri-controllata riga per riga contro il codice dopo il commit. Verdetto per item in **Parte E**, cosa è stato applicato o differito in **Parte F**. Gli item marcati `[RITIRATO]` non sostenuti dall'evidenza non vanno usati per pianificare lavoro.
 
 **Principio guida:** un fatto deve avere un solo proprietario canonico. Le proiezioni sono consentite. Le seconde Source of Truth no. Un gate non deve contenere una seconda copia della conoscenza che sta cercando di proteggere.
 
@@ -150,10 +151,10 @@ Stato generale: disciplina forte (`steady_state_allocations_per_frame=0` gate, `
 ### [P1] 4.3 — Stride cache-line allineato: corretto
 - `framebuffer.hpp:43-53` (`align_stride_to_cache_line`); pool size-class rounding gestito da `copy_rows`; upload CPU→GPU counted alla singola autorità (`video_device_runtime_cuda_cache_detail.hpp:103-118`); layout NV12 planare via `AVFrame` + `hw_frames_ctx` = contratto zero-copy corretto sul lane DirectYUV. Nessun repack ridondante trovato.
 
-### [P2] 4.4 — Contratto C++↔GLSL documentato da commenti
-- `src/backends/vulkan/shaders/text_run.comp:14` ("Byte layout must match `runtime::GlyphInstance` (40 bytes)"). Due rappresentazioni dello stesso fatto per-glyph (`GlyphStatic` CPU / `GlyphInstance` GPU) senza contratto condiviso.
-- Fix: `static_assert(sizeof(GlyphInstance)==40)` + contract test di layout a build time.
-- Rischio: Medio (silent visual corruption su rename/add-field).
+### [P2] 4.4 — Contratto C++↔GLSL documentato da commenti (commento errato, guardia a senso unico)
+- `src/backends/vulkan/shaders/text_run.comp:13` dichiara 40 byte; il valore reale è 48 ed è già asserito lato C++ (`render_surface.hpp:361`). Le due rappresentazioni dello stesso fatto per-glyph (`GlyphStatic` CPU / `GlyphInstance` GPU) restano senza contratto condiviso: vedi B.5 (`[CORRETTO]`).
+- Fix: `[APPLICATO]` commento allineato + `tests/test_shader_layout_contract.py` (slot scalari GLSL vs campi C++, `sizeof` del `static_assert`, `ArrayStride` SPIR-V). Il "test che compili la shader" è ora reale: `glslangValidator` è toolchain già presente nel repo.
+- Rischio: Medio (silent visual corruption su rename/add-field) → coperto dal test.
 
 ---
 
@@ -175,48 +176,61 @@ Stato generale: disciplina forte (`steady_state_allocations_per_frame=0` gate, `
 
 # PART B — SSOT / Governance audit
 
-### [P0] B.1 — Due `FrameParameterBlock`, stesso nome, stesso scopo, forme diverse
-- Owner A: `chronon3d::compiler::FrameParameterBlock` — `include/chronon3d/compiler/frame_parameters.hpp:78` (usato da sampler + `render_pipeline.cpp`).
-- Owner B: `chronon3d::graph::FrameParameterBlock` / `LayerParameterBlock` (B6) — `include/chronon3d/render_graph/pipeline/frame_parameter_block.hpp:33-58` (consumato da `precomp_node.hpp`, bench test).
-- Fatto duplicato: storage parametri per-frame per l'esecuzione del grafo. Contratti paralleli (matrix, opacity), zero conversione esplicita documentata.
-- Perché è pericoloso: semantic drift (invarianti refresh solo su B; classe di bug residual-value su A), rename unsafe, change amplification.
-- Owner canonico raccomandato: **B6 `graph::FrameParameterBlock`** (pre-sized, capacity-stable invariants, testati). Migrare il sampler a scrivere lì; deprecare A.
-- Cosa eliminare dopo la migrazione: `include/chronon3d/compiler/frame_parameters.hpp` (o il suo riflesso, se il consolidation avviene in senso inverso).
+### [P1] B.1 — Tre contenitori "parametri per-frame" e un nome duplicato
+`[CORRETTO — era P0 "seconda SSOT"]` Il nome `FrameParameterBlock` esiste in due namespace con forme diverse, e il fatto "parametri dinamici per-frame" ha in realtà **tre** sedi:
+
+- Owner A — `chronon3d::compiler::FrameParameterBlock` (`include/chronon3d/compiler/frame_parameters.hpp:78`). È quello vivo: prodotto da `TypedProgramSampler::sample` (`src/compiler/typed_program_sampler.cpp:44,122`), consumato da `RenderPipeline::render_program` (`src/runtime/render_pipeline.cpp:111-112`), stoccato in `runtime::FrameSlotPayload` (`include/chronon3d/runtime/frame/frame_slot_payload.hpp:24`) ed esposto da `FrameExecutionContext::parameters()` (`frame_execution.hpp:48-51`) e `RenderGraphContext::frame_parameters` (`render_graph_context.hpp:90,521`).
+- Owner B — `chronon3d::graph::FrameParameterBlock` / `LayerParameterBlock` (`include/chronon3d/render_graph/pipeline/frame_parameter_block.hpp:56`, `LayerParameterBlock` a `:35`). Consumatore unico: `PrecompNode::m_param_block` (`include/chronon3d/render_graph/nodes/precomp_node.hpp:165`; `warm_up()` in `src/render_graph/cache/precomp_node_execute.cpp:252`) + la fixture `tests/render_graph/nodes/test_precomp_node_cache.cpp:311-320`. **Non** un bench test, come affermava la prima stesura.
+- Owner C — `chronon3d::graph::FrameParameterTable` (`include/chronon3d/render_graph/pipeline/frame_parameter_table.hpp:61`), **ignorato dalla prima stesura**: è lo storage pre-sized per-frame consumato da `CompiledFrameGraph::prepared_parameters` (`compiled_frame_graph.hpp:257`), `GPUCommandPlan::dynamic_parameters` (`runtime/gpu_command_plan.hpp:158`) e `timeline::CompiledComposition::parameters` (`timeline/compiled_composition.hpp:36`).
+
+Perché resta un problema: i tre hanno lo stesso dominio nominale e assi di ownership diversi (A = per-layer variant+stringhe, B = per-binding transform, C = slice per frame-time), quindi dal nome non si deduce chi possiede cosa e il rename di uno non è verificabile dal compilatore.
+Perché **non** è il P0 della prima stesura: non è dimostrata una seconda copia dello *stesso* fatto (nessuna conversione, nessun drift osservato). È collisione di nome + overlap di concept.
+Fix: decidere l'asse di ownership e nominarlo (es. `PerBindingTransformBlock` per B) + documentare la mappa a 3 in `docs/`. Non è un rename meccanico → **differito** (Parte F.2).
 - Rischio: Medio.
 
 ### [P0] B.2 — Il gate dell'error-model contiene la seconda copia della tassonomia
-- Evidenze: `tools/architecture_rules.toml` — `canonical_error_legacy_mapping_inventory` (`presence`, `min_matches = 28` su `\{"chronon3d::`) + **19 regole** `*_error_construction_adapter_only` con allowlist hardcodata (19 path).
+`[CONFERMATO — conteggi corretti]`
+- Evidenze: `tools/architecture_rules.toml` — `canonical_error_legacy_mapping_inventory` (`presence`, `min_matches = 28` su `\{"chronon3d::`) + **18 regole** `*_error_construction_adapter_only` con allowlist hardcodata (path singolo; l'unico blocco multi-path oltre a `canonical_error_construction_gate` è `sdk_render_error_construction_adapter_only`). Il blocco in più contato nel primo giro è `canonical_error_construction_gate` (riga 49), che è un'altra regola.
 - Fatto duplicato: l'elenco dei tipi-errore legittimi e delle loro sedi vive (a) negli header, (b) nel gate come literal, (c) in `kLegacyErrorMappings` come literal. Il gate non legge la conoscenza che protegge: la ricopia.
-- Perché è pericoloso: falso senso di sicurezza (count-based fragile in entrambe le direzioni), change amplification (3 file per nuovo tipo errore), gate rotto da un path move senza cambio semantico.
+- Evidenza più forte del primo giro: `min_matches = 28` è **esattamente** la cardinalità di `std::array<LegacyErrorMapping, 28>` (`include/chronon3d/core/types/error.hpp:65`): il gate non legge la conoscenza che protegge, ne tiene il conteggio come literal.
+- Perché è pericoloso (meccanismo confermato): `presence` è un *lower bound* → una 29ª mapping passa senza segnalazione, il numero non dice *quali* mapping esistono, e un path move senza cambio semantico rompe il gate; resta la change amplification (3 sedi per un nuovo tipo errore).
 - Owner canonico: `include/chronon3d/core/types/error.hpp` + annotazione/convenzione (es. macro `CHRONON_ERROR_ADAPTER`) che lo scanner consumi data-driven.
-- Cosa eliminare: le 19 allowlist inline → 1 regola data-driven.
+- Cosa eliminare: le 18 allowlist inline → 1 regola data-driven.
 - Rischio: Medio.
 
-### [P1] B.3 — GOVERNANCE punta a gate inesistenti (stale documentation)
-- `docs/GOVERNANCE.md` §4 e I-1 prescrivono `bash tools/check_architecture_boundaries.sh` (**inesistente** — glob 0 risultati) e `bash tools/gates/manifest.sh` (è una *lista di nomi*; nessun consumatore in `.github`).
+### [P1] B.3 — GOVERNANCE punta a un gate inesistente (metà tesi ritirata)
+`[CORRETTO]`
+- **Confermato:** `docs/GOVERNANCE.md:58` (§4, rituale settimanale) prescrive `bash tools/check_architecture_boundaries.sh`, che **non esiste** (`tools/` non lo contiene). Non è una svista di percorso: lo script è stato deliberatamente consolidato in `tools/check_architecture.py` (`tools/architecture_rules_core.toml:6,28` — "Consolidated from 15+ gate scripts and check_architecture_boundaries.sh"). Resta il fatto che il rituale documentato fa eseguire un comando che fallisce. La nota I-1 del documento invece è già corretta (cita `check_architecture.py`).
+- **Ritirato:** `bash tools/gates/manifest.sh` non è un gate orfano — `tools/run_developer_gates.sh:30` lo *source-a*, ne itera `DEVELOPER_GATES` ed è invocato da `.github/workflows/developer-gates.yml:28`. Essere una lista di nomi è il design (SSOT del gate set), non un difetto; `DEVELOPER_GATES` include già `check_architecture.py`.
 - Perché è pericoloso: un agente/sviluppatore esegue il rituale e non certifica nulla credendo di farlo.
-- Fix: allineare GOVERNANCE.md a `DEVELOPER_GATES` via `run_developer_gates.sh`, o creare il wrapper mancante.
-- Rischio: Basso-Medio.
-
-### [P1] B.4 — `steady_state_allocations_per_frame`: SSOT frammentata
-- Il fatto vive in: `docs/baselines/steady-state-allocations-certified.txt:8` (=0.0), `tools/gates/check_steady_state_allocations.sh` (default REPORT = baseline → certifica un file, non un run), `telemetry_record.hpp:61`, `render_job_report_output.inc:135`, `command_benchmark_saturation_json.inc:152`.
-- Perché è pericoloso: falso PASS storico — il gate non lega il valore a un run dello stesso SHA.
-- Owner canonico: il sidecar del run corrente; la baseline solo come riferimento.
-- Rischio: Medio.
-
-### [P1] B.5 — Contratto layout shader per commento, non per schema
-- `src/backends/vulkan/shaders/text_run.comp:14` e famiglia `.comp`. Nessuno schema condiviso o test generato.
-- Fix: header condiviso o test che compili la shader e confronti `offsetof`/`sizeof`.
-- Rischio: Medio (silent failure).
-
-### [P2] B.6 — Enum severity camera paralleli
-- `CameraProgramDiagnostic::Severity` e `CameraResolveDiagnostic::Severity` "share the same 3 values", bit-cast (`shot_timeline.cpp:370-373`). Il commento ammette la duplicazione. Owner canonico: un solo enum condiviso.
+- Fix: riallineare GOVERNANCE.md alla catena reale — `[APPLICATO]` (Parte F.1).
 - Rischio: Basso.
 
-### B.7 — Salute governance (conferme)
-- Nessun ciclo gate↔gate. `tools/duplicate_basename_allowlist.txt` (27 righe grandfathering) è policy dichiarata nel manifest TOML, non allowlist fantasma.
-- `check_no_sqlite.sh` resta vivo post-demolition SQLite come anti-regression — legittimo, da etichettare esplicitamente come tale.
-- Nessun consumer che aggira `AssetResolver`/`RenderSurfaceRegistry`/`EffectCatalog` sul data-plane. `resource_index_` DirectYuv (`direct_yuv_program.cpp:355-369`) è proiezione indicizzata, non seconda SSOT.
+### [P1] B.4 — `steady_state_allocations_per_frame`: SSOT frammentata
+`[CONFERMATO — con prova diretta del falso PASS]`
+- Il fatto vive in 6 sedi: `docs/baselines/steady-state-allocations-certified.txt:8` (=0.0), `tools/gates/check_steady_state_allocations.sh:10` (default `REPORT` = baseline → certifica un file, non un run), la *definizione* del campo in `include/chronon3d/runtime/telemetry/render_telemetry_record.hpp:181` (**sede non rilevata nel primo giro**), `apps/chronon3d_cli/utils/telemetry/telemetry_record.hpp:61`, `apps/chronon3d_cli/utils/job/report/render_job_report_output.inc:135`, `apps/chronon3d_cli/commands/basic/command_benchmark_saturation_json.inc:152`.
+- Prova del "falso PASS storico": la baseline dichiara `source_revision=8bdf0f807` (riga 2) e il checkout corrente è `5af91243a`; il gate legge solo `steady_state_allocations_per_frame` e **non confronta mai** `source_revision`. Il PASS è quindi "un run di un'altra revisione non allocava", presentato come certificazione di questa.
+- Owner canonico: il sidecar del run corrente; la baseline solo come riferimento.
+- Fix applicato (F.1): il gate ora legge `source_revision`, la confronta con HEAD, la stampa sempre nel PASS e trasforma il mismatch in `GATE_WARN` (default) o in fail fatale con `CHRONON_STEADY_STATE_REQUIRE_REVISION=1`. La policy su "dove vive il report del run corrente" resta **differita** (F.2).
+- Rischio: Medio.
+
+### [P1] B.5 — Contratto layout shader: il commento è stale, la guardia esiste solo su un lato
+`[CORRETTO — la fix proposta avrebbe rotto la build]`
+- Il commento in `src/backends/vulkan/shaders/text_run.comp:13` dichiara "must match ... (40 bytes)". Il valore reale è **48** e il lato C++ **è già guardato**: `static_assert(sizeof(GlyphInstance) == 48, "GlyphInstance must stay 48 bytes to match text_run.comp")` in `include/chronon3d/runtime/render_surface.hpp:361` (la stessa famiglia guarda `TextRunDynamic == 112`, `:342-345`). La fix suggerita (`static_assert(... == 40)`) era quindi doppiamente sbagliata: l'assert esisteva già, e il numero proposto è quello del commento stale.
+- Difetto reale residuo: la guardia è **asimmetrica** — un cambio della struct GLSL non rompe nulla lato C++ (il commento ne è la prova: è rimasto a 40 mentre il C++ è a 48 da tempo) e nessun test lega le due rappresentazioni.
+- Contesto che il primo giro non aveva raccolto: il repo ha già un'infrastruttura ABI per le shader — `tools/shaders/spirv_abi_gen.cpp` genera per `text_run` lo header `TextRunShaderAbi` (local size 16/16/1, binding 0/1/3, `kPushConstantSize = 40`). Ma quel generatore emette solo local size, binding e push-constant size: **nessun offset o dimensione delle struct di storage buffer**. Il test `tests/backends/test_shader_abi_consistency.cpp` (§"generated ABI headers match runtime reflection") verifica le local size di 2 sole shader e richiede Vulkan + `spirv-reflect`, quindi non è una guardia utilizzabile su host senza Vulkan. Owner naturale del contratto: estendere `spirv_abi_gen` a emettere i member offset e confrontarli con `offsetof`/`sizeof` C++.
+- Fix applicato (F.1): commento corretto + test di contratto che confronta (a) la sequenza di slot scalari della struct GLSL con i campi C++, (b) la dimensione calcolata con il `static_assert`, (c) lo `ArrayStride` reale emesso da `glslangValidator` (`tests/test_shader_layout_contract.py`).
+- Rischio: Medio (silent visual corruption, ora coperto dal test).
+
+### [P2] B.6 — `[RITIRATO]` Enum severity camera: sono già un alias di tipo
+- Verifica: esiste **un solo** `enum class Severity` (`include/chronon3d/scene/camera/camera_v1/camera_program.hpp:50`). `CameraResolveDiagnostic::Severity` è `using Severity = CameraProgramDiagnostic::Severity;` (`:94`), con commento che dichiara l'alias come garanzia di non-divergenza. La deduplicazione richiesta dall'audit è già in essere.
+- Residuo reale (igiene): il commento in `src/scene/camera/camera_v1/shot_timeline.cpp:370-373` descriveva ancora "i due enum che condividono i 3 valori" come se fossero tipi distinti → `[APPLICATO]` riallineato all'alias (F.1).
+- Rischio: nullo.
+
+### B.7 — Salute governance (conferme, ri-verificate)
+- Nessun ciclo gate↔gate. `tools/duplicate_basename_allowlist.txt` = 27 basename + 2 righe di commento (29 righe `wc -l`): policy dichiarata nel manifest TOML, non allowlist fantasma. Il gate concorda: `duplicate_source_basenames — 26 duplicate basename(s), all grandfathered` (184/184 PASS).
+- `check_no_sqlite.sh` resta vivo post-demolition SQLite come anti-regression: l'header del file (righe 2-8) lo dichiara già esplicitamente come guardia irreversibile → la richiesta "da etichettare come tale" è già soddisfatta.
+- Nessun consumer che aggira `AssetResolver`/`RenderSurfaceRegistry`/`EffectCatalog` sul data-plane. `resource_index_` DirectYuv (`src/media/video/direct_yuv/direct_yuv_program.cpp:353-372`, non `355-369`) è una proiezione ordinata interrogata con `std::lower_bound` su `layer_resources_`, non una seconda SSOT.
 - Nessuno split-brain: executor unico (`docs/EXECUTOR_OWNERSHIP.md` coerente col codice), NV12 authority unificata (Wave 1D), telemetry SQLite demolita.
 
 ---
@@ -228,25 +242,26 @@ Ordinati per rapporto payoff/rischio:
 | # | Fix | Riferimento | Rischio |
 |---|---|---|---|
 | 1 | Eliminare la D2D copy per-frame (Z3) passando a `composite_direct_nv12*` | 4.1 | Medio |
-| 2 | Consolidare i due `FrameParameterBlock` su B6 | B.1 | Basso-Medio |
+| 2 | Nominare l'ownership dei 3 contenitori per-frame (A/B/C) | B.1 | Medio |
 | 3 | `GpuGlyphAtlas`: generation counter invece di 4 shared_lock/glyph/frame | 2.2 | Basso |
 | 4 | Scindere i due mutex nel wrapper Vulkan batched | 2.1 | Medio |
 | 5 | `Result`/enum per gli stati attesi di `RenderPipeline::render*` | 3.1 | Basso |
 | 6 | Indici pre-risolti text/animation in `CompiledProgram` | 1.1 | Basso |
 | 7 | Codice errore camera strutturato all'origine (elimina `derive_code_from_message`) | 3.2 | Basso |
-| 8 | Contract test di layout per shader `.comp` | 4.4 / B.5 | Basso |
+| 8 | Contract test di layout per shader `.comp` (✅ applicato, `tests/test_shader_layout_contract.py`) | 4.4 / B.5 | nullo |
 | 9 | Per-shard hit/miss counters in `LruCache` | 2.4 | Basso |
-| 10 | Allineare GOVERNANCE.md ai gate reali | B.3 | nullo |
+| 10 | Allineare GOVERNANCE.md ai gate reali (✅ applicato) | B.3 | nullo |
 
 # B. Canonical ownership map
 
 | Fatto | Owner canonico |
 |---|---|
-| Per-frame layer parameters | `graph::FrameParameterBlock` (B6, `render_graph/pipeline/`) |
+| Per-frame layer parameters | **decisione aperta (B.1)**: `compiler::FrameParameterBlock` (whole-frame, vivo) vs `graph::FrameParameterBlock` (per-binding, `PrecompNode`) vs `graph::FrameParameterTable` (per-frame-time, `CompiledFrameGraph`/`GPUCommandPlan`) |
+| Shader layout contract | test eseguibile `tests/test_shader_layout_contract.py` (GLSL AST + `sizeof` C++ + `ArrayStride` SPIR-V) |
 | Error taxonomy + legacy mapping | `include/chronon3d/core/types/error.hpp` |
 | Frame/encode lifecycle states | `FrameSlotPool` (CAS transitions) |
 | Zero-copy counters | timing sidecar `*.timing.json` → `job.gpu` |
-| Steady-state allocation budget | sidecar del run corrente; baseline solo riferimento |
+| Steady-state allocation budget | sidecar del run corrente; baseline solo riferimento — dal 2026-09-12 il gate dichiara la revisione e avverte sul mismatch (B.4) |
 | NV12 composition authority | `media::video::CudaNv12Compositor` |
 | GPU glyph residency | `GpuGlyphAtlas` (+ generation counter da introdurre) |
 | Compiled graph / allocazione hot-path | `CompiledFrameGraph` + `CompiledResourceTable` |
@@ -257,9 +272,9 @@ Ordinati per rapporto payoff/rischio:
 
 Solo elementi con evidenza forte:
 
-1. **`PrecompNode::execute` legacy wrapper** — `src/render_graph/cache/precomp_node_execute.cpp:117-137`; post PR-6.2 lo usa solo il test lattice; demolition già documentata nel file stesso.
+1. **`PrecompNode::execute` legacy wrapper** — `src/render_graph/cache/precomp_node_execute.cpp:117-137`; post PR-6.2 lo usa solo il test lattice; demolition già documentata nel file stesso. `[PRECISAZIONE 2026-09-12]` Il file è ancora compilato in produzione (`src/render_graph/CMakeLists.txt:172`) e il wrapper è il path di produzione documentato *fino* a PR-6.2 (commento alle righe 100-118): demolition **condizionata**, non immediata.
 2. **Uno dei due `FrameParameterBlock`** — esce dopo il consolidation di A.2 (vedi B.1).
-3. **Riferimenti GOVERNANCE a gate inesistenti** — `check_architecture_boundaries.sh` fantasma (B.3; non-codice ma stesso effetto).
+3. **Riferimenti GOVERNANCE a gate inesistenti** — `check_architecture_boundaries.sh` fantasma (B.3): ✅ rimosso da `docs/GOVERNANCE.md` il 2026-09-12 (F.1).
 
 Verifiche consegnate: nessun header zombie nuovo (la Wave 7-header demolition ha già ripulito; `tools/check_public_headers.py` vivo). `JobSession::arena()` deprecated D-02: confine chiaro, mantenersi per test harness.
 
@@ -268,4 +283,47 @@ Verifiche consegnate: nessun header zombie nuovo (la Wave 7-header demolition ha
 - **Fondere**: le 19 regole `*_error_construction_adapter_only` → 1 regola data-driven che derivi la allowlist da un registro nel TOML o da un'annotazione nel codice (B.2).
 - **Trasformare**: `canonical_error_legacy_mapping_inventory` da `min_matches = 28` (count-based) a contract che enumeri le mapping attese o le importi dalla fonte.
 - **Eliminare**: dopioni di documento GOVERNANCE ↔ AGENTS ↔ manifest sul "gate set"; scegliere AGENTS come indice e far puntare GOVERNANCE al manifest effettivamente consumato.
-- **Conservare**: `tools/check_architecture.py` (motore dichiarativo, scanner unico), `tools/gates/check_steady_state_allocations.sh` (ma bindato allo SHA del run), `tools/check_no_sqlite.sh` (anti-regression, etichettato come tale).
+- **Conservare**: `tools/check_architecture.py` (motore dichiarativo, scanner unico), `tools/gates/check_steady_state_allocations.sh` (ora con revision binding dichiarata, F.1), `tools/check_no_sqlite.sh` (anti-regression, etichettato come tale).
+
+---
+
+# PART E — Verifica della Parte B (2026-09-12, checkout `5af91243a`)
+
+Metodo: rilettura delle sedi citate sul checkout con `grep`/`sed`, più i gate eseguibili senza build host. Nessuna build, nessun GPU, nessun run. Verdetti: **CONFERMATO** (l'evidenza sostiene la tesi), **CORRETTO** (la tesi regge, i dettagli no), **RITIRATO** (la tesi non regge).
+
+| Item | Verdetto | Evidenza verificata | Azione |
+|---|---|---|---|
+| B.1 | CORRETTO | Due `FrameParameterBlock` esistono (`compiler/frame_parameters.hpp:78`, `graph/frame_parameter_block.hpp:56`). A è vivo (sampler `typed_program_sampler.cpp:44,122`, `render_pipeline.cpp:111-112`, `frame_slot_payload.hpp:24`, `render_graph_context.hpp:521`); B è usato solo da `PrecompNode::m_param_block` (`precomp_node.hpp:165`, `warm_up` in `precomp_node_execute.cpp:252`) + fixture (`test_precomp_node_cache.cpp:311-320`). Terzo contenitore non rilevato: `graph::FrameParameterTable` (`frame_parameter_table.hpp:61`). | Riclassificato P1; differito (design) |
+| B.2 | CONFERMATO | 18 regole adapter (non 19), `allow_list` a path hardcodato per regola; `canonical_error_legacy_mapping_inventory` (`architecture_rules.toml:43-46`) usa `min_matches = 28`, esattamente la cardinalità di `std::array<LegacyErrorMapping, 28>` (`error.hpp:65`). | Conteggio corretto nel documento; fix data-driven differita (F.2) |
+| B.3 | CORRETTO | `tools/check_architecture_boundaries.sh` assente (consolidato in `check_architecture.py`, `architecture_rules_core.toml:6,28`) mentre GOVERNANCE.md:58 lo prescriveva; `tools/gates/manifest.sh` è invece consumato (`run_developer_gates.sh:30` ← `.github/workflows/developer-gates.yml:28`). | ✅ GOVERNANCE.md corretto; la tesi su manifest.sh è ritirata |
+| B.4 | CONFERMATO | Baseline `source_revision=8bdf0f807` (riga 2) ≠ HEAD `5af91243a`; il gate non leggeva `source_revision` (default `REPORT` = baseline, riga 10). 6ª sede trovata: `include/chronon3d/runtime/telemetry/render_telemetry_record.hpp:181`. | ✅ Revision binding nel gate + test dedicato; policy sul report del run differita |
+| B.5 / 4.4 | CORRETTO | `static_assert(sizeof(GlyphInstance) == 48)` esiste (`render_surface.hpp:361`); la GLSL compilata vale 48 (`glslangValidator` → `ArrayStride 48`); il commento in `text_run.comp:13` diceva 40. | ✅ Commento corretto + test di contratto (F.1) |
+| B.6 | RITIRATO | Un solo `enum class Severity` (`camera_program.hpp:50`); `CameraResolveDiagnostic::Severity` è `using` alias (`:94`). | ✅ Solo il commento stale è stato riallineato |
+| B.7 | CONFERMATO | 27 basename + 2 righe di commento; `resource_index_` = `std::lower_bound` su `layer_resources_` (`direct_yuv_program.cpp:353-372`); `check_no_sqlite.sh` auto-etichettato (righe 2-8). | Nessuna azione (era già corretto) |
+| C.1 | PRECISAZIONE | `precomp_node_execute.cpp` è ancora in `src/render_graph/CMakeLists.txt:172`; il wrapper `execute()` è il path di produzione fino a PR-6.2 (commento righe 100-118). | Demolition condizionata, non immediata |
+
+Gate eseguiti per questa verifica (senza build host): `python3.11 tools/check_architecture.py` → `GATE_PASS: 184/184`; `bash tools/architecture_gate_selftest.sh` → `PASSED (11 assertions)`; `bash tools/gates/check_steady_state_allocations.sh` → `GATE_PASS`; `bash tools/check_test_hygiene.sh` → `PASS [1/3..3/3]`; `python3.11 tests/test_common_performance_gate.py` e `tests/test_gpu_corpus_manifest.py` → `PASS`; aggiunti `tests/test_shader_layout_contract.py` e `tests/test_steady_state_allocation_gate.py`.
+
+> Nota d'ambiente (non un finding di codice): su questo host `python3` è 3.10 e `check_architecture.py` importa `tomllib` (3.11+), quindi serve l'interprete registrato dal build system (`Python3_EXECUTABLE`). `tools/execute_gate.sh` invoca `python3` letterale: su un host con 3.10 come default la catena può fallire con `ModuleNotFoundError: tomli`.
+
+---
+
+# PART F — Remediation
+
+## F.1 Applicato il 2026-09-12
+
+| Item | Modifica | Verifica |
+|---|---|---|
+| B.5 / 4.4 | `src/backends/vulkan/shaders/text_run.comp:13`: byte-count corretto (40 → 48) con riferimento al `static_assert`; nuovo `tests/test_shader_layout_contract.py` (slot scalari GLSL vs campi C++, ordine dei membri con nome condiviso, `sizeof` del `static_assert`, `ArrayStride` SPIR-V via `glslangValidator`, degradazione esplicita se il tool manca) — guardia utilizzabile senza Vulkan, da assorbire in `spirv_abi_gen` quando emetterà i member offset | test verde, eseguito con e senza `glslangValidator` nel `PATH`; 4 mutazioni della shader rilevate (commento stale, membro aggiunto, scambio di membri omonimi, retype) |
+| B.6 | commento stale in `src/scene/camera/camera_v1/shot_timeline.cpp` riallineato all'alias di tipo | `grep`: una sola dichiarazione di enum |
+| B.4 | `tools/gates/check_steady_state_allocations.sh` legge `source_revision`, la confronta con HEAD (prefix-match sullo SHA), la stampa sempre nel `GATE_PASS`; mismatch = `GATE_WARN` di default, fatale con `CHRONON_STEADY_STATE_REQUIRE_REVISION=1` (`CHRONON_STEADY_STATE_REVISION` per la revisione attesa); nuovo `tests/test_steady_state_allocation_gate.py` (7 casi) | gate `GATE_PASS` sulla baseline; test verde |
+| B.3 | `docs/GOVERNANCE.md` §4 ora prescrive `bash tools/run_developer_gates.sh` (manifest in `tools/gates/manifest.sh`) invece del gate demolito | `run_developer_gates.sh` presente e invocato dalla CI |
+
+## F.2 Differito (con motivo)
+
+| Item | Motivo |
+|---|---|
+| B.1 | consolidare/nominare i 3 contenitori per-frame è una decisione di ownership (A/B/C), non un rename meccanico: richiede una scelta sul modello dei parametri e tocca sampler, `PrecompNode`, `CompiledFrameGraph`, `GPUCommandPlan` |
+| B.2 | 18 regole inline → 1 data-driven richiede un'API di annotazione nel codice (es. macro `CHRONON_ERROR_ADAPTER`) e una modifica al motore `check_architecture.py`, con la selftest estesa: da pianificare nella sua wave |
+| B.4 strict-by-default | la baseline committata è per definizione di un'altra revisione: renderla fatale di default farebbe fallire `run_developer_gates.sh` su ogni checkout. Serve prima una policy su dove vive il report del run corrente |
+| C.1 | demolition condizionata a PR-6.2: il file è ancora compilato e il wrapper è documentato come path di produzione fino a quel PR |

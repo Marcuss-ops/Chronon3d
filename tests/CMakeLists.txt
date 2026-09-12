@@ -36,3 +36,23 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_gpu_corpus_manifest.py")
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_gpu_corpus_manifest.py"
     )
 endif()
+
+# Shader/CPU layout contract for the text-run glyph instance (fixes.md B.5/4.4).
+# Pure stdlib Python: the scalar-slot and sizeof checks need no toolchain, and the
+# compiled-spirv stride check reports its skip explicitly when glslangValidator is
+# absent, so this stays runnable on any host.
+if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_shader_layout_contract.py")
+    add_test(
+        NAME chronon3d_shader_layout_contract_tests
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_shader_layout_contract.py"
+    )
+endif()
+
+# Behavioural tests for the steady-state allocation gate's revision binding
+# (fixes.md B.4): a historical baseline PASS must be disclosed, not trusted.
+if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py")
+    add_test(
+        NAME chronon3d_steady_state_allocation_gate_tests
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py"
+    )
+endif()
