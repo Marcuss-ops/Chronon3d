@@ -454,11 +454,22 @@ FrameExecutionPlan ExecutionResolver::resolve(
 
     // An early reuse plan has already passed all fingerprint/camera checks.
     if (plan.path == FrameExecutionPath::ReuseSurface && plan.reuse_surface) {
-        return plan;
+        // Native NVENC needs a framebuffer with a valid GPU backing for every
+        // submitted frame. The reuse candidate is a host-owned historical
+        // framebuffer and may not have a registered native surface, so
+        // carrying it into the strict path causes a late residency failure
+        // (often after several successful frames). Rebuild the frame graph
+        // instead of silently attempting a CPU upload that the strict
+        // contract forbids.
+        if (settings.require_native_gpu) {
+            set_full_rgb(plan, "native_gpu_disables_surface_reuse");
+        } else {
+            return plan;
+        }
     }
 
     // Empty-damage reuse is also resolved here; coordinators never infer it.
-    if (sw_renderer && settings.dirty.enabled && dirty_out.frame_delta_clean &&
+    if (sw_renderer && !settings.require_native_gpu && settings.dirty.enabled && dirty_out.frame_delta_clean &&
         dirty_out.dirty_rect && dirty_out.dirty_rect->is_empty() &&
         !has_frame_dependent_content(scene, frame) &&
         has_matching_previous_surface(sw_renderer, width, height)) {
@@ -504,6 +515,9 @@ FrameExecutionPlan ExecutionResolver::resolve(
     apply_sparse_or_full_decision(
         plan, resolved, settings, dirty_out, dirty_ratio, sw_renderer,
         frame, effect_catalog);
+    if (settings.require_native_gpu && plan.path == FrameExecutionPath::ReuseSurface) {
+        set_full_rgb(plan, "native_gpu_disables_surface_reuse");
+    }
     return plan;
 }
 

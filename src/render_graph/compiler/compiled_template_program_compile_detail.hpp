@@ -40,23 +40,10 @@ compile_template_program(CompiledFrameGraph compiled_arg) {
     prog.valid = prog.compiled->valid;
 
     // ── Phase 4 — bake static islands into compiled program ─────────
-    // Populate interior_node_skip so the executor skips baked interior
-    // nodes on every frame.  In the full prepare() lifecycle this merge
-    // moves to the pipeline; for now auto-wire at compile time so all
-    // existing callers benefit without changing the executor interface.
-    if (prog.valid) {
-        auto prepared = prepare(prog);
-        if (prepared.valid && !prepared.interior_node_skip.empty()) {
-            // The compiled graph is const-shared; mutate the program
-            // inside (non-const access through shared_ptr).  This is
-            // safe because the compiler is the sole writer before the
-            // executor reads.
-            auto& mutable_program =
-                const_cast<CompiledFrameProgram&>(prog.compiled->program);
-            mutable_program.interior_node_skip =
-                std::move(prepared.interior_node_skip);
-        }
-    }
+    // NOTE: interior_node_skip is disabled because replacing interior nodes
+    // with transparent buffers causes composite backdrops to be erased.
+    // Standard node caching already avoids recomputation safely.
+    (void)prepare;
 
     return prog;
 }

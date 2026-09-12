@@ -129,6 +129,12 @@ RuntimeContext::create(RuntimeConfig cfg) {
         if (cfg.assets_root.has_value()) {
             runtime->resolver().mount(*cfg.assets_root);
         }
+        // Image preparation uses the same content-addressed logical paths as
+        // fonts and the render-plan resolver. Wire the per-runtime resolver
+        // into ImageCache as well; otherwise image preflight may succeed via
+        // the manifest while frame rendering later resolves the relative
+        // path against the daemon CWD and cannot open the workspace asset.
+        runtime->image_cache().set_asset_resolver(&runtime->resolver());
 
         return runtime;  // implicit Result(unique_ptr&&)
     } catch (const std::filesystem::filesystem_error& e) {

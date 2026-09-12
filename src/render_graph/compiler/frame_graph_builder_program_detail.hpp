@@ -93,6 +93,16 @@ bool fused_batch_payload_compatible(
     const CompiledFrameGraph& compiled,
     const std::vector<GraphNodeId>& current_batch,
     const CompiledNodeInfo& candidate) {
+    const bool batch_has_text = std::any_of(
+        current_batch.begin(), current_batch.end(),
+        [&](GraphNodeId id) {
+            return id < compiled.nodes.size() &&
+                   compiled.nodes[id].kind == RenderGraphNodeKind::TextRun;
+        });
+    // Text batches only fuse text runs; never swallow CompositeNodes into a text batch
+    if (batch_has_text && candidate.kind == RenderGraphNodeKind::Composite) {
+        return false;
+    }
     const bool candidate_text = candidate.kind == RenderGraphNodeKind::TextRun;
     const bool candidate_image =
         candidate.kind == RenderGraphNodeKind::Source ||
@@ -122,17 +132,23 @@ std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
             const auto& node_info = compiled.nodes[node_id];
             CompiledOperation operation = make_base_operation(compiled, node_id);
             resolve_operation_recorder(compiled, node_info, operation);
-            const bool candidate_fusible = is_fusible_layer_node(
+            bool candidate_fusible = is_fusible_layer_node(
                 compiled, node_id, node_info, !current_fused_batch.empty());
             if (candidate_fusible && !fused_batch_payload_compatible(
                     compiled, current_fused_batch, node_info)) {
                 CompiledLayerBatch batch;
                 batch.member_nodes = std::move(current_fused_batch);
                 batch.root_node = batch.member_nodes.back();
-                batch.output_physical_slot = operation.output_physical_slot;
+                if (batch.root_node < compiled.nodes.size()) {
+                    if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
+                        batch.output_physical_slot = resource->physical_slot;
+                    }
+                }
                 batch.is_gpu_fused = true;
                 compiled.program.layer_batches.push_back(std::move(batch));
                 current_fused_batch.clear();
+                candidate_fusible = is_fusible_layer_node(
+                    compiled, node_id, node_info, false);
             }
             if (candidate_fusible) {
                 current_fused_batch.push_back(node_id);
@@ -140,7 +156,11 @@ std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
                 CompiledLayerBatch batch;
                 batch.member_nodes = std::move(current_fused_batch);
                 batch.root_node = batch.member_nodes.back();
-                batch.output_physical_slot = operation.output_physical_slot;
+                if (batch.root_node < compiled.nodes.size()) {
+                    if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
+                        batch.output_physical_slot = resource->physical_slot;
+                    }
+                }
                 batch.is_gpu_fused = true;
                 compiled.program.layer_batches.push_back(std::move(batch));
                 current_fused_batch.clear();
