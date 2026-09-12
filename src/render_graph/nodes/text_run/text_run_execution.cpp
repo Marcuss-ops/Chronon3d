@@ -170,6 +170,11 @@ void prepare_per_frame_shape(
         view.dissolve_glyphs.clear();
     }
     chronon3d::update_text_run_shape_per_frame(view, sample_time);
+    // The document is only the source of this frame's sampled layout/state.
+    // Keep the sampled scratch shape eligible for the GPU lowering checks;
+    // retaining the marker would make an otherwise lowerable frame look like
+    // an unresolved animated document and force a false capability failure.
+    view.animated_doc.reset();
     if (timing_start && profiling::g_current_counters) {
         profiling::g_current_counters->text_prepare_per_frame_wall_us.fetch_add(
             static_cast<std::uint64_t>(profiling::elapsed_us(*timing_start)),

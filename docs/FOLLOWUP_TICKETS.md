@@ -39,6 +39,7 @@
 | Dead headers + orphan contract | P2 | REMOVED | 7 zero-consumer headers deleted (`render_to_media_compiler`, `fusion_support`, `compiled_frame_graph_serializer`, `magic_enum_safe`, `text_box`, `text_spec`, `resolved_render_job`) + `render_to_media_serializer_contract` removed from `tools/architecture_rules_migrated.toml`; census: no include/symbol consumer, not in `Chronon3DPublicHeaders.cmake` |
 | `pipe_pixfmt` single authority | P0 | CODE DONE (build pending) | one parser (`runtime::try_parse_pixel_format`) + CLI projection + `InvalidPipePixelFormat` at the job boundary; unknown values now fail loud instead of silently becoming RGBA |
 | NodeMemoryTracker lock metering | P1 | INSTRUMENTED | `node_memory_lock_{acquires,wait_us,max_wait_us,hold_wall_us}` added; the restructure is data-gated on those counters |
+| Audit 2026-09-12 action list | P0 | CODE DONE (build/CI pending) | [AUDIT-2026-09-12-REMEDIATION](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — feature-gated TU ora compilati ad ogni PR (SVG/EXR/MESH/C-API/DAEMON/CRASH_HANDLER/DEV_WATCH) + fallback GPU-testo e JobSession di compatibilità ora osservabili via contatori |
 
 ## Backlog P2/P3 (non bloccante)
 

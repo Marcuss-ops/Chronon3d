@@ -413,7 +413,7 @@ TEST_CASE("GPU asset cache reuses uploads and evicts by byte budget") {
     REQUIRE(second_upload.ok());
     CHECK(cache.stats().evictions == 1);
     CHECK(cache.stats().resident_bytes == 64);
-    CHECK(registry.lookup(uploaded.handle) == nullptr);
+    CHECK_FALSE(registry.lookup(uploaded.handle).has_value());
 }
 
 TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metrics") {

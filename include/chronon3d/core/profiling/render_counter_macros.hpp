@@ -45,7 +45,8 @@ namespace chronon3d {
     X(new_resource_slot_count) \
     X(arena_peak_bytes) \
     X(frame_arena_upstream_allocations) \
-    X(frame_slot_pool_acquire_events)
+    X(frame_slot_pool_acquire_events) \
+    X(fallback_session_constructions)  /**< TICKET-COMPAT-FALLBACK-SESSION-OBSERVABILITY: compatibility JobSession built because no frame lease/software renderer was supplied; must stay 0 on production frames */
 
 #define CHRONON_COUNTERS_CACHE(X) \
     X(cache_hits) \
@@ -133,6 +134,7 @@ namespace chronon3d {
     X(gpu_text_atlas_cache_acquire_wall_us) \
     X(gpu_text_prepared_batch_build_count) \
     X(gpu_text_prepared_batch_reuse_count) \
+    X(gpu_text_font_resolve_failures)  /**< font handle resolution threw while preparing a GPU text run; distinguishes a real failure from an unsupported feature set */ \
     X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
 
 #define CHRONON_COUNTERS_TILE(X) \
@@ -277,6 +279,7 @@ namespace chronon3d {
     X(full_frame_copies) \
     X(compiled_graph_refresh_wall_ms) \
     X(graph_cache_refresh_fallback_total) \
+    X(graph_cache_restore_failures)  /**< CachedGraphLease could not restore a checked-out compiled graph (fatal path is made observable) */ \
     X(cache_eval_wall_ms) \
     X(dirty_eval_wall_ms) \
     X(input_resolve_wall_ms) \

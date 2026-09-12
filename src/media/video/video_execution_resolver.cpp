@@ -422,8 +422,16 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         params.backend = (requested_backend != "auto" && !requested_backend.empty())
             ? std::string{requested_backend}
             : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
+        // A strict GPU request is an explicit native-lane contract, including
+        // image/text-only compositions.  The old test only looked at the
+        // source-video case and treated every composition without a source as
+        // a host-frame pipe job.  That made RenderingGen's strict native
+        // request arrive at libx264, where its NVENC preset (p2, p3, ...)
+        // failed before the first frame.  CPU fallback remains the deliberate
+        // escape hatch for the non-strict composition case.
+        const bool strict_gpu_native = !requirements.cpu_fallback_allowed;
         const bool pipe_composition = requirements.composition_required &&
-            !requirements.video_source_required;
+            !requirements.video_source_required && !strict_gpu_native;
         params.hardware_encoder = pipe_composition ? "none" : "nvenc";
         // Phase 9 CLI/IPC parity: a composition with no source video is a
         // GPU-composited host-frame job, not a native NVENC surface job.
@@ -441,7 +449,9 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
             // compilation: certified simple overlays use DirectYUV, while
             // masks/effects/3D resolve to FullGraph.  RenderingGen must not
             // create a second copy of that capability matrix.
-            params.gpu_hot_path_mode = "auto";
+            params.gpu_hot_path_mode = strict_gpu_native &&
+                requirements.composition_required
+                ? "require_gpu_native" : "auto";
         }
         params.native_nvenc = !pipe_composition;
         params.direct_yuv = !pipe_composition && !requirements.composition_required;
