@@ -11,6 +11,7 @@
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — Test 13 = Camera brutal, distinto da Test 11; product validation in PipelineGen |
 | Test harness + WBH cert | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
+| Vulkan-gated registry suite | P1 | OPEN (pre-existing) | [AUDIT-2026-09-12-REMEDIATION §7](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — `chronon3d_backend_registry_tests` 46/58: `bind_planned_exact` lancia "physical slot is already reserved" sui casi di aliasing; la suite compila solo con `CHRONON3D_ENABLE_VULKAN=ON` e nessun workflow CI usa un preset Vulkan, quindi il compile rot (dal 2026-09-10, ora riparato) e i fallimenti runtime non erano visibili |
 | Skip-rot registry | P2 | OPEN | [DOCTEST-SKIP-ROT](tickets/TICKET-DOCTEST-SKIP-ROT.md) — single authority for every `doctest::skip` (7 rows, deadline 2026-09-30); skip senza riga = lint failure, riga scaduta = CI FAIL |
 | Benchmark + CPU budget | P1 | MEASURED / HOST CERT PENDING | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) — B00 smoke and same-SHA CPU measurement landed; full corpus still needs the external content pack |
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
@@ -39,7 +40,7 @@
 | Dead headers + orphan contract | P2 | REMOVED | 7 zero-consumer headers deleted (`render_to_media_compiler`, `fusion_support`, `compiled_frame_graph_serializer`, `magic_enum_safe`, `text_box`, `text_spec`, `resolved_render_job`) + `render_to_media_serializer_contract` removed from `tools/architecture_rules_migrated.toml`; census: no include/symbol consumer, not in `Chronon3DPublicHeaders.cmake` |
 | `pipe_pixfmt` single authority | P0 | CODE DONE (build pending) | one parser (`runtime::try_parse_pixel_format`) + CLI projection + `InvalidPipePixelFormat` at the job boundary; unknown values now fail loud instead of silently becoming RGBA |
 | NodeMemoryTracker lock metering | P1 | INSTRUMENTED | `node_memory_lock_{acquires,wait_us,max_wait_us,hold_wall_us}` added; the restructure is data-gated on those counters |
-| Audit 2026-09-12 action list | P0 | CODE DONE (build/CI pending) | [AUDIT-2026-09-12-REMEDIATION](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — feature-gated TU ora compilati ad ogni PR (SVG/EXR/MESH/C-API/DAEMON/CRASH_HANDLER/DEV_WATCH) + fallback GPU-testo e JobSession di compatibilità ora osservabili via contatori |
+| Audit 2026-09-12 action list | P0 | CODE DONE (build verde) | [AUDIT-2026-09-12-REMEDIATION](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — feature-gated TU ora compilati ad ogni PR (SVG/EXR/MESH/C-API/DAEMON/CRASH_HANDLER/DEV_WATCH) + fallback GPU-testo e JobSession di compatibilità ora osservabili via contatori |
 
 ## Backlog P2/P3 (non bloccante)
 
