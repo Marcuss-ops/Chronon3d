@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -373,6 +374,7 @@ public:
         if (desc.bytes == 0) {
             desc.bytes = desc.tight_bytes();
         }
+        std::lock_guard lock(m_mutex);
         const auto handle = m_next_handle++;
         m_surfaces.emplace(handle, SurfaceRecord{
             handle, desc, std::numeric_limits<std::size_t>::max()});
@@ -380,25 +382,38 @@ public:
     }
 
     bool release(RenderSurfaceHandle handle) noexcept {
-        return handle != kInvalidRenderSurfaceHandle && m_surfaces.erase(handle) != 0;
+        if (handle == kInvalidRenderSurfaceHandle) return false;
+        std::lock_guard lock(m_mutex);
+        const auto it = m_surfaces.find(handle);
+        if (it != m_surfaces.end()) {
+            m_surfaces.erase(it);
+            return true;
+        }
+        return false;
     }
 
     [[nodiscard]] const SurfaceRecord* lookup(RenderSurfaceHandle handle) const noexcept {
+        std::lock_guard lock(m_mutex);
         const auto it = m_surfaces.find(handle);
         return it == m_surfaces.end() ? nullptr : &it->second;
     }
 
     bool bind_physical_slot(RenderSurfaceHandle handle, std::size_t slot) noexcept {
+        std::lock_guard lock(m_mutex);
         auto it = m_surfaces.find(handle);
         if (it == m_surfaces.end()) return false;
         it->second.physical_slot = slot;
         return true;
     }
 
-    [[nodiscard]] std::size_t size() const noexcept { return m_surfaces.size(); }
+    [[nodiscard]] std::size_t size() const noexcept {
+        std::lock_guard lock(m_mutex);
+        return m_surfaces.size();
+    }
 
     [[nodiscard]] std::vector<RenderSurfaceHandle> handles_with_lifetime(
         LifetimeClass lifetime) const {
+        std::lock_guard lock(m_mutex);
         std::vector<RenderSurfaceHandle> handles;
         handles.reserve(m_surfaces.size());
         for (const auto& [handle, record] : m_surfaces) {
@@ -408,6 +423,7 @@ public:
     }
 
 private:
+    mutable std::mutex m_mutex;
     RenderSurfaceHandle m_next_handle{1};
     std::unordered_map<RenderSurfaceHandle, SurfaceRecord> m_surfaces;
 };

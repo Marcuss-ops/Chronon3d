@@ -171,6 +171,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                        static_cast<float>(plan.canvas.height)};
                             params.color = {layer.color[0], layer.color[1],
                                             layer.color[2], layer.color[3]};
+                            if (layer.position_dimensions < 2) {
+                                builder.pin_to(Anchor::Center);
+                                params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
+                            }
                             builder.rect("color", std::move(params));
                             break;
                         }

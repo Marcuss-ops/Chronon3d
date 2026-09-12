@@ -173,7 +173,9 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     const auto& selector = animator.selectors.front();
     // This is the canonical per-glyph GPU text contract. The whole shaped
     // run remains resident; only this small dynamic record changes per frame.
-    if (selector.unit != TextSelectorUnit::Glyph ||
+    if ((selector.unit != TextSelectorUnit::Glyph &&
+         selector.unit != TextSelectorUnit::Character &&
+         selector.unit != TextSelectorUnit::Grapheme) ||
         (selector.shape != TextSelectorShape::Square &&
          selector.shape != TextSelectorShape::Smooth) ||
         selector.order != TextSelectorOrder::Forward ||
@@ -216,7 +218,9 @@ void sample_gpu_text_animation(
     const auto& animator = shape.animators.front();
     if (animator.selectors.size() != 1) return;
     const auto& selector = animator.selectors.front();
-    if (selector.unit != TextSelectorUnit::Glyph) return;
+    if (selector.unit != TextSelectorUnit::Glyph &&
+        selector.unit != TextSelectorUnit::Character &&
+        selector.unit != TextSelectorUnit::Grapheme) return;
 
     // flags bit 0 is shaped-plane placement; bits 1/2 are the dynamic
     // selector enable/shape contract shared with text_tile_bin/raster.
