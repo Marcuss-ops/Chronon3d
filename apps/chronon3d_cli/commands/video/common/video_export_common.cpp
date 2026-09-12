@@ -1,6 +1,7 @@
 #include "video_export_common.hpp"
 #include "../../../utils/video/video_sink_adapter.hpp"
 #include "../../../utils/video/video_sink_encoders.hpp"
+#include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 
@@ -63,12 +64,21 @@ bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend) {
 #endif
 }
 
-PipePixelFormat parse_pipe_pixfmt(const std::string& fmt) {
-    if (fmt == "yuv420p") return PipePixelFormat::YUV420P;
-    if (fmt == "nv12")    return PipePixelFormat::NV12;
-    if (fmt == "p010" || fmt == "p010le") return PipePixelFormat::P010;
-    return PipePixelFormat::RGBA;
+std::optional<PipePixelFormat> try_parse_pipe_pixfmt(std::string_view fmt) noexcept {
+    // ONE parser: the engine's pixel-format authority. The CLI enum is a
+    // 4-value projection of the engine taxonomy, so the mapping is explicit
+    // here and the *vocabulary* (which names exist) stays in one place.
+    const auto parsed = runtime::try_parse_pixel_format(fmt);
+    if (!parsed) return std::nullopt;
+    switch (*parsed) {
+        case runtime::PixelFormat::Rgba8Unorm: return PipePixelFormat::RGBA;
+        case runtime::PixelFormat::Yuv420P:    return PipePixelFormat::YUV420P;
+        case runtime::PixelFormat::Nv12:       return PipePixelFormat::NV12;
+        case runtime::PixelFormat::P010:       return PipePixelFormat::P010;
+        default:                               return std::nullopt;
+    }
 }
+
 
 color::ColorSpace parse_color_output(const std::string& cs) {
     if (cs == "rec709") return color::ColorSpace::Rec709;

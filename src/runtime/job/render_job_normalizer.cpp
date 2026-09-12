@@ -1,4 +1,5 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
+#include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
 
 #include <string>
 #include <utility>
@@ -58,6 +59,19 @@ normalize_render_job(
         return make_render_job_request_error(
             RenderJobRequestErrorCode::InvalidFrameRange,
             "render job frame range is invalid");
+    }
+    // Boundary validation for the pipe pixel format. This is the one place a
+    // plan-file request and a daemon/IPC request both pass through, and before
+    // it existed an unknown name travelled all the way to the runtime parser,
+    // which silently mapped it onto RGBA: a formally successful export in the
+    // wrong pixel format. The CLI flag layer validates its own input; this
+    // closes the programmatic routes against the SAME canonical vocabulary.
+    if (!request.output.pipe_pixfmt.empty() &&
+        !chronon3d::runtime::try_parse_pixel_format(request.output.pipe_pixfmt)) {
+        return make_render_job_request_error(
+            RenderJobRequestErrorCode::InvalidPipePixelFormat,
+            "render job pipe pixel format '" + request.output.pipe_pixfmt +
+                "' is not one of rgba, yuv420p, nv12, p010, p010le");
     }
 
     NormalizedRenderJob resolved;

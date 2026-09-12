@@ -60,12 +60,24 @@ size_t compute_pipe_arena_size(int width, int height) {
                     2ULL * 1024ULL * 1024ULL);
 }
 
-FfmpegPipeOptions make_pipe_options(
+std::optional<FfmpegPipeOptions> make_pipe_options(
     const CompiledComposition& compiled,
     const FfmpegExportOptions& opts,
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget)
 {
+    // Fail-closed parse of the pipe surface format against the canonical
+    // vocabulary. An unknown name must abort the export: mapping it onto RGBA
+    // would produce a formally successful artifact in the wrong pixel format.
+    const auto input_format = try_parse_pipe_pixfmt(opts.pipe.pipe_pixfmt);
+    if (!input_format) {
+        spdlog::error(
+            "[video] invalid pipe pixel format '{}' — accepted values are "
+            "rgba, yuv420p, nv12, p010 (p010le); refusing to guess",
+            opts.pipe.pipe_pixfmt);
+        return std::nullopt;
+    }
+
     // "ultrafast"/"superfast" is x264 vocabulary. NVENC accepts p1..p7 and
     // the legacy slow/medium/fast names only, so the superfast→ultrafast
     // rewrite must never run when a hardware encoder is selected — passing
@@ -104,7 +116,7 @@ FfmpegPipeOptions make_pipe_options(
         .codec = codec,
         .hardware_encoder = opts.encoder.hardware_encoder,
         .output_path = opts.output.output,
-        .input_format = parse_pipe_pixfmt(opts.pipe.pipe_pixfmt),
+        .input_format = *input_format,
         .verbose = opts.pipe.ffmpeg_verbose,
         .color_transform = {
             .output = parse_color_output(opts.pipe.color_output),

@@ -5,7 +5,7 @@
 #include "../../../commands.hpp"
 #include "../../../utils/job/cli_render_utils.hpp"
 #include "../../../utils/common/cli_mappers.hpp"
-#include "../../../utils/video/ffmpeg_pipe_encoder.hpp"
+#include "../../../utils/video/ffmpeg_pipe_encoder.hpp"  // PipePixelFormat + pipe_pixel_format_name
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 #include "../../../utils/video/native_av_encoder.hpp"
 #endif
@@ -27,6 +27,7 @@
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <string>
+#include <string_view>
 #include <filesystem>
 #include <optional>
 #include <memory>
@@ -51,7 +52,15 @@ bool ffmpeg_in_path();
 /// it never falls back to the pipe encoder.
 bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend);
 
-PipePixelFormat parse_pipe_pixfmt(const std::string& fmt);
+/// Canonical parse of a pipe pixel format string.
+///
+/// Delegates to the ONE authority (`runtime::try_parse_pixel_format` in
+/// <chronon3d/runtime/frame_format.hpp>): a name outside the closed set yields
+/// `std::nullopt` and the caller must fail loud. The previous
+/// `parse_pipe_pixfmt()` mapped every unknown value onto RGBA, so a typo or a
+/// trailing space silently changed the exported pixel format.
+[[nodiscard]] std::optional<PipePixelFormat> try_parse_pipe_pixfmt(
+    std::string_view fmt) noexcept;
 color::ColorSpace parse_color_output(const std::string& cs);
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder);
 std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec);
