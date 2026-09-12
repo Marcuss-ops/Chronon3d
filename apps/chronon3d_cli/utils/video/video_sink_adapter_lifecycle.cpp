@@ -68,10 +68,10 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
         ffmpeg_pid_ = -1;
     }
 
-    const char* fmt_str = "rgba";
-    if (options.input_format == PipePixelFormat::YUV420P) fmt_str = "yuv420p";
-    else if (options.input_format == PipePixelFormat::NV12) fmt_str = "nv12";
-    else if (options.input_format == PipePixelFormat::P010) fmt_str = "p010";
+    // ONE vocabulary: the wire name comes from the enum's own header, which
+    // resolves it through the canonical pixel-format authority. No local
+    // if-chain (the previous copy drifted from the parser's accepted set).
+    const std::string_view fmt_str = pipe_pixel_format_name(options.input_format);
     spdlog::info("[video_adapter] Opened {} sink: {}x{} @ {}/{}fps, format={}, codec={}",
                  (sink_type_ == VideoSinkType::RawFile) ? "raw" : "ffmpeg-pipe",
                  width_, height_, options.canonical_fps_num(),

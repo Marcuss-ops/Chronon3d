@@ -39,7 +39,9 @@ struct OutputSpec {
     std::uint32_t fps_num{0};
     std::uint32_t fps_den{1};
     /// Requested CUDA/pipe surface format (e.g. nv12 or p010). Empty means
-    /// the normalizer/executor default applies.
+    /// the normalizer/executor default applies. Parsed by the canonical
+    /// authority in <chronon3d/runtime/frame_format.hpp>; an unknown value is
+    /// rejected by `normalize_render_job` with InvalidPipePixelFormat.
     std::string pipe_pixfmt;
 };
 
@@ -66,6 +68,10 @@ enum class RenderJobRequestErrorCode : std::uint8_t {
     MissingPlan,
     InvalidBackend,
     InvalidFrameRange,
+    /// `output.pipe_pixfmt` is outside the canonical vocabulary. Validated at
+    /// this boundary so a plan file or an IPC spec cannot smuggle an unknown
+    /// format past the CLI validator into the encoder.
+    InvalidPipePixelFormat,
 };
 
 struct RenderJobRequestError {

@@ -1,7 +1,10 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string_view>
 
 namespace chronon3d::runtime {
 
@@ -218,6 +221,55 @@ using ColorMetadata = FrameFormat;
 [[nodiscard]] constexpr bool is_media_color_pixel_format(PixelFormat format) noexcept {
     return format == PixelFormat::Nv12 || format == PixelFormat::P010 ||
            format == PixelFormat::Yuv420P;
+}
+
+// ── Canonical string vocabulary for the pipe/encoder pixel formats ─────────
+//
+// ONE authority for the names a user may write in a CLI flag, a render plan, a
+// daemon spec or a JSON job. Before this existed the same four-element set was
+// re-declared at every boundary, and each boundary disagreed about what an
+// unknown value meant: the CLI rejected it, while the runtime parser silently
+// mapped anything it did not recognise onto RGBA, so `--pipe-pixfmt nv21` (or a
+// plan/daemon value with a trailing space) produced a formally successful
+// export in the wrong pixel format.
+//
+// `try_parse_pixel_format()` is the ONLY parser: anything outside the closed
+// set returns `std::nullopt`, and every caller is required to surface that as
+// an error instead of choosing a fallback.
+
+/// Wire name for a pipe/encoder pixel format ("rgba", "yuv420p", "nv12", "p010").
+[[nodiscard]] constexpr std::string_view pixel_format_name(PixelFormat format) noexcept {
+    switch (format) {
+        case PixelFormat::Rgba8Unorm: return "rgba";
+        case PixelFormat::Yuv420P:    return "yuv420p";
+        case PixelFormat::Nv12:       return "nv12";
+        case PixelFormat::P010:       return "p010";
+        default:                      return "unknown";
+    }
+}
+
+/// The closed set of names accepted at every pipe boundary, in advertisement
+/// order (the trailing "le" spelling is an accepted alias, not a new format).
+[[nodiscard]] constexpr std::array<std::string_view, 5> pipe_pixel_format_names() noexcept {
+    return {"rgba", "yuv420p", "nv12", "p010", "p010le"};
+}
+
+/// Canonical parse. Returns `std::nullopt` for any name outside the closed set;
+/// it never falls back to a default format.
+[[nodiscard]] inline std::optional<PixelFormat> try_parse_pixel_format(
+    std::string_view name) noexcept {
+    if (name == "rgba") return PixelFormat::Rgba8Unorm;
+    if (name == "yuv420p") return PixelFormat::Yuv420P;
+    if (name == "nv12") return PixelFormat::Nv12;
+    if (name == "p010" || name == "p010le") return PixelFormat::P010;
+    return std::nullopt;
+}
+
+/// True only for the formats a CUDA/pipe *surface* role can carry. The
+/// render-plan route accepts this subset; the general (host-frame) route
+/// additionally accepts the RGB and planar-YUV formats.
+[[nodiscard]] constexpr bool pixel_format_is_cuda_surface(PixelFormat format) noexcept {
+    return format == PixelFormat::Nv12 || format == PixelFormat::P010;
 }
 
 // Single canonical calculation of tightly packed bytes. Padded/external

@@ -8,11 +8,13 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format vocabulary
 #include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/color/output_transform.hpp>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::media::video {
 struct DirectYuvFrame;
@@ -138,6 +140,28 @@ enum class PipePixelFormat {
     NV12,
     P010
 };
+
+/// Wire name of a CLI pipe pixel format ("rgba", "yuv420p", "nv12", "p010").
+///
+/// Declared next to the enum so the ENUM and its NAME stay one concept, and
+/// resolved through the canonical vocabulary in
+/// <chronon3d/runtime/frame_format.hpp> so no second name table exists. The
+/// canonical PARSER direction (`try_parse_pipe_pixfmt`) lives in
+/// commands/video/common/video_export_common.hpp.
+[[nodiscard]] inline std::string_view pipe_pixel_format_name(
+    PipePixelFormat format) noexcept {
+    switch (format) {
+        case PipePixelFormat::RGBA:
+            return runtime::pixel_format_name(runtime::PixelFormat::Rgba8Unorm);
+        case PipePixelFormat::YUV420P:
+            return runtime::pixel_format_name(runtime::PixelFormat::Yuv420P);
+        case PipePixelFormat::NV12:
+            return runtime::pixel_format_name(runtime::PixelFormat::Nv12);
+        case PipePixelFormat::P010:
+            return runtime::pixel_format_name(runtime::PixelFormat::P010);
+    }
+    return runtime::pixel_format_name(runtime::PixelFormat::Unknown);
+}
 
 struct FfmpegPipeOptions {
     int width{0};

@@ -1,6 +1,10 @@
 #include <doctest/doctest.h>
 
 #include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
+#include <apps/chronon3d_cli/commands/video/common/pipe_pixfmt_vocabulary.hpp>
+
+#include <string>
+#include <vector>
 
 using namespace chronon3d::cli;
 
@@ -313,4 +317,70 @@ TEST_CASE("FfmpegFrameRate: no scalar fps channel exists on the export options")
     CHECK(output.frame_rate().denominator == 1001);
     CHECK(pipe.canonical_fps_num() == 24000);
     CHECK(pipe.canonical_fps_den() == 1001);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical pipe pixel-format vocabulary
+//
+// Regression lock for the silent-fallback defect: the parser used to map every
+// unrecognised name onto RGBA, so `nv21` / `nv12 ` / `banana` produced a
+// successful export in the wrong pixel format instead of an error.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("try_parse_pipe_pixfmt accepts exactly the canonical set") {
+    CHECK(try_parse_pipe_pixfmt("rgba").value_or(PipePixelFormat::NV12) ==
+          PipePixelFormat::RGBA);
+    CHECK(try_parse_pipe_pixfmt("yuv420p").value_or(PipePixelFormat::NV12) ==
+          PipePixelFormat::YUV420P);
+    CHECK(try_parse_pipe_pixfmt("nv12").value_or(PipePixelFormat::RGBA) ==
+          PipePixelFormat::NV12);
+    CHECK(try_parse_pipe_pixfmt("p010").value_or(PipePixelFormat::RGBA) ==
+          PipePixelFormat::P010);
+    // Accepted alias, not a distinct format.
+    CHECK(try_parse_pipe_pixfmt("p010le").value_or(PipePixelFormat::RGBA) ==
+          PipePixelFormat::P010);
+
+    // The silent-fallback trap: everything else must be rejected.
+    for (const char* bad : {"nv21", "nv12 ", " nv12", "NV12", "yuv420", "p010be",
+                            "banana", ""}) {
+        INFO("rejected value: '" << bad << "'");
+        CHECK_FALSE(try_parse_pipe_pixfmt(bad).has_value());
+    }
+}
+
+TEST_CASE("pipe pixel-format wire names round-trip through the parser") {
+    for (const auto format : {PipePixelFormat::RGBA, PipePixelFormat::YUV420P,
+                              PipePixelFormat::NV12, PipePixelFormat::P010}) {
+        const auto name = pipe_pixel_format_name(format);
+        INFO("format name: " << name);
+        CHECK_FALSE(name.empty());
+        CHECK(name != "unknown");
+        CHECK(try_parse_pipe_pixfmt(name).value_or(PipePixelFormat::RGBA) == format);
+    }
+}
+
+TEST_CASE("CLI pipe pixel-format validators derive from the one authority") {
+    const auto source_names = pipe_pixfmt_source_names();
+    const auto cuda_names = pipe_pixfmt_cuda_surface_names();
+
+    // The general list advertises every name the parser accepts...
+    for (const auto& name : source_names) {
+        INFO("advertised name: " << name);
+        CHECK(try_parse_pipe_pixfmt(name).has_value());
+    }
+    // ...and the CUDA/pipe surface subset is a strict, still-parseable subset.
+    CHECK(cuda_names == std::vector<std::string>({"nv12", "p010", "p010le"}));
+    for (const auto& name : cuda_names) {
+        CHECK(try_parse_pipe_pixfmt(name).has_value());
+    }
+
+    // Validation helpers agree with the parser, and treat empty as
+    // "no explicit request".
+    CHECK(pipe_pixfmt_is_valid_source(""));
+    CHECK(pipe_pixfmt_is_valid_source("nv12"));
+    CHECK_FALSE(pipe_pixfmt_is_valid_source("nv21"));
+    CHECK(pipe_pixfmt_is_valid_cuda_surface(""));
+    CHECK(pipe_pixfmt_is_valid_cuda_surface("p010"));
+    CHECK_FALSE(pipe_pixfmt_is_valid_cuda_surface("rgba"));
+    CHECK_FALSE(pipe_pixfmt_is_valid_cuda_surface("yuv420p"));
 }

@@ -9,6 +9,7 @@
 #include "render_profiles.hpp"
 #include "command_render_plan.hpp"
 #include "render_plan_preparation.hpp"
+#include "../video/common/pipe_pixfmt_vocabulary.hpp"
 
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>

@@ -59,9 +59,12 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--qp", state->video.qp, "Encoder QP override (0-63)");
     command->add_option("--bitrate", state->video.bitrate, "Encoder bitrate override in bits/second");
     command->add_option("--crf", state->crf, "Encoder CRF override (0-51; default = engine default)");
+    // ONE vocabulary: the CUDA/pipe surface subset is derived from the same
+    // canonical authority as every other --pipe-pixfmt option, instead of a
+    // second hand-written list.
     command->add_option("--pipe-pixfmt", state->video.pipe_pixfmt,
                         "CUDA/pipe surface format: nv12 or p010")
-        ->check(CLI::IsMember({"nv12", "p010"}));
+        ->check(CLI::IsMember(pipe_pixfmt_cuda_surface_names()));
     command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
     command->add_option("--trace", state->trace_output,
                         "Write a Perfetto timeline trace to this .pftrace path (job-end only, RING_BUFFER)");
