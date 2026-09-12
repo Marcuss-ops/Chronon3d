@@ -30,6 +30,10 @@ using namespace chronon3d::renderer;
 
 namespace {
 
+/// Reusable effect workspace: the effect contract requires a scratch reference
+/// (there is no longer a silent heap fallback).
+chronon3d::EffectScratchResources g_effect_scratch;
+
 void fill_impulse(Framebuffer& fb, int cx, int cy) {
     fb.clear(Color::transparent());
     fb.set_pixel(cx, cy, Color{1.0f, 1.0f, 1.0f, 1.0f});
@@ -45,7 +49,7 @@ TEST_CASE("DirectionalBlur: length=0 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_directional_blur(fb, 0.0f, 0.0f);
+    apply_directional_blur(fb, 0.0f, 0.0f, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -62,7 +66,7 @@ TEST_CASE("DirectionalBlur: samples=1 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_directional_blur(fb, 45.0f, 10.0f, 1);
+    apply_directional_blur(fb, 45.0f, 10.0f, g_effect_scratch, 1);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -80,15 +84,15 @@ TEST_CASE("DirectionalBlur: prepared scratch path preserves output") {
     scratch.ensure_size(16, 16);
     auto* first_scratch_fb = scratch.framebuffer.get();
 
-    apply_directional_blur(baseline, 37.0f, 6.0f, 5);
-    apply_directional_blur(prepared, 37.0f, 6.0f, 5,
-                           std::nullopt, &scratch);
+    apply_directional_blur(baseline, 37.0f, 6.0f, g_effect_scratch, 5);
+    apply_directional_blur(prepared, 37.0f, 6.0f, scratch, 5,
+                           std::nullopt);
     CHECK(framebuffer_max_error(baseline, prepared) <= kScalarEpsilon);
 
     // Reuse is observable at the resource boundary: the second invocation
     // does not replace the prewarmed temporary framebuffer.
-    apply_directional_blur(prepared, 37.0f, 6.0f, 5,
-                           std::nullopt, &scratch);
+    apply_directional_blur(prepared, 37.0f, 6.0f, scratch, 5,
+                           std::nullopt);
     CHECK(scratch.framebuffer.get() == first_scratch_fb);
 }
 
@@ -103,7 +107,7 @@ TEST_CASE("DirectionalBlur: energy conservation with central impulse") {
     fb.set_pixel(16, 16, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
     // Apply a short directional blur (length=4) so it stays away from edges
-    apply_directional_blur(fb, 30.0f, 4.0f);
+    apply_directional_blur(fb, 30.0f, 4.0f, g_effect_scratch);
 
     // Sum of alpha should be approximately 1.0 (energy conserved)
     float total_alpha = sum_alpha(fb);
@@ -119,7 +123,7 @@ TEST_CASE("DirectionalBlur: centroid unchanged for central impulse") {
     fb.clear(Color::transparent());
     fb.set_pixel(10, 10, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    apply_directional_blur(fb, 45.0f, 4.0f);
+    apply_directional_blur(fb, 45.0f, 4.0f, g_effect_scratch);
 
     // Compute centroid
     float sum_a = 0.0f, sum_ax = 0.0f, sum_ay = 0.0f;
@@ -157,7 +161,7 @@ TEST_CASE("DirectionalBlur: constant image stays constant") {
 
     // With Clamp edge mode (default in sample_bilinear), a constant image
     // should remain exactly constant after directional blur
-    apply_directional_blur(fb, 45.0f, 10.0f);
+    apply_directional_blur(fb, 45.0f, 10.0f, g_effect_scratch);
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
@@ -175,11 +179,11 @@ TEST_CASE("DirectionalBlur: constant image stays constant") {
 TEST_CASE("DirectionalBlur: angle 0° ≈ 180°") {
     Framebuffer fb0(16, 16);
     fill_impulse(fb0, 8, 8);
-    apply_directional_blur(fb0, 0.0f, 6.0f);
+    apply_directional_blur(fb0, 0.0f, 6.0f, g_effect_scratch);
 
     Framebuffer fb180(16, 16);
     fill_impulse(fb180, 8, 8);
-    apply_directional_blur(fb180, 180.0f, 6.0f);
+    apply_directional_blur(fb180, 180.0f, 6.0f, g_effect_scratch);
 
     float max_err = framebuffer_max_error(fb0, fb180);
     CHECK(max_err <= kScalarEpsilon);
@@ -188,11 +192,11 @@ TEST_CASE("DirectionalBlur: angle 0° ≈ 180°") {
 TEST_CASE("DirectionalBlur: angle 90° ≈ 270°") {
     Framebuffer fb90(16, 16);
     fill_impulse(fb90, 8, 8);
-    apply_directional_blur(fb90, 90.0f, 6.0f);
+    apply_directional_blur(fb90, 90.0f, 6.0f, g_effect_scratch);
 
     Framebuffer fb270(16, 16);
     fill_impulse(fb270, 8, 8);
-    apply_directional_blur(fb270, 270.0f, 6.0f);
+    apply_directional_blur(fb270, 270.0f, 6.0f, g_effect_scratch);
 
     float max_err = framebuffer_max_error(fb90, fb270);
     CHECK(max_err <= kScalarEpsilon);
@@ -208,11 +212,11 @@ TEST_CASE("DirectionalBlur: generic ~0° matches horizontal fast path") {
     // The 0.001° difference is negligible so results should match closely.
     Framebuffer generic(16, 16);
     fill_impulse(generic, 8, 8);
-    apply_directional_blur(generic, 0.001f, 6.0f);  // generic path
+    apply_directional_blur(generic, 0.001f, 6.0f, g_effect_scratch);  // generic path
 
     Framebuffer fast(16, 16);
     fill_impulse(fast, 8, 8);
-    apply_directional_blur(fast, 0.0f, 6.0f);  // fast path (horizontal)
+    apply_directional_blur(fast, 0.0f, 6.0f, g_effect_scratch);  // fast path (horizontal)
 
     float max_err = framebuffer_max_error(generic, fast);
     // The generic and fast paths use different sampling strategies
@@ -226,11 +230,11 @@ TEST_CASE("DirectionalBlur: generic ~90° matches vertical fast path") {
     // Same idea as above: 90.001° (generic) vs 90° (vertical fast path)
     Framebuffer generic(16, 16);
     fill_impulse(generic, 8, 8);
-    apply_directional_blur(generic, 90.001f, 6.0f);  // generic path
+    apply_directional_blur(generic, 90.001f, 6.0f, g_effect_scratch);  // generic path
 
     Framebuffer fast(16, 16);
     fill_impulse(fast, 8, 8);
-    apply_directional_blur(fast, 90.0f, 6.0f);  // fast path (vertical)
+    apply_directional_blur(fast, 90.0f, 6.0f, g_effect_scratch);  // fast path (vertical)
 
     float max_err = framebuffer_max_error(generic, fast);
     CHECK(max_err <= 1.0f);
@@ -287,7 +291,7 @@ TEST_CASE("DirectionalBlur: HDR values preserved") {
         for (int x = 0; x < 8; ++x)
             fb.set_pixel(x, y, hdr);
 
-    apply_directional_blur(fb, 0.0f, 4.0f);
+    apply_directional_blur(fb, 0.0f, 4.0f, g_effect_scratch);
 
     // With constant image, HDR values must survive
     // HDR values should survive blur on a constant image.  Current fast-path
@@ -311,7 +315,7 @@ TEST_CASE("DirectionalBlur: horizontal blur preserves row energy profile symmetr
     fb.clear(Color::transparent());
     fb.set_pixel(16, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    apply_directional_blur(fb, 0.0f, 8.0f);
+    apply_directional_blur(fb, 0.0f, 8.0f, g_effect_scratch);
 
     const Color* row = fb.pixels_row(0);
     for (int d = 1; d <= 2; ++d) {

@@ -26,8 +26,8 @@ void apply_directional_blur(
     Framebuffer& fb,
     float angle_degrees,
     float length,
+    ::chronon3d::EffectScratchResources& scratch,
     int samples = 0,
-    const std::optional<raster::BBox>& clip = std::nullopt,
-    ::chronon3d::EffectScratchResources* scratch = nullptr);
+    const std::optional<raster::BBox>& clip = std::nullopt);
 
 } // namespace chronon3d::renderer

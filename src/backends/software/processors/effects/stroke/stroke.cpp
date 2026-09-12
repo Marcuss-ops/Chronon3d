@@ -67,17 +67,16 @@ static void erode_row_horizontal(const float* src, float* dst, int w, int radius
 
 /// 2D separable dilate: horizontal then vertical pass.
 static void dilate_alpha(Framebuffer& fb, int radius,
-                         ::chronon3d::EffectScratchResources* scratch) {
+                         ::chronon3d::EffectScratchResources& scratch) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
 
     // Horizontal pass
-    std::vector<float> local_row_src, local_row_dst, local_col_src, local_col_dst;
-    if (scratch) scratch->ensure_size(w, h);
-    auto& row_src = scratch ? scratch->row_src : local_row_src;
-    auto& row_dst = scratch ? scratch->row_dst : local_row_dst;
-    auto& col_src = scratch ? scratch->col_src : local_col_src;
-    auto& col_dst = scratch ? scratch->col_dst : local_col_dst;
+    scratch.ensure_size(w, h);
+    auto& row_src = scratch.row_src;
+    auto& row_dst = scratch.row_dst;
+    auto& col_src = scratch.col_src;
+    auto& col_dst = scratch.col_dst;
     row_src.resize(static_cast<std::size_t>(w));
     row_dst.resize(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
@@ -98,16 +97,15 @@ static void dilate_alpha(Framebuffer& fb, int radius,
 
 /// 2D separable erode: horizontal then vertical pass.
 static void erode_alpha(Framebuffer& fb, int radius,
-                        ::chronon3d::EffectScratchResources* scratch) {
+                        ::chronon3d::EffectScratchResources& scratch) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
 
-    std::vector<float> local_row_src, local_row_dst, local_col_src, local_col_dst;
-    if (scratch) scratch->ensure_size(w, h);
-    auto& row_src = scratch ? scratch->row_src : local_row_src;
-    auto& row_dst = scratch ? scratch->row_dst : local_row_dst;
-    auto& col_src = scratch ? scratch->col_src : local_col_src;
-    auto& col_dst = scratch ? scratch->col_dst : local_col_dst;
+    scratch.ensure_size(w, h);
+    auto& row_src = scratch.row_src;
+    auto& row_dst = scratch.row_dst;
+    auto& col_src = scratch.col_src;
+    auto& col_dst = scratch.col_dst;
     row_src.resize(static_cast<std::size_t>(w));
     row_dst.resize(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
@@ -156,8 +154,8 @@ void apply_stroke(
     float width,
     float softness,
     StrokeMode mode,
-    const std::optional<raster::BBox>& clip,
-    ::chronon3d::EffectScratchResources* scratch)
+    ::chronon3d::EffectScratchResources& scratch,
+    const std::optional<raster::BBox>& clip)
 {
     if (width <= 0.0f) return;
 
@@ -169,11 +167,9 @@ void apply_stroke(
     }
     if (y0 >= y1 || x0 >= x1) return;
 
-    // Save original alpha channel
-    std::vector<float> local_orig_alpha;
-    if (scratch) scratch->ensure_size(w, h);
-    else warn_once_effect_scratch_missing("stroke");
-    auto& orig_alpha = scratch ? scratch->original_alpha : local_orig_alpha;
+    // Save original alpha channel (scratch-owned, required: no heap fallback)
+    scratch.ensure_size(w, h);
+    auto& orig_alpha = scratch.original_alpha;
     orig_alpha.resize(static_cast<std::size_t>(w * h));
     for (int y = 0; y < h; ++y) {
         const Color* row = fb.pixels_row(y);
@@ -202,20 +198,8 @@ void apply_stroke(
     }
 
     // ── Dilate alpha ──
-    std::unique_ptr<Framebuffer> local_dilated;
-    std::unique_ptr<Framebuffer> local_eroded;
-    Framebuffer* dilated = nullptr;
-    Framebuffer* eroded = nullptr;
-    if (scratch) {
-        dilated = scratch->framebuffer.get();
-        eroded = scratch->framebuffer_b.get();
-    } else {
-        warn_once_effect_scratch_missing("stroke_buffers");
-        local_dilated = std::make_unique<Framebuffer>(w, h);
-        local_eroded = std::make_unique<Framebuffer>(w, h);
-        dilated = local_dilated.get();
-        eroded = local_eroded.get();
-    }
+    Framebuffer* dilated = scratch.framebuffer.get();
+    Framebuffer* eroded = scratch.framebuffer_b.get();
     dilated->blit(fb, 0, 0);
     dilate_alpha(*dilated, outer_radius, scratch);
 
