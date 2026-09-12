@@ -95,6 +95,7 @@ RenderLoopOutput run_pipe_export_loop(
         .execution_plan = session.execution_plan,
         .sw_renderer = session.renderer_ptr(),
         .queue = session.queue,
+        .pipeline_metrics = session.pipeline_metrics,
         .writer_failed = session.writer_failed,
         .frames_encoded = session.frames_encoded,
         .execution_slots = session.full_graph_session->execution_slots,

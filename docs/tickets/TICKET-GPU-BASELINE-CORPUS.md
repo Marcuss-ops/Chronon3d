@@ -49,9 +49,17 @@ smoke case is `B00=DarkGridBackground`.
 ## Evidence
 
 The current same-SHA hardware smoke is recorded in
-[`gpu-b00-native-smoke-43d73f149`](../evidence/gpu-b00-native-smoke-43d73f149.md).
-The 30-frame `DarkGridBackground` case on an RTX A4000/NVENC lane reached
-99.114% wall-time attribution, with zero CPU readback, zero encoder staging
+[`gpu-b00-native-smoke-a16c86de2`](../evidence/gpu-b00-native-smoke-a16c86de2.md).
+The 120-frame `DarkGridBackground` case on an RTX A4000/NVENC lane reached
+99.247% wall-time attribution, with zero CPU readback, zero encoder staging
 bytes, and zero GPU surface-copy frames. The full B00–B11 and GPU_TEXT corpus
 remains pending the external fixture/content pack; the case contract is
 versioned and gated by `tests/test_gpu_corpus_manifest.py`.
+
+On 2026-09-11 the complete 17-case manifest was invoked against the current
+`linux-video-test` build. All cases returned before producing a timing
+sidecar because this checkout is configured with
+`CHRONON3D_BUILD_CONTENT=OFF` and does not contain the external content
+module. The runner records this as `command_failed_before_sidecar` with the
+exit code and log path, rather than misclassifying it as a wall-time
+attribution failure. This is a host/content-pack gate, not a baseline result.

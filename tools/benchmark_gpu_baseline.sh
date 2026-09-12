@@ -205,7 +205,19 @@ for spec in cases:
              "total_wall_ms": process_wall_ms, "attribution": None,
              "execution_path": None, "frames": None, "error": None}
     if not sidecar_path.is_file():
-        entry["error"] = "timing sidecar missing"
+        # A missing sidecar after a non-zero render is a command-level
+        # failure, not a timing-contract failure. Keep that distinction in
+        # the corpus report so an absent external content pack is not
+        # misdiagnosed as a wall-time instrumentation defect.
+        if completed.returncode != 0:
+            entry["error"] = (
+                f"render command failed before timing sidecar "
+                f"(exit_code={completed.returncode}); inspect render.log"
+            )
+            entry["error_class"] = "command_failed_before_sidecar"
+        else:
+            entry["error"] = "timing sidecar missing after successful render"
+            entry["error_class"] = "timing_sidecar_missing"
     else:
         try:
             data = json.loads(sidecar_path.read_text())

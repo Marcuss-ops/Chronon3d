@@ -1,6 +1,6 @@
 # TICKET-200 — Stabilize → Certify → Accelerate (Stages 1–5)
 
-Status: ACTIVE
+Status: VERIFY
 Owner: working session (repo owner + agent)
 Created: 2026-09-04
 Baseline: `main@2fc814d0f5304ce32fd0b725fd5f30731636c555`
@@ -167,4 +167,5 @@ BitExactContract documented.
 3. **Exit condition**: all stages closed AND single build+test pass green.
 4. **Equivalence test**: targeted suites listed above.
 5. **Removal scope**: this ticket closes; canonics get one status line.
-6. **Status**: ACTIVE.
+6. **Status**: VERIFY — Stages 1–5 are closed by inspection/build evidence;
+   same-SHA `Chronon CI` and main-tip verification remain the only close gate.

@@ -355,6 +355,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     auto writer_ctx = std::unique_ptr<WriterThreadContext>(new WriterThreadContext{
         .queue = session->queue,
+        .pipeline_metrics = session->pipeline_metrics,
         .writer_failed = session->writer_failed,
         .triple_arena = session->full_graph_session
             ? session->full_graph_session->triple_arena.get() : nullptr,
