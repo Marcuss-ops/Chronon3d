@@ -57,8 +57,13 @@ struct FrameTimingProjection {
     const FrameProfileSample& after,
     double frame_ms);
 
+/// Per-frame native-surface preparation result.
+///
+/// It deliberately carries ONLY the acquired slot lease: the derived render
+/// settings live in the caller-owned scratch the loop mutates in place, so a
+/// frame never copies the whole RenderSettings (which owns three std::string
+/// members plus the render budget) just to override four scalars.
 struct NativeSurfacePrep {
-    RenderSettings video_settings{};
     runtime::GpuSlotPool::Lease slot;
 };
 
@@ -83,9 +88,13 @@ struct EncodeOutcome {
     uint64_t node_cache_hits_after{0};
 };
 
+/// Derives this frame's native-surface contract into `frame_settings` (mutated
+/// in place: one scratch instance lives for the whole job) and acquires the
+/// frame's slot lease. Every derived field is written or cleared on each call,
+/// so a value can never leak from the previous frame.
 [[nodiscard]] NativeSurfacePrep prepare_frame(
     const RenderLoopContext& ctx,
-    const RenderSettings& settings,
+    RenderSettings& frame_settings,
     Frame current_frame);
 [[nodiscard]] RenderOutcome render_frame(
     const RenderLoopContext& ctx,

@@ -83,6 +83,12 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
         ctx.sw_renderer ? ctx.sw_renderer->framebuffer_pool() : nullptr;
     JobArenaAssociation job_arena(arena_pool_owner.get());
 
+    // Job-scoped render-settings scratch. prepare_frame() derives this frame's
+    // native-surface contract into it in place, so the frame loop performs four
+    // scalar writes instead of copying the whole RenderSettings (three
+    // std::string members plus the render budget) once per frame.
+    RenderSettings frame_settings = ctx.settings;
+
     try {
         for (; current_frame < ctx.end; ++current_frame) {
             if (ctx.opts.cancellation_token &&
@@ -110,14 +116,14 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
-            NativeSurfacePrep prep = prepare_frame(ctx, ctx.settings, current_frame);
+            NativeSurfacePrep prep = prepare_frame(ctx, frame_settings, current_frame);
 #ifdef CHRONON3D_ENABLE_VULKAN
             if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&ctx.backend)) {
                 vulkan->set_active_frame_index(
                     static_cast<std::uint64_t>(current_frame.integral()));
             }
 #endif
-            RenderOutcome shot = render_frame(ctx, prep.video_settings, current_frame);
+            RenderOutcome shot = render_frame(ctx, frame_settings, current_frame);
             const auto& breakdown = shot.timing.breakdown;
             const auto& image_timing = shot.timing.image_timing;
             const auto& text_timing = shot.timing.text_timing;
@@ -154,7 +160,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             EncodeOutcome enc = encode_frame(
-                ctx, shot.fb, prep.video_settings, current_arena, std::move(prep),
+                ctx, shot.fb, frame_settings, current_arena, std::move(prep),
                 current_frame, status);
             result.queue_wait_ms += enc.wait_ms;
             const double wait_ms = enc.wait_ms;
