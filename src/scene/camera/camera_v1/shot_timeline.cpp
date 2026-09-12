@@ -367,9 +367,10 @@ inline std::string derive_code_from_message(const std::string& msg) {
 // sub-ticket C contract.  Reads from the program's pre-existing
 // `diagnostics` vector (program-level) and emits a parallel
 // `resolve_diagnostics` vector (timeline-level) with `shot_index` +
-// `sample_time_seconds` + `camera_id` populated.  Severity is bit-cast
-// from `CameraProgramDiagnostic::Severity` (the two enums share the same
-// 3 values — Info / Warning / Error).
+// `sample_time_seconds` + `camera_id` populated.  Severity is copied between
+// two fields of the SAME type: `CameraResolveDiagnostic::Severity` is a type
+// alias of `CameraProgramDiagnostic::Severity` (camera_program.hpp:94), so the
+// two values cannot diverge — there is no second enum to keep in sync.
 inline void enrich_resolve_diagnostics(EvaluatedCamera& eval,
                                          const CameraProgram& prog,
                                          int                shot_idx,
@@ -382,8 +383,9 @@ inline void enrich_resolve_diagnostics(EvaluatedCamera& eval,
         rd.camera_id           = derive_camera_id(prog, shot_idx);
         rd.shot_index          = shot_idx;
         rd.sample_time_seconds = sample_time_s;
-        rd.severity            = static_cast<CameraResolveDiagnostic::Severity>(
-            static_cast<int>(d.severity));
+        // Same type through the alias (camera_program.hpp:94): no cast, and no
+        // second enum that could drift out of sync with the program one.
+        rd.severity            = d.severity;
         rd.code                = derive_code_from_message(d.message);
         rd.message             = d.message;
         eval.resolve_diagnostics.push_back(std::move(rd));
