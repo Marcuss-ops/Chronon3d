@@ -301,3 +301,25 @@ forbidden_patterns = [
   "compile_render_plan\\(",
   "compile_composition\\(",
 ]
+
+# ── Operative docs must reference tools/ paths that exist ──────────────────────
+# A runbook command that fails on invocation still reads like certification.
+# docs/GOVERNANCE.md prescribed `tools/check_architecture_boundaries.sh` long
+# after it had been consolidated into check_architecture.py, and
+# docs/CURRENT_STATUS.md advertised a WBH toolchain contract for two scripts
+# that were never written: both are caught here.
+#
+# Excluded by pattern: dated audit records (immutable history, they quote paths
+# as they were) and forward-looking plans (they name tooling not yet written).
+[[doc_tool_reference]]
+name = "doc_tool_references_resolve"
+description = "Operative docs (AGENTS.md, README.md, docs/**) must only reference tools/ paths that exist in the tree."
+doc_paths = ["AGENTS.md", "README.md", "docs"]
+extensions = [".md"]
+pattern = "\\btools/[A-Za-z0-9_][A-Za-z0-9_./-]*"
+exclude_paths = [
+  "^docs/(AUDIT-|CCACHE-AUDIT-)",
+  "^docs/(adr|baselines|tickets|archive)/",
+  "^docs/ROADMAP\\.md$",
+]
+allow_missing = []

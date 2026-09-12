@@ -86,17 +86,16 @@ del feature freeze: external consumer SDK). Non parte dei gate baseline 11/11.
 
 | Script | Funzione |
 |---|---|
-| `tools/audit_incomplete_type_pattern.sh` | std::make_shared\<T\> umbrella-header full-def probe. Emette `BROKEN` se l'header canonico del tipo T in `include/chronon3d/` contiene solo `class T;` invece di `struct T { ... }`. |
 | `tools/check_clean_rebuild.sh` | Opt-in periodic gate: clean rebuild + cmake + build + ctest smoke. Opt-in via `CHRONON3D_CLEAN_REBUILD=1`. |
 
-### Stand-alone usage
+### Retired from this pipeline
 
-```bash
-bash tools/audit_incomplete_type_pattern.sh
-
-# Override scan paths
-INCOMPLETE_TYPE_SCAN_PATHS='tests/integration_test/main.cpp src/sdk_consumer/' \
-  bash tools/audit_incomplete_type_pattern.sh
-```
-
-Exit codes: 0 = clean, 1 = BROKEN rot detected, 2 = internal error.
+- **`tools/audit_incomplete_type_pattern.sh`** — std::make_shared\<T\> umbrella-header
+  full-def probe (emitted `BROKEN` when the canonical header of type T under
+  `include/chronon3d/` held only `class T;` instead of a full definition).
+  **Retired** in `5968d148b` (*cleanup(tools): remove retired one-off
+  utilities*); the stand-alone usage block and the `INCOMPLETE_TYPE_SCAN_PATHS`
+  override documented here no longer apply. The capability is **not** covered by
+  the canonical registry (`tools/check_architecture.py`) today — re-implement it
+  as a declarative rule there if the umbrella-header rot it probed for is still
+  a concern.

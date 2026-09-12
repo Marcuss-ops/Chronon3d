@@ -359,6 +359,41 @@ std::optional<RenderSurfaceHandle> GpuGlyphAtlas::page_handle(
     return handle;
 }
 
+void GpuGlyphAtlas::resolve_resident(
+    std::span<const GpuGlyphKey> keys,
+    std::span<std::optional<Residency>> out) const noexcept {
+    // Covered range: never write past either span. Every covered entry is
+    // reset first, so a caller reusing one output buffer across frames cannot
+    // read a stale residency for a key that is now absent.
+    const std::size_t covered = keys.size() < out.size() ? keys.size() : out.size();
+    for (std::size_t i = 0; i < covered; ++i) {
+        out[i].reset();
+    }
+    if (covered == 0) {
+        return;
+    }
+    // ONE shared_lock for the whole batch. The maps below remain the only
+    // owner of residency; this is a read-only projection, not a second
+    // authority.
+    std::shared_lock lock(m_mutex);
+    for (std::size_t i = 0; i < covered; ++i) {
+        const auto location_it = m_locations.find(keys[i]);
+        if (location_it == m_locations.end()) {
+            continue;
+        }
+        Residency residency{};
+        residency.location = location_it->second;
+        if (location_it->second.atlas_page < m_pages.size()) {
+            residency.page = m_pages[location_it->second.atlas_page].handle;
+        }
+        if (const auto metrics_it = m_metrics.find(keys[i]);
+            metrics_it != m_metrics.end()) {
+            residency.metrics = metrics_it->second;
+        }
+        out[i] = residency;
+    }
+}
+
 void GpuGlyphAtlas::clear() noexcept {
     std::unique_lock lock(m_mutex);
     m_locations.clear();

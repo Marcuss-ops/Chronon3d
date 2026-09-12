@@ -225,6 +225,39 @@ public:
     [[nodiscard]] std::optional<RenderSurfaceHandle> page_handle(
         std::uint16_t atlas_page) const noexcept;
 
+    /// Read-only projection of one glyph's residency: its atlas location, the
+    /// persistent page handle that location lives in, and its placement
+    /// metrics. Every field is copied from the atlas' own maps — this struct is
+    /// NOT a second owner of residency, only a snapshot taken under the atlas
+    /// lock.
+    struct Residency {
+        GlyphLocation location{};
+        RenderSurfaceHandle page{kInvalidRenderSurfaceHandle};
+        std::optional<GpuGlyphMetrics> metrics{};
+    };
+
+    /// Batched residency lookup: resolves `keys` under ONE shared_lock instead
+    /// of the two-to-four acquisitions per glyph that location()/metrics()/
+    /// page_handle() cost individually.
+    ///
+    /// Why this exists: the text-run prepare/draw path used to call
+    /// location() and page_handle() for every glyph (plus metrics() on the
+    /// resident branch), i.e. four shared_lock acquisitions per glyph per
+    /// frame on the same mutex for a run that can carry thousands of glyphs.
+    /// A batch read keeps the maps as the single authority for residency while
+    /// paying the lock once per run.
+    ///
+    /// Contract: out is filled positionally. out[i] is reset, then set only
+    /// when keys[i] is resident; a resident key whose page handle is invalid
+    /// (the atlas was cleared underneath it) still reports its location, and
+    /// the caller must treat the invalid handle as a miss — exactly like the
+    /// per-glyph page_handle() contract. Entries beyond min(keys.size(),
+    /// out.size()) are left untouched, and an out span larger than keys is
+    /// fully reset inside the covered range so no stale residency can be read.
+    void resolve_resident(
+        std::span<const GpuGlyphKey> keys,
+        std::span<std::optional<Residency>> out) const noexcept;
+
     /// Pre-upload a batch of glyphs in prepare().
     [[nodiscard]] Result<std::size_t, GpuGlyphAtlasError> prepare_batch(
         std::span<const GpuGlyphKey> keys,

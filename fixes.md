@@ -327,3 +327,51 @@ Gate eseguiti per questa verifica (senza build host): `python3.11 tools/check_ar
 | B.2 | 18 regole inline → 1 data-driven richiede un'API di annotazione nel codice (es. macro `CHRONON_ERROR_ADAPTER`) e una modifica al motore `check_architecture.py`, con la selftest estesa: da pianificare nella sua wave |
 | B.4 strict-by-default | la baseline committata è per definizione di un'altra revisione: renderla fatale di default farebbe fallire `run_developer_gates.sh` su ogni checkout. Serve prima una policy su dove vive il report del run corrente |
 | C.1 | demolition condizionata a PR-6.2: il file è ancora compilato e il wrapper è documentato come path di produzione fino a quel PR |
+
+---
+
+# PART G — Secondo passaggio (2026-09-12, round 2)
+
+Chiusure raggiungibili della lista di next-step, più un finding nuovo emerso estendendo il contratto di layout.
+
+## G.1 Nuovo finding [P1] — `GpuTextRunDynamic`: due layout, un nome; la pipeline `TextBatch` è irraggiungibile
+
+- **Due struct omonime con dimensioni diverse**: `text_batch.comp:30` dichiara `GpuTextRunDynamic` con 16 membri (stride std430 **64**, come dice il suo stesso commento *"64 bytes per text run dynamic entry"*); `text_tile_bin.comp:20` e `text_tile_raster.comp:27` dichiarano `GpuTextRunDynamic` con 28 membri (stride **112**).
+- **Il C++ ha un solo alias per quel nome**: `using GpuTextRunDynamic = runtime::TextRunDynamic;` con `static_assert(sizeof(...) == 112)` (`src/backends/vulkan/vulkan_backend_text_ops_private.cpp:93-95`).
+- **Chi lo usa davvero**: `draw_text_batch` carica `runs.size() * sizeof(GpuTextRunDynamic)` (112 B/run) e batte quel buffer ai kernel tile (`write_text_tile_bin_descriptors(..., run_buffer, ...)`, stesso file `:289`) → coerente con 112. Il percorso `record_text_batch` — l'unico che risolverebbe il kernel `TextBatch`, cioè lo shader a 64 B — **non ha nessun call-site**: la sua unica occorrenza fuori dalla definizione è la dichiarazione in `vulkan_backend_impl.hpp:425`.
+- **Conseguenza**: la divergenza 64/112 è **latente, non viva**; ma la pipeline `TextBatch` viene comunque creata e registrata all'avvio (`vulkan_backend_lifecycle_private.cpp:383-403`) e lo shader è compilato e embedded (`src/backends/vulkan/CMakeLists.txt:50`). Chi riattivasse `record_text_batch` otterrebbe una lettura a stride sbagliato **senza alcun errore di build**.
+- **Evidenza riproducibile**: `glslangValidator -V <shader>.comp` + lettura delle `OpDecorate ArrayStride` dà 48/64 per `text_batch` e 48/112 per i due tile; il fatto è ora asserito in `tests/test_shader_layout_contract.py`.
+- **Checklist di demolition** (da eseguire su un build host, non verificabile staticamente qui): `record_text_batch` (definizione in `vulkan_kernel_record_private.cpp:352` + dichiarazione), `GpuKernelId::TextBatch` (enum in `gpu_kernel_registry.hpp`, registrazione/pipeline in `vulkan_backend_lifecycle_private.cpp:403`, il `resolve` dentro `record_text_batch`), `src/backends/vulkan/shaders/text_batch.comp` + l'entry CMake `text_batch:TextBatch`, l'embed SPIR-V generato, e il `TEST_CASE("text_batch shader ABI")` in `tests/backends/test_shader_abi_consistency.cpp`. Rischio basso, payoff: sparisce la trappola 64/112 e una pipeline in meno all'avvio.
+
+## G.2 Chiusure applicate nel round 2
+
+| Item | Modifica | Verifica |
+|---|---|---|
+| Next-step 1 | `tools/execute_gate.sh`: selezione dell'interprete che sa leggere il TOML (`tomllib`/`tomli`, override `CHRONON_PYTHON`), come già faceva `architecture_gate_selftest.sh` | prima: `ModuleNotFoundError: tomli`; dopo: `GATE_PASS: 184/184` attraverso il dispatcher; gate non-python invariati; override rispettato nei due sensi |
+| Next-step 3 | Nuovo kind dichiarativo `[[doc_tool_reference]]` in `check_architecture.py` + regola `doc_tool_references_resolve` in `architecture_rules.toml`: i doc operativi non possono citare `tools/...` inesistenti. Esclusi per pattern i record datati (`docs/AUDIT-*`, `docs/CCACHE-AUDIT-*`), gli archivi (`adr/`, `baselines/`, `tickets/`, `archive/`) e `ROADMAP.md` (forward-looking) | gate: `[PASS] doc_tool_references_resolve — N tool reference(s) resolved`; controllo negativo su albero reale: iniezione di un riferimento fittizio → `GATE_FAIL` con il riferimento stampato |
+| Next-step 7 | **Nessuna azione**: `__pycache__/` è già in `.gitignore`; la directory compariva perché `.gitignore:90` ha `!tests/**` che la ri-abilita per l'intero sottoalbero | `git check-ignore -v` |
+
+## G.3 Doc rot trovata dal nuovo gate (5 riferimenti in 4 doc — tutti a tool demoliti deliberatamente)
+
+| Riferimento inesistente | Doc | Tool demolito in | Fix applicata |
+|---|---|---|---|
+| `tools/check_wbh_toolchain.sh` + `tools/wbh_toolchain_manifest.env` | `docs/CURRENT_STATUS.md:182` | `4de939887` / `e1716fe63` | la riga ora punta a `tools/gates/manifest.sh` (`WBH_GATES`) + al ticket aperto `CERT-SEQUENCE-WBH` |
+| `tools/audit_incomplete_type_pattern.sh` | `docs/reference/AGENTS_GATE_MNT.md:89,95,99` | `5968d148b` | spostato in "Retired from this pipeline", con nota che la capability **non** è coperta dal registry canonico |
+| `tools/capture_renderdoc.sh` | `docs/gpu/renderdoc.md:17` | `5602bdb57` | sostituito con l'invocazione diretta `renderdoccmd capture --wait-for-exit --capture-file ...` che il wrapper eseguiva |
+| `tools/compare_benchmarks.py` | `docs/schemas/README.md:11` | `4f19b4468` | consumer aggiornato a `tools/check_common_performance_gate.py` |
+
+## G.4 Triage stash (read-only, nessuna azione distruttiva)
+
+| Stash | Data | Contenuto | Raccomandazione |
+|---|---|---|---|
+| `stash@{0}` `audit-p1p5-wip` | 2026-09-06 | 15 file, +462/-142 (`render_runtime.cpp`, `render_preparation_assets_detail.hpp`) | verificare se è già in `main`; altrimenti **land o drop esplicito** (è lavoro di audit, non refactor) |
+| `stash@{1}` WIP su `b1364c39d` | 2026-09-04 | 5 file, +172/-22 (`direct_yuv_program.cpp` 111 righe + preset linux-video-fast-dev) | **land**: tocca il lane DirectYUV, cioè la priorità 4.1; richiede rebase attento (il file è cambiato dopo) |
+| `stash@{2}` `wip-image-fade-diag-and-fixes` | 2026-09-01 | 7 file, +173/-51 (`source_node.cpp`, `refresh/source.cpp`) | se il bug del fade immagine è chiuso → **drop**; altrimenti land |
+| `stash@{3}` `bug6-wip-check` | 2026-08-26 | 8 file, +405/-46 (116 righe di test su `text_placement_resolver` + `build_dev.sh`) | **land**: fix e test già scritti, minor lavoro residuo |
+| `stash@{4}` `WIP-pre-refactor: 3 vulkan + 16 examples` | 2026-08-20 | 4 file, +59/-11 (`vulkan_backend_impl_ops.inc`, `gpu_text_run.cpp`) | **drop probabile**: "pre-refactor", il refactor è atterrato e 59 righe non rappresentano i 16 examples promessi |
+
+## G.5 Resta aperto (non raggiungibile in questo ambiente)
+
+- **Fixture del nuovo kind**: aggiungere `case11` in `tools/architecture_gate_selftest.sh` (doc che cita un tool inesistente → `GATE_FAIL`); oggi la prova è il controllo negativo eseguito a mano sull'albero reale.
+- **Contratto di layout generalizzato**: `tests/test_shader_layout_contract.py` copre `text_run.comp`; le coppie `GpuGlyphStatic`/`GlyphStatic` e `GpuTextRunDynamic`/`TextRunDynamic` dei due `text_tile_*` sono già verificate via `glslangValidator` ma non ancora asserite nel test.
+- **G.1 demolition** e le voci F.2 già differite, tutte da eseguire su un build host.

@@ -255,6 +255,44 @@ class Runner:
         else:
             self.ok(name)
 
+    def check_doc_tool_reference(self, rule: dict[str, Any]) -> None:
+        """Operative docs must not point at tools/ paths that do not exist.
+
+        A runbook command that fails on invocation is worse than a missing
+        command: the reader believes the certification happened.  This gate
+        exists because `docs/GOVERNANCE.md` prescribed a gate script that had
+        already been consolidated away, so the weekly ritual certified nothing
+        while looking like it did.  Dated audit records and forward-looking
+        plans legitimately name paths as they were or will be, so the rule
+        excludes them by path pattern.
+        """
+        name = rule["name"]
+        if not self.selected(name):
+            return
+        rx = re.compile(rule["pattern"], re.MULTILINE)
+        exclude = rule.get("exclude_paths", [])
+        allowed = set(rule.get("allow_missing", []))
+        references = 0
+        missing: dict[str, set[str]] = {}
+        for path in iter_files(self.root, rule["doc_paths"], rule.get("extensions", [".md"])):
+            rel = relpath(self.root, path)
+            if path_matches(rel, exclude):
+                continue
+            for match in rx.finditer(read_text(path)):
+                ref = match.group(0).rstrip(".,;:)]}`\"'")
+                if "." not in Path(ref).name:
+                    continue  # directory references are out of scope
+                references += 1
+                if ref in allowed or (self.root / ref).exists():
+                    continue
+                missing.setdefault(ref, set()).add(rel)
+        if missing:
+            self.fail(name, f"{len(missing)} reference(s) to nonexistent tools/ paths")
+            for ref, where in sorted(missing.items())[:8]:
+                print(f"         {ref}  <- {', '.join(sorted(where))}")
+        else:
+            self.ok(name, f"{references} tool reference(s) resolved")
+
     def check_scan(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
         if not self.selected(name):
@@ -874,6 +912,8 @@ class Runner:
             self.check_forbidden_path(rule)
         for rule in self.rules.get("required_path", []):
             self.check_required_path(rule)
+        for rule in self.rules.get("doc_tool_reference", []):
+            self.check_doc_tool_reference(rule)
         for key in ("forbidden_symbol", "forbidden_include", "boundary", "scan"):
             for rule in self.rules.get(key, []):
                 self.check_scan(rule)

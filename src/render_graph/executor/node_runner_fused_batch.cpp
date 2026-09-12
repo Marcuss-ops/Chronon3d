@@ -417,6 +417,59 @@ void execute_fused_batch_impl(
                     const auto page = batch.page;
                     if (atlas_pages.empty() || atlas_pages.front() == page) {
                         if (atlas_pages.empty()) atlas_pages.push_back(page);
+                        const bool shader_animation =
+                            text_run::can_lower_gpu_text_animation(*render_shape);
+                        if (!shader_animation) {
+                            // The atlas and the final composite remain fully
+                            // GPU-native. The existing text animator has
+                            // already resolved the unsupported selector stack
+                            // into GlyphInstanceState; bind those compact
+                            // per-glyph values as independent GPU run records
+                            // instead of falling back to a CPU framebuffer.
+                            current_all_prepared = false;
+                            for (const auto& static_glyph : batch.glyphs) {
+                                const auto glyph_index =
+                                    static_cast<std::size_t>(static_glyph.pad0);
+                                if (glyph_index >= render_shape->glyphs.size()) {
+                                    report_fused_batch_error(
+                                        ctx, RenderBackendErrorCode::InvalidInput,
+                                        "GPU-native text glyph state index is out of range");
+                                    return;
+                                }
+                                const auto& glyph = render_shape->glyphs[glyph_index];
+                                if (glyph.rotation.x != 0.0f ||
+                                    glyph.rotation.y != 0.0f ||
+                                    glyph.rotation.z != 0.0f ||
+                                    glyph.skew != 0.0f ||
+                                    glyph.blur != 0.0f) {
+                                    report_fused_batch_error(
+                                        ctx, RenderBackendErrorCode::UnsupportedCapability,
+                                        "GPU-native text animation requires unsupported "
+                                        "rotation, skew, or per-glyph blur");
+                                    return;
+                                }
+                                runtime::TextRunDynamic glyph_run{};
+                                glyph_run.tx = tx + glyph.position.x * sx;
+                                glyph_run.ty = ty + (glyph.position.y +
+                                    glyph.baseline_shift) * sy;
+                                glyph_run.sx = sx * glyph.scale.x;
+                                glyph_run.sy = sy * glyph.scale.y;
+                                glyph_run.opacity = opacity * glyph.opacity;
+                                glyph_run.color = pack_text_color(glyph.fill);
+                                glyph_run.distance_range_bits =
+                                    std::bit_cast<std::uint32_t>(8.0f);
+                                glyph_run.visible_glyph_count =
+                                    std::numeric_limits<std::uint32_t>::max();
+                                glyph_run.flags = 0u;
+                                const auto run_index =
+                                    static_cast<std::uint32_t>(all_runs.size());
+                                all_runs.push_back(glyph_run);
+                                auto dynamic_glyph = static_glyph;
+                                dynamic_glyph.run_index = run_index;
+                                all_glyphs.push_back(dynamic_glyph);
+                            }
+                            continue;
+                        }
                         runtime::TextRunDynamic run_dyn{};
                         run_dyn.tx = tx;
                         run_dyn.ty = ty;

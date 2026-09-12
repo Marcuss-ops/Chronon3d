@@ -180,8 +180,8 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
             runtime::DeviceResourceVector{
                 .compute_units = 1.0f,
                 .vram_bytes = device.device_memory_bytes,
-                .nvdec_sessions = probed.nvdec ? 2U : 0U,
-                .nvenc_sessions = probed.nvenc ? 2U : 0U,
+                .nvdec_sessions = probed.nvdec ? 8U : 0U,
+                .nvenc_sessions = probed.nvenc ? 8U : 0U,
                 .pcie_bandwidth = 1.0f});
     };
     for (const auto& device : discovered_devices) {
