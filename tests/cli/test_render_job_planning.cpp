@@ -399,38 +399,54 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
     // range/output/trace parity (the subcases above and below the gate) stays
     // live in every build; the GPU-resolution axis is exercised where the
     // canonical resolver it pins is compiled.
+    //
+    // Wire fidelity: the resolved encoder selection is carried EXPLICITLY by
+    // both clients, from one authority (RenderingGen's
+    // resolveNativeEncodeSelection): the subprocess adapter as
+    // --hardware/--encoder-backend/--gpu-hot-path-mode, the IPC adapter stamped
+    // into output_spec by outputSpecForTransport. normalize_render_job only
+    // back-fills these axes when the wire OMITS them, so a payload that omits
+    // them models a client that does not exist and diverges from the CLI
+    // whenever the resolution is not the default. The payloads below therefore
+    // carry the same selection the CLI spells.
 #if defined(CHRONON3D_ENABLE_VIDEO)
     SUBCASE("NVENC source-video composition on a Vulkan host") {
-        // CLI spells nvenc/native/auto; the IPC payload carries
-        // only semantics — normalize must back-fill the same resolution.
+        // CLI spells nvenc/native/auto; the IPC adapter stamps the same
+        // selection from the same authority, so the payload carries it.
         JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
                                          "auto", /*report=*/true);
         cli.output.codec = "h264";
         cli.output.encode_preset = "p3";
         cli.receipt_verification = "normal";
         check_normalized_parity(cli,
-            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","report":true,"encode_preset":"p3","receipt_verify":"normal","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","report":true,"encode_preset":"p3","receipt_verify":"normal","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264","hardware_encoder":"nvenc","encoder_backend":"native","gpu_hot_path_mode":"auto"}})",
             vulkan_host);
     }
 
-    SUBCASE("pure-video GPU job routes to DirectYUV") {
+    SUBCASE("pure-video GPU job carries its resolved hot path to DirectYUV") {
+        // The exact hot-path spelling travels on both transports (the CLI as
+        // --gpu-hot-path-mode, the IPC adapter inside output_spec), so an
+        // explicit DirectYUV request reaches the resolver identically.
+        // NOTE: no RenderingGen client can currently PRODUCE this value —
+        // resolveNativeEncodeSelection only emits auto/require_gpu_native — so
+        // this pins the transport contract, not the adapter's reachable set.
         JobRequest cli = cli_request_for("vulkan", "nvenc", "native",
                                          "require_direct_yuv");
         cli.output.codec = "h264";
         check_normalized_parity(cli,
-            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"h264","hardware_encoder":"nvenc","encoder_backend":"native","gpu_hot_path_mode":"require_direct_yuv"}})",
             vulkan_host);
     }
 
     SUBCASE("GPU-authored composition without source video falls to pipe") {
         // CLI adapter mirror (render_args.go): composition + no source video
         // can never feed the NVENC native surface, so the encoder is the pipe
-        // with automatic hot-path selection — the resolver must derive the
-        // same decision from execution_requirements.video_source_required.
+        // with automatic hot-path selection. Both transports carry that
+        // selection explicitly.
         JobRequest cli = cli_request_for("vulkan", "nvenc", "pipe", "auto");
         cli.output.codec = "h264";
         check_normalized_parity(cli,
-            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":false,"packet_copy_allowed":true},"output_spec":{"codec":"h264"}})",
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":false,"packet_copy_allowed":true},"output_spec":{"codec":"h264","hardware_encoder":"nvenc","encoder_backend":"pipe","gpu_hot_path_mode":"auto"}})",
             vulkan_host);
     }
 
@@ -441,7 +457,7 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
         cli.output.rate_control_mode = "crf";
         cli.output.crf = 18;
         check_normalized_parity(cli,
-            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"hevc","rate_control_mode":"crf","crf":18}})",
+            R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"codec":"hevc","rate_control_mode":"crf","crf":18,"hardware_encoder":"nvenc","encoder_backend":"native","gpu_hot_path_mode":"auto"}})",
             vulkan_host);
     }
 #endif  // CHRONON3D_ENABLE_VIDEO
