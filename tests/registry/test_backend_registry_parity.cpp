@@ -4,6 +4,7 @@
 
 #include <array>
 #include <algorithm>
+#include <span>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -461,6 +462,84 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     atlas.clear();
     CHECK(atlas.stats().entries == 0);
     CHECK_FALSE(atlas.metrics(glyph_a).has_value());
+}
+
+TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    chronon3d::runtime::RenderSurfaceRegistry registry;
+    chronon3d::runtime::GpuGlyphAtlas atlas;
+    atlas.attach(registry, backend);
+
+    const std::vector<float> glyph_coverage(4 * 4, 0.5f);
+    const chronon3d::runtime::GpuGlyphKey glyph_a{"font.ttf", 65, 32};
+    const chronon3d::runtime::GpuGlyphKey glyph_b{"font.ttf", 66, 32};
+    const chronon3d::runtime::GpuGlyphKey unknown{"font.ttf", 999, 32};
+    REQUIRE(atlas.acquire(glyph_a, 4, 4, glyph_coverage,
+                          chronon3d::runtime::GpuGlyphMetrics{-1, -2, 8.0f}).has_value());
+    REQUIRE(atlas.acquire(glyph_b, 4, 4, glyph_coverage,
+                          chronon3d::runtime::GpuGlyphMetrics{0, 0, 9.0f}).has_value());
+
+    const std::array<chronon3d::runtime::GpuGlyphKey, 3> keys{glyph_a, glyph_b, unknown};
+    std::array<std::optional<chronon3d::runtime::GpuGlyphAtlas::Residency>, 3> out{};
+    atlas.resolve_resident(keys, out);
+
+    // Resident keys project the same location, page handle and metrics the
+    // per-glyph accessors return — the batch is a projection, not a second
+    // authority over residency.
+    REQUIRE(out[0].has_value());
+    REQUIRE(out[1].has_value());
+    CHECK_FALSE(out[2].has_value());
+    for (std::size_t i = 0; i < 2; ++i) {
+        const auto key = keys[i];
+        const auto single = atlas.location(key);
+        const auto page = atlas.page_handle(single->atlas_page);
+        REQUIRE(single.has_value());
+        REQUIRE(page.has_value());
+        CHECK(out[i]->location.atlas_page == single->atlas_page);
+        CHECK(out[i]->location.atlas_x == single->atlas_x);
+        CHECK(out[i]->location.atlas_y == single->atlas_y);
+        CHECK(out[i]->location.width == single->width);
+        CHECK(out[i]->location.height == single->height);
+        CHECK(out[i]->page == *page);
+        REQUIRE(out[i]->metrics.has_value());
+        CHECK(out[i]->metrics->advance_x == atlas.metrics(key)->advance_x);
+    }
+    CHECK(out[0]->metrics->advance_x == doctest::Approx(8.0f));
+    CHECK(out[1]->metrics->advance_x == doctest::Approx(9.0f));
+
+    // The batch is read-only: it must not move hit/miss/entry counters.
+    CHECK(atlas.stats().entries == 2);
+    CHECK(atlas.stats().hits == 1);
+    CHECK(atlas.stats().misses == 2);
+
+    // Reusing the SAME output buffer must not leak stale residency: a key that
+    // is absent in this batch has its slot reset, even though it resolved in
+    // the previous call.
+    const std::array<chronon3d::runtime::GpuGlyphKey, 3> second_keys{unknown, glyph_a, unknown};
+    atlas.resolve_resident(second_keys, out);
+    CHECK_FALSE(out[0].has_value());
+    REQUIRE(out[1].has_value());
+    CHECK(out[1]->location.atlas_page == atlas.location(glyph_a)->atlas_page);
+    CHECK(out[1]->location.width == 4);
+    CHECK_FALSE(out[2].has_value());
+
+    // An output span shorter than the key span must fill only what fits and
+    // never write out of bounds.
+    std::array<std::optional<chronon3d::runtime::GpuGlyphAtlas::Residency>, 1> short_out{};
+    atlas.resolve_resident(keys, short_out);
+    REQUIRE(short_out[0].has_value());
+    CHECK(short_out[0]->location.width == 4);
+
+    // Empty input is a no-op, not a crash.
+    atlas.resolve_resident(std::span<const chronon3d::runtime::GpuGlyphKey>{}, out);
+    CHECK_FALSE(out[0].has_value());
+    CHECK_FALSE(out[1].has_value());
+
+    atlas.clear();
+    // After clear() the batch reports no residency for every key.
+    atlas.resolve_resident(keys, out);
+    CHECK_FALSE(out[0].has_value());
+    CHECK_FALSE(out[1].has_value());
 }
 
 TEST_CASE("MTSDF glyph identity ignores runtime font size") {

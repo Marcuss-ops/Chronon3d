@@ -756,7 +756,6 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     const assets::AssetResolver* resolver,
     const TextRunShape& shape) {
     if (!shape.layout ||
-        (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) ||
         shape.animated_doc ||
         shape.layout->font_spans.empty() || shape.paint.fill_style ||
         shape.paint.stroke_style || shape.material.enabled ||
@@ -803,6 +802,9 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
 
     if (!shape.animators.empty()) {
+        if (shape.animators.front().selectors.empty()) {
+            return nullptr;
+        }
         const auto& selector_spec = shape.animators.front().selectors.front();
         prepared->reveal_selector = compile_selector(
             selector_spec,
@@ -852,6 +854,13 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     std::vector<runtime::GpuGlyphKey> keys;
+    // drawable_layout[i] is the layout index of keys[i]. It is recorded in the
+    // SAME pass that appends the key, so the batch-residency loop below never
+    // rescans the layout to recover it. The rescan was quadratic: for every
+    // key it walked layout.placed.glyphs from index 0 counting drawable glyphs,
+    // i.e. O(glyphs^2) per prepared run (a few thousand glyphs per frame on an
+    // animated text run).
+    std::vector<std::size_t> drawable_layout;
     std::vector<std::uint32_t> widths;
     std::vector<std::uint32_t> heights;
     std::vector<runtime::GpuGlyphMetrics> metrics;
@@ -861,6 +870,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     std::vector<runtime::GpuGlyphMetrics> pending_metrics;
     std::vector<float> pending_pixels;
     keys.reserve(layout.placed.glyphs.size());
+    drawable_layout.reserve(layout.placed.glyphs.size());
     widths.reserve(layout.placed.glyphs.size());
     heights.reserve(layout.placed.glyphs.size());
     metrics.reserve(layout.placed.glyphs.size());
@@ -882,10 +892,18 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             layout.font_spans[span_index].font.font_path, state.glyph_id, 0,
             runtime::GlyphRepresentation::Mtsdf, kProfileId, 0);
         keys.push_back(key);
-        if (const auto resident = runtime.gpu_glyph_atlas().location(key)) {
-            widths.push_back(resident->width);
-            heights.push_back(resident->height);
-            metrics.push_back(runtime.gpu_glyph_atlas().metrics(key).value_or(
+        drawable_layout.push_back(i);
+        // One shared_lock for the resident location AND its metrics: this used
+        // to be two acquisitions (location() + metrics()) on the same mutex for
+        // every glyph of the run.
+        std::array<std::optional<runtime::GpuGlyphAtlas::Residency>, 1> resident_slot{};
+        const std::array<runtime::GpuGlyphKey, 1> key_slot{key};
+        runtime.gpu_glyph_atlas().resolve_resident(key_slot, resident_slot);
+        if (resident_slot[0].has_value()) {
+            const auto& resident = *resident_slot[0];
+            widths.push_back(resident.location.width);
+            heights.push_back(resident.location.height);
+            metrics.push_back(resident.metrics.value_or(
                 runtime::GpuGlyphMetrics{0, 0, placed.advance_x}));
             continue;
         }
@@ -920,49 +938,50 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     prepared->batches.reserve(1);
+    // Batch residency for the whole run under ONE shared_lock: the per-glyph
+    // location() + page_handle() pair cost two acquisitions per glyph per frame
+    // on the same mutex, and the diagnostic run can carry thousands of glyphs.
+    std::vector<std::optional<runtime::GpuGlyphAtlas::Residency>> residency(keys.size());
+    runtime.gpu_glyph_atlas().resolve_resident(keys, residency);
     for (std::size_t key_index = 0; key_index < keys.size(); ++key_index) {
-        const auto location = runtime.gpu_glyph_atlas().location(keys[key_index]);
-        if (!location) continue;
-        const auto page = runtime.gpu_glyph_atlas().page_handle(
-            location->atlas_page);
-        if (!page) continue;
+        const auto& resident = residency[key_index];
+        if (!resident) continue;
+        // An invalid page handle means the atlas no longer holds a live page
+        // for this location (cleared underneath the run). Treat it as a miss,
+        // exactly as the per-glyph page_handle() contract did.
+        const auto page = resident->page;
+        if (page == runtime::kInvalidRenderSurfaceHandle) continue;
         auto batch = std::find_if(
             prepared->batches.begin(), prepared->batches.end(),
             [page](const runtime::GpuPreparedTextRun::Batch& candidate) {
-                return candidate.page == *page;
+                return candidate.page == page;
             });
         if (batch == prepared->batches.end()) {
             prepared->batches.push_back(runtime::GpuPreparedTextRun::Batch{});
             batch = std::prev(prepared->batches.end());
-            batch->page = *page;
+            batch->page = page;
             batch->glyphs.reserve(keys.size());
         }
-        std::size_t layout_index = 0;
-        std::size_t drawable_index = 0;
-        while (layout_index < layout.placed.glyphs.size()) {
-            const auto& candidate = layout.placed.glyphs[layout_index];
-            if (shape.glyphs[layout_index].glyph_id != 0 &&
-                candidate.bbox_x1 > candidate.bbox_x0) {
-                if (drawable_index++ == key_index) break;
-            }
-            ++layout_index;
-        }
-        if (layout_index >= layout.placed.glyphs.size()) continue;
+        // O(1): the layout index was recorded when the key was appended, so
+        // the former per-key rescan of layout.placed.glyphs (O(glyphs^2) per
+        // prepared run) is gone.
+        const std::size_t layout_index = drawable_layout[key_index];
         const auto& placed = layout.placed.glyphs[layout_index];
+        const auto& location = resident->location;
         runtime::GlyphStatic glyph{};
         glyph.atlas_page = 0;
         glyph.flags = 1u;
-        glyph.atlas_x = location->atlas_x;
-        glyph.atlas_y = location->atlas_y;
-        glyph.atlas_w = location->width;
-        glyph.atlas_h = location->height;
+        glyph.atlas_x = location.atlas_x;
+        glyph.atlas_y = location.atlas_y;
+        glyph.atlas_w = location.width;
+        glyph.atlas_h = location.height;
         const float pad = static_cast<float>(kPaddingPx) * layout_scale;
         glyph.plane_left = placed.x + placed.bbox_x0 * layout_scale - pad;
         glyph.plane_top = placed.y - placed.bbox_y0 * layout_scale - pad;
         glyph.plane_right = glyph.plane_left +
-            static_cast<float>(location->width) * layout_scale;
+            static_cast<float>(location.width) * layout_scale;
         glyph.plane_bottom = glyph.plane_top +
-            static_cast<float>(location->height) * layout_scale;
+            static_cast<float>(location.height) * layout_scale;
         glyph.draw_order = static_cast<std::uint32_t>(layout_index);
         glyph.pad0 = static_cast<std::uint32_t>(layout_index);
         batch->glyphs.push_back(glyph);
