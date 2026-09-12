@@ -89,6 +89,10 @@
   readback, zero encoder staging bytes, and zero GPU surface-copy frames.
   This validates the native FullGraph lane only; the official corpus and the
   final DirectYUV single-backing path remain open.
+- The canonical 17-case GPU corpus was invoked on this checkout and all
+  entries stopped before sidecar creation because the build has
+  `CHRONON3D_BUILD_CONTENT=OFF`; this is recorded as a content-pack gate, not
+  a performance result. See [`gpu-full-corpus-content-pack-a16c86de2`](evidence/gpu-full-corpus-content-pack-a16c86de2.md).
 - Z6 pipeline-depth telemetry now uses the existing bounded SPSC queue and
   `GpuSlotPool` authorities. A same-SHA B00 smoke records queue average/peak,
   render-slot peak, and encode-in-flight peak; the controlled ring-depth sweep
