@@ -103,16 +103,6 @@ EncodeOutcome encode_frame(
     PipeExportStatus& status) {
     EncodeOutcome out;
     const auto wait_t0 = profiling::now();
-    const auto q_size = ctx.queue.size_approx();
-
-    if (ctx.counters) {
-        auto current_peak = ctx.counters->io_queue_peak_depth.load(std::memory_order_relaxed);
-        while (q_size > current_peak &&
-               !ctx.counters->io_queue_peak_depth.compare_exchange_weak(
-                   current_peak, q_size, std::memory_order_relaxed)) {
-        }
-    }
-
     auto source_surface = fb ? fb->surface_handle() : runtime::kInvalidRenderSurfaceHandle;
     auto* execution_slot = prep.slot.valid() ? &prep.slot.slot() : nullptr;
     if (source_surface == runtime::kInvalidRenderSurfaceHandle && execution_slot &&
@@ -243,6 +233,23 @@ EncodeOutcome encode_frame(
 
     out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
     out.wait_ms = profiling::duration_ms(wait_t0, profiling::now());
+
+    if (out.pushed) {
+        // Sample the published queue state. Sampling before push understates
+        // the actual bounded backlog and can hide a full-ring condition.
+        const auto queue_depth = static_cast<std::uint64_t>(ctx.queue.size_approx());
+        ctx.pipeline_metrics.queue_depth_sum.fetch_add(
+            queue_depth, std::memory_order_relaxed);
+        ctx.pipeline_metrics.queue_depth_samples.fetch_add(
+            1, std::memory_order_relaxed);
+        observe_pipeline_peak(ctx.pipeline_metrics.queue_depth_peak, queue_depth);
+        observe_pipeline_peak(
+            ctx.pipeline_metrics.render_slots_in_flight_peak,
+            static_cast<std::uint64_t>(ctx.execution_slots.busy_count()));
+        if (ctx.counters) {
+            observe_pipeline_peak(ctx.counters->io_queue_peak_depth, queue_depth);
+        }
+    }
 
     if (chronon3d::tracing::TracingActive()) {
         const int64_t in_flight = static_cast<int64_t>(ctx.queue.size_approx()) +

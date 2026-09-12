@@ -1,0 +1,56 @@
+# Chronon3d CpuBudget measurement
+
+commit: a16c86de2178270852075526a0dd27b96721a5d1
+generated_utc: 2026-09-11T20:24:20Z
+protocol: /usr/bin/time -v; timing sidecar authoritative when present
+
+mode | exit | wall_ms | render_ms | encode_ms | encode_ratio | cpu_percent | peak_rss_kb | sidecar
+--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---
+still | 0 | 3404.1831 | NA | NA | NA | 89.0000 | 487356 | NA
+pipe | 0 | 4220.1895 | 329.8787 | 674.2183 | 0.6715 | 110.0000 | 1039284 | /home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/pipe.mp4.timing.json
+chunked | 0 | 4224.5764 | 304.0733 | 700.5001 | 0.6973 | 106.0000 | 1037756 | /home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/chunked.mp4.timing.json
+
+decision: EXTEND_CPU_BUDGET_BOUNDED_PIPELINE
+
+raw JSON:
+[
+  {
+    "command": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli render DarkGridBackground --frame 0 --backend vulkan --assets-root '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d' -o '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/still.png'",
+    "cpu_percent": 89.0,
+    "encode_ms": null,
+    "encode_ratio": null,
+    "exit_code": 0,
+    "job_wall_ms": null,
+    "mode": "still",
+    "peak_rss_kb": 487356,
+    "render_ms": null,
+    "sidecar": null,
+    "wall_ms": 3404.1831499998807
+  },
+  {
+    "command": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli render DarkGridBackground --frames 0-59 --backend vulkan --hardware nvenc --encoder-backend native --gpu-hot-path-mode require_gpu_native --ffmpeg-mode pipe --assets-root '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d' -o '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/pipe.mp4'",
+    "cpu_percent": 110.0,
+    "encode_ms": 674.218273,
+    "encode_ratio": 0.6714672983374036,
+    "exit_code": 0,
+    "job_wall_ms": 3042.873034,
+    "mode": "pipe",
+    "peak_rss_kb": 1039284,
+    "render_ms": 329.878687,
+    "sidecar": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/pipe.mp4.timing.json",
+    "wall_ms": 4220.189458999812
+  },
+  {
+    "command": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli render DarkGridBackground --frames 0-59 --backend vulkan --hardware nvenc --encoder-backend native --gpu-hot-path-mode require_gpu_native --ffmpeg-mode pipe --chunks 4 --assets-root '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d' -o '/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/chunked.mp4'",
+    "cpu_percent": 106.0,
+    "encode_ms": 700.500052,
+    "encode_ratio": 0.6973110324820395,
+    "exit_code": 0,
+    "job_wall_ms": 2898.882057,
+    "mode": "chunked",
+    "peak_rss_kb": 1037756,
+    "render_ms": 304.073258,
+    "sidecar": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/.tmp/cpu-budget-a16c86de2-run2/chunked.mp4.timing.json",
+    "wall_ms": 4224.576363999404
+  }
+]

@@ -119,6 +119,14 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
                 dequeue_ms, std::memory_order_relaxed);
         }
 
+        // The popped package is already in the encoder's critical section;
+        // include it alongside the remaining queue backlog.
+        const auto encode_in_flight = static_cast<std::uint64_t>(
+            ctx.queue.size_approx()) + 1;
+        observe_pipeline_peak(
+            ctx.pipeline_metrics.encode_frames_in_flight_peak,
+            encode_in_flight);
+
         if (const auto* direct = std::get_if<DirectYuvFramePackage>(&package)) {
             const auto enc_t0 = profiling::now();
             if (ctx.counters) {

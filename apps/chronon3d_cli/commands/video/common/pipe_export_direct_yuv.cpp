@@ -99,6 +99,18 @@ RenderLoopOutput run_direct_yuv_loop(
                 break;
             }
 
+            const auto queue_depth = static_cast<std::uint64_t>(session.queue.size_approx());
+            session.pipeline_metrics.queue_depth_sum.fetch_add(
+                queue_depth, std::memory_order_relaxed);
+            session.pipeline_metrics.queue_depth_samples.fetch_add(
+                1, std::memory_order_relaxed);
+            observe_pipeline_peak(session.pipeline_metrics.queue_depth_peak, queue_depth);
+            observe_pipeline_peak(
+                session.pipeline_metrics.encode_frames_in_flight_peak,
+                queue_depth);
+            observe_pipeline_peak(
+                session.direct_yuv_session->counters.io_queue_peak_depth, queue_depth);
+
             ++status.frames_enqueued;
             timings.push_back(timing);
             const int done = static_cast<int>((frame - start).integral() + 1);

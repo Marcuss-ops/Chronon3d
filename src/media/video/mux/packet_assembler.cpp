@@ -36,7 +36,8 @@ bool finish_sha256_hex(AVHashContext* hash, std::string& checksum) {
     return true;
 }
 
-bool hash_final_file(const std::string& path, std::string& checksum) {
+bool hash_final_file(const std::string& path, std::string& checksum,
+                     std::uint64_t* bytes_read = nullptr) {
     std::ifstream input(path, std::ios::binary);
     if (!input) return false;
 
@@ -53,6 +54,9 @@ bool hash_final_file(const std::string& path, std::string& checksum) {
         input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
         const auto read = input.gcount();
         if (read > 0) {
+            if (bytes_read) {
+                *bytes_read += static_cast<std::uint64_t>(read);
+            }
             av_hash_update(hash,
                            reinterpret_cast<const std::uint8_t*>(buffer.data()),
                            static_cast<std::size_t>(read));
@@ -141,6 +145,7 @@ struct MuxAvioHashWriter {
     std::int64_t position{0};
     std::int64_t append_end{0};
     bool incremental_valid{true};
+    MuxHashMetrics metrics{};
 
     MuxAvioHashWriter() = default;
     MuxAvioHashWriter(const MuxAvioHashWriter&) = delete;
@@ -168,7 +173,19 @@ struct MuxAvioHashWriter {
         if (buffer_size == 0) return 0;
 
         const bool append_write = self->position == self->append_end;
-        if (!append_write) self->incremental_valid = false;
+        if (!append_write) {
+            const auto overwritten = self->position < self->append_end
+                ? std::min<std::int64_t>(
+                    self->append_end - self->position,
+                    static_cast<std::int64_t>(buffer_size))
+                : 0;
+            self->metrics.output_overwrite_bytes +=
+                static_cast<std::uint64_t>(std::max<std::int64_t>(0, overwritten));
+            if (self->incremental_valid) {
+                self->incremental_valid = false;
+                ++self->metrics.incremental_hash_invalidations;
+            }
+        }
 
         avio_write(self->sink, buffer, buffer_size);
         if (self->sink->error < 0) return self->sink->error;
@@ -176,6 +193,7 @@ struct MuxAvioHashWriter {
         if (self->incremental_valid) {
             av_hash_update(self->hash, buffer, static_cast<std::size_t>(buffer_size));
         }
+        self->metrics.output_write_bytes += static_cast<std::uint64_t>(buffer_size);
         self->position += buffer_size;
         self->append_end = std::max(self->append_end, self->position);
         return buffer_size;
@@ -187,6 +205,7 @@ struct MuxAvioHashWriter {
         if (whence & AVSEEK_SIZE) return avio_size(self->sink);
 
         const int seek_whence = whence & ~AVSEEK_FORCE;
+        ++self->metrics.output_seek_count;
         const auto position = avio_seek(self->sink, offset, seek_whence);
         if (position >= 0) self->position = position;
         return position;
@@ -219,7 +238,7 @@ struct MuxAvioHashWriter {
                     "[packet-assembler] incremental sha256 invalid for '{}' — "
                     "falling back to full-file re-read",
                     path);
-                return hash_final_file(path, checksum);
+                return hash_final_file(path, checksum, &metrics.final_reread_bytes);
             }
             checksum = std::move(streaming_checksum);
             return true;
@@ -234,6 +253,10 @@ struct MuxAvioHashWriter {
                 path);
             return false;
         }
+    }
+
+    [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept {
+        return metrics;
     }
 };
 
@@ -573,6 +596,10 @@ bool MuxSession::finalize() noexcept {
     }
     finalized_ = trailer_ok && checksum_ok;
     return finalized_;
+}
+
+MuxHashMetrics MuxSession::hash_metrics() const noexcept {
+    return writer_ ? writer_->hash_metrics() : MuxHashMetrics{};
 }
 
 bool PacketAssembler::submit(AVPacket& packet, AVRational source_time_base,

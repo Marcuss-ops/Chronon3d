@@ -144,6 +144,7 @@ struct PipeExportSession {
     // the single consumer. See pipe_export_queue.hpp for the lifecycle
     // (Open/Closed/Failed) and backpressure semantics.
     RenderFrameQueue queue;
+    PipelineDepthMetrics pipeline_metrics;
     std::atomic<bool> writer_failed{false};
     std::unique_ptr<WriterThreadContext> writer_ctx;
     std::thread writer_thread;

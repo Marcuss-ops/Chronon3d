@@ -114,7 +114,11 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.io_queue_push_wait_ms.fetch_add(src.io_queue_push_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_queue_pop_wait_ms.fetch_add(src.io_queue_pop_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_writer_idle_wait_ms.fetch_add(src.io_writer_idle_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.io_queue_peak_depth.fetch_add(src.io_queue_peak_depth.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    {
+        const auto v = src.io_queue_peak_depth.load(std::memory_order_relaxed);
+        if (v > dst.io_queue_peak_depth.load(std::memory_order_relaxed))
+            dst.io_queue_peak_depth.store(v, std::memory_order_relaxed);
+    }
     dst.ffmpeg_pipe_write_wall_ms.fetch_add(src.ffmpeg_pipe_write_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_hits.fetch_add(src.converted_frame_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_misses.fetch_add(src.converted_frame_cache_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);

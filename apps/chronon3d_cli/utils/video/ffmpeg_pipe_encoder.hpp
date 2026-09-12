@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/media/video/packet_assembler.hpp>
+
 // =============================================================================
 // ffmpeg_pipe_encoder.hpp — Abstract IVideoEncoder interface
 // =============================================================================
@@ -107,6 +109,9 @@ struct IVideoEncoder {
     // Number of mux checksum finalizations that had to reread the finished
     // file because the container performed a seek/backpatch.
     [[nodiscard]] virtual std::uint64_t full_file_reread_count() const { return 0; }
+    [[nodiscard]] virtual chronon3d::media::MuxHashMetrics hash_metrics() const {
+        return {};
+    }
 
     // Encoder settings actually applied at open() time (post-default
     // resolution). Empty/0 means "not applicable" (e.g. software encoder or

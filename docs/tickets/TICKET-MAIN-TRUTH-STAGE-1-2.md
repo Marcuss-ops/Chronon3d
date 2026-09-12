@@ -60,6 +60,18 @@ Observed on `main`:
 - [ ] `Chronon CI` green sullo SHA risultante di `main`.
 - [ ] Post-push main-tip verification registrata dopo il commit.
 
+## Same-SHA CI diagnostic — `a16c86de2`
+
+The GitHub runs for this SHA are currently blocked before runner acquisition:
+all jobs have `runner_id=0`, `runner_group_id=0` and `steps=[]`, including
+unrelated Linux, Windows and sanitizer jobs. The workflow files pass local
+`actionlint` and YAML shape validation. Evidence:
+[`ci-preexecution-a16c86de2`](../evidence/ci-preexecution-a16c86de2.md).
+
+This does not close the acceptance criteria; it identifies the remaining
+blocker as GitHub Actions dispatch/runner service state rather than a source
+or test failure.
+
 ## Close rule
 
 Passare `VERIFY -> DONE` solo quando il commit di questo closeout è realmente il tip di `main` e la CI same-SHA è verde. Il ticket FFmpeg subprocess resta indipendente: questo ticket può chiudere anche con quel demolition debt OPEN, purché il path sia classificato e non sia una seconda production authority nei build native.

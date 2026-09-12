@@ -191,13 +191,20 @@ deleting the duplicate executor class files (`direct_yuv_executor.hpp/.cpp`).
 The canonical bounded SPSC queue (`session.queue`) and `NativeAvEncoder` handle
 direct YUV frames synchronously with unified progress, cancellation, and metrics.
 
-## Z6 — Per-slot async overlap and depth tuning (OPEN, measure-first)
+## Z6 — Per-slot async overlap and depth tuning (TELEMETRY LANDED, SWEEP OPEN)
 
 The queue depth is already bounded (`kCudaEncodeRingSlots = 6` encoder-side,
 `GpuSlotPool::kDefaultCapacity = 3` render-side, plus `io_queue`). Depth must
 be tuned from measured `slot_reuse_wait_ms / decode_wait_ms / compose_wait_ms /
 encode_submit_wait_ms / encoder_in_flight` (some already exported in the timing
 sidecar). No new ring/scheduler authority.
+
+The existing queue and slot authorities now also publish
+`job.pipeline.queue_depth_average`, `queue_depth_peak`,
+`render_slots_in_flight_peak`, and `encode_frames_in_flight_peak`. A same-SHA
+B00 smoke validates the fields; see
+[`z6-pipeline-depth-a16c86de2`](../evidence/z6-pipeline-depth-a16c86de2.md).
+The controlled depth sweep and full-corpus comparison remain open.
 
 ## Z7 — Source gates + certification (PARTIAL, 2026-09-07)
 
@@ -214,6 +221,13 @@ The certified timing sidecar now also reports
 `job.full_file_reread_count`. This keeps mux checksum backpatch fallbacks
 explicit in the same artifact as the zero-copy counters; a non-zero value is
 not treated as incremental hashing.
+
+Hash finalization accounting is now complete at the mux authority:
+`job.hash` reports output writes, seeks, overwritten bytes, invalidations, and
+final reread bytes. The B00 smoke confirms the expected MP4 backpatch path
+(`2` seeks, `4` overwritten bytes, `1` invalidation, `30416` reread bytes),
+without changing the authoritative checksum. See
+[`hash-finalization-a16c86de2`](../evidence/hash-finalization-a16c86de2.md).
 
 ## Wave closure update — 2026-09-11
 
@@ -341,3 +355,12 @@ was recorded:
   (`build/chronon/linux-video-fast-dev`) on the GPU host; expected current
   result per F1/F2: gates 4 and 6 non-zero, `surface_handoff_path = vulkan_copy`
   → `ZERO_COPY_FAIL` until Z3/Z4 land. Not marked green.
+
+## Same-SHA FullGraph smoke (2026-09-11)
+
+`a16c86de2` now has a 120-frame RTX A4000/NVENC smoke record in
+[`gpu-b00-native-smoke-a16c86de2`](../evidence/gpu-b00-native-smoke-a16c86de2.md):
+`gpu_surface_copy_frames=0`, CPU/GPU readback `=0`, host/CUDA upload `=0`,
+and direct surface handoff. This certifies the measured FullGraph native lane
+only. `rgba_to_nv12_frames=120` remains expected there; DirectYUV corpus
+certification and the single-backing Z3/Z5 endgame remain open.

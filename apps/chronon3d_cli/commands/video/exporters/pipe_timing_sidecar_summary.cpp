@@ -245,6 +245,28 @@ void build_summary_and_job_sections(
     put_ms("sha256_ms", timings.sha256_ms);
     job["full_file_reread_count"] = timings.full_file_reread_count.value_or(0);
 
+    auto& hash = job["hash"];
+    hash["output_write_bytes"] = timings.hash.output_write_bytes
+        ? nlohmann::json(*timings.hash.output_write_bytes) : nlohmann::json(nullptr);
+    hash["output_seek_count"] = timings.hash.output_seek_count
+        ? nlohmann::json(*timings.hash.output_seek_count) : nlohmann::json(nullptr);
+    hash["output_overwrite_bytes"] = timings.hash.output_overwrite_bytes
+        ? nlohmann::json(*timings.hash.output_overwrite_bytes) : nlohmann::json(nullptr);
+    hash["incremental_hash_invalidations"] = timings.hash.incremental_hash_invalidations
+        ? nlohmann::json(*timings.hash.incremental_hash_invalidations) : nlohmann::json(nullptr);
+    hash["final_reread_bytes"] = timings.hash.final_reread_bytes
+        ? nlohmann::json(*timings.hash.final_reread_bytes) : nlohmann::json(nullptr);
+
+    auto& pipeline = job["pipeline"];
+    pipeline["queue_depth_peak"] = timings.pipeline.queue_depth_peak
+        ? nlohmann::json(*timings.pipeline.queue_depth_peak) : nlohmann::json(nullptr);
+    pipeline["queue_depth_average"] = timings.pipeline.queue_depth_average
+        ? nlohmann::json(*timings.pipeline.queue_depth_average) : nlohmann::json(nullptr);
+    pipeline["render_slots_in_flight_peak"] = timings.pipeline.render_slots_in_flight_peak
+        ? nlohmann::json(*timings.pipeline.render_slots_in_flight_peak) : nlohmann::json(nullptr);
+    pipeline["encode_frames_in_flight_peak"] = timings.pipeline.encode_frames_in_flight_peak
+        ? nlohmann::json(*timings.pipeline.encode_frames_in_flight_peak) : nlohmann::json(nullptr);
+
     auto& enc_settings = job["encoder_settings"];
     if (timings.encoder_settings.preset) {
         enc_settings["preset"] = *timings.encoder_settings.preset;

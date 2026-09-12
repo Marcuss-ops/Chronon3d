@@ -40,11 +40,10 @@ Presets per machine class (cpu_budget.cpp:54-108):
 - `render_ms` + `encode_ms` misurati separatamente
 - Coda bounded con back-pressure (`queue_wait_ms` tracciato)
 
-**2. Chunked mode** (video_export_chunked.cpp):
-- Render parallelo in chunk worker threads (fino a `--chunks` worker)
-- Ogni worker: render frame → save PNG → locale
-- Encode: ffmpeg post-hoc su tutti i PNG (sequenziale, dopo il render)
-- `render_ms` = tempo totale worker, `encode_ms` = tempo ffmpeg
+**2. Chunked mode:**
+- Il runtime corrente è pipe-only e rifiuta `--ffmpeg-mode png`.
+- La misura usa quindi `--chunks 4` con l'autorità pipe bounded esistente,
+  senza reintrodurre un secondo percorso di encoding.
 
 **3. Still/job mode** (render_job_loop.cpp):
 - Ciclo sequenziale render/write dopo rimozione WritePool
@@ -72,56 +71,39 @@ Presets per machine class (cpu_budget.cpp:54-108):
 (still, pipe e chunked), li esegue con `/usr/bin/time -v` e usa il timing
 sidecar come autorità quando disponibile. Nessuna misurazione GPU/CPU viene
 considerata eseguita finché i comandi del working build host non vengono
-registrati e il report non viene salvato in `docs/baselines/`. La prima
-misurazione è registrata in
-`docs/baselines/cpu-budget-20260911T165103Z.txt`.
+registrati e il report non viene salvato in `docs/baselines/`. La misura
+same-SHA è registrata in
+`docs/baselines/cpu-budget-a16c86de2-run2.txt`; il report storico resta
+disponibile per confronto.
 
 L'harness previsto deve coprire:
 - Run 1: Still render (1 frame, pure render time, no encode)
 - Run 2: Video pipe mode (60 frames, interleaved render+encode)
-- Run 3: Video chunked mode (60 frames, separate render then encode)
+- Run 3: Video chunked-via-pipe mode (60 frames, `--chunks 4`)
 - Metriche: render_ms, encode_ms, wall_ms, CPU%, peak RSS, frames/min
 - Decision rule: se encode_ratio > 25% di (render+encode), estendi CpuBudget
   con bounded pipeline
 - Output: `docs/baselines/cpu-budget-<timestamp>.txt`
 
-## §honesty limitation
+## Same-SHA result
 
-Macchina-verifica DEFERRED to working build host per:
+On `a16c86de2`, the working Vulkan/NVENC host produced:
 
-1. **Build rot preesistente**: `TICKET-NODE-CACHE-KEY-COLLAPSE-ROT` —
-   `NodeCacheKey` non riconosciuto in `node_executor.cpp` blocca la
-   compilazione di `chronon3d_cli`. Rot CONTAINED su HEAD, non introdotto
-   da questo chore.
-2. **CMake 3.22 vs CMakePresets v6**: la VPS ha cmake 3.22 (system) che
-   non supporta CMakePresets version 6. Cmake 4.4.0 installato via pip
-   ma il configure manuale con il path assoluto
-   `/home/pierone/vcpkg/scripts/buildsystems/vcpkg.cmake` è andato in
-   timeout (vcpkg stava compilando le dipendenze da zero, 300s).
-3. **Build dirs esistenti**: `build/chronon/linux-content-dev` (3.2G)
-   configurata con CLI ON ma il build fallisce per il rot preesistente.
+| mode | exit | render_ms | encode_ms | encode_ratio |
+|---|---:|---:|---:|---:|
+| still | 0 | NA | NA | NA |
+| pipe | 0 | 329.879 | 674.218 | 67.15% |
+| chunked-via-pipe | 0 | 304.073 | 700.500 | 69.73% |
 
-## Piano di esecuzione (working build host)
-
-```bash
-# 1. Risolvi il rot preesistente (TICKET-NODE-CACHE-KEY-COLLAPSE-ROT)
-# 2. Ripristina o implementa l'harness di misurazione e registralo qui
-# 3. Build chronon3d_cli
-cmake --build build/chronon/linux-content-dev --target chronon3d_cli -j$(nproc)
-
-# 4. Esegui la misurazione con l'harness verificato
-
-# 5. Analizza i risultati
-#    - Se encode_ratio > 25%: estendi CpuBudget con bounded pipeline
-#    - Se encode_ratio ≤ 25%: il ciclo sequenziale è accettabile
-#    - NON creare pool separati in nessun caso
-```
+Both video modes exceed the 25% threshold. The decision is therefore to
+extend the existing `CpuBudget`/bounded queue authority when overlap is
+implemented; no new pool or scheduler is authorized by this measurement.
 
 ## Criteri di accettazione
 
 - [x] Harness di misurazione presente e verificato sintatticamente/localmente
 - [x] Harness eseguito con fixture del working build host
-- [x] Baseline salvata in `docs/baselines/cpu-budget-20260911T165103Z.txt`
+- [x] Baseline same-SHA salvata in `docs/baselines/cpu-budget-a16c86de2-run2.txt`
 - [x] Decisione documentata: encode significativo; il pipe bounded esistente
   resta l'unica pipeline e ogni estensione passa da `CpuBudget`
 - [ ] Se estensione: implementata nello stesso CpuBudget (no pool separati)

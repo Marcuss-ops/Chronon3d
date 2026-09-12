@@ -90,6 +90,17 @@ struct SegmentAssemblyResult {
     bool checksum_used_reread{false};
 };
 
+/// Exact output/hash accounting for one mux session. Seekable containers may
+/// backpatch metadata, invalidating an append-only hash; these counters make
+/// that cost explicit instead of treating every final reread as a bug.
+struct MuxHashMetrics {
+    std::uint64_t output_write_bytes{0};
+    std::uint64_t output_seek_count{0};
+    std::uint64_t output_overwrite_bytes{0};
+    std::uint64_t incremental_hash_invalidations{0};
+    std::uint64_t final_reread_bytes{0};
+};
+
 /// Assemble compatible encoded segments through Chronon's canonical mux path.
 SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request);
 
@@ -146,6 +157,7 @@ public:
     [[nodiscard]] bool has_audio() const noexcept { return audio_stream_ != nullptr; }
     [[nodiscard]] std::string_view output_checksum() const noexcept { return output_checksum_; }
     [[nodiscard]] bool checksum_used_reread() const noexcept { return checksum_used_reread_; }
+    [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept;
 
 private:
     AVFormatContext* format_{nullptr};

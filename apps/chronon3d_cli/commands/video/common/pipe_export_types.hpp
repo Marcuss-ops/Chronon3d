@@ -56,8 +56,28 @@ struct PipeExportTelemetry {
     double native_trailer_ms{0.0};
 };
 
+/// Per-job depth observations for the existing render -> writer pipeline.
+/// These are deliberately telemetry-only: ownership and scheduling remain in
+/// RenderFrameQueue and GpuSlotPool.
+struct PipelineDepthMetrics {
+    std::atomic<std::uint64_t> queue_depth_sum{0};
+    std::atomic<std::uint64_t> queue_depth_samples{0};
+    std::atomic<std::uint64_t> queue_depth_peak{0};
+    std::atomic<std::uint64_t> render_slots_in_flight_peak{0};
+    std::atomic<std::uint64_t> encode_frames_in_flight_peak{0};
+};
+
+inline void observe_pipeline_peak(
+    std::atomic<std::uint64_t>& peak, std::uint64_t value) noexcept {
+    auto current = peak.load(std::memory_order_relaxed);
+    while (value > current && !peak.compare_exchange_weak(
+               current, value, std::memory_order_relaxed)) {
+    }
+}
+
 struct WriterThreadContext {
     RenderFrameQueue& queue;
+    PipelineDepthMetrics& pipeline_metrics;
     std::atomic<bool>& writer_failed;
     TripleBufferArena* triple_arena{nullptr};
     IVideoEncoder& encoder;
@@ -86,6 +106,7 @@ struct RenderLoopContext {
     std::optional<media::VideoExecutionPlan> execution_plan;
     SoftwareRenderer* sw_renderer;
     RenderFrameQueue& queue;
+    PipelineDepthMetrics& pipeline_metrics;
     std::atomic<bool>& writer_failed;
     std::atomic<int>& frames_encoded;
     runtime::GpuSlotPool& execution_slots;
@@ -141,6 +162,7 @@ struct EncoderCloseResult {
     double native_mux_ms{0.0};
     double native_trailer_ms{0.0};
     std::uint64_t full_file_reread_count{0};
+    media::MuxHashMetrics hash_metrics{};
     double encoder_hwframe_get_buffer_ms{0.0};
     double encoder_surface_acquire_ms{0.0};
     double encoder_nvenc_submit_ms{0.0};

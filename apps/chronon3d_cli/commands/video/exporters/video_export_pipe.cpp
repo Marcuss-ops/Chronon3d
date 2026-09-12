@@ -251,6 +251,21 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.backend_init_ms = session->backend_init_ms;
     timings.render_loop_wall_ms = loop_output.render_ms;
     timings.encoder_finalize_ms = encode_ms;
+    const auto pipeline_samples = session->pipeline_metrics.queue_depth_samples.load(
+        std::memory_order_relaxed);
+    timings.pipeline.queue_depth_peak = session->pipeline_metrics.queue_depth_peak.load(
+        std::memory_order_relaxed);
+    timings.pipeline.queue_depth_average = pipeline_samples > 0
+        ? std::optional<double>(static_cast<double>(
+              session->pipeline_metrics.queue_depth_sum.load(std::memory_order_relaxed)) /
+          static_cast<double>(pipeline_samples))
+        : std::nullopt;
+    timings.pipeline.render_slots_in_flight_peak =
+        session->pipeline_metrics.render_slots_in_flight_peak.load(
+            std::memory_order_relaxed);
+    timings.pipeline.encode_frames_in_flight_peak =
+        session->pipeline_metrics.encode_frames_in_flight_peak.load(
+            std::memory_order_relaxed);
     if (nvml_stats.sample_count > 0) {
         timings.hardware.gpu_utilization_avg = nvml_stats.gpu_utilization_avg;
         timings.hardware.gpu_utilization_peak = nvml_stats.gpu_utilization_peak;
@@ -305,6 +320,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     timings.ffprobe_ms = result.ffprobe_ms;
     timings.sha256_ms = result.sha256_ms;
     timings.full_file_reread_count = close_result.full_file_reread_count;
+    timings.hash.output_write_bytes = close_result.hash_metrics.output_write_bytes;
+    timings.hash.output_seek_count = close_result.hash_metrics.output_seek_count;
+    timings.hash.output_overwrite_bytes = close_result.hash_metrics.output_overwrite_bytes;
+    timings.hash.incremental_hash_invalidations =
+        close_result.hash_metrics.incremental_hash_invalidations;
+    timings.hash.final_reread_bytes = close_result.hash_metrics.final_reread_bytes;
     timings.target_fps = session->opts.output.fps_value();
     timings.target_fps_num = session->opts.output.frame_rate().numerator;
     timings.target_fps_den = session->opts.output.frame_rate().denominator;
