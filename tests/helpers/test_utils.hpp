@@ -88,6 +88,14 @@ inline void attach_software_backend(SoftwareRenderer* renderer,
     extras.registry      = &renderer->software_registry();
     extras.image_backend = renderer->image_backend();
     extras.image_renderer = &renderer->image_renderer();
+    // Session-owned scratch, exactly like the production call sites: without
+    // it the scalar effects / mesh depth pool / DOF scratch would be null.
+    {
+        auto& software_resources = renderer->software_session().software;
+        extras.effect_scratch = &software_resources.effect_scratch;
+        extras.depth_buffer_pool = &software_resources.depth_buffer_pool;
+        extras.dof_scratch = &software_resources.dof_scratch;
+    }
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine   = &renderer->font_engine();
 #endif

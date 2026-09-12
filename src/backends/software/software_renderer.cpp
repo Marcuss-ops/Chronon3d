@@ -96,6 +96,15 @@ void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
     extras.image_backend = renderer.image_backend();
     extras.image_renderer = &renderer.image_renderer();
     extras.curve_cache = execution.scratch.curve_cache;
+    // Session-owned scratch: the effect workspace, the mesh depth-buffer pool
+    // and the DOF scratch. They must be wired here or the scalar effects and
+    // mesh/DOF paths fall back to a per-frame heap framebuffer.
+    {
+        auto& software_resources = renderer.software_session().software;
+        extras.effect_scratch = &software_resources.effect_scratch;
+        extras.depth_buffer_pool = &software_resources.depth_buffer_pool;
+        extras.dof_scratch = &software_resources.dof_scratch;
+    }
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine = &renderer.font_engine();
 #endif

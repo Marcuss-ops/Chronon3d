@@ -16,6 +16,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>  // EffectScratchResources
 #include "src/backends/software/processors/effects/blur/radial_blur.hpp"
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
@@ -25,6 +26,10 @@ using namespace chronon3d;
 using namespace chronon3d::renderer;
 
 namespace {
+
+/// Reusable effect workspace: the effect contract requires a scratch reference
+/// (there is no longer a silent heap fallback).
+chronon3d::EffectScratchResources g_effect_scratch;
 
 /// Helper: riempi fb con singolo impulso bianco opaco.
 void fill_impulse(Framebuffer& fb, int cx, int cy) {
@@ -59,7 +64,7 @@ TEST_CASE("RadialBlur: amount=0 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_radial_blur(fb, 0.5f, 0.5f, 0.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 0.0f, 8, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -76,7 +81,7 @@ TEST_CASE("RadialBlur: amount>0 but samples=1 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_radial_blur(fb, 0.5f, 0.5f, 100.0f, 1);
+    apply_radial_blur(fb, 0.5f, 0.5f, 100.0f, 1, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -99,7 +104,7 @@ TEST_CASE("RadialBlur: pixel at exact center is unchanged") {
     // centre at (4.0, 4.0) coincide, so the centre pixel samples itself
     // and remains unchanged.  Accept a sub-pixel epsilon for bilinear
     // sampling noise.
-    apply_radial_blur(fb, 0.5f, 0.5f, 10.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 10.0f, 8, g_effect_scratch);
 
     // Centre pixel must be unchanged
     Color c = fb.get_pixel(4, 4);
@@ -129,7 +134,7 @@ TEST_CASE("RadialBlur: zoom samples are collinear with centre") {
 
     Framebuffer before = fb;  // snapshot before blur
 
-    apply_radial_blur(fb, 0.5f, 0.5f, 2.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 2.0f, 8, g_effect_scratch);
 
     // Not much we can assert directly about individual taps since they're
     // internal. But we know the centroid of the blur along the horizontal
@@ -168,7 +173,7 @@ TEST_CASE("RadialBlur: centroid unchanged by combined zoom+spin") {
     Framebuffer fb(32, 32);
     fill_impulse(fb, 16, 16);
 
-    apply_radial_blur(fb, 0.5f, 0.5f, 5.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 5.0f, 8, g_effect_scratch);
 
     float sum_a = 0.0f, sum_ax = 0.0f, sum_ay = 0.0f;
     for (int y = 0; y < 32; ++y) {
@@ -204,7 +209,7 @@ TEST_CASE("RadialBlur: constant image stays constant") {
     // Strong blur — with Clamp edge mode (now used in the implementation),
     // a constant image must remain exactly constant after any amount of
     // radial blur, because every tap samples a pixel with the same color.
-    apply_radial_blur(fb, 0.5f, 0.5f, 30.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 30.0f, 8, g_effect_scratch);
 
     for (int y = 0; y < 8; ++y) {
         const Color* row = fb.pixels_row(y);
@@ -222,11 +227,11 @@ TEST_CASE("RadialBlur: constant image stays constant") {
 TEST_CASE("RadialBlur: different sample counts produce different results") {
     Framebuffer fb_a(16, 16);
     fill_impulse(fb_a, 8, 8);
-    apply_radial_blur(fb_a, 0.5f, 0.5f, 10.0f, 4);  // preview (fewer samples)
+    apply_radial_blur(fb_a, 0.5f, 0.5f, 10.0f, 4, g_effect_scratch);  // preview (fewer samples)
 
     Framebuffer fb_b(16, 16);
     fill_impulse(fb_b, 8, 8);
-    apply_radial_blur(fb_b, 0.5f, 0.5f, 10.0f, 8);  // final (more samples)
+    apply_radial_blur(fb_b, 0.5f, 0.5f, 10.0f, 8, g_effect_scratch);  // final (more samples)
 
     float max_err = framebuffer_max_error(fb_a, fb_b);
     CHECK(max_err > kScalarEpsilon);  // should differ meaningfully
@@ -235,11 +240,11 @@ TEST_CASE("RadialBlur: different sample counts produce different results") {
 TEST_CASE("RadialBlur: same sample count = same result") {
     Framebuffer fb_a(16, 16);
     fill_impulse(fb_a, 8, 8);
-    apply_radial_blur(fb_a, 0.5f, 0.5f, 10.0f, 6);
+    apply_radial_blur(fb_a, 0.5f, 0.5f, 10.0f, 6, g_effect_scratch);
 
     Framebuffer fb_b(16, 16);
     fill_impulse(fb_b, 8, 8);
-    apply_radial_blur(fb_b, 0.5f, 0.5f, 10.0f, 6);
+    apply_radial_blur(fb_b, 0.5f, 0.5f, 10.0f, 6, g_effect_scratch);
 
     float max_err = framebuffer_max_error(fb_a, fb_b);
     CHECK(max_err <= kExactEpsilon);  // deterministic → bit-identical
@@ -264,7 +269,7 @@ TEST_CASE("RadialBlur: FullFrame — clip does not preserve outside pixels") {
     Framebuffer original(fb);
 
     // Clip applied to a small region
-    apply_radial_blur(fb, 0.5f, 0.5f, 5.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 5.0f, 8, g_effect_scratch);
 
     // With amount=0 blur, nothing changes
     // With amount>0, the clip doesn't make sense for radial blur
@@ -297,7 +302,7 @@ TEST_CASE("RadialBlur: HDR values preserved in constant image") {
     const Color hdr{2.0f, 0.5f, 4.0f, 1.0f};
     fill_constant(fb, hdr);
 
-    apply_radial_blur(fb, 0.5f, 0.5f, 10.0f, 8);
+    apply_radial_blur(fb, 0.5f, 0.5f, 10.0f, 8, g_effect_scratch);
 
     // With Clamp and constant image, HDR values must survive
     for (int y = 0; y < 8; ++y) {

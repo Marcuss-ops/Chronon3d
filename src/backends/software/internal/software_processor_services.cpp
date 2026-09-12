@@ -26,6 +26,12 @@ make_processor_context(
     ctx.image_renderer  = extras.image_renderer ? extras.image_renderer
                                                 : services.images;
     ctx.curve_cache     = extras.curve_cache;
+    // Session-owned scratch workspaces: without these the scalar effects and
+    // the mesh/DOF scratch allocate a framebuffer per frame instead of
+    // reusing the job's workspace.
+    ctx.effect_scratch   = extras.effect_scratch;
+    ctx.depth_buffer_pool = extras.depth_buffer_pool;
+    ctx.dof_scratch      = extras.dof_scratch;
     ctx.asset_resolver  = services.asset_resolver;
     ctx.debug_config    = services.debug_config;
     ctx.text_resources  = services.text_resources;
