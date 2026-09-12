@@ -95,8 +95,11 @@ ingresso da certificare quando PacketCopy diventa una modalità di prima classe.
 (`packet_assembler.hpp:41-58`) è già la forma "*decidi prima, esegui senza
 branch*" che serve al video: `CopyPackets → TrimPackets → BoundaryReencode →
 FullReencode`. Il video dovrebbe adottare la stessa firma di decisione, ma
-oggi non ha la nozione di "content_changed" né di "codec_compatible" per il
+giorno non ha la nozione di "content_changed" né di "codec_compatible" per il
 bitstream.
+
+> **Stato al 2026-09-12 (sessione successiva): prototipo realizzato.** Vedi
+> §5. Il video ora parla la stessa lingua di decisione dell'audio.
 
 ---
 
@@ -110,7 +113,8 @@ bitstream.
    `previous_keyframe()` è sufficiente o se serve un grafo.
 3. **BoundaryReencode prototype**: intorno a `AudioExecutionPath`, definire
    `VideoExecutionPath` con gli stessi 4 stati e un resolver
-   backend-neutro gemello di `video_execution_resolver`.
+   backend-neutro gemello di `video_execution_resolver`. — **fatto: vedi §5
+   (il resolver esiste; l'*esecuzione* BoundaryReencode resta da scrivere).**
 4. **Codec Decision Reuse**: la decisione (`CopyPackets`/`BoundaryReencode`)
    è per-layer o per-job? Oggi `gop_copy_only` è un flag di job
    (`command_render_plan.hpp:30`); un modello per-layer richiederebbe di
@@ -124,3 +128,49 @@ bitstream.
 - Nessuna lettura di `packet_assembler.cpp` oltre le righe citate: il file
   (633 righe) e `native_video_frame_decoder_decode.cpp` (575 righe) meritano
   una lettura integrale in una sessione dedicata prima di toccare il boundary.
+
+---
+
+## 5. Prototipo `VideoExecutionPath` (2026-09-12)
+
+Realizzato il passo 3 del §3: il codec boundary video ora ha un vocabolario e
+un'autorità di decisione **gemelli** di quelli audio, così i due confini non
+parlano più due lingue diverse.
+
+| Artefatto | Dove |
+|---|---|
+| `enum class VideoExecutionPath { CopyPackets, TrimPackets, BoundaryReencode, FullReencode }` | `include/chronon3d/media/video/video_execution_resolver.hpp` |
+| `resolve_video_execution_path(content_changed, boundary_change, codec_compatible, splice_safe)` — tabella pura `constexpr`, nessuna capability | idem |
+| `resolve_video_execution_path_from_gop_analysis(intent_gop_copy_only, intent_allow_hybrid_gop, analysis)` — ponte dalle fact di preflight | idem |
+| `VideoExecutionDecision::codec_path` — la decisione riportata col piano | idem |
+| Implementazione + autorità unica nei due entry point | `src/media/video/video_execution_resolver.cpp` |
+| Test (tabella, fail-closed, coerenza col piano) | `tests/cli/test_packet_assembler_contract.cpp` |
+
+### Perché `splice_safe` e la firma a 4 argomenti
+`resolve_audio_execution` ha 3 fatti. Il video ne ha uno in più, e non è una
+capability: la concatenazione di packet copiati + packet NVENC può essere
+indecodibile anche quando il cambio è confinato al boundary. Quindi la tabella
+degrada `BoundaryReencode → FullReencode` quando `splice_safe == false`.
+
+### Fail-closed
+Il ponte non inventa mai un copy: se la preflight non ha ispezionato la sorgente
+(`analysis.available == false`), `codec_compatible` è falso e ogni intent
+collassa a `FullReencode`. Un intent di copy esplicito che la preflight non può
+dimostrare diventa `FullReencode`, non un copy non verificato.
+
+### Autorità unica
+`resolve_plan_from_capabilities` non scrive più a mano i valori di codec path:
+le due branch di riuso delegano alla tabella pura. `resolve_video_execution_with_gop_analysis`
+calcola una sola volta `boundary_path` dal ponte e lo assegna alle branch che
+copiano davvero i packet; i downgrade riportano `FullReencode` (il piano
+ri-encoda ogni frame) insieme a `downgrade_count` + `reason`. Un executor non
+può quindi dichiarare un riuso che il piano non esegue.
+
+### Cosa resta (non in questo prototipo)
+- **Esecuzione** `BoundaryReencode`: il resolver la decide, ma non esiste ancora
+  un boundary re-encoder che consumi un modello di dipendenze di GOP (CB-2).
+- **`TrimPackets`**: raggiungibile dalla tabella, non ancora prodotto da alcun
+  entry point (il trim richiede la mappatura time-range → GOP).
+- **Per-layer vs per-job** (esperimento 4 del §3): non toccato.
+- Nessuna misura runtime: il prototipo non cambia il data path, quindi non ha
+  effetti misurabili sull'export.
