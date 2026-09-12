@@ -92,6 +92,10 @@ int command_text_def_inspect(const CompositionRegistry& registry,
         ? std::optional<std::filesystem::path>{}
         : std::optional<std::filesystem::path>{args.assets_root};
     auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
+    // This command consumes `renderer->text_audit_snapshots()`, whose
+    // population is opt-in on the hot path (a production frame no longer pays
+    // one allocation per TextRun node for data nothing reads).
+    renderer->set_text_audit_capture(true);
     auto compiled = chronon3d::compile_composition(
         comp, CompositionCompileContext{});
     if (!compiled) {

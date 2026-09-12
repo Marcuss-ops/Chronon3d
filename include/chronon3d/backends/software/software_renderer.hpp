@@ -146,6 +146,11 @@ public:
     [[nodiscard]] const runtime::JobSession& session() const     { return m_session.common; }
 
     // ── Text audit snapshots ──
+    // Capture is opt-in (see SoftwareRenderSession::text_audit_capture): the
+    // diagnostics commands and the --debug-text-layout-json report enable it;
+    // a production render never pays for snapshots it does not read.
+    void set_text_audit_capture(bool enabled) noexcept { m_session.text_audit_capture = enabled; }
+    [[nodiscard]] bool text_audit_capture() const noexcept { return m_session.text_audit_capture; }
     [[nodiscard]] std::vector<TextRunAuditSnapshot>& text_audit_snapshots() { return m_session.text_audit_snapshots; }
     [[nodiscard]] SoftwareRenderSession& software_session()      { return m_session; }
     [[nodiscard]] const SoftwareRenderSession& software_session() const { return m_session; }
