@@ -13,10 +13,17 @@ namespace chronon3d::cli::detail {
 
 NativeSurfacePrep prepare_frame(
     const RenderLoopContext& ctx,
-    const RenderSettings& settings,
+    RenderSettings& frame_settings,
     Frame current_frame) {
     NativeSurfacePrep prep;
-    prep.video_settings = settings;
+    // `frame_settings` is the job-scoped scratch seeded once from ctx.settings.
+    // Every field this function derives is written (or explicitly cleared) on
+    // each call, so reusing the scratch across frames cannot leak a previous
+    // frame's native-surface contract into this one — the property the old
+    // per-frame `prep.video_settings = settings` copy provided implicitly, at
+    // the cost of copying the whole RenderSettings on every frame.
+    frame_settings.native_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
+    frame_settings.native_video_source_surface = runtime::kInvalidRenderSurfaceHandle;
     const bool explicit_native_graph =
         ctx.opts.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
     const bool plan_requests_native_graph = explicit_native_graph ||
@@ -26,13 +33,13 @@ NativeSurfacePrep prepare_frame(
                ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
             : (ctx.opts.encoder.encoder_backend == "native" &&
                ctx.opts.encoder.hardware_encoder == "nvenc"));
-    prep.video_settings.retain_native_surface_for_video =
+    frame_settings.retain_native_surface_for_video =
         plan_requests_native_graph && ctx.backend.supports_native_video_surface();
-    prep.video_settings.require_native_gpu =
-        prep.video_settings.retain_native_surface_for_video;
+    frame_settings.require_native_gpu =
+        frame_settings.retain_native_surface_for_video;
     auto* surface_registry = ctx.sw_renderer
         ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;
-    if (!surface_registry || !prep.video_settings.retain_native_surface_for_video) {
+    if (!surface_registry || !frame_settings.retain_native_surface_for_video) {
         return prep;
     }
 
@@ -55,10 +62,10 @@ NativeSurfacePrep prepare_frame(
         prep.slot.release();
         return prep;
     }
-    prep.video_settings.native_video_encode_surface = execution_slot.native_surface;
+    frame_settings.native_video_encode_surface = execution_slot.native_surface;
     // FullGraph has one physical encode backing per slot. The source role is
     // an alias used by the writer contract, never a second allocation.
-    prep.video_settings.native_video_source_surface = execution_slot.native_surface;
+    frame_settings.native_video_source_surface = execution_slot.native_surface;
     return prep;
 }
 
