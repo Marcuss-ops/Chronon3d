@@ -149,6 +149,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_flag(fp, "out_gop_copy_only", out.gop_copy_only);
     append_int(fp, "out_fps_num", out.fps_num);
     append_int(fp, "out_fps_den", out.fps_den);
+    append_field(fp, "out_pipe_pixfmt", out.pipe_pixfmt);
     append_field(fp, "trace_output", job.trace.output.string());
     append_field(fp, "trace_level", job.trace.level);
     append_field(fp, "receipt_verify", job.receipt_verification);

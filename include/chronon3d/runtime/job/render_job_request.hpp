@@ -38,6 +38,9 @@ struct OutputSpec {
     bool gop_copy_only{false};
     std::uint32_t fps_num{0};
     std::uint32_t fps_den{1};
+    /// Requested CUDA/pipe surface format (e.g. nv12 or p010). Empty means
+    /// the normalizer/executor default applies.
+    std::string pipe_pixfmt;
 };
 
 struct RenderJobRequest {
