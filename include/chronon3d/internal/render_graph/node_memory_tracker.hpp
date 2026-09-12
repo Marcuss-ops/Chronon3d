@@ -1,9 +1,13 @@
 #pragma once
 
+#include <chronon3d/core/profiling/profiling_context.hpp>  // g_current_counters
+#include <chronon3d/core/profiling/render_counter_types.hpp>  // RenderCounters
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/render_graph/executor/node_memory_metrics.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -89,7 +93,7 @@ public:
     NodeMemoryTracker& operator=(const NodeMemoryTracker&) = delete;
 
     void observe_node(std::string_view node_id, const NodeMemoryMetrics& metrics) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         NodeLiveState& node = find_or_emplace(node_id);
         // Monotonic counters fold additively; live/peak are point-in-time
         // state updated exclusively by the acquire/release path (same
@@ -119,7 +123,7 @@ public:
         std::optional<TemporalSampleKey> sample_key,
         std::uint64_t bytes)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         NodeLiveState& node = find_or_emplace(node_id);
         node.metrics.temporary_buffers.fetch_add(1, std::memory_order_relaxed);
 
@@ -144,7 +148,7 @@ public:
         std::optional<TemporalSampleKey> sample_key,
         std::uint64_t bytes)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         // Every release is paired with an acquire that registered the id;
         // find_or_emplace keeps an unpaired release safe rather than UB.
         NodeLiveState& node = find_or_emplace(node_id);
@@ -159,19 +163,19 @@ public:
     }
 
     void record_allocation(std::string_view node_id, std::uint64_t bytes) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         NodeLiveState& node = find_or_emplace(node_id);
         node.metrics.allocations.fetch_add(1, std::memory_order_relaxed);
         node.metrics.allocated_bytes.fetch_add(bytes, std::memory_order_relaxed);
     }
 
     void record_pool(NodeMemoryPoolSnapshot pool) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         m_pool = pool;
     }
 
     void record_rss_peak(std::uint64_t rss_bytes) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         m_peak_rss_bytes = std::max(m_peak_rss_bytes, rss_bytes);
     }
 
@@ -180,7 +184,7 @@ public:
     /// their counters must be transferred before the sample domain is
     /// destroyed; this does not merge any cache or framebuffer ownership.
     void merge_report(const NodeMemoryReport& report) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         for (const auto& node : report.nodes) {
             NodeLiveState& dst = find_or_emplace(node.node_id);
             dst.metrics.pixels_read.fetch_add(node.pixels_read, std::memory_order_relaxed);
@@ -216,7 +220,7 @@ public:
     }
 
     [[nodiscard]] NodeMemoryReport snapshot() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         NodeMemoryReport report;
         report.nodes.reserve(m_nodes.size());
         for (const auto& [node_id, node] : m_nodes) {
@@ -245,7 +249,7 @@ public:
     }
 
     void reset() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        const MeteredLock lock(m_mutex);
         m_nodes.clear();
         m_samples.clear();
         m_pool = {};
@@ -255,6 +259,67 @@ public:
     }
 
 private:
+    /// Lock metering for the tracker's single mutex.
+    ///
+    /// The tracker is attached to every session, so an `observe_node` /
+    /// `acquire_temporary` / `release_temporary` pair per node × frame means
+    /// thousands of acquisitions per second against ONE mutex shared by all
+    /// level workers. The P1 decision ("restructure, or leave it alone") must
+    /// be data-driven, so every acquisition records:
+    ///   * node_memory_lock_acquires      — acquisitions
+    ///   * node_memory_lock_wait_us       — total time spent waiting
+    ///   * node_memory_lock_max_wait_us   — worst single wait (CAS high-water)
+    ///   * node_memory_lock_hold_wall_us  — total time the mutex was held
+    /// The counters live in the thread-local counter block, so metering adds no
+    /// shared state and no cache-line bouncing of its own.
+    class MeteredLock {
+    public:
+        explicit MeteredLock(std::mutex& mutex)
+            : mutex_(mutex), wait_t0_(std::chrono::steady_clock::now()) {
+            mutex_.lock();
+            hold_t0_ = std::chrono::steady_clock::now();
+            auto* counters = profiling::g_current_counters;
+            if (counters == nullptr) return;
+            const auto wait_us = static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    hold_t0_ - wait_t0_).count());
+            counters->node_memory_lock_acquires.fetch_add(
+                1, std::memory_order_relaxed);
+            counters->node_memory_lock_wait_us.fetch_add(
+                wait_us, std::memory_order_relaxed);
+            record_max(counters->node_memory_lock_max_wait_us, wait_us);
+        }
+
+        ~MeteredLock() {
+            mutex_.unlock();
+            auto* counters = profiling::g_current_counters;
+            if (counters == nullptr) return;
+            counters->node_memory_lock_hold_wall_us.fetch_add(
+                static_cast<std::uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - hold_t0_).count()),
+                std::memory_order_relaxed);
+        }
+
+        MeteredLock(const MeteredLock&) = delete;
+        MeteredLock& operator=(const MeteredLock&) = delete;
+
+    private:
+        static void record_max(std::atomic<std::uint64_t>& sink,
+                               std::uint64_t value) noexcept {
+            auto current = sink.load(std::memory_order_relaxed);
+            while (value > current &&
+                   !sink.compare_exchange_weak(current, value,
+                                               std::memory_order_relaxed,
+                                               std::memory_order_relaxed)) {
+            }
+        }
+
+        std::mutex& mutex_;
+        std::chrono::steady_clock::time_point wait_t0_{};
+        std::chrono::steady_clock::time_point hold_t0_{};
+    };
+
     struct SampleKeyLess {
         bool operator()(const TemporalSampleKey& a, const TemporalSampleKey& b) const noexcept {
             if (a.frame != b.frame) return a.frame < b.frame;
