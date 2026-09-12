@@ -88,6 +88,11 @@ namespace chronon3d {
 #define CHRONON_COUNTERS_TEXT(X) \
     X(text_prepare_per_frame_wall_us) \
     X(text_glyphs_rasterized) \
+    X(gpu_text_cpu_selector_compat_frames) \
+    X(gpu_text_cpu_selector_compat_glyph_evals) \
+    X(mtsdf_glyphs_generated) \
+    X(mtsdf_lock_wait_us) \
+    X(mtsdf_lock_hold_wall_us) \
     X(text_cache_hits) \
     X(text_cache_misses) \
     X(text_layout_wall_ms) \
@@ -235,7 +240,8 @@ namespace chronon3d {
     X(framebuffer_pool_evicted_count) \
     X(framebuffer_pool_evicted_bytes) \
     X(framebuffer_pool_pressure_count) \
-    X(framebuffer_pool_size_class_count)
+    X(framebuffer_pool_size_class_count) \
+    X(unexpected_pool_release_policy_count)
 
 #define CHRONON_COUNTERS_DIRTY(X) \
     X(dirty_rect_count) \
@@ -311,7 +317,11 @@ namespace chronon3d {
     X(graph_executed_frames) \
     X(graph_skipped_frames) \
     X(graph_executed_wall_ms_sum) \
-    X(graph_skipped_wall_ms_sum)
+    X(graph_skipped_wall_ms_sum) \
+    X(node_memory_lock_acquires) \
+    X(node_memory_lock_wait_us) \
+    X(node_memory_lock_max_wait_us) \
+    X(node_memory_lock_hold_wall_us)
 
 #define CHRONON_COUNTERS_VIDEO(X) \
     X(video_decode_frames) \

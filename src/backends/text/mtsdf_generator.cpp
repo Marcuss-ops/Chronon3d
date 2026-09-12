@@ -2,13 +2,19 @@
 
 #ifdef CHRONON3D_ENABLE_TEXT
 
+#include <chronon3d/core/profiling/profiling_context.hpp>  // g_current_counters
+#include <chronon3d/core/profiling/render_counter_types.hpp>  // RenderCounters
+
 #include <ft2build.h>
 #include FT_OUTLINE_H
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <mutex>
 
@@ -164,6 +170,27 @@ float encode_distance(double distance, double range) noexcept {
     return static_cast<float>(std::clamp(0.5 + distance / range, 0.0, 1.0));
 }
 
+// Measures how long the FreeType guard is held and folds it into the render
+// counters, so the lock's real cost is observable instead of assumed. Same
+// pattern as the FramebufferPool lock meter.
+class MtsdfLockHoldMeter {
+public:
+    MtsdfLockHoldMeter() noexcept : t0_(std::chrono::steady_clock::now()) {}
+    ~MtsdfLockHoldMeter() {
+        if (!profiling::g_current_counters) return;
+        profiling::g_current_counters->mtsdf_lock_hold_wall_us.fetch_add(
+            static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - t0_).count()),
+            std::memory_order_relaxed);
+    }
+    MtsdfLockHoldMeter(const MtsdfLockHoldMeter&) = delete;
+    MtsdfLockHoldMeter& operator=(const MtsdfLockHoldMeter&) = delete;
+
+private:
+    std::chrono::steady_clock::time_point t0_;
+};
+
 float packed_rgba8(float r, float g, float b, float a) noexcept {
     const auto byte = [](float value) {
         return static_cast<std::uint32_t>(std::clamp(
@@ -181,32 +208,71 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     std::uint16_t distance_range_px, std::uint16_t padding_px) {
     if (!face || em_px == 0 || distance_range_px == 0) return std::nullopt;
 
-    // FT_Face is mutable (FT_Load_Glyph updates face->glyph). The cache owns
-    // the face, but generation may be requested by several graph workers.
-    static std::mutex face_mutex;
-    std::lock_guard lock(face_mutex);
-    if (FT_Load_Glyph(face, glyph_id, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING) != 0 ||
-        face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
-        return std::nullopt;
-    }
-
-    FT_BBox box{};
-    FT_Outline_Get_CBox(&face->glyph->outline, &box);
-    const double min_x = static_cast<double>(box.xMin) / 64.0;
-    const double max_x = static_cast<double>(box.xMax) / 64.0;
-    const double min_y = -static_cast<double>(box.yMax) / 64.0;
-    const double max_y = -static_cast<double>(box.yMin) / 64.0;
-    if (!(max_x > min_x && max_y > min_y)) return std::nullopt;
-
+    // ── Narrow critical section (TICKET-HOTPATH-TEXT-MTSDF-CONTENTION) ────
+    //
+    // FT_Face is mutable (FT_Load_Glyph updates face->glyph) and the face is
+    // owned by the FreeType face cache, so FreeType state needs a guard. That
+    // guard used to live for the WHOLE function, which serialized the
+    // O(width*height*edges) distance-field construction of every glyph from
+    // every worker behind one process-wide mutex — a hard ceiling on
+    // subtitle / multi-font / cold-atlas bursts.
+    //
+    // The guard now covers only the FreeType-owned work: load, control-box
+    // read, outline decomposition (which reads the face-owned FT_Outline
+    // through our callbacks) and the advance read. Everything after it runs on
+    // local data, unlocked and parallel.
+    //
+    // Why still process-wide rather than per-face: this boundary receives a
+    // raw `FT_Face`, not the cache entry that owns it. Threading the cache's
+    // per-entry mutex through here is the follow-up in
+    // docs/tickets/TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md (Demolition Debt:
+    // ACTIVE, owner = text backend, exit = per-face guard in place).
     OutlineBuild build;
-    FT_Outline_Funcs funcs{};
-    funcs.move_to = outline_move_to;
-    funcs.line_to = outline_line_to;
-    funcs.conic_to = outline_conic_to;
-    funcs.cubic_to = outline_cubic_to;
-    if (FT_Outline_Decompose(&face->glyph->outline, &funcs, &build) != 0) {
-        return std::nullopt;
+    double min_x = 0.0;
+    double max_x = 0.0;
+    double min_y = 0.0;
+    double max_y = 0.0;
+    double advance_x = 0.0;
+    {
+        static std::mutex face_mutex;
+        const auto wait_t0 = std::chrono::steady_clock::now();
+        const std::lock_guard lock(face_mutex);
+        const auto hold_t0 = std::chrono::steady_clock::now();
+        const MtsdfLockHoldMeter hold_meter{};
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->mtsdf_lock_wait_us.fetch_add(
+                static_cast<std::uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        hold_t0 - wait_t0).count()),
+                std::memory_order_relaxed);
+        }
+
+        if (FT_Load_Glyph(face, glyph_id, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING) != 0 ||
+            face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
+            return std::nullopt;
+        }
+
+        FT_BBox box{};
+        FT_Outline_Get_CBox(&face->glyph->outline, &box);
+        min_x = static_cast<double>(box.xMin) / 64.0;
+        max_x = static_cast<double>(box.xMax) / 64.0;
+        min_y = -static_cast<double>(box.yMax) / 64.0;
+        max_y = -static_cast<double>(box.yMin) / 64.0;
+        if (!(max_x > min_x && max_y > min_y)) return std::nullopt;
+
+        FT_Outline_Funcs funcs{};
+        funcs.move_to = outline_move_to;
+        funcs.line_to = outline_line_to;
+        funcs.conic_to = outline_conic_to;
+        funcs.cubic_to = outline_cubic_to;
+        if (FT_Outline_Decompose(&face->glyph->outline, &funcs, &build) != 0) {
+            return std::nullopt;
+        }
+        // Read every face-owned scalar INSIDE the guard: after it, `face` may
+        // be re-loaded by another worker.
+        advance_x = static_cast<double>(face->glyph->advance.x / 64.0);
     }
+    // ── Unlocked, parallel section ───────────────────────────────────────
     finish_contour(build);
     if (build.contours.empty()) return std::nullopt;
 
@@ -241,7 +307,7 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     result.height = height;
     result.x_offset = static_cast<std::int32_t>(std::floor(origin_x));
     result.y_offset = static_cast<std::int32_t>(std::floor(origin_y));
-    result.advance_x = static_cast<float>(face->glyph->advance.x / 64.0);
+    result.advance_x = static_cast<float>(advance_x);
     result.rgba8.resize(static_cast<std::size_t>(width) * height);
 
     for (std::uint32_t y = 0; y < height; ++y) {
@@ -273,6 +339,10 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
                              encode_distance(channel_distance[2], range),
                              encode_distance(true_distance, range));
         }
+    }
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->mtsdf_glyphs_generated.fetch_add(
+            1, std::memory_order_relaxed);
     }
     return result;
 }

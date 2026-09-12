@@ -175,9 +175,19 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
         // the compact dynamic run record.  Do not walk every glyph here: that
         // both defeats the hot path and can dereference an incomplete
         // compatibility selector sample (notably for Tracking).
+        //
+        // DEMOLITION DEBT (ACTIVE) — TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT.
+        // The branch below is the CPU per-glyph compatibility path for
+        // animation shapes the GPU lowering cannot express. It is O(glyphs)
+        // per frame and contradicts the prepared-GPU-text direction: the
+        // end-state is "unsupported GPU animation fails or falls back AT
+        // PREPARE time", never a per-frame CPU glyph walk. Its two counters
+        // exist so the official corpus can prove the exit condition
+        // (0 hits) before the branch is deleted.
         if (prepared && prepared->reveal_selector &&
             !text_run::can_lower_gpu_text_animation(shape)) {
             std::uint32_t visible_limit = 0;
+            std::uint64_t glyph_evals = 0;
             const auto sample_time = ctx.frame_input.sample_time;
             for (std::size_t i = 0; i < shape.layout->placed.glyphs.size(); ++i) {
                 if (shape.glyphs[i].glyph_id == 0 ||
@@ -188,9 +198,16 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
                 const auto weight = evaluate_compiled_selector(
                     *prepared->reveal_selector, shape.layout->units,
                     static_cast<std::uint32_t>(i), sample_time);
+                ++glyph_evals;
                 if (weight <= 1e-6f) visible_limit = static_cast<std::uint32_t>(i + 1);
             }
             run.visible_glyph_count = visible_limit;
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->gpu_text_cpu_selector_compat_frames
+                    .fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->gpu_text_cpu_selector_compat_glyph_evals
+                    .fetch_add(glyph_evals, std::memory_order_relaxed);
+            }
         }
     }
     run.flags = 0u;
