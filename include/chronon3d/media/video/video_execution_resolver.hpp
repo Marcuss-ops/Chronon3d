@@ -116,6 +116,64 @@ struct GopExecutionPlan {
     bool safe_to_splice{false};
 };
 
+// ── Codec-boundary decision ─────────────────────────────────────────────
+//
+// The video analogue of AudioExecutionPath (packet_assembler.hpp): the same
+// four-state vocabulary, decided from FACTS before execution, so the executor
+// never re-decides and cannot invent a silent fallback. Audio and video codec
+// boundaries therefore speak one decision language.
+
+/// How the source bitstream is reused at this codec boundary.
+///
+///   CopyPackets      — the whole segment is copied verbatim: no decode, no
+///                      encode. Legal only while the composition leaves the
+///                      source pixels and codec parameters untouched.
+///   TrimPackets      — no pixel change; only the leading/trailing GOP(s) are
+///                      dropped to honour the requested time range.
+///   BoundaryReencode — only the leading/trailing GOP(s) are re-encoded; the
+///                      interior bitstream is copied. Requires a
+///                      codec-compatible output and a splice-safe boundary.
+///   FullReencode     — every frame is re-encoded (interior change, codec
+///                      mismatch, or an unsafe splice).
+enum class VideoExecutionPath : std::uint8_t {
+    CopyPackets,
+    TrimPackets,
+    BoundaryReencode,
+    FullReencode,
+};
+
+/// Pure decision table, the video analogue of `resolve_audio_execution()`.
+///
+/// All four inputs are facts resolved before execution, never capabilities:
+///   content_changed  — the composition changes the source content at all
+///                      (overlay, subtitle, effect). An interior change
+///                      (`content_changed && !boundary_change`) always forces a
+///                      full re-encode: the copied interior would reference
+///                      rebuilt pixels.
+///   boundary_change  — the change (if any) is confined to the leading/trailing
+///                      GOP(s); it can be true with `content_changed == false`,
+///                      which is a pure time-range trim.
+///   codec_compatible — the output codec/parameters match the source, so the
+///                      encoder can emit packets into the copied stream.
+///   splice_safe      — concatenating copied and freshly-encoded packets stays
+///                      decodable (GOP/reference structure permits it).
+[[nodiscard]] constexpr VideoExecutionPath resolve_video_execution_path(
+    bool content_changed,
+    bool boundary_change,
+    bool codec_compatible,
+    bool splice_safe) noexcept {
+    if (!content_changed && !boundary_change && codec_compatible) {
+        return VideoExecutionPath::CopyPackets;
+    }
+    if (!content_changed && boundary_change && codec_compatible) {
+        return VideoExecutionPath::TrimPackets;
+    }
+    if (content_changed && boundary_change && codec_compatible && splice_safe) {
+        return VideoExecutionPath::BoundaryReencode;
+    }
+    return VideoExecutionPath::FullReencode;
+}
+
 struct VideoExecutionDecision {
     // Authoritative FINAL plan. The executor executes exactly these axes and
     // never re-decides policy; downgrades (e.g. a hybrid GOP plan that cannot
@@ -130,6 +188,18 @@ struct VideoExecutionDecision {
     // Populated when the final plan copies packets (whole-clip or per-GOP).
     // Null otherwise.
     std::optional<GopExecutionPlan> gop_plan{};
+    // Codec-boundary decision for this plan. CopyPackets / TrimPackets /
+    // BoundaryReencode mean the source bitstream is (partly) preserved;
+    // FullReencode means the encoder emits every frame. A plan that never
+    // reuses the source bitstream reports FullReencode.
+    //
+    // The analysis-aware entry point (resolve_video_execution_with_gop_analysis)
+    // always reports a path consistent with the FINAL plan. The intent-only
+    // overload is the preflight layer: with a hybrid intent and no analysis yet
+    // it reports the boundary IDEAL (BoundaryReencode) while the declared plan
+    // still needs the compressed-source preflight; the final entry point then
+    // replaces that ideal with the plan-consistent path.
+    VideoExecutionPath codec_path{VideoExecutionPath::FullReencode};
 };
 
 /// GOP-level facts extracted by the caller's compressed-source preflight
@@ -145,6 +215,18 @@ struct GopAnalysisSummary {
     bool hybrid{false};           ///< copy_gops > 0 && reencode_gops > 0
     bool safe_to_splice{false};   ///< valid only when hybrid
 };
+
+/// Reduce GOP pre-analysis + authoring intent to the boundary decision.
+///
+/// `intent_gop_copy_only` asserts the whole clip is untouched;
+/// `intent_allow_hybrid_gop` allows a boundary-only change. When the source
+/// was not inspected the splice safety is unknown and therefore unsafe (fail
+/// closed), and an explicit copy intent that the preflight cannot prove
+/// collapses to FullReencode rather than an unverified copy.
+[[nodiscard]] VideoExecutionPath resolve_video_execution_path_from_gop_analysis(
+    bool intent_gop_copy_only,
+    bool intent_allow_hybrid_gop,
+    const GopAnalysisSummary& analysis) noexcept;
 
 /// Public, backend-neutral resolution. `has_gop_source` / `gop_copy_only` /
 /// `allow_hybrid_gop` describe authoring intent; when a caller has already
