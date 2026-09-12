@@ -317,6 +317,12 @@ void execute_fused_batch_impl(
                             sx = m[0][0];
                             sy = m[1][1];
                             opacity *= xform.opacity();
+                        } else {
+                            const auto m = tr_node.world_matrix(ctx);
+                            tx = m[3][0];
+                            ty = m[3][1];
+                            sx = m[0][0];
+                            sy = m[1][1];
                         }
                         all_runs.push_back(build_prepared_mtsdf_run(
                             ctx, shape, tx, ty, sx, sy, opacity));
@@ -361,6 +367,12 @@ void execute_fused_batch_impl(
                 sx = m[0][0];
                 sy = m[1][1];
                 opacity *= xform.opacity();
+            } else {
+                const auto m = tr_node.world_matrix(ctx);
+                tx = m[3][0];
+                ty = m[3][1];
+                sx = m[0][0];
+                sy = m[1][1];
             }
 
             // Static runs are already compiled at scene preparation time and

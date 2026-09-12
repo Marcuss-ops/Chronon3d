@@ -145,23 +145,46 @@ NodeExecResult SourceNode::execute(
             producer_surface.bounds);
     }
 
-    // Keep the CPU clear only for the software backend.  A Vulkan video job
-    // must materialize even a full-frame color layer as a native surface so
-    // the final framebuffer can stay device-local all the way to NVENC.
+    // Keep the CPU clear for software backend. On a Vulkan video job,
+    // materialize the full-frame color directly into a native surface so
+    // the final framebuffer stays device-local all the way to NVENC.
     const bool native_surface_backend =
         ctx.backend && ctx.backend->supports_native_video_surface();
-    if (direct_full_frame_fill && !native_surface_backend) {
-        Color fill_color = m_node.color.to_linear();
-        fill_color.a *= opacity;
-        fb->clear(fill_color);
-        fb->set_opaque(true);
-        if (ctx.policy.diagnostics_enabled) {
-            spdlog::info("[source-fast-path] node='{}' direct_full_frame_fill=1 pixels={}",
-                         m_name,
-                         static_cast<std::uint64_t>(ctx.frame_input.width) *
-                             static_cast<std::uint64_t>(ctx.frame_input.height));
+    if (direct_full_frame_fill) {
+        if (native_surface_backend && ctx.surface_registry) {
+            if (ensure_empty_native_surface(ctx, *fb)) {
+                bool alpha_zero = false;
+                const Color fill_color =
+                    native_promotion::premultiply(m_node.color, opacity, &alpha_zero);
+                if (!alpha_zero) {
+                    const auto res = ctx.backend->fill_rect_surface(
+                        fb->surface_handle(), 0, 0, fb->width(), fb->height(), fill_color);
+                    if (res.ok()) {
+                        fb->set_opaque(opacity >= 1.0f);
+                        if (ctx.policy.diagnostics_enabled) {
+                            spdlog::info("[source-fast-path-gpu] node='{}' direct_full_frame_fill=1 pixels={}",
+                                         m_name,
+                                         static_cast<std::uint64_t>(ctx.frame_input.width) *
+                                             static_cast<std::uint64_t>(ctx.frame_input.height));
+                        }
+                        return NodeExecResult{std::move(fb)};
+                    }
+                }
+            }
         }
-        return NodeExecResult{std::move(fb)};
+        if (!native_surface_backend) {
+            Color fill_color = m_node.color.to_linear();
+            fill_color.a *= opacity;
+            fb->clear(fill_color);
+            fb->set_opaque(true);
+            if (ctx.policy.diagnostics_enabled) {
+                spdlog::info("[source-fast-path] node='{}' direct_full_frame_fill=1 pixels={}",
+                             m_name,
+                             static_cast<std::uint64_t>(ctx.frame_input.width) *
+                                 static_cast<std::uint64_t>(ctx.frame_input.height));
+            }
+            return NodeExecResult{std::move(fb)};
+        }
     }
 
     if (ctx.backend) {
