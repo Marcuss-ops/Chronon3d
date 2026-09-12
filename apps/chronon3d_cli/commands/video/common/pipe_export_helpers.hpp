@@ -10,6 +10,7 @@
 
 #include <exception>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d::cli {
@@ -36,7 +37,12 @@ void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::excep
 
 [[nodiscard]] size_t compute_pipe_arena_size(int width, int height);
 
-[[nodiscard]] FfmpegPipeOptions make_pipe_options(
+/// Build the encoder pipe options from the export options.
+///
+/// Returns `std::nullopt` (after logging) when a requested pipe pixel format
+/// is outside the canonical vocabulary. There is no silent fallback: an
+/// unknown format must fail the export, not quietly become RGBA.
+[[nodiscard]] std::optional<FfmpegPipeOptions> make_pipe_options(
     const CompiledComposition& compiled,
     const FfmpegExportOptions& opts,
     const std::string& codec,

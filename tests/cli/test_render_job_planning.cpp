@@ -552,6 +552,35 @@ TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {
         std::exception);
 }
 
+TEST_CASE("normalize_render_job validates the pipe pixel format against the canonical vocabulary") {
+    const JobCaps auto_host{"auto"};
+
+    // Unknown name: rejected at the boundary. Before this validation the value
+    // travelled to the runtime parser, which mapped anything unrecognised onto
+    // RGBA — a formally successful export in the wrong pixel format.
+    for (const char* bad : {"nv21", "nv12 ", "yuv420", "banana"}) {
+        JobRequest request = cli_request_for("auto", "none", "pipe", "auto");
+        request.output.pipe_pixfmt = bad;
+        const auto normalized =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        INFO("rejected value: '" << bad << "'");
+        REQUIRE_FALSE(normalized.has_value());
+        CHECK(normalized.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidPipePixelFormat);
+    }
+
+    // Every accepted spelling, including the empty "no explicit request" case.
+    for (const char* good : {"", "rgba", "yuv420p", "nv12", "p010", "p010le"}) {
+        JobRequest request = cli_request_for("auto", "none", "pipe", "auto");
+        request.output.pipe_pixfmt = good;
+        INFO("accepted value: '" << good << "'");
+        const auto normalized =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE(normalized.has_value());
+        CHECK(normalized.value().output.pipe_pixfmt == good);
+    }
+}
+
 #ifdef CHRONON3D_TEST_VIDEO_EXPORT_DISABLED
 TEST_CASE("Video RenderJob returns UnsupportedMode when exporter target is disabled") {
     auto registry = make_registry();

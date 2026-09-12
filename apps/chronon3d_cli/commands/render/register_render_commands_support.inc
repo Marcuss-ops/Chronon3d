@@ -167,7 +167,12 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_flag("--gop-copy-only", args.video_settings.gop_copy_only, "Copy compressed video/audio packets without rendering (explicit source-equivalence contract)");
     video->add_option("--ffmpeg-mode", args.video_settings.ffmpeg_mode, "FFmpeg mode: pipe or png")->check(CLI::IsMember({"pipe", "png"}));
     video->add_flag("--ffmpeg-verbose", args.video_settings.ffmpeg_verbose, "Show FFmpeg logs");
-    video->add_option("--pipe-pixfmt", args.video_settings.pipe_pixfmt, "Pipe pixel format")->check(CLI::IsMember({"rgba", "yuv420p", "nv12", "p010"}));
+    // ONE vocabulary: the accepted names come from the canonical pipe
+    // pixel-format authority (see pipe_pixfmt_vocabulary.hpp), so this option
+    // can never advertise a set the parser rejects — or accept one it cannot
+    // parse.
+    video->add_option("--pipe-pixfmt", args.video_settings.pipe_pixfmt, "Pipe pixel format")
+        ->check(CLI::IsMember(pipe_pixfmt_source_names()));
     video->add_option("--color-output", args.video_settings.color_output, "Output color space")->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
     video->add_option("--pipe-writer", args.video_settings.pipe_writer, "Pipe writer: classic or io_uring")->check(CLI::IsMember({"classic", "io_uring"}));
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG

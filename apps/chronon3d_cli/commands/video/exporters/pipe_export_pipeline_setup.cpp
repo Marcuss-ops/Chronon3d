@@ -169,10 +169,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                 .device_runtime = session->device_runtime});
             if (!child_encoder) return session;
             auto child_options = make_pipe_options(compiled, child_opts, child_codec, cpu_budget);
-            child_options.width = static_cast<int>(variant.width);
-            child_options.height = static_cast<int>(variant.height);
-            child_options.output_path = child_opts.output.output;
-            children.push_back({std::move(child_encoder), std::move(child_options)});
+            if (!child_options) {
+                // Invalid pipe pixel format in this variant: fail the whole
+                // session (encoder is still null, so the caller detects it).
+                return session;
+            }
+            child_options->width = static_cast<int>(variant.width);
+            child_options->height = static_cast<int>(variant.height);
+            child_options->output_path = child_opts.output.output;
+            children.push_back({std::move(child_encoder), std::move(*child_options)});
         }
         session->encoder = std::make_unique<VariantFanoutEncoder>(std::move(children));
     } else {
@@ -246,12 +251,19 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             feed_cap.host_frame, feed_cap.direct_yuv, feed_cap.native_surface);
     }
     auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
-    pipe_options.direct_yuv_mode = direct_yuv_requested;
-    pipe_options.audio_start_seconds = static_cast<double>(start.integral()) /
+    if (!pipe_options) {
+        // Invalid pipe pixel format: release the encoder so the caller's
+        // readiness check (`!session->encoder`) reports a loud failure instead
+        // of proceeding with a guessed format.
+        session->encoder.reset();
+        return session;
+    }
+    pipe_options->direct_yuv_mode = direct_yuv_requested;
+    pipe_options->audio_start_seconds = static_cast<double>(start.integral()) /
         (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
-    pipe_options.audio_end_seconds = static_cast<double>(end.integral()) /
+    pipe_options->audio_end_seconds = static_cast<double>(end.integral()) /
         (opts.output.fps_value() > 0.0 ? opts.output.fps_value() : 30.0);
-    if (!session->encoder->open(pipe_options)) {
+    if (!session->encoder->open(*pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
     }

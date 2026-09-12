@@ -4,8 +4,7 @@ if(NOT CHRONON3D_BUILD_CLI OR NOT TARGET chronon3d_cli_render)
 endif()
 
 set(_cli_tests_link_targets
-    chronon3d_cli_render
-    chronon3d_cli_core
+    "$<LINK_GROUP:RESCAN,chronon3d_cli_render,chronon3d_cli_core>"
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
@@ -72,8 +71,7 @@ endif()
 # Canonical RenderJob planner/executor contract remains a focused target so
 # matrix builds can certify it independently from the broad CLI executable.
 set(_render_job_contract_links
-    chronon3d_cli_render
-    chronon3d_cli_core
+    "$<LINK_GROUP:RESCAN,chronon3d_cli_render,chronon3d_cli_core>"
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
