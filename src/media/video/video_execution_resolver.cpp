@@ -54,6 +54,7 @@ struct Decision {
     bool valid{true};
     std::uint32_t downgrade_count{0};
     std::optional<GopExecutionPlan> gop_plan{};
+    VideoExecutionPath codec_path{VideoExecutionPath::FullReencode};
 };
 
 VideoExecutionDecision to_decision(const Decision& d) noexcept {
@@ -63,6 +64,7 @@ VideoExecutionDecision to_decision(const Decision& d) noexcept {
     result.valid = d.valid;
     result.downgrade_count = d.downgrade_count;
     result.gop_plan = d.gop_plan;
+    result.codec_path = d.codec_path;
     return result;
 }
 
@@ -93,13 +95,18 @@ Decision resolve_plan_from_capabilities(
     }
 
     if (has_gop_source && gop_copy_only) {
+        // Codec boundary decided by the shared table, never hard-coded here:
+        // an untouched, codec-compatible segment copies its packets.
         return {.plan = packet_copy_plan(),
                 .path = ResolvedPath::BitstreamCopy,
                 .render_fallback = ResolvedPath::DirectYuv,
                 .reason = "explicit_gop_copy",
                 .valid = true,
                 .gop_plan = GopExecutionPlan{.all_copy = true,
-                                             .safe_to_splice = true}};
+                                             .safe_to_splice = true},
+                .codec_path = resolve_video_execution_path(
+                    /*content_changed=*/false, /*boundary_change=*/false,
+                    /*codec_compatible=*/true, /*splice_safe=*/true)};
     }
 
     // Smart GOP hybrid intent. The resolver declares that a hybrid plan IS
@@ -113,7 +120,14 @@ Decision resolve_plan_from_capabilities(
                 .render_fallback = ResolvedPath::DirectYuv,
                 .reason = "hybrid_gop_source",
                 .valid = true,
-                .gop_plan = GopExecutionPlan{.safe_to_splice = false}};
+                .gop_plan = GopExecutionPlan{.safe_to_splice = false},
+                // Preflight is deferred: the intent is a boundary-only
+                // re-encode, and safe_to_splice=false records that the
+                // compressed-source inspection must still confirm it. The
+                // final entry point replaces this with the proven path.
+                .codec_path = resolve_video_execution_path(
+                    /*content_changed=*/true, /*boundary_change=*/true,
+                    /*codec_compatible=*/true, /*splice_safe=*/true)};
     }
 
     if (hot_path == GpuHotPathMode::RequireDirectYuv) {
@@ -247,6 +261,30 @@ Decision resolve_from_requirements(
 
 } // namespace
 
+VideoExecutionPath resolve_video_execution_path_from_gop_analysis(
+    bool intent_gop_copy_only,
+    bool intent_allow_hybrid_gop,
+    const GopAnalysisSummary& analysis) noexcept {
+    if (!intent_gop_copy_only && !intent_allow_hybrid_gop) {
+        // No bitstream-reuse intent: the source is not a copy candidate.
+        return VideoExecutionPath::FullReencode;
+    }
+    if (intent_gop_copy_only && !(analysis.available && analysis.all_copy)) {
+        // Explicit copy intent the preflight cannot prove: fail closed.
+        return VideoExecutionPath::FullReencode;
+    }
+    // A preflight that found every GOP copy-eligible collapses a hybrid
+    // intent to a whole-clip copy; otherwise the change is interior-or-
+    // boundary and the predicate table decides.
+    const bool reusable = analysis.available && analysis.all_copy;
+    const bool content_changed = intent_allow_hybrid_gop && !reusable;
+    return resolve_video_execution_path(
+        /*content_changed=*/content_changed,
+        /*boundary_change=*/content_changed && analysis.available && analysis.hybrid,
+        /*codec_compatible=*/analysis.available,
+        /*splice_safe=*/analysis.available && analysis.safe_to_splice);
+}
+
 VideoExecutionDecision resolve_video_execution(
     const ExecutionRequirements& requirements,
     const OutputSpec& output,
@@ -266,12 +304,22 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
     bool intent_gop_copy_only,
     bool intent_allow_hybrid_gop,
     const GopAnalysisSummary& analysis) noexcept {
+    // Single codec-boundary authority: the pure table maps the GOP facts to
+    // the reuse path. Branches below either report that path (when they copy
+    // packets) or FullReencode (when the final plan re-encodes every frame);
+    // no branch invents the reuse decision from capabilities.
+    const VideoExecutionPath boundary_path =
+        resolve_video_execution_path_from_gop_analysis(
+            intent_gop_copy_only, intent_allow_hybrid_gop, analysis);
+
     // Composition is an explicit visual requirement. GOP copy/hybrid intent
     // may still provide audio timing, but it must not replace the graph with
     // DirectYuv or packet-copy execution and lose authored layers.
     if (requirements.gpu_required && requirements.composition_required) {
-        return resolve_video_execution(requirements, output, capabilities,
-                                       false, false, false);
+        VideoExecutionDecision decision = resolve_video_execution(
+            requirements, output, capabilities, false, false, false);
+        decision.codec_path = VideoExecutionPath::FullReencode;
+        return decision;
     }
 
     // Explicit whole-clip copy request: the plan is BitstreamCopy only when
@@ -292,6 +340,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             decision.reason = "explicit_gop_copy";
             decision.valid = true;
             decision.gop_plan = gop;
+            decision.codec_path = boundary_path;
             return decision;
         }
         // Preflight failed (or the source could not be inspected): downgrade
@@ -303,6 +352,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             : "gop_copy_preflight_unavailable";
         decision.valid = false;
         decision.downgrade_count = 1;
+        decision.codec_path = VideoExecutionPath::FullReencode;
         return decision;
     }
 
@@ -323,6 +373,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             decision.reason = "gop_all_copy_eligible";
             decision.valid = true;
             decision.gop_plan = gop;
+            decision.codec_path = boundary_path;
             return decision;
         }
         VideoExecutionDecision decision;
@@ -346,6 +397,10 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             decision.reason = "gop_reencode_required";
         }
         decision.downgrade_count = 1;
+        // The boundary ideal may be BoundaryReencode, but the shipped plan
+        // re-encodes every frame (DirectYuv); the FINAL codec path is
+        // therefore FullReencode and `downgrade_count` records the loss.
+        decision.codec_path = VideoExecutionPath::FullReencode;
         return decision;
     }
 
