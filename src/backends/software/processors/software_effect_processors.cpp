@@ -240,7 +240,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<StrokeParams>(&params)) {
             apply_stroke(fb, p->color, p->width, p->softness, p->mode,
-                         std::nullopt, context.effect_scratch);
+                         *context.effect_scratch);
         }
     }
 };
@@ -254,7 +254,7 @@ public:
         if (auto* p = std::get_if<RadialBlurParams>(&params)) {
             apply_radial_blur(fb, p->center.x, p->center.y,
                               p->amount, p->render_samples,
-                              std::nullopt, context.effect_scratch);
+                              *context.effect_scratch);
         }
     }
 };
@@ -266,8 +266,8 @@ public:
     void apply(Framebuffer& fb, const EffectParams& params,
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<DirectionalBlurParams>(&params)) {
-            apply_directional_blur(fb, p->angle, p->length, p->samples,
-                                   std::nullopt, context.effect_scratch);
+            apply_directional_blur(fb, p->angle, p->length,
+                                   *context.effect_scratch, p->samples);
         }
     }
 };
@@ -280,8 +280,8 @@ public:
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<OffsetParams>(&params)) {
             apply_offset(fb, p->offset.x, p->offset.y,
-                         p->edge_mode, p->filter, context.clip,
-                         context.effect_scratch);
+                         p->edge_mode, p->filter,
+                         *context.effect_scratch, context.clip);
         }
     }
 };

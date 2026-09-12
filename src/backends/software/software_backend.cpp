@@ -262,6 +262,11 @@ void SoftwareBackend::apply_effect_stack(
     local_context.clip = local_clip;
     local_context.curve_cache = m_proc_ctx.curve_cache;
     local_context.counters = m_counters;
+    // Fail loud if the ProcessorSourceExtras wiring ever regresses: the
+    // effect dispatchers dereference this pointer to satisfy the required
+    // `EffectScratchResources&` contract.
+    assert(m_proc_ctx.effect_scratch != nullptr &&
+           "processor context has no effect scratch (ProcessorSourceExtras wiring)");
     local_context.effect_scratch = m_proc_ctx.effect_scratch;
 
     if (context.processors_resolved) {

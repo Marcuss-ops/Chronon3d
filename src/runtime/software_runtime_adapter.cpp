@@ -106,6 +106,14 @@ make_software_backend_instance(
     extras.image_backend  = renderer->image_backend();
     extras.image_renderer = &renderer->image_renderer();
     extras.curve_cache    = &runtime.curve_cache();
+    // Session-owned scratch workspaces: mandatory for the zero-allocation
+    // effect/mesh/DOF paths (see ProcessorSourceExtras).
+    {
+        auto& software_resources = renderer->software_session().software;
+        extras.effect_scratch = &software_resources.effect_scratch;
+        extras.depth_buffer_pool = &software_resources.depth_buffer_pool;
+        extras.dof_scratch = &software_resources.dof_scratch;
+    }
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine    = &renderer->font_engine();
 #endif

@@ -15,6 +15,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>  // EffectScratchResources
 #include "src/backends/software/processors/effects/stroke/stroke.hpp"
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
@@ -25,6 +26,10 @@ using namespace chronon3d;
 using namespace chronon3d::renderer;
 
 namespace {
+
+/// Reusable effect workspace (the effect contract requires a scratch
+/// reference; there is no silent heap fallback).
+chronon3d::EffectScratchResources g_effect_scratch;
 
 /// Helper: fill a 5×5 with a single impulse at centre (2,2).
 Framebuffer make_impulse_5x5_centre() {
@@ -54,7 +59,7 @@ TEST_CASE("Stroke: width=0 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, StrokeMode::Outside, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -74,7 +79,7 @@ TEST_CASE("Stroke: Outside mode from impulse gives 3x3 block — sum_alpha=9") {
 
     Framebuffer fb = make_impulse_5x5_centre();
 
-    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside, g_effect_scratch);
 
     // Composed result: source pixel (alpha=1) + 8 ring pixels (alpha=1) = 9
     float total = sum_alpha(fb);
@@ -91,7 +96,7 @@ TEST_CASE("Stroke: Outside mode from impulse gives 3x3 block — sum_alpha=9") {
 TEST_CASE("Stroke: Inside mode from 3x3 square gives 8 border pixels") {
     Framebuffer fb = make_square_3x3();
 
-    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Inside);
+    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Inside, g_effect_scratch);
 
     // Inside: stroke_a = src_a - ero_a
     // For 3×3 square with radius 1: eroded = centre pixel only
@@ -109,7 +114,7 @@ TEST_CASE("Stroke: Outside mode composed result — sum_alpha=9 (1 src + 8 ring)
     // Composed result: centre alpha=1 + 8 ring pixels alpha=1 → sum=9
 
     Framebuffer fb = make_impulse_5x5_centre();
-    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside, g_effect_scratch);
 
     float total = sum_alpha(fb);
     CHECK(total == doctest::Approx(9.0f).epsilon(kScalarEpsilon));
@@ -121,7 +126,7 @@ TEST_CASE("Stroke: Outside mode composed result — sum_alpha=9 (1 src + 8 ring)
 
 TEST_CASE("Stroke: Inside mode composed result — sum_alpha=8 (9 src - 1 eroded)") {
     Framebuffer fb = make_square_3x3();
-    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Inside);
+    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Inside, g_effect_scratch);
 
     float total = sum_alpha(fb);
     CHECK(total == doctest::Approx(8.0f).epsilon(kScalarEpsilon));
@@ -141,7 +146,7 @@ TEST_CASE("Stroke: outside preserves centre pixel colour") {
     fb.clear(Color::transparent());
     fb.set_pixel(2, 2, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside, g_effect_scratch);
 
     // Centre pixel: original white preserved
     Color centre = fb.get_pixel(2, 2);
@@ -172,7 +177,7 @@ TEST_CASE("Stroke: softness — alpha is non-increasing outward") {
     for (int y = 1; y <= 9; ++y)
         fb.set_pixel(5, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 2.0f, 2.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 1.0f, 1.0f, 1.0f}, 2.0f, 2.0f, StrokeMode::Outside, g_effect_scratch);
 
     // Sample alpha along x-axis at y=5 (through centre of line)
     // Starting from the source edge (x=5, stroke_a=0) outward
@@ -233,7 +238,7 @@ TEST_CASE("Stroke: HDR values preserved where stroke_a = 0") {
             fb.set_pixel(x, y, hdr);
 
     // With fully opaque constant image, stroke_a = 0 everywhere (no edge to stroke)
-    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside);
+    apply_stroke(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 1.0f, 0.0f, StrokeMode::Outside, g_effect_scratch);
 
     // All pixels should be unchanged
     for (int y = 0; y < 8; ++y)

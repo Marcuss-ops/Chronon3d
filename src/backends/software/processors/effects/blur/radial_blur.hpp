@@ -22,13 +22,16 @@ namespace chronon3d::renderer {
 /// \param center_y     Normalized center Y [0, 1]
 /// \param amount       Blur strength; 0 = identity
 /// \param samples      Number of taps (>= 2)
+/// \param scratch      Persistant effect workspace (REQUIRED — a null/absent
+///                     scratch used to silently allocate a heap framebuffer
+///                     per frame, breaking the zero-allocation gate)
 /// \param clip         Optional clip rectangle
 void apply_radial_blur(
     Framebuffer& fb,
     float center_x, float center_y,
     float amount,
     int samples,
-    const std::optional<raster::BBox>& clip = std::nullopt,
-    EffectScratchResources* scratch = nullptr);
+    EffectScratchResources& scratch,
+    const std::optional<raster::BBox>& clip = std::nullopt);
 
 } // namespace chronon3d::renderer

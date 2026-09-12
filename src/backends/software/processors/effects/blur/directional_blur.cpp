@@ -91,7 +91,7 @@ std::pair<int, int> directional_blur_margins(float angle_degrees, float length)
 static void apply_directional_blur_horizontal(
     Framebuffer& fb, float length, int samples,
     const std::optional<raster::BBox>& clip,
-    ::chronon3d::EffectScratchResources* scratch)
+    ::chronon3d::EffectScratchResources& scratch)
 {
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -106,16 +106,8 @@ static void apply_directional_blur_horizontal(
     const float half_len = length * 0.5f;
     const float inv_n = 1.0f / static_cast<float>(n);
 
-    std::unique_ptr<Framebuffer> owned_temp;
-    Framebuffer* temp = nullptr;
-    if (scratch) {
-        scratch->ensure_size(w, h);
-        temp = scratch->framebuffer.get();
-    } else {
-        warn_once_effect_scratch_missing("directional_blur_h");
-        owned_temp = std::make_unique<Framebuffer>(w, h);
-        temp = owned_temp.get();
-    }
+    scratch.ensure_size(w, h);
+    Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {
@@ -144,7 +136,7 @@ static void apply_directional_blur_horizontal(
 static void apply_directional_blur_vertical(
     Framebuffer& fb, float length, int samples,
     const std::optional<raster::BBox>& clip,
-    ::chronon3d::EffectScratchResources* scratch)
+    ::chronon3d::EffectScratchResources& scratch)
 {
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -159,16 +151,8 @@ static void apply_directional_blur_vertical(
     const float half_len = length * 0.5f;
     const float inv_n = 1.0f / static_cast<float>(n);
 
-    std::unique_ptr<Framebuffer> owned_temp;
-    Framebuffer* temp = nullptr;
-    if (scratch) {
-        scratch->ensure_size(w, h);
-        temp = scratch->framebuffer.get();
-    } else {
-        warn_once_effect_scratch_missing("directional_blur_v");
-        owned_temp = std::make_unique<Framebuffer>(w, h);
-        temp = owned_temp.get();
-    }
+    scratch.ensure_size(w, h);
+    Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {
@@ -198,9 +182,9 @@ void apply_directional_blur(
     Framebuffer& fb,
     float angle_degrees,
     float length,
+    ::chronon3d::EffectScratchResources& scratch,
     int samples,
-    const std::optional<raster::BBox>& clip,
-    ::chronon3d::EffectScratchResources* scratch)
+    const std::optional<raster::BBox>& clip)
 {
     if (length <= 0.0f) return;
 
@@ -230,20 +214,12 @@ void apply_directional_blur(
     }
 
     // ── Generic angle path ──
-    std::vector<float> local_taps;
-    auto& taps = scratch ? scratch->directional_taps : local_taps;
+    auto& taps = scratch.directional_taps;
     generate_taps(angle_degrees, length, samples, taps);
     if (taps.size() <= 3) return;  // identity (one dx/dy/weight triple)
 
-    std::unique_ptr<Framebuffer> owned_temp;
-    Framebuffer* temp = nullptr;
-    if (scratch) {
-        scratch->ensure_size(w, h);
-        temp = scratch->framebuffer.get();
-    } else {
-        owned_temp = std::make_unique<Framebuffer>(w, h);
-        temp = owned_temp.get();
-    }
+    scratch.ensure_size(w, h);
+    Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
 
     for (int y = y0; y < y1; ++y) {

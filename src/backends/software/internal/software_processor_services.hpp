@@ -60,6 +60,15 @@ struct ProcessorSourceExtras {
     chronon3d::image::ImageBackend*         image_backend{nullptr};
     chronon3d::ImageRenderer*               image_renderer{nullptr};
     chronon3d::CurveCache*                  curve_cache{nullptr};
+    // Session-owned reusable workspaces. These are NOT optional: the TICKET-118
+    // refactor that introduced this bundle dropped them, so the processor
+    // context carried null scratch and the scalar effects (blur/stroke/offset),
+    // the mesh depth-buffer pool and the DOF scratch silently fell back to a
+    // per-frame heap allocation. Wiring them here keeps the steady-state
+    // `framebuffer_allocations == 0` gate meaningful.
+    chronon3d::EffectScratchResources*      effect_scratch{nullptr};
+    chronon3d::DepthBufferPool*             depth_buffer_pool{nullptr};
+    chronon3d::renderer::DofScratchBuffers* dof_scratch{nullptr};
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     chronon3d::FontEngine*                  font_engine{nullptr};
 #endif

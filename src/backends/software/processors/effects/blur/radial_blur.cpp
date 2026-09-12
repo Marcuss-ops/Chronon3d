@@ -74,8 +74,8 @@ void apply_radial_blur(
     float center_x, float center_y,
     float amount,
     int samples,
-    const std::optional<raster::BBox>& clip,
-    EffectScratchResources* scratch)
+    EffectScratchResources& scratch,
+    const std::optional<raster::BBox>& clip)
 {
     if (amount <= 0.0f || samples <= 1) return;
 
@@ -91,30 +91,19 @@ void apply_radial_blur(
     const float cy_px = center_y * static_cast<float>(std::max(0, h - 1)) + 0.5f;
     const float blur_scale = amount * 0.1f;
 
-    std::vector<EffectScratchResources::RadialTap> local_taps;
-    EffectScratchResources* resources = scratch;
-    if (resources) {
-        resources->ensure_size(w, h);
-    }
-    auto& taps = resources ? resources->radial_taps : local_taps;
-    if (!resources || resources->radial_samples != samples ||
-        resources->radial_amount != blur_scale) {
+    // The scratch workspace is REQUIRED (reference, not pointer): the old
+    // `scratch == nullptr` branch allocated a heap framebuffer per call, i.e.
+    // one per effect per frame in the render loop.
+    scratch.ensure_size(w, h);
+    auto& taps = scratch.radial_taps;
+    if (scratch.radial_samples != samples ||
+        scratch.radial_amount != blur_scale) {
         build_radial_taps(blur_scale, samples, taps);
-        if (resources) {
-            resources->radial_samples = samples;
-            resources->radial_amount = blur_scale;
-        }
+        scratch.radial_samples = samples;
+        scratch.radial_amount = blur_scale;
     }
 
-    std::unique_ptr<Framebuffer> owned_temp;
-    Framebuffer* temp = nullptr;
-    if (resources) {
-        temp = resources->framebuffer.get();
-    } else {
-        warn_once_effect_scratch_missing("radial_blur");
-        owned_temp = std::make_unique<Framebuffer>(w, h);
-        temp = owned_temp.get();
-    }
+    Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
     const AlphaCentroid source_centroid = compute_alpha_centroid(*temp);
     // FIXING.md H-01 — inline clamp bilinear on raw Color* (no Sampler2D vtable/indirection per pixel).
@@ -178,15 +167,7 @@ void apply_radial_blur(
         std::abs(source_centroid.y - cy_px) < 1e-3f;
     if (!source_is_at_blur_center &&
         (std::abs(shift_x) > 1e-3f || std::abs(shift_y) > 1e-3f)) {
-        Framebuffer* recentered = nullptr;
-        std::unique_ptr<Framebuffer> owned_recentered;
-        if (resources) {
-            recentered = resources->framebuffer_b.get();
-        } else {
-            warn_once_effect_scratch_missing("radial_blur_recenter");
-            owned_recentered = std::make_unique<Framebuffer>(w, h);
-            recentered = owned_recentered.get();
-        }
+        Framebuffer* recentered = scratch.framebuffer_b.get();
         // Reuse the same clamp helper pattern (source is fb, shifted by shift_x/y).
         const int sw = fb.width(), sh = fb.height();
         for (int y = 0; y < h; ++y) {

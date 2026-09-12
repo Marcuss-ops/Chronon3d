@@ -30,7 +30,7 @@ void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
 void apply_offset(Framebuffer& fb, float dx, float dy,
                   chronon3d::sampling::EdgeMode edge_mode,
                   chronon3d::sampling::SampleFilter filter,
-                  const std::optional<raster::BBox>& clip = std::nullopt,
-                  ::chronon3d::EffectScratchResources* scratch = nullptr);
+                  ::chronon3d::EffectScratchResources& scratch,
+                  const std::optional<raster::BBox>& clip = std::nullopt);
 
 } // namespace chronon3d::renderer

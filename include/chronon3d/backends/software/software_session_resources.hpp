@@ -121,28 +121,13 @@ struct EffectScratchResources {
     }
 };
 
-/// AUDIT-2026-09-09 N-17 — the scratch=nullptr fallback inside the scalar
-/// effect implementations is a pool-less-compatibility path (tests, CLI
-/// dry-run), never a production path: renderer-driven processors always
-/// pass EffectScratchResources. A silent fallback would reintroduce one
-/// w×h framebuffer heap allocation per frame per effect without any
-/// signal, breaking the steady-state `framebuffer_allocations == 0` gate.
-/// Warn once per thread so a stray call site surfaces loudly in
-/// diagnostics while keeping the fallback functional.
-inline void warn_once_effect_scratch_missing(const char* effect_name) {
-    // thread_local is the warn-once-per-thread state; keep the mutable bit
-    // explicit so the first call logs and subsequent calls return. The old
-    // initializer set this to true immediately, making the `if (!warned)`
-    // guard dead and logging on every fallback invocation.
-    thread_local bool warned = false;
-    if (warned) return;
-    warned = true;
-    spdlog::warn(
-        "effect scratch missing: '{}' allocated its own framebuffer "
-        "(pool-less fallback). Renderer-driven paths must pass "
-        "EffectScratchResources; if this fires on one, it is a bug.",
-        effect_name);
-}
+// AUDIT-2026-09-09 N-17 (superseded) — the `scratch == nullptr` heap fallback
+// used to live in every scalar effect implementation, guarded only by a
+// warn-once log. It was replaced by a REQUIRED `EffectScratchResources&`
+// parameter: the wrong path (a pool-less call) is no longer representable, so
+// no warn-once helper is needed. The renderer-driven processors receive the
+// session scratch through `SoftwareProcessorContext::effect_scratch`, which is
+// wired from `ProcessorSourceExtras` in make_processor_context().
 
 /// Software-backend specific resources attached to a single render job.
 ///

@@ -13,6 +13,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/effects/color_contract.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>  // EffectScratchResources
 #include "src/backends/software/processors/effects/generate/fill_noise_offset.hpp"
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
@@ -22,6 +23,12 @@ using namespace chronon3d;
 
 using namespace chronon3d::renderer;
 using namespace chronon3d::sampling;
+
+namespace {
+/// Reusable effect workspace (apply_offset requires a scratch reference; no
+/// silent heap fallback remains).
+chronon3d::EffectScratchResources g_effect_scratch;
+}  // namespace
 
 // =============================================================================
 // 1. Fill — identity (amount = 0, sezione 7.0)
@@ -317,7 +324,7 @@ TEST_CASE("Offset: dx=0 dy=0 is identity") {
     Framebuffer fb = make_ramp_4x1();
     Framebuffer original = make_ramp_4x1();
 
-    apply_offset(fb, 0.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest);
+    apply_offset(fb, 0.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         check_color_near(fb.get_pixel(x, 0),
@@ -339,7 +346,7 @@ TEST_CASE("Offset: +1 X integer with Transparent edge") {
     fb.set_pixel(2, 0, Color{0.0f, 0.0f, 1.0f, 1.0f});  // C
     fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});  // D
 
-    apply_offset(fb, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest);
+    apply_offset(fb, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest, g_effect_scratch);
 
     // Expected: 0 A B C (where 0 is transparent)
     CHECK(fb.get_pixel(0, 0) == Color::transparent());
@@ -357,7 +364,7 @@ TEST_CASE("Offset: -1 X integer with Transparent edge") {
     fb.set_pixel(2, 0, Color{0.0f, 0.0f, 1.0f, 1.0f});  // C
     fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});  // D
 
-    apply_offset(fb, -1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest);
+    apply_offset(fb, -1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest, g_effect_scratch);
 
     // Expected: B C D 0
     check_color_near(fb.get_pixel(0, 0), Color{0.0f, 1.0f, 0.0f, 1.0f}, kExactEpsilon);
@@ -377,7 +384,7 @@ TEST_CASE("Offset: shift beyond width produces all transparent") {
     fb.set_pixel(2, 0, Color{0.0f, 0.0f, 1.0f, 1.0f});
     fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
-    apply_offset(fb, 5.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest);
+    apply_offset(fb, 5.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest, g_effect_scratch);
 
     for (int x = 0; x < 4; ++x) {
         CHECK(fb.get_pixel(x, 0) == Color::transparent());
@@ -397,7 +404,7 @@ TEST_CASE("Offset: +1 X integer with Wrap edge") {
     fb.set_pixel(2, 0, Color{0.0f, 0.0f, 1.0f, 1.0f});  // C
     fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});  // D
 
-    apply_offset(fb, 1.0f, 0.0f, EdgeMode::Wrap, SampleFilter::Nearest);
+    apply_offset(fb, 1.0f, 0.0f, EdgeMode::Wrap, SampleFilter::Nearest, g_effect_scratch);
 
     // Expected: D A B C
     check_color_near(fb.get_pixel(0, 0), Color{1.0f, 1.0f, 1.0f, 1.0f}, kExactEpsilon);  // D
@@ -424,7 +431,7 @@ TEST_CASE("Offset: +2 X integer with Clamp edge") {
     fb.set_pixel(2, 0, Color{0.0f, 0.0f, 1.0f, 1.0f});  // C
     fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});  // D
 
-    apply_offset(fb, 2.0f, 0.0f, EdgeMode::Clamp, SampleFilter::Nearest);
+    apply_offset(fb, 2.0f, 0.0f, EdgeMode::Clamp, SampleFilter::Nearest, g_effect_scratch);
 
     // Expected: A A A B
     for (int x = 0; x < 3; ++x) {
@@ -450,12 +457,12 @@ TEST_CASE("Offset: integer offset with bilinear ≈ nearest") {
     // Copia per nearest
     Framebuffer fb_nearest(4, 4);
     fb_nearest.blit(src, 0, 0);
-    apply_offset(fb_nearest, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest);
+    apply_offset(fb_nearest, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest, g_effect_scratch);
 
     // Copia per bilinear
     Framebuffer fb_bilinear(4, 4);
     fb_bilinear.blit(src, 0, 0);
-    apply_offset(fb_bilinear, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Bilinear);
+    apply_offset(fb_bilinear, 1.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Bilinear, g_effect_scratch);
 
     float max_err = framebuffer_max_error(fb_nearest, fb_bilinear);
     // Bilinear and nearest produce slightly different results at integer
@@ -472,7 +479,7 @@ TEST_CASE("Offset: clip preserves pixels outside clip region") {
     Framebuffer original = make_coord_fb(8, 8);
 
     apply_offset(fb, 2.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest,
-                 raster::BBox{2, 3, 6, 7});
+                 g_effect_scratch, raster::BBox{2, 3, 6, 7});
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {

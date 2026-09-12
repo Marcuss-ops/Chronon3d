@@ -43,6 +43,7 @@ namespace chronon3d::renderer {
 /// \param width      Stroke width in pixels
 /// \param softness   Edge softness in pixels (0 = hard)
 /// \param mode       Outside | Inside | Center
+/// \param scratch    Persistent effect workspace (REQUIRED)
 /// \param clip       Optional clip rectangle
 void apply_stroke(
     Framebuffer& fb,
@@ -50,7 +51,7 @@ void apply_stroke(
     float width,
     float softness,
     StrokeMode mode,
-    const std::optional<raster::BBox>& clip = std::nullopt,
-    ::chronon3d::EffectScratchResources* scratch = nullptr);
+    ::chronon3d::EffectScratchResources& scratch,
+    const std::optional<raster::BBox>& clip = std::nullopt);
 
 } // namespace chronon3d::renderer
