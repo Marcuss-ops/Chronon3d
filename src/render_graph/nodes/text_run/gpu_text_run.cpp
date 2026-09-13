@@ -908,8 +908,9 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             continue;
         }
         const auto generated = generate_mtsdf_glyph(
-            fonts[span_index].ft_face, state.glyph_id,
-            kEmPx, kRangePx, kPaddingPx);
+            MtsdfFaceGuard{fonts[span_index].ft_face,
+                           fonts[span_index].ft_mutex.get()},
+            state.glyph_id, kEmPx, kRangePx, kPaddingPx);
         if (!generated || generated->rgba8.empty()) {
             // A drawable glyph cannot be silently omitted: a partial batch is
             // visually non-deterministic and must not be marked GPU-ready.

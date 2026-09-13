@@ -206,13 +206,45 @@ Inoltre `bind_planned_exact` (e la validation in `begin_plan_batch`) ora
 ammettono che il plan ri-posizioni una surface legata dinamicamente **finché il
 vecchio slot non ha contenuto live** — il plan è l'authority di placement.
 
-**Restano 10 rossi** (`46→49`): le surface pre-caricate dall'host con
-`create_surface()` ottengono slot dinamici che collidono con lo slot namespace
-del plan quando il planner fa aliasing; servono la mappa
-`plan_slot → physical_slot` (con consolidamento degli slot dinamici) e due fix
-di harness testo/atlas (styled-cache `ctx.runtime`, `atlas.stats().hits`,
-parità pixel text-run). Tracciati in `docs/FOLLOWUP_TICKETS.md`; non fanno
-parte dello scope di questo ticket.
+**Restano rossi** (`46→49` al 2026-09-13; **50/59** dopo il fix di harness
+sotto): le surface pre-caricate dall'host con `create_surface()` ottengono slot
+dinamici che collidono con lo slot namespace del plan quando il planner fa
+aliasing; servono la mappa `plan_slot → physical_slot` (con consolidamento degli
+slot dinamici) e fix di harness testo/atlas (styled-cache `ctx.runtime`,
+`atlas.stats().hits`, parità pixel text-run). Tracciati in
+`docs/FOLLOWUP_TICKETS.md`; non fanno parte dello scope di questo ticket.
+
+**Aggiornamento 2026-09-13 (seconda sessione) — 49→50/59 + diagnosi del
+placement.** Il fix di harness `atlas.stats().hits` è atterrato: il caso
+`VRAM glyph atlas batch residency matches per-glyph lookups` asseriva
+`hits == 1` dopo due `acquire()` di chiavi nuove e un `resolve_resident()` (pura
+proiezione), e si aspettava che un batch vuoto azzerasse l'output. Il contratto
+canonico in `include/chronon3d/runtime/gpu_glyph_atlas.hpp:254-256` dice invece
+che le entry oltre `min(keys.size(), out.size())` restano **intatte**: le due
+assertion sono state corrette contro il contratto → suite **50/59**.
+
+È stato poi **tentato** il consolidamento degli slot descritto sopra, con esito
+negativo e **revert**. Esito dell'esperimento (traccia
+`CHRONON3D_TRACE_PLAN_BIND=1`):
+
+- Il plan assegna `allocation.physical_slot` come indice **locale al plan**
+  (es. `slots=2` → slot 0/1) e `bind_planned_exact` lo usa come slot fisico
+  globale. Piani distinti nello stesso `command_batch`, o surface pre-legate con
+  `create_surface()`, collidono quindi nello stesso namespace: da qui le 5
+  eccezioni (`... attempted to change physical slot` / `... collision with
+  initialized content`).
+- Un rimedio "retirement dei transient nello slot namespace del plan" fa
+  **sparire le eccezioni** ma azzera anche i binding di surface che il plan
+  corrente non referenzia: nel caso a 3 overlay indipendenti gli output del
+  primo piano restano unbound e `download_surface` fallisce. Revertito.
+
+**Design richiesto** (non un fix di una riga): il backend deve mantenere una
+mappa `plan_slot → physical_slot` **per istanza di plan**, così che (a) piani
+distinti nello stesso batch ottengano slot fisici distinti e (b) la
+riesecuzione dello stesso plan riusi la mappa, preservando l'aliasing
+intrapiano (`gpu_surface_copy_frames == 0`). Serve un'identità di plan stabile
+più una policy di lifecycle per la mappa; il desc/`initialized` del nuovo slot va
+riconciliato col contenuto precedente quando la mappa è nuova.
 
 **Coverage gap correlato:** aggiungere una lane CI che compili un preset
 Vulkan (`linux-video-test`) è il passo che avrebbe scoperto *entrambi* i

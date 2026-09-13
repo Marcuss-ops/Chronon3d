@@ -155,6 +155,20 @@ struct FTFaceKeyHash {
     }
 };
 
+// A resolved FT_Face together with the mutex that guards its mutable
+// FreeType state. Handles that resolve the same (path, face_index,
+// size_bucket) share BOTH, so callers rasterizing from one face serialize
+// per face rather than per process. The mutex lives next to the face because
+// it is the face — not the cache — that carries mutable glyph state.
+struct FreeTypeFaceLease {
+    std::shared_ptr<FT_Face>     face;
+    std::shared_ptr<std::mutex>  mutex;
+
+    [[nodiscard]] bool valid() const noexcept {
+        return face != nullptr;
+    }
+};
+
 class FreeTypeFaceCache {
 public:
     /// Optional non-owning pointer to a shared debug-I/O fence.  When
@@ -202,6 +216,16 @@ public:
         f32 font_size
     );
 
+    /// Same resolution as get_face(), but also returns the per-face mutex that
+    /// guards the FT_Face's mutable state. Callers that mutate the face
+    /// (FreeType rasterization) take this lease; callers that only need the
+    /// lifetime anchor keep using get_face().
+    [[nodiscard]] FreeTypeFaceLease get_face_lease(
+        const std::string& resolved_path,
+        int face_index,
+        f32 font_size
+    );
+
 private:
     static FT_Library shared_library();
 
@@ -219,7 +243,7 @@ private:
     /// section).  Stripped in release builds → zero payload.
     std::atomic<int> in_flight_{0};
 #endif
-    std::unordered_map<FTFaceKey, std::shared_ptr<FT_Face>, FTFaceKeyHash> faces_;
+    std::unordered_map<FTFaceKey, FreeTypeFaceLease, FTFaceKeyHash> faces_;
     std::mutex mutex_;
 };
 
@@ -290,6 +314,11 @@ struct FontFaceHandle {
     // unmodified.
     std::shared_ptr<FT_Face> ft_lifeline;
     FT_Face                  ft_face{nullptr};
+
+    // Per-face lock shared with every other handle that resolves the same
+    // font/size: the guard the MTSDF generator holds while it reads FreeType
+    // state, so unrelated faces stay parallel.
+    std::shared_ptr<std::mutex> ft_mutex;
 #endif
 
 #ifdef CHRONON3D_ENABLE_TEXT

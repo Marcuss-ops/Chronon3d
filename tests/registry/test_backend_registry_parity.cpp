@@ -508,8 +508,11 @@ TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
     CHECK(out[1]->metrics->advance_x == doctest::Approx(9.0f));
 
     // The batch is read-only: it must not move hit/miss/entry counters.
+    // Both acquires above were new keys, and resolve_resident() is a pure
+    // projection (gpu_glyph_atlas.hpp: "the batch is read-only"), so no hit
+    // has been recorded yet.
     CHECK(atlas.stats().entries == 2);
-    CHECK(atlas.stats().hits == 1);
+    CHECK(atlas.stats().hits == 0);
     CHECK(atlas.stats().misses == 2);
 
     // Reusing the SAME output buffer must not leak stale residency: a key that
@@ -530,10 +533,16 @@ TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
     REQUIRE(short_out[0].has_value());
     CHECK(short_out[0]->location.width == 4);
 
-    // Empty input is a no-op, not a crash.
+    // Empty input is a no-op, not a crash. Per the canonical contract
+    // (gpu_glyph_atlas.hpp: entries beyond min(keys.size(), out.size()) are
+    // left untouched) with zero keys nothing is covered, so the previously
+    // resolved slot must survive: out[1] still holds glyph_a from the batch
+    // above, and the absent slots stay absent.
     atlas.resolve_resident(std::span<const chronon3d::runtime::GpuGlyphKey>{}, out);
     CHECK_FALSE(out[0].has_value());
-    CHECK_FALSE(out[1].has_value());
+    CHECK(out[1].has_value());
+    CHECK(out[1]->location.atlas_page == atlas.location(glyph_a)->atlas_page);
+    CHECK_FALSE(out[2].has_value());
 
     atlas.clear();
     // After clear() the batch reports no residency for every key.

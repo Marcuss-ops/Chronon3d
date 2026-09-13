@@ -204,9 +204,12 @@ float packed_rgba8(float r, float g, float b, float a) noexcept {
 } // namespace
 
 std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
-    FT_Face face, std::uint32_t glyph_id, std::uint16_t em_px,
+    MtsdfFaceGuard face_guard, std::uint32_t glyph_id, std::uint16_t em_px,
     std::uint16_t distance_range_px, std::uint16_t padding_px) {
-    if (!face || em_px == 0 || distance_range_px == 0) return std::nullopt;
+    if (!face_guard.valid() || em_px == 0 || distance_range_px == 0) {
+        return std::nullopt;
+    }
+    FT_Face face = face_guard.face;
 
     // ── Narrow critical section (TICKET-HOTPATH-TEXT-MTSDF-CONTENTION) ────
     //
@@ -222,11 +225,10 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     // through our callbacks) and the advance read. Everything after it runs on
     // local data, unlocked and parallel.
     //
-    // Why still process-wide rather than per-face: this boundary receives a
-    // raw `FT_Face`, not the cache entry that owns it. Threading the cache's
-    // per-entry mutex through here is the follow-up in
-    // docs/tickets/TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md (Demolition Debt:
-    // ACTIVE, owner = text backend, exit = per-face guard in place).
+    // The guard is per-face: `MtsdfFaceGuard` carries the mutex of whoever
+    // owns this face (a face-cache entry or a local owner), so glyphs from
+    // different fonts rasterize concurrently instead of serializing behind
+    // one process-wide lock (TICKET-HOTPATH-TEXT-MTSDF-CONTENTION).
     OutlineBuild build;
     double min_x = 0.0;
     double max_x = 0.0;
@@ -234,9 +236,8 @@ std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     double max_y = 0.0;
     double advance_x = 0.0;
     {
-        static std::mutex face_mutex;
         const auto wait_t0 = std::chrono::steady_clock::now();
-        const std::lock_guard lock(face_mutex);
+        const std::lock_guard<std::mutex> lock(*face_guard.mutex);
         const auto hold_t0 = std::chrono::steady_clock::now();
         const MtsdfLockHoldMeter hold_meter{};
         if (profiling::g_current_counters) {

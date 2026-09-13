@@ -116,7 +116,7 @@ struct FTFaceStorage {
 // callers' responsibility and their shared_ptr ref-count keeps any inline
 // `FT_Done_Face` calls reachable.
 //
-// Implicit destruction of `faces_` (unordered_map of shared_ptr<FT_Face>)
+// Implicit destruction of `faces_` (unordered_map of FreeTypeFaceLease)
 // drops each entry's shared_ptr; the *last* ref drop is what fires
 // `FT_Done_Face` via the custom deleter, AT THE LATEST when the last
 // `FontFaceHandle::ft_lifeline` is destroyed.
@@ -165,7 +165,7 @@ FreeTypeFaceCache::~FreeTypeFaceCache() {
 FreeTypeFaceCache::~FreeTypeFaceCache() = default;
 #endif
 
-std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
+FreeTypeFaceLease FreeTypeFaceCache::get_face_lease(
     const std::string& resolved_path,
     int face_index,
     f32 font_size
@@ -185,13 +185,13 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
     // doesn't silently produce a size-1 face that renders garbled glyphs.
     if (resolved_path.empty()) {
         spdlog::warn("[text-resources] FreeTypeFaceCache: empty resolved path");
-        return nullptr;
+        return {};
     }
     if (font_size <= 0.0f) {
         spdlog::warn(
             "[text-resources] FreeTypeFaceCache: non-positive font_size={} for {}",
             font_size, resolved_path);
-        return nullptr;
+        return {};
     }
 
     // Quantize size: identify a per-pixel-size bucket so concurrent
@@ -223,14 +223,14 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
     }
 
     FT_Library lib = shared_library();
-    if (lib == nullptr) return nullptr;
+    if (lib == nullptr) return {};
 
     FT_Face raw = nullptr;
     if (FT_New_Face(lib, resolved_path.c_str(), face_index, &raw) != 0) {
         spdlog::error(
             "[text-resources] FreeTypeFaceCache: FT_New_Face failed for {} face {}",
             resolved_path, face_index);
-        return nullptr;
+        return {};
     }
 
     if (FT_Set_Pixel_Sizes(raw, 0, static_cast<FT_UInt>(size_bucket)) != 0) {
@@ -238,7 +238,7 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
             "[text-resources] FreeTypeFaceCache: FT_Set_Pixel_Sizes failed for {} size {}",
             resolved_path, size_bucket);
         FT_Done_Face(raw);
-        return nullptr;
+        return {};
     }
 
     auto storage = std::make_shared<ft_face_cache_detail::FTFaceStorage>(raw);
@@ -253,8 +253,17 @@ std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
     // `find` returned end under the same lock, so `emplace` cannot fail;
     // discard the bool with `[[maybe_unused]]` so the diagnostic stays
     // self-checking without `_ok` boolean-noise.
-    [[maybe_unused]] auto emplace_result = faces_.emplace(key, shared);
-    return shared;
+    auto lease = FreeTypeFaceLease{shared, std::make_shared<std::mutex>()};
+    [[maybe_unused]] auto emplace_result = faces_.emplace(key, lease);
+    return lease;
+}
+
+std::shared_ptr<FT_Face> FreeTypeFaceCache::get_face(
+    const std::string& resolved_path,
+    int face_index,
+    f32 font_size
+) {
+    return get_face_lease(resolved_path, face_index, font_size).face;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -427,11 +436,13 @@ FontFaceHandle TextRenderResources::resolve_handle(
     // dictionary entry is dropped by another thread's swap or by an
     // external eviction policy.
     constexpr int kPrimaryFaceIndex = 0;  // multi-face support is future PR
-    handle.ft_lifeline = ft_faces.get_face(resolved, kPrimaryFaceIndex, font_size);
+    auto face_lease = ft_faces.get_face_lease(resolved, kPrimaryFaceIndex, font_size);
     // Dereference (operator*) returns FT_Face& (= FT_FaceRec_*&) — the
     // underlying FreeType handle itself.  `.get()` would yield
     // FT_Face* = FT_FaceRec_*_*, which is wrong because handle.ft_face
     // is `FT_Face` (one pointer, not two).
+    handle.ft_lifeline = std::move(face_lease.face);
+    handle.ft_mutex    = std::move(face_lease.mutex);
     handle.ft_face     = handle.ft_lifeline ? *handle.ft_lifeline : nullptr;
     handle.outlines    = &outlines;
 #endif
