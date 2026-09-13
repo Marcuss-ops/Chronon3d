@@ -19,8 +19,8 @@ namespace chronon3d::backends::vulkan {
         return surfaces.slot_in_use(slot);
     }
 
-    void VulkanBackend::Impl::prune_unused_transient_slots() {
-        surfaces.prune_unused_slots();
+    void VulkanBackend::Impl::prune_unused_transient_slots(std::size_t max_retained) {
+        surfaces.prune_unused_slots(max_retained);
     }
 
     std::size_t VulkanBackend::Impl::bound_slot(
@@ -61,7 +61,12 @@ namespace chronon3d::backends::vulkan {
     VulkanBackend::Impl::Image& VulkanBackend::Impl::ensure_surface(
         runtime::RenderSurfaceHandle handle,
         const runtime::SurfaceDesc& desc) {
-        return surfaces.ensure(handle, desc);
+        auto& image = surfaces.ensure(handle, desc);
+        if (desc.lifetime == runtime::LifetimeClass::FrameTransient &&
+            frame_batch.active && frame_batch.next_slot < FrameBatchState::kSlotCount) {
+            record_slot_transient_surface(frame_batch.next_slot, handle);
+        }
+        return image;
     }
 
     void VulkanBackend::Impl::wait_upload_slot(VulkanUploadRing::UploadSlot& slot) {
@@ -153,6 +158,23 @@ namespace chronon3d::backends::vulkan {
         for (const auto handle : pending) release_surface_now(handle);
     }
 
+    void VulkanBackend::Impl::record_slot_transient_surface(
+        std::size_t slot, runtime::RenderSurfaceHandle handle) {
+        // The authority owns the per-slot record and its retirement policy;
+        // this method is only the backend-side entry point.
+        surfaces.record_frame_slot_transient(slot, handle);
+    }
+
+    void VulkanBackend::Impl::retire_frame_slot_transient_surfaces(std::size_t slot) {
+        const std::size_t released = surfaces.retire_frame_slot_transients(slot);
+        if (released == 0) return;
+        if (surface_lifecycle_diag_enabled()) {
+            spdlog::info("[surface-lifecycle] retire slot={} handles={}",
+                         slot, released);
+        }
+        stats.surface_releases += released;
+    }
+
     void VulkanBackend::Impl::release_frame_transient_handles(
         bool log_lifecycle,
         std::span<const runtime::RenderSurfaceHandle> protected_handles) {
@@ -196,9 +218,13 @@ namespace chronon3d::backends::vulkan {
             // this backend. Do not use vkDeviceWaitIdle here; the compiled
             // frame path must never acquire an implicit device-global sync.
             wait_for_pending();
+            for (auto& handles : surfaces.frame_slot_transient_handles) {
+                handles.clear();
+            }
             // The tracked-submission drain above makes orphaned transient
             // backing images safe to destroy without a global device idle.
             release_frame_transient_handles(/*log_lifecycle=*/false);
+            prune_unused_transient_slots(0);
             if (surfaces.physical_surfaces.size() > 32) {
                 spdlog::warn("[vulkan] transient cleanup retained bindings={} surfaces.physical_surfaces={} unplanned={}",
                              surfaces.surface_bindings.size(), surfaces.physical_surfaces.size(),
@@ -229,6 +255,11 @@ namespace chronon3d::backends::vulkan {
                       "vkResetFences(frame transient retirement)");
                 frame_batch.in_flight[i] = false;
                 read_gpu_timestamps(i);
+                // Per-frame-slot retirement first: scoped to handles recorded
+                // inside this batch slot, so host surfaces created outside a
+                // batch are never touched (the failure mode of the earlier
+                // global retire).  Keeps the gl-lifecycle bound at 8 slots.
+                retire_frame_slot_transient_surfaces(i);
             }
 
             // Reclaim only once a frame that referenced these transient handles
@@ -518,6 +549,9 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
     planned_alias_groups.clear();
     deferred_surface_releases.clear();
     unplanned_surface_handles.clear();
+    for (auto& handles : frame_slot_transient_handles) {
+        handles.clear();
+    }
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     cuda_ready_surfaces.clear();
     cuda_export_ready_surfaces.clear();

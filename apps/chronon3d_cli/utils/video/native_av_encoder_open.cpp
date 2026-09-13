@@ -252,6 +252,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         codec_->pix_fmt = AV_PIX_FMT_YUV420P;
     }
 
+    codec_->color_range = AVCOL_RANGE_MPEG;
+    codec_->colorspace = AVCOL_SPC_BT709;
+    codec_->color_trc = AVCOL_TRC_BT709;
+    codec_->color_primaries = AVCOL_PRI_BT709;
+
     // ── Apply the RESOLVED configuration verbatim ────────────────────────
     // Everything below is driven by `resolved` (from
     // resolve_encoder_config). NativeAvEncoder no longer interprets
@@ -401,6 +406,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     frame_->format = codec_->pix_fmt;
     frame_->width = codec_->width;
     frame_->height = codec_->height;
+    frame_->color_range = codec_->color_range;
+    frame_->colorspace = codec_->colorspace;
+    frame_->color_trc = codec_->color_trc;
+    frame_->color_primaries = codec_->color_primaries;
     if (!gpu_nvenc_ && av_frame_get_buffer(frame_, 32) < 0) {
         spdlog::error("[native_av] av_frame_get_buffer failed");
         return false;
