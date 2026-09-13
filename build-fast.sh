@@ -39,7 +39,7 @@ Commands:
   release             RelWithDebInfo build (optimised + debug symbols, 2-5× faster runtime)
 
 Environment:
-  JOBS                       Parallel jobs (default: 20; override for CI/low-RAM hosts)
+  JOBS                       Parallel jobs (default: 14; override for CI/low-RAM hosts)
   CCACHE_DIR                 ccache store (default: \${ROOT_DIR}/.ccache, max 20G)
   BUILD_DIR_OVERRIDE         Override the resolved build dir (default: .tmp/chronon-builds/linux-fast-dev)
 
@@ -140,7 +140,11 @@ TURBO_BUILD_DIR="$ROOT_DIR/build/chronon/linux-turbo"
 TURBO_PRESET="linux-turbo"
 RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev-release}"
 RELEASE_PRESET="linux-fast-dev-release"
-JOBS="${JOBS:-20}"
+JOBS="${JOBS:-14}"
+if [[ ! "$JOBS" =~ ^[0-9]+$ ]] || (( JOBS < 1 || JOBS > 14 )); then
+    echo "Error: JOBS must be an integer in the range 1..14 (got '$JOBS')" >&2
+    exit 2
+fi
 
 ensure_configured() {
     if [[ ! -f "$BUILD_DIR/build.ninja" ]]; then

@@ -156,37 +156,37 @@
       "name": "linux-ci-core-gate",
       "configurePreset": "linux-ci-core-gate",
       "targets": ["chronon3d_tests_fast"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-ci-lean-gate",
       "configurePreset": "linux-ci-lean-gate",
       "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-asan",
       "configurePreset": "linux-asan",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-asan-native",
       "configurePreset": "linux-asan-native",
       "targets": ["chronon3d_native_decoder_teardown_tests"],
-      "jobs": 20
+      "jobs": 14
     },
     {
       "name": "linux-tsan",
       "configurePreset": "linux-tsan",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-content-dev",
       "configurePreset": "linux-content-dev",
       "targets": ["chronon3d_cli"],
-      "jobs": 16
+      "jobs": 14
     }
   ],
   "testPresets": [

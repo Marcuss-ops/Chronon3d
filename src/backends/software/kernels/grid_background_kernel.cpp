@@ -170,6 +170,15 @@ void render_grid_background_kernel(
         }
     }
 
+    // The TBB body may execute on worker threads.  Referencing a
+    // function-local `thread_local` by name inside that body would resolve
+    // the worker's independent (and still empty) vector, not the vectors
+    // populated above on the calling thread.  Capture the populated storage
+    // explicitly; it remains valid for the duration of this synchronous
+    // parallel_for and still retains capacity for the next invocation.
+    const auto* cols_storage = &cols;
+    const auto* active_x_storage = &active_x;
+
     // ── Parallel row fill ─────────────────────────────────────────────────
     // Framebuffer storage is canonical premultiplied linear RGBA (see
     // Framebuffer::clear + Color::premultiplied); the background is therefore
@@ -180,8 +189,8 @@ void render_grid_background_kernel(
     // straight-alpha grid line over this premultiplied backdrop.
     fb.clear(bg_adj.premultiplied(), clip);
 
-    const bool has_active_cols = !active_x.empty();
-    const i32 active_count = static_cast<i32>(active_x.size());
+    const bool has_active_cols = !active_x_storage->empty();
+    const i32 active_count = static_cast<i32>(active_x_storage->size());
 
     // Explicit grain size (kGridTbbGrain) with default auto_partitioner
     // prevents sparse-row serialisation while avoiding simple_partitioner{}'s
@@ -207,7 +216,7 @@ void render_grid_background_kernel(
                             if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
                         }
 
-                        const auto& cw = cols[static_cast<usize>(x - x0)];
+                        const auto& cw = (*cols_storage)[static_cast<usize>(x - x0)];
                         const f32 minor_alpha = std::max(row_minor_w, cw.minor) * minor_adj.a;
                         const f32 major_alpha = std::max(row_major_w, cw.major) * major_adj.a;
 
@@ -221,13 +230,13 @@ void render_grid_background_kernel(
                 } else if (has_active_cols) {
                     // ── Sparse: only touch columns that have a vertical line ─
                     for (i32 ci = 0; ci < active_count; ++ci) {
-                        const i32 x = active_x[static_cast<usize>(ci)];
+                        const i32 x = (*active_x_storage)[static_cast<usize>(ci)];
                         if (mask_pixels) {
                             if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) continue;
                             if (mask_pixels[static_cast<usize>(y) * mask_w + x].a <= 0.5f) continue;
                         }
 
-                        const auto& cw = cols[static_cast<usize>(x - x0)];
+                        const auto& cw = (*cols_storage)[static_cast<usize>(x - x0)];
                         // row weights are zero since row_active == false
                         const f32 minor_alpha = cw.minor * minor_adj.a;
                         const f32 major_alpha = cw.major * major_adj.a;

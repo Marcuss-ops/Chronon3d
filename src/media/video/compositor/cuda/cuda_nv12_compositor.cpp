@@ -10,7 +10,9 @@
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
+#include <chronon3d/cache/compiled_artifact_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <spdlog/spdlog.h>
 
 #ifndef CHRONON3D_NVRTC_ARCHITECTURE
@@ -21,10 +23,13 @@
 #endif
 
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
-#include <unordered_map>
+#include <span>
 #include <system_error>
+#include <vector>
 
 namespace chronon3d::media::video {
 
@@ -73,36 +78,88 @@ void check_nvrtc(nvrtcResult result, const char* operation) {
     fail(operation, nvrtcGetErrorString(result));
 }
 
-const std::string& get_compiled_nv12_ptx() {
-    // Function-local constant initialization is the sole compile-once
-    // authority. After initialization readers only borrow the immutable PTX;
-    // no explicit mutex, mutation, or per-call string copy remains on the
-    // compositor hot path.
-    static const std::string cached_ptx = [] {
-        ensure_nvrtc_builtins_loaded();
+std::filesystem::path nv12_program_cache_directory() {
+    if (const char* override_dir = std::getenv("CHRONON3D_PROGRAM_CACHE_DIR");
+        override_dir && *override_dir) {
+        return override_dir;
+    }
 
-        nvrtcProgram program{};
-        check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
-                                       0, nullptr, nullptr), "nvrtcCreateProgram");
-        const char* options[] = {
-            "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
-        const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
-        if (compile != NVRTC_SUCCESS) {
-            size_t log_size = 0;
-            nvrtcGetProgramLogSize(program, &log_size);
-            std::string log(log_size, '\0');
-            if (log_size) nvrtcGetProgramLog(program, log.data());
-            nvrtcDestroyProgram(&program);
-            fail("nvrtcCompileProgram", log);
-        }
-        size_t ptx_size = 0;
-        check_nvrtc(nvrtcGetPTXSize(program, &ptx_size), "nvrtcGetPTXSize");
-        std::string ptx(ptx_size, '\0');
-        check_nvrtc(nvrtcGetPTX(program, ptx.data()), "nvrtcGetPTX");
+    std::error_code error;
+    const auto temp = std::filesystem::temp_directory_path(error);
+    if (error) return ".chronon3d/program-cache";
+    return temp / "chronon3d" / "program-cache";
+}
+
+std::string nvrtc_version() {
+    int major = 0;
+    int minor = 0;
+    if (nvrtcVersion(&major, &minor) != NVRTC_SUCCESS) return "unknown";
+    return std::to_string(major) + "." + std::to_string(minor);
+}
+
+cache::ProgramArtifactKey nv12_program_key() {
+    const auto semantic_program_fingerprint =
+        chronon3d::core::hash::HashBuilder{}
+            .add("chronon3d.semantic-program.nv12.v1")
+            .add_bytes(kNv12Kernel, std::strlen(kNv12Kernel))
+            .finish();
+    return {
+        semantic_program_fingerprint,
+        "nvrtc-ptx",
+        "cuda-driver",
+        CHRONON3D_NVRTC_ARCHITECTURE,
+        "NVRTC",
+        nvrtc_version(),
+        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE,
+        1};
+}
+
+std::string compile_nv12_ptx() {
+    ensure_nvrtc_builtins_loaded();
+
+    nvrtcProgram program{};
+    check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
+                                   0, nullptr, nullptr), "nvrtcCreateProgram");
+    const char* options[] = {
+        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
+    const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
+    if (compile != NVRTC_SUCCESS) {
+        size_t log_size = 0;
+        nvrtcGetProgramLogSize(program, &log_size);
+        std::string log(log_size, '\0');
+        if (log_size) nvrtcGetProgramLog(program, log.data());
         nvrtcDestroyProgram(&program);
-        return ptx;
-    }();
-    return cached_ptx;
+        fail("nvrtcCompileProgram", log);
+    }
+    size_t ptx_size = 0;
+    check_nvrtc(nvrtcGetPTXSize(program, &ptx_size), "nvrtcGetPTXSize");
+    std::string ptx(ptx_size, '\0');
+    check_nvrtc(nvrtcGetPTX(program, ptx.data()), "nvrtcGetPTX");
+    nvrtcDestroyProgram(&program);
+    return ptx;
+}
+
+std::string get_compiled_nv12_ptx() {
+    const auto key = nv12_program_key();
+    cache::CompiledArtifactCache program_cache(nv12_program_cache_directory());
+    if (const auto cached = program_cache.load_program_artifact(key)) {
+        return std::string(reinterpret_cast<const char*>(cached->data()),
+                           cached->size());
+    }
+
+    auto ptx = compile_nv12_ptx();
+    try {
+        program_cache.save_program_artifact(
+            key,
+            std::span<const std::uint8_t>(
+                reinterpret_cast<const std::uint8_t*>(ptx.data()),
+                ptx.size()));
+    } catch (const std::exception& error) {
+        // The compiled artifact remains usable for this request. A cache I/O
+        // failure must not create a second in-memory artifact authority.
+        spdlog::warn("[cuda-nv12] ProgramCache publish failed: {}", error.what());
+    }
+    return ptx;
 }
 
 } // namespace cuda_nv12_detail
@@ -141,41 +198,16 @@ struct SharedCudaNv12Module {
     }
 };
 
-std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
+std::shared_ptr<SharedCudaNv12Module> load_module_for_program_artifact(
+    CUcontext context) {
     using cuda_nv12_detail::check_cuda;
     using cuda_nv12_detail::fail;
     using cuda_nv12_detail::get_compiled_nv12_ptx;
-
-    static std::mutex s_module_mutex;
-    // Do not make this process-global map an owner. CUDA modules are owned by
-    // the primary context retained by VideoDeviceRuntime; a strong static
-    // cache can outlive that context and unload a stale CUmodule during C++
-    // static destruction. Compositors retain the actual lease below.
-    static std::unordered_map<CUcontext,
-        std::weak_ptr<SharedCudaNv12Module>> s_modules;
-
-    // AUDIT-03: the module cache is double-checked. On the warm path (every
-    // compositor construction after the first) the shared_ptr is returned
-    // without ever taking s_module_mutex, so concurrent compositor
-    // construction on different threads no longer serializes.
-    {
-        // Map reads are guarded; std::unordered_map::find needs the lock.
-        std::lock_guard lock(s_module_mutex);
-        auto it = s_modules.find(context);
-        if (it != s_modules.end()) {
-            if (auto cached = it->second.lock()) return cached;
-            s_modules.erase(it);
-        }
-    }
-
-    // AUDIT-03: NVRTC compilation and cuModuleLoadData run OUTSIDE the
-    // module-cache mutex. get_compiled_nv12_ptx() is a function-local
-    // constant (thread-safe one-time init); the module load is keyed to the
-    // caller's context and the mutex is only re-taken to publish the result.
-    // Threads racing on the same context redundantly load the module and the
-    // first publisher wins — correct, and only on the cold path.
+    // The persistent PTX is owned by ProgramCache.  Device/context residency
+    // is a per-compositor lease: it cannot outlive the VideoDeviceRuntime
+    // context and therefore needs no process-global module map or mutex.
     check_cuda(cuCtxSetCurrent(context), "cuCtxSetCurrent");
-    const auto& ptx = get_compiled_nv12_ptx();
+    const auto ptx = get_compiled_nv12_ptx();
     auto shared = std::make_shared<SharedCudaNv12Module>();
     shared->context = context;
 
@@ -215,18 +247,6 @@ std::shared_ptr<SharedCudaNv12Module> get_or_load_module(CUcontext context) {
                                    "rgba_u8_surface_to_nv12_2x2"),
                "cuModuleGetFunction(rgba_u8_surface_to_nv12_2x2)");
 
-    // AUDIT-03: publish under the lock (short critical section, no CUDA API
-    // inside). Another thread may have published its own load first; its
-    // entry wins and ours is discarded (module unloaded via refcount).
-    {
-        std::lock_guard lock(s_module_mutex);
-        auto it = s_modules.find(context);
-        if (it != s_modules.end()) {
-            if (auto cached = it->second.lock()) return cached;
-            s_modules.erase(it);
-        }
-        s_modules[context] = shared;
-    }
     return shared;
 }
 
@@ -236,7 +256,7 @@ void CudaNv12Compositor::warm_up(CUcontext context) {
     using cuda_nv12_detail::fail;
 
     if (!context) fail("CudaNv12Compositor::warm_up", "null CUDA context");
-    (void)get_or_load_module(context);
+    (void)load_module_for_program_artifact(context);
 }
 
 CudaNv12Compositor::CudaNv12Compositor(
@@ -249,7 +269,7 @@ CudaNv12Compositor::CudaNv12Compositor(
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
-    auto shared = get_or_load_module(context_);
+    auto shared = load_module_for_program_artifact(context_);
     module_lease_ = shared;
     module_ = shared->module;
     kernel_ = shared->kernel;
@@ -273,7 +293,7 @@ CudaNv12Compositor::CudaNv12Compositor(CUcontext context)
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");
     check_cuda(cuStreamCreate(&stream_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
 
-    auto shared = get_or_load_module(context_);
+    auto shared = load_module_for_program_artifact(context_);
     module_lease_ = shared;
     module_ = shared->module;
     direct_nv12_kernel_ = shared->direct_nv12_kernel;
