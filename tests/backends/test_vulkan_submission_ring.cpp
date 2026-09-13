@@ -106,6 +106,46 @@ TEST_CASE("one command batch submits once for multiple frames") {
     CHECK(after.passes_executed >= before.passes_executed + 3);
 }
 
+TEST_CASE("recording ops take the contention domains separately (audit N4)") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    // Open the recording window first: a batch transition is itself a dual
+    // site, so it must not be inside the measured interval.
+    fixture.backend->begin_frame_batch();
+    const auto before_op = fixture.backend->stats();
+
+    CHECK(fixture.backend->fill_rect_surface(
+              fixture.handle, 0, 0, 4, 4,
+              chronon3d::Color{0.5f, 0.5f, 0.5f, 1.0f})
+              .ok());
+
+    const auto after_op = fixture.backend->stats();
+    // The recording op waits on the submission ring...
+    CHECK(after_op.submission_lock_acquires > before_op.submission_lock_acquires);
+    // ...leases its surface through the store lock...
+    CHECK(after_op.surface_lock_acquires > before_op.surface_lock_acquires);
+    // ...and never holds the two domains together. This equality is the whole
+    // point of the decoupling, so it is asserted as a regression alarm rather
+    // than read as a statistic.
+    CHECK(after_op.dual_lock_acquires == before_op.dual_lock_acquires);
+
+    fixture.backend->end_frame_batch();
+
+    // The remaining coupling is measured, not assumed: the batch transitions
+    // still need both domains, and they report it.
+    const auto after_batch = fixture.backend->stats();
+    CHECK(after_batch.dual_lock_acquires > after_op.dual_lock_acquires);
+
+    // A readback resolves a surface and submits in the same call, so it is a
+    // dual site by need — the counter says so.
+    std::vector<float> pixels(32u * 24u * 4u, 0.0f);
+    const auto before_download = fixture.backend->stats();
+    REQUIRE(fixture.backend->download_surface(fixture.handle, pixels).ok());
+    const auto after_download = fixture.backend->stats();
+    CHECK(after_download.dual_lock_acquires > before_download.dual_lock_acquires);
+}
+
 TEST_CASE("multiple command batches remain independently submitted") {
     BackendFixture fixture;
     if (!fixture.backend) { WARN("No Vulkan device available"); return; }

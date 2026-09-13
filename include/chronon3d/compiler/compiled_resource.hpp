@@ -21,6 +21,17 @@ struct AnimationProgram {
     std::uint32_t data_offset{0};
 };
 
+enum class AnimationProperty : std::uint8_t {
+    Unknown,
+    Opacity,
+    PositionX,
+    PositionY,
+    PositionZ,
+    ScaleX,
+    ScaleY,
+    ScaleZ,
+};
+
 /// Immutable, typed timeline entry. Frame values are authored-time data;
 /// sampling converts them into frame parameters without rebuilding the plan.
 struct TimelineProgram {
@@ -35,6 +46,7 @@ struct AnimationTrackProgram {
     std::string property;
     std::uint32_t first_keyframe{0};
     std::uint32_t keyframe_count{0};
+    AnimationProperty property_kind{AnimationProperty::Unknown};
 };
 
 struct CurveKeyframeProgram {

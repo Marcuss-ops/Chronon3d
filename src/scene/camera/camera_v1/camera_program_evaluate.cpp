@@ -136,7 +136,8 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
 
             result.diagnostics.push_back({
                 CameraProgramDiagnostic::Severity::Warning,
-                msg
+                msg,
+                CameraDiagnosticCode::OrientationConflict
             });
         }
     }
@@ -177,7 +178,8 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
         if (!cr.ok) {
             result.diagnostics.push_back({
                 CameraProgramDiagnostic::Severity::Warning,
-                cr.reason
+                cr.reason,
+                CameraDiagnosticCode::ConstraintFailure
             });
             switch (failure_policy_) {
             case CameraFailurePolicy::Stop:
@@ -218,7 +220,8 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
                     result.diagnostics.push_back({
                         CameraProgramDiagnostic::Severity::Warning,
                         std::string("Recovered: constraint ") + std::to_string(i) +
-                            " failed (" + cr.reason + "); using last valid camera"
+                            " failed (" + cr.reason + "); using last valid camera",
+                        CameraDiagnosticCode::RecoveredConstraintFailure
                     });
                     return result;
                 }

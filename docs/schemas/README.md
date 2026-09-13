@@ -8,7 +8,7 @@ Official schema for benchmark reports produced by the Chronon3D headless CPU ren
 
 - **Schema identifier:** `chronon3d.bench.v3`
 - **Scope:** Defines the canonical JSON format for performance benchmark reports, including timing percentiles, memory usage, quality/determinism metrics, and render counters.
-- **Consumers:** `tools/check_common_performance_gate.py` (the live validator, exercised by `tests/test_common_performance_gate.py`), telemetry dashboard, CI regression gates. `tools/compare_benchmarks.py`, cited here before, was retired in `4f19b4468`.
+- **Consumers:** `tools/check_common_performance_gate.py` (the live validator, exercised by `tests/test_common_performance_gate.py`), telemetry dashboard, CI regression gates. The former benchmark comparison helper was retired in `4f19b4468`.
 
 See [`chronon3d.bench.v3.schema.json`](chronon3d.bench.v3.schema.json) for the full schema definition.
 

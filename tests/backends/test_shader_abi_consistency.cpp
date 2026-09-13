@@ -29,7 +29,6 @@
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
-#include "text_batch_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
 
@@ -43,7 +42,6 @@
 #include "text_run_abi.hpp"
 #include "fill_rect_abi.hpp"
 #include "layer_batch_abi.hpp"
-#include "text_batch_abi.hpp"
 #include "text_tile_bin_abi.hpp"
 #include "text_tile_raster_abi.hpp"
 
@@ -216,15 +214,6 @@ TEST_CASE("layer_batch shader ABI") {
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
     // layer_batch uses binding 3 for instance buffer
     REQUIRE(find_binding(abi, 0, 3) != nullptr);
-}
-
-TEST_CASE("text_batch shader ABI") {
-    auto abi = REFLECT_SHADER(chronon3d_text_batch_comp_spv);
-    REQUIRE(find_binding(abi, 0, 0) != nullptr);
-    REQUIRE(find_binding(abi, 0, 1) != nullptr);
-    // text_batch uses bindings 3 and 4 for glyph+run buffers
-    REQUIRE(find_binding(abi, 0, 3) != nullptr);
-    REQUIRE(find_binding(abi, 0, 4) != nullptr);
 }
 
 TEST_CASE("text_tile_bin shader ABI") {

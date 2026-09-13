@@ -134,13 +134,7 @@ public:
 
     std::optional<Value> get(const Key& key) {
         auto& shard = get_shard(key);
-        auto val = shard.get(key);
-        if (val) {
-            m_hits.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            m_misses.fetch_add(1, std::memory_order_relaxed);
-        }
-        return val;
+        return shard.get(key);
     }
 
     template <typename Func>
@@ -181,7 +175,7 @@ public:
                 shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list,
                                       it->second.lru_iterator);
                 add_ns_if_enabled(m_lru_mutation_time_ns, lru_start);
-                m_hits.fetch_add(1, std::memory_order_relaxed);
+                shard.hits.fetch_add(1, std::memory_order_relaxed);
                 return it->second.value;
             }
 
@@ -193,7 +187,7 @@ public:
                 inflight_it->second.generation == loader_generation) {
                 waiting_future = inflight_it->second.future;
             } else {
-                m_misses.fetch_add(1, std::memory_order_relaxed);
+                shard.misses.fetch_add(1, std::memory_order_relaxed);
                 promise_ptr =
                     std::make_shared<std::promise<std::pair<Value, size_t>>>();
                 waiting_future = promise_ptr->get_future().share();
@@ -208,7 +202,7 @@ public:
             // Request coalescing: this caller did not touch the resident
             // cache; count it separately so `hits` stays a true residency
             // ratio (hits + misses + coalesced_waits == call-site lookups).
-            m_coalesced_waits.fetch_add(1, std::memory_order_relaxed);
+            shard.coalesced_waits.fetch_add(1, std::memory_order_relaxed);
             return result;
         }
 
@@ -385,9 +379,6 @@ public:
 
     [[nodiscard]] Stats stats() const {
         Stats s;
-        s.hits = m_hits.load(std::memory_order_relaxed);
-        s.misses = m_misses.load(std::memory_order_relaxed);
-        s.coalesced_waits = m_coalesced_waits.load(std::memory_order_relaxed);
         s.evictions = m_evictions.load(std::memory_order_relaxed);
         s.oversized_rejections =
             m_oversized_rejections.load(std::memory_order_relaxed);
@@ -400,6 +391,9 @@ public:
         s.contention_count = m_contention_count.load(std::memory_order_relaxed);
         for (const auto& shard : m_shards) {
             std::lock_guard lock(shard->mutex);
+            s.hits += shard->hits.load(std::memory_order_relaxed);
+            s.misses += shard->misses.load(std::memory_order_relaxed);
+            s.coalesced_waits += shard->coalesced_waits.load(std::memory_order_relaxed);
             s.current_size += shard->entries.size();
             s.current_weight += shard->current_weight;
         }
@@ -440,16 +434,25 @@ private:
         std::uint64_t generation{0};
         std::unordered_map<Key, InflightLoad, Hash> inflight;
         LruCache* owner{nullptr};
+        // Lookup telemetry is owned by the shard that handled the lookup. It
+        // avoids a single global cache-line bouncing on every hit/miss.
+        std::atomic<std::size_t> hits{0};
+        std::atomic<std::size_t> misses{0};
+        std::atomic<std::size_t> coalesced_waits{0};
 
         std::optional<Value> get(const Key& key) {
             auto lock = owner->timed_lock(mutex);
             const auto lookup_start = owner->timed_start();
             auto it = entries.find(key);
             owner->add_ns_if_enabled(owner->m_hash_time_ns, lookup_start);
-            if (it == entries.end()) return std::nullopt;
+            if (it == entries.end()) {
+                misses.fetch_add(1, std::memory_order_relaxed);
+                return std::nullopt;
+            }
             const auto lru_start = owner->timed_start();
             lru_list.splice(lru_list.begin(), lru_list, it->second.lru_iterator);
             owner->add_ns_if_enabled(owner->m_lru_mutation_time_ns, lru_start);
+            hits.fetch_add(1, std::memory_order_relaxed);
             return it->second.value;
         }
 
@@ -608,9 +611,12 @@ private:
     }
 
     void reset_counters() noexcept {
-        m_hits.store(0, std::memory_order_relaxed);
-        m_misses.store(0, std::memory_order_relaxed);
-        m_coalesced_waits.store(0, std::memory_order_relaxed);
+        for (const auto& shard : m_shards) {
+            std::lock_guard lock(shard->mutex);
+            shard->hits.store(0, std::memory_order_relaxed);
+            shard->misses.store(0, std::memory_order_relaxed);
+            shard->coalesced_waits.store(0, std::memory_order_relaxed);
+        }
         m_evictions.store(0, std::memory_order_relaxed);
         m_oversized_rejections.store(0, std::memory_order_relaxed);
         m_hash_time_ns.store(0, std::memory_order_relaxed);
@@ -621,11 +627,6 @@ private:
     }
 
     void copy_counters_from(const LruCache& other) noexcept {
-        m_hits.store(other.m_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        m_misses.store(other.m_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        m_coalesced_waits.store(
-            other.m_coalesced_waits.load(std::memory_order_relaxed),
-            std::memory_order_relaxed);
         m_evictions.store(other.m_evictions.load(std::memory_order_relaxed), std::memory_order_relaxed);
         m_oversized_rejections.store(
             other.m_oversized_rejections.load(std::memory_order_relaxed),
@@ -650,9 +651,6 @@ private:
     RemovalCallback m_on_remove;
     bool m_collect_detailed_timing{false};
     std::vector<std::unique_ptr<Shard>> m_shards;
-    mutable std::atomic<size_t> m_hits{0};
-    mutable std::atomic<size_t> m_misses{0};
-    mutable std::atomic<size_t> m_coalesced_waits{0};
     mutable std::atomic<size_t> m_evictions{0};
     mutable std::atomic<size_t> m_oversized_rejections{0};
     mutable std::atomic<std::uint64_t> m_hash_time_ns{0};

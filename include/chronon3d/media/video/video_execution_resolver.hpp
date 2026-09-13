@@ -8,6 +8,23 @@
 
 namespace chronon3d::media {
 
+// ── Canonical defaults (single source of truth) ──────────────────────────
+//
+// Every generic default backend/codec fact lives here: the daemon option
+// default, the resolver's fallback chain and the CLI option defaults all read
+// these constants, so re-policing a default is a one-line change instead of a
+// three-file hunt (audit N8).
+//   kDefaultBackend   — "auto": let Chronon pick software/vulkan.
+//   kAutoCodec        — "auto": let the encoder pick a codec.
+//   kDefaultCodec     — the concrete codec used when a strict GPU/native lane
+//                       was requested without an explicit codec.
+//   kDefaultGpuBackend— the backend a strict GPU request falls back to when
+//                       neither the request nor the daemon names one.
+inline constexpr std::string_view kDefaultBackend{"auto"};
+inline constexpr std::string_view kAutoCodec{"auto"};
+inline constexpr std::string_view kDefaultCodec{"h264"};
+inline constexpr std::string_view kDefaultGpuBackend{"vulkan"};
+
 // These dimensions are independent.  A composition can therefore select a
 // Vulkan graph while the encoder remains NVENC, without overloading one enum
 // with the meaning of all four decisions.
@@ -80,7 +97,7 @@ struct ExecutionRequirements {
 };
 
 struct OutputSpec {
-    std::string_view codec{"h264"};
+    std::string_view codec{kDefaultCodec};
     std::uint32_t width{0};
     std::uint32_t height{0};
     std::uint32_t fps_num{0};
@@ -254,11 +271,11 @@ struct GopAnalysisSummary {
     const GopAnalysisSummary& analysis) noexcept;
 
 struct ResolvedExecutionParameters {
-    std::string backend{"auto"};
+    std::string backend{std::string{kDefaultBackend}};
     std::string hardware_encoder{"none"};
     std::string encoder_backend{"pipe"};
     std::string gpu_hot_path_mode{"auto"};
-    std::string codec{"auto"};
+    std::string codec{std::string{kAutoCodec}};
     bool native_nvenc{false};
     bool direct_yuv{false};
     bool cpu_fallback_forbidden{false};
@@ -267,7 +284,7 @@ struct ResolvedExecutionParameters {
 [[nodiscard]] ResolvedExecutionParameters resolve_canonical_execution_parameters(
     const ExecutionRequirements& requirements,
     std::string_view requested_codec = "",
-    std::string_view requested_backend = "auto",
-    std::string_view daemon_backend = "auto") noexcept;
+    std::string_view requested_backend = kDefaultBackend,
+    std::string_view daemon_backend = kDefaultBackend) noexcept;
 
 } // namespace chronon3d::media

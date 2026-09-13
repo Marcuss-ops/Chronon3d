@@ -349,69 +349,6 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         ++stats.vk_cmd_dispatch_count;
     }
 
-    void VulkanBackend::Impl::record_text_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
-                           const Image& destination, std::int32_t glyph_count,
-                           std::int32_t run_count,
-                           VkBuffer glyph_buffer, bool glyph_updated,
-                           VkBuffer run_buffer, bool run_updated,
-                           std::int32_t dispatch_origin_x,
-                           std::int32_t dispatch_origin_y,
-                           std::int32_t dispatch_end_x,
-                           std::int32_t dispatch_end_y) {
-        if (glyph_updated) {
-            emit_buffer_barrier2(
-                device, command, glyph_buffer,
-                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
-            emit_buffer_barrier2(
-                device, command, glyph_buffer,
-                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                VK_ACCESS_2_SHADER_READ_BIT_KHR);
-        }
-        if (run_updated) {
-            emit_buffer_barrier2(
-                device, command, run_buffer,
-                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR);
-            emit_buffer_barrier2(
-                device, command, run_buffer,
-                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                VK_ACCESS_2_SHADER_READ_BIT_KHR);
-        }
-        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::TextBatch)));
-        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
-        struct PushConstants {
-            std::int32_t glyph_count;
-            std::int32_t run_count;
-            std::int32_t dispatch_origin[2];
-        } params{glyph_count, run_count, {dispatch_origin_x, dispatch_origin_y}};
-        const auto x0 = std::clamp(dispatch_origin_x, 0,
-                                   static_cast<std::int32_t>(destination.width));
-        const auto y0 = std::clamp(dispatch_origin_y, 0,
-                                   static_cast<std::int32_t>(destination.height));
-        const auto x1 = std::clamp(dispatch_end_x, x0,
-                                   static_cast<std::int32_t>(destination.width));
-        const auto y1 = std::clamp(dispatch_end_y, y0,
-                                   static_cast<std::int32_t>(destination.height));
-        params.dispatch_origin[0] = x0;
-        params.dispatch_origin[1] = y0;
-        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                           0, sizeof(params), &params);
-        vkCmdDispatch(command, (x1 - x0 + 15) / 16,
-                      (y1 - y0 + 15) / 16, 1);
-        ++stats.vk_cmd_dispatch_count;
-    }
-
     void VulkanBackend::Impl::record_text_tile_bin(VkCommandBuffer command, VkDescriptorSet descriptors,
                               std::int32_t glyph_count, std::int32_t tiles_x,
                               std::int32_t tiles_y, std::int32_t max_glyphs_per_tile,

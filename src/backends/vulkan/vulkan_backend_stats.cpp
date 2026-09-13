@@ -42,8 +42,6 @@ bool VulkanBackend::requires_processor_snapshot() const noexcept {
 VulkanBackendStats VulkanBackend::stats() const noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return VulkanBackendStats{};
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
     auto s = m_impl->stats.snapshot();
     const auto vma_stats = m_impl->memory_manager.budget_stats();
     s.vma_allocation_bytes = vma_stats.allocation_bytes;
@@ -52,11 +50,20 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
     s.vma_block_count = vma_stats.block_count;
     s.vma_budget_bytes = vma_stats.budget_bytes;
     s.vma_usage_bytes = vma_stats.usage_bytes;
-    s.physical_surfaces_live = m_impl->surfaces.physical_count();
-    s.surface_bindings_live = m_impl->surfaces.binding_count();
-    s.deferred_surface_release_count = m_impl->surfaces.deferred_release_count();
-    s.command_batch_active = m_impl->command_batch_active;
-    s.command_batch_started = m_impl->command_batch_started;
+    // Audit N4: this is a telemetry read of two independent domains; it takes
+    // each lock for its own fields instead of pinning both together, so a
+    // recording op no longer blocks a stats read and vice versa.
+    {
+        std::lock_guard lock(m_impl->surfaces.mutex);
+        s.physical_surfaces_live = m_impl->surfaces.physical_count();
+        s.surface_bindings_live = m_impl->surfaces.binding_count();
+        s.deferred_surface_release_count = m_impl->surfaces.deferred_release_count();
+    }
+    {
+        std::lock_guard lock(m_impl->submission_ring.mutex);
+        s.command_batch_active = m_impl->command_batch_active;
+        s.command_batch_started = m_impl->command_batch_started;
+    }
     return s;
 #else
     return {};
@@ -92,8 +99,20 @@ void VulkanBackend::export_gpu_telemetry_counters(
     std::vector<std::pair<std::string, std::uint64_t>>& out) const {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return;
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
+    // Audit N4: the surface-domain counters below are the only fields that
+    // need the store lock. Holding both domains across the whole export made
+    // every telemetry sample wait for an in-flight recording.
+    struct SurfaceCounts {
+        std::size_t physical{0};
+        std::size_t bindings{0};
+        std::size_t deferred{0};
+    } surface_counts;
+    {
+        std::lock_guard lock(m_impl->surfaces.mutex);
+        surface_counts.physical = m_impl->surfaces.physical_count();
+        surface_counts.bindings = m_impl->surfaces.binding_count();
+        surface_counts.deferred = m_impl->surfaces.deferred_release_count();
+    }
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
     out.emplace_back("gpu_upload_count", m_impl->stats.upload_calls);
@@ -128,9 +147,9 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("gpu_asset_cache_evicted_bytes", m_impl->stats.gpu_asset_cache_evicted_bytes);
     out.emplace_back("gpu_asset_cache_resident_bytes", m_impl->stats.gpu_asset_cache_resident_bytes);
     out.emplace_back("physical_surfaces_peak", m_impl->stats.physical_surfaces_peak);
-    out.emplace_back("physical_surfaces_live", m_impl->surfaces.physical_count());
-    out.emplace_back("surface_bindings_live", m_impl->surfaces.binding_count());
-    out.emplace_back("deferred_surface_release_count", m_impl->surfaces.deferred_release_count());
+    out.emplace_back("physical_surfaces_live", surface_counts.physical);
+    out.emplace_back("surface_bindings_live", surface_counts.bindings);
+    out.emplace_back("deferred_surface_release_count", surface_counts.deferred);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
     out.emplace_back("standalone_wait_count", m_impl->stats.standalone_wait_count);

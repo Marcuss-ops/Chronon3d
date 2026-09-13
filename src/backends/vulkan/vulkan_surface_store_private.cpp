@@ -30,7 +30,20 @@ namespace chronon3d::backends::vulkan {
 
     VulkanBackend::Impl::Image& VulkanBackend::Impl::resolve_image(
         runtime::RenderSurfaceHandle handle) {
-        return surfaces.resolve(handle);
+        // Audit N4: during recording this thread holds no store lock, so the
+        // image comes from the recording lease, which pins the slot against
+        // erase/re-materialization. A recording op that reaches a surface it
+        // never leased must fail loudly: reading the unlocked store map here
+        // would be a data race, not a fallback.
+        //
+        // Outside a recording window the caller owns the store lock (all other
+        // call sites are under surfaces.mutex, e.g. download_surface) and reads
+        // the store directly, even while plan-wide leases are pinned.
+        if (!recording_resolve_context()) return surfaces.resolve(handle);
+        if (auto* leased = leased_image(handle)) return *leased;
+        throw std::logic_error(
+            "Vulkan recording resolved an unpinned surface " +
+            std::to_string(handle));
     }
 
     bool VulkanBackend::Impl::slot_has_initialized_occupant(
@@ -488,7 +501,9 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
     cuda_ready_surfaces.clear();
     cuda_export_ready_surfaces.clear();
 #endif
-    slot_last_access.clear();
+    // Teardown happens after the device idle point and with no recording in
+    // flight; draining the pin table here keeps the invariant observable.
+    clear_leases();
     next_slot = 0;
 }
 

@@ -69,6 +69,22 @@ struct VulkanBackendStats {
     std::uint64_t frame_batch_drain_wait_us{0};
     std::uint64_t frame_slot_wait_count{0};
     std::uint64_t frame_slot_wait_us{0};
+    // ── Contention-domain measurement (audit N4) ──────────────────────
+    // The audit asked for these numbers before touching the remaining
+    // coupling. The recording path no longer takes the surface store together
+    // with the submission ring, so it reports the two domains separately;
+    // `dual_*` measures the sites that still need both (surface
+    // lifecycle/transfer ingress and the batch transitions). Microseconds,
+    // matching frame_slot_wait_us above.
+    std::uint64_t surface_lock_acquires{0};
+    std::uint64_t surface_lock_wait_us{0};
+    std::uint64_t surface_lock_hold_us{0};
+    std::uint64_t submission_lock_acquires{0};
+    std::uint64_t submission_lock_wait_us{0};
+    std::uint64_t submission_lock_hold_us{0};
+    std::uint64_t dual_lock_acquires{0};
+    std::uint64_t dual_lock_wait_us{0};
+    std::uint64_t dual_lock_hold_us{0};
     std::uint64_t readback_us{0};
     // GPU-elapsed duration measured with Vulkan timestamp queries (0 when
     // the device exposes no timestamp support). This is the GPU execution
@@ -467,13 +483,30 @@ public:
 #endif
 
 private:
+    /// Batched surface operation (audit N4).
+    ///
+    /// `touched`/`read_surfaces` list every surface the op will resolve. On the
+    /// decoupled path (a batch already owns the recording window) they are
+    /// leased under the surface-store lock, which is then released: the
+    /// recording phase drives the submission ring alone, and the generation
+    /// token is revalidated across the hand-off before the first command is
+    /// recorded. A batch-owning (legacy per-op submit) call still needs both
+    /// domains, because it also performs the batch transition, and resolves
+    /// through the store — no lease is taken there.
     template <typename Fn>
-    graph::RenderOpResult run_batched_surface_op(Fn&& fn);
+    graph::RenderOpResult run_batched_surface_op(
+        std::span<const runtime::RenderSurfaceHandle> touched,
+        std::span<const runtime::RenderSurfaceHandle> read_surfaces,
+        Fn&& fn);
 #ifdef CHRONON3D_ENABLE_VULKAN
-    /// Single-owner unlocked hot path. The public begin/end entries take the
+    /// The `*_unlocked` cores: single-owner, and they never re-acquire a
+    /// contention domain. The public begin/end entries take the
     /// submission/surface domain locks exactly once and delegate here;
-    /// run_batched_surface_op and begin_plan_batch call the unlocked core
-    /// directly instead of re-entering either domain for every operation.
+    /// run_batched_surface_op and begin_plan_batch call the cores directly
+    /// instead of re-entering either domain for every operation.
+    /// "Unlocked" names the cores (no re-entrant acquisition), not their
+    /// callers: the public entries and the legacy per-op path hold both
+    /// domains across this call.
     void begin_frame_batch_unlocked();
     void end_frame_batch_unlocked();
 #endif

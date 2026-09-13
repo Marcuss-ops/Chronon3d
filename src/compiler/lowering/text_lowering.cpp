@@ -7,8 +7,10 @@ void lower_text(const render_plan::RenderPlan& plan, CompiledProgramData& out) {
         if (layer.type != render_plan::LayerType::Text) continue;
         const auto text_index = static_cast<std::uint32_t>(out.text_values.size());
         out.text_values.push_back(layer.text);
+        const auto program_index = static_cast<std::uint32_t>(out.texts.size());
         out.texts.push_back({
             i, text_index, static_cast<std::uint32_t>(layer.text_animators.size())});
+        out.layers[i].text_program_index = program_index;
     }
 }
 }

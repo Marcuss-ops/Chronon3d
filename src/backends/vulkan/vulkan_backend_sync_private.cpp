@@ -309,18 +309,11 @@ void VulkanBackend::Impl::emit_plan_pass_transitions(
             throw std::logic_error(
                 "Vulkan: compiled ResourceTransition has no surface binding");
         }
-        const auto binding = surfaces.surface_bindings.find(surface);
-        if (binding == surfaces.surface_bindings.end()) {
-            throw std::logic_error(
-                "Vulkan: compiled ResourceTransition surface is not bound");
-        }
-        const auto physical = surfaces.physical_surfaces.find(binding->second);
-        if (physical == surfaces.physical_surfaces.end()) {
-            throw std::logic_error(
-                "Vulkan: compiled ResourceTransition physical image is missing");
-        }
-        emit_resource_transition(command, physical->second.image.image,
-                                 transition_record);
+        // Audit N4: resolve through the recording lease. The compiled surface
+        // set is leased for the whole plan batch, so the transition stream no
+        // longer reads the surface store while the submission ring is driven.
+        const auto& physical = resolve_image(surface);
+        emit_resource_transition(command, physical.image, transition_record);
     }
 }
 

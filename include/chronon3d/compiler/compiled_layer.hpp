@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <string>
 
 namespace chronon3d::compiler {
@@ -14,6 +15,8 @@ namespace chronon3d::compiler {
 enum class LayerFitMode : std::uint8_t { Cover, Contain, Stretch, None };
 
 struct StaticLayerProgram {
+    static constexpr std::uint32_t kInvalidProgramIndex =
+        std::numeric_limits<std::uint32_t>::max();
     NodeId id{0};
     NodeKind kind{NodeKind::Unknown};
     std::string name;
@@ -38,6 +41,10 @@ struct StaticLayerProgram {
     float opacity{1.0f};
     float radius{0.0f};
     bool loop{false};
+    // Resolved once by compiler lowering. Runtime sampling must not scan the
+    // program's text/animation tables by layer id on every frame.
+    std::uint32_t text_program_index{kInvalidProgramIndex};
+    std::uint32_t animation_program_index{kInvalidProgramIndex};
 };
 
 }  // namespace chronon3d::compiler

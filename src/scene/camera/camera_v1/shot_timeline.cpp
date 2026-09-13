@@ -339,30 +339,6 @@ inline std::string derive_camera_id(const CameraProgram& prog,
     return "uncompiled-shot" + std::to_string(shot_idx);
 }
 
-// Heuristic code-derivation.  Greps `d.message` for canonical substrings
-// so a serialised log can be filtered on `code == "Uncompiled"` etc.
-// These patterns match the failure-messages emitted by:
-inline std::string derive_code_from_message(const std::string& msg) {
-    if (msg.find("Uncompiled") != std::string::npos ||
-        msg.find("uncompiled") != std::string::npos ||
-        msg.find("compile_camera") != std::string::npos) {
-        return "Uncompiled";
-    }
-    if (msg.find("ConstraintFailure") != std::string::npos ||
-        msg.find("constraint") != std::string::npos) {
-        return "ConstraintFailure";
-    }
-    if (msg.find("LookAtLayer") != std::string::npos ||
-        msg.find("look-at") != std::string::npos ||
-        msg.find("MissingTransforms") != std::string::npos) {
-        return "LookAtLayerMissingTarget";
-    }
-    if (msg.find("TransitionEvaluationFailed") != std::string::npos) {
-        return "TransitionEvaluationFailed";
-    }
-    return "ProgramDiagnostic";
-}
-
 // In-place enrich `EvaluatedCamera::resolve_diagnostics` with the 6-field
 // sub-ticket C contract.  Reads from the program's pre-existing
 // `diagnostics` vector (program-level) and emits a parallel
@@ -386,7 +362,7 @@ inline void enrich_resolve_diagnostics(EvaluatedCamera& eval,
         // Same type through the alias (camera_program.hpp:94): no cast, and no
         // second enum that could drift out of sync with the program one.
         rd.severity            = d.severity;
-        rd.code                = derive_code_from_message(d.message);
+        rd.code                = camera_diagnostic_code_name(d.code);
         rd.message             = d.message;
         eval.resolve_diagnostics.push_back(std::move(rd));
     }
@@ -432,7 +408,8 @@ ShotTimelineResolver::evaluate(SampleTime time,
         result.diagnostics.push_back({
             CameraProgramDiagnostic::Severity::Warning,
             "Uncompiled: CameraProgram has not been compiled; "
-            "call compile_camera() first."
+            "call compile_camera() first.",
+            CameraDiagnosticCode::Uncompiled
         });
         enrich_resolve_diagnostics(result, shot.program, pair.idx,
                                    ctx.sample_time.seconds());

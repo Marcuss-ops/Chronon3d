@@ -126,7 +126,39 @@ matched by the broad `*.log`/`*.png`/`*.mp4` rules).
 | **Removal scope** | auto-begin/end inside `run_batched_surface_op` (legacy per-op submit), the `owns_batch` branch, and — when the SDK ABI window opens — the `NodeTimingSink` placeholder param (P5) |
 | **Status** | `ACTIVE` |
 
+## Audit 2026-09-13 — N4 status (decoupling landed)
+
+The 2026-09-13 audit re-flagged the cross-domain acquisition above as N4. The
+sharding itself works as designed; what was wrong was one comment at
+`vulkan_backend_surface_api.cpp:36-38` claiming a "single-owner unlocked hot
+path" while the wrapper underneath holds `surfaces.mutex` +
+`submission_ring.mutex` for the whole operation.
+
+Both halves are now done. The claim is replaced by the actual invariant
+(non-re-entrancy of the `*_unlocked` cores, fixed acquisition order), and the
+recording path no longer acquires the two domains together:
+
+- `VulkanSurfaceAuthority` grew a per-slot generation token plus pin counts
+  (`SurfaceLease`); pruning and re-materialization refuse a leased slot.
+- A recording op leases its surfaces under the store lock, releases it, takes
+  only `submission_ring.mutex`, and revalidates the token across that hand-off
+  before the first recorded command.
+- `begin_plan_batch()` leases the whole compiled surface set for the batch;
+  `end_frame_batch_unlocked()` releases the same list and then nets out any
+  residual pin.
+- `wait_for_pending_submissions()` and the stats reads are submission-only.
+
+The remaining dual acquisitions are the ones that genuinely need both domains:
+the legacy per-op path, which owns the batch and drives
+begin→record→submit→drain, and `download_surface()`, whose correct lock for
+`resolve_image()` is the store. Detail and evidence:
+[TICKET-HOTPATH-AUDIT-N1-N8](TICKET-HOTPATH-AUDIT-N1-N8.md), DD-2.
+
 ## Verification
 
-Pending: full build (`-j4`) + reachable test gates.  Results recorded here
-after the run (see final report in the working-session notes).
+Built on this host: `linux-video-test` (Vulkan ON) and `linux-fast-dev`
+(Vulkan OFF), `-j12`, 0 errors. `compositor`, `render_job_contract` and
+`render_graph` PASS; `vulkan_surface_materializer` 11/13 (2 pre-existing
+failures, unchanged from `HEAD`); `backend_registry` 46/59 with the 13 failures
+documented as pre-existing in `TICKET-AUDIT-2026-09-12-REMEDIATION.md §7`.
+`tools/check_architecture.py` NOT RUN (no `tomllib` in this environment).

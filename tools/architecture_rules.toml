@@ -302,6 +302,47 @@ forbidden_patterns = [
   "compile_composition\\(",
 ]
 
+# ── Cache taxonomy is enforced, not merely documented ────────────────────────
+# include/chronon3d/cache/cache_taxonomy.hpp names the three families and the
+# single primitive; AGENTS.md repeats the table. These rules give the taxonomy
+# teeth, so that compiled GPU program artifacts (SPIR-V, Slang output, PTX
+# module, CUBIN, SASS specialization, CUDA graph executable) arrive as
+# ProgramCache content instead of as a new family or a second cache engine.
+
+[[scan]]
+name = "no_gpu_binary_cache_family"
+description = "A GPU program/binary artifact store must be ProgramCache content, not a new cache family or registry named after its lowering (no SlangCache / PtxCache / SassCache / ShaderBinaryRegistry)."
+scan_paths = ["include", "src", "apps"]
+patterns = [
+  '\b(class|struct)\s+\w*(Slang|Ptx|Sass|Spirv|SpirV|ShaderBinary|KernelBinary|Cubin|CudaGraph)\w*(Cache|Registry|Store|Repository)\b',
+]
+skip_comments = true
+hint = "Register the artifact kind in cache::ProgramCache (include/chronon3d/cache/cache_taxonomy.hpp) and key it on the canonical program fingerprint. A lowering is compiler technology, not a renderer/backend/cache."
+
+[[scan]]
+name = "single_cache_primitive"
+description = "LruCache is the only generic cache engine (AGENTS.md: 'Nessuna seconda cache engine'); a second engine or a parallel LRU must be refused, not merged later."
+scan_paths = ["include", "src", "apps"]
+allow_list = ["include/chronon3d/cache/lru_cache.hpp"]
+patterns = [
+  '\b(class|struct)\s+\w*(CacheEngine|CacheStore|LruCache|LruStore)\w*\b',
+]
+skip_comments = true
+hint = "Delegate storage/eviction to include/chronon3d/cache/lru_cache.hpp. Specialized residency managers may own allocation, but they are not a second generic primitive."
+
+[[contract]]
+name = "cache_taxonomy_gpu_artifact_doctrine"
+description = "The ProgramCache family must keep naming every compiled GPU artifact kind and the canonical key rule it is keyed on."
+file = "include/chronon3d/cache/cache_taxonomy.hpp"
+required_patterns = [
+  "SPIR-V",
+  "Slang",
+  "PTX",
+  "SASS",
+  "CUDA graph executable",
+  "compute_render_job_fingerprint",
+]
+
 # ── Operative docs must reference tools/ paths that exist ──────────────────────
 # A runbook command that fails on invocation still reads like certification.
 # docs/GOVERNANCE.md prescribed `tools/check_architecture_boundaries.sh` long

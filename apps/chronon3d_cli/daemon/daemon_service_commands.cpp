@@ -41,7 +41,8 @@ void DaemonService::run() {
 
     spdlog::info("");
     spdlog::info("Daemon shutting down. {} frames rendered in {:.1f}ms total.",
-                 m_render_count, m_total_render_ms);
+                 m_render_count.load(std::memory_order_relaxed),
+                 m_total_render_ms.load(std::memory_order_relaxed));
 }
 
 void DaemonService::handle_command(const std::string& line) {
@@ -133,8 +134,8 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     }
     const double encode_ms = profiling::duration_ms(encode_t0, profiling::now());
 
-    m_render_count++;
-    m_total_render_ms += render_ms;
+    m_render_count.fetch_add(1, std::memory_order_relaxed);
+    m_total_render_ms.fetch_add(render_ms, std::memory_order_relaxed);
     spdlog::info("✅ {} f{} → {}  |  render {:.1f}ms  encode {:.1f}ms",
                  comp_id, frame, output, render_ms, encode_ms);
 }
@@ -170,11 +171,13 @@ void DaemonService::cmd_clear_caches() {
 void DaemonService::cmd_status() {
     spdlog::info("");
     spdlog::info("═══ Daemon Status ═══");
-    spdlog::info("  Frames rendered : {}", m_render_count);
-    spdlog::info("  Total render ms : {:.1f}", m_total_render_ms);
-    if (m_render_count > 0) {
+    const auto frames_rendered = m_render_count.load(std::memory_order_relaxed);
+    const auto total_render_ms = m_total_render_ms.load(std::memory_order_relaxed);
+    spdlog::info("  Frames rendered : {}", frames_rendered);
+    spdlog::info("  Total render ms : {:.1f}", total_render_ms);
+    if (frames_rendered > 0) {
         spdlog::info("  Avg render ms   : {:.1f}",
-                     m_total_render_ms / m_render_count);
+                     total_render_ms / frames_rendered);
     }
     spdlog::info("");
 }

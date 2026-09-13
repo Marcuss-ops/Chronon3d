@@ -82,7 +82,7 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     const auto device_stats = vulkan->stats();
     CHECK(device_stats.discrete_gpu);
     CHECK(device_stats.device_name.find("RTX A4000") != std::string::npos);
-    CHECK(vulkan->kernel_registry().size() == 12);
+    CHECK(vulkan->kernel_registry().size() == 11);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Composite));
     CHECK(vulkan->kernel_registry().contains(
@@ -101,8 +101,6 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
         chronon3d::backends::vulkan::GpuKernelId::FillRect));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::LayerBatch));
-    CHECK(vulkan->kernel_registry().contains(
-        chronon3d::backends::vulkan::GpuKernelId::TextBatch));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::TextTileBin));
     CHECK(vulkan->kernel_registry().contains(

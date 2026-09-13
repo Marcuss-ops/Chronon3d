@@ -125,12 +125,15 @@ bool NativeAvEncoder::write_native_surface_impl(
         compositor_it = cuda_nv12_compositors_.emplace(key, std::move(compositor)).first;
     }
 
-    if (!surface_already_prepared) {
-        const auto copy_result = vulkan->copy_surface_to_cuda_encoder(source, destination, false);
-        if (!copy_result.ok()) {
-            spdlog::error("[native_av] GPU surface conversion failed: {}", copy_result.error().message);
-            return false;
-        }
+    if (!surface_already_prepared && source != destination) {
+        // FullGraph native output must be rendered into the encode surface.
+        // A Vulkan→CUDA/Vulkan D2D copy here hides a bandwidth-heavy fallback
+        // behind the encoder API and invalidates the zero-copy contract.
+        spdlog::error(
+            "[native_av] unprepared native source {} is not the encode surface {}; "
+            "refusing the legacy D2D copy lane",
+            source, destination);
+        return false;
     }
     try {
         if (!drain_ready_cuda_frames(false)) return false;

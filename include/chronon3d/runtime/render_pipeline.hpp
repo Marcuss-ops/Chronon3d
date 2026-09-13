@@ -33,6 +33,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -70,6 +71,84 @@ struct RenderBatchResult {
     Frame failed_frame{-1};
     std::string error{};
 };
+
+/// Expected, non-exceptional outcomes of the single-frame scheduling
+/// lifecycle.  These are backpressure/normal states, not job failures: the
+/// JobSession already records the canonical `Error` for each.
+///
+/// Rationale (audit N5): the per-frame reach must not throw for states the
+/// caller can be expected to retry or report, and a caller must be able to
+/// distinguish "no free slot" from "publish failed" without matching on an
+/// exception message.
+enum class FrameSchedulingCode : std::uint8_t {
+    NoFreeFrameSlot = 0,
+    PublishEvaluatedFailed,
+    AcquireRenderSlotFailed,
+    PublishRenderedFailed,
+    ReleaseEncodedSlotFailed,
+    ExecutorFailed,
+};
+
+[[nodiscard]] const char* frame_scheduling_code_name(
+    FrameSchedulingCode code) noexcept;
+
+/// Classification of a scheduling outcome — the axis a caller must branch on
+/// instead of matching an exception message.
+///
+/// `Backpressure` is the ONLY retryable class. Every other class means the
+/// pipeline was not simply busy, so re-submitting the same frame unchanged is
+/// not a legitimate response.
+enum class FrameSchedulingClass : std::uint8_t {
+    /// The pipeline is saturated: `acquire_for_evaluation()` found no free
+    /// frame slot. The non-exceptional backpressure state — wait for the
+    /// pipeline to drain and re-submit the same frame.
+    Backpressure = 0,
+    /// The slot authority refused a transition the pipeline had just made
+    /// legal, or handed back an element the pipeline had just accepted.
+    ///
+    /// Both are impossible while the pipeline owns both sides of the hand-off:
+    /// `publish_evaluated()`/`publish_rendered()` only fail after their CAS
+    /// succeeded, and the queues and the slot pool share one capacity
+    /// (`kPipelineDepth`), so a full push would require the CAS to have failed
+    /// first. The session is left consistent (the operation is rolled back),
+    /// which is exactly why this must be reported rather than retried.
+    InvariantViolation,
+    /// The frame's own execution failed. A canonical `Error` is already
+    /// recorded on the JobSession; the pipeline is not at fault.
+    JobFailure,
+};
+
+[[nodiscard]] constexpr FrameSchedulingClass frame_scheduling_class(
+    FrameSchedulingCode code) noexcept {
+    switch (code) {
+        case FrameSchedulingCode::NoFreeFrameSlot:
+            return FrameSchedulingClass::Backpressure;
+        case FrameSchedulingCode::PublishEvaluatedFailed:
+        case FrameSchedulingCode::AcquireRenderSlotFailed:
+        case FrameSchedulingCode::PublishRenderedFailed:
+        case FrameSchedulingCode::ReleaseEncodedSlotFailed:
+            return FrameSchedulingClass::InvariantViolation;
+        case FrameSchedulingCode::ExecutorFailed:
+            return FrameSchedulingClass::JobFailure;
+    }
+    // A value outside the enum cannot be classified; treating it as a defect
+    // is the only safe default (it must never be retried as backpressure).
+    return FrameSchedulingClass::InvariantViolation;
+}
+
+/// The one question a scheduling caller actually asks.
+[[nodiscard]] constexpr bool frame_scheduling_is_retryable(
+    FrameSchedulingCode code) noexcept {
+    return frame_scheduling_class(code) == FrameSchedulingClass::Backpressure;
+}
+
+[[nodiscard]] const char* frame_scheduling_class_name(
+    FrameSchedulingClass scheduling_class) noexcept;
+
+/// Canonical single-frame pipeline outcome.  `Result` is `[[nodiscard]]`, so a
+/// call site cannot silently drop a scheduling failure.
+using FrameRenderResult =
+    ::chronon3d::Result<std::shared_ptr<Framebuffer>, FrameSchedulingCode>;
 }
 
 namespace chronon3d::runtime {
@@ -107,13 +186,17 @@ public:
     /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
     /// only a handle; it must not duplicate slot, queue, or FrameExecution
     /// transitions here.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render(
+    ///
+    /// Expected scheduling states are returned as `FrameSchedulingCode`, never
+    /// thrown; only an unexpected backend exception escapes this call.
+    [[nodiscard]] FrameRenderResult render(
         JobSession& session, Frame frame);
 
     /// Compatibility-only lifecycle for an arbitrary Composition callback.
     /// It is kept outside JobSession until that authoring API has a typed
-    /// lowering into CompiledProgram.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_compatibility(
+    /// lowering into CompiledProgram.  Scheduling states follow `render()`:
+    /// returned, not thrown.
+    [[nodiscard]] FrameRenderResult render_compatibility(
         JobSession& session, const CompiledComposition& compiled, Frame frame);
 
     /// Canonical bounded batch lifecycle. PreparedRenderJob supplies only the

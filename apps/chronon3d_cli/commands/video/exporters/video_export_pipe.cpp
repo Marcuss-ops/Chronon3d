@@ -87,7 +87,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 .vram_bytes = 0,
                 .nvdec_sessions = capabilities.nvdec ? 1u : 0u,
                 .nvenc_sessions = capabilities.nvenc ? 1u : 0u,
-                .pcie_bandwidth = 1.0f});
+                .pcie_bandwidth = 1.0f,
+                .render_job_slots = 1u});
         device_scheduler = &local_scheduler;
     }
 

@@ -27,24 +27,96 @@
 namespace chronon3d::backends::vulkan {
 
 template <typename Fn>
-graph::RenderOpResult VulkanBackend::run_batched_surface_op(Fn&& fn) {
+graph::RenderOpResult VulkanBackend::run_batched_surface_op(
+    std::span<const runtime::RenderSurfaceHandle> touched,
+    std::span<const runtime::RenderSurfaceHandle> read_surfaces,
+    Fn&& fn) {
 #ifdef CHRONON3D_ENABLE_VULKAN
+    // Two recording shapes share this funnel:
+    //   * legacy per-op path — the op owns the batch, so both contention
+    //     domains are held for its duration and it resolves through the store;
+    //   * decoupled path — a batch already owns the recording window, so the
+    //     surface domain is released and the op's surfaces are leased instead.
+    // `touched` is the op's own resolved set, `read_surfaces` the surfaces it
+    // only reads through the compiled transition stream.
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
-        const bool owns_batch = !m_impl->frame_batch.active;
-        // P1-7: single-owner unlocked hot path. The mutex is held exactly
-        // once for the whole operation; the batch cores never re-enter it.
-        if (owns_batch) begin_frame_batch_unlocked();
-        fn();
-        if (owns_batch) end_frame_batch_unlocked();
+        // Batch ownership decides which locking shape this call needs, so it
+        // is read under the submission lock instead of assumed.
+        bool owns_batch = false;
+        {
+            Impl::DomainLock submission_lock(
+                *m_impl, Impl::LockDomain::Submission);
+            owns_batch = !m_impl->frame_batch.active;
+        }
+        if (owns_batch) {
+            // Legacy per-op submit path: it drives a full batch transition
+            // (begin → record → submit → deferred surface flush), which needs
+            // both domains. Re-checked under the locks, because another batch
+            // driver may have started one between the two sections.
+            // Audit N4 measurement: the two domains this site
+            // still needs, timed (see Impl::DomainLock).
+            Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
+            if (!m_impl->frame_batch.active) {
+                begin_frame_batch_unlocked();
+                // Both domains are held here, so the op resolves through the
+                // store exactly like before: no lease is needed, and none is
+                // taken (a pin that is never read would only add a way to
+                // unbalance the plan-wide pin counts).
+                fn();
+                end_frame_batch_unlocked();
+                return graph::RenderOpResult(graph::RenderOpOutcome{});
+            }
+            // Lost the race: a batch is active now, so fall through to the
+            // decoupled recording path below.
+        }
+
+        // Decoupled recording path (compiled plan batch or command batch).
+        // The surface-store lock is taken only for the lease lookup and is
+        // released before the submission ring is touched; the generation
+        // token is revalidated across that hand-off, before the first command
+        // is recorded.
+        //
+        // Pin and release are paired per successful pin only: a failed pin has
+        // already rolled itself back, and releasing a list that was never
+        // pinned would steal a count from an enclosing plan batch and unpin a
+        // slot that is still being recorded into.
+        bool touched_pinned = false;
+        bool reads_pinned = false;
+        try {
+            m_impl->pin_recording_leases(touched);
+            touched_pinned = true;
+            if (!read_surfaces.empty()) {
+                m_impl->pin_recording_leases(read_surfaces);
+                reads_pinned = true;
+            }
+            // From here to the end of fn() the surface domain is released for
+            // this thread, so resolve_image() must go through the leases.
+            VulkanBackend::Impl::RecordingResolveScope recording;
+            // Submission domain only, and timed: the store lock was released
+            // before this point (audit N4), so this is the recording phase's
+            // real contention cost.
+            Impl::DomainLock submission_lock(
+                *m_impl, Impl::LockDomain::Submission);
+            if (!m_impl->revalidate_recording_leases()) {
+                throw std::logic_error(
+                    "Vulkan recording lease was invalidated across the "
+                    "surface→submission hand-off (audit N4 token)");
+            }
+            fn();
+        } catch (...) {
+            if (reads_pinned) m_impl->release_recording_leases(read_surfaces);
+            if (touched_pinned) m_impl->release_recording_leases(touched);
+            throw;
+        }
+        if (reads_pinned) m_impl->release_recording_leases(read_surfaces);
+        m_impl->release_recording_leases(touched);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::ExecutionFailure, error.what()));
     }
 #else
-    (void)fn;
+    (void)touched; (void)read_surfaces; (void)fn;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend: Vulkan support is disabled"));
@@ -78,8 +150,9 @@ graph::RenderOpResult VulkanBackend::create_surface(
 graph::RenderOpResult VulkanBackend::create_cuda_external_surface(
     runtime::RenderSurfaceHandle handle, const runtime::SurfaceDesc& desc) {
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->create_cuda_external_surface(handle, desc);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -93,8 +166,9 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
     runtime::RenderSurfaceHandle destination,
     bool wait_for_completion) {
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->copy_surface_to_cuda_encoder(source, destination, wait_for_completion);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -106,8 +180,9 @@ graph::RenderOpResult VulkanBackend::copy_surface_to_cuda_encoder(
 graph::RenderOpResult VulkanBackend::prepare_cuda_surface_for_vulkan(
     runtime::RenderSurfaceHandle handle) {
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->prepare_cuda_surface_for_vulkan(handle);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -173,8 +248,9 @@ graph::RenderOpResult VulkanBackend::release_surface(
     runtime::RenderSurfaceHandle handle) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         if (handle == runtime::kInvalidRenderSurfaceHandle) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
@@ -221,8 +297,10 @@ bool VulkanBackend::wait_for_pending_submissions() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return false;
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4: wait_for_pending() touches submission/upload state only
+        // (frame fences, timestamps, upload slots) — it never resolves a
+        // surface, so the surface store is not part of this operation.
+        Impl::DomainLock submission_lock(*m_impl, Impl::LockDomain::Submission);
         m_impl->wait_for_pending();
         return true;
     } catch (const std::exception& error) {
@@ -245,8 +323,9 @@ std::size_t VulkanBackend::native_surface_ring_capacity() const noexcept {
 void VulkanBackend::release_frame_transient_surfaces() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (m_impl) {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->release_frame_transient_surfaces();
     }
 #endif
@@ -255,8 +334,9 @@ void VulkanBackend::release_frame_transient_surfaces() noexcept {
 void VulkanBackend::retire_frame_transient_surfaces() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (m_impl) {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->retire_completed_frame_transient_surfaces();
     }
 #endif
@@ -267,8 +347,9 @@ graph::RenderOpResult VulkanBackend::upload_surface(
     std::span<const float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         (void)m_impl->upload(handle, desc, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -289,8 +370,9 @@ graph::RenderOpResult VulkanBackend::upload_surface_region(
     std::span<const float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         (void)m_impl->upload_region(handle, desc, x, y, width, height, rgba, true);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -310,8 +392,9 @@ graph::RenderOpResult VulkanBackend::upload_surface_async(
     std::span<const float> rgba, runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         ticket.value = m_impl->upload(handle, desc, rgba, false);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -333,8 +416,9 @@ graph::RenderOpResult VulkanBackend::upload_surface_rows_async(
     runtime::UploadTicket& ticket) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         ticket.value = m_impl->upload_rows(handle, desc, clip, rows, false);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -382,8 +466,9 @@ graph::RenderOpResult VulkanBackend::download_surface(
     runtime::RenderSurfaceHandle handle, std::span<float> rgba) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     try {
-        std::scoped_lock lock(m_impl->surfaces.mutex,
-                              m_impl->submission_ring.mutex);
+        // Audit N4 measurement: the two domains this site
+        // still needs, timed (see Impl::DomainLock).
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->download(handle, rgba);
         return graph::RenderOpResult(graph::RenderOpOutcome{});
     } catch (const std::exception& error) {
@@ -409,7 +494,8 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
             "VulkanBackend::composite_surfaces: only Normal/Add SourceOver is implemented"));
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->composite(destination, source, mode, clip);
     });
 #else
@@ -425,7 +511,8 @@ graph::RenderOpResult VulkanBackend::copy_surface(
     runtime::RenderSurfaceHandle source,
     const std::optional<raster::BBox>& clip) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->composite(destination, source, BlendMode::Normal, clip, true);
     });
 #else
@@ -442,7 +529,8 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
     std::int32_t x1, std::int32_t y1,
     const Color& color) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_rect(destination, x0, y0, x1, y1, color);
     });
 #else
@@ -456,7 +544,8 @@ graph::RenderOpResult VulkanBackend::fill_rect_surface(
 graph::RenderOpResult VulkanBackend::initialize_transparent_surface(
     runtime::RenderSurfaceHandle destination) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->initialize_transparent_surface(destination);
     });
 #else
@@ -472,7 +561,8 @@ graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
     const Vec4& shape, const Vec4& line, const Color& color) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_solid_shape(destination, x0, y0, x1, y1,
                                  shape, line, color);
     });
@@ -489,7 +579,8 @@ graph::RenderOpResult VulkanBackend::fill_path_surface(
     runtime::RenderSurfaceHandle destination,
     std::span<const Vec2> vertices, const Color& color) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_path(destination, vertices, color);
     });
 #else
@@ -527,7 +618,8 @@ graph::RenderOpResult VulkanBackend::fill_grid_surface(
     vertices[1] = Vec2{bg_linear.b, bg_alpha};
     vertices[2] = Vec2{params.size.x, params.size.y};
     vertices[3] = Vec2{params.centered ? 1.0f : 0.0f, 0.0f};
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_grid(destination, x0, y0, x1, y1,
                           line_color, shape, line, vertices);
     });
@@ -544,7 +636,8 @@ graph::RenderOpResult VulkanBackend::transform_surface(
     runtime::RenderSurfaceHandle source,
     int offset_x, int offset_y, float opacity) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->transform(destination, source, offset_x, offset_y, opacity);
     });
 #else
@@ -560,7 +653,8 @@ graph::RenderOpResult VulkanBackend::transform_surface_affine(
     runtime::RenderSurfaceHandle source,
     const runtime::SurfaceAffineTransform& transform) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->transform_affine(destination, source, transform);
     });
 #else
@@ -575,7 +669,8 @@ graph::RenderOpResult VulkanBackend::blur_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source, float radius, bool horizontal) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->blur(destination, source, radius, horizontal);
     });
 #else
@@ -593,7 +688,9 @@ graph::RenderOpResult VulkanBackend::glow_surfaces(
     runtime::RenderSurfaceHandle scratch_vertical,
     float radius, float intensity, const Color& tint) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 4> touched{
+        destination, source, scratch_horizontal, scratch_vertical};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->glow(destination, source, scratch_horizontal, scratch_vertical,
                      radius, intensity, tint);
     });
@@ -611,7 +708,8 @@ graph::RenderOpResult VulkanBackend::color_adjust_surface(
     runtime::RenderSurfaceHandle source,
     float brightness, float contrast, const Color& tint, float tint_amount) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->color_adjust(destination, source, brightness, contrast, tint, tint_amount);
     });
 #else
@@ -629,7 +727,8 @@ graph::RenderOpResult VulkanBackend::matte_surface(
     runtime::RenderSurfaceHandle matte,
     bool luma, bool inverted) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, target, matte};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->matte(destination, target, matte, luma, inverted);
     });
 #else
@@ -645,7 +744,8 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface(
     runtime::RenderSurfaceHandle atlas,
     std::span<const runtime::GlyphInstance> glyphs) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, atlas};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->text_run_surface(destination, atlas, glyphs);
     });
 #else
@@ -664,7 +764,8 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
     const Color& highlight_color,
     bool highlight_enabled) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, atlas};
+    return run_batched_surface_op(touched, {}, [&] {
         m_impl->text_run_surface(destination, atlas, glyphs, current_frame,
                                  highlight_color, highlight_enabled);
     });
@@ -683,7 +784,10 @@ graph::RenderOpResult VulkanBackend::draw_text_batch(
     std::span<const runtime::TextRunDynamic> runs,
     std::span<const runtime::RenderSurfaceHandle> atlas_pages) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    // The atlas pages are resolved through resolve_image() by the op, so they
+    // are part of the leased set (read_surfaces = the op's read-only set).
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, atlas_pages, [&] {
         m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages);
     });
 #else
@@ -701,7 +805,10 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
     std::span<const float> transforms,
     std::span<const float> paints) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    return run_batched_surface_op([&] {
+    // Every layer source surface is resolved through resolve_image() by the
+    // op, so the compiled resource table is part of the leased read set.
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, resources, [&] {
         m_impl->execute_layer_batch(destination, instances, resources,
                                      transforms, paints);
     });
@@ -721,7 +828,9 @@ void VulkanBackend::composite_legacy_surface(
     Framebuffer& destination, const Framebuffer& source, BlendMode mode,
     const std::optional<raster::BBox>& clip) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    const auto result = run_batched_surface_op([&] {
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{
+        destination.surface_handle(), source.surface_handle()};
+    const auto result = run_batched_surface_op(touched, {}, [&] {
         m_impl->composite(destination.surface_handle(), source.surface_handle(), mode, clip);
     });
     if (!result.ok()) {

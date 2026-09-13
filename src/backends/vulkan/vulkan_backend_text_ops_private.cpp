@@ -68,23 +68,6 @@ void VulkanBackend::Impl::text_run_surface(
 
 namespace {
 
-struct alignas(16) GpuGlyphStatic {
-    std::uint32_t run_index{0};
-    std::uint32_t atlas_page_and_flags{0};
-    std::uint32_t atlas_pos{0};
-    std::uint32_t atlas_size{0};
-    float plane_left{0.0f};
-    float plane_top{0.0f};
-    float plane_right{0.0f};
-    float plane_bottom{0.0f};
-    std::uint32_t draw_order{0};
-    std::uint32_t pad0{0};
-    std::uint32_t pad1{0};
-    std::uint32_t pad2{0};
-};
-static_assert(sizeof(GpuGlyphStatic) == 48,
-              "GpuGlyphStatic must be 48 bytes matching std430");
-
 // The tiled shaders consume the canonical 112-byte runtime record.  Keeping
 // a second, shorter mirror here used to make the first six dynamic animator
 // fields invisible to Vulkan (and shifted every following array element from
@@ -146,20 +129,22 @@ void VulkanBackend::Impl::draw_text_batch(
             static_cast<int>(atlas_image.text_atlas_encoding));
     }
 
-    std::array<GpuGlyphStatic, 1024> local_glyphs;
-    std::vector<GpuGlyphStatic> heap_glyphs;
-    GpuGlyphStatic* gpu_glyphs = local_glyphs.data();
+    std::array<VulkanGpuGlyphStatic, 1024> local_glyphs;
+    VulkanGpuGlyphStatic* gpu_glyphs = local_glyphs.data();
     if (glyphs.size() > local_glyphs.size()) {
-        heap_glyphs.resize(glyphs.size());
-        gpu_glyphs = heap_glyphs.data();
+        if (text_glyph_scratch.size() < glyphs.size()) {
+            text_glyph_scratch.resize(glyphs.size());
+        }
+        gpu_glyphs = text_glyph_scratch.data();
     }
 
     std::array<GpuTextRunDynamic, 128> local_runs;
-    std::vector<GpuTextRunDynamic> heap_runs;
     GpuTextRunDynamic* gpu_runs = local_runs.data();
     if (runs.size() > local_runs.size()) {
-        heap_runs.resize(runs.size());
-        gpu_runs = heap_runs.data();
+        if (text_run_scratch.size() < runs.size()) {
+            text_run_scratch.resize(runs.size());
+        }
+        gpu_runs = text_run_scratch.data();
     }
 
     for (std::size_t r = 0; r < runs.size(); ++r) {
@@ -219,7 +204,7 @@ void VulkanBackend::Impl::draw_text_batch(
     }
 
     const VkDeviceSize glyph_bytes = static_cast<VkDeviceSize>(
-        glyphs.size() * sizeof(GpuGlyphStatic));
+        glyphs.size() * sizeof(VulkanGpuGlyphStatic));
     const VkDeviceSize run_bytes = static_cast<VkDeviceSize>(
         runs.size() * sizeof(GpuTextRunDynamic));
     constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
@@ -305,11 +290,11 @@ void VulkanBackend::Impl::draw_text_batch(
         }
         vkCmdFillBuffer(cmd, count_buffer, 0, tile_count_bytes, 0);
 
-        std::vector<VkBufferMemoryBarrier2KHR> upload_barriers;
-        upload_barriers.reserve(3);
+        std::array<VkBufferMemoryBarrier2KHR, 3> upload_barriers{};
+        std::size_t upload_barrier_count = 0;
         const auto add_upload_barrier = [&](VkBuffer buffer,
                                             VkAccessFlags2KHR dst_access) {
-            upload_barriers.push_back(VkBufferMemoryBarrier2KHR{
+            upload_barriers[upload_barrier_count++] = VkBufferMemoryBarrier2KHR{
                 VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
                 nullptr,
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
@@ -320,7 +305,7 @@ void VulkanBackend::Impl::draw_text_batch(
                 VK_QUEUE_FAMILY_IGNORED,
                 buffer,
                 0,
-                VK_WHOLE_SIZE});
+                VK_WHOLE_SIZE};
         };
         if (glyph_updated) {
             add_upload_barrier(glyph_buffer, VK_ACCESS_2_SHADER_READ_BIT_KHR);
@@ -331,7 +316,9 @@ void VulkanBackend::Impl::draw_text_batch(
         add_upload_barrier(count_buffer,
                            VK_ACCESS_2_SHADER_READ_BIT_KHR |
                            VK_ACCESS_2_SHADER_WRITE_BIT_KHR);
-        emit_buffer_barriers2(cmd, upload_barriers);
+        emit_buffer_barriers2(cmd,
+                              std::span<const VkBufferMemoryBarrier2KHR>{
+                                  upload_barriers.data(), upload_barrier_count});
 
         record_text_tile_bin(cmd, bin_descriptors,
                              static_cast<std::int32_t>(glyphs.size()),

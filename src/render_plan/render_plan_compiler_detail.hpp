@@ -12,10 +12,6 @@ namespace chronon3d::render_plan::detail {
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer);
 [[nodiscard]] chronon3d::TextDefinition materialize_text(
     const LayerPlan& layer, const chronon3d::CanvasInfo& canvas);
-[[nodiscard]] RenderJobFingerprint render_job_fingerprint(
-    const RenderPlan& plan,
-    const chronon3d::assets::PreparedAssetManifest& assets,
-    const RenderPlanFingerprintOptions& options);
 void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& layer);
 
 }  // namespace chronon3d::render_plan::detail

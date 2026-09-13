@@ -139,7 +139,6 @@ void VulkanBackend::begin_frame_batch_unlocked() {
         m_impl->emit_command_batch_boundary();
         batch.pass_count = 0;
         batch.command_plan = nullptr;
-        m_impl->clear_surface_access_state();
         batch.active = true;
         return;
     }
@@ -193,7 +192,6 @@ void VulkanBackend::begin_frame_batch_unlocked() {
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
     batch.command_plan = nullptr;
-    m_impl->clear_surface_access_state();
     if (m_impl->command_batch_active) {
         m_impl->command_batch_started = true;
     }
@@ -223,8 +221,9 @@ void VulkanBackend::begin_command_batch() {
 
 void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
+    // Audit N4 measurement: the two domains this site
+    // still needs, timed (see Impl::DomainLock).
+    Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     m_impl->require_healthy();
     if (plan.pass_count() > Impl::FrameBatchState::kCompiledPassTimingCapacity) {
         throw std::length_error(
@@ -237,6 +236,13 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     // resolves transition.resource through plan.resources and translates the
     // canonical ResourceTransition stream directly to Synchronization2.
     m_impl->frame_batch.command_plan = &plan;
+
+    // Audit N6: allocate the per-pass descriptor-set slots once, from the
+    // compiled pass count, instead of letting push_back grow the vector on
+    // pass-heavy graphs. begin_frame_batch_unlocked() cleared the vector but
+    // kept its capacity, so this reserve grows it at most when a larger plan
+    // arrives — no steady-state reallocation.
+    m_impl->frame_batch.descriptor_sets.reserve(plan.pass_count());
 
     // P0 authority invariant: validate the complete compiled placement before
     // mutating VulkanSurfaceStore. The compatibility allocator is allowed to
@@ -328,6 +334,21 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         }
     }
     m_impl->prune_surface_slots();
+
+    // Audit N4: lease the whole compiled surface set for the batch. Every pass
+    // then records with the surface domain released — resolve_image() and the
+    // compiled transition stream both read the lease instead of the store —
+    // and the plan-wide set is unleased when the batch ends. The scratch
+    // vector is reused so this costs no per-frame allocation.
+    auto& lease_handles = m_impl->plan_lease_scratch_;
+    lease_handles.clear();
+    lease_handles.reserve(resources.requests.size());
+    for (const auto& request : resources.requests) {
+        if (request.surface != runtime::kInvalidRenderSurfaceHandle) {
+            lease_handles.push_back(request.surface);
+        }
+    }
+    m_impl->pin_recording_leases_locked(lease_handles);
 #else
     (void)plan;
     unsupported("begin_plan_batch");
@@ -340,6 +361,21 @@ void VulkanBackend::end_frame_batch_unlocked() {
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
+    // Audit N4: recording is over, so the plan-wide leases are released before
+    // the submit/drain below (which need the store lock, not the leases).
+    //
+    // The release is the exact mirror of the pin in begin_plan_batch — same
+    // list, same element count — because pin_recording_leases_locked() counts
+    // per element while the map is keyed by handle: a duplicated surface in
+    // resources.requests would otherwise keep its lease alive forever.
+    if (!m_impl->plan_lease_scratch_.empty()) {
+        m_impl->release_recording_leases_locked(m_impl->plan_lease_scratch_);
+        m_impl->plan_lease_scratch_.clear();
+    }
+    // Safety net: at batch end no recording op can be in flight (both domains
+    // are held), so any residual pin is a bug. Releasing it keeps a mistake
+    // from wedging prune forever.
+    m_impl->release_all_recording_leases_locked();
     if (m_impl->command_batch_active) {
         batch.active = false;
         return;
@@ -354,8 +390,9 @@ void VulkanBackend::begin_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Public entry: synchronized ingress. The single-owner hot path calls
     // the *_unlocked core directly.
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
+    // Audit N4 measurement: the two domains this site
+    // still needs, timed (see Impl::DomainLock).
+    Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     begin_frame_batch_unlocked();
 #else
     (void)0;
@@ -366,8 +403,9 @@ void VulkanBackend::end_frame_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Public entry: synchronized ingress. The single-owner hot path calls
     // the *_unlocked core directly.
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
+    // Audit N4 measurement: the two domains this site
+    // still needs, timed (see Impl::DomainLock).
+    Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     end_frame_batch_unlocked();
 #else
     (void)0;
@@ -376,10 +414,14 @@ void VulkanBackend::end_frame_batch() {
 
 void VulkanBackend::end_command_batch() {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    std::scoped_lock lock(m_impl->surfaces.mutex,
-                          m_impl->submission_ring.mutex);
+    // Audit N4 measurement: the two domains this site
+    // still needs, timed (see Impl::DomainLock).
+    Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     m_impl->require_healthy();
     if (!m_impl->command_batch_active) return;
+    // Audit N4: end of the recording window — release the leases before the
+    // submit/drain that follow.
+    m_impl->release_all_recording_leases_locked();
     if (m_impl->command_batch_started) {
         m_impl->submit_batch();
     }

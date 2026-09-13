@@ -125,7 +125,8 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                              DaemonOptions options)
     : m_registry(registry)
     , m_options(std::move(options))
-    , m_backend(m_options.backend.empty() ? "auto" : m_options.backend)
+    , m_backend(m_options.backend.empty()
+            ? std::string{media::kDefaultBackend} : m_options.backend)
     , m_video_runtimes(std::make_shared<media::VideoRuntimeRegistry>())
 {
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -178,11 +179,12 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
-                .compute_units = 1.0f,
+                .compute_units = 8.0f,
                 .vram_bytes = device.device_memory_bytes,
                 .nvdec_sessions = probed.nvdec ? 8U : 0U,
                 .nvenc_sessions = probed.nvenc ? 8U : 0U,
-                .pcie_bandwidth = 1.0f});
+                .pcie_bandwidth = 8.0f,
+                .render_job_slots = 8U});
     };
     for (const auto& device : discovered_devices) {
         register_device(device);
@@ -194,7 +196,12 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         capabilities.name = m_backend;
         m_device_scheduler.register_device(
             std::move(capabilities),
-            runtime::DeviceResourceVector{.compute_units = 1.0f});
+            runtime::DeviceResourceVector{
+                .compute_units = 8.0f,
+                .nvdec_sessions = 8U,
+                .nvenc_sessions = 8U,
+                .pcie_bandwidth = 8.0f,
+                .render_job_slots = 8U});
     }
     spdlog::info("🔥 Worker initialised. backend={}, renderer lazy, asset/CUDA caches process-persistent.",
                  m_backend);
@@ -205,6 +212,11 @@ DaemonService::~DaemonService() = default;
 
 std::shared_ptr<SoftwareRenderer> DaemonService::warm_renderer_for_device(
     runtime::DeviceId device) {
+    // Concurrent IPC workers (serve_concurrent: one thread per connection)
+    // reach this from RENDER_JOB, which holds no IPC mutex. The map is shared
+    // mutable state and needs its own lock: find+emplace on an unordered_map
+    // from two threads is UB, not merely a duplicate-warmup inefficiency.
+    std::lock_guard<std::mutex> lock(m_device_sessions_mutex);
     const auto existing = m_device_sessions.find(device);
     if (existing != m_device_sessions.end()) return existing->second;
 

@@ -109,27 +109,6 @@ void VulkanBackend::Impl::write_layer_batch_descriptors(
     vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
 }
 
-void VulkanBackend::Impl::write_text_batch_descriptors(
-    VkDescriptorSet set, const Image& destination,
-    const Image& atlas, VkBuffer glyph_buffer, VkBuffer run_buffer) {
-    const VkDescriptorImageInfo dst_info{
-        VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorImageInfo atlas_info{
-        VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorBufferInfo glyph_info{glyph_buffer, 0, VK_WHOLE_SIZE};
-    const VkDescriptorBufferInfo run_info{run_buffer, 0, VK_WHOLE_SIZE};
-    const VkWriteDescriptorSet writes[] = {
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &atlas_info, nullptr, nullptr},
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 3, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph_info, nullptr},
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &run_info, nullptr}};
-    vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
-}
-
 VkDescriptorSet VulkanBackend::Impl::ensure_glow_descriptor_set(std::size_t index) {
     auto& set = glow_descriptor_sets[index];
     if (set != VK_NULL_HANDLE) return set;

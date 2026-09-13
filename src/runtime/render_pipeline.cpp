@@ -40,6 +40,37 @@ RenderPipeline::RenderPipeline(
     SoftwareRenderer* renderer, ::chronon3d::SoftwareExecutionContext& context) noexcept
     : m_renderer(renderer), m_context(context) {}
 
+const char* frame_scheduling_class_name(
+    FrameSchedulingClass scheduling_class) noexcept {
+    switch (scheduling_class) {
+        case FrameSchedulingClass::Backpressure:
+            return "Backpressure";
+        case FrameSchedulingClass::InvariantViolation:
+            return "InvariantViolation";
+        case FrameSchedulingClass::JobFailure:
+            return "JobFailure";
+    }
+    return "Unknown";
+}
+
+const char* frame_scheduling_code_name(FrameSchedulingCode code) noexcept {
+    switch (code) {
+        case FrameSchedulingCode::NoFreeFrameSlot:
+            return "NoFreeFrameSlot";
+        case FrameSchedulingCode::PublishEvaluatedFailed:
+            return "PublishEvaluatedFailed";
+        case FrameSchedulingCode::AcquireRenderSlotFailed:
+            return "AcquireRenderSlotFailed";
+        case FrameSchedulingCode::PublishRenderedFailed:
+            return "PublishRenderedFailed";
+        case FrameSchedulingCode::ReleaseEncodedSlotFailed:
+            return "ReleaseEncodedSlotFailed";
+        case FrameSchedulingCode::ExecutorFailed:
+            return "ExecutorFailed";
+    }
+    return "Unknown";
+}
+
 std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     const Scene& scene, const Camera& camera, i32 width, i32 height,
     float fps)
@@ -155,7 +186,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         program.fingerprint());
 }
 
-std::shared_ptr<Framebuffer> RenderPipeline::render(
+FrameRenderResult RenderPipeline::render(
     JobSession& session, Frame frame) {
     session.begin_job();
     const auto* program = session.program_ptr().get();
@@ -166,7 +197,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
 
     auto* slot = session.acquire_for_evaluation();
     if (!slot) {
-        throw std::runtime_error("RenderPipeline has no free frame slot");
+        return FrameSchedulingCode::NoFreeFrameSlot;
     }
     slot->frame_index = frame.integral();
     auto& payload = session.payload(*slot);
@@ -178,15 +209,26 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
     const auto frame_time = SampleTime::from_frame_int(frame, frame_rate);
     FrameExecution execution(session, frame, frame_time, *slot, payload);
 
+    // Expected scheduling states are returned, not thrown (audit N5).
     if (!session.publish_evaluated(*slot)) {
         (void)session.abort(*slot);
-        throw std::runtime_error("RenderPipeline failed to publish evaluated frame");
+        return FrameSchedulingCode::PublishEvaluatedFailed;
     }
     auto* render_slot = session.acquire_for_render();
     if (!render_slot) {
         (void)session.abort(*slot);
-        throw std::runtime_error("RenderPipeline failed to acquire render slot");
+        return FrameSchedulingCode::AcquireRenderSlotFailed;
     }
+    // Outcomes inside the render try-block keep the former exception path's
+    // cleanup: close the frame execution, then abort the render slot.
+    auto fail_with = [&](FrameSchedulingCode code) -> FrameRenderResult {
+        execution.fail();
+        if (render_slot->state.load(std::memory_order_acquire) !=
+                FrameSlotState::Free) {
+            (void)session.abort(*render_slot);
+        }
+        return code;
+    };
 
     try {
         auto output = render_program(*program, frame, &execution);
@@ -200,11 +242,10 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
                     "MissingFrameOutput", "executor returned no framebuffer",
                     "render_pipeline", {}, {}, frame.integral(), session.job_id()));
             }
-            throw std::runtime_error("RenderPipeline executor failed the frame");
+            return fail_with(FrameSchedulingCode::ExecutorFailed);
         }
         if (!session.publish_rendered(*render_slot)) {
-            (void)session.abort(*render_slot);
-            throw std::runtime_error("RenderPipeline failed to publish rendered frame");
+            return fail_with(FrameSchedulingCode::PublishRenderedFailed);
         }
         auto* encode_slot = session.acquire_for_encoding();
         if (!encode_slot || encode_slot != render_slot ||
@@ -214,7 +255,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
                     FrameSlotState::Free) {
                 (void)session.abort(*encode_slot);
             }
-            throw std::runtime_error("RenderPipeline failed to release encoded frame slot");
+            return fail_with(FrameSchedulingCode::ReleaseEncodedSlotFailed);
         }
         session.complete_job();
         return output;
@@ -239,12 +280,12 @@ std::shared_ptr<Framebuffer> RenderPipeline::render(
     }
 }
 
-std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
+FrameRenderResult RenderPipeline::render_compatibility(
     JobSession& session, const CompiledComposition& compiled, Frame frame) {
     session.begin_job();
     auto* slot = session.acquire_for_evaluation();
     if (!slot) {
-        throw std::runtime_error("RenderPipeline has no free frame slot");
+        return FrameSchedulingCode::NoFreeFrameSlot;
     }
     slot->frame_index = frame.integral();
     auto& payload = session.payload(*slot);
@@ -253,15 +294,24 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
         frame, compiled.composition ? compiled.composition->frame_rate() : FrameRate{});
     FrameExecution execution(session, frame, frame_time, *slot, payload);
 
+    // Same contract as render(): expected scheduling states are returned.
     if (!session.publish_evaluated(*slot)) {
         (void)session.abort(*slot);
-        throw std::runtime_error("RenderPipeline failed to publish evaluated frame");
+        return FrameSchedulingCode::PublishEvaluatedFailed;
     }
     auto* render_slot = session.acquire_for_render();
     if (!render_slot) {
         (void)session.abort(*slot);
-        throw std::runtime_error("RenderPipeline failed to acquire render slot");
+        return FrameSchedulingCode::AcquireRenderSlotFailed;
     }
+    auto fail_with = [&](FrameSchedulingCode code) -> FrameRenderResult {
+        execution.fail();
+        if (render_slot->state.load(std::memory_order_acquire) !=
+                FrameSlotState::Free) {
+            (void)session.abort(*render_slot);
+        }
+        return code;
+    };
     try {
         auto output = render_compiled_composition(compiled, frame, &execution);
         if (!output) {
@@ -274,11 +324,10 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
                     "MissingFrameOutput", "executor returned no framebuffer",
                     "render_pipeline", {}, {}, frame.integral(), session.job_id()));
             }
-            throw std::runtime_error("RenderPipeline executor failed the frame");
+            return fail_with(FrameSchedulingCode::ExecutorFailed);
         }
         if (!session.publish_rendered(*render_slot)) {
-            (void)session.abort(*render_slot);
-            throw std::runtime_error("RenderPipeline failed to publish rendered frame");
+            return fail_with(FrameSchedulingCode::PublishRenderedFailed);
         }
         auto* encode_slot = session.acquire_for_encoding();
         if (!encode_slot || encode_slot != render_slot ||
@@ -288,7 +337,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compatibility(
                     FrameSlotState::Free) {
                 (void)session.abort(*encode_slot);
             }
-            throw std::runtime_error("RenderPipeline failed to release encoded frame slot");
+            return fail_with(FrameSchedulingCode::ReleaseEncodedSlotFailed);
         }
         session.complete_job();
         return output;

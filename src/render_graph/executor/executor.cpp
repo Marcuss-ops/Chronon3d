@@ -204,10 +204,6 @@ bool GraphExecutor::execute(
                         params.filter_mode != 0);
                     return backend.transform_surface_affine(
                         params.destination, params.source, transform);
-                } else if constexpr (std::is_same_v<P, runtime::TextBatchPass>) {
-                    return backend.draw_text_batch(
-                        params.destination, params.glyphs, params.runs,
-                        params.atlas_pages);
                 }
                 return RenderOpResult(make_render_backend_error(
                     RenderBackendErrorCode::UnsupportedCapability,

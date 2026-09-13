@@ -22,19 +22,23 @@ float sample_track(const CompiledProgram& program,
         begin + track.keyframe_count, program.curve_keyframes().size());
     const auto& keys = program.curve_keyframes();
     if (end <= begin) return fallback;
-    if (frame.integral() <= keys[begin].frame) return keys[begin].value;
-    if (frame.integral() >= keys[end - 1].frame) return keys[end - 1].value;
-    for (std::size_t i = begin + 1; i < end; ++i) {
-        if (frame.integral() > keys[i].frame) continue;
-        const auto& left = keys[i - 1];
-        const auto& right = keys[i];
-        const auto span = static_cast<float>(right.frame - left.frame);
-        const auto t = span == 0.0f
-            ? 0.0f
-            : static_cast<float>(frame.integral() - left.frame) / span;
-        return left.value + (right.value - left.value) * t;
-    }
-    return keys[end - 1].value;
+    const auto frame_number = frame.integral();
+    if (frame_number <= keys[begin].frame) return keys[begin].value;
+    if (frame_number >= keys[end - 1].frame) return keys[end - 1].value;
+    const auto right_it = std::upper_bound(
+        keys.begin() + static_cast<std::ptrdiff_t>(begin),
+        keys.begin() + static_cast<std::ptrdiff_t>(end), frame_number,
+        [](std::int64_t value, const CurveKeyframeProgram& key) {
+            return value < key.frame;
+        });
+    const auto right_index = static_cast<std::size_t>(right_it - keys.begin());
+    const auto& left = keys[right_index - 1];
+    const auto& right = keys[right_index];
+    const auto span = static_cast<float>(right.frame - left.frame);
+    const auto t = span == 0.0f
+        ? 0.0f
+        : static_cast<float>(frame_number - left.frame) / span;
+    return left.value + (right.value - left.value) * t;
 }
 
 }  // namespace
@@ -72,12 +76,10 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     layer.size, layer.loop};
                 break;
             case NodeKind::Text: {
-                const auto text_it = std::find_if(
-                    program.texts().begin(), program.texts().end(),
-                    [&](const TextProgram& text) { return text.id == layer.id; });
-                sampled.text_index = text_it == program.texts().end()
-                    ? 0 : text_it->text_index;
-                sampled.payload = SampledTextParameters{sampled.text_index, 0};
+                if (layer.text_program_index < program.texts().size()) {
+                    sampled.text_index = program.texts()[layer.text_program_index].text_index;
+                }
+                sampled.payload = SampledTextParameters{sampled.text_index};
                 break;
             }
             case NodeKind::Unknown:
@@ -88,24 +90,24 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         Vec3 scale{layer.scale[0], layer.scale[1], layer.scale[2]};
         sampled.opacity = layer.opacity;
 
-        const auto animation_it = std::find_if(
-            program.animations().begin(), program.animations().end(),
-            [&](const AnimationProgram& animation) { return animation.id == layer.id; });
-        if (animation_it != program.animations().end()) {
-            const auto first = animation_it->first_track;
+        if (layer.animation_program_index < program.animations().size()) {
+            const auto& animation = program.animations()[layer.animation_program_index];
+            const auto first = animation.first_track;
             const auto last = std::min<std::size_t>(
-                first + animation_it->track_count, program.animation_tracks().size());
+                first + animation.track_count, program.animation_tracks().size());
             for (std::size_t i = first; i < last; ++i) {
                 const auto& track = program.animation_tracks()[i];
                 const auto value = sample_track(program, track, frame, 0.0f);
-                const std::string_view property = track.property;
-                if (property == "opacity") sampled.opacity = value;
-                else if (property == "position.x") position.x = value;
-                else if (property == "position.y") position.y = value;
-                else if (property == "position.z") position.z = value;
-                else if (property == "scale.x") scale.x = value;
-                else if (property == "scale.y") scale.y = value;
-                else if (property == "scale.z") scale.z = value;
+                switch (track.property_kind) {
+                    case AnimationProperty::Opacity: sampled.opacity = value; break;
+                    case AnimationProperty::PositionX: position.x = value; break;
+                    case AnimationProperty::PositionY: position.y = value; break;
+                    case AnimationProperty::PositionZ: position.z = value; break;
+                    case AnimationProperty::ScaleX: scale.x = value; break;
+                    case AnimationProperty::ScaleY: scale.y = value; break;
+                    case AnimationProperty::ScaleZ: scale.z = value; break;
+                    case AnimationProperty::Unknown: break;
+                }
             }
         }
 

@@ -85,11 +85,12 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     stages::optimize(*data);
     data->fingerprint_data.digest = stages::fingerprint(plan, *data);
 
-    render_plan::RenderPlanFingerprintOptions fp_opts = options.fingerprint;
-    if (fp_opts.render_settings.width == 0) fp_opts.render_settings.width = plan.canvas.width;
-    if (fp_opts.render_settings.height == 0) fp_opts.render_settings.height = plan.canvas.height;
-    const auto fp = stages::compute_digests(
-        plan, data->metadata.asset_manifest, fp_opts);
+    // Audit FP-1: same authority as the render-plan path — one digest pair for
+    // one job, so a cache keyed on it cannot see two different values. The
+    // canvas→settings defaulting that used to live here is part of the identity
+    // and now lives in that authority too, so the two paths cannot diverge.
+    const auto fp = render_plan::compute_render_job_fingerprint(
+        plan, data->metadata.asset_manifest, options.fingerprint);
     data->metadata.content_digest = fp.content_digest;
     data->metadata.request_digest = fp.request_digest;
     data->fingerprint_data.content_digest = fp.content_digest;

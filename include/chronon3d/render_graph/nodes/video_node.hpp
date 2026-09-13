@@ -107,6 +107,21 @@ public:
         );
         const auto* decoded_frame = media::decoded_frame_if(decoded);
         if (!decoded_frame || !decoded_frame->framebuffer) {
+            if (media::decode_is_eos(decoded) && source_frame > 0) {
+                m_source.duration = source_frame;
+                const Frame retry_frame = (m_source.loop_mode == video::VideoLoopMode::Loop)
+                    ? (m_source.source_start + video::detail::safe_loop_frame(source_frame - m_source.source_start, m_source.duration))
+                    : (m_source.source_start + std::max<Frame>(0, m_source.duration - 1));
+                decoded = decoder->decode_frame_at(
+                    m_source.path,
+                    RationalTime{retry_frame.integral(), Rational{1, source_fps}},
+                    render_w,
+                    render_h
+                );
+                decoded_frame = media::decoded_frame_if(decoded);
+            }
+        }
+        if (!decoded_frame || !decoded_frame->framebuffer) {
             if (media::decode_is_eos(decoded)) {
                 spdlog::error("[video-node] decoder reached EOF before requested frame: path='{}' frame={}",
                               m_source.path, static_cast<int>(local_frame));

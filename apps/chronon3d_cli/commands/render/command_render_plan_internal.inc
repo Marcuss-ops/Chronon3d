@@ -17,7 +17,8 @@ struct RenderPlanState {
     int crf{-1};
     std::string encode_preset;
     bool report{false};
-    std::string backend{"auto"};
+    // Resolver-owned default (audit N8).
+    std::string backend{std::string{media::kDefaultBackend}};
     std::shared_ptr<SoftwareRenderer> warm_renderer;
     RenderPlanVideoOverrides video;
     std::string trace_output;

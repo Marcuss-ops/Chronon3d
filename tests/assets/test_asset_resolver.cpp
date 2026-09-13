@@ -327,6 +327,10 @@ TEST_CASE("PreparedAssetManifest accepts content-addressed font targets") {
     write_file(g_temp.path, "cache/983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
                "font-bytes");
     const auto logical = g_temp.path / "fonts/custom.ttf";
+    // The temp directory is intentionally shared by this translation unit;
+    // remove the regular file created by the preceding font-manifest test
+    // before exercising the content-addressed symlink form.
+    remove_if_present(logical);
     std::filesystem::create_directories(logical.parent_path());
     std::error_code symlink_ec;
     std::filesystem::create_symlink(

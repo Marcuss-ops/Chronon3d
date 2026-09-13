@@ -9,7 +9,8 @@ struct RenderState {
 
     // Raw CLI spellings live only at the CLI11 boundary. The callback parses
     // these once into RenderArgs' canonical runtime types.
-    std::string backend{"auto"};
+    // Resolver-owned default (audit N8): the CLI must not own a second copy.
+    std::string backend{std::string{media::kDefaultBackend}};
     std::string gpu_hot_path_mode{"auto"};
     std::string fb_pool_clear_policy;
     // Explicit frame range for the --plan route (render --plan ...

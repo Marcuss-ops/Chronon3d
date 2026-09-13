@@ -303,9 +303,18 @@ NodeExecResult CompositeNode::execute(
     // observed consistently; never dereference a missing input while doing
     // so.  Returning the latched upstream error preserves the original
     // failure at the frame boundary instead of turning it into SIGSEGV.
-    if (inputs.size() >= 2 && (!inputs[0] || !inputs[1])) {
-        if (ctx.frame_error && ctx.frame_error->has_value()) {
-            return NodeExecResult{ctx.frame_error->value()};
+    if (ctx.frame_error && ctx.frame_error->has_value()) {
+        return NodeExecResult{ctx.frame_error->value()};
+    }
+
+    const FramebufferRef empty_fb{};
+    const FramebufferRef& in0 = inputs.size() >= 1 ? inputs[0] : empty_fb;
+    const FramebufferRef& in1 = inputs.size() >= 2 ? inputs[1] : empty_fb;
+
+    if (!in0 && !in1) {
+        if (inputs.empty()) {
+            auto fallback = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+            return NodeExecResult{std::move(fallback)};
         }
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::InvalidInput,
@@ -313,25 +322,8 @@ NodeExecResult CompositeNode::execute(
             "composite input framebuffer is missing"}};
     }
 
-    if (inputs.size() < 2) {
-        // A pass-through composite is still a depth producer.  Some graph
-        // shapes collapse the bottom input, but the remaining input retains
-        // the layer surface represented by m_world_z.  Do not let this
-        // optimization bypass DOF provenance publication.
-        if (inputs.size() == 1 && inputs[0] &&
-            ctx.policy.track_dof_depth) {
-            publish_dof_provenance(
-                ctx, *inputs[0], m_world_z,
-                dof_source_radius(ctx, m_world_z),
-                ctx.node_exec.clip_rect,
-                ctx.frame_input.width, ctx.frame_input.height);
-        }
-        auto fallback = inputs.empty() ? ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height) : ctx.acquire_owned_fb(*inputs[0]);
-        return NodeExecResult{std::move(fallback)};
-    }
-
-    const FramebufferRef& bottom = inputs[0];
-    const FramebufferRef& top = inputs[1];
+    const FramebufferRef& bottom = in0 ? in0 : in1;
+    const FramebufferRef& top = in0 ? in1 : empty_fb;
 
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info(
@@ -348,7 +340,7 @@ NodeExecResult CompositeNode::execute(
     }
 
     // Skip-opaque optimization — only applies to SourceOver + Normal blend
-    if (m_operator == CompositeOperator::SourceOver &&
+    if (top && m_operator == CompositeOperator::SourceOver &&
         m_mode == BlendMode::Normal && top->is_opaque() &&
         top->is_cpu_authoritative() &&
         input_bboxes.size() >= 2 && input_bboxes[1].has_value())
@@ -482,6 +474,17 @@ NodeExecResult CompositeNode::execute(
     // Start dispatch timing here — AFTER acquire and optional bottom composite,
     // so dispatch_ms measures only clip/bbox computation + overhead, without
     // double-counting bottom composite time (already in compositenode_blend_wall_ms).
+    if (!top) {
+        if (ctx.policy.track_dof_depth) {
+            publish_dof_provenance(
+                ctx, *result, m_world_z,
+                dof_source_radius(ctx, m_world_z),
+                ctx.node_exec.clip_rect,
+                ctx.frame_input.width, ctx.frame_input.height);
+        }
+        return NodeExecResult{std::move(result)};
+    }
+
     const auto t_dispatch0 = profiling::now();
 
     if (ctx.backend) {

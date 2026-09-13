@@ -2,6 +2,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -189,6 +190,102 @@ TEST_CASE("prepared fingerprint changes when asset bytes change") {
     REQUIRE(modified);
     CHECK(original->fingerprint.content_digest != modified->fingerprint.content_digest);
     CHECK(original->fingerprint.request_digest != modified->fingerprint.request_digest);
+}
+
+// ── FP-1: one job identity, two entry points ────────────────────────────────
+//
+// `compiler::compile` (the canonical compiler) and `compile_render_plan` (the
+// plan/prepared path) must derive the SAME content/request digest for the same
+// plan + assets + options. If they could differ, a program/binary cache keyed
+// on the digest would be able to hit a program compiled for a non-equivalent
+// job — a correctness bug, not a performance one. Before the FP-1 fix these
+// were two independent implementations of the same hash sequence, kept in sync
+// only by review.
+
+TEST_CASE("the compiler path and the plan path agree on the job fingerprint") {
+    FingerprintTempDir temp;
+    const auto root = temp.path / "fp1_root";
+    write_asset(root, "same bytes");
+
+    auto plan = image_plan();
+    plan.output.path = "fp1-job.mp4";
+    plan.output.codec = chronon3d::render_plan::VideoCodec::H264;
+    plan.output.rate_control = chronon3d::render_plan::RateControlMode::Bitrate;
+    plan.output.bitrate = 2'000'000;
+
+    chronon3d::render_plan::RenderPlanFingerprintOptions options;
+    options.render_settings.deterministic = true;
+    options.render_settings.antialiasing_samples = 2;
+
+    chronon3d::assets::AssetResolver compiler_resolver;
+    compiler_resolver.mount(root);
+    const auto compiled = chronon3d::compiler::compile(
+        plan, compiler_resolver,
+        chronon3d::compiler::CompileOptions{.fingerprint = options});
+    REQUIRE(compiled);
+    const auto& program = compiled.value();
+    // One program, one identity: the metadata view and the fingerprint view of
+    // the same digests must not drift apart either.
+    CHECK(program.fingerprint_data().content_digest ==
+          program.metadata().content_digest);
+    CHECK(program.fingerprint_data().request_digest ==
+          program.metadata().request_digest);
+
+    chronon3d::assets::AssetResolver plan_resolver;
+    plan_resolver.mount(root);
+    const auto prepared =
+        chronon3d::render_plan::compile_render_plan(plan, plan_resolver, options);
+    REQUIRE(prepared);
+
+    CHECK(prepared->fingerprint.content_digest ==
+          program.fingerprint_data().content_digest);
+    CHECK(prepared->fingerprint.request_digest ==
+          program.fingerprint_data().request_digest);
+}
+
+TEST_CASE("an unset render-settings dimension inherits the canvas on both paths") {
+    FingerprintTempDir temp;
+    const auto root = temp.path / "fp1_canvas_root";
+    write_asset(root, "same bytes");
+
+    const auto plan = image_plan(); // canvas 320x180
+    chronon3d::render_plan::RenderPlanFingerprintOptions unset;
+    unset.render_settings.width = 0;
+    unset.render_settings.height = 0;
+
+    auto inherited = unset;
+    inherited.render_settings.width = plan.canvas.width;
+    inherited.render_settings.height = plan.canvas.height;
+
+    chronon3d::assets::AssetResolver resolver_a;
+    resolver_a.mount(root);
+    const auto inherited_prepared = chronon3d::render_plan::compile_render_plan(
+        plan, resolver_a, inherited);
+    REQUIRE(inherited_prepared);
+
+    chronon3d::assets::AssetResolver resolver_b;
+    resolver_b.mount(root);
+    const auto unset_prepared = chronon3d::render_plan::compile_render_plan(
+        plan, resolver_b, unset);
+    REQUIRE(unset_prepared);
+
+    CHECK(unset_prepared->fingerprint.content_digest ==
+          inherited_prepared->fingerprint.content_digest);
+    CHECK(unset_prepared->fingerprint.request_digest ==
+          inherited_prepared->fingerprint.request_digest);
+
+    // The same rule has to hold on the compiler path, which is exactly where
+    // the wording of the default used to live alone.
+    chronon3d::assets::AssetResolver resolver_c;
+    resolver_c.mount(root);
+    const auto compiled = chronon3d::compiler::compile(
+        plan, resolver_c,
+        chronon3d::compiler::CompileOptions{.fingerprint = unset});
+    REQUIRE(compiled);
+    CHECK(compiled.value().fingerprint_data().content_digest ==
+          unset_prepared->fingerprint.content_digest);
+    CHECK(compiled.value().fingerprint_data().request_digest ==
+          unset_prepared->fingerprint.request_digest);
 }
 
 // ── Subtitle style parity (resolve_subtitle_style) ──────────────────────────

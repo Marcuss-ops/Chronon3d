@@ -11,7 +11,7 @@
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) — Test 13 = Camera brutal, distinto da Test 11; product validation in PipelineGen |
 | Test harness + WBH cert | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
-| Vulkan-gated registry suite | P1 | OPEN (pre-existing) | [AUDIT-2026-09-12-REMEDIATION §7](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — `chronon3d_backend_registry_tests` 46/58: `bind_planned_exact` lancia "physical slot is already reserved" sui casi di aliasing; la suite compila solo con `CHRONON3D_ENABLE_VULKAN=ON` e nessun workflow CI usa un preset Vulkan, quindi il compile rot (dal 2026-09-10, ora riparato) e i fallimenti runtime non erano visibili |
+| Vulkan-gated registry suite | P1 | OPEN (pre-existing) | [AUDIT-2026-09-12-REMEDIATION §7](tickets/TICKET-AUDIT-2026-09-12-REMEDIATION.md) — `chronon3d_backend_registry_tests` 46/59: `bind_planned_exact` lancia "physical slot is already reserved" sui casi di aliasing (introdotto da `077a44275`), + il caso styled-cache la cui HIT dipende da `ctx.runtime` che il test non imposta; 13 fallimenti confermati identici prima e dopo l'onda N1-N8; la suite compila solo con `CHRONON3D_ENABLE_VULKAN=ON` e nessun workflow CI usa un preset Vulkan |
 | Skip-rot registry | P2 | OPEN | [DOCTEST-SKIP-ROT](tickets/TICKET-DOCTEST-SKIP-ROT.md) — single authority for every `doctest::skip` (7 rows, deadline 2026-09-30); skip senza riga = lint failure, riga scaduta = CI FAIL |
 | Benchmark + CPU budget | P1 | MEASURED / HOST CERT PENDING | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) — B00 smoke and same-SHA CPU measurement landed; full corpus still needs the external content pack |
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
@@ -23,6 +23,12 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
+| Fingerprint duplicato (FP-1) | P0 | REMOVED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — `render_settings_fingerprint`/`material()`/`ProgramDigests` duplicati fra `compiler::stages` e `render_plan`; ora una sola authority (`render_plan::compute_render_job_fingerprint`), uguaglianza dei due entry point dimostrata da test |
+| Cache taxonomy enforcement | P1 | LANDED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — AGENTS dichiarava `cache_taxonomy.hpp` + `architecture_rules.toml` come enforcement, ora lo è: 3 regole + 4 casi nel gate selftest (gate 188/188, selftest 15/15) |
+| Artefatti GPU fuori da ProgramCache (CUDA/NV12) | P2 | ACTIVE | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) DD-3 — `get_compiled_nv12_ptx()` static + `s_modules`/`s_module_mutex` tengono PTX e CUmodule fuori dalla taxonomy; exit condition = registrazione come artefatto ProgramCache, verificata da test (il gate a dichiarazione di tipo non vede uno `static` locale) |
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
 | FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
 | SQLite telemetry (store + emitters + CLI readers) | P1 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — Wave 1D: runtime events-only (NullTelemetryStore default), zero dipendenza sqlite3 in src/include/apps; persistenza/aggregazione engine-external |
 | RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
@@ -30,6 +36,7 @@
 | Legacy composition adapter | P1 | ACTIVE | [WAVE-CLOSEOUT-DEMOLITION-DEBT](tickets/TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT.md) — `Composition::SceneFunction` compatibility route remains until typed Composition lowering has corpus equivalence |
 | MTSDF FreeType guard granularity | P1 | ACTIVE | [HOTPATH-TEXT-MTSDF-CONTENTION](tickets/TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md) — heavy SDF work now runs outside the lock; guard is still process-wide instead of per-face |
 | CPU per-glyph text selector compat | P1 | ACTIVE | [GPU-TEXT-CPU-SELECTOR-COMPAT](tickets/TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT.md) — counters landed (`gpu_text_cpu_selector_compat_*`); delete only after the official corpus proves 0 hits |
+| Vulkan surface/submission domain coupling | P1 | REMOVED (recording path) | [HOTPATH-AUDIT-N1-N8](tickets/TICKET-HOTPATH-AUDIT-N1-N8.md) — `SurfaceLease` + per-slot generation token decouple the recording ops: lease sotto lock, rilascio, solo `submission_ring.mutex`, revalidation al hand-off; 4 casi CPU-only + suite minima Vulkan-ON verdi. Resta il doppio lock dove serve davvero (per-op legacy che possiede il batch, `download_surface`) |
 
 ## Hot-path closeout (2026-09-12 working session)
 

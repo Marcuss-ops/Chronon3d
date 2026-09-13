@@ -40,7 +40,10 @@ enum class GpuPassKind : std::uint8_t {
     FusedComposite = 7,
     LayerBatch = 8,
     Scale = 9,
-    TextBatch = 10,
+    // 10 was TextBatch — demolished (zero producers; the live text path is
+    // RenderBackend::draw_text_batch, reached from the graph nodes, never
+    // through a plan pass). The value stays reserved so a future pass cannot
+    // silently inherit it.
     YuvOverlay = 11,
 };
 
@@ -128,17 +131,10 @@ struct YuvOverlayPass {
     std::optional<raster::BBox> dirty_region{};
     YuvExecutionMode mode{YuvExecutionMode::Full};
 };
-struct TextBatchPass {
-    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
-    std::vector<RenderSurfaceHandle> atlas_pages{};
-    std::vector<GlyphStatic> glyphs{};
-    std::vector<TextRunDynamic> runs{};
-};
-
 using GpuPassParams = std::variant<
     CompositePass, TransformPass, AffineTransformPass, BlurPass,
     GlowPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass,
-    ScalePass, TextBatchPass, YuvOverlayPass>;
+    ScalePass, YuvOverlayPass>;
 
 struct GpuPass {
     GpuPassKind kind{GpuPassKind::Composite};
@@ -231,11 +227,6 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const YuvOverlayPass& p) {
     out.push_back(p.destination); out.push_back(p.source);
 }
-inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
-                                 const TextBatchPass& p) {
-    out.push_back(p.destination);
-    for (const auto handle : p.atlas_pages) out.push_back(handle);
-}
 
 inline void collect_accesses(std::vector<DesiredAccess>& out,
                              const CompositePass& p) {
@@ -299,11 +290,6 @@ inline void collect_accesses(std::vector<DesiredAccess>& out,
     add_access(out, p.destination, true, true);
     add_access(out, p.source, true, false);
 }
-inline void collect_accesses(std::vector<DesiredAccess>& out,
-                             const TextBatchPass& p) {
-    add_access(out, p.destination, true, true);
-    for (const auto handle : p.atlas_pages) add_access(out, handle, true, false);
-}
 
 inline std::vector<RenderSurfaceHandle> referenced_handles(const GpuPass& pass) {
     std::vector<RenderSurfaceHandle> handles;
@@ -360,7 +346,6 @@ public:
     void fused_composite(FusedCompositePass pass) { append(GpuPass{GpuPassKind::FusedComposite, std::move(pass)}); }
     void layer_batch(LayerBatchPass pass) { append(GpuPass{GpuPassKind::LayerBatch, std::move(pass)}); }
     void scale(ScalePass pass) { append(GpuPass{GpuPassKind::Scale, std::move(pass)}); }
-    void text_batch(TextBatchPass pass) { append(GpuPass{GpuPassKind::TextBatch, std::move(pass)}); }
     void yuv_overlay(YuvOverlayPass pass) { append(GpuPass{GpuPassKind::YuvOverlay, std::move(pass)}); }
 
     void bind_last_pass_parameters(::chronon3d::graph::FrameParameterSlice slice) {
