@@ -297,10 +297,8 @@ bool VulkanBackend::wait_for_pending_submissions() noexcept {
 #ifdef CHRONON3D_ENABLE_VULKAN
     if (!m_impl) return false;
     try {
-        // Audit N4: wait_for_pending() touches submission/upload state only
-        // (frame fences, timestamps, upload slots) — it never resolves a
-        // surface, so the surface store is not part of this operation.
-        Impl::DomainLock submission_lock(*m_impl, Impl::LockDomain::Submission);
+        // Retiring completed frame transient surfaces requires the surface store lock.
+        Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
         m_impl->wait_for_pending();
         return true;
     } catch (const std::exception& error) {

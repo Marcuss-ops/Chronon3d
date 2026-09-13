@@ -246,6 +246,85 @@ intrapiano (`gpu_surface_copy_frames == 0`). Serve un'identità di plan stabile
 più una policy di lifecycle per la mappa; il desc/`initialized` del nuovo slot va
 riconciliato col contenuto precedente quando la mappa è nuova.
 
+**Aggiornamento 2026-09-13 (terza sessione) — due difetti distinti, con
+conflitto di contratto.** La ricognizione ha mostrato che i 9 rossi non sono un
+solo problema.
+
+*Difetto 1 — `ResourcePlanner` aliasa contenuto esterno.* In
+`include/chronon3d/runtime/resource_plan.hpp` la decisione di aliasing è
+`physical.last_use < request.first` + `compatible()`. Due risorse **entrambe
+solo-lette** e **caricate dall'host** (es. `background` e `overlay` in
+"minimal background + 1 overlay") hanno intervalli disgiunti, quindi finiscono
+nello **stesso slot**: una delle due perde le proprie texel e la composizione
+legge dati sbagliati. `ResourceResidency` ha già il vocabolario giusto
+(`requires_dedicated_allocation() == exportable || domain == External`,
+`allows_transient_aliasing()`), ma i test dichiarano le surface caricate come
+residenti normali, quindi `allows_transient_aliasing()` è `true` e l'aliasing
+scatta. Il planner **potrebbe** inferire il contenuto esterno dal flusso dei
+pass (un `first` che è una lettura), ma per `medium` il `first` di `background`
+è una `StorageReadWrite` (destinazione di `composite`) il cui contenuto è
+comunque richiesto dall'oracolo CPU.
+
+*Difetto 2 — slot locali al plan.* `allocation.physical_slot` è un indice locale
+al plan usato come slot fisico globale; con più plan nello stesso batch o
+surface pre-legate con `create_surface()` gli indici collidono (le 5 eccezioni).
+
+**Conflitto.** Il caso `medium CommandPlan` asserisce
+`physical_slots.size() == 2` **e** parità pixel, dove `background` (contenuto
+dall'host, letto da `composite`) è aliasato con `transformed` (prodotto
+dentro il plan). Le due cose sono compatibili solo se il backend (a) tiene gli
+occupanti portatori di contenuto in slot fisici distinti — cioè il plan dice
+`2` e il backend ne usa di più — **oppure** (b) migra i byte dell'import nello
+slot condiviso. Un fix al solo planner porta a 3–4 slot e fa fallire
+l'asserzione `== 2`; un fix al solo backend non salva `minimal background`. La
+scelta tra "il conteggio di aliasing del plan è la verità, il backend
+disaccoppia" e "l'aliasing deve preservare il contenuto importato" è una
+decisione di contratto del maintainer, non un fix meccanico.
+
+**Stato:** parcheggiato per decisione di contratto. Codice di produzione
+invariato (nessuna modifica non verificata lasciata sul percorso certificato).
+
 **Coverage gap correlato:** aggiungere una lane CI che compili un preset
 Vulkan (`linux-video-test`) è il passo che avrebbe scoperto *entrambi* i
 problemi; oggi nessun workflow lo fa.
+
+**Aggiornamento 2026-09-13 (quarta sessione) — retirement per frame-slot,
+reintrodotto in forma ristretta con regression test.** Il rimedio revertito
+nella seconda sessione era un **flush completo** dei binding transienti nello
+slot namespace del plan (iterava *tutti* i `surface_bindings` transienti): per
+questo azzerava surface che il plan corrente non referenziava. Il codice adotta
+ora un meccanismo **diverso e ristretto**, in
+`VulkanSurfaceAuthority::record_frame_slot_transient()` /
+`retire_frame_slot_transients()`:
+
+- `ensure_surface()` registra un handle **solo** quando un frame batch è attivo
+  (`frame_batch.active`), nel vettore del **frame-slot corrente**
+  (`frame_slot_transient_handles[next_slot]`).
+- Il retirement avviene quando quel frame-slot è effettivamente completato
+  (riuso dello slot in-flight in `begin_frame_batch`, o `wait_for_pending()`) e
+  cancella **solo** i binding registrati per quello slot.
+
+Guardia: una surface caricata dall'host fuori da un batch (es. `create_surface()`
+in preparazione) **non viene mai registrata**, quindi nessun confine di frame la
+ritira. È esattamente la failure mode del rimedio revertito, ed è ora coperta da
+regression test in `tests/backends/test_vulkan_surface_materializer.cpp`:
+"a recorded frame-slot transient is retired while a host surface survives",
+più l'isolamento cross-slot e il bound del pool caldo.
+
+Questo **non** chiude i 9 rossi di placement: dipendono dalla mappa
+`plan_slot → physical_slot` per istanza di plan (Difetto 2) e dal conflitto di
+contratto sul caso `medium`, entrambi aperti. Il retirement per-slot riguarda la
+crescita VRAM, non il placement.
+
+**Bound VRAM corretto.** Il warm pool trattiene al massimo
+`kMaxRetainedTransientSlots = 8` slot transienti non usati: a 1080p RGBA32F
+(~33 MB per immagine) sono **~265 MB**, non "8 MB". È quel tetto a impedire
+l'accumulo per-frame fino all'esaurimento della VRAM.
+
+**Fix collaterale — assertion stale su `valid()`.** Due casi di
+`test_vulkan_surface_materializer.cpp` assumevano che `valid()` riflettesse
+`initialized`. `d1f43877a` (fix dell'hang Vulkan↔CUDA) ha **deliberatamente**
+cambiato il contratto a "immagine materializzata (non-null)", quindi i due
+`CHECK_FALSE(valid(...))` erano stale e il target falliva **14/16 anche su
+`HEAD`**. Le assertion ora verificano `image.initialized` direttamente: il
+target è **16/16**.

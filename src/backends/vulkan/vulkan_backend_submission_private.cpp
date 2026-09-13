@@ -61,6 +61,7 @@ void VulkanBackend::Impl::wait_for_pending() {
               "vkResetFences(frame batch slot)");
         frame_batch.in_flight[i] = false;
         read_gpu_timestamps(i);
+        retire_frame_slot_transient_surfaces(i);
     }
     for (auto& slot : uploads.slots) wait_upload_slot(slot);
 }

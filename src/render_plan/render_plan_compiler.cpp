@@ -141,8 +141,19 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             break;
                         }
                         case LayerType::Video: {
+                            // The canvas frame rate is the source sampling
+                            // rate: the video must advance in lockstep with the
+                            // timeline. A guessed 30 fps played 24 fps content
+                            // at 0.8x while the audio ran at 100%, desyncing
+                            // from second 0. validate_render_budget() already
+                            // guarantees a positive rate, and every consumer
+                            // (VideoNode, DirectYuvProgram) falls back to the
+                            // frame-input rate if it is ever non-positive.
+                            const float canvas_fps = static_cast<float>(plan.canvas.fps.numerator) /
+                                (plan.canvas.fps.denominator > 0 ? static_cast<float>(plan.canvas.fps.denominator) : 1.0f);
                             video::VideoSource source{
-                                .path = resolved_video_paths[index]};
+                                .path = resolved_video_paths[index],
+                                .source_fps = canvas_fps};
                             // Render-plan video geometry is expressed as a
                             // top-left canvas box.  The canonical scene
                             // transform, consumed by both the graph and

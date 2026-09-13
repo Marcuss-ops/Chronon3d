@@ -191,7 +191,13 @@ TEST_CASE("planned transient cannot alias a persistent reservation before first 
     // bug was that an uninitialized reservation looked "free".
     auto& image = authority.bind(persistent_handle, video_ring_slot, persistent);
     (void)image;
-    CHECK_FALSE(authority.valid(persistent_handle));
+    // ``valid()`` reports MATERIALIZATION, not content (deliberate: d1f43877a
+    // switched it from ``initialized`` to a non-null image to fix the
+    // Vulkan-CUDA interop hang). The precondition this case needs is still
+    // "reservation exists but has no content yet", so assert the flag itself.
+    CHECK(authority.valid(persistent_handle));
+    CHECK_FALSE(
+        authority.physical_surfaces.at(video_ring_slot).image.initialized);
 
     CHECK_THROWS_AS(
         authority.bind(transient_handle, video_ring_slot, transient),
@@ -214,7 +220,11 @@ TEST_CASE("unplanned ensure never steals an uninitialized persistent reservation
 
     authority.ensure(persistent_handle, persistent);
     const auto persistent_slot = authority.bound_slot(persistent_handle);
-    CHECK_FALSE(authority.valid(persistent_handle));
+    // Materialized but deliberately uninitialized (see the note above on the
+    // post-d1f43877a meaning of ``valid()``).
+    CHECK(authority.valid(persistent_handle));
+    CHECK_FALSE(
+        authority.physical_surfaces.at(persistent_slot).image.initialized);
 
     authority.ensure(transient_handle, transient);
     const auto transient_slot = authority.bound_slot(transient_handle);
@@ -380,8 +390,8 @@ TEST_CASE("a leased slot survives prune_unused_slots") {
     const auto destroys_before = owner.destroy_count;
     authority.prune_unused_slots();
 
-    // 70 unused transient slots - 1 pinned = 69 candidates, 64 retained.
-    CHECK(owner.destroy_count - destroys_before == 5);
+    // 70 unused transient slots - 1 pinned = 69 candidates, 8 retained.
+    CHECK(owner.destroy_count - destroys_before == 61);
     CHECK(authority.physical_surfaces.contains(pinned_slot));
 
     authority.release_lease(lease);
@@ -438,6 +448,100 @@ TEST_CASE("the generation token invalidates a stale lease") {
     CHECK(authority.revalidate(fresh));
     CHECK(fresh.token != lease.token);
     authority.release_lease(fresh);
+}
+
+// ── Per-frame-batch-slot transient retirement ─────────────────────────────
+//
+// The retirement is deliberately scoped to handles materialized *inside an
+// active frame batch slot*. A host-provided surface created outside a batch is
+// never recorded, so a frame boundary must not clear it: the earlier "retire
+// every transient in the slot namespace" remedy did exactly that (host content
+// kept unbound, `download_surface` failed) and was reverted. These cases pin
+// the scoped contract so the reverted behaviour cannot come back silently.
+
+TEST_CASE("a recorded frame-slot transient is retired while a host surface survives") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    // Host-provided surface: bound outside any frame batch, so never recorded.
+    constexpr runtime::RenderSurfaceHandle host_handle{0xC3F001u};
+    constexpr std::size_t host_slot{100};
+    authority.bind(host_handle, host_slot, test_desc());
+    authority.physical_surfaces.at(host_slot).image.initialized = true;
+
+    // Frame-transient surface materialized while frame slot 2 was recording.
+    constexpr runtime::RenderSurfaceHandle transient_handle{0xC3F002u};
+    constexpr std::size_t transient_slot{7};
+    constexpr std::size_t frame_slot{2};
+    authority.bind(transient_handle, transient_slot, test_desc());
+    authority.physical_surfaces.at(transient_slot).image.initialized = true;
+    authority.record_frame_slot_transient(frame_slot, transient_handle);
+
+    CHECK(authority.binding_count() == 2);
+
+    CHECK(authority.retire_frame_slot_transients(frame_slot) == 1);
+
+    // The recorded transient lost its binding and its stale content flag, so
+    // the next occupant re-materializes instead of trusting old bytes.
+    CHECK(authority.surface_bindings.count(transient_handle) == 0);
+    CHECK_FALSE(authority.physical_surfaces.at(transient_slot).image.initialized);
+    // The host surface was never recorded for this slot: still bound and still
+    // initialized. This is the regression the reverted remedy broke.
+    CHECK(authority.surface_bindings.count(host_handle) == 1);
+    CHECK(authority.physical_surfaces.at(host_slot).image.initialized);
+
+    // Retirement is idempotent: a completed slot with no records releases
+    // nothing.
+    CHECK(authority.retire_frame_slot_transients(frame_slot) == 0);
+}
+
+TEST_CASE("retiring one frame slot leaves another slot's transients bound") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle slot0_handle{0xC3F011u};
+    constexpr runtime::RenderSurfaceHandle slot1_handle{0xC3F012u};
+    authority.bind(slot0_handle, 3, test_desc());
+    authority.bind(slot1_handle, 4, test_desc());
+    authority.record_frame_slot_transient(0, slot0_handle);
+    authority.record_frame_slot_transient(1, slot1_handle);
+
+    CHECK(authority.retire_frame_slot_transients(0) == 1);
+    CHECK(authority.surface_bindings.count(slot0_handle) == 0);
+    CHECK(authority.surface_bindings.count(slot1_handle) == 1);
+
+    CHECK(authority.retire_frame_slot_transients(1) == 1);
+    CHECK(authority.surface_bindings.count(slot1_handle) == 0);
+}
+
+TEST_CASE("retirement keeps the transient warm pool bounded") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr std::size_t kSlots = 12;
+    constexpr std::size_t frame_slot = 5;
+    for (std::size_t slot = 0; slot < kSlots; ++slot) {
+        const auto handle =
+            static_cast<runtime::RenderSurfaceHandle>(0xC3F100u + slot);
+        authority.bind(handle, slot, test_desc());
+        authority.record_frame_slot_transient(frame_slot, handle);
+    }
+    CHECK(authority.physical_count() == kSlots);
+
+    const auto destroys_before = owner.destroy_count;
+    CHECK(authority.retire_frame_slot_transients(frame_slot) == kSlots);
+    CHECK(authority.binding_count() == 0);
+
+    // All retired slots become unused transients; prune keeps only the warm
+    // pool bound (8 retained, ~265MB at 1080p RGBA32F) instead of letting a
+    // per-frame 33MB image accumulate to VRAM exhaustion.
+    CHECK(authority.physical_count() ==
+          VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kMaxRetainedTransientSlots);
+    CHECK(owner.destroy_count - destroys_before ==
+          kSlots - VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kMaxRetainedTransientSlots);
 }
 
 TEST_CASE("nested leases on one slot are reference counted") {

@@ -94,6 +94,10 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     gpu_frame->format = AV_PIX_FMT_CUDA;
     gpu_frame->width = options_.width;
     gpu_frame->height = options_.height;
+    gpu_frame->color_range = codec_->color_range;
+    gpu_frame->colorspace = codec_->colorspace;
+    gpu_frame->color_trc = codec_->color_trc;
+    gpu_frame->color_primaries = codec_->color_primaries;
     gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
     const auto hw_t0 = Clock::now();
     const int hw_rc = av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0);
@@ -203,6 +207,10 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         reusable_cuda_frames_.push_back(gpu_frame);
         return false;
     }
+    gpu_frame->color_range = codec_->color_range;
+    gpu_frame->colorspace = codec_->colorspace;
+    gpu_frame->color_trc = codec_->color_trc;
+    gpu_frame->color_primaries = codec_->color_primaries;
     gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
     cuda::OwnedCudaEvent ready{};
     const CUresult event_create = cuda::create_recorded(

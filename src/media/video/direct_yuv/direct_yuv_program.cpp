@@ -501,8 +501,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             const Frame local_frame = frame - layer.from;
             if (local_frame < 0) continue;
             const Frame source_frame = source_video::map_video_frame(local_frame, overlay.source);
+            const float effective_fps = (overlay.source.source_fps > 0.0f)
+                ? overlay.source.source_fps
+                : static_cast<float>(rate.numerator) / (rate.denominator > 0 ? rate.denominator : 1);
             const i64 source_fps = std::max<i64>(
-                1, static_cast<i64>(std::llround(overlay.source.source_fps)));
+                1, static_cast<i64>(std::llround(effective_fps)));
             auto overlay_frame = decoder.decode_native_frame_at(
                 overlay.source.path,
                 RationalTime{source_frame.integral(), Rational{1, source_fps}},

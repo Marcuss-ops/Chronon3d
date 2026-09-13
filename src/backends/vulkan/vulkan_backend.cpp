@@ -172,6 +172,7 @@ void VulkanBackend::begin_frame_batch_unlocked() {
               "vkResetFences(frame batch slot)");
         batch.in_flight[slot] = false;
         m_impl->read_gpu_timestamps(slot);
+        m_impl->retire_frame_slot_transient_surfaces(slot);
     }
     m_impl->descriptor_arena.reset(slot);
     const VkCommandBufferBeginInfo begin{
