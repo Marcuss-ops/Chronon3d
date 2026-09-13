@@ -184,7 +184,11 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                 .nvdec_sessions = probed.nvdec ? 8U : 0U,
                 .nvenc_sessions = probed.nvenc ? 8U : 0U,
                 .pcie_bandwidth = 8.0f,
-                .render_job_slots = 8U});
+                // The daemon owns one Vulkan/CUDA context per device and
+                // serializes job execution at the IPC boundary. Advertising
+                // eight slots let concurrent full-frame exporters overcommit
+                // VRAM before the daemon mutex could protect the job domain.
+                .render_job_slots = 1U});
     };
     for (const auto& device : discovered_devices) {
         register_device(device);
@@ -201,7 +205,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                 .nvdec_sessions = 8U,
                 .nvenc_sessions = 8U,
                 .pcie_bandwidth = 8.0f,
-                .render_job_slots = 8U});
+                .render_job_slots = 1U});
     }
     spdlog::info("🔥 Worker initialised. backend={}, renderer lazy, asset/CUDA caches process-persistent.",
                  m_backend);

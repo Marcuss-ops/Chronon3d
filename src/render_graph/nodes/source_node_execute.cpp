@@ -107,11 +107,28 @@ NodeExecResult SourceNode::execute(
         }
     }
 
-    // Only image overlays need a predicted visual box here.  Background and
+    // Only image overlays need a predicted visual box here. Background and
     // video producers are intentionally full-canvas and must not pay for an
     // extra per-frame bounds calculation.
+    //
+    // A frame-variant image in the native-video lane needs one additional
+    // guarantee: its producer surface must keep a stable canvas-space extent
+    // while Vulkan/CUDA/NVENC may still be consuming the previous frame. A
+    // tight ROI changes both the logical framebuffer view and the affine
+    // destination between animation samples; with an encode-bound physical
+    // slot that can alias the prior submission. Keep animated native images
+    // full-canvas. This is still device-local and avoids the software
+    // fallback; static images retain the tight ROI optimization.
+    const bool native_surface_backend =
+        ctx.backend && ctx.backend->supports_native_video_surface();
+    const bool stable_native_image_extent =
+        m_node.shape.type() == ShapeType::Image &&
+        native_surface_backend &&
+        ctx.policy.retain_native_surface_for_video &&
+        !m_cache_policy.reusable_across_frames();
     std::optional<raster::BBox> source_bbox;
-    if (m_node.shape.type() == ShapeType::Image && !full_frame_seed) {
+    if (m_node.shape.type() == ShapeType::Image &&
+        !full_frame_seed && !stable_native_image_extent) {
         source_bbox = predicted_bbox(ctx);
     }
     const auto producer_surface = detail::resolve_producer_surface_bounds(
@@ -148,8 +165,6 @@ NodeExecResult SourceNode::execute(
     // Keep the CPU clear for software backend. On a Vulkan video job,
     // materialize the full-frame color directly into a native surface so
     // the final framebuffer stays device-local all the way to NVENC.
-    const bool native_surface_backend =
-        ctx.backend && ctx.backend->supports_native_video_surface();
     if (direct_full_frame_fill) {
         if (native_surface_backend && ctx.surface_registry) {
             if (ensure_empty_native_surface(ctx, *fb)) {

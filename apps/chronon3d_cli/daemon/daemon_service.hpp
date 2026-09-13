@@ -161,6 +161,13 @@ private:
     // (serve_concurrent), and the RENDER_JOB path does not hold any IPC
     // mutex; the map needs its own lock (audit N1).
     mutable std::mutex m_device_sessions_mutex;
+    // A daemon owns one Vulkan/CUDA device context. Video RENDER_JOB creates
+    // a job-scoped exporter/backend, so admitting multiple jobs concurrently
+    // multiplies full-frame native surfaces until the device memory budget is
+    // exhausted. Keep ingress concurrent for STATUS/PREFETCH, but serialize
+    // the actual GPU job domain at this owner boundary. This is the same
+    // single-lane contract exposed by RenderingGen's gpu_lanes=1 setting.
+    mutable std::mutex m_render_job_mutex;
     bool m_running{true};
     std::atomic<int> m_render_count{0};
     std::atomic<double> m_total_render_ms{0.0};

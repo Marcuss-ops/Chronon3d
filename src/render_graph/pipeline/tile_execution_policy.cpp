@@ -33,7 +33,13 @@ bool has_matching_previous_surface(
         return false;
     }
     const auto& previous = sw_renderer->buffer_ring().prev_framebuffer();
-    return previous->width() == width && previous->height() == height;
+    // Sparse tiles preserve the previous frame by copying its CPU pixels
+    // before rendering dirty regions. Native-video frames intentionally have
+    // no CPU backing, so treating their device-only surface as a matching
+    // previous framebuffer would make the coordinator dereference a null
+    // pixel pointer (and would mix a CPU tile path with the GPU contract).
+    return previous->width() == width && previous->height() == height &&
+           previous->data() != nullptr;
 }
 
 bool has_frame_dependent_content(const Scene& scene, Frame frame) {
@@ -509,6 +515,18 @@ FrameExecutionPlan ExecutionResolver::resolve(
         plan.path = FrameExecutionPath::FullYuv;
         plan.reason = output_format == runtime::PixelFormat::P010
             ? "full_yuv_p010" : "full_yuv_nv12";
+        return plan;
+    }
+
+    // SparseTiles is a CPU-preserve/copy path: it starts from the previous
+    // framebuffer and patches dirty regions. A strict native-video frame is
+    // device-only and is consumed asynchronously by CUDA/NVENC, so there is
+    // no valid CPU surface to preserve and no safe partial-frame handoff.
+    // Render the complete frame through the native graph instead. This keeps
+    // the GPU contract strict and avoids both a readback and a null-pixel
+    // copy; the Vulkan compositor still limits work internally where it can.
+    if (encode_requested && settings.require_native_gpu) {
+        set_full_rgb(plan, "native_gpu_disables_sparse_tiles");
         return plan;
     }
 
