@@ -285,9 +285,10 @@ public:
     /// boundary rather than a second compiled barrier plan. The caller must
     /// invoke the surface operations in plan.passes order; pass_count doubles
     /// as the plan pass index. The backend also consumes plan.resources: each
-    /// allocation's handle is bound to its planned physical slot and every
-    /// slot is backed by exactly one VkImage, so lifetime-disjoint surfaces
-    /// alias the same device memory.
+    /// allocation's handle is resolved against its planned physical slot.
+    /// Lifetime-disjoint surfaces alias when safe; the Vulkan backend may
+    /// split content-carrying occupants into separate images when merging
+    /// them would overwrite resident bytes.
     void begin_plan_batch(const runtime::CommandPlan& plan) override;
 
     /// Phase 5 — pre-allocate every physical surface from the compiler's

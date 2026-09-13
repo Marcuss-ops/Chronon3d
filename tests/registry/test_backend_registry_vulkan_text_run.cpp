@@ -34,6 +34,7 @@
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
@@ -111,6 +112,10 @@ TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via V
     ctx.backend = &backend;
     ctx.surface_registry = &surfaces;
     ctx.text_render_resources = &text_resources;
+    auto runtime_result = runtime::RuntimeContext::create(runtime::RuntimeConfig{});
+    REQUIRE(runtime_result.has_value());
+    auto runtime = std::move(runtime_result.value());
+    ctx.runtime = runtime.get();
 
     // Pre-populate glyph atlas with an unstyled glyph entry
     auto glyph_img = std::make_shared<BLImage>(4, 4, BL_FORMAT_PRGB32);

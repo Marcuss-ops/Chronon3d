@@ -227,12 +227,12 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     // still needs, timed (see Impl::DomainLock).
     Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
     m_impl->require_healthy();
+    const bool trace_plan_bind = std::getenv("CHRONON3D_TRACE_PLAN_BIND") != nullptr;
     if (plan.pass_count() > Impl::FrameBatchState::kCompiledPassTimingCapacity) {
         throw std::length_error(
             "Vulkan compiled pass timing capacity exhausted");
     }
     begin_frame_batch_unlocked();
-    m_impl->retire_completed_frame_transient_surfaces();
 
     // CommandPlan is the sole compiled synchronization authority. Vulkan
     // resolves transition.resource through plan.resources and translates the
@@ -292,7 +292,33 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         }
     }
 
-    for (const auto& allocation : resources.allocations) {
+    // Keep this plan's logical bindings alive while retiring completed
+    // previous-frame transients. In particular, host-uploaded carriers must
+    // remain bound until the content-aware placement map has been derived.
+    std::vector<runtime::RenderSurfaceHandle> protected_plan_handles;
+    protected_plan_handles.reserve(resources.requests.size());
+    for (const auto& request : resources.requests) {
+        if (request.surface != runtime::kInvalidRenderSurfaceHandle) {
+            protected_plan_handles.push_back(request.surface);
+        }
+    }
+    // A command batch may contain several independently compiled plans whose
+    // surfaces were all created/uploaded before recording starts. Retiring
+    // here would drop the carriers belonging to the later plans.
+    if (!m_impl->command_batch_active) {
+        m_impl->retire_completed_frame_transient_surfaces(protected_plan_handles);
+    }
+
+    // ResourcePlanner's physical_slot is a plan-local namespace. Resolve it
+    // into backend slots here, after inspecting the content already resident
+    // in each logical surface. A plan slot may alias transient producers, but
+    // it must never merge two initialized carriers whose bytes came from the
+    // host or another external producer.
+    std::vector<std::vector<std::size_t>> plan_slot_allocations(
+        resources.slots.size());
+    for (std::size_t allocation_index = 0;
+         allocation_index < resources.allocations.size(); ++allocation_index) {
+        const auto& allocation = resources.allocations[allocation_index];
         if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
             allocation.physical_slot == invalid_slot) {
             continue;
@@ -316,37 +342,213 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             throw std::logic_error(
                 "Vulkan compiled allocation attempts to claim an explicitly unplanned surface");
         }
+        plan_slot_allocations[allocation.physical_slot].push_back(allocation_index);
+    }
 
-        // A surface bound dynamically by create_surface() is re-placed onto the
-        // plan's physical slot by bind_planned_exact when its dynamic slot holds
-        // no live content; a re-placement that would drop initialized content is
-        // still rejected there.
+    // Fresh backend slots live after every slot already handed out by the
+    // compatibility allocator. They are independent from the plan-local
+    // indices above, so separate plans in one command batch cannot collide.
+    store.next_slot = std::max(store.next_slot, resources.slots.size());
 
-        const auto physical = store.physical_surfaces.find(allocation.physical_slot);
-        if (physical != store.physical_surfaces.end() &&
-            physical->second.image.initialized) {
-            for (const auto& [bound_handle, bound_slot] : store.surface_bindings) {
-                if (bound_handle != allocation.surface &&
-                    bound_slot == allocation.physical_slot &&
-                    !store.is_registered_alias(allocation.surface, bound_handle,
-                                               allocation.physical_slot)) {
+    std::vector<std::size_t> slot_map(
+        resources.allocations.size(), invalid_slot);
+    for (const auto& allocation_indices : plan_slot_allocations) {
+        if (allocation_indices.empty()) continue;
+
+        std::vector<std::size_t> carriers;
+        carriers.reserve(allocation_indices.size());
+        for (const auto allocation_index : allocation_indices) {
+            const auto handle = resources.allocations[allocation_index].surface;
+            const auto binding = store.surface_bindings.find(handle);
+            if (binding == store.surface_bindings.end()) continue;
+            const auto physical = store.physical_surfaces.find(binding->second);
+            if (physical != store.physical_surfaces.end() &&
+                physical->second.image.initialized) {
+                carriers.push_back(allocation_index);
+            }
+        }
+
+        if (carriers.size() >= 2) {
+            // Two live carriers cannot share one VkImage. Keep each carrier's
+            // current slot. A producer may join a carrier only when it starts
+            // after the carrier's final read; the opposite ordering would
+            // overwrite host content before its first consumer.
+            std::unordered_set<std::size_t> carrier_slots;
+            for (const auto allocation_index : carriers) {
+                const auto handle = resources.allocations[allocation_index].surface;
+                const auto binding = store.surface_bindings.find(handle);
+                if (binding == store.surface_bindings.end()) {
                     throw std::logic_error(
-                        "Vulkan compiled physical-slot collision with initialized content");
+                        "Vulkan content-aware placement lost a carrier binding");
                 }
+                if (!carrier_slots.insert(binding->second).second) {
+                    throw std::logic_error(
+                        "Vulkan initialized carriers already share a physical slot");
+                }
+                slot_map[allocation_index] = binding->second;
+            }
+            std::vector<std::size_t> deferred_producers;
+            for (const auto allocation_index : allocation_indices) {
+                if (slot_map[allocation_index] != invalid_slot) continue;
+                const auto& request = resources.requests.at(
+                    resources.allocations[allocation_index].request_index);
+                for (const auto carrier_index : carriers) {
+                    const auto& carrier_request = resources.requests.at(
+                        resources.allocations[carrier_index].request_index);
+                    if (carrier_request.last < request.first) {
+                        slot_map[allocation_index] = slot_map[carrier_index];
+                        break;
+                    }
+                }
+                if (slot_map[allocation_index] == invalid_slot) {
+                    deferred_producers.push_back(allocation_index);
+                }
+            }
+            if (!deferred_producers.empty()) {
+                std::size_t producer_slot = invalid_slot;
+                for (const auto allocation_index : deferred_producers) {
+                    const auto binding = store.surface_bindings.find(
+                        resources.allocations[allocation_index].surface);
+                    if (binding != store.surface_bindings.end()) {
+                        producer_slot = binding->second;
+                        break;
+                    }
+                }
+                if (producer_slot == invalid_slot) {
+                    producer_slot = store.next_slot++;
+                    while (store.physical_surfaces.contains(producer_slot) ||
+                           store.slot_in_use(producer_slot)) {
+                        producer_slot = store.next_slot++;
+                    }
+                }
+                for (const auto allocation_index : deferred_producers) {
+                    slot_map[allocation_index] = producer_slot;
+                }
+            }
+            continue;
+        }
+
+        std::vector<std::size_t> deferred_producers;
+        if (!carriers.empty()) {
+            const auto carrier_index = carriers.front();
+            const auto carrier_slot = store.surface_bindings.at(
+                resources.allocations[carrier_index].surface);
+            slot_map[carrier_index] = carrier_slot;
+            for (const auto allocation_index : allocation_indices) {
+                if (allocation_index == carrier_index) continue;
+                const auto& carrier_request = resources.requests.at(
+                    resources.allocations[carrier_index].request_index);
+                const auto& producer_request = resources.requests.at(
+                    resources.allocations[allocation_index].request_index);
+                if (carrier_request.last < producer_request.first) {
+                    slot_map[allocation_index] = carrier_slot;
+                } else {
+                    deferred_producers.push_back(allocation_index);
+                }
+            }
+        } else {
+            // Preserve an existing logical binding where possible. This keeps
+            // repeated plans stable and avoids growing the backend slot set.
+            for (const auto allocation_index : allocation_indices) {
+                const auto binding = store.surface_bindings.find(
+                    resources.allocations[allocation_index].surface);
+                if (binding != store.surface_bindings.end()) {
+                    slot_map[allocation_index] = binding->second;
+                    break;
+                }
+            }
+            for (const auto allocation_index : allocation_indices) {
+                if (slot_map[allocation_index] == invalid_slot) {
+                    deferred_producers.push_back(allocation_index);
+                }
+            }
+        }
+
+        if (!deferred_producers.empty()) {
+            std::size_t producer_slot = invalid_slot;
+            for (const auto allocation_index : deferred_producers) {
+                const auto binding = store.surface_bindings.find(
+                    resources.allocations[allocation_index].surface);
+                if (binding != store.surface_bindings.end()) {
+                    producer_slot = binding->second;
+                    break;
+                }
+            }
+            if (producer_slot == invalid_slot) {
+                producer_slot = store.next_slot++;
+                while (store.physical_surfaces.contains(producer_slot) ||
+                       store.slot_in_use(producer_slot)) {
+                    producer_slot = store.next_slot++;
+                }
+            }
+            for (const auto allocation_index : deferred_producers) {
+                slot_map[allocation_index] = producer_slot;
             }
         }
     }
 
-    // Reserve the compiler-owned slot namespace. Dynamic/unplanned allocation
-    // starts after it, so CUDA/export/compatibility surfaces cannot silently
-    // collide with a slot selected by the compiled resource plan.
-    store.next_slot = std::max(store.next_slot, resources.slots.size());
+    std::unordered_map<std::size_t,
+                       std::vector<runtime::RenderSurfaceHandle>>
+        backend_slot_occupants;
+    for (std::size_t allocation_index = 0;
+         allocation_index < resources.allocations.size(); ++allocation_index) {
+        const auto mapped_slot = slot_map[allocation_index];
+        if (mapped_slot == invalid_slot) continue;
+        backend_slot_occupants[mapped_slot].push_back(
+            resources.allocations[allocation_index].surface);
+    }
 
-    for (const auto& allocation : resources.allocations) {
+    if (trace_plan_bind) {
+        for (std::size_t allocation_index = 0;
+             allocation_index < resources.allocations.size(); ++allocation_index) {
+            if (slot_map[allocation_index] == invalid_slot) continue;
+            spdlog::info("[planbind] surface={} plan_slot={} backend_slot={} initialized={}",
+                         resources.allocations[allocation_index].surface,
+                         resources.allocations[allocation_index].physical_slot,
+                         slot_map[allocation_index],
+                         store.physical_surfaces.contains(slot_map[allocation_index]) &&
+                             store.physical_surfaces.at(slot_map[allocation_index])
+                                 .image.initialized);
+        }
+    }
+
+    // Validate against pre-bound surfaces outside this plan. Handles listed in
+    // the same mapped occupant set are intentional aliases and are permitted;
+    // an initialized slot owned by any other logical handle is a real clash.
+    for (std::size_t allocation_index = 0;
+         allocation_index < resources.allocations.size(); ++allocation_index) {
+        const auto mapped_slot = slot_map[allocation_index];
+        if (mapped_slot == invalid_slot) continue;
+        const auto physical = store.physical_surfaces.find(mapped_slot);
+        if (physical == store.physical_surfaces.end() ||
+            !physical->second.image.initialized) {
+            continue;
+        }
+        const auto occupants = backend_slot_occupants.find(mapped_slot);
+        for (const auto& [bound_handle, bound_slot] : store.surface_bindings) {
+            if (bound_handle == resources.allocations[allocation_index].surface ||
+                bound_slot != mapped_slot) {
+                continue;
+            }
+            const bool is_plan_occupant =
+                occupants != backend_slot_occupants.end() &&
+                std::find(occupants->second.begin(), occupants->second.end(),
+                          bound_handle) != occupants->second.end();
+            if (!is_plan_occupant) {
+                throw std::logic_error(
+                    "Vulkan compiled physical-slot collision with initialized content");
+            }
+        }
+    }
+
+    for (std::size_t allocation_index = 0;
+         allocation_index < resources.allocations.size(); ++allocation_index) {
+        const auto& allocation = resources.allocations[allocation_index];
         if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
             allocation.physical_slot == invalid_slot) {
             continue;
         }
+        const auto mapped_slot = slot_map[allocation_index];
         const auto& planned = resources.slots[allocation.physical_slot];
         const auto& request_desc = resources.requests[allocation.request_index].desc;
         const auto width = request_desc.width != 0 ? request_desc.width : planned.desc.width;
@@ -359,12 +561,17 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             width, height, format, usage, request_desc.lifetime);
 
         const auto compatibility_cursor = store.next_slot;
+        const auto occupants = backend_slot_occupants.find(mapped_slot);
+        const std::span<const runtime::RenderSurfaceHandle> allowed_occupants =
+            occupants == backend_slot_occupants.end()
+                ? std::span<const runtime::RenderSurfaceHandle>{}
+                : std::span<const runtime::RenderSurfaceHandle>(occupants->second);
         m_impl->bind_surface_to_slot(
-            allocation.surface, allocation.physical_slot, desc);
+            allocation.surface, mapped_slot, desc, allowed_occupants);
 
         const auto actual = store.surface_bindings.find(allocation.surface);
         if (actual == store.surface_bindings.end() ||
-            actual->second != allocation.physical_slot) {
+            actual->second != mapped_slot) {
             throw std::logic_error(
                 "Vulkan compiled surface was not materialized in its planned slot");
         }
@@ -373,7 +580,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
                 "Vulkan compiled surface reached the dynamic compatibility allocator");
         }
     }
-    m_impl->prune_surface_slots();
+    m_impl->reclaim_unused_transient_surface_slots();
 
     // Audit N4: lease the whole compiled surface set for the batch. Every pass
     // then records with the surface domain released — resolve_image() and the
