@@ -13,6 +13,7 @@
 #include <limits>
 #include <mutex>
 #include <stdexcept>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -298,9 +299,10 @@ public:
     // no pinning, diversion, reuse search or next_slot mutation is permitted.
     ImageT& bind(runtime::RenderSurfaceHandle handle,
                  std::size_t slot,
-                 const runtime::SurfaceDesc& desc) {
+                 const runtime::SurfaceDesc& desc,
+                 std::span<const runtime::RenderSurfaceHandle> planned_occupants = {}) {
         require_owner();
-        return bind_planned_exact(handle, slot, desc);
+        return bind_planned_exact(handle, slot, desc, planned_occupants);
     }
 
     // Explicit compatibility/unplanned path. This is the only API allowed to
@@ -362,6 +364,19 @@ public:
     }
 
     void prune_unused_slots() {
+        prune_unused_slots_impl(false);
+    }
+
+    // A compiled plan can leave behind transient slots that were previously
+    // bound by create_surface() but are no longer occupied after the backend
+    // derives its content-aware placement. Reclaim those slots immediately;
+    // the normal prune policy intentionally retains a warm pool.
+    void reclaim_unused_transient_slots() {
+        prune_unused_slots_impl(true);
+    }
+
+private:
+    void prune_unused_slots_impl(bool force) {
         require_owner();
         std::size_t unused_transient = 0;
         for (const auto& [slot, physical] : physical_surfaces) {
@@ -371,7 +386,7 @@ public:
                 ++unused_transient;
             }
         }
-        if (unused_transient <= kMaxRetainedTransientSlots) return;
+        if (!force && unused_transient <= kMaxRetainedTransientSlots) return;
 
         for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
             // A leased slot is skipped: destroying its image would pull the
@@ -384,7 +399,11 @@ public:
             materializer_.destroy(it->second.image);
             bump_slot_token(it->first);
             it = physical_surfaces.erase(it);
-            if (--unused_transient <= kMaxRetainedTransientSlots) break;
+            --unused_transient;
+            if (unused_transient == 0 ||
+                (!force && unused_transient <= kMaxRetainedTransientSlots)) {
+                break;
+            }
         }
     }
 
@@ -398,18 +417,21 @@ protected:
 
     ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
                                std::size_t slot,
-                               const runtime::SurfaceDesc& desc) {
+                               const runtime::SurfaceDesc& desc,
+                               std::span<const runtime::RenderSurfaceHandle>
+                                   planned_occupants) {
         const auto previous = surface_bindings.find(handle);
         if (previous != surface_bindings.end() && previous->second != slot) {
             const auto old_surface = physical_surfaces.find(previous->second);
             if (old_surface != physical_surfaces.end() &&
-                old_surface->second.image.initialized) {
-                // The plan is the placement authority and may re-slot a
-                // dynamically-bound surface, but only while its old slot
-                // holds no live content: replacing an initialized surface is
-                // how uploaded sources would be silently lost.
+                old_surface->second.image.initialized &&
+                old_surface->second.desc.lifetime !=
+                    runtime::LifetimeClass::FrameTransient) {
+                // The plan may re-slot a transient binding after its content
+                // has retired. Persistent or initialized external content is
+                // never silently replaced.
                 throw std::logic_error(
-                    "Vulkan planned surface attempted to change physical slot");
+                    "Vulkan planned persistent surface attempted to change physical slot");
             }
             surface_bindings.erase(previous);
         }
@@ -419,7 +441,10 @@ protected:
         // considered only initialized occupants, allowing the first plan
         // materialization to steal the NVENC ring's physical image.
         for (const auto& [bound_handle, bound_slot] : surface_bindings) {
-            if (bound_handle != handle && bound_slot == slot &&
+            const bool planned_alias = std::find(
+                planned_occupants.begin(), planned_occupants.end(), bound_handle) !=
+                planned_occupants.end();
+            if (bound_handle != handle && bound_slot == slot && !planned_alias &&
                 !is_registered_alias(handle, bound_handle, slot)) {
                 throw std::logic_error(
                     "Vulkan planned surface physical slot is already reserved");

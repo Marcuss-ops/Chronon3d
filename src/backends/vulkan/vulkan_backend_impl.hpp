@@ -220,10 +220,15 @@ struct VulkanBackend::Impl {
     }
     Image& bind_surface_to_slot(runtime::RenderSurfaceHandle handle,
                                 std::size_t slot,
-                                const runtime::SurfaceDesc& desc) {
-        return surfaces.bind(handle, slot, desc);
+                                const runtime::SurfaceDesc& desc,
+                                std::span<const runtime::RenderSurfaceHandle>
+                                    planned_occupants = {}) {
+        return surfaces.bind(handle, slot, desc, planned_occupants);
     }
     void prune_surface_slots() { surfaces.prune_unused_slots(); }
+    void reclaim_unused_transient_surface_slots() {
+        surfaces.reclaim_unused_transient_slots();
+    }
 
     // ── Recording leases (audit N4) ──────────────────────────────────────
     // The pin table is a leaf: it is written while the store lock is held and
@@ -633,9 +638,12 @@ struct VulkanBackend::Impl {
     void flush_deferred_surface_releases();
     // Shared frame-transient drain used by both cleanup paths; the caller
     // performs its own pre-drain (blocking wait vs non-blocking fence poll).
-    void release_frame_transient_handles(bool log_lifecycle);
+    void release_frame_transient_handles(
+        bool log_lifecycle,
+        std::span<const runtime::RenderSurfaceHandle> protected_handles = {});
     void release_frame_transient_surfaces() noexcept;
-    void retire_completed_frame_transient_surfaces() noexcept;
+    void retire_completed_frame_transient_surfaces(
+        std::span<const runtime::RenderSurfaceHandle> protected_handles = {}) noexcept;
     std::uint64_t submit_upload(VulkanUploadRing::UploadSlot& slot,
                                 bool wait_for_completion);
     std::uint64_t upload(runtime::RenderSurfaceHandle handle,
