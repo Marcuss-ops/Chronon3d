@@ -210,6 +210,14 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             }
             const auto& resolved = normalized.value();
             const auto& canon = resolved.execution;
+            // serve_concurrent keeps IPC ingress responsive, but a video job
+            // owns a complete Vulkan/CUDA exporter and its frame-transient
+            // surface ring. Running several such exporters on one device
+            // multiplies 1080p surfaces and can exhaust VRAM before the
+            // scheduler observes the real memory pressure. Serialize the
+            // execution domain here; STATUS and asset operations remain
+            // concurrent because they do not take this mutex.
+            std::unique_lock<std::mutex> render_job_lock(m_render_job_mutex);
             const bool native_nvenc = canon.native_nvenc;
             const std::string& hot_path = canon.gpu_hot_path_mode;
             const std::string& codec = canon.codec;
@@ -255,7 +263,9 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             const bool direct_yuv = canon.direct_yuv;
             // The scheduler reservation owns the device execution lane. It is
             // moved into the job context and remains live through dispatch,
-            // so admission and actual execution cannot disagree.
+            // so admission and actual execution cannot disagree. The
+            // render-job mutex above makes this true even with concurrent IPC
+            // connections targeting the same daemon/device.
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
                 warm_renderer = warm_renderer_for_device(reserved_device);
