@@ -3,13 +3,71 @@
 #include <chronon3d/runtime/frame/frame_queue.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
+#include <chronon3d/runtime/render_pipeline.hpp>
 
 #include <atomic>
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 
 namespace chronon3d::runtime {
 namespace {
+
+// ── Audit N5: a scheduling outcome must be classifiable without string
+// matching, and only genuine saturation may be retried ──────────────────────
+//
+// The slot pool, the evaluated queue and the rendered queue all have capacity
+// kPipelineDepth, so a publish that fails after its CAS succeeded — or a pop
+// from a queue the pipeline just pushed to — cannot be a full queue. Those
+// outcomes are defect signals, and classifying them as retryable would make a
+// caller loop forever on a broken invariant.
+
+static_assert(frame_scheduling_class(FrameSchedulingCode::NoFreeFrameSlot) ==
+              FrameSchedulingClass::Backpressure);
+static_assert(frame_scheduling_is_retryable(FrameSchedulingCode::NoFreeFrameSlot));
+
+static_assert(frame_scheduling_class(FrameSchedulingCode::PublishEvaluatedFailed) ==
+              FrameSchedulingClass::InvariantViolation);
+static_assert(frame_scheduling_class(FrameSchedulingCode::AcquireRenderSlotFailed) ==
+              FrameSchedulingClass::InvariantViolation);
+static_assert(frame_scheduling_class(FrameSchedulingCode::PublishRenderedFailed) ==
+              FrameSchedulingClass::InvariantViolation);
+static_assert(frame_scheduling_class(FrameSchedulingCode::ReleaseEncodedSlotFailed) ==
+              FrameSchedulingClass::InvariantViolation);
+static_assert(!frame_scheduling_is_retryable(FrameSchedulingCode::PublishEvaluatedFailed));
+static_assert(!frame_scheduling_is_retryable(FrameSchedulingCode::AcquireRenderSlotFailed));
+static_assert(!frame_scheduling_is_retryable(FrameSchedulingCode::PublishRenderedFailed));
+static_assert(!frame_scheduling_is_retryable(FrameSchedulingCode::ReleaseEncodedSlotFailed));
+
+// The executor's own failure carries a canonical Error on the session; the
+// pipeline is not at fault, and it is still not retryable as backpressure.
+static_assert(frame_scheduling_class(FrameSchedulingCode::ExecutorFailed) ==
+              FrameSchedulingClass::JobFailure);
+static_assert(!frame_scheduling_is_retryable(FrameSchedulingCode::ExecutorFailed));
+
+TEST_CASE("scheduling classes and codes are both named") {
+    const auto name_is = [](FrameSchedulingClass value, std::string_view expected) {
+        return std::string_view{frame_scheduling_class_name(value)} == expected;
+    };
+    CHECK(name_is(FrameSchedulingClass::Backpressure, "Backpressure"));
+    CHECK(name_is(FrameSchedulingClass::InvariantViolation, "InvariantViolation"));
+    CHECK(name_is(FrameSchedulingClass::JobFailure, "JobFailure"));
+
+    // Every code must keep a resolvable name: the OPP adapter reports the code
+    // and its class instead of an anonymous failure.
+    const FrameSchedulingCode codes[] = {
+        FrameSchedulingCode::NoFreeFrameSlot,
+        FrameSchedulingCode::PublishEvaluatedFailed,
+        FrameSchedulingCode::AcquireRenderSlotFailed,
+        FrameSchedulingCode::PublishRenderedFailed,
+        FrameSchedulingCode::ReleaseEncodedSlotFailed,
+        FrameSchedulingCode::ExecutorFailed,
+    };
+    for (const auto code : codes) {
+        CHECK(frame_scheduling_code_name(code) != nullptr);
+        CHECK(frame_scheduling_class_name(frame_scheduling_class(code)) != nullptr);
+    }
+}
 
 class TestGpuCompletion final : public GpuCompletion {
 public:

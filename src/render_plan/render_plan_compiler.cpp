@@ -52,7 +52,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         auto assets = resources.manifest();
 
         const auto fingerprint_t0 = chronon3d::profiling::now();
-        const auto fingerprints = detail::render_job_fingerprint(
+        // Audit FP-1: the canonical job-identity authority, shared with the
+        // compiler path so both produce the same digest for the same job.
+        const auto fingerprints = compute_render_job_fingerprint(
             plan, assets, fingerprint_options);
         auto content_plan = plan;
         content_plan.job_id.clear();

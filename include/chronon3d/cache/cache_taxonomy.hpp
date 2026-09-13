@@ -75,6 +75,25 @@ enum class CacheFamily : unsigned char {
     ///   • OverlayTemplateCache    — overlay template GPU command plans
     ///   • CompiledArtifactCache   — persistent compiled-program artifact store
     ///                              (I/O adapter, not a second in-memory primitive)
+    ///
+    /// Every compiled GPU program artifact belongs HERE, whoever produced it:
+    ///
+    ///   • GLSL → SPIR-V binary
+    ///   • Slang → SPIR-V / PTX output
+    ///   • CUDA → PTX module, CUBIN
+    ///   • SASS specialization for a GPU architecture
+    ///   • CUDA graph executable
+    ///
+    /// A lowering is NOT a renderer, a backend, a cache family or a registry.
+    /// Slang/PTX/SASS are compiler technologies that lower the SAME semantic
+    /// program; adding one adds an artifact KIND to this family, never a
+    /// `SlangCache` / `PtxCache` / `SassCache` / `ShaderBinaryRegistry`, and
+    /// never a second cache engine. The artifact key is the canonical program
+    /// fingerprint (render_plan::compute_render_job_fingerprint for job
+    /// identity) plus the target/compiler attributes — never a filename, an
+    /// object address or an ad-hoc hash. Enforced by the
+    /// `no_gpu_binary_cache_family` / `single_cache_primitive` rules in
+    /// tools/architecture_rules.toml.
     ProgramCache = 3,
 };
 

@@ -6,8 +6,11 @@
 #include "vulkan_surface_materializer.hpp"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -44,6 +47,36 @@ public:
         runtime::SurfaceDesc desc{};
     };
 
+    // ── Recording lease + generation token (audit N4) ────────────────────
+    //
+    // A recording op resolves its surfaces under this store's lock, then
+    // releases it and drives the submission ring. `SurfaceLease` is that
+    // hand-off: it carries the resolved image, its physical slot and the
+    // slot's generation token. The writer paths below refuse to erase or
+    // re-materialize a leased slot, so the pin is what makes the hand-off
+    // safe; the token turns a pin-enforcement bug into a loud failure instead
+    // of a silent use-after-free.
+    //
+    // `slot_tokens` is a fixed array so a lease can read its slot's token
+    // without the store lock (stable addresses + atomic reads). Slots beyond
+    // the array are untracked and rely on the pin alone.
+    static constexpr std::size_t kTrackedSurfaceSlots = 4096;
+    static constexpr std::size_t kInvalidSurfaceSlot =
+        std::numeric_limits<std::size_t>::max();
+
+    struct SurfaceLease {
+        ImageT* image{nullptr};
+        std::size_t slot{kInvalidSurfaceSlot};
+        std::uint64_t token{0};
+        runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
+        bool valid{false};
+    };
+
+    std::array<std::atomic<std::uint64_t>, kTrackedSurfaceSlots> slot_tokens{};
+    // Slot pin counts. Store-mutex guarded: only writers (prune/materialize)
+    // and lease acquisition/release read them while holding that lock.
+    std::unordered_map<std::size_t, std::size_t> slot_pins{};
+
     std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces{};
     std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings{};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -53,7 +86,6 @@ public:
     std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases{};
     std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles{};
     std::size_t next_slot{0};
-    std::unordered_map<std::size_t, runtime::ResourceAccess> slot_last_access{};
 
     // Policy owns binding state; materializer owns only the physical Vulkan
     // mechanism. It receives an already-selected Image record and never a
@@ -81,7 +113,86 @@ public:
         return deferred_surface_releases.size();
     }
 
-    void clear_access_state() noexcept { slot_last_access.clear(); }
+    // ── Generation token (lock-free reads) ───────────────────────────────
+
+    [[nodiscard]] bool slot_token_tracked(std::size_t slot) const noexcept {
+        return slot < kTrackedSurfaceSlots;
+    }
+
+    [[nodiscard]] std::uint64_t slot_token(std::size_t slot) const noexcept {
+        return slot_token_tracked(slot)
+            ? slot_tokens[slot].load(std::memory_order_acquire)
+            : 0;
+    }
+
+    void bump_slot_token(std::size_t slot) noexcept {
+        if (slot_token_tracked(slot)) {
+            slot_tokens[slot].fetch_add(1, std::memory_order_acq_rel);
+        }
+    }
+
+    // ── Lease lifecycle (store lock held) ────────────────────────────────
+
+    /// Pin the handle's physical slot and hand back the resolved image.
+    /// Throws when the handle is not bound — a recording op must never
+    /// silently record against a surface it never resolved.
+    [[nodiscard]] SurfaceLease acquire_lease(
+        runtime::RenderSurfaceHandle handle) {
+        const auto binding = surface_bindings.find(handle);
+        if (binding == surface_bindings.end()) {
+            throw std::invalid_argument(
+                "Vulkan recording lease references an unbound surface " +
+                std::to_string(handle));
+        }
+        const auto physical = physical_surfaces.find(binding->second);
+        if (physical == physical_surfaces.end()) {
+            throw std::invalid_argument(
+                "Vulkan recording lease has no backing physical image");
+        }
+        ++slot_pins[binding->second];
+        return SurfaceLease{&physical->second.image, binding->second,
+                            slot_token(binding->second), handle, true};
+    }
+
+    void release_lease(const SurfaceLease& lease) noexcept {
+        if (!lease.valid) return;
+        const auto it = slot_pins.find(lease.slot);
+        if (it == slot_pins.end()) return;
+        if (it->second > 1) {
+            --it->second;
+        } else {
+            slot_pins.erase(it);
+        }
+    }
+
+    [[nodiscard]] bool slot_pinned(std::size_t slot) const noexcept {
+        const auto it = slot_pins.find(slot);
+        return it != slot_pins.end() && it->second != 0;
+    }
+
+    /// Lock-free. A recording op calls this between the state lookup and the
+    /// ring registration; false means the slot changed or was erased, so the
+    /// lease must be re-acquired (or the op must fail loudly).
+    [[nodiscard]] bool revalidate(const SurfaceLease& lease) const noexcept {
+        if (!lease.valid || lease.image == nullptr) return false;
+        // Untracked slots (beyond the token array) rely on the pin alone.
+        if (!slot_token_tracked(lease.slot)) return true;
+        return slot_token(lease.slot) == lease.token;
+    }
+
+    void clear_leases() noexcept { slot_pins.clear(); }
+
+    /// Writer-side half of the pin invariant: a slot under an in-flight
+    /// recording lease must not be re-materialized or erased. Failing loudly
+    /// here is strictly better than destroying a VkImage another thread is
+    /// still recording into.
+    void require_not_leased(std::size_t slot, const char* mutation) const {
+        if (!slot_pinned(slot)) return;
+        throw std::logic_error(
+            std::string{"Vulkan surface slot "} + std::to_string(slot) +
+            " cannot " + mutation +
+            " while a recording lease holds it (audit N4 pin invariant)");
+    }
 
     [[nodiscard]] bool is_job_persistent(
         runtime::RenderSurfaceHandle handle) const noexcept {
@@ -170,7 +281,9 @@ public:
                 physical.image.width != desc.width ||
                 physical.image.height != desc.height ||
                 physical.desc.format != desc.format) {
+                require_not_leased(binding->second, "re-materialize");
                 materializer_.materialize(physical.image, desc);
+                bump_slot_token(binding->second);
                 physical.desc = desc;
             }
             physical.image.text_atlas_encoding = desc.text_atlas_encoding;
@@ -207,19 +320,22 @@ public:
         for (const auto& [slot, physical] : physical_surfaces) {
             (void)slot;
             if (physical.desc.lifetime != runtime::LifetimeClass::JobPersistent &&
-                !slot_in_use(slot)) {
+                !slot_in_use(slot) && !slot_pinned(slot)) {
                 ++unused_transient;
             }
         }
         if (unused_transient <= kMaxRetainedTransientSlots) return;
 
         for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
-            if (slot_in_use(it->first) ||
+            // A leased slot is skipped: destroying its image would pull the
+            // VkImage out from under an in-flight recording.
+            if (slot_in_use(it->first) || slot_pinned(it->first) ||
                 it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
                 ++it;
                 continue;
             }
             materializer_.destroy(it->second.image);
+            bump_slot_token(it->first);
             it = physical_surfaces.erase(it);
             if (--unused_transient <= kMaxRetainedTransientSlots) break;
         }
@@ -292,6 +408,7 @@ protected:
     ImageT& materialize_binding(runtime::RenderSurfaceHandle handle,
                                 std::size_t slot,
                                 const runtime::SurfaceDesc& desc) {
+        require_not_leased(slot, "be re-materialized");
         auto& physical = physical_surfaces[slot];
         owner_->stats.physical_surfaces_peak = std::max(
             owner_->stats.physical_surfaces_peak,
@@ -310,6 +427,7 @@ protected:
         physical.desc = desc;
         physical.image.text_atlas_encoding = desc.text_atlas_encoding;
         surface_bindings[handle] = slot;
+        bump_slot_token(slot);
         return physical.image;
     }
 };

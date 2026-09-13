@@ -55,13 +55,13 @@ struct RenderJobRequest {
     OutputSpec output{};
     TraceOptions trace{};
     std::string receipt_verification;
-    std::string backend{"auto"};
+    std::string backend{std::string{media::kDefaultBackend}};
     bool report{false};
 };
 
 struct RuntimeCapabilities {
     /// Host/daemon backend policy. The request may use "auto" to inherit it.
-    std::string backend{"auto"};
+    std::string backend{std::string{media::kDefaultBackend}};
 };
 
 enum class RenderJobRequestErrorCode : std::uint8_t {
@@ -96,7 +96,7 @@ struct NormalizedRenderJob {
     OutputSpec output{};
     TraceOptions trace{};
     std::string receipt_verification;
-    std::string backend{"auto"};
+    std::string backend{std::string{media::kDefaultBackend}};
     bool report{false};
 
     /// Final policy decision consumed by the execution adapter. No transport

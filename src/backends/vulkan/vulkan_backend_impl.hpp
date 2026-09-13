@@ -26,11 +26,13 @@
 
 #include <array>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <spdlog/spdlog.h>
 #include <cstring>
 #include <initializer_list>
+#include <iterator>
 #include <mutex>
 #include <span>
 #include <stdexcept>
@@ -65,6 +67,23 @@ inline void check(VkResult result, const char* operation) {
 }
 
 inline constexpr float kIdentityTint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+
+struct alignas(16) VulkanGpuGlyphStatic {
+    std::uint32_t run_index{0};
+    std::uint32_t atlas_page_and_flags{0};
+    std::uint32_t atlas_pos{0};
+    std::uint32_t atlas_size{0};
+    float plane_left{0.0f};
+    float plane_top{0.0f};
+    float plane_right{0.0f};
+    float plane_bottom{0.0f};
+    std::uint32_t draw_order{0};
+    std::uint32_t pad0{0};
+    std::uint32_t pad1{0};
+    std::uint32_t pad2{0};
+};
+static_assert(sizeof(VulkanGpuGlyphStatic) == 48,
+              "VulkanGpuGlyphStatic must match the tiled text std430 ABI");
 
 struct VulkanBackend::Impl {
     // Device lifetime remains owned by Impl. Surface state and submission
@@ -155,6 +174,10 @@ struct VulkanBackend::Impl {
         FrameBatchState::kSlotCount * kGlyphInstancePassesPerSlot;
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> glyph_instance_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> glyph_instance_hashes{};
+    // High-water-mark scratch. Large text batches may grow these once, but
+    // never allocate a temporary spill vector on every draw call.
+    std::vector<VulkanGpuGlyphStatic> text_glyph_scratch{};
+    std::vector<runtime::TextRunDynamic> text_run_scratch{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_sizes{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> layer_instance_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> layer_instance_hashes{};
@@ -191,7 +214,6 @@ struct VulkanBackend::Impl {
     [[nodiscard]] std::size_t surface_physical_count() const noexcept {
         return surfaces.physical_count();
     }
-    void clear_surface_access_state() noexcept { surfaces.clear_access_state(); }
     [[nodiscard]] bool surface_is_job_persistent(
         runtime::RenderSurfaceHandle handle) const noexcept {
         return surfaces.is_job_persistent(handle);
@@ -202,6 +224,255 @@ struct VulkanBackend::Impl {
         return surfaces.bind(handle, slot, desc);
     }
     void prune_surface_slots() { surfaces.prune_unused_slots(); }
+
+    // ── Recording leases (audit N4) ──────────────────────────────────────
+    // The pin table is a leaf: it is written while the store lock is held and
+    // read while the submission lock is held, and it never acquires either.
+    // `second` is a reference count so a batch-wide plan pin and the per-op
+    // pins of individual passes can coexist.
+    using RecordingLease = decltype(surfaces)::SurfaceLease;
+
+    void pin_recording_leases(
+        std::span<const runtime::RenderSurfaceHandle> handles) {
+        // Surface domain only: this is the whole point of the N4 decoupling —
+        // the recording path never takes it together with the submission ring.
+        DomainLock store_lock(*this, LockDomain::Surface);
+        pin_recording_leases_locked(handles);
+    }
+
+    /// Which contention domain(s) a lock site takes. `Dual` is the coupling
+    /// the audit N4 measurement is about: two independent domains serialized
+    /// by one acquisition.
+    enum class LockDomain : std::uint8_t { Surface, Submission, Dual };
+
+    /// Audit N4 measurement: the contention domains, timed.
+    ///
+    /// Drop-in replacement for the `std::scoped_lock(surfaces.mutex,
+    /// submission_ring.mutex)` it displaces — same fixed acquisition order
+    /// (surfaces → submission), same single-owner scope, no lambda and no
+    /// control-flow change at the call site — plus the wait/hold accounting
+    /// the audit asked for. Only sites that genuinely need both use `Dual`;
+    /// the recording path is not one of them any more.
+    class DomainLock {
+    public:
+        explicit DomainLock(Impl& impl, LockDomain domain)
+            : impl_(impl), domain_(domain), wait_start_(profiling::now()),
+              // Fixed acquisition order (surfaces → submission), the order the
+              // displaced scoped_lock used, so no inversion is introduced.
+              first_(domain == LockDomain::Submission ? impl.submission_ring.mutex
+                                                      : impl.surfaces.mutex),
+              second_(impl.submission_ring.mutex, std::defer_lock) {
+            if (domain == LockDomain::Dual) second_.lock();
+            impl_.record_lock_wait(domain_, static_cast<std::uint64_t>(
+                profiling::elapsed_us(wait_start_)));
+            hold_start_ = profiling::now();
+        }
+
+        ~DomainLock() {
+            impl_.record_lock_hold(domain_, static_cast<std::uint64_t>(
+                profiling::elapsed_us(hold_start_)));
+        }
+
+        DomainLock(const DomainLock&) = delete;
+        DomainLock& operator=(const DomainLock&) = delete;
+        DomainLock(DomainLock&&) = delete;
+        DomainLock& operator=(DomainLock&&) = delete;
+
+    private:
+        Impl& impl_;
+        LockDomain domain_;
+        std::chrono::steady_clock::time_point wait_start_{};
+        std::unique_lock<std::mutex> first_;
+        // Owns nothing unless the domain is Dual (defer_lock).
+        std::unique_lock<std::mutex> second_;
+        std::chrono::steady_clock::time_point hold_start_{};
+    };
+
+    void record_lock_wait(LockDomain domain, std::uint64_t microseconds) noexcept {
+        switch (domain) {
+            case LockDomain::Surface:
+                ++stats.surface_lock_acquires;
+                stats.surface_lock_wait_us += microseconds;
+                return;
+            case LockDomain::Submission:
+                ++stats.submission_lock_acquires;
+                stats.submission_lock_wait_us += microseconds;
+                return;
+            case LockDomain::Dual:
+                ++stats.dual_lock_acquires;
+                stats.dual_lock_wait_us += microseconds;
+                return;
+        }
+    }
+
+    void record_lock_hold(LockDomain domain, std::uint64_t microseconds) noexcept {
+        switch (domain) {
+            case LockDomain::Surface:
+                stats.surface_lock_hold_us += microseconds;
+                return;
+            case LockDomain::Submission:
+                stats.submission_lock_hold_us += microseconds;
+                return;
+            case LockDomain::Dual:
+                stats.dual_lock_hold_us += microseconds;
+                return;
+        }
+    }
+
+    /// Recording mutex MUST be held. Reverse the first `count` valid entries of
+    /// `handles` — i.e. drop exactly the references a failed
+    /// pin_recording_leases_locked() managed to take, and no more.
+    ///
+    /// The count is what makes this safe on a list with repeated handles: a
+    /// blind release of the whole list could decrement a reference that belongs
+    /// to an enclosing plan batch and unpin a slot it still records into.
+    void rollback_pins_locked(
+        std::span<const runtime::RenderSurfaceHandle> handles,
+        std::size_t count) {
+        std::size_t undone = 0;
+        for (const auto handle : handles) {
+            if (undone == count) break;
+            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+            release_lease_entry_locked(handle);
+            ++undone;
+        }
+    }
+
+    /// Store lock MUST be held (the batch transitions already hold it).
+    ///
+    /// Pin/unpin are list-symmetric: every element of `handles` contributes
+    /// exactly one reference count, so a list that repeats a handle (e.g.
+    /// composite(h, h)) is balanced by releasing the same list.
+    void pin_recording_leases_locked(
+        std::span<const runtime::RenderSurfaceHandle> handles) {
+        std::lock_guard pin_lock(recording_leases_mutex);
+        std::size_t processed = 0;
+        try {
+            for (const auto handle : handles) {
+                if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+                auto it = recording_leases.find(handle);
+                if (it == recording_leases.end()) {
+                    it = recording_leases
+                             .emplace(handle, std::make_pair(
+                                                  surfaces.acquire_lease(handle),
+                                                  std::size_t{0}))
+                             .first;
+                }
+                ++it->second.second;
+                ++processed;
+            }
+        } catch (...) {
+            // A handle whose lease cannot be taken must not leave the earlier
+            // pins of this call behind, or prune and re-materialization would be
+            // wedged forever. The unwind loop lives in rollback_pins_locked()
+            // so this error path carries no loop of its own.
+            rollback_pins_locked(handles, processed);
+            recording_leases_active.store(!recording_leases.empty(),
+                                          std::memory_order_release);
+            throw;
+        }
+        recording_leases_active.store(!recording_leases.empty(),
+                                      std::memory_order_release);
+    }
+
+    void release_recording_leases(
+        std::span<const runtime::RenderSurfaceHandle> handles) {
+        DomainLock store_lock(*this, LockDomain::Surface);
+        release_recording_leases_locked(handles);
+    }
+
+    /// Store lock MUST be held. Symmetric counterpart of
+    /// pin_recording_leases_locked(handles): one release per list element.
+    void release_recording_leases_locked(
+        std::span<const runtime::RenderSurfaceHandle> handles) {
+        std::lock_guard pin_lock(recording_leases_mutex);
+        for (const auto handle : handles) {
+            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
+            release_lease_entry_locked(handle);
+        }
+        recording_leases_active.store(!recording_leases.empty(),
+                                      std::memory_order_release);
+    }
+
+    /// recording_leases_mutex MUST be held.
+    void release_lease_entry_locked(runtime::RenderSurfaceHandle handle) {
+        const auto it = recording_leases.find(handle);
+        if (it == recording_leases.end()) return;
+        if (it->second.second > 1) {
+            --it->second.second;
+            return;
+        }
+        surfaces.release_lease(it->second.first);
+        recording_leases.erase(it);
+    }
+
+    void release_all_recording_leases() {
+        DomainLock store_lock(*this, LockDomain::Surface);
+        release_all_recording_leases_locked();
+    }
+
+    /// Store lock MUST be held. Drops one reference from every entry: used by
+    /// the batch end to release the plan-wide lease set.
+    void release_all_recording_leases_locked() {
+        std::lock_guard pin_lock(recording_leases_mutex);
+        for (auto it = recording_leases.begin();
+             it != recording_leases.end();) {
+            if (it->second.second > 1) {
+                --it->second.second;
+                ++it;
+                continue;
+            }
+            surfaces.release_lease(it->second.first);
+            it = recording_leases.erase(it);
+        }
+        recording_leases_active.store(!recording_leases.empty(),
+                                      std::memory_order_release);
+    }
+
+    /// True while THIS thread is inside a recording fn() whose surface-store
+    /// lock has been released, so resolve_image() must read the lease table
+    /// instead of the store map.
+    ///
+    /// Thread-local on purpose: the decision belongs to one recording op, not
+    /// to the backend. Another thread parked in download_surface() still holds
+    /// the store lock and must keep reading the store even while plan-wide
+    /// leases are pinned.
+    [[nodiscard]] static bool& recording_resolve_context() noexcept {
+        static thread_local bool value = false;
+        return value;
+    }
+
+    /// RAII flag for the recording window; nests by saving the previous value.
+    struct RecordingResolveScope {
+        const bool previous;
+        RecordingResolveScope() noexcept : previous(recording_resolve_context()) {
+            recording_resolve_context() = true;
+        }
+        ~RecordingResolveScope() { recording_resolve_context() = previous; }
+        RecordingResolveScope(const RecordingResolveScope&) = delete;
+        RecordingResolveScope& operator=(const RecordingResolveScope&) = delete;
+    };
+
+    /// Lock-free lease lookup used by resolve_image() while recording.
+    [[nodiscard]] Image* leased_image(runtime::RenderSurfaceHandle handle) {
+        if (!recording_leases_active.load(std::memory_order_acquire)) {
+            return nullptr;
+        }
+        std::lock_guard pin_lock(recording_leases_mutex);
+        const auto it = recording_leases.find(handle);
+        return it == recording_leases.end() ? nullptr : it->second.first.image;
+    }
+
+    /// Generation-token revalidation, run between the state lookup and the
+    /// ring registration. False means a leased slot changed underneath the
+    /// op — a pin-enforcement bug that must fail loudly, never record on.
+    [[nodiscard]] bool revalidate_recording_leases() const {
+        std::lock_guard pin_lock(recording_leases_mutex);
+        for (const auto& entry : recording_leases) {
+            if (!surfaces.revalidate(entry.second.first)) return false;
+        }
+        return true;
+    }
 
     VulkanSubmissionRing& frame_batch;
     bool& command_batch_active{submission_ring.command_batch_active};
@@ -216,6 +487,17 @@ struct VulkanBackend::Impl {
     // serialized on the backend instance (single queue/submission thread), so
     // a single member is safe; contents are cleared before each fill.
     std::vector<runtime::RenderSurfaceHandle> transient_release_scratch_;
+    // Reused scratch for the plan-wide lease set (one fill per plan batch, so
+    // the compiled hot path stays allocation-free after warmup).
+    std::vector<runtime::RenderSurfaceHandle> plan_lease_scratch_{};
+
+    // Recording pin table (audit N4). Guarded by recording_leases_mutex, which
+    // is always the innermost lock of any acquisition chain.
+    std::unordered_map<runtime::RenderSurfaceHandle,
+                       std::pair<RecordingLease, std::size_t>>
+        recording_leases{};
+    mutable std::mutex recording_leases_mutex{};
+    std::atomic<bool> recording_leases_active{false};
 
     // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — submit() scratch.
     // Rebuilt as four fresh std::vector allocations on EVERY submit() (once
@@ -265,9 +547,6 @@ struct VulkanBackend::Impl {
                                     const Image& atlas, VkBuffer instance_buffer);
     void write_layer_batch_descriptors(VkDescriptorSet set, const Image& destination,
                                        const Image& source, VkBuffer instance_buffer);
-    void write_text_batch_descriptors(VkDescriptorSet set, const Image& destination,
-                                      const Image& atlas, VkBuffer glyph_buffer,
-                                      VkBuffer run_buffer);
     VkDescriptorSet ensure_glow_descriptor_set(std::size_t index);
     [[nodiscard]] VkCommandBuffer active_command_buffer() const noexcept;
     VkDescriptorSet allocate_pass_descriptor_set();
@@ -422,15 +701,6 @@ struct VulkanBackend::Impl {
                             std::int32_t dispatch_origin_y,
                             std::int32_t dispatch_end_x,
                             std::int32_t dispatch_end_y);
-    void record_text_batch(VkCommandBuffer command, VkDescriptorSet descriptors,
-                           const Image& destination, std::int32_t glyph_count,
-                           std::int32_t run_count,
-                           VkBuffer glyph_buffer, bool glyph_updated,
-                           VkBuffer run_buffer, bool run_updated,
-                           std::int32_t dispatch_origin_x,
-                           std::int32_t dispatch_origin_y,
-                           std::int32_t dispatch_end_x,
-                           std::int32_t dispatch_end_y);
     void record_text_tile_bin(VkCommandBuffer command, VkDescriptorSet descriptors,
                               std::int32_t glyph_count, std::int32_t tiles_x,
                               std::int32_t tiles_y, std::int32_t max_glyphs_per_tile,

@@ -302,6 +302,64 @@ expect_pass() {
     fi
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# Cases 11-14 — cache taxonomy enforcement (2026-09-13). These run the REAL
+# registry (tools/architecture_rules.toml) against a mirror tree, and assert on
+# the specific rule name rather than on the exit code: the manifest also fails
+# on paths a mirror tree does not have, so only the named rule is evidence.
+# The ProgramCache doctrine for compiled GPU artifacts (SPIR-V / Slang / PTX /
+# SASS / CUDA graph) is a gate only if a planted SlangCache fails it.
+# ─────────────────────────────────────────────────────────────────────────
+cache_taxonomy_mirror() {
+    write_file "$1" "include/chronon3d/cache/cache_taxonomy.hpp" <<'EOF'
+#pragma once
+namespace chronon3d::cache {
+enum class CacheFamily : unsigned char { ContentCache = 1, ResidencyCache = 2, ProgramCache = 3 };
+} // namespace chronon3d::cache
+EOF
+    write_file "$1" "include/chronon3d/cache/lru_cache.hpp" <<'EOF'
+#pragma once
+class LruCache {};
+EOF
+}
+
+case11_gpu_binary_cache_family() {
+    cache_taxonomy_mirror "$1"
+    write_file "$1" "include/chronon3d/cache/slang_cache.hpp" <<'EOF'
+#pragma once
+// regression: a lowering promoted to its own cache family
+class SlangCache {};
+struct PtxRegistry {};
+EOF
+}
+
+case12_second_cache_engine() {
+    cache_taxonomy_mirror "$1"
+    write_file "$1" "include/chronon3d/cache/cache_engine.hpp" <<'EOF'
+#pragma once
+// regression: a second generic cache engine beside LruCache
+class CacheEngine {};
+EOF
+}
+
+# run_rule <case-dir> <rule-name> <PASS|FAIL> — the named rule's own verdict.
+expect_rule() {
+    local name="$1" rule="$2" want="$3" builder="$4"
+    local dir="$WORK/$name"
+    mkdir -p "$dir"
+    "$builder" "$dir"
+    run_check "$dir" "$ROOT/tools/architecture_rules.toml" >/dev/null
+    if grep -q "\[${want}\] ${rule}" "$dir/out.log" 2>/dev/null; then
+        PASS=$((PASS + 1))
+        echo "  [PASS] $name -> $rule=$want as expected"
+    else
+        FAIL=$((FAIL + 1))
+        echo "  [FAIL] $name -> expected $rule=$want"
+        grep -E "\[(PASS|FAIL)\] (no_gpu_binary_cache_family|single_cache_primitive)" \
+            "$dir/out.log" 2>/dev/null | sed 's/^/         /'
+    fi
+}
+
 echo "architecture_gate_selftest: certifying check_architecture.py (python=$PYTHON)"
 
 expect_fail case1_forbidden_symbol case1_forbidden_symbol
@@ -317,6 +375,13 @@ expect_fail case7_wave9_second_normalize wave9_broken_second_normalize
 expect_fail case8_wave9_warm_dispatcher wave9_broken_warm_dispatcher
 expect_fail case9_cmake_forbidden_target case9_cmake_forbidden_target
 expect_fail case10_cmake_forbidden_edge case10_cmake_forbidden_edge
+
+# Cache taxonomy: the compliant mirror passes both rules, each plant fails its
+# own rule (no false positives, no vacuous pass).
+expect_rule cache_taxonomy_mirror no_gpu_binary_cache_family PASS cache_taxonomy_mirror
+expect_rule cache_taxonomy_mirror_engine single_cache_primitive PASS cache_taxonomy_mirror
+expect_rule case11_gpu_binary_cache_family no_gpu_binary_cache_family FAIL case11_gpu_binary_cache_family
+expect_rule case12_second_cache_engine single_cache_primitive FAIL case12_second_cache_engine
 
 echo
 if [[ "$FAIL" == "0" ]]; then

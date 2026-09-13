@@ -34,14 +34,18 @@ std::string read_plan_source(const RenderPlanPreparationOptions& options) {
     return contents.str();
 }
 
-/// Map the effective render settings into the backend-neutral fingerprint
+/// Map the CLI's effective render settings into the backend-neutral fingerprint
 /// identity.  Kept in one place so render, validate and future inspect all
 /// derive the SAME request/content digest for a given plan + settings.
+///
+/// The plan is not a parameter: canvas-derived dimensions are the identity's
+/// own rule, applied by render_plan::compute_render_job_fingerprint.
 void apply_fingerprint_settings(render_plan::RenderPlanFingerprintOptions& fingerprint,
-                                const RenderSettings& settings,
-                                const render_plan::RenderPlan& plan) {
-    fingerprint.render_settings.width = plan.canvas.width;
-    fingerprint.render_settings.height = plan.canvas.height;
+                                const RenderSettings& settings) {
+    // width/height are deliberately NOT set here: a zero dimension means
+    // "inherit the canvas", and that rule is part of the job identity, owned by
+    // render_plan::compute_render_job_fingerprint (audit FP-1). Setting them
+    // here as well would be a third copy of the same policy.
     fingerprint.render_settings.ssaa_factor = settings.ssaa_factor;
     fingerprint.render_settings.motion_blur =
         chronon3d::is_motion_blur_active(settings.motion_blur);
@@ -119,7 +123,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
         render_plan::RenderPlanFingerprintOptions fingerprint_options;
-        apply_fingerprint_settings(fingerprint_options, settings, plan);
+        apply_fingerprint_settings(fingerprint_options, settings);
 
         const auto compile_t0 = profiling::now();
         compiler::CompileOptions compile_options;

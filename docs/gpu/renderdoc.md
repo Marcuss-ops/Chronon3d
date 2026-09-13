@@ -21,8 +21,7 @@ renderdoccmd capture --wait-for-exit \
   render --input scene.json --output frame.png
 ```
 
-The wrapper this section used to prescribe (`tools/capture_renderdoc.sh`, which
-also emitted a `capture.json` with command, commit, host, exit status and
-capture size) was retired in `5602bdb57`; the command above is the invocation it
-performed. A missing RenderDoc installation, a failed launch or an empty `.rdc`
-is still a hard failure — treat it as a capture that did not run.
+The wrapper this section used to prescribe was retired in `5602bdb57`; the
+command above is the direct invocation it performed. A missing RenderDoc
+installation, a failed launch or an empty `.rdc` is still a hard failure —
+treat it as a capture that did not run.

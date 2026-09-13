@@ -419,9 +419,12 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
     ResolvedExecutionParameters params;
     params.cpu_fallback_forbidden = !requirements.cpu_fallback_allowed;
     if (requirements.gpu_required) {
-        params.backend = (requested_backend != "auto" && !requested_backend.empty())
+        params.backend = (requested_backend != kDefaultBackend &&
+                          !requested_backend.empty())
             ? std::string{requested_backend}
-            : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "vulkan");
+            : ((daemon_backend != kDefaultBackend && !daemon_backend.empty())
+                   ? std::string{daemon_backend}
+                   : std::string{kDefaultGpuBackend});
         // A strict GPU request is an explicit native-lane contract, including
         // image/text-only compositions.  The old test only looked at the
         // source-video case and treated every composition without a source as
@@ -455,17 +458,22 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         }
         params.native_nvenc = !pipe_composition;
         params.direct_yuv = !pipe_composition && !requirements.composition_required;
-        params.codec = requested_codec.empty() ? "h264" : std::string{requested_codec};
+        params.codec = requested_codec.empty()
+            ? std::string{kDefaultCodec} : std::string{requested_codec};
     } else {
-        params.backend = (requested_backend != "auto" && !requested_backend.empty())
+        params.backend = (requested_backend != kDefaultBackend &&
+                          !requested_backend.empty())
             ? std::string{requested_backend}
-            : ((daemon_backend != "auto" && !daemon_backend.empty()) ? std::string{daemon_backend} : "auto");
+            : ((daemon_backend != kDefaultBackend && !daemon_backend.empty())
+                   ? std::string{daemon_backend}
+                   : std::string{kDefaultBackend});
         params.hardware_encoder = "none";
         params.encoder_backend = "pipe";
         params.gpu_hot_path_mode = "auto";
         params.native_nvenc = false;
         params.direct_yuv = false;
-        params.codec = requested_codec.empty() ? "auto" : std::string{requested_codec};
+        params.codec = requested_codec.empty()
+            ? std::string{kAutoCodec} : std::string{requested_codec};
     }
     return params;
 }

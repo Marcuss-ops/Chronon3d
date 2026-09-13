@@ -7,7 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <variant>
-#include <string>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::compiler {
@@ -16,40 +16,32 @@ namespace chronon3d::compiler {
 /// deliberately contain values, not Scene/RenderNode objects or backend
 /// handles: graph execution can consume them without rebuilding authoring
 /// state on the frame path.
+///
+/// Every alternative below has a producer in TypedProgramSampler. A shape or
+/// effect payload is added here only together with the lowering that samples
+/// it — an accepted-but-never-constructed alternative inflates the hottest
+/// per-layer variant (and a heap member inside it would be a per-layer-per-
+/// frame allocation trap).
 struct SampledColorParameters {
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 struct SampledImageParameters {
-    std::string asset;
+    // View into the immutable CompiledProgram. Frame payloads never own a
+    // copy of static asset identifiers.
+    std::string_view asset;
     std::array<float, 2> size{0.0f, 0.0f};
     float radius{0.0f};
 };
 
 struct SampledVideoParameters {
-    std::string source;
+    std::string_view source;
     std::array<float, 2> size{0.0f, 0.0f};
     bool loop{false};
 };
 
 struct SampledTextParameters {
     std::uint32_t text_index{0};
-    std::uint32_t font_index{0};
-};
-
-struct SampledShapeParameters {
-    std::array<float, 4> fill{1.0f, 1.0f, 1.0f, 1.0f};
-    std::array<float, 4> stroke{0.0f, 0.0f, 0.0f, 1.0f};
-    float stroke_width{0.0f};
-    float radius{0.0f};
-    bool stroke_enabled{false};
-};
-
-struct SampledEffectParameters {
-    // The effect table is intentionally typed even when a compiler program
-    // has no effect entries yet.  Future effect lowering extends this value
-    // variant instead of reintroducing Scene reads in the executor.
-    std::vector<float> values;
 };
 
 using SampledLayerPayload = std::variant<
@@ -57,9 +49,7 @@ using SampledLayerPayload = std::variant<
     SampledColorParameters,
     SampledImageParameters,
     SampledVideoParameters,
-    SampledTextParameters,
-    SampledShapeParameters,
-    SampledEffectParameters>;
+    SampledTextParameters>;
 
 /// Frame-local values produced by the compiler IR sampler. This is
 /// deliberately CPU-only data: backend resources are resolved later by graph

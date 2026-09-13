@@ -12,7 +12,6 @@
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
-#include "text_batch_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
 #include <fstream>
@@ -379,29 +378,6 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::LayerBatch, layer_batch_pipeline, "LayerBatch");
         if (debug_context) debug_context->set_pipeline_name(layer_batch_pipeline, "Chronon3D.Pipeline.LayerBatch");
-
-        const VkShaderModuleCreateInfo text_batch_shader_info{
-            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
-            shaders::chronon3d_text_batch_comp_spv_size,
-            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_text_batch_comp_spv)};
-        VkShaderModule text_batch_shader = VK_NULL_HANDLE;
-        check(vkCreateShaderModule(device, &text_batch_shader_info, nullptr, &text_batch_shader),
-              "vkCreateShaderModule(text batch)");
-        const VkPipelineShaderStageCreateInfo text_batch_stage{
-            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
-            0, VK_SHADER_STAGE_COMPUTE_BIT,
-            text_batch_shader, "main", nullptr};
-        const VkComputePipelineCreateInfo text_batch_pipeline_info{
-            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
-            text_batch_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
-        VkPipeline text_batch_pipeline = VK_NULL_HANDLE;
-        const VkResult text_batch_result = vkCreateComputePipelines(
-            device, kernels.pipeline_cache, 1, &text_batch_pipeline_info, nullptr, &text_batch_pipeline);
-        vkDestroyShaderModule(device, text_batch_shader, nullptr);
-        check(text_batch_result, "vkCreateComputePipelines(text batch)");
-        register_kernel_or_throw(kernels.registry, device,
-                GpuKernelId::TextBatch, text_batch_pipeline, "TextBatch");
-        if (debug_context) debug_context->set_pipeline_name(text_batch_pipeline, "Chronon3D.Pipeline.TextBatch");
 
         const VkShaderModuleCreateInfo text_tile_bin_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

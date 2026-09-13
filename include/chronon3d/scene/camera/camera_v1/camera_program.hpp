@@ -45,11 +45,38 @@ class CameraCatalog;
 // Diagnostic / result types
 // =========================================================================
 
+enum class CameraDiagnosticCode : std::uint8_t {
+    ProgramDiagnostic,
+    Uncompiled,
+    OrientationConflict,
+    LookAtLayerMissingTarget,
+    OrientationFallback,
+    ConstraintFailure,
+    RecoveredConstraintFailure,
+};
+
+[[nodiscard]] constexpr const char* camera_diagnostic_code_name(
+    CameraDiagnosticCode code) noexcept {
+    switch (code) {
+        case CameraDiagnosticCode::ProgramDiagnostic: return "ProgramDiagnostic";
+        case CameraDiagnosticCode::Uncompiled: return "Uncompiled";
+        case CameraDiagnosticCode::OrientationConflict: return "OrientationConflict";
+        case CameraDiagnosticCode::LookAtLayerMissingTarget: return "LookAtLayerMissingTarget";
+        case CameraDiagnosticCode::OrientationFallback: return "OrientationFallback";
+        case CameraDiagnosticCode::ConstraintFailure: return "ConstraintFailure";
+        case CameraDiagnosticCode::RecoveredConstraintFailure: return "RecoveredConstraintFailure";
+    }
+    return "ProgramDiagnostic";
+}
+
 /// Single diagnostic entry produced during program evaluation.
 struct CameraProgramDiagnostic {
     enum class Severity : std::uint8_t { Info = 0, Warning = 1, Error = 2 };
     Severity    severity{Severity::Info};
     std::string message;
+    // Structured producer-owned code. Consumers must not infer this from the
+    // human-readable message.
+    CameraDiagnosticCode code{CameraDiagnosticCode::ProgramDiagnostic};
 };
 
 // =========================================================================

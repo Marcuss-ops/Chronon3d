@@ -90,7 +90,7 @@ del feature freeze: external consumer SDK). Non parte dei gate baseline 11/11.
 
 ### Retired from this pipeline
 
-- **`tools/audit_incomplete_type_pattern.sh`** — std::make_shared\<T\> umbrella-header
+- **The former incomplete-type probe** — std::make_shared\<T\> umbrella-header
   full-def probe (emitted `BROKEN` when the canonical header of type T under
   `include/chronon3d/` held only `class T;` instead of a full definition).
   **Retired** in `5968d148b` (*cleanup(tools): remove retired one-off

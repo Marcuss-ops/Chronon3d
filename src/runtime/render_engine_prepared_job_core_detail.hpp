@@ -31,8 +31,24 @@ std::shared_ptr<Framebuffer> PreparedRenderJob::render(Frame frame) {
          !m_impl->compatibility_composition)) {
         throw std::runtime_error("PreparedRenderJob is no longer executable");
     }
-    return m_impl->job_session->program_ptr()
+    auto result = m_impl->job_session->program_ptr()
         ? m_impl->pipeline->render(*m_impl->job_session, frame)
         : m_impl->pipeline->render_compatibility(
             *m_impl->job_session, *m_impl->compatibility_composition, frame);
+    if (!result) {
+        // This adapter keeps its throw contract for OPP callers, while the
+        // typed scheduling code stays available to direct pipeline callers
+        // that must distinguish recoverable states without string matching.
+        // The class is stated explicitly because it answers the only question
+        // the caller has: backpressure is retryable, anything else is not.
+        const auto code = result.error();
+        throw std::runtime_error(
+            std::string{"RenderPipeline scheduling failed: "} +
+            runtime::frame_scheduling_class_name(
+                runtime::frame_scheduling_class(code)) +
+            " (" + runtime::frame_scheduling_code_name(code) + ", retryable=" +
+            (runtime::frame_scheduling_is_retryable(code) ? "yes" : "no") +
+            ")");
+    }
+    return std::move(result).value();
 }
