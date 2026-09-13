@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -33,6 +34,10 @@ FT_Library text_library() {
 
 struct FaceOwner {
     FT_Face face{nullptr};
+    // These faces are created and used only inside one rasterize_text_texture
+    // call, but the mutex keeps the generator's per-face guard uniform: the
+    // boundary always receives the lock that protects its face.
+    std::mutex mutex;
     FaceOwner() noexcept = default;
     ~FaceOwner() {
         if (face) FT_Done_Face(face);
@@ -118,7 +123,8 @@ RasterizedTextTexture rasterize_text_texture(
             const auto& state = prepared_shape.glyphs[index];
             if (state.glyph_id == 0) continue;
             auto bitmap = generate_mtsdf_glyph(
-                faces[span_index]->face, state.glyph_id, kEmPx, kRangePx, kPaddingPx);
+                MtsdfFaceGuard{faces[span_index]->face, &faces[span_index]->mutex},
+                state.glyph_id, kEmPx, kRangePx, kPaddingPx);
             if (!bitmap || bitmap->rgba8.empty()) {
                 // Spaces and other advance-only glyphs have no outline by
                 // design. They still participate in shaping/layout, but do
