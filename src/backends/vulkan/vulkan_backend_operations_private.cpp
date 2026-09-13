@@ -180,7 +180,12 @@ void VulkanBackend::Impl::transform(runtime::RenderSurfaceHandle destination,
     auto& src_image = resolve_image(source);
     if (!src_image.initialized || dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument(
-            "Vulkan transform references incompatible surfaces");
+            "Vulkan transform references incompatible surfaces: dst=" +
+            std::to_string(dst_image.width) + "x" +
+            std::to_string(dst_image.height) + " src=" +
+            std::to_string(src_image.width) + "x" +
+            std::to_string(src_image.height) +
+            (src_image.initialized ? "" : " src-uninitialized"));
     }
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();

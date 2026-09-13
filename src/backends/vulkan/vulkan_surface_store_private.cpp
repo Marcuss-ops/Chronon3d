@@ -207,6 +207,7 @@ namespace chronon3d::backends::vulkan {
             // frame fences instead of draining every pending submission: a
             // blocking wait here serialized the Vulkan->CUDA/NVENC pipeline
             // and made every exported frame pay the full GPU latency.
+            bool retired_any = false;
             for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
                 if (!frame_batch.in_flight[i]) continue;
                 const auto status = vkGetFenceStatus(device, frame_batch.fences[i]);
@@ -216,12 +217,19 @@ namespace chronon3d::backends::vulkan {
                       "vkResetFences(frame transient retirement)");
                 frame_batch.in_flight[i] = false;
                 read_gpu_timestamps(i);
+                retired_any = true;
             }
 
-            // All relevant submission fences were complete above, so it is
-            // now safe to reclaim the physical images whose logical handles
-            // are retired below.
-            release_frame_transient_handles(/*log_lifecycle=*/true);
+            // Reclaim only once a frame that referenced these transient handles
+            // has actually completed. When nothing is in flight there is no
+            // completed frame yet, and retiring here would erase host-provided
+            // sources that were created/uploaded before the first batch — the
+            // image survives, but its `initialized` flag would be cleared
+            // before its first use, and re-binding with a matching desc does
+            // not re-materialize it.
+            if (retired_any) {
+                release_frame_transient_handles(/*log_lifecycle=*/true);
+            }
         } catch (const std::exception& error) {
             spdlog::error("[vulkan] non-blocking transient retirement failed: {}", error.what());
         } catch (...) {
@@ -495,6 +503,7 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
     }
     physical_surfaces.clear();
     surface_bindings.clear();
+    planned_alias_groups.clear();
     deferred_surface_releases.clear();
     unplanned_surface_handles.clear();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

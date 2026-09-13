@@ -179,11 +179,40 @@ nella suite minima pre-push di `AGENTS.md`): in
 fa `REQUIRE(x.has_value())` e legge i campi via `x->` invece di `x.`. Prima:
 12 errori di compilazione; dopo: `-fsyntax-only` pulito.
 
-**Aperto (fuori scope, richiede un host/driver Vulkan e il contesto
-NVENC-slot):** ripristinare la semantica di aliasing del planner Vulkan
-rispetto al check `bind_planned_exact`, oppure dimostrare che i test
-presuppongono un ring NVENC che in produzione non esiste. Tracciato in
-`docs/FOLLOWUP_TICKETS.md`.
+**Aggiornamento 2026-09-13 — aliasing ripristinato (code fix).** L'aliasing
+pianificato non è più vietato dal check: in `begin_plan_batch` il plan registra
+i propri occupant per slot (`register_planned_occupant`) prima dei bind, e
+`bind_planned_exact` (così come la collision validation "with initialized
+content") ammette un secondo handle sullo stesso slot solo se il plan lo ha
+registrato come alias (`is_registered_alias`). Un occupant **non** pianificato
+(il ring NVENC/encode creato fuori dal plan) resta hard-fail: il "steal" case
+resta fail-by-design, che era lo scopo di `077a44275`.
+
+**Verifica 2026-09-13 (preset `linux-video-test`, Vulkan ON, GPU host).**
+Costruito `build/chronon/linux-video-test/tests/chronon3d_backend_registry_tests`
+e la suite è ora **49/59** (era 46/59). Due cause reali rimosse:
+
+1. **Aliasing pianificato** (sopra) — l'eccezione `physical slot is already
+   reserved` non compare più nel log.
+2. **Retirement transiente al primo batch**: `retire_completed_frame_transient_surfaces()`
+   chiamava `release_frame_transient_handles()` incondizionatamente, anche
+   quando nessun frame era in volo. Al primo `begin_plan_batch` questo azzerava
+   `initialized` sulle surface transitorie pre-caricate dall'host, che il plan
+   poi non ri-materializzava (stesso desc) → `transform` falliva con
+   `src-uninitialized`. Ora il retirement avviene solo se almeno un frame è
+   effettivamente completato (`retired_any`).
+
+Inoltre `bind_planned_exact` (e la validation in `begin_plan_batch`) ora
+ammettono che il plan ri-posizioni una surface legata dinamicamente **finché il
+vecchio slot non ha contenuto live** — il plan è l'authority di placement.
+
+**Restano 10 rossi** (`46→49`): le surface pre-caricate dall'host con
+`create_surface()` ottengono slot dinamici che collidono con lo slot namespace
+del plan quando il planner fa aliasing; servono la mappa
+`plan_slot → physical_slot` (con consolidamento degli slot dinamici) e due fix
+di harness testo/atlas (styled-cache `ctx.runtime`, `atlas.stats().hits`,
+parità pixel text-run). Tracciati in `docs/FOLLOWUP_TICKETS.md`; non fanno
+parte dello scope di questo ticket.
 
 **Coverage gap correlato:** aggiungere una lane CI che compili un preset
 Vulkan (`linux-video-test`) è il passo che avrebbe scoperto *entrambi* i
