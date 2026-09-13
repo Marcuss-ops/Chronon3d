@@ -13,6 +13,8 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <spdlog/spdlog.h>
 #include <cstring>
 #include <mutex>
@@ -252,6 +254,44 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     const auto& resources = plan.resources;
     auto& store = m_impl->surfaces;
 
+    // Planned aliasing is explicit plan policy: register the plan's compiled
+    // occupants per physical slot before the exact binds below. Aliasing is
+    // then allowed only between handles THIS plan named, so an unplanned
+    // occupant (e.g. the NVENC ring) still triggers the reserved-slot guard.
+    store.clear_planned_aliases();
+    for (const auto& allocation : resources.allocations) {
+        if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
+            allocation.physical_slot == invalid_slot) {
+            continue;
+        }
+        store.register_planned_occupant(allocation.physical_slot,
+                                        allocation.surface);
+    }
+
+    if (std::getenv("CHRONON3D_TRACE_PLAN_BIND") != nullptr) {
+        std::fprintf(stderr, "[planbind] slots=%zu allocations=%zu\n",
+                     resources.slots.size(), resources.allocations.size());
+        for (const auto& allocation : resources.allocations) {
+            std::fprintf(stderr,
+                         "[planbind]   alloc surface=%llu slot=%zu req=%u desc=%ux%u life=%d\n",
+                         static_cast<unsigned long long>(allocation.surface),
+                         allocation.physical_slot,
+                         static_cast<unsigned>(allocation.request_index),
+                         resources.requests[allocation.request_index].desc.width,
+                         resources.requests[allocation.request_index].desc.height,
+                         static_cast<int>(resources.requests[allocation.request_index].desc.lifetime));
+        }
+        for (const auto& [handle, slot] : store.surface_bindings) {
+            const auto phys = store.physical_surfaces.find(slot);
+            std::fprintf(stderr,
+                         "[planbind]   bind  surface=%llu slot=%zu init=%d\n",
+                         static_cast<unsigned long long>(handle), slot,
+                         phys != store.physical_surfaces.end()
+                             ? static_cast<int>(phys->second.image.initialized)
+                             : -1);
+        }
+    }
+
     for (const auto& allocation : resources.allocations) {
         if (allocation.surface == runtime::kInvalidRenderSurfaceHandle ||
             allocation.physical_slot == invalid_slot) {
@@ -277,19 +317,19 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
                 "Vulkan compiled allocation attempts to claim an explicitly unplanned surface");
         }
 
-        const auto existing = store.surface_bindings.find(allocation.surface);
-        if (existing != store.surface_bindings.end() &&
-            existing->second != allocation.physical_slot) {
-            throw std::logic_error(
-                "Vulkan compiled surface is already bound to a different physical slot");
-        }
+        // A surface bound dynamically by create_surface() is re-placed onto the
+        // plan's physical slot by bind_planned_exact when its dynamic slot holds
+        // no live content; a re-placement that would drop initialized content is
+        // still rejected there.
 
         const auto physical = store.physical_surfaces.find(allocation.physical_slot);
         if (physical != store.physical_surfaces.end() &&
             physical->second.image.initialized) {
             for (const auto& [bound_handle, bound_slot] : store.surface_bindings) {
                 if (bound_handle != allocation.surface &&
-                    bound_slot == allocation.physical_slot) {
+                    bound_slot == allocation.physical_slot &&
+                    !store.is_registered_alias(allocation.surface, bound_handle,
+                                               allocation.physical_slot)) {
                     throw std::logic_error(
                         "Vulkan compiled physical-slot collision with initialized content");
                 }

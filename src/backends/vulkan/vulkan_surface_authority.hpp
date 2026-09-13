@@ -79,6 +79,16 @@ public:
 
     std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces{};
     std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings{};
+    // Explicit planned aliasing. The compiled planner deliberately backs
+    // lifetime-disjoint logical handles with one physical slot (that is why
+    // gpu_surface_copy_frames can reach 0). The plan is the only authority
+    // that may declare such a pair, so it registers every compiled occupant
+    // of a slot here before binding. A slot may then be shared only by handles
+    // the same plan named; any other occupant — notably the NVENC/encode ring
+    // created outside the plan — remains a hard failure (the 077a44275 guard).
+    std::unordered_map<std::size_t,
+                       std::unordered_set<runtime::RenderSurfaceHandle>>
+        planned_alias_groups{};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     std::unordered_set<std::size_t> cuda_ready_surfaces{};
     std::unordered_set<std::size_t> cuda_export_ready_surfaces{};
@@ -92,6 +102,43 @@ public:
     // physical slot, so it cannot make placement decisions.
     VulkanSurfaceMaterializer<ImageT, OwnerT> materializer_{};
     OwnerT* owner_{nullptr};
+
+    // ── Planned alias policy ─────────────────────────────────────────────
+
+    /// Register ``handle`` as a compiled occupant of ``slot``. Called for
+    /// every allocation of the plan before the exact binds so the slot's
+    /// group is exactly the plan's occupant set.
+    void register_planned_occupant(
+        std::size_t slot, runtime::RenderSurfaceHandle handle) {
+        planned_alias_groups[slot].insert(handle);
+    }
+
+    /// Convenience for callers/tests that know one alias pair explicitly.
+    void register_planned_alias(runtime::RenderSurfaceHandle handle_a,
+                                runtime::RenderSurfaceHandle handle_b,
+                                std::size_t slot) {
+        if (handle_a == runtime::kInvalidRenderSurfaceHandle ||
+            handle_b == runtime::kInvalidRenderSurfaceHandle ||
+            handle_a == handle_b) {
+            return;
+        }
+        auto& group = planned_alias_groups[slot];
+        group.insert(handle_a);
+        group.insert(handle_b);
+    }
+
+    /// The plan's alias declarations are per-plan, so the compiled batch
+    /// rebuilds them from scratch at every bind.
+    void clear_planned_aliases() noexcept { planned_alias_groups.clear(); }
+
+    [[nodiscard]] bool is_registered_alias(
+        runtime::RenderSurfaceHandle handle,
+        runtime::RenderSurfaceHandle other,
+        std::size_t slot) const noexcept {
+        const auto it = planned_alias_groups.find(slot);
+        return it != planned_alias_groups.end() &&
+               it->second.contains(handle) && it->second.contains(other);
+    }
 
     [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
         const auto binding = surface_bindings.find(handle);
@@ -357,6 +404,10 @@ protected:
             const auto old_surface = physical_surfaces.find(previous->second);
             if (old_surface != physical_surfaces.end() &&
                 old_surface->second.image.initialized) {
+                // The plan is the placement authority and may re-slot a
+                // dynamically-bound surface, but only while its old slot
+                // holds no live content: replacing an initialized surface is
+                // how uploaded sources would be silently lost.
                 throw std::logic_error(
                     "Vulkan planned surface attempted to change physical slot");
             }
@@ -368,7 +419,8 @@ protected:
         // considered only initialized occupants, allowing the first plan
         // materialization to steal the NVENC ring's physical image.
         for (const auto& [bound_handle, bound_slot] : surface_bindings) {
-            if (bound_handle != handle && bound_slot == slot) {
+            if (bound_handle != handle && bound_slot == slot &&
+                !is_registered_alias(handle, bound_handle, slot)) {
                 throw std::logic_error(
                     "Vulkan planned surface physical slot is already reserved");
             }
