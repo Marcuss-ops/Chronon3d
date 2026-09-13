@@ -126,12 +126,13 @@ assert on the rule *name*:
 It therefore cannot see a compiled artifact that is a function-local `static`
 inside a `.cpp`. Enforcing that found a real, pre-existing exception:
 
-`src/media/video/compositor/cuda/cuda_nv12_compositor.cpp` keeps
+The former implementation in
+`src/media/video/compositor/cuda/cuda_nv12_compositor.cpp` kept
 `get_compiled_nv12_ptx()` as a function-local `static const std::string` (NVRTC
 output) and a `static std::unordered_map<CUcontext, std::weak_ptr<...>>` guarded
 by its own `static std::mutex` — i.e. compiled GPU program artifacts with their
-own sync authority, outside the taxonomy. Recorded as DD-3 below; it is not
-fixed here because it is the video/CUDA lane and it needs a GPU corpus.
+own sync authority, outside the taxonomy. This was recorded as DD-3 and is now
+closed by the video/CUDA lane implementation below.
 
 ## 3. N5 — expected outcome vs broken invariant
 
@@ -233,15 +234,15 @@ interpreter itself.
 | **Exit condition** | `dual_lock_hold_us` reported against total CPU frame time in an instrumented run shows the coupling is negligible (→ leave it, documented) **or** the sites move onto the same lease pattern (→ counters for `Dual` become zero and the enum value is deleted) |
 | **Equivalence test/gate** | `chronon3d_vulkan_submission_ring_tests` (recording op takes the domains separately; the dual sites report themselves) + a same-SHA instrumented run |
 | **Removal scope** | `Impl::LockDomain::Dual`, `DomainLock`'s second lock, the `dual_lock_*` counters, the 16 call sites — only if the decoupling branch is taken |
-| **Status** | `ACTIVE` |
+| **Status** | `REMOVED` |
 
 ### DD-3 — compiled GPU program artifacts outside ProgramCache (CUDA/NV12 lane)
 
 | Campo | Contenuto |
 |---|---|
 | **Owner** | media/video CUDA owners |
-| **Reason** | `get_compiled_nv12_ptx()` retains NVRTC output in a function-local `static`, and `s_modules` (`unordered_map<CUcontext, weak_ptr<...>>` + `static std::mutex`) retains loaded CUmodules — compiled program artifacts with their own sync authority, not registered in `cache::ProgramCache` |
-| **Exit condition** | the NV12 program is registered as a `ProgramCache` artifact keyed on a canonical fingerprint, and the module map becomes a lease over that artifact (its counters replace the ad-hoc statics) |
-| **Equivalence test/gate** | NV12 compositor equivalence suite green on the same SHA, with `dual`/program-cache counters unchanged; the type-declaration gate cannot see a function-local `static`, so this exit condition is test-based, not scan-based |
-| **Removal scope** | `get_compiled_nv12_ptx()`'s function-local static, `s_modules`, `s_module_mutex`, and the double-checked warm path around them |
-| **Status** | `ACTIVE` |
+| **Reason** | `get_compiled_nv12_ptx()` retained NVRTC output in a function-local `static`, and `s_modules` (`unordered_map<CUcontext, weak_ptr<...>>` + `static std::mutex`) retained loaded CUmodules — compiled program artifacts with their own sync authority, not registered in `cache::ProgramCache` |
+| **Exit condition** | satisfied: NV12 PTX is loaded/saved through `cache::CompiledArtifactCache` using `ProgramArtifactKey` (semantic fingerprint + lowering/target/compiler/ABI fields); each `CudaNv12Compositor` owns only a context-bound module lease |
+| **Equivalence test/gate** | `chronon3d_nv12_compositor_contract_tests` checks stable ProgramCache payload identity and compositor equivalence when CUDA is enabled; architecture gate confirms no ad-hoc module map/mutex remains |
+| **Removal scope** | completed: function-local PTX static, `s_modules`, `s_module_mutex`, and the double-checked warm path |
+| **Status** | `REMOVED` |

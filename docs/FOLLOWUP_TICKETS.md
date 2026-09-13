@@ -25,7 +25,7 @@
 |---|---|---|---|
 | Fingerprint duplicato (FP-1) | P0 | REMOVED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — `render_settings_fingerprint`/`material()`/`ProgramDigests` duplicati fra `compiler::stages` e `render_plan`; ora una sola authority (`render_plan::compute_render_job_fingerprint`), uguaglianza dei due entry point dimostrata da test |
 | Cache taxonomy enforcement | P1 | LANDED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — AGENTS dichiarava `cache_taxonomy.hpp` + `architecture_rules.toml` come enforcement, ora lo è: 3 regole + 4 casi nel gate selftest (gate 188/188, selftest 15/15) |
-| Artefatti GPU fuori da ProgramCache (CUDA/NV12) | P2 | ACTIVE | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) DD-3 — `get_compiled_nv12_ptx()` static + `s_modules`/`s_module_mutex` tengono PTX e CUmodule fuori dalla taxonomy; exit condition = registrazione come artefatto ProgramCache, verificata da test (il gate a dichiarazione di tipo non vede uno `static` locale) |
+| Artefatti GPU fuori da ProgramCache (CUDA/NV12) | P2 | REMOVED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) DD-3 — PTX NV12 ora usa `CompiledArtifactCache::save/load_program_artifact()` con chiave canonica; il CUmodule è una lease locale al compositor, senza `cached_ptx`, `s_modules` o `s_module_mutex` |
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|

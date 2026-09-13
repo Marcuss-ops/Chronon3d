@@ -139,6 +139,7 @@ chronon3d_add_test_suite(
         render_graph/cache/test_compiled_graph_cache.cpp
         cache/test_cache_reuse_identical_frame.cpp
         cache/test_cache_invariance.cpp
+        cache/test_compiled_artifact_cache.cpp
 )
 if(CHRONON3D_ENABLE_VIDEO)
     target_sources(chronon3d_cache_tests PRIVATE cache/test_hash_builder.cpp)

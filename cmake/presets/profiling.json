@@ -105,25 +105,25 @@
       "name": "linux-profile-core",
       "configurePreset": "linux-profile-core",
       "targets": ["chronon3d_tests_fast"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-profile-motion",
       "configurePreset": "linux-profile-motion",
       "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-profile-video",
       "configurePreset": "linux-profile-video",
       "targets": ["chronon3d_cli", "chronon3d_tests_fast"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-profile-extended",
       "configurePreset": "linux-profile-extended",
       "targets": ["chronon3d_cli", "chronon3d_tests", "chronon3d_benchmarks"],
-      "jobs": 16
+      "jobs": 14
     }
   ],
   "testPresets": [

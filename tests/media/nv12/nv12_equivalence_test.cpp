@@ -49,7 +49,7 @@
 #include <vector>
 
 namespace chronon3d::media::video::cuda_nv12_detail {
-const std::string& get_compiled_nv12_ptx();
+std::string get_compiled_nv12_ptx();
 }
 
 namespace {
@@ -130,7 +130,7 @@ struct CudaSession {
     void set_current() { check_ok(cuCtxSetCurrent(context), "cuCtxSetCurrent"); }
 };
 
-TEST_CASE("NV12 PTX cache has stable immutable identity") {
+TEST_CASE("NV12 PTX ProgramCache artifact has stable identity") {
     if (!gpu_tests_enabled()) {
         MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run NV12 PTX cache test");
         return;
@@ -142,10 +142,10 @@ TEST_CASE("NV12 PTX cache has stable immutable identity") {
     }
     session.set_current();
     chronon3d::media::video::CudaNv12Compositor::warm_up(session.context);
-    const auto& first = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
-    const auto& second = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
+    const auto first = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
+    const auto second = chronon3d::media::video::cuda_nv12_detail::get_compiled_nv12_ptx();
     REQUIRE_FALSE(first.empty());
-    CHECK(&first == &second);
+    CHECK(first == second);
 }
 
 struct PlaneMetrics {

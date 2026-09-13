@@ -65,19 +65,19 @@
       "name": "linux-video-fast-dev",
       "configurePreset": "linux-video-fast-dev",
       "targets": ["chronon3d_cli"],
-      "jobs": 20
+      "jobs": 14
     },
     {
       "name": "linux-video-test",
       "configurePreset": "linux-video-test",
       "targets": ["chronon3d_cli", "chronon3d_tests_video", "chronon3d_tests"],
-      "jobs": 20
+      "jobs": 14
     },
     {
       "name": "linux-video-release",
       "configurePreset": "linux-video-release",
       "targets": ["chronon3d_cli"],
-      "jobs": 20
+      "jobs": 14
     }
   ]
 }
