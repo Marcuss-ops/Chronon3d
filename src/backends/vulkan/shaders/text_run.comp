@@ -48,12 +48,17 @@ void main() {
     for (int i = 0; i < params.glyph_count; ++i) {
         GlyphInstance glyph = glyphs[i];
         ivec2 local = pixel - glyph.dst_origin;
+        // The host ABI uses zero as the default scale (the CPU path treats it
+        // as identity). Normalize it here as well so a partially initialized
+        // GlyphInstance still samples its packed atlas quad.
+        float scale_x = glyph.scale_x != 0.0 ? glyph.scale_x : 1.0;
+        float scale_y = glyph.scale_y != 0.0 ? glyph.scale_y : 1.0;
         ivec2 scaled_size = ivec2(ceil(vec2(glyph.glyph_size) *
-                                       vec2(glyph.scale_x, glyph.scale_y)));
+                                       vec2(scale_x, scale_y)));
         if (local.x >= 0 && local.y >= 0 &&
             local.x < scaled_size.x && local.y < scaled_size.y) {
             ivec2 sample_offset = ivec2(floor(vec2(local) /
-                                              vec2(glyph.scale_x, glyph.scale_y)));
+                                              vec2(scale_x, scale_y)));
             sample_offset = clamp(sample_offset, ivec2(0), glyph.glyph_size - ivec2(1));
             vec4 src = imageLoad(atlas_image, glyph.atlas_origin + sample_offset) * glyph.opacity;
             if (params.highlight_enabled != 0 &&

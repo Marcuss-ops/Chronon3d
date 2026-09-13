@@ -249,9 +249,11 @@ public:
     /// executor calls it with the frame's CommandPlan so a batching backend
     /// synchronizes every pass with the precise barriers from plan.barriers
     /// (instead of a conservative per-pass fallback) and consumes
-    /// plan.resources to bind logical handles to physical slots (one backing
-    /// VkImage per slot, so lifetime-disjoint surfaces alias).  The default
-    /// is a no-op so single-pass/software backends are unaffected.
+    /// plan.resources to resolve logical handles against physical slots.
+    /// Lifetime-disjoint surfaces may alias; a backend can split
+    /// content-carrying occupants when merging them would overwrite resident
+    /// bytes. The default is a no-op so single-pass/software backends are
+    /// unaffected.
     virtual void begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
     /// Bind an external dynamic parameter span for the next compiled pass.
