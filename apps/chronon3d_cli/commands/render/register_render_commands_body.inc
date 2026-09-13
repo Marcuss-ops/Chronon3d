@@ -28,7 +28,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
     cmd->add_option("--assets-root", args.assets_root, "Root directory for resolving relative assets");
     cmd->add_option("--backend", state->backend, "Render backend: auto, software, or vulkan (strict)")
-        ->default_val("auto")->check(CLI::IsMember({"auto", "software", "vulkan"}));
+        ->default_val(std::string{media::kDefaultBackend})
+        ->check(CLI::IsMember({"auto", "software", "vulkan"}));
     cmd->add_option("--props-file", state->props_file, "Flat JSON object containing composition props");
     cmd->add_option("--props-json", state->props_json, "Inline flat JSON object containing composition props (mutually exclusive with --props-file)");
     cmd->add_option("--profile", state->profile, "Render profile: draft | preview | production | maximum")

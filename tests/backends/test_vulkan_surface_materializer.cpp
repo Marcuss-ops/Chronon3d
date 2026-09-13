@@ -339,6 +339,130 @@ TEST_CASE("initialized binding refuses to move to another physical slot") {
     CHECK(authority.bound_slot(handle) == 1);
 }
 
+// ── Audit N4: recording lease + generation token ─────────────────────────
+//
+// These cases are the contract the decoupled recording path relies on: the
+// store lock may be released after the lookup because a leased slot can
+// neither be pruned (image destroyed) nor re-materialized, and the token
+// makes a violation observable instead of a silent use-after-free.
+
+TEST_CASE("a leased slot survives prune_unused_slots") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    // 70 unbound transient physical slots: 6 beyond the retention budget, so
+    // prune has real work to do.
+    constexpr std::size_t kSlots = 70;
+    std::size_t pinned_slot = 0;
+    for (std::size_t slot = 0; slot < kSlots; ++slot) {
+        const auto handle = static_cast<runtime::RenderSurfaceHandle>(0xC3E000u + slot);
+        auto desc = test_desc();
+        authority.bind(handle, slot, desc);
+        authority.surface_bindings.erase(handle);
+        pinned_slot = slot;
+    }
+    CHECK(authority.physical_count() == kSlots);
+
+    // Rebind the last slot, lease it, and drop the binding: the physical image
+    // is now unbound but pinned — exactly the state a recording op leaves
+    // behind between the lookup and the ring registration.
+    constexpr runtime::RenderSurfaceHandle leased_handle{0xC3E777u};
+    auto leased_desc = test_desc();
+    authority.bind(leased_handle, pinned_slot, leased_desc);
+    const auto lease = authority.acquire_lease(leased_handle);
+    CHECK(lease.valid);
+    CHECK(lease.image != nullptr);
+    CHECK(authority.slot_pinned(pinned_slot));
+    CHECK(authority.revalidate(lease));
+    authority.surface_bindings.erase(leased_handle);
+
+    const auto destroys_before = owner.destroy_count;
+    authority.prune_unused_slots();
+
+    // 70 unused transient slots - 1 pinned = 69 candidates, 64 retained.
+    CHECK(owner.destroy_count - destroys_before == 5);
+    CHECK(authority.physical_surfaces.contains(pinned_slot));
+
+    authority.release_lease(lease);
+    CHECK_FALSE(authority.slot_pinned(pinned_slot));
+
+    // With the lease dropped, the same prune can now reclaim it.
+    authority.prune_unused_slots();
+    CHECK(owner.destroy_count > destroys_before);
+}
+
+TEST_CASE("a leased slot cannot be re-materialized") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC3E801u};
+    auto desc = test_desc(32, 24);
+    const auto& image = authority.bind(handle, 3, desc);
+    const auto lease = authority.acquire_lease(handle);
+    CHECK(lease.image == &image);
+
+    // A resize while a recording holds the lease is an API conflict, not a
+    // silent image swap: the writer must fail loudly.
+    auto resized = test_desc(64, 48);
+    CHECK_THROWS_AS(authority.ensure(handle, resized), std::logic_error);
+    CHECK(lease.image->width == 32);
+
+    authority.release_lease(lease);
+    // Unleased again, the resize is legal and re-materializes in place.
+    auto& rematerialized = authority.ensure(handle, resized);
+    CHECK(rematerialized.width == 64);
+}
+
+TEST_CASE("the generation token invalidates a stale lease") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC3E901u};
+    auto desc = test_desc(32, 24);
+    authority.bind(handle, 5, desc);
+
+    const auto lease = authority.acquire_lease(handle);
+    CHECK(authority.revalidate(lease));
+    authority.release_lease(lease);
+
+    // Re-materialization bumps the slot token: the token captured by the
+    // earlier lease is now stale, so revalidation rejects it.
+    auto resized = test_desc(64, 48);
+    (void)authority.ensure(handle, resized);
+    CHECK_FALSE(authority.revalidate(lease));
+
+    const auto fresh = authority.acquire_lease(handle);
+    CHECK(authority.revalidate(fresh));
+    CHECK(fresh.token != lease.token);
+    authority.release_lease(fresh);
+}
+
+TEST_CASE("nested leases on one slot are reference counted") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC3EA01u};
+    auto desc = test_desc();
+    authority.bind(handle, 2, desc);
+
+    // A plan-wide lease plus a per-op lease of the same surface must both be
+    // held and both released (that is how the batch set and the pass set
+    // coexist); the slot stays pinned until the last one is dropped.
+    const auto plan_lease = authority.acquire_lease(handle);
+    const auto op_lease = authority.acquire_lease(handle);
+    CHECK(plan_lease.image == op_lease.image);
+    CHECK(authority.slot_pinned(2));
+
+    authority.release_lease(op_lease);
+    CHECK(authority.slot_pinned(2));
+    authority.release_lease(plan_lease);
+    CHECK_FALSE(authority.slot_pinned(2));
+}
+
 } // TEST_SUITE
 
 } // namespace chronon3d::backends::vulkan

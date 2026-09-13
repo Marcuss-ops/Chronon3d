@@ -19,7 +19,6 @@ enum class GpuKernelId : std::uint8_t {
     TextRun,
     FillRect,
     LayerBatch,
-    TextBatch,
     TextTileBin,
     TextTileRaster,
 };

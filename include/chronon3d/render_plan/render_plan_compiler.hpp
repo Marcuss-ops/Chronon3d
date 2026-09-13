@@ -15,10 +15,9 @@
 
 namespace chronon3d::render_plan {
 
-struct RenderJobFingerprint {
-    chronon3d::assets::ContentDigest content_digest{};
-    chronon3d::assets::ContentDigest request_digest{};
-};
+// RenderJobFingerprint lives in render_plan_fingerprint.hpp: it is the single
+// job-identity type shared by this path and the canonical compiler (audit
+// FP-1), not a second definition local to the plan compiler.
 
 struct PreparedRenderPlan {
     CompiledComposition compiled_composition;

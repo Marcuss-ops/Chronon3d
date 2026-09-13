@@ -69,6 +69,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             opts.encoder.hardware_encoder == "nvenc" ? 1U : 0U;
         requirements.resources.nvdec_sessions =
             (opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested) ? 1U : 0U;
+        requirements.resources.render_job_slots = 1U;
         requirements.cuda = opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested;
         requirements.nvenc = opts.encoder.hardware_encoder == "nvenc";
         requirements.nvdec = requirements.resources.nvdec_sessions > 0;

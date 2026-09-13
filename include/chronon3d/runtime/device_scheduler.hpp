@@ -22,6 +22,10 @@ struct DeviceResourceVector {
     std::uint32_t nvdec_sessions{0};
     std::uint32_t nvenc_sessions{0};
     float pcie_bandwidth{1.0f};
+    // Optional execution-owner capacity. Zero means unspecified; native
+    // device registrations publish this explicitly so admission and actual
+    // execution have one authority.
+    std::uint32_t render_job_slots{0};
 
     friend bool operator==(const DeviceResourceVector&, const DeviceResourceVector&) = default;
 };

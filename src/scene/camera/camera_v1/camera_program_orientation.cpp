@@ -105,7 +105,8 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
                 std::string("[MissingTransforms] LookAtLayer target='") +
                     lal->target +
                     "': not resolved (world_position returned nullopt); "
-                    "rotation not updated."
+                    "rotation not updated.",
+                CameraDiagnosticCode::LookAtLayerMissingTarget
             };
         }
         // transforms is nullptr — canonical missing-transforms case.
@@ -114,7 +115,8 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
             std::string("[MissingTransforms] LookAtLayer target='") +
                 lal->target +
                 "': CameraEvalContext::transforms is nullptr; "
-                "rotation not updated."
+                "rotation not updated.",
+            CameraDiagnosticCode::LookAtLayerMissingTarget
         };
     }
     if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
@@ -202,13 +204,15 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
                 // Preserve the prior roll (no-op when trajectory is absent).
                 return CameraProgramDiagnostic{
                     CameraProgramDiagnostic::Severity::Warning,
-                    "OrientAlongPath: no valid tangent / last_tangent / POI direction — reusing last frame orientation (Quat)"
+                    "OrientAlongPath: no valid tangent / last_tangent / POI direction — reusing last frame orientation (Quat)",
+                    CameraDiagnosticCode::OrientationFallback
                 };
             }
             // No preserved Quat — keep base rotation (no-op).
             return CameraProgramDiagnostic{
                 CameraProgramDiagnostic::Severity::Warning,
-                "OrientAlongPath: no valid tangent, previous tangent, or POI direction — keeping base rotation"
+                "OrientAlongPath: no valid tangent, previous tangent, or POI direction — keeping base rotation",
+                CameraDiagnosticCode::OrientationFallback
             };
         }
 
@@ -246,13 +250,15 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
                 CameraProgramDiagnostic::Severity::Info,
                 fallback_reason.empty()
                     ? std::string("OrientAlongPath: current tangent degenerate, using look-ahead tangent (t+Δ)")
-                    : fallback_reason
+                    : fallback_reason,
+                CameraDiagnosticCode::OrientationFallback
             };
         }
         if (!fallback_reason.empty()) {
             return CameraProgramDiagnostic{
                 CameraProgramDiagnostic::Severity::Warning,
-                fallback_reason
+                fallback_reason,
+                CameraDiagnosticCode::OrientationFallback
             };
         }
         return std::nullopt;

@@ -26,11 +26,11 @@ TEST_CASE("registry is the sole kernel to pipeline resolution authority") {
 
     CHECK(store.registry.register_kernel(GpuKernelId::Composite, composite));
     CHECK(store.registry.register_kernel(GpuKernelId::Blur, blur));
-    CHECK(store.registry.register_kernel(GpuKernelId::TextBatch, text));
+    CHECK(store.registry.register_kernel(GpuKernelId::TextTileBin, text));
 
     CHECK(store.registry.resolve(GpuKernelId::Composite) == composite);
     CHECK(store.registry.resolve(GpuKernelId::Blur) == blur);
-    CHECK(store.registry.resolve(GpuKernelId::TextBatch) == text);
+    CHECK(store.registry.resolve(GpuKernelId::TextTileBin) == text);
     CHECK(store.registry.resolve(GpuKernelId::Matte) == 0);
 
     // A second registration for the same semantic kernel must not create a
@@ -47,7 +47,7 @@ TEST_CASE("registry is the sole kernel to pipeline resolution authority") {
             ++enumerated;
             if (id == GpuKernelId::Composite && pipeline == composite) seen[0] = true;
             if (id == GpuKernelId::Blur && pipeline == blur) seen[1] = true;
-            if (id == GpuKernelId::TextBatch && pipeline == text) seen[2] = true;
+            if (id == GpuKernelId::TextTileBin && pipeline == text) seen[2] = true;
         });
 
     CHECK(enumerated == store.registry.size());

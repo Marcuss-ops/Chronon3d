@@ -73,7 +73,7 @@ chronon3d::TextDefinition materialize_text(
     definition.frame.align = chronon3d::TextAlign::Center;
     definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
     definition.frame.placement = chronon3d::TextPlacement{
-        chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}};
+        chronon3d::TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
     return definition;
 }
 

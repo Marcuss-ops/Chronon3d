@@ -152,15 +152,6 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     return job_request;
 }
 
-std::mutex& DaemonService::render_execution_lock_for(runtime::DeviceId device) {
-    std::lock_guard<std::mutex> guard(m_device_locks_mutex);
-    auto& mutex_ptr = m_device_execution_locks[device];
-    if (!mutex_ptr) {
-        mutex_ptr = std::make_unique<std::mutex>();
-    }
-    return *mutex_ptr;
-}
-
 void DaemonService::run_socket(const std::string& path) {
     ipc::UnixSocketServer server;
     try {
@@ -182,23 +173,22 @@ void DaemonService::run_socket(const std::string& path) {
                       rc, std::strerror(rc));
     }
     spdlog::info("Daemon socket shutdown. {} frames rendered in {:.1f}ms total.",
-                 m_render_count, m_total_render_ms);
+                 m_render_count.load(std::memory_order_relaxed),
+                 m_total_render_ms.load(std::memory_order_relaxed));
 }
 
 ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
     switch (req.cmd) {
-        case ipc::Command::PrefetchAsset: {
-            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+        // Handlers own their domain lock; the dispatcher holds none. A
+        // compile or a disk write therefore cannot serialize STATUS, and the
+        // RENDER_JOB path below still runs entirely lock-free on the IPC
+        // state (it carries its own scheduler reservation).
+        case ipc::Command::PrefetchAsset:
             return ipc_prefetch_asset(req.payload);
-        }
-        case ipc::Command::PreparePlan: {
-            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+        case ipc::Command::PreparePlan:
             return ipc_prepare_plan(req.payload);
-        }
-        case ipc::Command::RenderOverlay: {
-            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+        case ipc::Command::RenderOverlay:
             return ipc_render_overlay(req.payload);
-        }
         case ipc::Command::RenderJob: {
             // Phase 9: decode ONCE (canonical mapper), normalize ONCE, then
             // hand the immutable NormalizedRenderJob to the render group.
@@ -230,6 +220,7 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             requirements.nvenc = native_nvenc;
             requirements.nv12 = native_nvenc;
             requirements.resources.nvenc_sessions = native_nvenc ? 1U : 0U;
+            requirements.resources.render_job_slots = 1U;
             requirements.resources.vram_bytes = native_nvenc
                 ? 512ULL * 1024ULL * 1024ULL : 0;
             requirements.resources.pcie_bandwidth = native_nvenc ? 0.25f : 0.0f;
@@ -262,18 +253,9 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             video_execution->reservation = std::move(reservation);
             video_execution->video_runtimes = m_video_runtimes;
             const bool direct_yuv = canon.direct_yuv;
-            // Per-device execution lock, NOT the global state mutex: holding
-            // m_ipc_state_mutex across the whole render serialized every GPU
-            // session the worker was configured with (gpu_lanes=2 never ran
-            // two jobs in parallel on one daemon). Execution is still
-            // serialized per device because the warm SoftwareRenderer and the
-            // per-device VideoDeviceRuntime (CUDA context, FFmpeg hwdevice,
-            // shared image cache) are process-wide; different devices may
-            // render concurrently. The anchor is stamped before the lock so
-            // the per-job exclusive-wall startup includes any wait for the
-            // device, which is real scheduling latency — never daemon uptime.
-            auto& execution_lock = render_execution_lock_for(reserved_device);
-            std::lock_guard<std::mutex> exec_lock(execution_lock);
+            // The scheduler reservation owns the device execution lane. It is
+            // moved into the job context and remains live through dispatch,
+            // so admission and actual execution cannot disagree.
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
                 warm_renderer = warm_renderer_for_device(reserved_device);
@@ -292,10 +274,8 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
         }
         case ipc::Command::AssembleSegments:
             return ipc_assemble_segments(req.payload);
-        case ipc::Command::Status: {
-            std::lock_guard<std::mutex> lock(m_ipc_state_mutex);
+        case ipc::Command::Status:
             return ipc_status();
-        }
         case ipc::Command::Shutdown:
             return ipc::Reply{ipc::Status::Shutdown, "bye"};
         default:
@@ -307,6 +287,8 @@ ipc::Reply DaemonService::ipc_prefetch_asset(const std::string& path) {
     if (path.empty()) {
         return ipc::Reply{ipc::Status::BadRequest, "PREFETCH_ASSET requires an asset path"};
     }
+    // RenderEngine mutation domain: the asset registry is engine-owned state.
+    std::lock_guard<std::mutex> engine_lock(m_engine_mutex);
     const auto id = m_engine->assets().import_by_extension(path);
     if (!id) {
         return ipc::Reply{ipc::Status::NotFound,
@@ -325,15 +307,30 @@ ipc::Reply DaemonService::ipc_prepare_plan(const std::string& comp_id) {
     }
     try {
         auto comp = m_registry.create(comp_id);
-        m_prepared_job = std::make_unique<PreparedRenderJob>(m_engine->prepare(comp));
-        m_prepared_comp_id = comp_id;
+        // Compile + plan under the engine domain only. The prepared-plan slot
+        // is published afterwards under its own mutex, so a long compile no
+        // longer blocks STATUS or an in-flight RENDER_OVERLAY.
+        std::shared_ptr<PreparedRenderJob> prepared;
+        {
+            std::lock_guard<std::mutex> engine_lock(m_engine_mutex);
+            prepared = std::make_shared<PreparedRenderJob>(
+                m_engine->prepare(comp));
+        }
+        std::size_t slots = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_prepared_mutex);
+            slots = prepared->resource_plan().slots.size();
+            m_prepared_job = std::move(prepared);
+            m_prepared_comp_id = comp_id;
+        }
+        spdlog::info("🧠 PREPARE_PLAN '{}' — resource plan slots: {}",
+                     comp_id, slots);
     } catch (const std::exception& e) {
+        std::lock_guard<std::mutex> lock(m_prepared_mutex);
         m_prepared_job.reset();
         m_prepared_comp_id.clear();
         return ipc::Reply{ipc::Status::Error, std::string{"prepare failed: "} + e.what()};
     }
-    spdlog::info("🧠 PREPARE_PLAN '{}' — resource plan slots: {}",
-                 comp_id, m_prepared_job->resource_plan().slots.size());
     return ipc::Reply{ipc::Status::Ok, "plan ready"};
 }
 
@@ -343,7 +340,14 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
         return ipc::Reply{ipc::Status::BadRequest,
                           "RENDER_OVERLAY requires '<frame> [output]'"};
     }
-    if (!m_prepared_job) {
+    // Snapshot the plan handle; the shared_ptr keeps it alive for the whole
+    // render even if a concurrent PREPARE_PLAN publishes a replacement.
+    std::shared_ptr<PreparedRenderJob> prepared;
+    {
+        std::lock_guard<std::mutex> lock(m_prepared_mutex);
+        prepared = m_prepared_job;
+    }
+    if (!prepared) {
         return ipc::Reply{ipc::Status::Error,
                           "no prepared plan — send PREPARE_PLAN first"};
     }
@@ -359,9 +363,15 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
     std::string output = tokens.size() > 1 ? tokens[1] : "output/overlay_####.png";
     output = daemon_detail::format_output_path(output, static_cast<std::int32_t>(frame));
 
+    // Overlay domain: the prepared job owns one single-job JobSession, so two
+    // overlapping overlays on the same plan must serialize. This is the only
+    // lock held on this path — STATUS, PREFETCH, PREPARE_PLAN and RENDER_JOB
+    // all proceed while the render + disk write below run.
+    std::lock_guard<std::mutex> overlay_lock(m_overlay_mutex);
+
     std::shared_ptr<Framebuffer> fb;
     try {
-        fb = m_prepared_job->render(frame);
+        fb = prepared->render(frame);
     } catch (const std::exception& e) {
         return ipc::Reply{ipc::Status::Error,
                           std::string{"render failed: "} + e.what()};
@@ -381,7 +391,7 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
         return ipc::Reply{ipc::Status::Error, "failed to save frame to '" + output + "'"};
     }
 
-    m_render_count++;
+    m_render_count.fetch_add(1, std::memory_order_relaxed);
     return ipc::Reply{ipc::Status::Ok, output};
 }
 
@@ -411,10 +421,17 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
 }
 
 ipc::Reply DaemonService::ipc_status() {
+    // STATUS takes no execution-domain lock: counters are atomic and the
+    // prepared handle is read under its own short-lived mutex.
+    std::string prepared_comp;
+    {
+        std::lock_guard<std::mutex> lock(m_prepared_mutex);
+        prepared_comp = m_prepared_comp_id.empty() ? "(none)" : m_prepared_comp_id;
+    }
     std::ostringstream ss;
-    ss << "frames_rendered=" << m_render_count
-       << " total_ms=" << m_total_render_ms
-       << " prepared_comp=" << (m_prepared_comp_id.empty() ? "(none)" : m_prepared_comp_id);
+    ss << "frames_rendered=" << m_render_count.load(std::memory_order_relaxed)
+       << " total_ms=" << m_total_render_ms.load(std::memory_order_relaxed)
+       << " prepared_comp=" << prepared_comp;
     return ipc::Reply{ipc::Status::Ok, ss.str()};
 }
 

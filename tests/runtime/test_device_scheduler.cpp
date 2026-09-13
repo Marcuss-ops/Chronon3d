@@ -144,3 +144,17 @@ TEST_CASE("DeviceScheduler: compute share permits concurrent codec sessions") {
     CHECK(scheduler.resource_state(0)->reserved.compute_units == doctest::Approx(1.0f));
     CHECK_FALSE(scheduler.reserve(req).has_value());
 }
+
+TEST_CASE("DeviceScheduler: execution lane capacity is admission authority") {
+    DeviceScheduler scheduler;
+    scheduler.register_device(
+        DeviceCapabilities{.name = "single-owner"},
+        DeviceResourceVector{.compute_units = 1.0f, .render_job_slots = 1});
+
+    DeviceResourceVector req{.compute_units = 0.1f, .render_job_slots = 1};
+    auto first = scheduler.reserve(req);
+    REQUIRE(first.has_value());
+    CHECK_FALSE(scheduler.reserve(req).has_value());
+    first->release();
+    CHECK(scheduler.reserve(req).has_value());
+}

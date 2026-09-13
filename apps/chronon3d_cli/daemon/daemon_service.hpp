@@ -7,9 +7,10 @@
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include "chronon_ipc.hpp"
+#include <atomic>
 #include <functional>
-#include <map>
 #include <string>
 #include <memory>
 #include <mutex>
@@ -48,7 +49,9 @@ struct DaemonOptions {
     std::string assets_root;
 
     /// Backend selected for the persistent runtime (software | vulkan | auto).
-    std::string backend{"auto"};
+    /// The default is the resolver-owned constant so the daemon and the
+    /// resolver fallback chain cannot drift (audit N8).
+    std::string backend{std::string{media::kDefaultBackend}};
     std::uint32_t gpu_device_id{chronon3d::Config::kAutoGpuDevice};
 
     /// Shell command to rebuild the project (e.g. "bash build-fast.sh cli").
@@ -128,33 +131,39 @@ private:
     std::unique_ptr<RenderEngine> m_engine;
     std::unordered_map<runtime::DeviceId, std::shared_ptr<SoftwareRenderer>>
         m_device_sessions;
-    std::string m_backend{"auto"};
+    std::string m_backend{std::string{media::kDefaultBackend}};
     runtime::DeviceScheduler m_device_scheduler;
     // One owner of CUDA context + FFmpeg hwdevice per device, process-wide.
     // Resolution chain: DeviceScheduler → DeviceReservation → device() →
     // VideoRuntimeRegistry::get_or_create(device).
     std::shared_ptr<media::VideoRuntimeRegistry> m_video_runtimes;
-    std::unique_ptr<PreparedRenderJob> m_prepared_job;   // PREPARE_PLAN result
+    // ── Per-domain IPC state (audit N2) ────────────────────────────────
+    // One mutex per fact. A single global mutex made a full compile block
+    // STATUS / PREFETCH / RENDER_OVERLAY, and made a disk write block the
+    // concurrent daemon transport. State strings are gone: STATUS now reads
+    // the prepared handle under m_prepared_mutex and the counters are atomic.
+    //
+    // shared_ptr, not unique_ptr: RENDER_OVERLAY snapshots the handle under
+    // m_prepared_mutex and then renders lock-free, so a concurrent
+    // PREPARE_PLAN cannot invalidate the plan mid-render.
+    std::shared_ptr<PreparedRenderJob> m_prepared_job;    // PREPARE_PLAN result
     std::string m_prepared_comp_id;                       // comp bound to m_prepared_job
-    // Short shared-state operations only (status/prepare/overlay). The
-    // RENDER_JOB path must NOT hold this mutex across the render: that
-    // global serialization made every GPU lane the worker configured execute
-    // one-at-a-time on the daemon.
-    mutable std::mutex m_ipc_state_mutex;
-    // One RENDER_JOB per device executes at a time. Execution stays
-    // serialized per device because the full-graph warm SoftwareRenderer and
-    // the per-device VideoDeviceRuntime (CUDA context, FFmpeg hwdevice,
-    // shared image cache) are process-wide; true same-device session
-    // parallelism requires isolating those per session first. Different
-    // devices may render concurrently.
-    mutable std::mutex m_device_locks_mutex;
-    std::map<runtime::DeviceId, std::unique_ptr<std::mutex>>
-        m_device_execution_locks;
-    /// Returns the execution mutex for `device`, creating it on first use.
-    std::mutex& render_execution_lock_for(runtime::DeviceId device);
+    mutable std::mutex m_prepared_mutex;                  // guards the two lines above
+    // RenderEngine mutation domain (asset import, plan preparation). Kept
+    // separate from the prepared-slot and overlay domains; RenderEngine
+    // itself still has no documented concurrent-prepare contract.
+    mutable std::mutex m_engine_mutex;
+    // RENDER_OVERLAY execution domain. A PreparedRenderJob owns exactly one
+    // single-job JobSession, so overlays on the same plan must serialize; no
+    // other handler waits on this mutex.
+    mutable std::mutex m_overlay_mutex;
+    // Warm per-device session map. IPC workers run one thread per connection
+    // (serve_concurrent), and the RENDER_JOB path does not hold any IPC
+    // mutex; the map needs its own lock (audit N1).
+    mutable std::mutex m_device_sessions_mutex;
     bool m_running{true};
-    int m_render_count{0};
-    double m_total_render_ms{0.0};
+    std::atomic<int> m_render_count{0};
+    std::atomic<double> m_total_render_ms{0.0};
 };
 
 } // namespace chronon3d::cli

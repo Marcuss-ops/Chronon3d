@@ -6,11 +6,6 @@
 
 namespace chronon3d::compiler::stages {
 
-struct ProgramDigests {
-    assets::ContentDigest content_digest{};
-    assets::ContentDigest request_digest{};
-};
-
 void lower_scene(const render_plan::RenderPlan&, CompiledProgramData&);
 void lower_animation(const render_plan::RenderPlan&, CompiledProgramData&);
 void lower_timeline(const render_plan::RenderPlan&, CompiledProgramData&);
@@ -19,9 +14,9 @@ void build_dependencies(CompiledProgramData&);
 void build_passes(CompiledProgramData&);
 void optimize(CompiledProgramData&);
 std::uint64_t fingerprint(const render_plan::RenderPlan&, const CompiledProgramData&);
-ProgramDigests compute_digests(
-    const render_plan::RenderPlan&,
-    const assets::PreparedAssetManifest&,
-    const render_plan::RenderPlanFingerprintOptions&);
+// Job identity (content_digest / request_digest) is NOT a stage: it is
+// render_plan::compute_render_job_fingerprint, the single authority shared
+// with the render-plan path (audit FP-1). This namespace only owns the
+// structural `fingerprint()` of the compiled program itself.
 
 }  // namespace chronon3d::compiler::stages

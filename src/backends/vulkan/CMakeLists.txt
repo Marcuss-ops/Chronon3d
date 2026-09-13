@@ -14,7 +14,6 @@ set(_chronon3d_shaders
     text_run
     fill_rect
     layer_batch
-    text_batch
     text_tile_bin
     text_tile_raster
 )
@@ -47,7 +46,6 @@ set(_chronon3d_shader_abi_prefixes
     text_run:TextRun
     fill_rect:FillRect
     layer_batch:LayerBatch
-    text_batch:TextBatch
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
 )
