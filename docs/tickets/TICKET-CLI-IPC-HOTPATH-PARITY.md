@@ -1,5 +1,15 @@
 # TICKET-CLI-IPC-HOTPATH-PARITY — the video-gated CLI/IPC parity gate is red on the hot path
 
+> **Stato:** RESOLVED (2026-09-13) — fix **opzione A** atterrata in `0db926a47`
+> (`test(cli): pin wire fidelity for resolved encoder selection`). Il sottocaso
+> autora ora `"gpu_hot_path_mode":"require_direct_yuv"` dentro `output_spec`
+> (come fa il sottocaso gemello con `require_gpu_native`), quindi entrambi i
+> transport portano la selezione risolta e i fingerprint normalizzati
+> coincidono. La riga in `FOLLOWUP_TICKETS.md` era rimasta `OPEN` per mancato
+> aggiornamento dell'indice. La ri-esecuzione della suite video-gated su un
+> host `linux-video-test` resta la conferma autoritativa (nessun build host
+> Vulkan/VIDEO esiste in questo checkout).
+
 ## Contesto
 
 Eseguendo per la prima volta l'intera suite video-gated
@@ -70,6 +80,12 @@ video-gated non era mai stata eseguita end-to-end: era stata solo verificata con
 Raccomandazione: **A** come fix immediato di correttezza del test; **B** solo se
 si decide che l'hot path è un asse *derivato* e non *richiesto* — decisione di
 contratto, non di test.
+
+**Applicata: A** (`0db926a47`). Il caso è ora
+`pure-video GPU job carries its resolved hot path to DirectYUV`, il payload
+porta `"gpu_hot_path_mode":"require_direct_yuv"` e `decode_render_job_payload`
+lo mappa via `spec_or_root(request, "gpu_hot_path_mode")`
+(`daemon_service_ipc.cpp:107`). Nessuna modifica di semantica di produzione.
 
 ## Accettazione
 
