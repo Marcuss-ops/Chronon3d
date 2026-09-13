@@ -1,0 +1,17 @@
+diff --git a/include/CLI/impl/StringTools_inl.hpp b/include/CLI/impl/StringTools_inl.hpp
+--- a/include/CLI/impl/StringTools_inl.hpp
++++ b/include/CLI/impl/StringTools_inl.hpp
+@@ -185,9 +185,9 @@
+     return (it != std::end(names)) ? (it - std::begin(names)) : (-1);
+ }
+ 
+-CLI11_MODULE_INLINE const std::string &escapedChars("\b\t\n\f\r\"\\");
+-CLI11_MODULE_INLINE const std::string &escapedCharsCode("btnfr\"\\");
+-CLI11_MODULE_INLINE const std::string &bracketChars("\"'`[(<{");
+-CLI11_MODULE_INLINE const std::string &matchBracketChars("\"'`])>}");
++CLI11_MODULE_INLINE const std::string escapedChars("\b\t\n\f\r\"\\");
++CLI11_MODULE_INLINE const std::string escapedCharsCode("btnfr\"\\");
++CLI11_MODULE_INLINE const std::string bracketChars("\"'`[(<{");
++CLI11_MODULE_INLINE const std::string matchBracketChars("\"'`])>}");
+ 
+ CLI11_INLINE bool has_escapable_character(const std::string &str) {

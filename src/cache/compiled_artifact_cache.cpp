@@ -11,6 +11,7 @@
 
 #include <chronon3d/cache/compiled_artifact_cache.hpp>
 #include <chronon3d/cache/compression/compressor.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include "chronon_artifact_generated.h"
 
@@ -21,8 +22,10 @@
 
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <mutex>
 #include <stdexcept>
+#include <thread>
 #include <unordered_map>
 
 namespace chronon3d::cache {
@@ -40,11 +43,21 @@ constexpr int kArtifactCompressionLevel = 6;
 /// File extension on disk.
 constexpr std::string_view kExtension = ".cart";
 
+/// Raw compiled GPU-program payloads share this ProgramCache instance while
+/// remaining distinguishable from serialized CompiledComposition artifacts.
+constexpr std::string_view kProgramArtifactExtension = ".pbin";
+
 // ── Internal helpers ─────────────────────────────────────────────────────
 
 void write_binary_atomic(const std::filesystem::path& path,
                          const std::vector<std::uint8_t>& data) {
-    const auto tmp = std::filesystem::path(path.string() + ".tmp");
+    // Two device-session threads may publish the same cold artifact at once.
+    // Unique temporary names preserve atomic publication without adding a
+    // second cache mutex/authority.
+    const auto tmp = std::filesystem::path(
+        path.string() + ".tmp." +
+        std::to_string(std::hash<std::thread::id>{}(
+            std::this_thread::get_id())));
     {
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
         if (!out) {
@@ -379,6 +392,25 @@ std::optional<LoadedArtifact> hydrate_from_flatbuffer(
 
 }  // anonymous namespace
 
+std::string ProgramArtifactKey::stable_name() const {
+    const auto digest = chronon3d::core::hash::HashBuilder{}
+        .add("chronon3d.program-artifact-key.v1")
+        .add(semantic_program_fingerprint)
+        .add(lowering_kind)
+        .add(target_backend)
+        .add(gpu_architecture)
+        .add(compiler_identity)
+        .add(compiler_version)
+        .add(compile_flags)
+        .add(abi_version)
+        .finish();
+
+    char buffer[17]{};
+    std::snprintf(buffer, sizeof(buffer), "%016llx",
+                  static_cast<unsigned long long>(digest));
+    return "program-v1-" + std::string(buffer);
+}
+
 // ── CompiledArtifactCache ─────────────────────────────────────────────────
 
 CompiledArtifactCache::CompiledArtifactCache(std::filesystem::path directory)
@@ -439,6 +471,23 @@ void CompiledArtifactCache::save(std::string_view name,
                  name, compressed.size());
 }
 
+void CompiledArtifactCache::save_program_artifact(
+    const ProgramArtifactKey& key,
+    std::span<const std::uint8_t> payload) const {
+    if (payload.empty()) {
+        throw std::runtime_error(
+            "CompiledArtifactCache: cannot save an empty program artifact");
+    }
+
+    std::filesystem::create_directories(m_directory);
+    const auto compressed = cache_compressor().compress(
+        payload.data(), payload.size(), kArtifactCompressionLevel);
+    write_binary_atomic(program_artifact_path(key), compressed);
+
+    spdlog::debug("[CompiledArtifactCache] Saved program artifact '{}' ({} bytes)",
+                  key.stable_name(), compressed.size());
+}
+
 std::optional<LoadedArtifact> CompiledArtifactCache::load(
     std::string_view name) const {
     if (!is_safe_name(name)) {
@@ -477,6 +526,26 @@ std::optional<LoadedArtifact> CompiledArtifactCache::load(
     }
 }
 
+std::optional<std::vector<std::uint8_t>>
+CompiledArtifactCache::load_program_artifact(
+    const ProgramArtifactKey& key) const {
+    const auto path = program_artifact_path(key);
+    if (!std::filesystem::is_regular_file(path)) return std::nullopt;
+
+    try {
+        const auto compressed = read_binary(path);
+        if (compressed.empty()) return std::nullopt;
+        auto payload = cache_compressor().decompress(
+            compressed.data(), compressed.size());
+        if (payload.empty()) return std::nullopt;
+        return payload;
+    } catch (const std::exception& error) {
+        spdlog::warn("[CompiledArtifactCache] Program artifact load failed for '{}': {}",
+                     key.stable_name(), error.what());
+        return std::nullopt;
+    }
+}
+
 bool CompiledArtifactCache::contains(std::string_view name) const noexcept {
     if (!is_safe_name(name)) return false;
     return std::filesystem::is_regular_file(artifact_path(name));
@@ -495,12 +564,19 @@ std::size_t CompiledArtifactCache::clear() const {
          std::filesystem::directory_iterator(m_directory, ec)) {
         if (ec) break;
         if (entry.is_regular_file() &&
-            entry.path().extension() == kExtension) {
+            (entry.path().extension() == kExtension ||
+             entry.path().extension() == kProgramArtifactExtension)) {
             ++count;
             std::filesystem::remove(entry.path(), ec);
         }
     }
     return count;
+}
+
+std::filesystem::path CompiledArtifactCache::program_artifact_path(
+    const ProgramArtifactKey& key) const {
+    return m_directory / (key.stable_name() +
+                          std::string(kProgramArtifactExtension));
 }
 
 }  // namespace chronon3d::cache

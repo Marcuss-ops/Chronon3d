@@ -1,7 +1,8 @@
 // =============================================================================
 // include/chronon3d/cache/compiled_artifact_cache.hpp
 //
-// CompiledArtifactCache — save/load compiled compositions to/from disk.
+// CompiledArtifactCache — ProgramCache persistence for compiled compositions
+// and raw GPU-program artifacts.
 // Cache family: ProgramCache (persistent I/O adapter).
 //
 // This type does not implement an in-memory cache primitive or eviction policy;
@@ -27,6 +28,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,7 +52,30 @@ struct LoadedArtifact {
     bool processor_incompatible{false};
 };
 
-/// Save/load compiled composition artifacts.
+/// Canonical identity for one compiled GPU-program artifact.
+///
+/// This is deliberately target/compiler-aware: a PTX artifact is not
+/// interchangeable with SPIR-V, another CUDA architecture, or another
+/// compiler ABI.  The resulting stable name is used only as the persistent
+/// ProgramCache key; residency handles remain owned by the device session.
+struct ProgramArtifactKey {
+    std::uint64_t semantic_program_fingerprint{0};
+    std::string lowering_kind;
+    std::string target_backend;
+    std::string gpu_architecture;
+    std::string compiler_identity;
+    std::string compiler_version;
+    std::string compile_flags;
+    std::uint32_t abi_version{1};
+
+    /// Stable, filesystem-safe ProgramCache identity derived from every key
+    /// field.  This is not a pointer/context identity and is deterministic
+    /// across processes and machines.
+    [[nodiscard]] std::string stable_name() const;
+};
+
+/// Save/load ProgramCache artifacts.  Composition artifacts use the FlatBuffer
+/// envelope below; compiled GPU payloads use the binary-artifact entry points.
 ///
 /// Usage:
 ///   CompiledArtifactCache cache("/var/cache/chronon3d/artifacts");
@@ -78,6 +103,12 @@ public:
     /// No path traversal — the name is appended directly to the cache directory.
     void save(std::string_view name, const CompiledComposition& compiled) const;
 
+    /// Save a compiled GPU-program blob in the same ProgramCache family.
+    /// The key carries semantic program, lowering, target, compiler and ABI
+    /// identity; payloads are compressed and written atomically.
+    void save_program_artifact(const ProgramArtifactKey& key,
+                               std::span<const std::uint8_t> payload) const;
+
     /// Load a compiled composition from disk by `name`.  Returns nullopt
     /// if the artifact does not exist or is corrupt.
     ///
@@ -89,6 +120,11 @@ public:
     /// set to true and `composition` is nullopt.
     [[nodiscard]] std::optional<LoadedArtifact> load(
         std::string_view name) const;
+
+    /// Load a compiled GPU-program blob by its canonical ProgramCache key.
+    /// Returns nullopt for a miss or an invalid/corrupt payload.
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>>
+    load_program_artifact(const ProgramArtifactKey& key) const;
 
     /// Check whether an artifact exists for the given name.
     [[nodiscard]] bool contains(std::string_view name) const noexcept;
@@ -111,6 +147,9 @@ private:
     // Internal helpers.
     [[nodiscard]] std::filesystem::path artifact_path(
         std::string_view name) const;
+
+    [[nodiscard]] std::filesystem::path program_artifact_path(
+        const ProgramArtifactKey& key) const;
 
     static bool is_safe_name(std::string_view name) noexcept;
 };

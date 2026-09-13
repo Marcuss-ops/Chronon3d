@@ -3,6 +3,26 @@
 #
 # Chronon3d — Canonical vcpkg toolchain wrapper (SINGLE SOURCE OF TRUTH)
 # ==============================================================================
+# Keep dependency fixes reproducible and local to the project. The CLI11
+# overlay contains the GCC 15-safe static-initialization patch required by the
+# CLI target; it does not introduce a second runtime or cache authority.
+set(CHRONON3D_VCPKG_OVERLAY_PORTS
+    "${CMAKE_CURRENT_LIST_DIR}/../vcpkg-overlays/ports"
+    CACHE PATH
+    "Chronon3D vcpkg overlay ports")
+if(EXISTS "${CHRONON3D_VCPKG_OVERLAY_PORTS}")
+        set(_chronon3d_vcpkg_overlay_ports
+            "${VCPKG_OVERLAY_PORTS};${CHRONON3D_VCPKG_OVERLAY_PORTS}")
+        list(REMOVE_ITEM _chronon3d_vcpkg_overlay_ports "")
+        list(REMOVE_DUPLICATES _chronon3d_vcpkg_overlay_ports)
+    set(VCPKG_OVERLAY_PORTS
+        "${_chronon3d_vcpkg_overlay_ports}"
+        CACHE STRING
+        "vcpkg overlay ports"
+        FORCE)
+    unset(_chronon3d_vcpkg_overlay_ports)
+endif()
+
 # This file is the value of `CMAKE_TOOLCHAIN_FILE` in every CMakePresets entry
 # (inherited transparently via `inherits: base-linux`).  All presets that
 # previously hardcoded `vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake` or

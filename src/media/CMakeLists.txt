@@ -44,6 +44,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         )
         target_link_libraries(chronon3d_media_native PUBLIC
             chronon3d_media_interface
+            chronon3d_cache
             chronon3d_ffmpeg_full
         )
         set_target_properties(chronon3d_media_native PROPERTIES UNITY_BUILD OFF)

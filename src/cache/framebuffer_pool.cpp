@@ -314,9 +314,11 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
 
     if (reused) {
         // Logical metadata is caller-local work and must not extend pool
-        // mutex hold time. Storage left the pool: no longer transferable.
+        // mutex hold time. The storage still carries the pool return
+        // contract, so a uniquely-owned borrowed wrapper may transfer it
+        // zero-copy to another pool-owned wrapper.
         reused->resize_logical(width, height);
-        reused->set_storage_transferable(false);
+        reused->set_storage_transferable(true);
         return reused;
     }
 
@@ -336,6 +338,10 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     }
 
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
+    // Fresh heap-backed storage has the same pool return contract as reused
+    // storage. Mark it transferable so a unique reusable input can follow
+    // the zero-copy ownership path without a redundant allocation/copy.
+    fb->set_storage_transferable(true);
     m_total_allocations.fetch_add(1, std::memory_order_relaxed);
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_pool_empty_alloc.fetch_add(1, std::memory_order_relaxed);

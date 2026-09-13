@@ -43,7 +43,10 @@ static_assert(sizeof(DirectYuvLayerHost) == 80);
 [[noreturn]] void fail(const char* operation, const std::string& detail);
 void check_cuda(CUresult result, const char* operation);
 void check_nvrtc(nvrtcResult result, const char* operation);
-const std::string& get_compiled_nv12_ptx();
+/// Load the canonical NV12 PTX artifact from ProgramCache, compiling and
+/// publishing it there on a miss. The returned string is request-local; no
+/// process-global PTX owner exists.
+std::string get_compiled_nv12_ptx();
 
 } // namespace chronon3d::media::video::cuda_nv12_detail
 

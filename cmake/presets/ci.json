@@ -161,25 +161,25 @@
       "name": "linux-ci",
       "configurePreset": "linux-ci",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-ci-nocontent",
       "configurePreset": "linux-ci-nocontent",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-ci-release-build",
       "configurePreset": "linux-ci-release-build",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-ci-full-validation",
       "configurePreset": "linux-ci-full-validation",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
-      "jobs": 16
+      "jobs": 14
     },
     {
       "name": "linux-ci-render-video-contract",
