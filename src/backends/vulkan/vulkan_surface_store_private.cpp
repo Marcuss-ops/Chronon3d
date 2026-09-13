@@ -134,7 +134,15 @@ namespace chronon3d::backends::vulkan {
         // Retain surfaces.physical_surfaces[slot] so subsequent ensure_surface calls
         // can reuse the allocated physical surface without re-allocating memory!
         surfaces.unplanned_surface_handles.erase(handle);
-        prune_unused_transient_slots();
+        if (surfaces.surface_bindings.empty()) {
+            // Once the last logical handle is gone there is no warm pool to
+            // preserve: tests and teardown rely on the physical image count
+            // reaching zero, and no future binding can reuse this batch's
+            // retired content safely.
+            surfaces.reclaim_unused_transient_slots();
+        } else {
+            prune_unused_transient_slots();
+        }
         ++stats.surface_releases;
     }
 
@@ -145,7 +153,9 @@ namespace chronon3d::backends::vulkan {
         for (const auto handle : pending) release_surface_now(handle);
     }
 
-    void VulkanBackend::Impl::release_frame_transient_handles(bool log_lifecycle) {
+    void VulkanBackend::Impl::release_frame_transient_handles(
+        bool log_lifecycle,
+        std::span<const runtime::RenderSurfaceHandle> protected_handles) {
         // Reused scratch (see transient_release_scratch_): avoids a
         // per-call handle-vector allocation in the cleanup drains.
         auto& handles = transient_release_scratch_;
@@ -155,7 +165,9 @@ namespace chronon3d::backends::vulkan {
             const auto it = surfaces.physical_surfaces.find(slot);
             if (it != surfaces.physical_surfaces.end() &&
                 it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
-                !surfaces.unplanned_surface_handles.contains(handle)) {
+                !surfaces.unplanned_surface_handles.contains(handle) &&
+                std::find(protected_handles.begin(), protected_handles.end(), handle) ==
+                    protected_handles.end()) {
                 handles.push_back(handle);
             }
         }
@@ -200,14 +212,14 @@ namespace chronon3d::backends::vulkan {
         }
     }
 
-    void VulkanBackend::Impl::retire_completed_frame_transient_surfaces() noexcept {
+    void VulkanBackend::Impl::retire_completed_frame_transient_surfaces(
+        std::span<const runtime::RenderSurfaceHandle> protected_handles) noexcept {
         try {
             // A transient image is eligible for destruction only after the
             // frame submission that references it has completed.  Poll the
             // frame fences instead of draining every pending submission: a
             // blocking wait here serialized the Vulkan->CUDA/NVENC pipeline
             // and made every exported frame pay the full GPU latency.
-            bool retired_any = false;
             for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
                 if (!frame_batch.in_flight[i]) continue;
                 const auto status = vkGetFenceStatus(device, frame_batch.fences[i]);
@@ -217,7 +229,6 @@ namespace chronon3d::backends::vulkan {
                       "vkResetFences(frame transient retirement)");
                 frame_batch.in_flight[i] = false;
                 read_gpu_timestamps(i);
-                retired_any = true;
             }
 
             // Reclaim only once a frame that referenced these transient handles
@@ -227,9 +238,10 @@ namespace chronon3d::backends::vulkan {
             // image survives, but its `initialized` flag would be cleared
             // before its first use, and re-binding with a matching desc does
             // not re-materialize it.
-            if (retired_any) {
-                release_frame_transient_handles(/*log_lifecycle=*/true);
-            }
+            // All relevant submission fences were complete above, so it is
+            // now safe to reclaim the physical images whose logical handles
+            // are retired below.
+            release_frame_transient_handles(/*log_lifecycle=*/true, protected_handles);
         } catch (const std::exception& error) {
             spdlog::error("[vulkan] non-blocking transient retirement failed: {}", error.what());
         } catch (...) {
