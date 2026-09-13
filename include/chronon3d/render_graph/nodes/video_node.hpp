@@ -97,8 +97,9 @@ public:
 
         const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.frame_input.width;
         const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.frame_input.height;
+        const float effective_fps = (m_source.source_fps > 0.0f) ? m_source.source_fps : ctx.frame_input.fps;
         const i64 source_fps = std::max<i64>(
-            1, static_cast<i64>(std::llround(m_source.source_fps)));
+            1, static_cast<i64>(std::llround(effective_fps)));
         auto decoded = decoder->decode_frame_at(
             m_source.path,
             RationalTime{source_frame.integral(), Rational{1, source_fps}},

@@ -621,7 +621,8 @@ struct VulkanBackend::Impl {
     // DEMOLISHED (P1.4): preallocate_plan_surfaces removed — the surface
     // authority materializes lazily from the compiled plan.
     bool slot_in_use(std::size_t slot) const;
-    void prune_unused_transient_slots();
+    void prune_unused_transient_slots(
+        std::size_t max_retained = VulkanSurfaceAuthority<Image, Impl>::kMaxRetainedTransientSlots);
     [[nodiscard]] std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const;
     Image& resolve_image(runtime::RenderSurfaceHandle handle);
     bool slot_has_initialized_occupant(std::size_t slot,
@@ -636,6 +637,9 @@ struct VulkanBackend::Impl {
     void ensure_upload_slot(VulkanUploadRing::UploadSlot& slot, VkDeviceSize bytes);
     void release_surface_now(runtime::RenderSurfaceHandle handle);
     void flush_deferred_surface_releases();
+    void record_slot_transient_surface(std::size_t slot,
+                                       runtime::RenderSurfaceHandle handle);
+    void retire_frame_slot_transient_surfaces(std::size_t slot);
     // Shared frame-transient drain used by both cleanup paths; the caller
     // performs its own pre-drain (blocking wait vs non-blocking fence poll).
     void release_frame_transient_handles(

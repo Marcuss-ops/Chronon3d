@@ -39,9 +39,9 @@ public:
     // Frame-transient physical images are expensive to materialize (especially
     // at 1080p). Keep a bounded warm pool after their logical binding is
     // retired; the next compiled frame can rebind the exact slot without
-    // recreating VkImage/device memory. Persistent CUDA/NVENC surfaces are
-    // never counted or evicted by this policy.
-    static constexpr std::size_t kMaxRetainedTransientSlots = 64;
+    // recreating VkImage/device memory. For a 6-frame ring buffer, at most 8
+    // transient surfaces need to be retained (bounded to ~265MB VRAM).
+    static constexpr std::size_t kMaxRetainedTransientSlots = 8;
 
     struct PhysicalSurface {
         ImageT image{};
@@ -96,6 +96,9 @@ public:
 #endif
     std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases{};
     std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles{};
+    static constexpr std::size_t kFrameBatchSlotCount = 6;
+    std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
+        frame_slot_transient_handles{};
     std::size_t next_slot{0};
 
     // Policy owns binding state; materializer owns only the physical Vulkan
@@ -364,7 +367,11 @@ public:
     }
 
     void prune_unused_slots() {
-        prune_unused_slots_impl(false);
+        prune_unused_slots_impl(false, kMaxRetainedTransientSlots);
+    }
+
+    void prune_unused_slots(std::size_t max_retained) {
+        prune_unused_slots_impl(false, max_retained);
     }
 
     // A compiled plan can leave behind transient slots that were previously
@@ -372,11 +379,11 @@ public:
     // derives its content-aware placement. Reclaim those slots immediately;
     // the normal prune policy intentionally retains a warm pool.
     void reclaim_unused_transient_slots() {
-        prune_unused_slots_impl(true);
+        prune_unused_slots_impl(true, 0);
     }
 
 private:
-    void prune_unused_slots_impl(bool force) {
+    void prune_unused_slots_impl(bool force, std::size_t max_retained) {
         require_owner();
         std::size_t unused_transient = 0;
         for (const auto& [slot, physical] : physical_surfaces) {
@@ -386,7 +393,7 @@ private:
                 ++unused_transient;
             }
         }
-        if (!force && unused_transient <= kMaxRetainedTransientSlots) return;
+        if (!force && unused_transient <= max_retained) return;
 
         for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
             // A leased slot is skipped: destroying its image would pull the
@@ -401,10 +408,79 @@ private:
             it = physical_surfaces.erase(it);
             --unused_transient;
             if (unused_transient == 0 ||
-                (!force && unused_transient <= kMaxRetainedTransientSlots)) {
+                (!force && unused_transient <= max_retained)) {
                 break;
             }
         }
+
+        std::size_t max_active_slot = 0;
+        for (const auto& [slot, physical] : physical_surfaces) {
+            max_active_slot = std::max(max_active_slot, slot);
+        }
+        if (!physical_surfaces.empty()) {
+            next_slot = max_active_slot + 1;
+        } else {
+            next_slot = 0;
+        }
+    }
+
+    // ── Per-frame-batch-slot transient retirement ────────────────────────
+    //
+    // Frame-transient images that were materialized *while a frame batch was
+    // recording* are owned by that batch slot: once the slot's fence signals,
+    // the GPU no longer reads them and their logical binding can be dropped so
+    // the next occupant re-materializes content instead of trusting stale
+    // bytes.  The record is deliberately scoped: only handles materialized
+    // inside an active frame slot are recorded, so a host-provided surface
+    // created by the transfer ingress outside a batch (for example
+    // create_surface() during preparation) is never retired by a frame
+    // boundary.  That distinction is exactly what made the earlier "retire
+    // every transient in the slot namespace" remedy erase host content and
+    // get reverted (TICKET-AUDIT-2026-09-12-REMEDIATION §7).
+
+    /// Record a transient surface materialized while ``slot`` was the active
+    /// frame-batch slot.  Idempotent: a handle appears at most once per slot.
+    void record_frame_slot_transient(std::size_t slot,
+                                     runtime::RenderSurfaceHandle handle) {
+        if (slot >= kFrameBatchSlotCount ||
+            handle == runtime::kInvalidRenderSurfaceHandle) {
+            return;
+        }
+        auto& list = frame_slot_transient_handles[slot];
+        if (std::find(list.begin(), list.end(), handle) == list.end()) {
+            list.push_back(handle);
+        }
+    }
+
+    /// Retire the handles recorded for a completed frame-batch slot: drop each
+    /// logical binding and clear the retained image's ``initialized`` flag so
+    /// the next occupant re-materializes content.  The physical image stays in
+    /// the warm pool (bounded by ``prune_unused_slots``).  Returns the number
+    /// of bindings released so the caller can account for them.  Handles that
+    /// were never recorded for this slot — host surfaces, another slot's
+    /// transients, persistent assets — are never touched.
+    std::size_t retire_frame_slot_transients(std::size_t slot) {
+        if (slot >= kFrameBatchSlotCount) return 0;
+        auto& list = frame_slot_transient_handles[slot];
+        const bool had_records = !list.empty();
+        std::size_t released = 0;
+        for (const auto handle : list) {
+            const auto binding = surface_bindings.find(handle);
+            if (binding == surface_bindings.end()) continue;
+            const auto phys_slot = binding->second;
+            surface_bindings.erase(binding);
+            unplanned_surface_handles.erase(handle);
+            const auto it = physical_surfaces.find(phys_slot);
+            if (it != physical_surfaces.end() && !slot_in_use(phys_slot)) {
+                it->second.image.initialized = false;
+            }
+            ++released;
+        }
+        list.clear();
+        if (had_records) {
+            prune_unused_slots(kMaxRetainedTransientSlots);
+        }
+        return released;
     }
 
 protected:

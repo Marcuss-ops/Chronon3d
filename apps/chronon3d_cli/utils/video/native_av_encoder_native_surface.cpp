@@ -203,6 +203,10 @@ bool NativeAvEncoder::write_native_surface_impl(
                     static_cast<std::uint64_t>(options_.height) * 3 / 2,
                 std::memory_order_relaxed);
         }
+        gpu_frame->color_range = codec_->color_range;
+        gpu_frame->colorspace = codec_->colorspace;
+        gpu_frame->color_trc = codec_->color_trc;
+        gpu_frame->color_primaries = codec_->color_primaries;
         gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
         cuda::OwnedCudaEvent ready{};
         const CUresult event_create = cuda::create_recorded(

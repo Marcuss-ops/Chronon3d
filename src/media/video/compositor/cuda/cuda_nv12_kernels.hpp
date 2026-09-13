@@ -409,11 +409,6 @@ extern "C" __global__ void p010_composite_layer_batch_2x2(
   out_uv[uv + 1] = (unsigned short)(fminf(fmaxf(roundf((1.0f-a)*bg_v + a*v), 64.0f), 960.0f) * 64.0f);
 }
 
-__device__ inline float to_srgb_channel(float v) {
-  v = fminf(fmaxf(v, 0.0f), 1.0f);
-  return (v <= 0.0031308f) ? (v * 12.92f) : (1.055f * __powf(v, 1.0f / 2.4f) - 0.055f);
-}
-
 extern "C" __global__ void rgba_surface_to_nv12_2x2(
     cudaSurfaceObject_t fg_rgba,
     unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
@@ -434,9 +429,12 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
   for (int i = 0; i < 4; ++i) {
     const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
     const float inv_a = (a > 1e-5f) ? (1.0f / a) : 0.0f;
-    srgb[i].x = to_srgb_channel(fs[i].x * inv_a);
-    srgb[i].y = to_srgb_channel(fs[i].y * inv_a);
-    srgb[i].z = to_srgb_channel(fs[i].z * inv_a);
+    // The compositor surface already carries the encoder's target transfer
+    // domain, so an sRGB OETF must NOT be re-applied here: doing so raised the
+    // midtones (~+50 on BGR) relative to the source. Clamp into [0,1] only.
+    srgb[i].x = fminf(fmaxf(fs[i].x * inv_a, 0.0f), 1.0f);
+    srgb[i].y = fminf(fmaxf(fs[i].y * inv_a, 0.0f), 1.0f);
+    srgb[i].z = fminf(fmaxf(fs[i].z * inv_a, 0.0f), 1.0f);
     const float y_value = 16.0f + 219.0f *
         (0.2126f * srgb[i].x + 0.7152f * srgb[i].y + 0.0722f * srgb[i].z);
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(
