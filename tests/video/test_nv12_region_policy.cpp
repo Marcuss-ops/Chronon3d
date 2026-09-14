@@ -17,6 +17,11 @@ BBox whole_frame(std::uint32_t w, std::uint32_t h) {
     return BBox{0, 0, static_cast<int>(w), static_cast<int>(h)};
 }
 
+// BBox is a plain aggregate with no operator==: compare the canonical fields.
+bool same(const BBox& a, const BBox& b) {
+    return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
+}
+
 } // namespace
 
 TEST_CASE("nv12 region policy: an empty request is the whole frame") {
@@ -25,7 +30,7 @@ TEST_CASE("nv12 region policy: an empty request is the whole frame") {
     CHECK(plan.full_frame);
     CHECK_FALSE(plan.partial_rejected);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == whole_frame(1920, 1080));
+    CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
 }
 
 TEST_CASE("nv12 region policy: an unproven partial request is widened, not honoured") {
@@ -39,7 +44,7 @@ TEST_CASE("nv12 region policy: an unproven partial request is widened, not honou
     CHECK(plan.full_frame);
     CHECK(plan.partial_rejected);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == whole_frame(1920, 1080));
+    CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
 }
 
 TEST_CASE("nv12 region policy: a proven partial request is honoured and normalized") {
@@ -49,9 +54,8 @@ TEST_CASE("nv12 region policy: a proven partial request is honoured and normaliz
     CHECK_FALSE(plan.full_frame);
     CHECK_FALSE(plan.partial_rejected);
     REQUIRE(plan.regions.size() == 2);
-    // 2x2 chroma: origins round down, ends round up.
-    CHECK(plan.regions[0] == BBox{100, 200, 300, 400});
-    CHECK(plan.regions[1] == BBox{1900, 1000, 1920, 1080});
+    CHECK(same(plan.regions[0], BBox{100, 200, 300, 400}));
+    CHECK(same(plan.regions[1], BBox{1900, 1000, 1920, 1080}));
 }
 
 TEST_CASE("nv12 region policy: odd origins and ends land on the chroma grid") {
@@ -59,7 +63,7 @@ TEST_CASE("nv12 region policy: odd origins and ends land on the chroma grid") {
     const Nv12ConversionPlan plan =
         plan_nv12_conversion(requested, 64, 64, /*destination_retains_previous_frame=*/true);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == BBox{0, 2, 6, 8});
+    CHECK(same(plan.regions[0], BBox{0, 2, 6, 8}));
 }
 
 TEST_CASE("nv12 region policy: a partial request is clamped to the frame") {
@@ -67,8 +71,8 @@ TEST_CASE("nv12 region policy: a partial request is clamped to the frame") {
     const Nv12ConversionPlan plan =
         plan_nv12_conversion(requested, 1920, 1080, /*destination_retains_previous_frame=*/true);
     REQUIRE(plan.regions.size() == 2);
-    CHECK(plan.regions[0] == BBox{0, 0, 200, 200});
-    CHECK(plan.regions[1] == BBox{1800, 900, 1920, 1080});
+    CHECK(same(plan.regions[0], BBox{0, 0, 200, 200}));
+    CHECK(same(plan.regions[1], BBox{1800, 900, 1920, 1080}));
 }
 
 TEST_CASE("nv12 region policy: regions entirely outside the frame drop out") {
@@ -77,7 +81,7 @@ TEST_CASE("nv12 region policy: regions entirely outside the frame drop out") {
     const Nv12ConversionPlan plan =
         plan_nv12_conversion(requested, 1920, 1080, /*destination_retains_previous_frame=*/true);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == BBox{10, 10, 60, 60});
+    CHECK(same(plan.regions[0], BBox{10, 10, 60, 60}));
 }
 
 TEST_CASE("nv12 region policy: an all-empty surviving set still converts the frame") {
@@ -86,7 +90,7 @@ TEST_CASE("nv12 region policy: an all-empty surviving set still converts the fra
         plan_nv12_conversion(requested, 1920, 1080, /*destination_retains_previous_frame=*/true);
     CHECK(plan.full_frame);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == whole_frame(1920, 1080));
+    CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
 }
 
 TEST_CASE("nv12 region policy: an odd-sized canvas keeps its last column and row") {
@@ -96,21 +100,22 @@ TEST_CASE("nv12 region policy: an odd-sized canvas keeps its last column and row
     const Nv12ConversionPlan plan =
         plan_nv12_conversion({}, 1921, 1081, /*destination_retains_previous_frame=*/false);
     REQUIRE(plan.regions.size() == 1);
-    CHECK(plan.regions[0] == BBox{0, 0, 1921, 1081});
+    CHECK(same(plan.regions[0], BBox{0, 0, 1921, 1081}));
 
+    const std::vector<BBox> frame_request{whole_frame(1921, 1081)};
     const Nv12ConversionPlan proven =
-        plan_nv12_conversion({whole_frame(1921, 1081)}, 1921, 1081,
+        plan_nv12_conversion(frame_request, 1921, 1081,
                              /*destination_retains_previous_frame=*/true);
     REQUIRE(proven.regions.size() == 1);
-    CHECK(proven.regions[0] == BBox{0, 0, 1921, 1081});
+    CHECK(same(proven.regions[0], BBox{0, 0, 1921, 1081}));
 }
 
 TEST_CASE("nv12 region policy: a degenerate canvas never yields an empty launch set") {
     for (std::uint32_t w : {0u, 1u}) {
         for (std::uint32_t h : {0u, 1u}) {
             for (bool continuity : {false, true}) {
-                const Nv12ConversionPlan plan = plan_nv12_conversion(
-                    kRequested, w, h, continuity);
+                const Nv12ConversionPlan plan =
+                    plan_nv12_conversion(kRequested, w, h, continuity);
                 CHECK_FALSE(plan.regions.empty());
             }
         }
@@ -131,11 +136,10 @@ TEST_CASE("nv12 region policy: every published region stays inside the frame") {
             CHECK(region.y1 <= 1080);
             CHECK_FALSE(region.is_empty());
         }
-        // A partial plan reports exactly the regions asked for; a widened plan
-        // must cover the frame, never a smaller area than the request.
+        // A widened plan must cover the frame, never a smaller area than asked.
         if (plan.full_frame) {
             CHECK(plan.regions.size() == 1);
-            CHECK(plan.regions[0] == whole_frame(1920, 1080));
+            CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
         }
     }
 }

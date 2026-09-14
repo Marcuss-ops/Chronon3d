@@ -76,10 +76,13 @@ public:
         }
         if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
             auto desc = media::native_decode_surface_desc(view.width, view.height);
-            desc.format.matrix = view.color.matrix;
-            desc.format.range = view.color.range;
-            desc.format.primaries = view.color.primaries;
-            desc.format.transfer = view.color.transfer;
+            // The CUDA import below decodes media transfer into the
+            // canonical linear graphics domain. Do not advertise the source
+            // transfer on the post-conversion RGBA surface.
+            desc.format.transfer = runtime::TransferFunction::Linear;
+            desc.format.matrix = runtime::ColorMatrix::Identity;
+            desc.format.range = runtime::ColorRange::Full;
+            desc.format.primaries = runtime::ColorPrimaries::Bt709;
             slot.surface = registry_.create(desc);
             if (slot.surface == runtime::kInvalidRenderSurfaceHandle) {
                 spdlog::error("[native-import] render surface allocation failed ({}x{})",
