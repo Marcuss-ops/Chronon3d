@@ -185,9 +185,9 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
 
     const enum AVCodecID codec_id = fmt->streams[index]->codecpar->codec_id;
     const AVCodec* codec = nullptr;
-    if (codec_id == AV_CODEC_ID_H264) codec = avcodec_find_decoder_by_name("h264_cuvid");
-    else if (codec_id == AV_CODEC_ID_HEVC) codec = avcodec_find_decoder_by_name("hevc_cuvid");
-    else if (codec_id == AV_CODEC_ID_AV1) codec = avcodec_find_decoder_by_name("av1_cuvid");
+    if (!m_software_only && codec_id == AV_CODEC_ID_H264) codec = avcodec_find_decoder_by_name("h264_cuvid");
+    else if (!m_software_only && codec_id == AV_CODEC_ID_HEVC) codec = avcodec_find_decoder_by_name("hevc_cuvid");
+    else if (!m_software_only && codec_id == AV_CODEC_ID_AV1) codec = avcodec_find_decoder_by_name("av1_cuvid");
     if (!codec) codec = avcodec_find_decoder(codec_id);
     if (!codec) {
         set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
@@ -211,11 +211,13 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
             "failed to initialize decoder parameters");
         avcodec_free_context(&cc); return nullptr;
     }
-    // CUVID needs the packet time base explicitly.  Without it FFmpeg emits
-    // "Invalid pkt_timebase" and passes packet timestamps through unchanged;
-    // that is unsafe for GOP seeks and can surface as intermittent frame
-    // glitches even when the output container remains decodable.
+    // Keep both timestamp domains explicit.  CUVID consumes packet timestamps
+    // in pkt_timebase and tags the decoded surfaces in time_base.  Setting only
+    // pkt_timebase leaves the hardware decoder free to attach a codec-default
+    // timestamp domain to the wrong reordered surface (the output PTS stays
+    // valid while the image content is several frames behind).
     cc->pkt_timebase = fmt->streams[index]->time_base;
+    cc->time_base = fmt->streams[index]->time_base;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     const bool uses_nvdec = codec->name && std::string_view(codec->name).ends_with("_cuvid");
     AVBufferRef* device = nullptr;

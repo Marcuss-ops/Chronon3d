@@ -9,6 +9,7 @@
 extern "C" {
 #include <libavutil/avutil.h>
 #include <libavutil/frame.h>
+#include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_cuda.h>
 }
 
@@ -113,6 +114,31 @@ public:
         const auto format = view.format == runtime::PixelFormat::P010
             ? media::video::CudaYuvFormat::P010 : media::video::CudaYuvFormat::Nv12;
         const auto params = make_yuv_to_rgb_params(view.color, view.format);
+        // NVDEC writes the CUDA frame on the stream published by FFmpeg's
+        // CUDA device context.  The AVFrame timestamp becomes visible before
+        // that stream's writes are necessarily complete.  Launching the
+        // conversion on the compositor's unrelated stream therefore reads a
+        // previously recycled decoder surface (the metadata says frame N,
+        // the pixels are frame N-8).  Use the decoder stream as the producer
+        // ordering boundary; the external C2V semaphore is then signalled
+        // after both decode and conversion on the same stream.
+        // FFmpeg leaves AVCUDADeviceContext::stream null for CUVID, which
+        // means the legacy CUDA default stream rather than "no stream". The
+        // compositor API uses null to select its private non-blocking stream,
+        // so preserve the FFmpeg/default-stream ordering explicitly.
+        CUstream decode_stream = CU_STREAM_LEGACY;
+        if (frame->hw_frames_ctx) {
+            auto* frames = reinterpret_cast<AVHWFramesContext*>(
+                frame->hw_frames_ctx->data);
+            if (frames && frames->device_ref) {
+                auto* device = reinterpret_cast<AVHWDeviceContext*>(
+                    frames->device_ref->data);
+                auto* cuda = device
+                    ? reinterpret_cast<AVCUDADeviceContext*>(device->hwctx)
+                    : nullptr;
+                if (cuda && cuda->stream) decode_stream = cuda->stream;
+            }
+        }
         if (!slot.compositor) {
             spdlog::error("[native-import] CUDA compositor unavailable");
             return nullptr;
@@ -120,7 +146,7 @@ public:
         if (!slot.compositor->composite(
                 reinterpret_cast<CUdeviceptr>(frame->data[0]), frame->linesize[0],
                 reinterpret_cast<CUdeviceptr>(frame->data[1]), frame->linesize[1],
-                view.width, view.height, nullptr, format, params) ||
+                view.width, view.height, decode_stream, format, params) ||
             !backend_.prepare_cuda_surface_for_vulkan(slot.surface).ok()) {
             spdlog::error("[native-import] CUDA NV12 composite or Vulkan sync failed");
             return nullptr;
