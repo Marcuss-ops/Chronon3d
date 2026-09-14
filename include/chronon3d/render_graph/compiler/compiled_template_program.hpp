@@ -106,6 +106,11 @@ struct PhysicalResourcePlan {
     std::uint32_t                  peak_live_resources{0};
     std::uint32_t                  aliasable_resources{0};
     std::uint64_t                  peak_transient_bytes{0};
+    /// Device-local outputs retained for compiler-certified static islands.
+    /// These survive across frames and are charged separately from the
+    /// frame-local aliased transient peak.
+    std::uint32_t                  baked_surface_count{0};
+    std::uint64_t                  baked_surface_bytes{0};
     std::uint32_t                  logical_resources{0};
     std::uint32_t                  excluded_persistent{0};
     std::uint32_t                  excluded_async{0};

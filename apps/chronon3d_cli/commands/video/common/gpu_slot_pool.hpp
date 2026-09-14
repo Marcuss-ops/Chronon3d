@@ -5,6 +5,7 @@
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
+#include <chronon3d/runtime/render_surface_handle.hpp>
 
 #include <chrono>
 #include <condition_variable>
@@ -176,6 +177,22 @@ public:
         return wait_us_.load(std::memory_order_relaxed);
     }
 
+    /// The most recent surface whose encoder ownership has completed.  This
+    /// is intentionally separate from the surface currently owned by the
+    /// encoder: a renderer may preserve the former, but must never overwrite
+    /// the latter while CUDA/NVENC is still consuming it.
+    [[nodiscard]] runtime::RenderSurfaceHandle last_completed_surface() const noexcept {
+        return last_completed_surface_.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] runtime::RenderSurfaceHandle last_surface_owned_by_encoder() const noexcept {
+        return last_surface_owned_by_encoder_.load(std::memory_order_acquire);
+    }
+
+    void mark_encoder_owned(runtime::RenderSurfaceHandle surface) noexcept {
+        last_surface_owned_by_encoder_.store(surface, std::memory_order_release);
+    }
+
     [[nodiscard]] FrameExecutionSlot& slot(std::size_t index) {
         return slots_.slot(index);
     }
@@ -205,6 +222,14 @@ private:
             gpu_completions_.recycle(slot_id);
             completed.native_surface_ptr = 0;
             completed.gpu_ready_sync = 0;
+            last_completed_surface_.store(
+                completed.native_surface, std::memory_order_release);
+            auto expected_surface = completed.native_surface;
+            last_surface_owned_by_encoder_.compare_exchange_strong(
+                expected_surface,
+                runtime::kInvalidRenderSurfaceHandle,
+                std::memory_order_acq_rel,
+                std::memory_order_acquire);
             slots_.release(completed);
         }
         cv_free_.notify_all();
@@ -216,7 +241,12 @@ private:
     std::condition_variable cv_free_;
     std::atomic<std::uint64_t> wait_count_{0};
     std::atomic<std::uint64_t> wait_us_{0};
+    std::atomic<runtime::RenderSurfaceHandle> last_completed_surface_ {
+        runtime::kInvalidRenderSurfaceHandle};
+    std::atomic<runtime::RenderSurfaceHandle> last_surface_owned_by_encoder_ {
+        runtime::kInvalidRenderSurfaceHandle};
     bool closed_{false};
+
 };
 
 inline GpuSlotPool::Lease::Lease(Lease&& other) noexcept
@@ -247,6 +277,14 @@ inline void GpuSlotPool::Lease::release() noexcept {
         pool_->gpu_completions_.recycle(slot_->slot_id);
         slot_->native_surface_ptr = 0;
         slot_->gpu_ready_sync = 0;
+        pool_->last_completed_surface_.store(
+            slot_->native_surface, std::memory_order_release);
+        auto expected_surface = slot_->native_surface;
+        pool_->last_surface_owned_by_encoder_.compare_exchange_strong(
+            expected_surface,
+            runtime::kInvalidRenderSurfaceHandle,
+            std::memory_order_acq_rel,
+            std::memory_order_acquire);
         pool_->slots_.release(*slot_);
     }
     pool_->cv_free_.notify_all();

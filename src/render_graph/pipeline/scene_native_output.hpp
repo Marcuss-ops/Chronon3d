@@ -10,7 +10,9 @@
 
 #include <memory>
 
-namespace chronon3d::graph::detail {
+namespace chronon3d::graph {
+struct FrameExecutionPlan;
+namespace detail {
 
 // Terminal synchronization of the rendered framebuffer against the backend's
 // native surface (see scene.cpp phase 11 for the contract).
@@ -38,6 +40,12 @@ public:
     // Unconditionally starts the backend frame batch before graph execution
     // when no batch is active yet (frame-batching boundary, phase 11).
     void begin_frame_batch();
+
+    /// Preserve the last completed device-local frame into the current
+    /// encode surface before a sparse native graph renders its dirty regions.
+    /// The caller supplies the immutable execution decision so the copy is
+    /// recorded only for a genuine sparse plan.
+    bool preserve_previous_surface_if_needed(const FrameExecutionPlan& plan);
 
     [[nodiscard]] bool encode_batch_active() const noexcept {
         return encode_batch_active_;
@@ -76,4 +84,5 @@ private:
     std::optional<raster::BBox> native_source_upload_clip_;
 };
 
-} // namespace chronon3d::graph::detail
+} // namespace detail
+} // namespace chronon3d::graph

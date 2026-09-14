@@ -21,11 +21,29 @@ bool NativeAvEncoder::write_native_surface(
     return write_native_surface_impl(backend, source, destination, false);
 }
 
+bool NativeAvEncoder::write_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination,
+    std::span<const raster::BBox> dirty_regions) {
+    return write_native_surface_impl(
+        backend, source, destination, false, dirty_regions);
+}
+
 bool NativeAvEncoder::write_prepared_native_surface(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle destination) {
     return write_native_surface_impl(backend, source, destination, true);
+}
+
+bool NativeAvEncoder::write_prepared_native_surface(
+    graph::RenderBackend& backend,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle destination,
+    std::span<const raster::BBox> dirty_regions) {
+    return write_native_surface_impl(
+        backend, source, destination, true, dirty_regions);
 }
 
 bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direct) {

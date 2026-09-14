@@ -10,6 +10,7 @@
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -25,8 +26,6 @@ void apply_shadow_effect(
     const i32 w = fb.width(), h = fb.height();
     const float contact_blur = std::max(1.0f, p.radius * 0.45f);
     const float ambient_blur  = std::max(contact_blur + 4.0f, p.radius * 2.0f);
-    const float spread =
-        std::max(std::abs(p.offset.x), std::abs(p.offset.y)) + ambient_blur;
     // The EffectStackNode already allocates a spatially expanded ROI for the
     // shadow.  The effect operates in that framebuffer's local coordinates;
     // using the executor clip here can incorrectly describe the parent
@@ -50,7 +49,9 @@ void apply_shadow_effect(
         y_min_src = std::max(0, effect_clip->y0 - oy);
         y_max_src = std::min(h, effect_clip->y1 - oy);
     }
-    const i32 blur_pad = blur_padding_for_radius(std::max(contact_blur, ambient_blur));
+    const i32 blur_pad = static_cast<i32>(
+        effects::drop_shadow_spatial_halo(p).left -
+        std::max({0.0f, -p.offset.x, -p.offset.x * 1.65f}));
     const i32 x_min_pad = std::max(0, x_min_dst - blur_pad);
     const i32 x_max_pad = std::min(w, x_max_dst + blur_pad);
     const i32 y_min_pad = std::max(0, y_min_dst - blur_pad);

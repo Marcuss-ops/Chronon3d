@@ -449,8 +449,8 @@ MuxSession::~MuxSession() {
 
 bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     const auto started = std::chrono::steady_clock::now();
-    if (config.output_path.empty() || !config.video_codec) {
-        reason = "mux open requires output path and video codec";
+    if (config.output_path.empty() || (!config.video_codec && !config.video_params)) {
+        reason = "mux open requires output path and video codec parameters";
         return false;
     }
     output_path_ = config.output_path;
@@ -464,12 +464,21 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
         return false;
     }
     video_stream_ = avformat_new_stream(format_, nullptr);
-    if (!video_stream_ || avcodec_parameters_from_context(
-            video_stream_->codecpar, config.video_codec) < 0) {
+    if (!video_stream_) {
         reason = "failed to create output video stream";
         return false;
     }
-    video_stream_->time_base = config.video_codec->time_base;
+    const int copy_result = config.video_codec
+        ? avcodec_parameters_from_context(video_stream_->codecpar, config.video_codec)
+        : avcodec_parameters_copy(video_stream_->codecpar, config.video_params);
+    if (copy_result < 0) {
+        reason = "failed to copy output video codec parameters";
+        return false;
+    }
+    video_stream_->time_base = config.video_codec
+        ? config.video_codec->time_base
+        : (config.video_time_base.num > 0 && config.video_time_base.den > 0
+               ? config.video_time_base : AVRational{1, 1000});
     if (config.audio) {
         const auto& audio = *config.audio;
         if (!audio.params) {

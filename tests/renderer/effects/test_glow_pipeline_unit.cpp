@@ -15,6 +15,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 
 #include <cmath>
 using namespace chronon3d;
@@ -68,4 +69,18 @@ TEST_CASE("PR2-Unit-Glow: glow_effect_extent accounts for max layer radius + 4 p
     p.layers.push_back(layer);
     const float e2 = glow_effect_extent(p);
     CHECK(e2 == doctest::Approx(54.0f));
+}
+
+TEST_CASE("PR2-Unit-ShadowBounds: halo matches contact and ambient shadow maps") {
+    DropShadowParams p;
+    p.offset = {0.0f, 4.0f};
+    p.radius = 12.0f;
+
+    const auto halo = effects::drop_shadow_spatial_halo(p);
+    // ambient blur=max(5.4+4, 24)=24; blur padding=24+2=26;
+    // ambient offset is 4*1.65=6.6 on the positive Y side.
+    CHECK(halo.left == doctest::Approx(26.0f));
+    CHECK(halo.top == doctest::Approx(26.0f));
+    CHECK(halo.right == doctest::Approx(26.0f));
+    CHECK(halo.bottom == doctest::Approx(32.6f));
 }

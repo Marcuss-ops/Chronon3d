@@ -121,6 +121,54 @@ TEST_CASE("MTSDF generator emits a real signed multi-channel glyph") {
     CHECK(has_edge_coloring);
 }
 
+TEST_CASE("MTSDF stress corpus keeps sharp-field data across zoom sizes") {
+    REQUIRE(std::filesystem::exists(kFont));
+    FreeTypeFace ft;
+    const chronon3d::MtsdfFaceGuard guard{ft.face, &ft.mutex};
+
+    // Includes sharp diagonals, counters, punctuation, digits and the
+    // kerning pair used by the typewriter overlay stress scene.
+    static constexpr std::string_view corpus = "T.y. {W!g?#% 123} - AV";
+    for (const char c : corpus) {
+        if (c == ' ') continue;
+        const auto glyph_id = FT_Get_Char_Index(ft.face, static_cast<FT_ULong>(c));
+        if (glyph_id == 0) continue;
+        CHECK(chronon3d::generate_mtsdf_glyph(
+                  guard, glyph_id, 64, kRangePx, kPaddingPx)
+                  .has_value());
+    }
+
+    // Use glyphs with substantial ink for the field-quality checks.  Runtime
+    // zoom is exercised by the GPU stress render; the generator receives the
+    // already selected face size and must preserve the signed-field contract.
+    for (const char c : std::string_view{"MWVAgo"}) {
+        const auto glyph_id = FT_Get_Char_Index(ft.face, static_cast<FT_ULong>(c));
+        REQUIRE(glyph_id != 0);
+        const auto bitmap = chronon3d::generate_mtsdf_glyph(
+            guard, glyph_id, 64, kRangePx, kPaddingPx);
+        REQUIRE(bitmap.has_value());
+        CHECK(bitmap->width > 0);
+        CHECK(bitmap->height > 0);
+
+        bool has_edge_coloring = false;
+        bool has_inside = false;
+        bool has_outside = false;
+        for (const float packed : bitmap->rgba8) {
+            const auto texel = texel_bits(packed);
+            const auto r = channel(texel, 0);
+            const auto g = channel(texel, 8);
+            const auto b = channel(texel, 16);
+            const auto a = channel(texel, 24);
+            has_edge_coloring |= r != g || g != b;
+            has_inside |= a > 200;
+            has_outside |= a < 55;
+        }
+        CHECK(has_edge_coloring);
+        CHECK(has_inside);
+        CHECK(has_outside);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Guard contract: a guard without a mutex cannot prove which lock protects
 // the face, so generation fails closed instead of racing on FreeType state.

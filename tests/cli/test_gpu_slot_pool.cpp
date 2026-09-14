@@ -41,9 +41,15 @@ TEST_CASE("GpuSlotPool: acquire and release recycle slots") {
     REQUIRE(lease.valid());
     CHECK(pool.busy_count() == 1);
     CHECK(lease.slot().state.load() == FrameSlotState::Encoding);
+    lease.slot().native_surface = 42;
+    pool.mark_encoder_owned(42);
+    CHECK(pool.last_surface_owned_by_encoder() == 42);
     lease.release();
     CHECK_FALSE(lease.valid());
     CHECK(pool.busy_count() == 0);
+    CHECK(pool.last_completed_surface() == 42);
+    CHECK(pool.last_surface_owned_by_encoder() ==
+          chronon3d::runtime::kInvalidRenderSurfaceHandle);
 
     auto again = pool.acquire();
     REQUIRE(again.valid());

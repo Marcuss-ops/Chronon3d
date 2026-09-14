@@ -64,11 +64,15 @@ chronon3d_add_test_suite(
 
 # Zero-copy Z1/Z4 typed capability contracts (TICKET-ZERO-COPY-ZWAVES):
 # encoder feed capability set + effect/compositor capability matrix. Both
-# headers are CPU-safe and backend-neutral by design.
+# headers are CPU-safe and backend-neutral by design, and so is the NV12
+# region policy: the rule that a sub-region conversion requires proven
+# destination continuity is what keeps a pooled encoder frame from being
+# published half-converted.
 chronon3d_add_test_suite(
     NAME chronon3d_zero_copy_capability_tests
     TIER UNIT
     LINK_TARGETS chronon3d_media_video
     SOURCES video/test_encoder_capability.cpp
             video/test_composition_capability.cpp
+            video/test_nv12_region_policy.cpp
 )

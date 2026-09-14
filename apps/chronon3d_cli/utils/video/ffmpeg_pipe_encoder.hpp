@@ -10,11 +10,13 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format vocabulary
 #include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/color/output_transform.hpp>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <span>
 
 namespace chronon3d::media::video {
 struct DirectYuvFrame;
@@ -63,11 +65,27 @@ struct IVideoEncoder {
         (void)backend; (void)source; (void)destination;
         return false;
     }
+    virtual bool write_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination,
+        std::span<const raster::BBox> dirty_regions) {
+        (void)dirty_regions;
+        return write_native_surface(backend, source, destination);
+    }
     virtual bool write_prepared_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination) {
         return write_native_surface(backend, source, destination);
+    }
+    virtual bool write_prepared_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination,
+        std::span<const raster::BBox> dirty_regions) {
+        (void)dirty_regions;
+        return write_prepared_native_surface(backend, source, destination);
     }
     virtual bool finish_native_surface(
         graph::RenderBackend& backend,
@@ -132,6 +150,16 @@ struct IVideoEncoder {
 
     [[nodiscard]] virtual double total_write_blocked_ms() const { return 0.0; }
     [[nodiscard]] virtual int    ffmpeg_pid() const { return -1; }
+    /// Submit a source-compressed packet through the encoder's canonical mux.
+    /// Kept at the end of the interface so existing encoder implementations
+    /// retain their ABI prefix; pipe encoders fail closed because their child
+    /// ffmpeg process owns the mux.
+    virtual bool submit_copied_video(AVPacket& packet,
+                                     AVRational source_time_base) {
+        (void)packet;
+        (void)source_time_base;
+        return false;
+    }
 };
 
 enum class PipePixelFormat {

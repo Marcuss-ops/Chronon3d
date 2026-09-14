@@ -105,6 +105,12 @@ struct FrameReuseEligibility {
 
 /// Result of the canonical current-vs-previous layer analysis.
 struct FrameDeltaCompileOptions {
+    struct SpatialHalo {
+        int left{0};
+        int top{0};
+        int right{0};
+        int bottom{0};
+    };
     // Conservative first-frame/projected-surface fallback. The compiler owns
     // the resulting bounds and tile mask so callers cannot diverge.
     bool force_full_frame{false};
@@ -122,6 +128,7 @@ struct FrameDeltaCompileOptions {
     // only for changed layers and lets predictable blur/glow damage expand
     // before bounds and tiles are emitted. No effect policy is duplicated here.
     std::function<double(std::string_view)> spatial_spread;
+    std::function<SpatialHalo(std::string_view)> spatial_halo;
 };
 
 struct FrameDelta {
