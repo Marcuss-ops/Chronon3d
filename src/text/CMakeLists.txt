@@ -101,4 +101,4 @@ target_link_libraries(chronon3d_text_core
 
 target_include_directories(chronon3d_text_core PRIVATE ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(chronon3d_text_core PRIVATE ICU::uc ICU::i18n)
+target_link_libraries(chronon3d_text_core PRIVATE ICU::data ICU::uc ICU::i18n)

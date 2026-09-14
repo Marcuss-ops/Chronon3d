@@ -116,7 +116,8 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         *source_params, target, true);
     const auto time_base = format->streams[video_stream_index]->time_base;
     const double time_base_seconds = av_q2d(time_base);
-    if (!(time_base_seconds > 0.0)) {
+    if (!(time_base_seconds > 0.0) || edit_start_seconds < 0.0 ||
+        !(edit_end_seconds > edit_start_seconds)) {
         close_format();
         return std::nullopt;
     }
@@ -124,8 +125,19 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         edit_start_seconds / time_base_seconds));
     const auto edit_end = static_cast<std::int64_t>(std::llround(
         edit_end_seconds / time_base_seconds));
+    const auto* video_stream = format->streams[video_stream_index];
+    const double source_duration_seconds = video_stream->duration != AV_NOPTS_VALUE
+        ? static_cast<double>(video_stream->duration) * time_base_seconds
+        : (format->duration != AV_NOPTS_VALUE
+            ? static_cast<double>(format->duration) / static_cast<double>(AV_TIME_BASE)
+            : 0.0);
+    const bool trim_requested = !content_changed &&
+        (edit_start_seconds > 0.0 ||
+         (source_duration_seconds > 0.0 && edit_end_seconds + 1e-9 <
+              source_duration_seconds));
 
     std::vector<std::vector<CompressedPacketInfo>> groups;
+    bool has_trim_gop = false;
     AVPacket* packet = av_packet_alloc();
     if (!packet) {
         close_format();
@@ -151,10 +163,15 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     av_packet_free(&packet);
 
     GopSourceAnalysis result;
+    result.source_time_base_num = time_base.num;
+    result.source_time_base_den = time_base.den;
     for (const auto& group : groups) {
         if (group.empty()) continue;
         const auto& first = group.front();
-        const auto& last = group.back();
+        if (!content_changed && first.pts != AV_NOPTS_VALUE &&
+            first.pts >= edit_start && first.pts < edit_end) {
+            has_trim_gop = true;
+        }
         // A trim/copy request changes the selected time range, not pixels.
         // Only a content-changing request marks intersecting GOPs for
         // re-encode. Keeping this fact explicit prevents a full-clip
@@ -185,6 +202,7 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         }
     }
     result.all_copy_eligible = result.valid() && result.copy_count == result.plans.size();
+    result.trim_only = trim_requested && has_trim_gop && result.all_copy_eligible;
     return result;
 #endif
 }
@@ -229,6 +247,84 @@ std::optional<GopCopyResult> copy_gop_source(
         return std::nullopt;
     }
 
+    const auto to_source_pts = [](double seconds, AVRational time_base) {
+        return static_cast<std::int64_t>(std::llround(seconds / av_q2d(time_base)));
+    };
+    const auto video_time_base = input->streams[input_video]->time_base;
+    const auto video_start = to_source_pts(start_seconds, video_time_base);
+    const auto video_end = to_source_pts(end_seconds, video_time_base);
+    if (start_seconds < 0.0 || !(end_seconds > start_seconds) ||
+        video_end <= video_start) {
+        close_input();
+        return std::nullopt;
+    }
+
+    // Packet trimming is legal only at a random-access boundary. Find the
+    // first complete GOP in the requested interval and stop before the first
+    // keyframe outside it. This deliberately snaps the video window rather
+    // than emitting a partial GOP with dangling references.
+    std::int64_t selected_gop_start = AV_NOPTS_VALUE;
+    std::int64_t selected_gop_end = AV_NOPTS_VALUE;
+    std::int64_t last_video_timestamp = AV_NOPTS_VALUE;
+    AVPacket* scan_packet = av_packet_alloc();
+    if (!scan_packet) {
+        close_input();
+        return std::nullopt;
+    }
+    while (av_read_frame(input, scan_packet) >= 0) {
+        if (scan_packet->stream_index == input_video) {
+            const auto pts = scan_packet->pts != AV_NOPTS_VALUE
+                ? scan_packet->pts : scan_packet->dts;
+            if (pts != AV_NOPTS_VALUE) {
+                last_video_timestamp = std::max(last_video_timestamp, pts);
+                if ((scan_packet->flags & AV_PKT_FLAG_KEY) != 0) {
+                    if (selected_gop_start == AV_NOPTS_VALUE &&
+                        pts >= video_start && pts < video_end) {
+                        selected_gop_start = pts;
+                    } else if (selected_gop_start != AV_NOPTS_VALUE &&
+                               pts >= video_end) {
+                        selected_gop_end = pts;
+                        break;
+                    }
+                }
+            }
+        }
+        av_packet_unref(scan_packet);
+    }
+    av_packet_unref(scan_packet);
+    av_packet_free(&scan_packet);
+    if (selected_gop_start == AV_NOPTS_VALUE ||
+        av_seek_frame(input, input_video, selected_gop_start,
+                      AVSEEK_FLAG_BACKWARD) < 0) {
+        close_input();
+        return std::nullopt;
+    }
+    if (selected_gop_end == AV_NOPTS_VALUE) {
+        const auto stream = input->streams[input_video];
+        selected_gop_end = stream->duration != AV_NOPTS_VALUE
+            ? av_rescale_q(stream->duration, stream->time_base, video_time_base)
+            : (last_video_timestamp == AV_NOPTS_VALUE
+                   ? AV_NOPTS_VALUE : last_video_timestamp + 1);
+        if (selected_gop_end <= selected_gop_start) {
+            close_input();
+            return std::nullopt;
+        }
+    }
+    avformat_flush(input);
+
+    // Both ends are snapped to complete GOP boundaries. Audio follows the
+    // same snapped window, so the copied streams have matching duration and
+    // no packet in the output depends on material outside the trim.
+    const double snapped_start_seconds =
+        static_cast<double>(selected_gop_start) * av_q2d(video_time_base);
+    const double snapped_end_seconds =
+        static_cast<double>(selected_gop_end) * av_q2d(video_time_base);
+    const auto audio_start = input_audio >= 0
+        ? to_source_pts(snapped_start_seconds,
+                        input->streams[input_audio]->time_base) : 0;
+    const auto audio_end = input_audio >= 0
+        ? to_source_pts(snapped_end_seconds, input->streams[input_audio]->time_base) : 0;
+
     AVFormatContext* output = nullptr;
     if (avformat_alloc_output_context2(&output, nullptr, nullptr, output_path.c_str()) < 0 || !output) {
         close_input();
@@ -270,27 +366,32 @@ std::optional<GopCopyResult> copy_gop_source(
     if (avformat_write_header(output, nullptr) < 0) return fail();
     chronon3d::media::PacketAssembler assembler(output, output_video, output_audio);
 
-    const auto to_source_pts = [](double seconds, AVRational time_base) {
-        return static_cast<std::int64_t>(std::llround(seconds / av_q2d(time_base)));
-    };
-    const auto video_start = to_source_pts(start_seconds, input->streams[input_video]->time_base);
-    const auto video_end = to_source_pts(end_seconds, input->streams[input_video]->time_base);
-    const auto audio_start = input_audio >= 0
-        ? to_source_pts(start_seconds, input->streams[input_audio]->time_base) : 0;
-    const auto audio_end = input_audio >= 0
-        ? to_source_pts(end_seconds, input->streams[input_audio]->time_base) : 0;
-
     GopCopyResult result;
     bool selected_video_started = false;
+    std::int64_t current_gop_start = AV_NOPTS_VALUE;
+    bool selected_gop = false;
+    bool finished_video = false;
     AVPacket* packet = av_packet_alloc();
     if (!packet) return fail();
     while (av_read_frame(input, packet) >= 0) {
         const bool is_video = packet->stream_index == input_video;
         const bool is_audio = packet->stream_index == input_audio;
         const auto pts = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
-        const auto start = is_video ? video_start : audio_start;
-        const auto end = is_video ? video_end : audio_end;
-        if ((is_video || is_audio) && pts != AV_NOPTS_VALUE && pts >= start && pts < end) {
+        if (is_video && (packet->flags & AV_PKT_FLAG_KEY) != 0 &&
+            pts != AV_NOPTS_VALUE) {
+            current_gop_start = pts;
+            selected_gop = !finished_video && current_gop_start >= selected_gop_start &&
+                current_gop_start < selected_gop_end;
+            if (finished_video || current_gop_start >= selected_gop_end) {
+                finished_video = true;
+                selected_gop = false;
+            }
+        }
+        const bool emit_video = is_video && selected_gop && !finished_video;
+        const bool emit_audio = is_audio && pts != AV_NOPTS_VALUE &&
+            pts >= audio_start && pts < audio_end;
+        if (emit_video || emit_audio) {
+            const auto start = is_video ? selected_gop_start : audio_start;
             if (is_video && !selected_video_started) {
                 if ((packet->flags & AV_PKT_FLAG_KEY) == 0) {
                     av_packet_unref(packet);
