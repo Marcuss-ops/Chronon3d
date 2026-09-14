@@ -10,11 +10,21 @@
 namespace chronon3d::media::video::cuda_nv12_detail {
 
 inline constexpr char kNv12Kernel[] = R"CUDA(
+__device__ inline float decode_transfer_channel(float encoded,
+                                                unsigned int transfer) {
+  if (transfer == 0u) return encoded;
+  encoded = fminf(fmaxf(encoded, 0.0f), 1.0f);
+  return (encoded <= 0.04045f)
+      ? (encoded / 12.92f)
+      : powf((encoded + 0.055f) / 1.055f, 2.4f);
+}
+
 extern "C" __global__ void nv12_to_rgba(
     const unsigned char* y, int yp, const unsigned char* uv, int uvp,
     cudaSurfaceObject_t out, int width, int height,
     float y_offset, float y_scale, float uv_offset, float uv_scale,
-    float r_v, float g_u, float g_v, float b_u) {
+    float r_v, float g_u, float g_v, float b_u,
+    unsigned int transfer_decode) {
   const int x = (int)(blockIdx.x * blockDim.x + threadIdx.x);
   const int yy = (int)(blockIdx.y * blockDim.y + threadIdx.y);
   if (x >= width || yy >= height) return;
@@ -28,6 +38,9 @@ extern "C" __global__ void nv12_to_rgba(
   r = fminf(fmaxf(r, 0.0f), 1.0f);
   g = fminf(fmaxf(g, 0.0f), 1.0f);
   b = fminf(fmaxf(b, 0.0f), 1.0f);
+  r = decode_transfer_channel(r, transfer_decode);
+  g = decode_transfer_channel(g, transfer_decode);
+  b = decode_transfer_channel(b, transfer_decode);
   surf2Dwrite(make_float4(r, g, b, 1.0f), out, x * (int)sizeof(float4), yy);
 }
 
@@ -35,7 +48,8 @@ extern "C" __global__ void p010_to_rgba(
     const unsigned short* y, int yp, const unsigned short* uv, int uvp,
     cudaSurfaceObject_t out, int width, int height,
     float y_offset, float y_scale, float uv_offset, float uv_scale,
-    float r_v, float g_u, float g_v, float b_u) {
+    float r_v, float g_u, float g_v, float b_u,
+    unsigned int transfer_decode) {
   const int x = (int)(blockIdx.x * blockDim.x + threadIdx.x);
   const int yy = (int)(blockIdx.y * blockDim.y + threadIdx.y);
   if (x >= width || yy >= height) return;
@@ -54,6 +68,9 @@ extern "C" __global__ void p010_to_rgba(
   r = fminf(fmaxf(r, 0.0f), 1.0f);
   g = fminf(fmaxf(g, 0.0f), 1.0f);
   b = fminf(fmaxf(b, 0.0f), 1.0f);
+  r = decode_transfer_channel(r, transfer_decode);
+  g = decode_transfer_channel(g, transfer_decode);
+  b = decode_transfer_channel(b, transfer_decode);
   surf2Dwrite(make_float4(r, g, b, 1.0f), out, x * (int)sizeof(float4), yy);
 }
 

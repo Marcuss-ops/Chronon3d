@@ -1,12 +1,104 @@
 # TICKET-GOAL3-NATIVE-COMPOSITE-COLLISION — a baked text layer hides a scaled video layer, and lands at the canvas origin
 
-**Status:** DIAGNOSED (read-only) — no code change in this ticket
+**Status:** RE-DIAGNOSED (third pass, 2026-09-14) — placement is FIXED; color parity and encoder determinism are implemented and await GPU validation
 **Created:** 2026-09-14
 **Scope:** `chronon3d_cli` GPU-native lane (`required_gpu_native_full_graph`)
 **Reporter:** RenderingGen audit session (read-only; RenderGen tree untouched)
 **Evidence artefacts:** `refactored/ops/benchmarks/goal3-e2e-<date>/` (RenderingGen repo, sibling checkout)
 
-## Symptom
+## Third pass — current state (2026-09-14)
+
+- **R1 placement/banda nera: FIXED.** `TransformNode::predicted_bbox()` clips the graph
+  bbox to the actual input surface before publishing the tight surface. The plate is now
+  full-canvas (`[0,0→1920,1080]`) and the foreground is the centered `1344×756` box
+  (`[288,162→1632,918]`). Pixel, watermark, video-composited and boundary checks pass.
+- **R2 color: implementation complete, E2E pending.** Native NV12/P010 import applies the
+  inverse transfer before publishing canonical `RGBA Linear/Identity/Full`; the software
+  decoder applies the same inverse transfer before entering the framebuffer. The current
+  host has no NVIDIA driver, so native/software MAE cannot be re-measured here.
+- **R3 determinism: encoder contract hardened, E2E pending.** Goal3 pins NVENC to constant
+  QP 23 and the software reference to explicit CRF 18; neither lane relies on an implicit
+  driver-default rate-control mode. Re-run the full harness on a host with NVENC.
+
+## Second pass — VERIFIED against the current engine (2026-09-14)
+
+This section supersedes the hypotheses below. Re-run on a rebuilt
+`chronon3d_cli` (release, `build/chronon/linux-video-release/…`, built
+2026-09-14 18:06 from `src/…/frame_graph_builder_program_detail.hpp` at
+commit `a78a8a29e` "keep unsafe composite batches standalone"):
+
+```sh
+cd RenderingGen/renderinggen
+GOAL3_RENDER_OUT_DIR=/tmp/goal3-verify CHRONON_BIN=<built chronon3d_cli> \
+  go test -count=1 -run TestGoal3_FinalClipBackgroundWatermark -v ./internal/overlay/
+```
+
+**Fixed (do not re-check):**
+
+1. **The scaled video layer is no longer absent.** All five renders now land at
+   ~1.4 MB (the recorded artefacts were 75 KB for `01`/`02`); the testsrc2
+   pattern is present at `(960,540)`. `a78a8a29e` (batch soundness) is the fix:
+   a fused batch published only its root, so a member consumed outside the
+   island handed its consumer a null framebuffer and the Composite degraded to
+   a pass-through — dropping a whole layer while every node reported success.
+2. **The text no longer composites at the canvas origin.** In both the normal
+   and the diagnostic run the white glyph pixels occupy exactly
+   `(1551,92)–(1839,139)`, which is the declared top-right box
+   (`position top_right`, `margin_px 64`). The ticket's `(8,16)→(214,56)`
+   signature is gone.
+3. **The diagnostic flags no longer segfault.** `GOAL3_DIAG=1` (→
+   `--diagnostic --diagnostic-plan` +
+   `CHRONON3D_NATIVE_SURFACE_PROMOTION_DIAG=1`) now completes the whole matrix;
+   the per-node trace, the per-frame composite handle dump
+   (`[composite-native-diag]`) and the promotion trace are all produced. The
+   frame-0 SIGSEGV was not reproducible on the current build.
+
+**Historical second-pass evidence — superseded by the third pass above:**
+
+The harness still fails `pixel/image_background_is_composited` (probe
+`(1896,1056)` reads `rgb(0,0,0)` where the plate expects `rgb(30,90,168)`) and
+the three `parity/*` means; in the non-diagnostic run
+`pixel/watermark_changes_the_frame` also fails, but its 465 deviating pixels
+are in the black padding, not the glyphs.
+
+The frame graph for `01` (from the diagnostic log, frame 0) is
+`image(1)`, `Video(2)`, `text(5)` → `Transform(3)` on the video →
+`Composite(4)` (image ⊕ Transform) → `Composite(6)` (… ⊕ text):
+
+```
+[exec-node-diag] node_id=2 name='Video:…/source.mp4'
+[exec-node-diag] node_id=3 name='Transform'        # the scaled foreground
+[composite-native-diag] frame=0 result_size=1920x1080 top_size=1632x918 … top_cpu=1
+```
+
+A frame-60 pixel map of `01b` (image background + 70 % video, no text) shows the
+cause exactly: the plate is correct in the left `x<288` and top `y<162` strips
+and the video content sits at `(288,162)–(1632,918)` (the correct 0.7 box,
+1344×756), but everything right of `x=1632` and below `y=918` is **opaque
+black**, not plate. The transform's output surface is `1632×918`, i.e.
+`(288,162)→(1920,1080)` = canvas minus the 0.7 centring offset, and the
+untouched remainder of that surface is composited as black. Concretely:
+
+- the Video node produces a **full-canvas** surface (a
+  `ProducerSurfaceKind::Video` producer is never tight — see
+  `src/render_graph/nodes/detail/producer_surface_bounds.hpp`) with the 0.7
+  content drawn centred and opaque black around it;
+- the `TransformNode` then applies a **pure translation of (+288,+162)** with no
+  residual scale, so the content lands in the right place but the padding
+  travels with it;
+- the two errors cancel in *position*, which is why the layer is now visible at
+  all, and leave the padding, which is the whole remaining failure.
+
+So the fix is NOT "the layer is missing" any more. It is one of:
+
+- make the Video producer surface **tight to the scaled content box** and drop
+  the compensating translate (preferred: no full-canvas intermediate, no
+  padding to declare transparent), or
+- keep the full-canvas surface and composite its untouched area as
+  **transparent** (the same first-write contract `draw_text_batch` already uses
+  for a fresh terminal NVENC surface).
+
+## Original symptom (FIRST PASS — kept for the record, partly falsified)
 
 RenderingGen's Goal 3 certification harness (`renderinggen/internal/overlay/goal3_background_watermark_e2e_test.go`)
 renders one composition in two lanes and pixel-compares them. On this host the

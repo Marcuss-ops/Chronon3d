@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
+#include <fmt/format.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
@@ -74,6 +75,34 @@ NodeExecResult TransformNode::execute(
 
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
+
+    // One-shot placement trace for the native multi-layer investigation.
+    // `model` is the matrix stored on TransformNode; `pixel_model` below is
+    // the centered canvas-space matrix used by the raster/native transform.
+    // Keeping both values in the same record prevents the centering
+    // translation (e.g. +288,+162 for a 0.7 scale) from being mistaken for
+    // the authored scale being absent.
+    if ((ctx.policy.diagnostics_enabled || native_surface_promotion_diag_enabled()) &&
+        ctx.frame_input.frame.integral() == 0) {
+        spdlog::info(
+            "[transform-placement-diag] node='{}' model=[[{:.6f},{:.6f},{:.6f},{:.6f}],"
+            "[{:.6f},{:.6f},{:.6f},{:.6f}],"
+            "[{:.6f},{:.6f},{:.6f},{:.6f}],"
+            "[{:.6f},{:.6f},{:.6f},{:.6f}]] opacity={:.6f} source_surface={:.1f}x{:.1f}"
+            " input={}x{}@({},{}), predicted={}",
+            name(),
+            model[0][0], model[1][0], model[2][0], model[3][0],
+            model[0][1], model[1][1], model[2][1], model[3][1],
+            model[0][2], model[1][2], model[2][2], model[3][2],
+            model[0][3], model[1][3], model[2][3], model[3][3],
+            opacity,
+            m_source_surface_size.x, m_source_surface_size.y,
+            input->width(), input->height(), input->origin_x(), input->origin_y(),
+            predicted
+                ? fmt::format("[{},{} -> {},{}]", predicted->x0, predicted->y0,
+                              predicted->x1, predicted->y1)
+                : std::string("<none>"));
+    }
 
     // ── Identity fast-path (uses cached analysis) ──────────────────────
     const bool is_identity = get_transform_type() == TransformType::Identity;
@@ -161,6 +190,20 @@ NodeExecResult TransformNode::execute(
 
     const f32 w_src = x_max_src - x_min_src;
     const f32 h_src = y_max_src - y_min_src;
+
+    if ((ctx.policy.diagnostics_enabled || native_surface_promotion_diag_enabled()) &&
+        ctx.frame_input.frame.integral() == 0) {
+        spdlog::info(
+            "[transform-placement-diag] node='{}' pixel_model=[[{:.6f},{:.6f},{:.6f}],"
+            "[{:.6f},{:.6f},{:.6f}], [{:.6f},{:.6f},{:.6f}]] out={}x{}@({},{}),"
+            " src_bbox=[{:.1f},{:.1f} -> {:.1f},{:.1f}]",
+            name(),
+            pixel_model[0][0], pixel_model[1][0], pixel_model[3][0],
+            pixel_model[0][1], pixel_model[1][1], pixel_model[3][1],
+            pixel_model[0][3], pixel_model[1][3], pixel_model[3][3],
+            result->width(), result->height(), result->origin_x(), result->origin_y(),
+            x_min_src, y_min_src, x_max_src, y_max_src);
+    }
 
     // Extract 3×3 homography for local_z = 0 plane
     glm::mat3 H;
@@ -581,10 +624,25 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
 
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
-        x_min_src = static_cast<f32>(in_box.x0);
-        y_min_src = static_cast<f32>(in_box.y0);
-        x_max_src = static_cast<f32>(in_box.x1);
-        y_max_src = static_cast<f32>(in_box.y1);
+        // The graph bbox can describe media/source geometry rather than the
+        // actual surface supplied to this node.  Keep prediction consistent
+        // with execute(), which clips the source rectangle to the input
+        // surface before sampling.  Otherwise an oversized bbox expands the
+        // predicted output and makes opaque padding cover the composite.
+        x_min_src = std::clamp(static_cast<f32>(in_box.x0), 0.0f, source_size.x);
+        y_min_src = std::clamp(static_cast<f32>(in_box.y0), 0.0f, source_size.y);
+        x_max_src = std::clamp(static_cast<f32>(in_box.x1), 0.0f, source_size.x);
+        y_max_src = std::clamp(static_cast<f32>(in_box.y1), 0.0f, source_size.y);
+
+        if ((ctx.policy.diagnostics_enabled || native_surface_promotion_diag_enabled()) &&
+            ctx.frame_input.frame.integral() == 0) {
+            spdlog::info(
+                "[transform-bbox-diag] node='{}' input_bbox=[{},{} -> {},{}] "
+                "source_size={:.1f}x{:.1f} clipped=[{:.1f},{:.1f} -> {:.1f},{:.1f}]",
+                name(), in_box.x0, in_box.y0, in_box.x1, in_box.y1,
+                source_size.x, source_size.y,
+                x_min_src, y_min_src, x_max_src, y_max_src);
+        }
     }
 
     const Mat4 src_canvas_offset = glm::translate(

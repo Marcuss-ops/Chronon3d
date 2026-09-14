@@ -18,6 +18,10 @@ struct YuvToRgbParams {
     float g_v{-0.4681f};
     float b_u{1.8556f};
     std::uint32_t storage_shift{0};
+    // NV12/P010 samples are transfer-coded media values. The imported
+    // RGBA surface is part of the canonical linear render domain, so the
+    // inverse transfer belongs in this decode boundary.
+    std::uint32_t transfer_decode{1};
 };
 
 [[nodiscard]] constexpr YuvToRgbParams make_yuv_to_rgb_params(
@@ -27,6 +31,7 @@ struct YuvToRgbParams {
     const float scale = p010 ? 4.0f : 1.0f;
     YuvToRgbParams params;
     params.storage_shift = p010 ? 6u : 0u;
+    params.transfer_decode = metadata.transfer == runtime::TransferFunction::Linear ? 0u : 1u;
     params.y_offset = (metadata.range == runtime::ColorRange::Full)
         ? 0.0f : 16.0f * scale;
     params.y_scale = 1.0f / ((metadata.range == runtime::ColorRange::Full)
