@@ -127,10 +127,10 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         std::int32_t y1 = static_cast<std::int32_t>(destination.height);
 
         if (transform.clip_enabled != 0u) {
-            const std::int32_t clip_x0 = transform.clip_rect[0] - transform.destination_origin_x;
-            const std::int32_t clip_y0 = transform.clip_rect[1] - transform.destination_origin_y;
-            const std::int32_t clip_x1 = transform.clip_rect[2] - transform.destination_origin_x;
-            const std::int32_t clip_y1 = transform.clip_rect[3] - transform.destination_origin_y;
+            const std::int32_t clip_x0 = transform.clip_rect[0];
+            const std::int32_t clip_y0 = transform.clip_rect[1];
+            const std::int32_t clip_x1 = transform.clip_rect[2];
+            const std::int32_t clip_y1 = transform.clip_rect[3];
 
             x0 = std::clamp(clip_x0, 0, static_cast<std::int32_t>(destination.width));
             y0 = std::clamp(clip_y0, 0, static_cast<std::int32_t>(destination.height));

@@ -235,9 +235,12 @@ private:
     std::uintptr_t m_external_token{0};
 };
 
-/// Affine source mapping for a device-local transform. Coordinates are in
-/// canvas space and are evaluated at destination pixel centres. The source
-/// bounds are half-open, matching the CPU transform kernels.
+/// Affine source mapping for a device-local transform. Source mapping is
+/// evaluated from canvas-space pixel centres using destination_origin; the
+/// destination clip_rect is surface-local and half-open. This makes the
+/// canvas→surface boundary explicit: dispatch, clip and destination pixels are
+/// local 0-based, while only the source equation retains the authored canvas
+/// basis needed by the affine shader.
 struct SurfaceAffineTransform {
     float source_x[4]{};
     float source_y[4]{};
@@ -263,6 +266,31 @@ struct RectF {
     float y1{0.0f};
 
     friend bool operator==(const RectF&, const RectF&) = default;
+};
+
+/// Canonical basis conversion at a tight-surface boundary. Authored graph
+/// rectangles remain in canvas coordinates; raster backends consume the
+/// surface-local 0-based rectangle. Keep this conversion in one place so a
+/// producer cannot silently subtract the origin twice (or not at all).
+struct SurfaceCoordinateMapper {
+    std::int32_t origin_x{0};
+    std::int32_t origin_y{0};
+
+    [[nodiscard]] constexpr RectF canvas_to_surface(RectF rect) const noexcept {
+        rect.x0 -= static_cast<float>(origin_x);
+        rect.y0 -= static_cast<float>(origin_y);
+        rect.x1 -= static_cast<float>(origin_x);
+        rect.y1 -= static_cast<float>(origin_y);
+        return rect;
+    }
+
+    [[nodiscard]] constexpr RectF surface_to_canvas(RectF rect) const noexcept {
+        rect.x0 += static_cast<float>(origin_x);
+        rect.y0 += static_cast<float>(origin_y);
+        rect.x1 += static_cast<float>(origin_x);
+        rect.y1 += static_cast<float>(origin_y);
+        return rect;
+    }
 };
 
 struct TextRunStatic {
