@@ -61,6 +61,10 @@ Questo è il passo 3 del §3 di
    `MinimumWorkSchedule` conserva anche PTS, DTS e time-base sorgente fino al
    `GopExecutionPlan`, così il futuro boundary executor non deve reinterpretare
    i tick del codec come frame della timeline.
+8. Il contratto canonico trasporta `ChangedInterval` tipizzati (`content` o
+   `trim`) da CLI/IPC al preflight. La CLI accetta l'opzione ripetibile
+   `--changed-interval start:end[:content|trim]`; l'IPC usa
+   `output_spec.changed_intervals`.
 
 ## Accettazione
 

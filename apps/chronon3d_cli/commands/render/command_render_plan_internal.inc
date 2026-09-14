@@ -168,6 +168,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         // dropping it here produces a valid video-only MP4 silently.
         request.video_settings.gop_source = normalized_job.output.audio_source_path;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
+        request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
         if (!normalized_job.output.ffmpeg_mode.empty())
             request.video_settings.ffmpeg_mode = normalized_job.output.ffmpeg_mode;

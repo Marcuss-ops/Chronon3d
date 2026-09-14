@@ -10,7 +10,9 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <cstdint>
+#include <array>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -309,6 +311,16 @@ void check_same_semantics(const JobRequest& cli, const JobRequest& ipc) {
     CHECK(ipc.output.bitrate == cli.output.bitrate);
     CHECK(ipc.output.audio_source_path == cli.output.audio_source_path);
     CHECK(ipc.output.gop_copy_only == cli.output.gop_copy_only);
+    REQUIRE(ipc.output.changed_intervals.size() ==
+            cli.output.changed_intervals.size());
+    for (std::size_t index = 0; index < cli.output.changed_intervals.size(); ++index) {
+        CHECK(ipc.output.changed_intervals[index].start_seconds ==
+              cli.output.changed_intervals[index].start_seconds);
+        CHECK(ipc.output.changed_intervals[index].end_seconds ==
+              cli.output.changed_intervals[index].end_seconds);
+        CHECK(ipc.output.changed_intervals[index].kind ==
+              cli.output.changed_intervals[index].kind);
+    }
     CHECK(ipc.output.fps_num == cli.output.fps_num);
     CHECK(ipc.output.fps_den == cli.output.fps_den);
     CHECK(ipc.trace.output.string() == cli.trace.output.string());
@@ -557,6 +569,37 @@ TEST_CASE("render_job_fingerprint discriminates semantic axes") {
         CHECK(c3d::runtime::job::render_job_fingerprint(twin.value()) ==
               base_fp);
     }
+
+    SUBCASE("changed content interval changes the fingerprint") {
+        JobRequest changed = base;
+        changed.output.changed_intervals = {
+            {.start_seconds = 1.0,
+             .end_seconds = 1.25,
+             .kind = c3d::media::ChangedIntervalKind::Content}};
+        const auto job =
+            c3d::runtime::job::normalize_render_job(changed, vulkan_host);
+        REQUIRE(job.has_value());
+        CHECK(c3d::runtime::job::render_job_fingerprint(job.value()) !=
+              base_fp);
+    }
+}
+
+TEST_CASE("decode_render_job_payload maps changed intervals") {
+    const auto request = cli::decode_render_job_payload(R"({
+        "plan_path":"plan.json",
+        "output":"hero.mp4",
+        "output_spec":{
+            "changed_intervals":[
+                {"start_seconds":1.0,"end_seconds":2.0,"kind":"content"},
+                {"start_seconds":8.0,"end_seconds":9.0,"kind":"trim"}
+            ]
+        }
+    })");
+    REQUIRE(request.output.changed_intervals.size() == 2);
+    CHECK(request.output.changed_intervals[0].kind ==
+          c3d::media::ChangedIntervalKind::Content);
+    CHECK(request.output.changed_intervals[1].kind ==
+          c3d::media::ChangedIntervalKind::Trim);
 }
 
 TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {
@@ -594,6 +637,25 @@ TEST_CASE("normalize_render_job validates the pipe pixel format against the cano
             c3d::runtime::job::normalize_render_job(request, auto_host);
         REQUIRE(normalized.has_value());
         CHECK(normalized.value().output.pipe_pixfmt == good);
+    }
+}
+
+TEST_CASE("normalize_render_job rejects invalid changed intervals") {
+    const JobCaps auto_host{"auto"};
+    for (const auto interval : std::array<c3d::media::ChangedInterval, 3>{
+             c3d::media::ChangedInterval{.start_seconds = -1.0,
+                                          .end_seconds = 1.0},
+             c3d::media::ChangedInterval{.start_seconds = 2.0,
+                                          .end_seconds = 2.0},
+             c3d::media::ChangedInterval{.start_seconds = 0.0,
+                                          .end_seconds = std::numeric_limits<double>::infinity()}}) {
+        JobRequest request = cli_request_for("auto", "none", "pipe", "auto");
+        request.output.changed_intervals = {interval};
+        const auto normalized =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE_FALSE(normalized.has_value());
+        CHECK(normalized.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidChangedInterval);
     }
 }
 
