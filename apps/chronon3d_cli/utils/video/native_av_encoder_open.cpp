@@ -77,12 +77,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     reusable_cuda_frames_.clear();
 #endif
 
-    last_converted_digest_       = 0;
-    last_converted_width_        = 0;
-    last_converted_height_       = 0;
-    last_converted_pix_fmt_      = -1;
-    last_converted_apply_gamma_  = false;
-    last_converted_color_matrix_ = -1;
+    last_conversion_key_ = video::ConversionCacheKey{};
     cache_hits_   = 0;
     cache_misses_ = 0;
 

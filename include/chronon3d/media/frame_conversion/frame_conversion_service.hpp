@@ -56,9 +56,12 @@ struct ConversionOptions {
     /// Color range of the output samples.
     ColorRange range{ColorRange::Limited};
 
-    /// Enable LRU cache: identical framebuffer digests will reuse
-    /// the previously converted bytes without re-running conversion.
-    /// Recommended: true for video exports (static/freeze frames).
+    /// Enable LRU cache: framebuffers carrying the SAME asserted content
+    /// identity (`Framebuffer::content_digest()`, see conversion_cache_key.hpp)
+    /// reuse the previously converted bytes without re-running conversion.
+    /// A framebuffer with an unknown identity (0, the default) always converts,
+    /// which is what makes a stale frame impossible rather than merely
+    /// unlikely.
     bool use_cache{true};
 };
 

@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include "vulkan_ring_depths.hpp"
 #include "vulkan_surface_materializer.hpp"
 
 #include <algorithm>
@@ -39,9 +40,11 @@ public:
     // Frame-transient physical images are expensive to materialize (especially
     // at 1080p). Keep a bounded warm pool after their logical binding is
     // retired; the next compiled frame can rebind the exact slot without
-    // recreating VkImage/device memory. For a 6-frame ring buffer, at most 8
-    // transient surfaces need to be retained (bounded to ~265MB VRAM).
-    static constexpr std::size_t kMaxRetainedTransientSlots = 8;
+    // recreating VkImage/device memory. The bound and its relation to the
+    // submission ring are owned by vulkan_ring_depths.hpp, together with the
+    // peak-VRAM warning that governs the daemon's job serialization.
+    static constexpr std::size_t kMaxRetainedTransientSlots =
+        kMaxRetainedTransientSurfaceSlots;
 
     struct PhysicalSurface {
         ImageT image{};

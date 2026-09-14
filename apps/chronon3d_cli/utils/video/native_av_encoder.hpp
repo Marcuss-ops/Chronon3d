@@ -4,6 +4,7 @@
 #include "encoder_config_resolution.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
+#include <chronon3d/media/frame_conversion/conversion_cache_key.hpp>
 #include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <cstddef>
@@ -224,12 +225,10 @@ private:
         runtime::RenderSurfaceHandle destination,
         bool surface_already_prepared);
 
-    uint64_t last_converted_digest_{0};
-    int      last_converted_width_{0};
-    int      last_converted_height_{0};
-    int      last_converted_pix_fmt_{-1};
-    bool     last_converted_apply_gamma_{false};
-    int      last_converted_color_matrix_{-1};
+    // Single-entry converted-frame cache. The key is built by the shared
+    // conversion-cache authority, so eligibility is one contract for every
+    // consumer; an unknown Framebuffer content digest is always a miss.
+    video::ConversionCacheKey last_conversion_key_{};
     uint64_t cache_hits_{0};
     uint64_t cache_misses_{0};
     mutable std::recursive_mutex mutex_;
