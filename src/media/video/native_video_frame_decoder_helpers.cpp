@@ -63,7 +63,13 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
             Color* dst = pixels + static_cast<usize>(y) * stride;
             for (int x = 0; x < frame->width; ++x) {
                 const uint8_t* p = row + static_cast<size_t>(x) * 4;
-                dst[x] = Color{p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f};
+                // swscale returns transfer-coded video RGB. Framebuffers are
+                // the canonical linear render domain, so perform the same
+                // inverse transfer as the CUDA NV12 importer before the
+                // pixels enter the graph.
+                const Color encoded{
+                    p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f};
+                dst[x] = encoded.to_linear();
             }
         }
     };

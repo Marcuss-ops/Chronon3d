@@ -35,9 +35,10 @@ bool CudaNv12Compositor::composite(
     float g_u = params.g_u;
     float g_v = params.g_v;
     float b_u = params.b_u;
+    std::uint32_t transfer_decode = params.transfer_decode;
     void* args[] = {&y, &y_pitch, &uv, &uv_pitch, nullptr, &width, &height,
                         &y_offset, &y_scale, &uv_offset, &uv_scale,
-                        &r_v, &g_u, &g_v, &b_u};
+                        &r_v, &g_u, &g_v, &b_u, &transfer_decode};
     CUsurfObject surface = bridge_->surface_object();
     args[4] = &surface;
     check_cuda(cuLaunchKernel(kernel, (width + 15) / 16, (height + 15) / 16, 1,
