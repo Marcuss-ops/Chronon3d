@@ -96,7 +96,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         auto font_engine = std::make_shared<chronon3d::FontEngine>(*font_resolver);
 
         const auto materialize_t0 = chronon3d::profiling::now();
-        std::vector<std::optional<chronon3d::TextDefinition>> prepared_texts(
+        // Lower each text definition once at the render-plan boundary. The
+        // scene callback is evaluated once per frame; keeping PreparedText
+        // here avoids rebuilding TextDocument/spans/shaping options on every
+        // frame while preserving the existing layout-cache and animator
+        // semantics in LayerBuilder::build().
+        std::vector<std::optional<chronon3d::PreparedText>> prepared_texts(
             plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
@@ -110,7 +115,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     definition.style.font.font_path);
             }
             definition.style.font.font_path = resolved->string();
-            prepared_texts[index] = std::move(definition);
+            prepared_texts[index] = chronon3d::prepare_text(definition);
         }
         materialize_layout_ms = chronon3d::profiling::duration_ms(
             materialize_t0, chronon3d::profiling::now());
@@ -198,7 +203,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     "text layer was not prepared");
                             auto& text_builder = builder.text_run(
                                 "text",
-                                chronon3d::prepare_text(*prepared_texts[index]))
+                                *prepared_texts[index])
                                 .font_engine(font_engine.get());
                             detail::apply_text_animators(text_builder, layer);
                             break;
