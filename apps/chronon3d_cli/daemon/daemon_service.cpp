@@ -1,5 +1,6 @@
 #include "daemon_service.hpp"
 #include "daemon_service_internal.hpp"
+#include "daemon_render_concurrency.hpp"
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/core/config.hpp>
@@ -119,16 +120,27 @@ ProbedVideoCapabilities probe_video_capabilities(
 }
 #endif
 
-uint32_t resolve_render_job_slots() {
-    if (const char* env = std::getenv("CHRONON_RENDER_JOB_SLOTS")) {
-        try {
-            int val = std::stoi(env);
-            if (val >= 1 && val <= 8) {
-                return static_cast<uint32_t>(val);
-            }
-        } catch (...) {}
+// Advertised render-job capacity. Resolved by the single concurrency authority
+// (daemon_render_concurrency.hpp) so it can never exceed what the IPC
+// execution-domain mutex actually admits; a request above that limit is
+// reported once instead of being silently clamped into a capacity that no job
+// can use.
+static uint32_t advertised_render_job_slots() {
+    const auto resolution =
+        chronon3d::cli::resolve_render_job_slots(std::getenv(kRenderJobSlotsEnvVar));
+    if (resolution.requested_more_than_effective) {
+        static bool reported = false;
+        if (!reported) {
+            reported = true;
+            spdlog::warn(
+                "{}={} requested but the video-render execution domain is "
+                "mutex-serialized: advertising render_job_slots={}. Lift "
+                "kRenderJobExecutionSerialized together with m_render_job_mutex "
+                "only after per-job peak VRAM is reduced.",
+                kRenderJobSlotsEnvVar, resolution.requested, resolution.slots);
+        }
     }
-    return 2U; // Target production: 2 concurrent jobs
+    return resolution.slots;
 }
 
 } // anonymous namespace
@@ -188,7 +200,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         capabilities.h264 = probed.h264 && probed.cuda;
         capabilities.hevc = probed.hevc && probed.cuda;
         capabilities.av1 = probed.av1 && probed.cuda;
-        const uint32_t job_slots = resolve_render_job_slots();
+        const uint32_t job_slots = advertised_render_job_slots();
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
@@ -207,7 +219,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         runtime::DeviceCapabilities capabilities;
         capabilities.id = 0;
         capabilities.name = m_backend;
-        const uint32_t job_slots = resolve_render_job_slots();
+        const uint32_t job_slots = advertised_render_job_slots();
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
@@ -221,7 +233,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         m_admission_cv.notify_all();
     });
     spdlog::info("🔥 Worker initialised. backend={}, render_job_slots={}, renderer lazy, asset/CUDA caches process-persistent.",
-                 m_backend, resolve_render_job_slots());
+                 m_backend, advertised_render_job_slots());
     spdlog::info("   {} compositions registered.", m_registry.available().size());
 }
 

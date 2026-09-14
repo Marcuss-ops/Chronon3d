@@ -38,6 +38,8 @@
 #include "../nodes/text_run/text_run_execution.hpp"
 #include "../nodes/text_run/gpu_text_run.hpp"
 #include <chronon3d/text/glyph_atlas.hpp>
+
+#include <spdlog/spdlog.h>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #endif
 
@@ -791,6 +793,25 @@ void execute_fused_batch_impl(
         }
 
         const auto placement = compute_media_placement(original_source_size, img.size, img.fit, img.focal_point);
+
+        // [FUSED_IMAGE_DIAG] temporary: pins the sampled placement inputs for
+        // a short frame window so the entity image geometry can be reconciled
+        // against the compiled plan.
+        {
+            const auto diag = ctx.frame_input.frame.integral();
+            if (diag <= 8) {
+                spdlog::info(
+                    "[FUSED_IMAGE_DIAG] frame={} node={} has_sampled_layer={} tx={:.3f} ty={:.3f} sx={:.4f} sy={:.4f} opacity={:.4f} "
+                    "src_size={:.1f}x{:.1f} req_size={:.1f}x{:.1f} fit={} dst_rect=({:.1f},{:.1f},{:.1f},{:.1f}) src_rect=({:.1f},{:.1f},{:.1f},{:.1f})",
+                    diag, inst.node, sampled_layer != nullptr, tx, ty, sx, sy, opacity,
+                    original_source_size.x, original_source_size.y,
+                    img.size.x, img.size.y, static_cast<int>(img.fit),
+                    placement.dst_rect.origin.x, placement.dst_rect.origin.y,
+                    placement.dst_rect.size.x, placement.dst_rect.size.y,
+                    placement.src_rect.origin.x, placement.src_rect.origin.y,
+                    placement.src_rect.size.x, placement.src_rect.size.y);
+            }
+        }
 
         // Placement is authored around the layer centre. Apply the sampled
         // scale around that centre so scale-in/focus presets are visible in

@@ -1,4 +1,5 @@
 #include <chronon3d/media/frame_conversion/frame_conversion_service.hpp>
+#include <chronon3d/media/frame_conversion/conversion_cache_key.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
 #include <cstring>
@@ -65,8 +66,12 @@ ConvertedFrame FrameConversionService::convert_into(
         return ConvertedFrame{};
     }
 
-    const uint64_t digest = fb.key_digest();
-    const bool can_cache = opts.use_cache && cache_capacity_bytes_ > 0 && digest != 0;
+    // Content identity — NOT the node cache-key digest. `key_digest()` is
+    // shared by every frame the producing node renders, so caching on it
+    // reused the first frame's bytes for the whole export (frozen video).
+    // The eligibility question lives in conversion_cache_key.hpp.
+    const uint64_t digest = fb.content_digest();
+    const bool can_cache = opts.use_cache && cache_capacity_bytes_ > 0 && has_content_identity(fb);
 
     // ── Cache lookup ──────────────────────────────────────────────────
     if (can_cache) {

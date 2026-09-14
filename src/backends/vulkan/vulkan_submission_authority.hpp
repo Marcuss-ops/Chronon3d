@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include "vulkan_descriptor_authority.hpp"
+#include "vulkan_ring_depths.hpp"
 #include "memory/vulkan_memory_manager.hpp"
 
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -15,6 +16,8 @@
 #include <vector>
 
 namespace chronon3d::backends::vulkan {
+
+// Ring depths and their invariants are owned by vulkan_ring_depths.hpp.
 
 // Owns every Vulkan submission-lifetime primitive: rotating frame slots,
 // replay slots and the immediate/timeline submission state. Descriptor
@@ -32,15 +35,12 @@ struct VulkanSubmissionAuthority {
     // do not need to wait on it.
     mutable std::mutex mutex;
 
-    // B2 (TICKET-100X-PERF-WAVES): submission ring depth 6. The previous
-    // depth of 3 forced the CPU to fence-wait on slot k-3 before recording
-    // frame k, capping pipeline depth at ~2 frames and starving NVENC
-    // (measured 73% avg utilization with frame_batch_drain_wait_us as the
-    // top per-frame stall). Depth 6 matches the CUDA encode ring shape so
-    // record frame k+2 while frame k executes becomes the steady state.
-    // Backpressure is still bounded: when all slots are in flight the next
-    // begin_frame_batch waits, exactly as before but later.
-    static constexpr std::size_t kSlotCount = 6;
+    // B2 (TICKET-100X-PERF-WAVES): submission ring depth 6, declared by the
+    // depth authority (src/backends/vulkan/vulkan_ring_depths.hpp) together
+    // with its invariant versus the retained transient pool. Backpressure stays
+    // bounded: when all slots are in flight the next begin_frame_batch waits,
+    // exactly as before but later.
+    static constexpr std::size_t kSlotCount = kSubmissionRingDepth;
     static constexpr std::size_t kCompiledPassTimingCapacity = 256;
 
     bool active{false};

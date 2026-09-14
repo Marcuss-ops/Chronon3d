@@ -1,4 +1,5 @@
 #include "daemon_service.hpp"
+#include "daemon_render_concurrency.hpp"
 #include "daemon_render_job_payload.hpp"
 #include "daemon_service_internal.hpp"
 
@@ -287,6 +288,17 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             // scheduler observes the real memory pressure. Serialize the
             // execution domain here; STATUS and asset operations remain
             // concurrent because they do not take this mutex.
+            //
+            // This mutex IS the concurrency contract: the advertised
+            // DeviceScheduler capacity is resolved by the same authority, and
+            // the static_asserts below make a one-sided change a build failure
+            // instead of a capacity the daemon cannot honour.
+            static_assert(kRenderJobExecutionSerialized,
+                          "m_render_job_mutex is held for the whole RENDER_JOB: "
+                          "kRenderJobExecutionSerialized must stay true until the "
+                          "mutex is removed together with it (VRAM-safety decision)");
+            static_assert(kSerializedRenderJobSlots == 1U,
+                          "one execution-domain mutex admits exactly one render job");
             std::unique_lock<std::mutex> render_job_lock(m_render_job_mutex);
             const bool native_nvenc = canon.native_nvenc;
             const std::string& hot_path = canon.gpu_hot_path_mode;

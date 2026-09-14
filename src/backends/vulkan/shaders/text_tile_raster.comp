@@ -278,14 +278,29 @@ void main() {
                                                int(atlas_h) - 1));
                     vec4 shadow_sample = imageLoad(
                         atlas_image, ivec2(int(atlas_x), int(atlas_y)) + shadow_offset);
-                    float shadow_distance = (shadow_sample.a - 0.5) * distance_range;
-                    // Analytic soft shadow: the distance field is already
-                    // signed, so blur controls the transition width. Adding
-                    // blur to the distance made every outside sample fully
-                    // opaque and produced rectangular glyph boxes.
-                    float shadow_alpha = clamp(
-                        0.5 + shadow_distance /
-                            max(run.shadow_blur, 1.0), 0.0, 1.0);
+                    // Use the same median signed-distance coverage as the
+                    // fill.  The alpha lane is a useful true-distance
+                    // diagnostic, but using it for the effect path makes the
+                    // result depend on channel quantization/edge padding and
+                    // can turn the whole glyph plane into a low-alpha shadow
+                    // mask during a typewriter reveal.
+                    //
+                    // Build coverage from the signed glyph distance itself.
+                    // Keep the soft edge below the baked distance range: the
+                    // atlas intentionally clamps distances outside its
+                    // padding, so asking for a wider transition would make
+                    // the clamped rectangular plane contribute again.
+                    float shadow_msd = median3(
+                        shadow_sample.r, shadow_sample.g, shadow_sample.b);
+                    float shadow_distance_px =
+                        (shadow_msd - 0.5) * distance_range * screen_scale;
+                    float shadow_softness_px = clamp(
+                        run.shadow_blur * screen_scale,
+                        0.0, max(distance_range * 0.75, 0.0));
+                    float shadow_alpha = shadow_softness_px > 0.0
+                        ? smoothstep(-shadow_softness_px, 0.0,
+                                     shadow_distance_px)
+                        : step(0.0, shadow_distance_px);
                     src = unpack_color(run.shadow_color) * shadow_alpha;
                 }
             }

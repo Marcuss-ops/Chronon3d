@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 
 #include "memory/vulkan_memory_manager.hpp"
+#include "vulkan_ring_depths.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -22,7 +23,8 @@ struct VulkanUploadAuthority {
         bool in_flight{false};
     };
 
-    static constexpr std::size_t kSlotCount = 3;
+    // Depth authority: src/backends/vulkan/vulkan_ring_depths.hpp.
+    static constexpr std::size_t kSlotCount = kUploadRingDepth;
     VulkanBufferAllocation staging{};
     std::array<UploadSlot, kSlotCount> slots{};
     std::size_t next_slot{0};

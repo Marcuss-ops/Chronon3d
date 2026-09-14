@@ -58,6 +58,24 @@ chronon3d_add_test_suite(
             cli/test_render_request.cpp
 )
 
+# ── Daemon render-concurrency contract ──
+# The RENDER_JOB path serializes the execution domain with a mutex
+# (daemon_service_ipc.cpp), so the DeviceScheduler capacity the daemon
+# advertises must come from the same authority
+# (apps/chronon3d_cli/daemon/daemon_render_concurrency.hpp). A capacity of 2
+# behind a mutex that admits 1 is a number no job can use, and the daemon logged
+# exactly that before this contract existed. Registered here rather than under
+# the IPC suite because it only needs the pure header, and the IPC suite is
+# gated on CHRONON3D_ENABLE_IPC.
+chronon3d_add_test_suite(
+    NAME chronon3d_daemon_render_concurrency_tests
+    TIER UNIT
+    SOURCES cli/test_daemon_render_concurrency.cpp
+)
+target_include_directories(chronon3d_daemon_render_concurrency_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
+)
+
 target_include_directories(chronon3d_cli_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )

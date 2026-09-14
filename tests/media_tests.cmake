@@ -17,6 +17,7 @@ set(_media_video_sources
             video/test_frame_converter.cpp
             video/test_encoder_frame_pool.cpp
             video/test_converted_frame_cache.cpp
+            video/test_content_identity_conversion_cache.cpp
             video/test_video_diff.cpp
             video/test_long_export.cpp
             video/test_near_static_frames.cpp

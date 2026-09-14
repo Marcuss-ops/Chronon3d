@@ -76,17 +76,28 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     }
 
     // ── Single-entry YUV conversion cache ────────────────────────────────
-    // For static/frozen frames (common in intros, backgrounds), skip
-    // the expensive RGBA→YUV conversion entirely when the same framebuffer
-    // digest arrives consecutively.  The AVFrame planes already contain
-    // the correct YUV data from the previous conversion — no memcpy needed.
+    // For identical consecutive content (held/frozen frames, looped
+    // intro/outro) the RGBA→YUV conversion can be skipped entirely: the AVFrame
+    // planes already hold the right YUV bytes — no memcpy needed.
+    //
+    // Eligibility comes from `conversion_cache_key.hpp` (the single authority)
+    // and is keyed on the framebuffer's CONTENT digest — the producer's claim
+    // that the pixels are identical — plus geometry/format/colour parameters.
+    // It is deliberately NOT keyed on `key_digest()`: that is the producing
+    // node's cache-KEY digest, shared by every frame of that node, which made
+    // every frame after the first hit the cache and froze rendered video.
+    // An unknown content digest (0, the default) is always a miss.
     // ----------------------------------------------------------------------
-    const uint64_t digest       = fb.key_digest();
-    const int      color_matrix = resolve_color_matrix(options_);
-
-    // Flawed single-entry cache disabled: fb.key_digest() is not content-authoritative
-    // for output framebuffers and caused freeze on frame 0.
-    const bool same_as_last = false;
+    const int color_matrix = resolve_color_matrix(options_);
+    const auto conversion_cache_key = video::make_conversion_cache_key(
+        fb,
+        options_.width,
+        options_.height,
+        static_cast<int>(codec_->pix_fmt),
+        options_.color_transform.apply_gamma,
+        color_matrix);
+    const bool same_as_last =
+        conversion_cache_key.usable() && conversion_cache_key == last_conversion_key_;
 
     // 2. Convert the framebuffer to YUV (or skip for cache hit)
     const auto t_conv0 = Clock::now();
@@ -140,12 +151,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         }
 
         // Update the single-entry cache state for the next frame.
-        last_converted_digest_      = digest;
-        last_converted_width_       = options_.width;
-        last_converted_height_      = options_.height;
-        last_converted_pix_fmt_     = static_cast<int>(codec_->pix_fmt);
-        last_converted_apply_gamma_ = options_.color_transform.apply_gamma;
-        last_converted_color_matrix_= color_matrix;
+        last_conversion_key_ = conversion_cache_key;
     }
 
     const uint64_t pixel_after = profiling::g_current_counters

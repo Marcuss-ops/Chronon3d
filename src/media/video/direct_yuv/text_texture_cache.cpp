@@ -167,15 +167,14 @@ RasterizedTextTexture rasterize_text_texture(
             auto* destination = atlas.data() +
                 (static_cast<std::size_t>(dst_y + row) * atlas_width + dst_x);
             const auto* source = glyph.bitmap.rgba8.data() +
-                static_cast<std::size_t>(row) * glyph.bitmap.width * 4u;
+                static_cast<std::size_t>(row) * glyph.bitmap.width;
             for (std::uint32_t column = 0; column < glyph.bitmap.width; ++column) {
-                const auto* pixel = source + static_cast<std::size_t>(column) * 4u;
-                const std::uint32_t packed =
-                    static_cast<std::uint32_t>(pixel[0]) |
-                    (static_cast<std::uint32_t>(pixel[1]) << 8u) |
-                    (static_cast<std::uint32_t>(pixel[2]) << 16u) |
-                    (static_cast<std::uint32_t>(pixel[3]) << 24u);
-                destination[column] = std::bit_cast<float>(packed);
+                // MtsdfGlyphBitmap stores one bit-preserving float per texel;
+                // the float already contains the packed RGBA8 value.  Treating
+                // it as four channel floats here rebuilt the atlas from four
+                // unrelated texels and made the shadow/fill sample the glyph
+                // plane instead of the glyph coverage.
+                destination[column] = source[column];
             }
         }
     }
