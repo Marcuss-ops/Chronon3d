@@ -96,6 +96,8 @@ struct GopAnalysis {
     bool closed{false};
     bool safe_random_access{false};
     bool intersects_edit{true};
+    std::int64_t first_dts{0};
+    std::int64_t last_dts{0};
 };
 
 struct CompressedPacketInfo {
@@ -144,21 +146,32 @@ struct CompressedPacketInfo {
             packets[i - 1].dts <= packets[i].dts;
     }
     const auto& first = packets.front();
-    const auto& last = packets.back();
+    const auto min_pts = std::min_element(
+        packets.begin(), packets.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.pts < rhs.pts; });
+    const auto max_pts = std::max_element(
+        packets.begin(), packets.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.pts < rhs.pts; });
     return {
-        .first_pts = first.pts,
-        .last_pts = last.pts,
+        // The schedule is expressed in presentation order even though the
+        // packets arrive in decode order. This is essential for B-frame GOPs.
+        .first_pts = min_pts->pts,
+        .last_pts = max_pts->pts,
         .codec_parameters_match = codec_parameters_match,
         .closed = first.keyframe && !first.references_prior_gop,
         .safe_random_access = first.keyframe && !first.references_prior_gop &&
             monotonic_dts,
         .intersects_edit = intersects_edit,
+        .first_dts = first.dts,
+        .last_dts = packets.back().dts,
     };
 }
 
 struct GopPlan {
     std::int64_t first_pts{0};
     std::int64_t last_pts{0};
+    std::int64_t first_dts{0};
+    std::int64_t last_dts{0};
     GopExecutionMode mode{GopExecutionMode::Reencode};
     // Stable ordinal in source presentation order. The hybrid executor uses
     // this to preserve packet ordering when copy and reencode work completes
@@ -190,6 +203,13 @@ struct GopSourceAnalysis {
     // Number of GOPs planned for Copy vs Reencode.
     std::size_t copy_count{0};
     std::size_t reencode_count{0};
+    // Time base for all PTS/DTS values in plans. Keeping it with the analysis
+    // prevents an executor from interpreting source ticks as output frames.
+    std::int32_t source_time_base_num{0};
+    std::int32_t source_time_base_den{1};
+    // The inspected source window is narrower than the source clip and has
+    // no pixel edits. This maps to VideoExecutionPath::TrimPackets.
+    bool trim_only{false};
     // When all_copy_eligible is false but copy_count > 0, the plan is
     // a hybrid: some GOPs are copied, others are re-encoded. The
     // caller routes both to the same PacketAssembler.
@@ -248,6 +268,8 @@ struct GopCopyResult {
     return GopPlan{
         .first_pts = analysis.first_pts,
         .last_pts = analysis.last_pts,
+        .first_dts = analysis.first_dts,
+        .last_dts = analysis.last_dts,
         .mode = copy ? GopExecutionMode::Copy : GopExecutionMode::Reencode,
         .ordinal = 0,
         .compatibility = compat,

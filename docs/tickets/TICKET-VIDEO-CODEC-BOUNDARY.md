@@ -54,6 +54,13 @@ Questo è il passo 3 del §3 di
 6. Test in `tests/cli/test_packet_assembler_contract.cpp`: tabella pura, ponte
    fail-closed, e coerenza `codec_path` ↔ piano per intent, copy provato,
    downgrade e composizione.
+7. `TrimPackets` è ora prodotto dal preflight quando la richiesta non modifica
+   i pixel e il relativo intervallo contiene almeno un GOP completo copiabile.
+   L'executor packet-copy ricerca i confini random-access, scarta i GOP
+   parziali e riallinea audio/video alla finestra effettivamente copiata. Il
+   `MinimumWorkSchedule` conserva anche PTS, DTS e time-base sorgente fino al
+   `GopExecutionPlan`, così il futuro boundary executor non deve reinterpretare
+   i tick del codec come frame della timeline.
 
 ## Accettazione
 
@@ -66,11 +73,9 @@ Questo è il passo 3 del §3 di
 
 ## Cosa NON è coperto (follow-up dichiarato)
 
-- **Esecuzione `BoundaryReencode`**: il resolver la decide, ma non esiste ancora un
-  boundary re-encoder che consumi un modello di dipendenze di GOP (finding CB-2
-  dell'audit).
-- **`TrimPackets`**: raggiungibile dalla tabella, non ancora prodotto da alcun
-  entry point (serve la mappatura time-range → GOP).
+- **`BoundaryReencode`**: il resolver lo decide per gli intervalli ibridi, ma
+  non esiste ancora un boundary re-encoder che consumi un modello di dipendenze
+  GOP (finding CB-2 dell'audit).
 - **Per-layer vs per-job** (esperimento 4 del §3): la decisione resta un flag di
   job (`command_render_plan.hpp`).
 - **Nessuna misura runtime**: il prototipo non cambia il data path, quindi non ha

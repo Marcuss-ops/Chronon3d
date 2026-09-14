@@ -126,6 +126,8 @@ struct GopWorkUnit {
     std::size_t ordinal{0};
     std::int64_t first_pts{0};
     std::int64_t last_pts{0};
+    std::int64_t first_dts{0};
+    std::int64_t last_dts{0};
     GopWorkKind kind{GopWorkKind::Reencode};
 
     [[nodiscard]] constexpr bool copies_packets() const noexcept {
@@ -155,6 +157,13 @@ struct GopExecutionPlan {
     /// Ordered work units. Empty is valid for legacy intent-only decisions;
     /// source preflight fills it before a final decision is dispatched.
     std::vector<GopWorkUnit> work_units{};
+    /// Time base for all PTS/DTS values in work_units. A zero numerator means
+    /// that the plan is intent-only and has not been populated by preflight.
+    std::int32_t source_time_base_num{0};
+    std::int32_t source_time_base_den{1};
+    /// True when this is an unchanged narrowed time window. Such a plan uses
+    /// packet trimming semantics, not whole-clip CopyPackets semantics.
+    bool trim_only{false};
 };
 
 // ── Codec-boundary decision ─────────────────────────────────────────────
@@ -257,6 +266,12 @@ struct GopAnalysisSummary {
     bool safe_to_splice{false};   ///< valid only when hybrid
     /// Ordered schedule emitted by compressed-source preflight.
     std::vector<GopWorkUnit> work_units{};
+    /// Time base for the PTS/DTS values in work_units.
+    std::int32_t source_time_base_num{0};
+    std::int32_t source_time_base_den{1};
+    /// True when the source is unchanged and only leading/trailing GOPs are
+    /// removed for the requested output window.
+    bool trim_only{false};
 };
 
 /// Reduce GOP pre-analysis + authoring intent to the boundary decision.

@@ -2,6 +2,8 @@
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <array>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 
 #include <chronon3d/media/video/packet_assembler.hpp>
@@ -213,6 +215,18 @@ TEST_CASE("VideoExecutionResolver: codec boundary mirrors the audio decision tab
 
 TEST_CASE("VideoExecutionResolver: GOP analysis is the codec-boundary authority") {
     using chronon3d::media::GopAnalysisSummary;
+    using chronon3d::media::ExecutionRequirements;
+    using chronon3d::media::OutputSpec;
+    using chronon3d::media::VideoCapabilities;
+
+    const ExecutionRequirements video_only{
+        .gpu_required = false, .cpu_fallback_allowed = true,
+        .composition_required = false, .video_source_required = true,
+        .packet_copy_allowed = true};
+    const OutputSpec output{.codec = "h264", .width = 1920, .height = 1080,
+                            .fps_num = 30, .fps_den = 1};
+    const VideoCapabilities capable{
+        .nvdec = true, .nvenc = true, .vulkan_graph = true, .cuda_native = true};
 
     const GopAnalysisSummary all_copy{.available = true, .total_gops = 3,
                                       .copy_gops = 3, .reencode_gops = 0,
@@ -227,6 +241,32 @@ TEST_CASE("VideoExecutionResolver: GOP analysis is the codec-boundary authority"
     // No reuse intent: the source is not a copy candidate at all.
     CHECK(resolve_video_execution_path_from_gop_analysis(false, false, all_copy) ==
           VideoExecutionPath::FullReencode);
+
+    // A proven unchanged sub-range is packet-trimmable, but must not be
+    // reported as a whole-clip copy. The distinction drives the executor's
+    // random-access boundary handling.
+    auto trimmed_copy = all_copy;
+    trimmed_copy.trim_only = true;
+    trimmed_copy.source_time_base_num = 1;
+    trimmed_copy.source_time_base_den = 1000;
+    trimmed_copy.work_units = {
+        chronon3d::media::GopWorkUnit{
+            .ordinal = 0, .first_pts = 1000, .last_pts = 1999,
+            .first_dts = 1000, .last_dts = 1999,
+            .kind = chronon3d::media::GopWorkKind::CopyPackets}};
+    CHECK(resolve_video_execution_path_from_gop_analysis(true, false, trimmed_copy) ==
+          VideoExecutionPath::TrimPackets);
+    const auto trimmed_decision = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, true, false, trimmed_copy);
+    REQUIRE(trimmed_decision.valid);
+    CHECK(trimmed_decision.codec_path == VideoExecutionPath::TrimPackets);
+    REQUIRE(trimmed_decision.gop_plan.has_value());
+    CHECK(trimmed_decision.gop_plan->trim_only);
+    CHECK(trimmed_decision.gop_plan->source_time_base_num == 1);
+    CHECK(trimmed_decision.gop_plan->source_time_base_den == 1000);
+    REQUIRE(trimmed_decision.gop_plan->work_units.size() == 1);
+    CHECK(trimmed_decision.gop_plan->work_units.front().first_dts == 1000);
+    CHECK(trimmed_decision.gop_plan->work_units.front().last_dts == 1999);
 
     const GopAnalysisSummary hybrid_safe{.available = true, .total_gops = 3,
                                          .copy_gops = 1, .reencode_gops = 2,
@@ -361,6 +401,10 @@ TEST_CASE("GOP planner copies only a closed safe untouched GOP") {
         chronon3d::cli::analyze_gop(reordered, true, false);
     CHECK(reordered_analysis.closed);
     CHECK(reordered_analysis.safe_random_access);
+    CHECK(reordered_analysis.first_pts == 0);
+    CHECK(reordered_analysis.last_pts == 2);
+    CHECK(reordered_analysis.first_dts == 0);
+    CHECK(reordered_analysis.last_dts == 2);
 
     // Intersection must use the presentation-time envelope, not the first
     // and last packet in decode order. The packet with PTS=2 is inside this
@@ -580,6 +624,73 @@ TEST_CASE("GOP source analyzer exposes packet-level demux planning") {
             path, chronon3d::cli::BitstreamTargetContract{}, 0.0, 100.0);
     });
 }
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+TEST_CASE("CPU GOP trim snaps to complete random-access groups") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto source = std::filesystem::temp_directory_path() /
+        "chronon3d_gop_copy_contract_source.mp4";
+    const auto output = std::filesystem::temp_directory_path() /
+        "chronon3d_gop_copy_contract_output.mp4";
+    std::error_code cleanup_error;
+    std::filesystem::remove(source, cleanup_error);
+    std::filesystem::remove(output, cleanup_error);
+
+    const std::string source_command =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i testsrc2=size=64x64:rate=10:duration=3 "
+        "-an -c:v libx264 -preset ultrafast -pix_fmt yuv420p "
+        "-g 10 -keyint_min 10 -sc_threshold 0 " + source.string();
+    if (std::system(source_command.c_str()) != 0) {
+        MESSAGE("Skipping — ffmpeg cannot create the H.264 fixture");
+        std::filesystem::remove(source, cleanup_error);
+        return;
+    }
+
+    const auto copied = chronon3d::cli::copy_gop_source(
+        source.string(), output.string(), 0.4, 2.4);
+    REQUIRE(copied.has_value());
+    CHECK(copied->video_packets > 0);
+    CHECK(copied->video_packets < 30);
+
+    AVFormatContext* format = nullptr;
+    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    int video_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        if (format->streams[index]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video_index = static_cast<int>(index);
+            break;
+        }
+    }
+    REQUIRE(video_index >= 0);
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    bool first_video_packet = true;
+    bool first_video_is_keyframe = false;
+    std::uint64_t video_packets = 0;
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == video_index) {
+            if (first_video_packet) {
+                first_video_packet = false;
+                first_video_is_keyframe = (packet->flags & AV_PKT_FLAG_KEY) != 0;
+            }
+            ++video_packets;
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    avformat_close_input(&format);
+    CHECK(first_video_is_keyframe);
+    CHECK(video_packets == copied->video_packets);
+
+    std::filesystem::remove(source, cleanup_error);
+    std::filesystem::remove(output, cleanup_error);
+}
+#endif
 
 TEST_CASE("VariantBatch shares preparation and chooses scale or recompose") {
     const std::vector<chronon3d::cli::OutputVariant> landscape{
