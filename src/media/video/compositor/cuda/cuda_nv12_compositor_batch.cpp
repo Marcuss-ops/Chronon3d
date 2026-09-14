@@ -18,7 +18,7 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
     std::uint32_t width, std::uint32_t height, CUstream stream,
-    CudaYuvFormat format) {
+    CudaYuvFormat format, std::uint32_t transfer_encode) {
     using cuda_nv12_detail::DirectYuvLayerHost;
     using cuda_nv12_detail::check_cuda;
 
@@ -110,7 +110,8 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
     CUdeviceptr layers = layer_batch_buffer_[slot];
     int layer_count = static_cast<int>(layer_count_host);
     void* args[] = {&bg_y, &bg_yp, &bg_uv, &bg_uvp, &out_y, &out_yp,
-                    &out_uv, &out_uvp, &layers, &layer_count, &width, &height};
+                    &out_uv, &out_uvp, &layers, &layer_count, &width, &height,
+                    &transfer_encode};
     check_cuda(cuLaunchKernel(
                    kernel, (width + 31) / 32,
                    (height + 31) / 32, 1, 16, 16, 1, 0, active, args, nullptr),

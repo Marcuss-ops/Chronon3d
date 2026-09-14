@@ -42,12 +42,16 @@ DirectYuvTextTextureCache& text_texture_cache() {
 }
 
 std::uint32_t pack_text_color(const Color& color) noexcept {
+    // Text colours are authored in the public/sRGB representation while the
+    // DirectYUV resource contract is canonical linear light. Encode back to
+    // the target video transfer exactly once in the CUDA boundary.
+    const Color linear = color.to_linear();
     const auto to_byte = [](float value) {
         return static_cast<std::uint32_t>(std::clamp(
             std::lround(value * 255.0f), 0L, 255L));
     };
-    return to_byte(color.r) | (to_byte(color.g) << 8) |
-           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
+    return to_byte(linear.r) | (to_byte(linear.g) << 8) |
+           (to_byte(linear.b) << 16) | (to_byte(linear.a) << 24);
 }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -178,6 +182,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 
             DirectLayerResourceEntry entry;
             entry.gpu_resource = resource;
+            entry.kind = media::CudaLayerResourceKind::RgbaLinearPremultiplied;
             entry.native_width = static_cast<float>(cached->width);
             entry.native_height = static_cast<float>(cached->height);
             entry.corner_radius = 0.0f;
