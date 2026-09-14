@@ -25,6 +25,12 @@ enum class CudaYuvFormat : std::uint8_t {
     P010,
 };
 
+/// Transfer encode applied at the linear RGBA -> video boundary.
+enum TransferEncode : std::uint32_t {
+    TransferNone = 0,  ///< target is linear — no encode required
+    TransferSrgb = 1,  ///< sRGB / BT.709 SDR OETF (the encoder default)
+};
+
 /// CUDA address table for the resources referenced by a GpuLayerBatch.
 /// `rgba` points to device-local pixels; ordinary RGBA resources use float4
 /// texels while MTSDF resources use the bit-preserving RGBA8-in-a-float-cell
@@ -79,20 +85,8 @@ public:
         CUdeviceptr bg_y, int bg_yp, CUdeviceptr bg_uv, int bg_uvp,
         CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
         std::uint32_t width, std::uint32_t height, CUstream stream,
-        CudaYuvFormat format = CudaYuvFormat::Nv12);
-
-    /// Transfer encode applied at the RGBA surface → NV12 boundary.
-    ///
-    /// The canonical graphics surface is RGBA32F with a LINEAR transfer
-    /// (BT.709 primaries, premultiplied alpha); the NVENC/P010 SDR target is
-    /// nonlinear. The OETF therefore runs here, chosen by the TARGET, and is
-    /// deliberately not inferred from the surface: assuming "already encoded"
-    /// is what made every natively drawn image/colour/text layer render in
-    /// linear light (mid-grey 128 arrived as 54).
-    enum TransferEncode : std::uint32_t {
-        TransferNone = 0,  ///< target is linear — no encode required
-        TransferSrgb = 1,  ///< sRGB / BT.709 SDR OETF (the encoder default)
-    };
+        CudaYuvFormat format = CudaYuvFormat::Nv12,
+        std::uint32_t transfer_encode = TransferSrgb);
 
     /// Converts the already-composited imported RGBA surface directly into
     /// CUDA NV12 planes. This is the native encoder handoff: no intermediate

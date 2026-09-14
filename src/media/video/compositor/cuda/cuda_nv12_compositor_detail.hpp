@@ -35,8 +35,7 @@ struct alignas(8) DirectYuvLayerHost {
     float stroke_width{0.0f};
 };
 // Keep the host staging ABI byte-identical to the embedded CUDA
-// DirectYuvLayer. The added text material fields bring the record from 64 to
-// 80 bytes; declaring 96 here would reject the valid layout at compile time.
+// DirectYuvLayer. The text material fields bring the record to 80 bytes.
 static_assert(sizeof(DirectYuvLayerHost) == 80);
 
 // Defined in cuda_nv12_compositor.cpp.
