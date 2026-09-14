@@ -50,10 +50,11 @@ NodeExecResult SourceNode::execute(
     }
     const bool full_frame_seed = can_seed_full_frame(ctx);
     const Mat4 base_matrix = ctx.node_exec.sampled_layer
-        ? ctx.node_exec.sampled_layer->matrix
+        ? detail::implicit_canvas_center_matrix(ctx) *
+          ctx.node_exec.sampled_layer->matrix * m_node.world_transform.to_mat4()
         : m_matrix_override.value_or(m_node.world_transform.to_mat4());
     const f32 opacity = ctx.node_exec.sampled_layer
-        ? ctx.node_exec.sampled_layer->opacity
+        ? ctx.node_exec.sampled_layer->opacity * m_node.world_transform.opacity
         : m_opacity_override.value_or(m_node.world_transform.opacity);
 
     // A screen-space solid background is semantically a clear, not a shape
@@ -94,7 +95,7 @@ NodeExecResult SourceNode::execute(
     // and the composite path uses integer-rounded coordinates.
     bool skip_clear = false;
     if (full_frame_seed) {
-        const auto mat = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        const auto mat = base_matrix;
         // Identity scale + rotation (coefficients ~1 or ~0) and integer translation
         const bool identity_scale_rot =
             std::abs(mat[0][0] - 1.0f) < 1e-4f && std::abs(mat[0][1]) < 1e-4f &&
@@ -232,7 +233,7 @@ NodeExecResult SourceNode::execute(
         state.opacity = opacity;
         state.shape_processor = ctx.node_exec.current_shape_processor;
         state.processor_snapshot = ctx.node_exec.processor_snapshot;
-        state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        state.world_matrix = base_matrix;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
 
         state.clip_rect = ctx.node_exec.clip_rect;
