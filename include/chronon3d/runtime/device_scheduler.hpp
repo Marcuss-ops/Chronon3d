@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -136,6 +137,9 @@ public:
     [[nodiscard]] std::optional<DeviceReservation> reserve(const DeviceResourceVector& requirements);
     [[nodiscard]] std::optional<DeviceReservation> reserve(const DeviceSelectionRequirements& requirements);
 
+    using ReleaseCallback = std::function<void(DeviceId, const DeviceResourceVector&)>;
+    void set_release_callback(ReleaseCallback cb);
+
     void release(DeviceId id, const DeviceResourceVector& resources) noexcept;
 
     [[nodiscard]] std::size_t device_count() const noexcept;
@@ -154,6 +158,7 @@ private:
     mutable std::mutex m_mutex;
     std::vector<DeviceEntry> m_devices;
     bool m_discovery_sealed{false};
+    ReleaseCallback m_release_cb;
 
     void seal_discovery_locked() noexcept { m_discovery_sealed = true; }
     [[nodiscard]] std::optional<DeviceReservation> reserve_locked(

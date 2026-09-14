@@ -84,7 +84,7 @@ TEST_CASE("VideoExecutionResolver: output contract is validated before planning"
         requirements, OutputSpec{.fps_num = 30, .fps_den = 0}, capabilities).valid);
 }
 
-TEST_CASE("VideoExecutionResolver: image/text composition without source uses pipe") {
+TEST_CASE("VideoExecutionResolver: strict image/text composition uses native contract") {
     using namespace chronon3d::media;
     const ExecutionRequirements requirements{
         .gpu_required = true, .cpu_fallback_allowed = false,
@@ -99,9 +99,13 @@ TEST_CASE("VideoExecutionResolver: image/text composition without source uses pi
     CHECK(decision.plan.handoff == SurfaceHandoffPath::HostUpload);
 
     const auto parameters = resolve_canonical_execution_parameters(requirements);
-    CHECK(parameters.hardware_encoder == "none");
-    CHECK(parameters.encoder_backend == "pipe");
-    CHECK_FALSE(parameters.native_nvenc);
+    // A strict GPU request is a native contract even when the composition
+    // has no source video. Capability discovery decides whether the request
+    // can run; canonical parameter resolution must not silently turn it into
+    // a host-frame pipe job.
+    CHECK(parameters.hardware_encoder == "nvenc");
+    CHECK(parameters.encoder_backend == "native");
+    CHECK(parameters.native_nvenc);
     CHECK_FALSE(parameters.direct_yuv);
 }
 
@@ -140,6 +144,23 @@ TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semanti
     CHECK(unsafe_hybrid.reason == "gop_splice_unsafe");
     CHECK(unsafe_hybrid.plan.composite == CompositePath::DirectYuv);
     CHECK(unsafe_hybrid.plan.encode == EncodePath::Nvenc);
+    REQUIRE(unsafe_hybrid.gop_plan.has_value());
+    CHECK(unsafe_hybrid.gop_plan->work_units.empty());
+
+    const GopAnalysisSummary scheduled_hybrid{
+        .available = true, .total_gops = 2, .copy_gops = 1,
+        .reencode_gops = 1, .all_copy = false, .hybrid = true,
+        .safe_to_splice = true,
+        .work_units = {{.ordinal = 0, .first_pts = 0, .last_pts = 29,
+                        .kind = GopWorkKind::CopyPackets},
+                       {.ordinal = 1, .first_pts = 30, .last_pts = 59,
+                        .kind = GopWorkKind::Reencode}}};
+    const auto scheduled = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, false, true, scheduled_hybrid);
+    REQUIRE(scheduled.gop_plan.has_value());
+    REQUIRE(scheduled.gop_plan->work_units.size() == 2);
+    CHECK(scheduled.gop_plan->work_units[0].copies_packets());
+    CHECK_FALSE(scheduled.gop_plan->work_units[1].copies_packets());
 
     const auto unavailable = resolve_video_execution_with_gop_analysis(
         video_only, output, capable, true, false, GopAnalysisSummary{});
@@ -327,6 +348,31 @@ TEST_CASE("GOP planner copies only a closed safe untouched GOP") {
     CHECK(safe.first_pts == 100);
     CHECK(safe.last_pts == 199);
     CHECK(safe.ordinal == 0);
+
+    // H.264/H.265 B-frames are commonly demuxed with presentation-order
+    // reordering while decode timestamps remain monotonic. That is safe for
+    // packet copy; rejecting it would turn valid copy candidates into a full
+    // render/encode.
+    const std::array<chronon3d::cli::CompressedPacketInfo, 3> reordered{ {
+        {.pts = 0, .dts = 0, .keyframe = true},
+        {.pts = 2, .dts = 1},
+        {.pts = 1, .dts = 2}}};
+    const auto reordered_analysis =
+        chronon3d::cli::analyze_gop(reordered, true, false);
+    CHECK(reordered_analysis.closed);
+    CHECK(reordered_analysis.safe_random_access);
+
+    // Intersection must use the presentation-time envelope, not the first
+    // and last packet in decode order. The packet with PTS=2 is inside this
+    // edit even though the final packet has PTS=1.
+    CHECK(chronon3d::cli::gop_intersects_edit(reordered, 1, 3));
+    CHECK_FALSE(chronon3d::cli::gop_intersects_edit(reordered, 3, 4));
+
+    const std::array<chronon3d::cli::CompressedPacketInfo, 2> bad_decode_order{{
+        {.pts = 0, .dts = 1, .keyframe = true},
+        {.pts = 1, .dts = 0}}};
+    CHECK_FALSE(chronon3d::cli::analyze_gop(
+        bad_decode_order, true, false).safe_random_access);
 
     auto touched = safe;
     touched.mode = chronon3d::cli::GopExecutionMode::Reencode;

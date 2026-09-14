@@ -79,12 +79,14 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
     const BitstreamTargetContract& target,
     double edit_start_seconds,
-    double edit_end_seconds) {
+    double edit_end_seconds,
+    bool content_changed) {
 #ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
     (void)path;
     (void)target;
     (void)edit_start_seconds;
     (void)edit_end_seconds;
+    (void)content_changed;
     return std::nullopt;
 #else
     AVFormatContext* format = nullptr;
@@ -153,8 +155,13 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         if (group.empty()) continue;
         const auto& first = group.front();
         const auto& last = group.back();
-        const bool intersects = edit_end > edit_start &&
-            last.pts >= edit_start && first.pts < edit_end;
+        // A trim/copy request changes the selected time range, not pixels.
+        // Only a content-changing request marks intersecting GOPs for
+        // re-encode. Keeping this fact explicit prevents a full-clip
+        // `gop_copy_only` request from being classified as an edit merely
+        // because its output interval is non-empty.
+        const bool intersects = content_changed && gop_intersects_edit(
+            group, edit_start, edit_end);
         auto analysis = analyze_gop(group, codec_parameters_match, intersects);
         analysis.compatibility = source_compatibility;
         auto plan = plan_gop(analysis);

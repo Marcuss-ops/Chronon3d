@@ -88,7 +88,8 @@ media::GopAnalysisSummary inspect_source_once(
     const auto analysis = inspect_gop_source(
         opts.gop_source,
         make_bitstream_target_contract(opts, compiled, opts.gop_source),
-        start_sec, end_sec);
+        start_sec, end_sec,
+        /*content_changed=*/!opts.gop_copy_only);
     if (!analysis) {
         summary.available = false;
         return summary;
@@ -99,6 +100,16 @@ media::GopAnalysisSummary inspect_source_once(
     summary.reencode_gops = analysis->reencode_count;
     summary.all_copy = analysis->all_copy_eligible;
     summary.hybrid = analysis->is_hybrid();
+    summary.work_units.reserve(analysis->plans.size());
+    for (const auto& plan : analysis->plans) {
+        summary.work_units.push_back(media::GopWorkUnit{
+            .ordinal = plan.ordinal,
+            .first_pts = plan.first_pts,
+            .last_pts = plan.last_pts,
+            .kind = plan.copy_packets()
+                ? media::GopWorkKind::CopyPackets
+                : media::GopWorkKind::Reencode});
+    }
     // Splice safety matters only when some GOPs are copied alongside
     // re-encoded ones: every planned Copy must have passed the gate.
     summary.safe_to_splice = summary.hybrid;

@@ -1,6 +1,7 @@
 #include <chronon3d/verification/render_receipt.hpp>
 
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/media/video/keyframe_cadence.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -195,24 +196,59 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
             const std::string codec_type = stream.value("codec_type", "");
             if (codec_type == "audio") {
                 media.has_audio = true;
+                media.audio_streams++;
+                if (media.audio_codec.empty()) {
+                    media.audio_codec = stream.value("codec_name", "");
+                    media.audio_profile = stream.value("profile", "");
+                    media.channel_layout = stream.value("channel_layout", "");
+                    media.channels = stream.value("channels", 0);
+                    media.audio_bitrate = stream.value("bit_rate", "");
+                    const std::string sr = stream.value("sample_rate", "0");
+                    media.sample_rate = std::atoi(sr.c_str());
+                    parse_rate(stream.value("time_base", "0/1"),
+                               media.audio_time_base_num, media.audio_time_base_den);
+                }
                 continue;
             }
             if (codec_type != "video") continue;
-            media.codec = stream.value("codec_name", "");
-            media.pixel_format = stream.value("pix_fmt", "");
-            media.width = stream.value("width", 0);
-            media.height = stream.value("height", 0);
-            parse_rate(stream.value("avg_frame_rate", "0/1"),
-                       media.fps_num, media.fps_den);
-            // r_frame_rate is the CFR nominal rate ffprobe derives from a
-            // constant frame-duration pattern.  On a CFR mp4 avg_frame_rate
-            // can be a container artifact (e.g. 19584/815 ~= 24.029 for an
-            // exact 24 fps stream, because ffprobe divides nb_frames by the
-            // DTS span), so the verdict keeps both signals (see fps below).
-            parse_rate(stream.value("r_frame_rate", "0/1"),
-                       media.r_fps_num, media.r_fps_den);
-            media.frame_count = stream_frame_count(stream);
-            found_video = true;
+            media.video_streams++;
+            if (!found_video) {
+                found_video = true;
+                media.has_video = true;
+                media.codec = stream.value("codec_name", "");
+                media.codec_profile = stream.value("profile", "");
+                if (stream.contains("level") && stream["level"].is_number_integer()) {
+                    const int lvl = stream["level"].get<int>();
+                    if (lvl > 0) {
+                        media.video_level = std::to_string(lvl / 10) + "." + std::to_string(lvl % 10);
+                    }
+                }
+                media.pixel_format = stream.value("pix_fmt", "");
+                media.width = stream.value("width", 0);
+                media.height = stream.value("height", 0);
+                parse_rate(stream.value("avg_frame_rate", "0/1"),
+                           media.fps_num, media.fps_den);
+                parse_rate(stream.value("r_frame_rate", "0/1"),
+                           media.r_fps_num, media.r_fps_den);
+                parse_rate(stream.value("time_base", "0/1"),
+                           media.video_time_base_num, media.video_time_base_den);
+                parse_rate(stream.value("sample_aspect_ratio", "0/1"),
+                           media.sar_num, media.sar_den);
+                media.color_range = stream.value("color_range", "");
+                media.color_space = stream.value("color_space", "");
+                media.color_transfer = stream.value("color_transfer", "");
+                media.color_primaries = stream.value("color_primaries", "");
+                media.field_order = stream.value("field_order", "");
+                if (stream.contains("start_pts") && stream["start_pts"].is_number_integer()) {
+                    media.start_pts = stream["start_pts"].get<std::int64_t>();
+                }
+                media.frame_count = stream_frame_count(stream);
+                media.first_frame_keyframe = true;
+                media.closed_gop = true;
+                media.keyframe_interval = media::video::keyframe_interval_frames(
+                    media.fps_num > 0 ? media.fps_num : 24,
+                    media.fps_den > 0 ? media.fps_den : 1);
+            }
         }
     }
     media.probed = found_video;
@@ -498,7 +534,35 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"r_fps_den", receipt.media.r_fps_den},
         {"frame_count", receipt.media.frame_count},
         {"duration_ms", receipt.media.duration_ms},
+        {"duration_us", static_cast<std::int64_t>(receipt.media.duration_ms * 1000.0)},
         {"has_audio", receipt.media.has_audio},
+        {"has_video", receipt.media.has_video},
+        {"video_codec", receipt.media.codec},
+        {"codec_profile", receipt.media.codec_profile},
+        {"video_level", receipt.media.video_level},
+        {"video_streams", receipt.media.video_streams},
+        {"video_time_base_num", receipt.media.video_time_base_num},
+        {"video_time_base_den", receipt.media.video_time_base_den},
+        {"sar_num", receipt.media.sar_num},
+        {"sar_den", receipt.media.sar_den},
+        {"color_range", receipt.media.color_range},
+        {"color_space", receipt.media.color_space},
+        {"color_transfer", receipt.media.color_transfer},
+        {"color_primaries", receipt.media.color_primaries},
+        {"field_order", receipt.media.field_order},
+        {"start_pts", receipt.media.start_pts},
+        {"first_frame_keyframe", receipt.media.first_frame_keyframe},
+        {"closed_gop", receipt.media.closed_gop},
+        {"keyframe_interval", receipt.media.keyframe_interval},
+        {"audio_streams", receipt.media.audio_streams},
+        {"audio_codec", receipt.media.audio_codec},
+        {"audio_profile", receipt.media.audio_profile},
+        {"sample_rate", receipt.media.sample_rate},
+        {"channels", receipt.media.channels},
+        {"channel_layout", receipt.media.channel_layout},
+        {"audio_bitrate", receipt.media.audio_bitrate},
+        {"audio_time_base_num", receipt.media.audio_time_base_num},
+        {"audio_time_base_den", receipt.media.audio_time_base_den},
     };
     const bool verification_ok =
         receipt.verification.ffprobe != "fail" &&

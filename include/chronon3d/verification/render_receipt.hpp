@@ -61,6 +61,34 @@ struct MediaContract {
     double duration_ms{-1.0};
     bool has_audio{false};
     bool probed{false};
+
+    // Canonical media facts for streaming / probe-less verification
+    std::string codec_profile;
+    std::string video_level;
+    bool has_video{false};
+    int video_streams{0};
+    int video_time_base_num{0};
+    int video_time_base_den{1};
+    int sar_num{0};
+    int sar_den{1};
+    std::string color_range;
+    std::string color_space;
+    std::string color_transfer;
+    std::string color_primaries;
+    std::string field_order;
+    std::int64_t start_pts{0};
+    bool first_frame_keyframe{true};
+    bool closed_gop{true};
+    int keyframe_interval{0};
+    int audio_streams{0};
+    std::string audio_codec;
+    std::string audio_profile;
+    int sample_rate{0};
+    int channels{0};
+    std::string channel_layout;
+    std::string audio_bitrate;
+    int audio_time_base_num{0};
+    int audio_time_base_den{1};
 };
 
 /// Granular output-verification results.  Each field is one of

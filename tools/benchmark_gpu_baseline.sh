@@ -22,6 +22,7 @@ BACKEND="${CHRONON3D_BENCH_BACKEND:-vulkan}"
 HARDWARE="${CHRONON3D_BENCH_HARDWARE:-nvenc}"
 ENCODER_BACKEND="${CHRONON3D_BENCH_ENCODER_BACKEND:-native}"
 GPU_HOT_PATH="${CHRONON3D_BENCH_GPU_HOT_PATH:-auto}"
+ENCODE_PRESET="${CHRONON3D_BENCH_ENCODE_PRESET:-}"
 ASSETS_ROOT="${CHRONON3D_BENCH_ASSETS_ROOT:-$REPO_ROOT}"
 CASES=()
 
@@ -40,6 +41,7 @@ Options:
   --hardware NAME            encoder hardware (default: nvenc)
   --encoder-backend NAME     pipe or native (default: native)
   --gpu-hot-path-mode NAME   auto or require_gpu_native
+  --encode-preset NAME       encoder preset, e.g. p1 (default: encoder default)
   --assets-root DIR          asset root passed to render
 EOF
 }
@@ -56,6 +58,7 @@ while [[ $# -gt 0 ]]; do
         --hardware)            HARDWARE="$2"; shift 2 ;;
         --encoder-backend)     ENCODER_BACKEND="$2"; shift 2 ;;
         --gpu-hot-path-mode)   GPU_HOT_PATH="$2"; shift 2 ;;
+        --encode-preset)       ENCODE_PRESET="$2"; shift 2 ;;
         --assets-root)         ASSETS_ROOT="$2"; shift 2 ;;
         -h|--help)             usage; exit 0 ;;
         *) echo "[ERROR] unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -85,7 +88,7 @@ if [[ -z "$CORPUS_FILE" && ${#CASES[@]} -eq 0 ]]; then CASES+=("B00=DarkGridBack
 
 mkdir -p "$OUTPUT_DIR"
 REPORT_JSON="$OUTPUT_DIR/gpu-baseline.json"
-export CLI_BIN OUTPUT_DIR CORPUS_FILE FRAMES WARMUP_FRAMEBUFFERS BACKEND HARDWARE ENCODER_BACKEND GPU_HOT_PATH ASSETS_ROOT
+export CLI_BIN OUTPUT_DIR CORPUS_FILE FRAMES WARMUP_FRAMEBUFFERS BACKEND HARDWARE ENCODER_BACKEND GPU_HOT_PATH ENCODE_PRESET ASSETS_ROOT
 export REPO_ROOT
 
 python3 - "$REPORT_JSON" "${CASES[@]}" <<'PY'
@@ -108,6 +111,7 @@ backend = os.environ["BACKEND"]
 hardware = os.environ["HARDWARE"]
 encoder_backend = os.environ["ENCODER_BACKEND"]
 gpu_hot_path = os.environ["GPU_HOT_PATH"]
+encode_preset = os.environ.get("ENCODE_PRESET", "")
 assets_root = os.environ["ASSETS_ROOT"]
 
 manifest = None
@@ -173,7 +177,8 @@ result = {
     "requested_cases": cases,
     "parameters": {"frames": frames, "warmup_framebuffers": warmup_framebuffers, "backend": backend,
                    "hardware": hardware, "encoder_backend": encoder_backend,
-                   "gpu_hot_path_mode": gpu_hot_path},
+                   "gpu_hot_path_mode": gpu_hot_path,
+                   "encode_preset": encode_preset},
     "cases": [],
 }
 
@@ -191,6 +196,9 @@ for spec in cases:
                "--backend", backend, "--hardware", hardware,
                "--encoder-backend", encoder_backend,
                "--gpu-hot-path-mode", gpu_hot_path, "--report", "-o", str(output)]
+    if encode_preset:
+        command[command.index("--report"):command.index("--report")] = [
+            "--encode-preset", encode_preset]
     started = time.monotonic()
     with log.open("w") as stream:
         completed = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT)

@@ -164,25 +164,39 @@ std::optional<DeviceReservation> DeviceScheduler::reserve_locked(
     return DeviceReservation(this, chosen.caps.id, requirements);
 }
 
-void DeviceScheduler::release(DeviceId id, const DeviceResourceVector& resources) noexcept {
+void DeviceScheduler::set_release_callback(ReleaseCallback cb) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (id >= m_devices.size()) {
-        return;
-    }
+    m_release_cb = std::move(cb);
+}
 
-    auto& entry = m_devices[id];
-    entry.state.reserved.compute_units = std::max(0.0f, entry.state.reserved.compute_units - resources.compute_units);
-    entry.state.reserved.vram_bytes = (entry.state.reserved.vram_bytes >= resources.vram_bytes)
-        ? entry.state.reserved.vram_bytes - resources.vram_bytes : 0;
-    entry.state.reserved.nvdec_sessions = (entry.state.reserved.nvdec_sessions >= resources.nvdec_sessions)
-        ? entry.state.reserved.nvdec_sessions - resources.nvdec_sessions : 0;
-    entry.state.reserved.nvenc_sessions = (entry.state.reserved.nvenc_sessions >= resources.nvenc_sessions)
-        ? entry.state.reserved.nvenc_sessions - resources.nvenc_sessions : 0;
-    entry.state.reserved.pcie_bandwidth = std::max(
-        0.0f, entry.state.reserved.pcie_bandwidth - resources.pcie_bandwidth);
-    entry.state.reserved.render_job_slots =
-        entry.state.reserved.render_job_slots >= resources.render_job_slots
-            ? entry.state.reserved.render_job_slots - resources.render_job_slots : 0;
+void DeviceScheduler::release(DeviceId id, const DeviceResourceVector& resources) noexcept {
+    ReleaseCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (id >= m_devices.size()) {
+            return;
+        }
+
+        auto& entry = m_devices[id];
+        entry.state.reserved.compute_units = std::max(0.0f, entry.state.reserved.compute_units - resources.compute_units);
+        entry.state.reserved.vram_bytes = (entry.state.reserved.vram_bytes >= resources.vram_bytes)
+            ? entry.state.reserved.vram_bytes - resources.vram_bytes : 0;
+        entry.state.reserved.nvdec_sessions = (entry.state.reserved.nvdec_sessions >= resources.nvdec_sessions)
+            ? entry.state.reserved.nvdec_sessions - resources.nvdec_sessions : 0;
+        entry.state.reserved.nvenc_sessions = (entry.state.reserved.nvenc_sessions >= resources.nvenc_sessions)
+            ? entry.state.reserved.nvenc_sessions - resources.nvenc_sessions : 0;
+        entry.state.reserved.pcie_bandwidth = std::max(
+            0.0f, entry.state.reserved.pcie_bandwidth - resources.pcie_bandwidth);
+        entry.state.reserved.render_job_slots =
+            entry.state.reserved.render_job_slots >= resources.render_job_slots
+                ? entry.state.reserved.render_job_slots - resources.render_job_slots : 0;
+        cb = m_release_cb;
+    }
+    if (cb) {
+        try {
+            cb(id, resources);
+        } catch (...) {}
+    }
 }
 
 std::size_t DeviceScheduler::device_count() const noexcept {

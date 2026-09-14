@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 
@@ -104,6 +105,23 @@ struct CompressedPacketInfo {
     bool references_prior_gop{false};
 };
 
+/// Tests an edit interval against the presentation-time envelope of a GOP.
+/// Packets are supplied in decode order, so using only the first/last packet
+/// PTS would miss edits that touch a B-frame in the middle of the group.
+[[nodiscard]] inline bool gop_intersects_edit(
+    std::span<const CompressedPacketInfo> packets,
+    std::int64_t edit_start,
+    std::int64_t edit_end) noexcept {
+    if (packets.empty() || edit_end <= edit_start) return false;
+    std::int64_t min_pts = packets.front().pts;
+    std::int64_t max_pts = packets.front().pts;
+    for (const auto& packet : packets.subspan(1)) {
+        min_pts = std::min(min_pts, packet.pts);
+        max_pts = std::max(max_pts, packet.pts);
+    }
+    return max_pts >= edit_start && min_pts < edit_end;
+}
+
 /// Derives packet-level GOP safety from a demuxed packet window. The caller
 /// supplies codec-parameter compatibility and whether the edit intersects
 /// the window; no decoder is needed for an untouched safe GOP.
@@ -116,10 +134,14 @@ struct CompressedPacketInfo {
                 .safe_random_access = false,
                 .intersects_edit = intersects_edit};
     }
-    bool monotonic = true;
+    // Packet iteration is decode order. B-frame streams may legitimately
+    // reorder presentation timestamps, so PTS monotonicity is not a GOP
+    // safety requirement. DTS must remain monotonic for the packet stream
+    // that is handed to the muxer/decoder.
+    bool monotonic_dts = true;
     for (std::size_t i = 1; i < packets.size(); ++i) {
-        monotonic = monotonic && packets[i - 1].dts <= packets[i].dts &&
-            packets[i - 1].pts <= packets[i].pts;
+        monotonic_dts = monotonic_dts &&
+            packets[i - 1].dts <= packets[i].dts;
     }
     const auto& first = packets.front();
     const auto& last = packets.back();
@@ -128,7 +150,8 @@ struct CompressedPacketInfo {
         .last_pts = last.pts,
         .codec_parameters_match = codec_parameters_match,
         .closed = first.keyframe && !first.references_prior_gop,
-        .safe_random_access = first.keyframe && !first.references_prior_gop && monotonic,
+        .safe_random_access = first.keyframe && !first.references_prior_gop &&
+            monotonic_dts,
         .intersects_edit = intersects_edit,
     };
 }
@@ -202,7 +225,8 @@ struct GopCopyResult {
     const std::string& path,
     const BitstreamTargetContract& target,
     double edit_start_seconds,
-    double edit_end_seconds);
+    double edit_end_seconds,
+    bool content_changed = true);
 
 /// Copy is permitted only when every packet-level safety gate is true.
 /// The planner is deliberately pure; codec-specific packet inspection feeds

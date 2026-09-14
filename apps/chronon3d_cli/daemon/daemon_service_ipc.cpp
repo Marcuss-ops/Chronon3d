@@ -14,6 +14,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -66,6 +67,44 @@ bool spec_or_root_bool(
         return root->get<bool>();
     }
     return fallback;
+}
+
+void extract_plan_dimensions(const std::filesystem::path& plan_path,
+                            std::uint32_t& width, std::uint32_t& height) {
+    if (width > 0 && height > 0) return;
+    if (plan_path.empty()) return;
+    try {
+        std::ifstream file(plan_path);
+        if (!file.is_open()) return;
+        nlohmann::json plan_json;
+        file >> plan_json;
+        if (plan_json.contains("canvas") && plan_json["canvas"].is_object()) {
+            width = plan_json["canvas"].value("width", 1920U);
+            height = plan_json["canvas"].value("height", 1080U);
+        } else if (plan_json.contains("width") && plan_json.contains("height")) {
+            width = plan_json.value("width", 1920U);
+            height = plan_json.value("height", 1080U);
+        }
+    } catch (...) {}
+}
+
+std::uint64_t estimate_peak_vram_bytes(
+    std::uint32_t width, std::uint32_t height, bool direct_yuv, bool native_nvenc) {
+    if (!native_nvenc) return 0;
+    if (width == 0) width = 1920;
+    if (height == 0) height = 1080;
+    if (direct_yuv) {
+        return 384ULL * 1024ULL * 1024ULL; // 384 MB for direct YUV pipeline
+    }
+    // FullGraph Vulkan + CUDA + NVENC:
+    // Frame execution slot surfaces: RGBA32F = width * height * 16 bytes.
+    // 8x dynamic buffer multiplier covers ring depth (4), staging surfaces,
+    // and intermediate scratch targets. Base 512 MB covers driver, Vulkan device,
+    // pipeline state and NVENC sessions.
+    const uint64_t frame_bytes = static_cast<uint64_t>(width) * height * 16ULL;
+    const uint64_t dynamic_bytes = 8ULL * frame_bytes;
+    const uint64_t estimated = (512ULL * 1024ULL * 1024ULL) + dynamic_bytes;
+    return std::max<uint64_t>(estimated, 1024ULL * 1024ULL * 1024ULL); // Minimum 1 GB
 }
 
 } // namespace
@@ -221,6 +260,14 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             const bool native_nvenc = canon.native_nvenc;
             const std::string& hot_path = canon.gpu_hot_path_mode;
             const std::string& codec = canon.codec;
+            const bool direct_yuv = canon.direct_yuv;
+
+            std::uint32_t plan_width = 0;
+            std::uint32_t plan_height = 0;
+            extract_plan_dimensions(resolved.plan_path, plan_width, plan_height);
+            const uint64_t estimated_vram = estimate_peak_vram_bytes(
+                plan_width, plan_height, direct_yuv, native_nvenc);
+
             runtime::DeviceSelectionRequirements requirements;
             requirements.resources.compute_units = native_nvenc ? 0.5f : 0.0f;
             requirements.cuda = native_nvenc;
@@ -229,8 +276,7 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             requirements.nv12 = native_nvenc;
             requirements.resources.nvenc_sessions = native_nvenc ? 1U : 0U;
             requirements.resources.render_job_slots = 1U;
-            requirements.resources.vram_bytes = native_nvenc
-                ? 512ULL * 1024ULL * 1024ULL : 0;
+            requirements.resources.vram_bytes = estimated_vram;
             requirements.resources.pcie_bandwidth = native_nvenc ? 0.25f : 0.0f;
             requirements.h264 = native_nvenc &&
                 (codec == "auto" || codec == "h264" || codec == "libx264" ||
@@ -240,14 +286,44 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
                  codec == "hevc_nvenc");
             requirements.av1 = native_nvenc &&
                 (codec == "av1" || codec == "libsvtav1" || codec == "av1_nvenc");
-            auto reservation = m_device_scheduler.reserve(requirements);
-            if (!reservation) {
-                return ipc::Reply{ipc::Status::Error,
-                                  "RENDER_JOB rejected: no device satisfies requested capabilities"};
+
+            // Admission control with backpressure:
+            // Concurrency is governed dynamically by DeviceScheduler capacity
+            // (render_job_slots and VRAM budget credits). When resources are saturated,
+            // the IPC thread waits on m_admission_cv until an active job finishes and
+            // returns its reservation to the scheduler.
+            runtime::DeviceReservation reservation;
+            {
+                std::unique_lock<std::mutex> admission_lock(m_admission_mutex);
+                const auto admission_start = std::chrono::steady_clock::now();
+                const bool admitted = m_admission_cv.wait_for(
+                    admission_lock, std::chrono::seconds(300), [&]() {
+                        if (!m_running) return true;
+                        auto res = m_device_scheduler.reserve(requirements);
+                        if (res) {
+                            reservation = std::move(*res);
+                            return true;
+                        }
+                        return false;
+                    });
+                if (!m_running) {
+                    return ipc::Reply{ipc::Status::Shutdown, "daemon is shutting down"};
+                }
+                if (!admitted || !reservation.valid()) {
+                    return ipc::Reply{ipc::Status::Error,
+                        "RENDER_JOB rejected: device resources saturated or admission timed out"};
+                }
+                const auto admission_wait_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - admission_start).count();
+                if (admission_wait_ms > 5.0) {
+                    spdlog::info("[daemon] RENDER_JOB admission wait: {:.1f}ms (queue backpressure, vram_req={}MB)",
+                                 admission_wait_ms, estimated_vram / (1024 * 1024));
+                }
             }
-            const auto reserved_device = reservation->device();
-            spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={})",
-                          reserved_device, native_nvenc);
+
+            const auto reserved_device = reservation.device();
+            spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={}, vram_est={}MB)",
+                          reserved_device, native_nvenc, estimated_vram / (1024 * 1024));
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
             video_execution->device_scheduler = &m_device_scheduler;
             // Per-job wall anchor for the exclusive-wall timeline: startup is
@@ -260,33 +336,47 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             }
             video_execution->reservation = std::move(reservation);
             video_execution->video_runtimes = m_video_runtimes;
-            const bool direct_yuv = canon.direct_yuv;
-            // The scheduler reservation owns the device execution lane. It is
-            // moved into the job context and remains live through dispatch,
-            // so admission and actual execution cannot disagree. The
-            // render-job mutex above makes this true even with concurrent IPC
-            // connections targeting the same daemon/device.
+
+            // Warm renderer is runtime state of ONE execution authority, not a
+            // second dispatcher: null on the Direct-YUV path is a normal job.
             std::shared_ptr<SoftwareRenderer> warm_renderer;
             if (!direct_yuv) {
                 warm_renderer = warm_renderer_for_device(reserved_device);
             } else {
                 spdlog::debug("[daemon] Direct-YUV job: renderer construction skipped");
             }
-            // Warm renderer is runtime state of ONE execution authority, not a
-            // second dispatcher: null on the Direct-YUV path is a normal job.
-            auto& dispatcher = render_job_dispatcher();
-            if (dispatcher) {
-                return dispatcher(resolved, std::move(warm_renderer),
-                                  std::move(video_execution));
+
+            ipc::Reply reply;
+            try {
+                auto& dispatcher = render_job_dispatcher();
+                if (dispatcher) {
+                    reply = dispatcher(resolved, std::move(warm_renderer),
+                                      std::move(video_execution));
+                } else {
+                    reply = ipc::Reply{ipc::Status::NotFound,
+                                      "RENDER_JOB unavailable: render group not compiled"};
+                }
+            } catch (const std::exception& e) {
+                spdlog::error("[daemon] RENDER_JOB dispatcher exception: {}", e.what());
+                reply = ipc::Reply{ipc::Status::Error,
+                                  std::string{"RENDER_JOB failed: "} + e.what()};
             }
-            return ipc::Reply{ipc::Status::NotFound,
-                              "RENDER_JOB unavailable: render group not compiled"};
+
+            // Release execution context and reservation to return credits immediately
+            video_execution.reset();
+
+            // Wake any pending job waiting in admission
+            m_admission_cv.notify_all();
+
+            return reply;
         }
         case ipc::Command::AssembleSegments:
             return ipc_assemble_segments(req.payload);
         case ipc::Command::Status:
             return ipc_status();
         case ipc::Command::Shutdown:
+            m_running = false;
+            m_admission_cv.notify_all();
             return ipc::Reply{ipc::Status::Shutdown, "bye"};
         default:
             return ipc::Reply{ipc::Status::BadRequest, "unknown command"};
