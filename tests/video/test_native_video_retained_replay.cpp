@@ -29,6 +29,8 @@
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
+#include <spdlog/spdlog.h>
+#include <cuda.h>
 
 #include <cstdint>
 #include <filesystem>
@@ -130,5 +132,64 @@ TEST_CASE("Retained window replays repeated and regressed sample indices") {
     // decode within the same continuity, not a replay.
     REQUIRE(request_native_frame(decoder, source, 2));
     CHECK(replays() == 3);
+}
+
+TEST_CASE("Diagnose Matt Damon clip frame sequence") {
+    const std::string source = "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/refactored/data/media/clips/general/yt_0ElQTzSx3ec/yt_0ElQTzSx3ec_72_91_v1_matt-damon-00-01-12-00-01-31.mp4";
+    if (!std::filesystem::exists(source)) {
+        MESSAGE("Source file does not exist: " << source);
+        return;
+    }
+
+    NativeVideoFrameDecoder decoder;
+    {
+        auto gpu = std::make_shared<runtime::GpuRuntime>();
+        std::string reason;
+        auto runtime = VideoDeviceRuntime::create(0, gpu, reason);
+        REQUIRE(runtime);
+        decoder.set_video_runtime(std::move(runtime));
+    }
+    decoder.set_test_options(NativeDecoderTestOptions{
+        /*enable_prefetch=*/false, /*enable_swscale=*/true,
+        /*enable_frame_cache=*/true});
+
+    int errors = 0;
+    std::vector<uint8_t> last_pixels(1920 * 10);
+    std::vector<uint8_t> curr_pixels(1920 * 10);
+    int identical_consecutive = 0;
+
+    for (int frame = 0; frame < 60; ++frame) {
+        auto hw_frame = decoder.decode_native_frame_at(
+            source, RationalTime{frame, {1, 24}}, 1920, 1080);
+        if (!hw_frame) {
+            spdlog::error("FRAME FAILED: frame={}", frame);
+            ++errors;
+            continue;
+        }
+        auto* av = hw_frame.get();
+        std::int64_t pts = av ? (av->best_effort_timestamp != -0x7fffffffffffffffLL ? av->best_effort_timestamp : av->pts) : -1;
+        std::int64_t expected_pts = static_cast<std::int64_t>(frame) * 512;
+        if (pts != expected_pts) {
+            spdlog::error("FRAME MISMATCH: frame={} expected_pts={} got_pts={}",
+                          frame, expected_pts, pts);
+            ++errors;
+        }
+
+        // Copy top 10 lines from CUDA frame
+        if (av && av->data[0]) {
+            cuMemcpyDtoH(curr_pixels.data(), reinterpret_cast<CUdeviceptr>(av->data[0]), curr_pixels.size());
+            if (frame > 0) {
+                if (curr_pixels == last_pixels) {
+                    spdlog::warn("IDENTICAL PIXELS: frame {} has identical pixels to frame {}!", frame, frame - 1);
+                    ++identical_consecutive;
+                } else {
+                    spdlog::info("FRAME OK: frame={} pts={} pixels differ", frame, pts);
+                }
+            }
+            last_pixels = curr_pixels;
+        }
+    }
+    spdlog::info("Total identical consecutive frames in decoder: {}", identical_consecutive);
+    CHECK(errors == 0);
 }
 
