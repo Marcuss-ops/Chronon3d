@@ -331,6 +331,15 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
     // other outcome is a FINAL structured downgrade — the executor performs
     // no second resolution and no runtime fallback.
     if (intent_gop_copy_only) {
+        if (analysis.available && !analysis.valid_schedule()) {
+            VideoExecutionDecision decision;
+            decision.plan = direct_yuv_plan();
+            decision.reason = "gop_schedule_invalid";
+            decision.valid = false;
+            decision.downgrade_count = 1;
+            decision.codec_path = VideoExecutionPath::FullReencode;
+            return decision;
+        }
         if (analysis.available && analysis.all_copy) {
             GopExecutionPlan gop;
             gop.total_gops = analysis.total_gops;
@@ -367,6 +376,15 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
     // Hybrid/SmartGOP intent (gop source present, copy not forced).
     const bool native_nvenc = capabilities.nvenc;
     if (intent_allow_hybrid_gop && native_nvenc) {
+        if (analysis.available && !analysis.valid_schedule()) {
+            VideoExecutionDecision decision;
+            decision.plan = direct_yuv_plan();
+            decision.reason = "gop_schedule_invalid";
+            decision.valid = false;
+            decision.downgrade_count = 1;
+            decision.codec_path = VideoExecutionPath::FullReencode;
+            return decision;
+        }
         // The whole source is copy-eligible: route to a whole-clip copy.
         if (analysis.available && analysis.all_copy) {
             GopExecutionPlan gop;

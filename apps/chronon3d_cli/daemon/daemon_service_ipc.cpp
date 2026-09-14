@@ -151,6 +151,37 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     out.bitrate = spec_or_root_int(request, "bitrate", 0);
     out.audio_source_path = request.value("audio_source_path", "");
     out.gop_copy_only = request.value("gop_copy_only", false);
+    const nlohmann::json* intervals = nullptr;
+    const auto spec_it = request.find("output_spec");
+    if (spec_it != request.end() && spec_it->is_object() &&
+        spec_it->contains("changed_intervals")) {
+        intervals = &(*spec_it)["changed_intervals"];
+    } else if (request.contains("changed_intervals")) {
+        intervals = &request["changed_intervals"];
+    }
+    if (intervals) {
+        if (!intervals->is_array()) {
+            throw std::runtime_error("changed_intervals must be a JSON array");
+        }
+        for (const auto& item : *intervals) {
+            if (!item.is_object()) {
+                throw std::runtime_error("changed_intervals entries must be objects");
+            }
+            const auto kind = item.value("kind", std::string{"content"});
+            media::ChangedIntervalKind interval_kind;
+            if (kind == "content") {
+                interval_kind = media::ChangedIntervalKind::Content;
+            } else if (kind == "trim") {
+                interval_kind = media::ChangedIntervalKind::Trim;
+            } else {
+                throw std::runtime_error(
+                    "changed_intervals kind must be content or trim");
+            }
+            out.changed_intervals.push_back(media::ChangedInterval{
+                item.value("start_seconds", 0.0),
+                item.value("end_seconds", 0.0), interval_kind});
+        }
+    }
     out.pipe_pixfmt = spec_or_root(request, "pipe_pixfmt");
     out.fps_num = static_cast<std::uint32_t>(
         spec_or_root_int(request, "fps_num", 0));

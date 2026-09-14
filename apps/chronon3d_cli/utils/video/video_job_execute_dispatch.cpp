@@ -89,7 +89,8 @@ media::GopAnalysisSummary inspect_source_once(
         opts.gop_source,
         make_bitstream_target_contract(opts, compiled, opts.gop_source),
         start_sec, end_sec,
-        /*content_changed=*/!opts.gop_copy_only);
+        /*content_changed=*/!opts.gop_copy_only,
+        opts.changed_intervals);
     if (!analysis) {
         summary.available = false;
         return summary;

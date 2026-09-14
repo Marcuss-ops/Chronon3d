@@ -18,6 +18,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -73,6 +74,7 @@ struct VideoSettings {
     // Empty keeps the regular render path.
     std::string gop_source;
     bool        gop_copy_only{false};
+    std::vector<media::ChangedInterval> changed_intervals;
 
     std::string hardware_encoder{"none"};
     std::string ffmpeg_mode{"pipe"};

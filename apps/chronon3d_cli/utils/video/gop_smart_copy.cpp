@@ -80,13 +80,15 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     const BitstreamTargetContract& target,
     double edit_start_seconds,
     double edit_end_seconds,
-    bool content_changed) {
+    bool content_changed,
+    std::span<const chronon3d::media::ChangedInterval> changed_intervals) {
 #ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
     (void)path;
     (void)target;
     (void)edit_start_seconds;
     (void)edit_end_seconds;
     (void)content_changed;
+    (void)changed_intervals;
     return std::nullopt;
 #else
     AVFormatContext* format = nullptr;
@@ -131,10 +133,29 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         : (format->duration != AV_NOPTS_VALUE
             ? static_cast<double>(format->duration) / static_cast<double>(AV_TIME_BASE)
             : 0.0);
-    const bool trim_requested = !content_changed &&
+    for (const auto& interval : changed_intervals) {
+        if (!interval.valid()) {
+            close_format();
+            return std::nullopt;
+        }
+    }
+    const bool interval_content_changed = std::any_of(
+        changed_intervals.begin(), changed_intervals.end(),
+        [](const auto& interval) {
+            return interval.kind == chronon3d::media::ChangedIntervalKind::Content;
+        });
+    const bool effective_content_changed = changed_intervals.empty()
+        ? content_changed : interval_content_changed;
+    const bool explicit_trim = std::any_of(
+        changed_intervals.begin(), changed_intervals.end(),
+        [](const auto& interval) {
+            return interval.kind == chronon3d::media::ChangedIntervalKind::Trim;
+        });
+    const bool trim_requested = !effective_content_changed &&
+        (explicit_trim ||
         (edit_start_seconds > 0.0 ||
          (source_duration_seconds > 0.0 && edit_end_seconds + 1e-9 <
-              source_duration_seconds));
+              source_duration_seconds)));
 
     std::vector<std::vector<CompressedPacketInfo>> groups;
     bool has_trim_gop = false;
@@ -168,7 +189,7 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     for (const auto& group : groups) {
         if (group.empty()) continue;
         const auto& first = group.front();
-        if (!content_changed && first.pts != AV_NOPTS_VALUE &&
+        if (!effective_content_changed && first.pts != AV_NOPTS_VALUE &&
             first.pts >= edit_start && first.pts < edit_end) {
             has_trim_gop = true;
         }
@@ -177,8 +198,25 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
         // re-encode. Keeping this fact explicit prevents a full-clip
         // `gop_copy_only` request from being classified as an edit merely
         // because its output interval is non-empty.
-        const bool intersects = content_changed && gop_intersects_edit(
-            group, edit_start, edit_end);
+        bool intersects = false;
+        if (changed_intervals.empty()) {
+            intersects = content_changed && gop_intersects_edit(
+                group, edit_start, edit_end);
+        } else {
+            for (const auto& interval : changed_intervals) {
+                if (interval.kind != chronon3d::media::ChangedIntervalKind::Content) {
+                    continue;
+                }
+                const auto interval_start = static_cast<std::int64_t>(std::llround(
+                    interval.start_seconds / time_base_seconds));
+                const auto interval_end = static_cast<std::int64_t>(std::llround(
+                    interval.end_seconds / time_base_seconds));
+                if (gop_intersects_edit(group, interval_start, interval_end)) {
+                    intersects = true;
+                    break;
+                }
+            }
+        }
         auto analysis = analyze_gop(group, codec_parameters_match, intersects);
         analysis.compatibility = source_compatibility;
         auto plan = plan_gop(analysis);

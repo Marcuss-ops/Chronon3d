@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <optional>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -246,7 +247,8 @@ struct GopCopyResult {
     const BitstreamTargetContract& target,
     double edit_start_seconds,
     double edit_end_seconds,
-    bool content_changed = true);
+    bool content_changed = true,
+    std::span<const chronon3d::media::ChangedInterval> changed_intervals = {});
 
 /// Copy is permitted only when every packet-level safety gate is true.
 /// The planner is deliberately pure; codec-specific packet inspection feeds

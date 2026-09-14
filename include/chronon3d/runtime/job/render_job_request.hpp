@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace chronon3d::runtime::job {
 
@@ -36,6 +37,9 @@ struct OutputSpec {
     std::int64_t bitrate{0};
     std::string audio_source_path;
     bool gop_copy_only{false};
+    /// Source-time content/trim intervals supplied by the authoring layer.
+    /// Empty preserves the legacy whole-export content-change semantics.
+    std::vector<media::ChangedInterval> changed_intervals{};
     std::uint32_t fps_num{0};
     std::uint32_t fps_den{1};
     /// Requested CUDA/pipe surface format (e.g. nv12 or p010). Empty means
@@ -72,6 +76,7 @@ enum class RenderJobRequestErrorCode : std::uint8_t {
     /// this boundary so a plan file or an IPC spec cannot smuggle an unknown
     /// format past the CLI validator into the encoder.
     InvalidPipePixelFormat,
+    InvalidChangedInterval,
 };
 
 struct RenderJobRequestError {
