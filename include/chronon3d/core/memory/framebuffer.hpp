@@ -97,6 +97,7 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
           // Native video surfaces are registry-owned GPU resources. Copies
           // of a read-only video source keep the logical handle so the graph
@@ -110,6 +111,7 @@ public:
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
           m_surface_handle(other.m_surface_handle) {
         move_pixels_from(std::move(other));
@@ -268,8 +270,22 @@ public:
     void set_content_cleared(bool cleared) {
         m_content_cleared = cleared;
     }
+    // ── Identity: cache-key digest vs content digest (NOT the same thing) ──
+    //
+    // `key_digest` is the cache-KEY digest of the node that produced this
+    // framebuffer. Two different frames rendered by the same node share it, so
+    // it is NOT a content identity: using it to conclude "the pixels are the
+    // same as last time" skipped the RGBA→YUV conversion on every frame and
+    // froze rendered video on frame 0.
+    //
+    // `content_digest` carries the opposite contract: the producer that stamps
+    // it ASSERTS bit-identical pixels for the stamped region. 0 means
+    // "unknown" and is the default, so a consumer that wants to reuse converted
+    // bytes must require a non-zero content digest and otherwise re-convert.
     [[nodiscard]] u64 key_digest() const { return m_key_digest; }
     void set_key_digest(u64 digest) { m_key_digest = digest; }
+    [[nodiscard]] u64 content_digest() const { return m_content_digest; }
+    void set_content_digest(u64 digest) { m_content_digest = digest; }
     [[nodiscard]] runtime::RenderSurfaceHandle surface_handle() const noexcept {
         return m_surface_handle;
     }
@@ -334,6 +350,7 @@ public:
         swap(m_opaque,           other.m_opaque);
         swap(m_content_cleared,  other.m_content_cleared);
         swap(m_key_digest,       other.m_key_digest);
+        swap(m_content_digest,   other.m_content_digest);
         swap(m_surface_handle,   other.m_surface_handle);
         swap(m_cpu_authoritative, other.m_cpu_authoritative);
         swap(m_owns_pixels,      other.m_owns_pixels);
@@ -363,6 +380,7 @@ public:
 
 private:
     u64 m_key_digest{0};
+    u64 m_content_digest{0};
     runtime::RenderSurfaceHandle m_surface_handle{
         runtime::kInvalidRenderSurfaceHandle};
     bool m_cpu_authoritative{true};
@@ -389,6 +407,7 @@ private:
         m_owns_pixels = other.m_owns_pixels;
         m_content_cleared = other.m_content_cleared;
         m_key_digest = other.m_key_digest;
+        m_content_digest = other.m_content_digest;
         // Native surfaces are registry-owned and read-only at this boundary;
         // preserve the handle across a CPU metadata/pixel copy.
         m_surface_handle = other.m_surface_handle;
@@ -426,6 +445,7 @@ private:
         m_owns_pixels = true;
         m_external_pixels = nullptr;
         m_key_digest = 0;
+        m_content_digest = 0;
         m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
         m_cpu_authoritative = true;
         m_content_cleared = false;
