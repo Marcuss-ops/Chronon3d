@@ -424,6 +424,7 @@ private:
         }
     }
 
+public:
     // ── Per-frame-batch-slot transient retirement ────────────────────────
     //
     // Frame-transient images that were materialized *while a frame batch was

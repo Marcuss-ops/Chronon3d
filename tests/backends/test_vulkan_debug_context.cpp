@@ -202,7 +202,13 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->end_frame_batch();
 
     const auto stats = backend->stats();
-    CHECK(stats.passes_executed >= 6);
+    // Five of the six nodes take a native pass. The cubic-stroke Path is
+    // DELIBERATELY rejected by try_native_path_stroke's CPU-exactness gate
+    // (only a single straight opaque segment is native-equivalent; a cubic
+    // stroke would double-blend the flattened joints and notch the caps), so
+    // it contributes no GPU pass and must fail closed to the CPU stroker.
+    // The earlier `>= 6` expectation predates that gate and was stale.
+    CHECK(stats.passes_executed >= 5);
     REQUIRE(backend->release_surface(handle).ok());
 }
 

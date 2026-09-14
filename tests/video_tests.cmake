@@ -43,6 +43,17 @@ else()
     )
 endif()
 
+# Keyframe cadence (PRODUCER-facing contract). The clip.render gateway that
+# rejected GOP 24 != 48 cannot fail while the producer's binary is stale, so
+# the cadence authority carries its own unit assertion. The emitted-stream
+# assertion lives in chronon3d_native_video_sink_factory_tests below.
+chronon3d_add_test_suite(
+    NAME chronon3d_keyframe_cadence_tests
+    TIER UNIT
+    LINK_TARGETS chronon3d_media_video
+    SOURCES video/test_keyframe_cadence.cpp
+)
+
 # VFR source-sample selection table (decoder-facing contract).
 chronon3d_add_test_suite(
     NAME chronon3d_source_sample_table_tests

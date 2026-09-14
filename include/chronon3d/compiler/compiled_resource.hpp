@@ -27,9 +27,16 @@ enum class AnimationProperty : std::uint8_t {
     PositionX,
     PositionY,
     PositionZ,
+    // RenderingGen's semantic overlay contract uses position_x/y/z as
+    // additive offsets from the authored layer placement. Keep these
+    // distinct from the canonical absolute position.x/y/z properties.
+    PositionXOffset,
+    PositionYOffset,
+    PositionZOffset,
     ScaleX,
     ScaleY,
     ScaleZ,
+    UniformScale,
 };
 
 /// Immutable, typed timeline entry. Frame values are authored-time data;

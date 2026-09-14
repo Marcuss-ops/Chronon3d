@@ -368,6 +368,12 @@ void VulkanBackend::Impl::emit_pass_sync(
         }
         emit_plan_pass_transitions(command, *frame_batch.command_plan,
                                    frame_batch.pass_count);
+        // Asset textures promoted outside the compiled graph (for example
+        // ImageCache/GpuAssetCache sources) are not present in the plan's
+        // resource table. Keep their upload-to-compute dependency explicit;
+        // otherwise a native image pass may legally execute while the
+        // imported storage image still has no compute visibility edge.
+        emit_unplanned_compute_sync(command, images);
         return;
     }
     emit_unplanned_compute_sync(command, images);
