@@ -123,11 +123,23 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         scaled_radius = image.radius * (static_cast<float>(src_w) / placement.dst_rect.size.x);
     }
 
-    const bool mask_enabled = state.mask && state.mask->enabled();
-    const int clip_x0 = state.clip_rect ? state.clip_rect->x0 : -1;
-    const int clip_y0 = state.clip_rect ? state.clip_rect->y0 : -1;
-    const int clip_x1 = state.clip_rect ? state.clip_rect->x1 : -1;
-    const int clip_y1 = state.clip_rect ? state.clip_rect->y1 : -1;
+    // The graph clip is expressed in canvas pixels. A tight producer
+    // framebuffer is surface-local, so convert this boundary exactly once
+    // before handing state to the software sampler.
+    RenderState surface_state = state;
+    if (state.clip_rect && (fb.origin_x() != 0 || fb.origin_y() != 0)) {
+        auto local_clip = *state.clip_rect;
+        local_clip.x0 -= fb.origin_x();
+        local_clip.y0 -= fb.origin_y();
+        local_clip.x1 -= fb.origin_x();
+        local_clip.y1 -= fb.origin_y();
+        surface_state.clip_rect = local_clip;
+    }
+    const bool mask_enabled = surface_state.mask && surface_state.mask->enabled();
+    const int clip_x0 = surface_state.clip_rect ? surface_state.clip_rect->x0 : -1;
+    const int clip_y0 = surface_state.clip_rect ? surface_state.clip_rect->y0 : -1;
+    const int clip_x1 = surface_state.clip_rect ? surface_state.clip_rect->x1 : -1;
+    const int clip_y1 = surface_state.clip_rect ? surface_state.clip_rect->y1 : -1;
     spdlog::debug(
         "[image-render] layer='{}' path='{}' cached={}x{} sub={}x{} requested={}x{} scale=({:.4f},{:.4f}) opacity={:.3f} mask={} clip={} clip_rect=[{},{} -> {},{}] tx={:.2f} ty={:.2f}",
         state.layer_id,
@@ -158,10 +170,10 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
 #ifdef CHRONON3D_USE_BLEND2D
     if (use_cached_fb && image.radius <= 0.0f) {
-        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     } else if (use_cached_fb && image.radius > 0.0f) {
         if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {
-            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
+            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
         }
     } else if (cached && cached->fb_img && !using_placeholder) {
         // Framebuffer fast-path: crop cached fb_img with memcpy (avoids Blend2D),
@@ -183,22 +195,22 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
             apply_rounded_coverage(cropped, scaled_radius);
         }
 
-        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &state);
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     } else {
         // Fallback: Blend2D path (for placeholders or uncached images)
         BLImage sub_img(src_w, src_h, BL_FORMAT_PRGB32);
         BLContext ctx(sub_img);
         ctx.blitImage(BLPointI(0, 0), render_img, BLRectI(src_x, src_y, src_w, src_h));
         ctx.end();
-        blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
+        blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &surface_state, scaled_radius);
     }
 #else
     // Blend2D disabled: framebuffer-only compositing path
     if (use_cached_fb && image.radius <= 0.0f) {
-        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     } else if (use_cached_fb && image.radius > 0.0f) {
         if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {
-            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
+            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
         }
     } else if (cached && cached->fb_img && !using_placeholder) {
         Framebuffer cropped(src_w, src_h);
@@ -213,7 +225,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         if (scaled_radius > 0.0f) {
             apply_rounded_coverage(cropped, scaled_radius);
         }
-        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &state);
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     }
 #endif
 
