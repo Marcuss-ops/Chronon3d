@@ -42,8 +42,8 @@ void main() {
 
     vec2 canvas = vec2(destination + params.destination_origin) + vec2(0.5);
     if (params.clip_enabled != 0u &&
-        (canvas.x < float(params.clip_rect.x) || canvas.y < float(params.clip_rect.y) ||
-         canvas.x >= float(params.clip_rect.z) || canvas.y >= float(params.clip_rect.w))) return;
+        (destination.x < params.clip_rect.x || destination.y < params.clip_rect.y ||
+         destination.x >= params.clip_rect.z || destination.y >= params.clip_rect.w)) return;
     vec2 source = vec2(dot(params.source_x.xyz, vec3(canvas, 1.0)),
                        dot(params.source_y.xyz, vec3(canvas, 1.0)));
     vec4 value = vec4(0.0);

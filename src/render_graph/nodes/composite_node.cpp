@@ -95,10 +95,10 @@ bool try_native_affine_composite(
     }
 
     transform.clip_enabled = 1u;
-    transform.clip_rect[0] = eff_x0 + destination.origin_x();
-    transform.clip_rect[1] = eff_y0 + destination.origin_y();
-    transform.clip_rect[2] = eff_x1 + destination.origin_x();
-    transform.clip_rect[3] = eff_y1 + destination.origin_y();
+    transform.clip_rect[0] = eff_x0;
+    transform.clip_rect[1] = eff_y0;
+    transform.clip_rect[2] = eff_x1;
+    transform.clip_rect[3] = eff_y1;
 
     const auto composited = ctx.backend->transform_surface_affine(
         destination.surface_handle(), source_handle, transform);
