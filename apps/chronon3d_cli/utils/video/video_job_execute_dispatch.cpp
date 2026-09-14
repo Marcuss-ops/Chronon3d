@@ -4,6 +4,8 @@
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
 #include <chronon3d/media/video/direct_yuv_program.hpp>
+#include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/media/video/output_contract.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
@@ -17,8 +19,10 @@ extern "C" {
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <utility>
+#include <vector>
 
 namespace chronon3d::cli {
 namespace {
@@ -145,6 +149,211 @@ media::GopAnalysisSummary inspect_source_once(
         }
     }
     return summary;
+}
+
+struct HybridSegment {
+    bool copy{false};
+    std::int64_t start_pts{0};
+    std::int64_t end_pts{0};
+};
+
+// Consume the compiler-owned hybrid schedule as closed GOP segments. Changed
+// GOPs use the existing native render/encode pipeline; untouched GOP runs use
+// packet copy. The canonical media muxer joins both kinds of segment and is
+// the only timestamp/container boundary.
+bool execute_hybrid_gop_plan(
+    const CompositionRegistry& registry,
+    const CompiledComposition& compiled,
+    const std::string& composition_id,
+    const RenderSettings& settings,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts,
+    const media::GopExecutionPlan& plan,
+    const chronon3d::CpuBudget& cpu_budget,
+    const std::shared_ptr<media::VideoJobExecutionContext>& execution) {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    (void)registry; (void)compiled; (void)composition_id; (void)settings;
+    (void)start; (void)end; (void)opts; (void)plan; (void)cpu_budget;
+    (void)execution;
+    return false;
+#else
+    if (!plan.hybrid || !plan.safe_to_splice || plan.work_units.empty() ||
+        plan.source_time_base_num <= 0 || plan.source_time_base_den <= 0 ||
+        opts.gop_source.empty()) {
+        return false;
+    }
+
+    const double source_time_base =
+        static_cast<double>(plan.source_time_base_num) /
+        static_cast<double>(plan.source_time_base_den);
+    const double fps = opts.output.fps_value() > 0.0
+        ? opts.output.fps_value() : 30.0;
+    const auto request_start_pts = static_cast<std::int64_t>(std::llround(
+        static_cast<double>(start.integral()) / fps / source_time_base));
+    const auto request_end_pts = static_cast<std::int64_t>(std::llround(
+        static_cast<double>(end.integral()) / fps / source_time_base));
+    if (request_end_pts <= request_start_pts) return false;
+
+    std::vector<HybridSegment> segments;
+    for (const auto& unit : plan.work_units) {
+        if (unit.last_pts < request_start_pts ||
+            unit.first_pts >= request_end_pts) {
+            continue;
+        }
+        const bool copy = unit.copies_packets();
+        if (!segments.empty() && segments.back().copy == copy &&
+            segments.back().end_pts == unit.first_pts) {
+            segments.back().end_pts = unit.last_pts;
+        } else {
+            segments.push_back(HybridSegment{
+                .copy = copy,
+                .start_pts = unit.first_pts,
+                .end_pts = unit.last_pts});
+        }
+    }
+    if (segments.empty()) return false;
+
+    // A GOP's right edge is the next GOP start. The requested interval is the
+    // authoritative right edge for the final segment.
+    for (std::size_t index = 0; index < segments.size(); ++index) {
+        const auto next_start = index + 1 < segments.size()
+            ? segments[index + 1].start_pts : request_end_pts;
+        segments[index].end_pts = std::max(segments[index].end_pts + 1, next_start);
+    }
+
+    const auto final_path = std::filesystem::path(opts.output.output);
+    const auto extension = final_path.extension().empty()
+        ? std::string{".mp4"} : final_path.extension().string();
+    const auto work_dir = final_path.parent_path() /
+        (final_path.stem().string() + ".hybrid-" +
+         std::to_string(profiling::timestamp_ns()));
+    std::error_code ec;
+    std::filesystem::create_directories(work_dir, ec);
+    if (ec) {
+        spdlog::error("[boundary-reencode] failed to create workspace '{}': {}",
+                      work_dir.string(), ec.message());
+        return false;
+    }
+    const auto cleanup = [&]() {
+        std::error_code cleanup_ec;
+        std::filesystem::remove_all(work_dir, cleanup_ec);
+        if (cleanup_ec) {
+            spdlog::warn("[boundary-reencode] failed to remove workspace '{}': {}",
+                         work_dir.string(), cleanup_ec.message());
+        }
+    };
+
+    std::vector<std::string> segment_paths;
+    segment_paths.reserve(segments.size());
+    std::size_t copied_gops = 0;
+    std::size_t reencoded_gops = 0;
+    const auto rate = opts.output.frame_rate();
+    for (std::size_t index = 0; index < segments.size(); ++index) {
+        const auto& segment = segments[index];
+        const auto segment_path = work_dir /
+            ("segment-" + std::to_string(index) + extension);
+        const double segment_start_seconds =
+            static_cast<double>(segment.start_pts) * source_time_base;
+        const double segment_end_seconds =
+            static_cast<double>(segment.end_pts) * source_time_base;
+
+        if (segment.copy) {
+            const auto copied = copy_gop_source(
+                opts.gop_source, segment_path.string(),
+                segment_start_seconds, segment_end_seconds);
+            if (!copied) {
+                spdlog::error("[boundary-reencode] copy segment {} failed", index);
+                cleanup();
+                return false;
+            }
+            ++copied_gops;
+        } else {
+            const Frame segment_start = seconds_to_frame(
+                segment_start_seconds, rate, FrameRounding::Floor);
+            Frame segment_end = seconds_to_frame(
+                segment_end_seconds, rate, FrameRounding::Ceiling);
+            if (segment_end <= segment_start) segment_end = segment_start + Frame{1};
+
+            auto child_opts = opts;
+            child_opts.output.output = segment_path.string();
+            child_opts.gop_copy_only = false;
+            child_opts.changed_intervals.clear();
+            child_opts.resolved_gop_plan.reset();
+            child_opts.resolved_execution_reason = "boundary_reencode_segment";
+            child_opts.resolved_execution_valid = true;
+            child_opts.resolved_execution_downgrade_count = 0;
+            child_opts.resolved_execution_path =
+                FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
+
+            const auto rendered = render_and_encode_ffmpeg_pipe(
+                registry, compiled, composition_id, settings,
+                segment_start, segment_end, child_opts, cpu_budget,
+                execution ? execution->video_runtimes : nullptr,
+                execution ? execution->device_scheduler : nullptr,
+                execution);
+            if (rendered.return_code != 0 || !rendered.success) {
+                spdlog::error("[boundary-reencode] render segment {} failed", index);
+                cleanup();
+                return false;
+            }
+            ++reencoded_gops;
+        }
+        segment_paths.push_back(segment_path.string());
+    }
+
+    auto partial_path = final_path;
+    if (partial_path.extension().empty()) {
+        partial_path += ".partial";
+    } else {
+        partial_path.replace_filename(
+            final_path.stem().string() + ".partial" + extension);
+    }
+    const auto assembled = media::assemble_segments({segment_paths, partial_path.string()});
+    if (!assembled.success) {
+        spdlog::error("[boundary-reencode] segment assembly failed: {}",
+                      assembled.reason);
+        cleanup();
+        return false;
+    }
+
+    auto contract_result = media::video::resolve_output_contract("youtube_overlay_v1");
+    if (!contract_result) {
+        spdlog::error("[boundary-reencode] output contract unavailable: {}",
+                      contract_result.error());
+        std::filesystem::remove(partial_path, ec);
+        cleanup();
+        return false;
+    }
+    auto contract = std::move(contract_result).value();
+    contract.width = compiled.composition->width();
+    contract.height = compiled.composition->height();
+    contract.fps = opts.output.frame_rate();
+    contract.frame_count = static_cast<std::int64_t>(end - start);
+    contract.audio_required = true;
+    contract.audio_streams = 1;
+    const auto verification = media::video::verify_output_contract(partial_path, contract);
+    if (!verification.passed) {
+        spdlog::error("[boundary-reencode] assembled output failed verification: {}",
+                      verification.failure);
+        std::filesystem::remove(partial_path, ec);
+        cleanup();
+        return false;
+    }
+
+    std::filesystem::rename(partial_path, final_path, ec);
+    if (ec) {
+        spdlog::error("[boundary-reencode] failed to publish '{}': {}",
+                      final_path.string(), ec.message());
+        std::filesystem::remove(partial_path, ec);
+        cleanup();
+        return false;
+    }
+    spdlog::info("[boundary-reencode] completed: {} copied GOPs, {} re-encoded GOPs → {}",
+                 copied_gops, reencoded_gops, final_path.string());
+    cleanup();
+    return true;
+#endif
 }
 
 // CLI flag surface → semantic execution requirements.  The public media
@@ -406,6 +615,21 @@ int render_and_encode_ffmpeg(
                      copy_result->video_packets, copy_result->audio_packets,
                      copy_ms, opts.output.output);
         return 0;
+    }
+
+    // ── Hybrid GOP boundary re-encode ────────────────────────────────────
+    // The resolver has already certified this schedule. Consume it before
+    // the ordinary full-clip render path so untouched GOPs never enter
+    // NVDEC/NVENC. A failure is terminal: silently turning a certified
+    // hybrid plan into a full re-encode would violate the execution receipt.
+    if (render_opts.resolved_gop_plan &&
+        render_opts.resolved_gop_plan->hybrid &&
+        render_opts.resolved_gop_plan->safe_to_splice &&
+        render_opts.resolved_execution_reason == "hybrid_pipeline_unavailable") {
+        const bool completed = execute_hybrid_gop_plan(
+            registry, compiled, composition_id, settings, start, end,
+            render_opts, *render_opts.resolved_gop_plan, cpu_budget, execution);
+        return completed ? 0 : 1;
     }
 
     // ── Render path: dispatch purely on the final plan's composite axis ───
