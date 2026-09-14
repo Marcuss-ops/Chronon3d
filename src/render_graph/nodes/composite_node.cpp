@@ -325,6 +325,21 @@ NodeExecResult CompositeNode::execute(
     const FramebufferRef& bottom = in0 ? in0 : in1;
     const FramebufferRef& top = in0 ? in1 : empty_fb;
 
+    // Which inputs the compiler actually wired here. A Composite with a single
+    // input is a pass-through (the `!top` early return below), so this line is
+    // what separates "the layer was never wired" from "the layer was wired and
+    // the blend dropped it" — the two failures look identical in the output.
+    if (native_surface_promotion_diag_enabled()) {
+        spdlog::info(
+            "[composite-inputs] frame={} inputs={} in0={} in1={} "
+            "bottom={}x{} top={}x{} mode={}",
+            static_cast<int>(ctx.frame_input.frame), inputs.size(),
+            in0 ? 1 : 0, in1 ? 1 : 0,
+            bottom ? bottom->width() : -1, bottom ? bottom->height() : -1,
+            top ? top->width() : -1, top ? top->height() : -1,
+            static_cast<int>(m_mode));
+    }
+
 
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info(

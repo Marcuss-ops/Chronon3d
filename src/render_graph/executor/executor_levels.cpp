@@ -51,6 +51,40 @@ void execute_levels(
             level_resolved.emplace_back(&level_scratch);
             resolve_inputs(graph, level[i], state, consumer_remaining, level_resolved[i]);
         }
+        // An input whose producer temp is already gone is a scheduling defect,
+        // not an optional input: the node then reads a null framebuffer and
+        // silently degenerates (a Composite with a null top is a pass-through,
+        // which is how a whole layer disappeared from a finished clip while
+        // every node still reported success). Bounded to the first frames, as
+        // the sibling [exec-*-diag] lines are, so the hot loop stays clean.
+        if (ctx.frame_input.frame <= 2) {
+            for (size_t i = 0; i < level.size(); ++i) {
+                const auto& input_ids = graph.inputs(level[i]);
+                for (size_t j = 0; j < input_ids.size(); ++j) {
+                    std::size_t producer_level = levels.size();
+                    for (std::size_t pl = 0; pl < levels.size(); ++pl) {
+                        if (std::find(levels[pl].begin(), levels[pl].end(),
+                                      input_ids[j]) != levels[pl].end()) {
+                            producer_level = pl;
+                            break;
+                        }
+                    }
+                    if (level_resolved[i].inputs[j]) {
+                        spdlog::info(
+                            "[graph-edge] frame={} level={} consumer_id={} "
+                            "input_index={} producer_id={} producer_level={}",
+                            static_cast<int>(ctx.frame_input.frame), level_index,
+                            level[i], j, input_ids[j], producer_level);
+                        continue;
+                    }
+                    spdlog::warn(
+                        "[input-unresolved] frame={} level={} consumer_id={} "
+                        "input_index={} producer_id={} producer_level={}",
+                        static_cast<int>(ctx.frame_input.frame), level_index,
+                        level[i], j, input_ids[j], producer_level);
+                }
+            }
+        }
         const auto t_input1 = profiling::now();
         const auto t_schedule1 = profiling::now();
 
@@ -70,6 +104,29 @@ void execute_levels(
             consumer_remaining,
             std::span<const GraphNodeId>(release_schedule));
         const auto t_fb1 = profiling::now();
+
+        // Which resource temps are still alive after this level, and which
+        // ones this level's schedule retired. A producer that disappears
+        // before its consumer runs is a lifetime defect; the output alone
+        // cannot show it (the consumer just reads a null framebuffer).
+        if (ctx.frame_input.frame <= 2) {
+            std::string live;
+            for (std::size_t id = 0; id < state.temp.size(); ++id) {
+                if (state.temp[id]) {
+                    live += std::to_string(id);
+                    live += ",";
+                }
+            }
+            std::string retired;
+            for (const GraphNodeId id : release_schedule) {
+                retired += std::to_string(id);
+                retired += ",";
+            }
+            spdlog::info(
+                "[temp-lifetime] frame={} after_level={} live=[{}] retired=[{}]",
+                static_cast<int>(ctx.frame_input.frame), level_index, live,
+                retired);
+        }
 
         const double dur_dispatch = profiling::duration_ms(t_schedule1, t_dispatch1);
         const double dur_input = profiling::duration_ms(t_input0, t_input1);

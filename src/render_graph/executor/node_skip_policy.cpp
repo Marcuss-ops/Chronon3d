@@ -23,6 +23,7 @@
 #include <chronon3d/core/profiling/counters.hpp>          // RenderCounters (via chronon3d::count)
 #include <chronon3d/math/color.hpp>                       // Color::transparent()
 #include <chronon3d/render_graph/render_graph_context.hpp> // RenderGraphContext + frame_input access
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -36,16 +37,42 @@ void commit_transparent_skip(
     std::optional<raster::BBox> bbox_override)
 {
     (void)parent_pool; // reclaim policy is carried by OwnedFB's deleter
+    // Which branch retired this node, on the first frames only (same bound as
+    // the sibling [exec-*-diag] lines). A skipped node that still has
+    // consumers is the one case where the reason decides whether the frame is
+    // correct, so it must be visible.
+    if (ctx.frame_input.frame <= 2) {
+        spdlog::info("[skip-diag] frame={} node_id={} name='{}' reason={}",
+                     static_cast<int>(ctx.frame_input.frame), id, node_name,
+                     reason == SkipReason::TilePruned ? "tile_pruned"
+                     : reason == SkipReason::StaticBaked ? "static_baked"
+                                                         : "early_exit");
+    }
     // ── Temp slot acquisition ───────────────────────────────────────────
     // TilePruned: riusa `state.shared_transparent` (no fresh 64×64 alloc,
     // preserva Cat-3 single SSoT + riduce allocazioni). EarlyExit:
     // acquire_owned_fb(64,64,false) + clear(transparent), preservato
     // byte-equivalent al body P1.
     if (reason == SkipReason::TilePruned || reason == SkipReason::StaticBaked) {
-        // TilePruned and StaticBaked both reuse state.shared_transparent
-        // (no fresh alloc).  StaticBaked interior nodes don't produce a new
-        // framebuffer — the baked surface covers them.
+        // TilePruned and StaticBaked both reuse state.shared_transparent (no
+        // fresh alloc). NOTE: it is created by the TILE-execution path only, so
+        // on any other lane this publishes a NULL temp. That is not a neutral
+        // no-op — a consumer then reads no framebuffer at all, and a Composite
+        // with a missing top degenerates to a pass-through, which is how a
+        // whole layer vanished from a finished clip while every node reported
+        // success. Materializing it here is NOT the fix: the strict
+        // GPU-native lane's framebuffers are device-only (no pixel storage),
+        // so clearing one faults. The defect belongs to whoever skipped a node
+        // that still has consumers outside its fused batch; this log makes the
+        // degenerate handoff visible instead of silent.
         state.temp[id] = state.shared_transparent;
+        if (!state.temp[id]) {
+            spdlog::error(
+                "[skip-policy] node {} ('{}') skipped as {} published no "
+                "surface: its consumers would read a null input",
+                id, node_name,
+                reason == SkipReason::TilePruned ? "tile_pruned" : "static_baked");
+        }
     } else {
         // ── Acquire + clear transparent 64×64 ──────────────────────────
         // Preserva esattamente lo stesso path del blocco early-exit originale:
