@@ -13,7 +13,12 @@ namespace chronon3d::graph {
 class VideoNode final : public RenderGraphNode {
 public:
     VideoNode(video::VideoSource source, media::MediaFrameProvider* decoder, Frame layer_start)
-        : RenderGraphNode(no_cache("video"))
+        : RenderGraphNode(RenderNodeCachePolicy{
+            .mode = CacheMode::Disabled,
+            .invalidation = CacheInvalidation::Always,
+            .reason = "video",
+            .temporal_class = TemporalClass::ExternalDynamic,
+        })
         , m_source(std::move(source)),
           m_decoder(decoder),
           m_layer_start(layer_start),

@@ -84,15 +84,9 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     const uint64_t digest       = fb.key_digest();
     const int      color_matrix = resolve_color_matrix(options_);
 
-    const bool same_as_last =
-        !gpu_nvenc_ &&
-        digest != 0 &&
-        digest == last_converted_digest_ &&
-        options_.width                           == last_converted_width_ &&
-        options_.height                          == last_converted_height_ &&
-        static_cast<int>(codec_->pix_fmt)        == last_converted_pix_fmt_ &&
-        options_.color_transform.apply_gamma     == last_converted_apply_gamma_ &&
-        color_matrix                             == last_converted_color_matrix_;
+    // Flawed single-entry cache disabled: fb.key_digest() is not content-authoritative
+    // for output framebuffers and caused freeze on frame 0.
+    const bool same_as_last = false;
 
     // 2. Convert the framebuffer to YUV (or skip for cache hit)
     const auto t_conv0 = Clock::now();

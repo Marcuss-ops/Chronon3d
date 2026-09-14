@@ -97,7 +97,7 @@ struct RenderNodeCachePolicy {
     }
 
     [[nodiscard]] constexpr bool frame_dependent() const noexcept {
-        return mode == CacheMode::FrameVariant;
+        return mode == CacheMode::FrameVariant || is_dynamic(temporal_class);
     }
 
     [[nodiscard]] constexpr bool reusable_across_frames() const noexcept {
