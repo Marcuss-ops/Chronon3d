@@ -14,6 +14,7 @@
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
@@ -755,22 +756,55 @@ void execute_fused_batch_impl(
             original_source_size = scratch.resource_sizes[res_idx];
         }
 
-        float tx = 0.0f, ty = 0.0f;
+        // Typed programs are sampled per frame before execution. The fused
+        // image path must consume the same sampled transform as the ordinary
+        // SourceNode path; reading only the immutable TransformNode here
+        // freezes entity cards at their authored centre and drops motion.
+        const compiler::SampledLayerParameters* sampled_layer = nullptr;
+        if (ctx.frame_parameters && inst.node < compiled.nodes.size() &&
+            compiled.nodes[inst.node].binding_meta.has_binding()) {
+            sampled_layer = compiler::find_layer(
+                *ctx.frame_parameters,
+                compiled.nodes[inst.node].binding_meta.layer_index);
+            if (!sampled_layer || !sampled_layer->active) {
+                continue;
+            }
+        }
+
+        float tx = 0.0f, ty = 0.0f, sx = 1.0f, sy = 1.0f;
         float opacity = inst.opacity;
-        if (inst.transform_index != 0 && inst.transform_index < graph.size()) {
+        if (sampled_layer) {
+            const auto& m = sampled_layer->matrix;
+            tx = m[3][0];
+            ty = m[3][1];
+            sx = m[0][0];
+            sy = m[1][1];
+            opacity *= sampled_layer->opacity;
+        } else if (inst.transform_index != 0 && inst.transform_index < graph.size()) {
             const auto& xform = static_cast<const TransformNode&>(graph.node(inst.transform_index));
             const auto m = xform.matrix();
             tx = m[3][0];
             ty = m[3][1];
+            sx = m[0][0];
+            sy = m[1][1];
             opacity *= xform.opacity();
         }
 
         const auto placement = compute_media_placement(original_source_size, img.size, img.fit, img.focal_point);
 
-        const float world_x0 = tx - img.size.x * 0.5f + placement.dst_rect.origin.x + (ctx.frame_input.width * 0.5f);
-        const float world_y0 = ty - img.size.y * 0.5f + placement.dst_rect.origin.y + (ctx.frame_input.height * 0.5f);
-        const float world_x1 = world_x0 + placement.dst_rect.size.x;
-        const float world_y1 = world_y0 + placement.dst_rect.size.y;
+        // Placement is authored around the layer centre. Apply the sampled
+        // scale around that centre so scale-in/focus presets are visible in
+        // the GPU batch just as they are in the canonical source path.
+        const float centre_x = tx + (ctx.frame_input.width * 0.5f);
+        const float centre_y = ty + (ctx.frame_input.height * 0.5f);
+        const float local_x0 = -img.size.x * 0.5f + placement.dst_rect.origin.x;
+        const float local_y0 = -img.size.y * 0.5f + placement.dst_rect.origin.y;
+        const float local_x1 = local_x0 + placement.dst_rect.size.x;
+        const float local_y1 = local_y0 + placement.dst_rect.size.y;
+        const float world_x0 = centre_x + local_x0 * sx;
+        const float world_y0 = centre_y + local_y0 * sy;
+        const float world_x1 = centre_x + local_x1 * sx;
+        const float world_y1 = centre_y + local_y1 * sy;
 
         runtime::LayerInstance gpu_inst{};
         gpu_inst.resource_index = res_idx;

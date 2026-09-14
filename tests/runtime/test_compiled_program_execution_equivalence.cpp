@@ -12,6 +12,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
+#include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
@@ -127,4 +128,47 @@ TEST_CASE("typed-program execution gate is deterministic (still frames)") {
             }
         }
     }
+}
+
+TEST_CASE("typed-program overlay lowering preserves full-canvas color and image motion aliases") {
+    auto plan = make_plan("overlay-lowering-regression", 48, 32,
+                          chronon3d::Frame{34},
+                          {full_canvas_color("bg", 0.9333333f, 0.945098f,
+                                             0.9058823f, 1.0f)});
+    plan.layers.front().start_frame = chronon3d::Frame{10};
+    plan.layers.front().animation = chronon3d::render_plan::AnimationPlan{};
+    plan.layers.front().animation->tracks.push_back({
+        "position_x",
+        {{chronon3d::Frame{0}, {-120.0f}},
+         {chronon3d::Frame{12}, {0.0f}}},
+        "linear"});
+    plan.layers.front().animation->tracks.push_back({
+        "scale",
+        {{chronon3d::Frame{0}, {0.85f}},
+         {chronon3d::Frame{12}, {1.0f}}},
+        "linear"});
+
+    chronon3d::assets::AssetResolver resolver;
+    auto compiled = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    auto program = std::move(compiled).value();
+
+    const auto frame0 = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{0});
+    REQUIRE(frame0.layers.size() == 1);
+    CHECK(frame0.layers.front().matrix[3][0] == doctest::Approx(-120.0f));
+    CHECK(frame0.layers.front().matrix[0][0] == doctest::Approx(0.85f));
+
+    const auto frame12 = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{22});
+    CHECK(frame12.layers.front().matrix[3][0] == doctest::Approx(0.0f));
+    CHECK(frame12.layers.front().matrix[0][0] == doctest::Approx(1.0f));
+
+    chronon3d::RenderEngine engine;
+    const auto rendered = engine.render_program(program, chronon3d::Frame{22});
+    REQUIRE(rendered);
+    const auto pixel = rendered->get_pixel(0, 0);
+    CHECK(pixel.r == doctest::Approx(0.9333333f).epsilon(0.02f));
+    CHECK(pixel.g == doctest::Approx(0.945098f).epsilon(0.02f));
+    CHECK(pixel.b == doctest::Approx(0.9058823f).epsilon(0.02f));
 }

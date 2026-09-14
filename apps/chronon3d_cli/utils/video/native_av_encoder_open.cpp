@@ -2,6 +2,7 @@
 #include "native_av_encoder_internal.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -165,8 +166,12 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     codec_->height = options_.height;
     codec_->time_base = AVRational{options_.fps_den, options_.fps_num};
     codec_->framerate = AVRational{options_.fps_num, options_.fps_den};
-    codec_->gop_size = std::max(1, static_cast<int>(std::llround(
-        static_cast<double>(options_.fps_num) / options_.fps_den)));
+    // The GOP is the assembly-ready contract's 2-second cadence, resolved by
+    // the ONE keyframe-cadence authority (48 frames at 24 fps). Deriving it
+    // from the frame rate alone emitted one keyframe per second and the
+    // output-facts gateway rejected every production render (GOP 24 != 48).
+    codec_->gop_size = media::video::keyframe_interval_frames(
+        options_.fps_num, options_.fps_den);
     codec_->max_b_frames = 0;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

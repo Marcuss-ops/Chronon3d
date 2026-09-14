@@ -1,5 +1,6 @@
 #include "native_av_sink.hpp"
 
+#include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
 
 #include <algorithm>
@@ -145,7 +146,16 @@ void NativeAvSink::reset_stats() noexcept {
 }
 
 VideoSink::Diagnostics NativeAvSink::diagnostics() const noexcept {
-    return Diagnostics{.child_pid = -1, .blocked_write_ms = 0.0, .backend = "native-av"};
+    // The configured GOP is exposed as a producer-side fact so the emitted
+    // keyframe cadence can be asserted at the encoder boundary without
+    // re-deriving it from the frame rate (which is exactly the drift that let
+    // GOP 24 ship against a contract that fixes 48). 0 means "not open".
+    const int keyframe_interval_frames =
+        codec_ != nullptr ? codec_->gop_size : 0;
+    return Diagnostics{.child_pid = -1,
+                       .blocked_write_ms = 0.0,
+                       .backend = "native-av",
+                       .keyframe_interval_frames = keyframe_interval_frames};
 }
 
 bool NativeAvSink::open(const VideoSinkConfig& config) {
@@ -202,8 +212,13 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
         config.stream.frame_rate_den, config.stream.frame_rate_num};
     codec_->framerate = AVRational{
         config.stream.frame_rate_num, config.stream.frame_rate_den};
-    codec_->gop_size = std::max(1, config.stream.frame_rate_num /
-                                  std::max(1, config.stream.frame_rate_den));
+    // Keyframe cadence: the assembly-ready contract's 2-second interval (48
+    // frames at 24 fps), resolved by the ONE keyframe-cadence authority shared
+    // with the CLI encoder path. Deriving the GOP from the frame rate alone
+    // emitted one keyframe per second and the output-contract gateway rejected
+    // the artifact (GOP 24 != 48).
+    codec_->gop_size = keyframe_interval_frames(config.stream.frame_rate_num,
+                                                config.stream.frame_rate_den);
     codec_->max_b_frames = 0;
     codec_->pix_fmt = choose_encoder_pixel_format(
         encoder, config.encoder.encoded_pixel_format);
