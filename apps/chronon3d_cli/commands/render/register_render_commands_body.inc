@@ -134,6 +134,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                 ? render_args.video_settings.bitrate : std::int64_t{0};
             request.output.audio_source_path = render_args.video_settings.gop_source;
             request.output.gop_copy_only = render_args.video_settings.gop_copy_only;
+            request.output.changed_intervals = render_args.video_settings.changed_intervals;
             if (render_args.pipe_pixfmt_explicit)
                 request.output.pipe_pixfmt = render_args.video_settings.pipe_pixfmt;
             if (end_frame_opt->count() > 0) {

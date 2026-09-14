@@ -30,6 +30,56 @@ std::string lower_profile(std::string value) {
     return value;
 }
 
+chronon3d::media::ChangedInterval parse_changed_interval(std::string value) {
+    // CLI spelling: start_seconds:end_seconds[:content|trim]. A single
+    // repeated option maps directly to the canonical typed job field.
+    const auto first_separator = value.find(':');
+    const auto second_separator = first_separator == std::string::npos
+        ? std::string::npos : value.find(':', first_separator + 1);
+    if (first_separator == std::string::npos) {
+        throw CLI::ValidationError(
+            "--changed-interval expects start:end[:content|trim]");
+    }
+    try {
+        const auto start_text = value.substr(0, first_separator);
+        const auto end_text = value.substr(
+            first_separator + 1,
+            second_separator == std::string::npos
+                ? std::string::npos
+                : second_separator - first_separator - 1);
+        std::size_t start_consumed = 0;
+        std::size_t end_consumed = 0;
+        const auto start = std::stod(start_text, &start_consumed);
+        const auto end = std::stod(end_text, &end_consumed);
+        if (start_consumed != start_text.size() || end_consumed != end_text.size()) {
+            throw std::invalid_argument("trailing interval characters");
+        }
+        const auto kind_name = second_separator == std::string::npos
+            ? std::string{"content"}
+            : value.substr(second_separator + 1);
+        chronon3d::media::ChangedIntervalKind kind;
+        if (kind_name == "content") {
+            kind = chronon3d::media::ChangedIntervalKind::Content;
+        } else if (kind_name == "trim") {
+            kind = chronon3d::media::ChangedIntervalKind::Trim;
+        } else {
+            throw CLI::ValidationError(
+                "--changed-interval kind must be content or trim");
+        }
+        chronon3d::media::ChangedInterval interval{start, end, kind};
+        if (!interval.valid()) {
+            throw CLI::ValidationError(
+                "--changed-interval requires finite 0 <= start < end");
+        }
+        return interval;
+    } catch (const CLI::ValidationError&) {
+        throw;
+    } catch (const std::exception&) {
+        throw CLI::ValidationError(
+            "--changed-interval expects numeric start:end[:content|trim]");
+    }
+}
+
 void commit_typed_runtime_options(RenderState& state) {
     auto& args = *state.args;
     args.backend = parse_backend_preference(state.backend);
@@ -81,6 +131,7 @@ void print_advanced_render_help(std::ostream& out) {
         "  --hardware <none|auto|nvenc|qsv|videotoolbox|amf>\n"
         "  --ffmpeg-mode <pipe|png>\n"
         "  --encoder-backend <pipe|native>\n"
+        "  --changed-interval <start:end[:content|trim]> (repeatable)\n"
         "  --keep-frames\n"
         "  --dry-run\n\n"
         "Memory and cache:\n"
@@ -166,6 +217,13 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_option("--chunks", args.video_settings.chunks, "Render frame range in N chunks")->check(CLI::Range(1, 1024));
     video->add_option("--gop-source", args.video_settings.gop_source, "Compressed video source for GOP smart-copy analysis");
     video->add_flag("--gop-copy-only", args.video_settings.gop_copy_only, "Copy compressed video/audio packets without rendering (explicit source-equivalence contract)");
+    video->add_option_function<std::string>(
+        "--changed-interval",
+        [&args](const std::string& value) {
+            args.video_settings.changed_intervals.push_back(
+                parse_changed_interval(value));
+        },
+        "Changed source interval: start:end[:content|trim] (repeatable)");
     video->add_option("--ffmpeg-mode", args.video_settings.ffmpeg_mode, "FFmpeg mode: pipe or png")->check(CLI::IsMember({"pipe", "png"}));
     video->add_flag("--ffmpeg-verbose", args.video_settings.ffmpeg_verbose, "Show FFmpeg logs");
     // ONE vocabulary: the accepted names come from the canonical pipe

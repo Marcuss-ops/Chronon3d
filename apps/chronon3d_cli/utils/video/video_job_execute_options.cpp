@@ -57,6 +57,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.assets_root = job.execution.assets_root;
     opts.gop_source = job.video_settings.gop_source;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
+    opts.changed_intervals = job.video_settings.changed_intervals;
     opts.backend_preference = job.execution.config
         ? job.execution.config->backend_preference()
         : chronon3d::graph::BackendPreference::Auto;

@@ -164,6 +164,14 @@ TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semanti
     CHECK(scheduled.gop_plan->work_units[0].copies_packets());
     CHECK_FALSE(scheduled.gop_plan->work_units[1].copies_packets());
 
+    auto malformed = scheduled_hybrid;
+    malformed.copy_gops = 2;
+    CHECK_FALSE(malformed.valid_schedule());
+    const auto rejected_schedule = resolve_video_execution_with_gop_analysis(
+        video_only, output, capable, false, true, malformed);
+    CHECK_FALSE(rejected_schedule.valid);
+    CHECK(rejected_schedule.reason == "gop_schedule_invalid");
+
     const auto unavailable = resolve_video_execution_with_gop_analysis(
         video_only, output, capable, true, false, GopAnalysisSummary{});
     CHECK_FALSE(unavailable.valid);
@@ -686,6 +694,55 @@ TEST_CASE("CPU GOP trim snaps to complete random-access groups") {
     avformat_close_input(&format);
     CHECK(first_video_is_keyframe);
     CHECK(video_packets == copied->video_packets);
+
+    // A short authored cue must only dirty the GOP that contains it. The
+    // analyzer receives the same source codec contract that the executor
+    // would use, so this exercises the real CPU preflight rather than only
+    // the pure resolver table.
+    chronon3d::cli::BitstreamTargetContract target;
+    format = nullptr;
+    REQUIRE(avformat_open_input(&format, source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    const AVCodecParameters* source_params = nullptr;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        const auto* params = format->streams[index]->codecpar;
+        if (params->codec_type == AVMEDIA_TYPE_VIDEO) {
+            source_params = params;
+            break;
+        }
+    }
+    REQUIRE(source_params != nullptr);
+    target.codec = source_params->codec_id;
+    target.profile = source_params->profile;
+    target.level = source_params->level;
+    target.width = static_cast<std::uint32_t>(source_params->width);
+    target.height = static_cast<std::uint32_t>(source_params->height);
+    target.pixel_format = static_cast<chronon3d::cli::BitstreamPixelFormat>(
+        source_params->format);
+    if (source_params->extradata && source_params->extradata_size > 0) {
+        target.parameter_sets.assign(
+            source_params->extradata,
+            source_params->extradata + source_params->extradata_size);
+    }
+    target.color_range = source_params->color_range;
+    target.color_space = source_params->color_space;
+    target.color_primaries = source_params->color_primaries;
+    target.color_trc = source_params->color_trc;
+    avformat_close_input(&format);
+
+    const std::array<chronon3d::media::ChangedInterval, 1> cue{{
+        {.start_seconds = 1.0,
+         .end_seconds = 1.1,
+         .kind = chronon3d::media::ChangedIntervalKind::Content}}};
+    const auto analysis = chronon3d::cli::inspect_gop_source(
+        source.string(), target, 0.0, 3.0, true, cue);
+    REQUIRE(analysis.has_value());
+    REQUIRE(analysis->plans.size() == 3);
+    CHECK(analysis->copy_count == 2);
+    CHECK(analysis->reencode_count == 1);
+    CHECK(analysis->plans[0].copy_packets());
+    CHECK_FALSE(analysis->plans[1].copy_packets());
+    CHECK(analysis->plans[2].copy_packets());
 
     std::filesystem::remove(source, cleanup_error);
     std::filesystem::remove(output, cleanup_error);

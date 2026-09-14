@@ -73,6 +73,9 @@ struct FfmpegExportOptions {
     SinkOptions           sink;
     // Explicit per-render asset mount; never inferred from the process CWD.
     std::optional<std::filesystem::path> assets_root;
+    // Authoritative source-time intervals used by the GOP preflight. An
+    // empty list retains the legacy whole-export content-change behavior.
+    std::vector<chronon3d::media::ChangedInterval> changed_intervals;
 
     // Rendering backend preference carried from the canonical RenderJob's
     // Config (--backend auto|software|vulkan).  Auto resolves to Software on

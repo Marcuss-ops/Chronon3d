@@ -73,6 +73,13 @@ normalize_render_job(
             "render job pipe pixel format '" + request.output.pipe_pixfmt +
                 "' is not one of rgba, yuv420p, nv12, p010, p010le");
     }
+    for (const auto& interval : request.output.changed_intervals) {
+        if (!interval.valid()) {
+            return make_render_job_request_error(
+                RenderJobRequestErrorCode::InvalidChangedInterval,
+                "render job changed interval must be finite, non-negative, and have end_seconds > start_seconds");
+        }
+    }
 
     NormalizedRenderJob resolved;
     resolved.plan_path = request.plan_path;
@@ -161,6 +168,16 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_int(fp, "out_bitrate", out.bitrate);
     append_field(fp, "out_audio_source", out.audio_source_path);
     append_flag(fp, "out_gop_copy_only", out.gop_copy_only);
+    append_int(fp, "out_changed_intervals_count",
+               static_cast<std::int64_t>(out.changed_intervals.size()));
+    for (const auto& interval : out.changed_intervals) {
+        append_field(fp, "out_changed_interval_start",
+                     std::to_string(interval.start_seconds));
+        append_field(fp, "out_changed_interval_end",
+                     std::to_string(interval.end_seconds));
+        append_int(fp, "out_changed_interval_kind",
+                   static_cast<std::int64_t>(interval.kind));
+    }
     append_int(fp, "out_fps_num", out.fps_num);
     append_int(fp, "out_fps_den", out.fps_den);
     append_field(fp, "out_pipe_pixfmt", out.pipe_pixfmt);

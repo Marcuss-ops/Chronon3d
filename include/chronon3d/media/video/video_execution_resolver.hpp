@@ -2,12 +2,33 @@
 
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <cstdint>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace chronon3d::media {
+
+/// A source-time interval whose semantics are known before compressed-source
+/// inspection. Keeping this on the canonical job contract prevents the GOP
+/// analyzer from treating an entire export as changed when only a short cue
+/// contains authored pixels.
+enum class ChangedIntervalKind : std::uint8_t {
+    Content,
+    Trim,
+};
+
+struct ChangedInterval {
+    double start_seconds{0.0};
+    double end_seconds{0.0};
+    ChangedIntervalKind kind{ChangedIntervalKind::Content};
+
+    [[nodiscard]] bool valid() const noexcept {
+        return std::isfinite(start_seconds) && std::isfinite(end_seconds) &&
+            start_seconds >= 0.0 && end_seconds > start_seconds;
+    }
+};
 
 // ── Canonical defaults (single source of truth) ──────────────────────────
 //
@@ -272,6 +293,41 @@ struct GopAnalysisSummary {
     /// True when the source is unchanged and only leading/trailing GOPs are
     /// removed for the requested output window.
     bool trim_only{false};
+
+    /// Structural validation for the compiler-owned schedule. Empty
+    /// work_units remains valid for legacy intent-only callers; once a
+    /// schedule is present, ordinals and aggregate counters must agree.
+    [[nodiscard]] bool valid_schedule() const noexcept {
+        if (copy_gops + reencode_gops != total_gops && total_gops != 0) {
+            return false;
+        }
+        if (work_units.empty()) return true;
+        // Trim plans may intentionally carry only the selected GOP subset;
+        // non-trim schedules must describe the complete source envelope.
+        if (total_gops != 0 && work_units.size() != total_gops && !trim_only) {
+            return false;
+        }
+        std::size_t copies = 0;
+        std::size_t reencodes = 0;
+        for (std::size_t index = 0; index < work_units.size(); ++index) {
+            const auto& unit = work_units[index];
+            if ((!trim_only && unit.ordinal != index) ||
+                (index > 0 && unit.ordinal <= work_units[index - 1].ordinal) ||
+                unit.first_pts > unit.last_pts ||
+                unit.first_dts > unit.last_dts) {
+                return false;
+            }
+            if (unit.copies_packets()) ++copies;
+            else ++reencodes;
+        }
+        if (trim_only) {
+            return reencodes == 0 && copies == work_units.size();
+        }
+        return copies == copy_gops && reencodes == reencode_gops &&
+            (total_gops == 0 || total_gops == work_units.size()) &&
+            all_copy == (copy_gops == total_gops) &&
+            hybrid == (copy_gops > 0 && reencode_gops > 0);
+    }
 };
 
 /// Reduce GOP pre-analysis + authoring intent to the boundary decision.
