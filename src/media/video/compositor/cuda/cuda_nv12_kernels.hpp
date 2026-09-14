@@ -237,6 +237,19 @@ __device__ float direct_median3(float a, float b, float c) {
   return max(min(a, b), min(max(a, b), c));
 }
 
+// DirectYUV consumes canonical linear resources and emits SDR video by
+// default. Keep this helper next to the direct batch kernels so the fast path
+// cannot silently bypass the same colour boundary used by RGBA conversion.
+__device__ inline float direct_encode_transfer_channel(float linear,
+                                                       unsigned int transfer) {
+  if (transfer == 0u) return linear;
+  if (linear <= 0.0f) return 0.0f;
+  if (linear >= 1.0f) return 1.0f;
+  return (linear <= 0.0031308f)
+      ? (linear * 12.92f)
+      : (1.055f * powf(linear, 1.0f / 2.4f) - 0.055f);
+}
+
 __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
                                     int x, int y, int width, int height) {
   if (x < 0 || y < 0 || x >= width || y >= height || layer.rgba == 0 ||
@@ -295,7 +308,21 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
     src.w = fill_src.w + src.w * (1.0f - fill_src.w);
     return src;
   }
-  return ((const float4*)row)[sx];
+  float4 src = ((const float4*)row)[sx];
+  if (layer.resource_kind == 3) {
+    // ImageCache uploads canonical linear premultiplied RGBA. The painter
+    // below operates on straight RGB plus alpha, so undo premultiplication at
+    // this single resource boundary and nowhere else.
+    const float a = fminf(fmaxf(src.w, 0.0f), 1.0f);
+    if (a > 1e-5f) {
+      src.x /= a;
+      src.y /= a;
+      src.z /= a;
+    } else {
+      src.x = src.y = src.z = 0.0f;
+    }
+  }
+  return src;
 }
 
 __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
@@ -327,7 +354,8 @@ __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
 extern "C" __global__ void nv12_composite_layer_batch_2x2(
     const unsigned char* bg_y, int bg_yp, const unsigned char* bg_uv, int bg_uvp,
     unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
-    const DirectYuvLayer* layers, int layer_count, int width, int height) {
+    const DirectYuvLayer* layers, int layer_count, int width, int height,
+    unsigned int transfer_encode) {
   const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
   const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
   if (x >= width || y >= height) return;
@@ -341,8 +369,11 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
   const int xs[4] = {x, x1, x, x1};
   const int ys[4] = {y, y, y1, y1};
   for (int i = 0; i < 4; ++i) {
+    const float r = direct_encode_transfer_channel(fs[i].x, transfer_encode);
+    const float g = direct_encode_transfer_channel(fs[i].y, transfer_encode);
+    const float b = direct_encode_transfer_channel(fs[i].z, transfer_encode);
     const float y_fg = 16.0f + 219.0f *
-        (0.2126f * fs[i].x + 0.7152f * fs[i].y + 0.0722f * fs[i].z);
+        (0.2126f * r + 0.7152f * g + 0.0722f * b);
     const float bg = (float)bg_y[ys[i] * bg_yp + xs[i]];
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(fmaxf(roundf(
         (1.0f - fs[i].w) * bg + fs[i].w * y_fg), 16.0f), 235.0f);
@@ -355,12 +386,15 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
     out_uv[uv + 1] = bg_uv[bg_uv_index + 1];
     return;
   }
-  const float r = (f00.x*f00.w + f10.x*f10.w + f01.x*f01.w + f11.x*f11.w) /
+  const float r_linear = (f00.x*f00.w + f10.x*f10.w + f01.x*f01.w + f11.x*f11.w) /
       fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
-  const float g = (f00.y*f00.w + f10.y*f10.w + f01.y*f01.w + f11.y*f11.w) /
+  const float g_linear = (f00.y*f00.w + f10.y*f10.w + f01.y*f01.w + f11.y*f11.w) /
       fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
-  const float b = (f00.z*f00.w + f10.z*f10.w + f01.z*f01.w + f11.z*f11.w) /
+  const float b_linear = (f00.z*f00.w + f10.z*f10.w + f01.z*f01.w + f11.z*f11.w) /
       fmaxf(f00.w + f10.w + f01.w + f11.w, 1e-6f);
+  const float r = direct_encode_transfer_channel(r_linear, transfer_encode);
+  const float g = direct_encode_transfer_channel(g_linear, transfer_encode);
+  const float b = direct_encode_transfer_channel(b_linear, transfer_encode);
   const float u = 128.0f + 224.0f * (-0.1146f*r - 0.3854f*g + 0.5000f*b);
   const float v = 128.0f + 224.0f * ( 0.5000f*r - 0.4542f*g - 0.0458f*b);
   out_uv[uv] = (unsigned char)fminf(fmaxf(roundf((1.0f-a)*bg_uv[bg_uv_index] + a*u), 16.0f), 240.0f);
@@ -373,7 +407,8 @@ extern "C" __global__ void nv12_composite_layer_batch_2x2(
 extern "C" __global__ void p010_composite_layer_batch_2x2(
     const unsigned short* bg_y, int bg_yp, const unsigned short* bg_uv, int bg_uvp,
     unsigned short* out_y, int out_yp, unsigned short* out_uv, int out_uvp,
-    const DirectYuvLayer* layers, int layer_count, int width, int height) {
+    const DirectYuvLayer* layers, int layer_count, int width, int height,
+    unsigned int transfer_encode) {
   const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
   const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
   if (x >= width || y >= height) return;
@@ -390,8 +425,11 @@ extern "C" __global__ void p010_composite_layer_batch_2x2(
   const int out_y_stride = out_yp / 2;
   for (int i = 0; i < 4; ++i) {
     const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
+    const float r = direct_encode_transfer_channel(fs[i].x, transfer_encode);
+    const float g = direct_encode_transfer_channel(fs[i].y, transfer_encode);
+    const float b = direct_encode_transfer_channel(fs[i].z, transfer_encode);
     const float y_fg = 64.0f + 876.0f *
-        (0.2126f * fs[i].x + 0.7152f * fs[i].y + 0.0722f * fs[i].z);
+        (0.2126f * r + 0.7152f * g + 0.0722f * b);
     const float bg = (float)(bg_y[ys[i] * bg_y_stride + xs[i]] >> 6);
     const float value = (1.0f - a) * bg + a * y_fg;
     out_y[ys[i] * out_y_stride + xs[i]] =
@@ -412,12 +450,15 @@ extern "C" __global__ void p010_composite_layer_batch_2x2(
     out_uv[uv + 1] = bg_uv[bg_uv_index + 1];
     return;
   }
-  const float r = (f00.x*a0 + f10.x*a1 + f01.x*a2 + f11.x*a3) /
+  const float r_linear = (f00.x*a0 + f10.x*a1 + f01.x*a2 + f11.x*a3) /
       fmaxf(a_sum, 1e-6f);
-  const float g = (f00.y*a0 + f10.y*a1 + f01.y*a2 + f11.y*a3) /
+  const float g_linear = (f00.y*a0 + f10.y*a1 + f01.y*a2 + f11.y*a3) /
       fmaxf(a_sum, 1e-6f);
-  const float b = (f00.z*a0 + f10.z*a1 + f01.z*a2 + f11.z*a3) /
+  const float b_linear = (f00.z*a0 + f10.z*a1 + f01.z*a2 + f11.z*a3) /
       fmaxf(a_sum, 1e-6f);
+  const float r = direct_encode_transfer_channel(r_linear, transfer_encode);
+  const float g = direct_encode_transfer_channel(g_linear, transfer_encode);
+  const float b = direct_encode_transfer_channel(b_linear, transfer_encode);
   const float u = 512.0f + 896.0f * (-0.1146f*r - 0.3854f*g + 0.5000f*b);
   const float v = 512.0f + 896.0f * ( 0.5000f*r - 0.4542f*g - 0.0458f*b);
   const float bg_u = (float)(bg_uv[bg_uv_index] >> 6);

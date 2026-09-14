@@ -12,6 +12,10 @@ enum class CudaLayerResourceKind : std::uint8_t {
     Rgba = 0,
     Nv12 = 1,
     Mtsdf = 2,
+    /// RGBA32F in the canonical compositor domain: linear and premultiplied.
+    /// The direct YUV kernel unpremultiplies it before applying the target
+    /// transfer function and YUV matrix.
+    RgbaLinearPremultiplied = 3,
 };
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
