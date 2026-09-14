@@ -395,11 +395,9 @@ namespace text_run_materialize_detail {
 
 } // namespace text_run_materialize_detail
 
-std::shared_ptr<TextRunShape> materialize_prepared_text(
+std::shared_ptr<const PreparedTextRun> prepare_text_run(
     const PreparedText& prepared,
-    FontEngine* engine,
-    SampleTime sample_time,
-    std::shared_ptr<const AnimatedTextDocument> animated_doc
+    FontEngine* engine
 ) {
     using namespace text_run_materialize_detail;
 
@@ -457,22 +455,6 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
         return nullptr;
     }
 
-    auto glyph_states = evaluate_animator_stack(
-        prepared_with_font.animation.animators,
-        text_layout->placed,
-        text,
-        sample_time);
-
-    auto shape = std::make_shared<TextRunShape>();
-    shape->layout   = text_layout;
-    shape->glyphs   = std::move(glyph_states);
-    shape->paint    = prepared_with_font.style.paint;
-    shape->material = prepared_with_font.style.material;
-    shape->shadows  = prepared_with_font.style.shadows;
-    shape->animators = prepared_with_font.animation.animators;
-    shape->animated_doc = animated_doc;
-    shape->engine      = use_engine;
-
     TextLayoutSpec layout_spec;
     layout_spec.box            = prepared_with_font.frame.size;
     layout_spec.anchor         = prepared_with_font.frame.anchor;
@@ -489,19 +471,66 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     layout_spec.max_lines      = prepared_with_font.frame.max_lines;
     layout_spec.ellipsis       = prepared_with_font.frame.ellipsis;
     layout_spec.features       = prepared_with_font.shaping.open_type_features;
-    shape->layout_spec = layout_spec;
-    shape->placement_kind = prepared_with_font.frame.placement.kind;
+    auto prepared_run = std::make_shared<PreparedTextRun>();
+    prepared_run->layout = std::move(text_layout);
+    prepared_run->paint = prepared_with_font.style.paint;
+    prepared_run->material = prepared_with_font.style.material;
+    prepared_run->shadows = prepared_with_font.style.shadows;
+    prepared_run->animators = prepared_with_font.animation.animators;
+    prepared_run->engine = use_engine;
+    prepared_run->layout_spec = std::move(layout_spec);
+    prepared_run->placement_kind = prepared_with_font.frame.placement.kind;
+    return prepared_run;
+}
 
-    if (animated_doc && use_engine) {
+std::shared_ptr<TextRunShape> materialize_prepared_text(
+    const PreparedTextRun& prepared,
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc
+) {
+    if (!prepared.layout || prepared.engine == nullptr) return nullptr;
+
+    auto shape = std::make_shared<TextRunShape>();
+    shape->layout = prepared.layout;
+    shape->glyphs = evaluate_animator_stack(
+        prepared.animators,
+        prepared.layout->placed,
+        prepared.layout->source_text,
+        sample_time);
+    shape->paint = prepared.paint;
+    shape->material = prepared.material;
+    shape->shadows = prepared.shadows;
+    shape->animators = prepared.animators;
+    shape->animated_doc = std::move(animated_doc);
+    shape->engine = prepared.engine;
+    shape->layout_spec = prepared.layout_spec;
+    shape->placement_kind = prepared.placement_kind;
+
+    if (shape->animated_doc) {
         const Frame integral = sample_time.integral_frame();
-        const ActiveTextState state = animated_doc->sample_at(integral);
+        const ActiveTextState state = shape->animated_doc->sample_at(integral);
         if (state.active != nullptr) {
             (void)apply_active_state_to_text_run_shape(
-                *shape, state, *use_engine, layout_spec);
+                *shape, state, *prepared.engine, prepared.layout_spec);
         }
     }
 
     return shape;
+}
+
+std::shared_ptr<TextRunShape> materialize_prepared_text(
+    const PreparedText& prepared,
+    FontEngine* engine,
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc
+) {
+    auto cached = prepared.prepared_run;
+    if (!cached || (engine != nullptr && cached->engine != engine)) {
+        cached = prepare_text_run(prepared, engine);
+        prepared.prepared_run = cached;
+    }
+    if (!cached) return nullptr;
+    return materialize_prepared_text(*cached, sample_time, std::move(animated_doc));
 }
 
 #endif // CHRONON3D_USE_BLEND2D

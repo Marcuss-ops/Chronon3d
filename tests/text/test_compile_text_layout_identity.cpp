@@ -41,11 +41,14 @@
 // ============================================================================
 
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
+
+#include <tests/helpers/test_utils.hpp>
 
 #include <doctest/doctest.h>
 
@@ -86,10 +89,10 @@ inline void reset_layout_cache_for_test() {
 ) {
     PreparedText params;
     params.document.utf8          = utf8;
-    params.style.font.font_family       = "DejaVu Sans";   // system fallback
+    params.style.font.font_path         =
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
     params.style.font.font_size         = font_size;
     params.style.font.font_weight       = 400;
-    // font_path intentionally empty → resolver fallback to font_family.
     params.shaping.direction                   = direction;
     params.shaping.language                    = language;
     params.animation.cache_layout                = true;
@@ -232,6 +235,32 @@ TEST_CASE("materialize_prepared_text: cache hit returns the same TextRunLayout s
     // different allocation is acceptable as long as the cache_hit path
     // is preserved bit-identical).
     CHECK(shape_a->layout->layout_hash() == shape_b->layout->layout_hash());
+}
+
+TEST_CASE("materialize_prepared_text: prepared run is reused across frame samples") {
+    LocalEngine env;
+
+    const auto params = make_test_params("Prepared run reuse", 32.0f);
+    auto prepared = params;
+
+    const auto first = materialize_prepared_text(
+        prepared, &env.engine, SampleTime{0, 24});
+    const auto prepared_run = prepared.prepared_run;
+    const auto second = materialize_prepared_text(
+        prepared, &env.engine, SampleTime{12, 24});
+
+    if (!first || !second || !prepared_run || !first->layout || !second->layout) {
+        MESSAGE("test skipped: system fonts unavailable");
+        return;
+    }
+
+    // The outer shape is dynamic per frame, but its layout/material payload
+    // must remain the single immutable preparation produced before rendering.
+    CHECK(first.get() != second.get());
+    CHECK(first->layout.get() == prepared_run->layout.get());
+    CHECK(second->layout.get() == prepared_run->layout.get());
+    CHECK(first->engine == prepared_run->engine);
+    CHECK(second->engine == prepared_run->engine);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

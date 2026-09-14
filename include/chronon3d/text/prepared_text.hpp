@@ -11,7 +11,11 @@
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/text_shaping_options.hpp>
 
+#include <memory>
+
 namespace chronon3d {
+
+struct PreparedTextRun;
 
 struct PreparedText {
     TextDocument document;
@@ -20,6 +24,11 @@ struct PreparedText {
     TextShapingOptions shaping;
     TextAnimation animation;
     std::vector<TextSpanOverride> spans;
+
+    // Immutable layout/material preparation shared by every frame built from
+    // this payload. The pointer is mutable only so the canonical materializer
+    // can publish its once-only cache through const render-plan captures.
+    mutable std::shared_ptr<const PreparedTextRun> prepared_run{};
 };
 
 /// Lower a canonical TextDefinition into the unified compiled text payload.

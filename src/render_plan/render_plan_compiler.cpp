@@ -4,6 +4,7 @@
 
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
@@ -116,6 +117,19 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             }
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
+#ifdef CHRONON3D_USE_BLEND2D
+            // Cross the prepare barrier before the per-frame scene callback:
+            // shaping, layout, material and stroke data are immutable for the
+            // whole render plan. Only glyph animator state is evaluated per
+            // frame by LayerBuilder.
+            prepared_texts[index]->prepared_run =
+                chronon3d::prepare_text_run(
+                    *prepared_texts[index], font_engine.get());
+            if (!prepared_texts[index]->prepared_run) {
+                throw std::runtime_error(
+                    "text layer could not be prepared");
+            }
+#endif
         }
         materialize_layout_ms = chronon3d::profiling::duration_ms(
             materialize_t0, chronon3d::profiling::now());
