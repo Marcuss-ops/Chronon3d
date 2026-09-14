@@ -177,12 +177,6 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
         session.captured_native_frame.reset();
     }
 
-    if (const char* dt = std::getenv("CHRONON_DECODE_TRACE"); dt && *dt) {
-        spdlog::info("[dec-trace] sess={} target={} last={} win={} seq={} fwd={}",
-            static_cast<void*>(&session), target, session.last_sample_index,
-            window_frame != nullptr, sequential, forward_gap);
-    }
-
     std::size_t matches_remaining = 1;
     if (!sequential && !forward_gap) {
         const std::size_t seek_index = session.sample_table.previous_keyframe(target_index).value_or(target_index);
