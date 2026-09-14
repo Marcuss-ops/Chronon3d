@@ -530,6 +530,17 @@ NodeExecResult CompositeNode::execute(
             m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
             try_native_affine_composite(ctx, *result, *top, clip);
+        if (native_surface_promotion_diag_enabled()) {
+            spdlog::info(
+                "[composite-native-diag] frame={} result_handle={} top_handle={} "
+                "result={} affine={} result_cpu={} top_cpu={} result_size={}x{} top_size={}x{}",
+                static_cast<int>(ctx.frame_input.frame), result->surface_handle(),
+                top->surface_handle(), native_composite ? 1 : 0,
+                native_dimension_composite ? 1 : 0,
+                result->is_cpu_authoritative() ? 1 : 0,
+                top->is_cpu_authoritative() ? 1 : 0,
+                result->width(), result->height(), top->width(), top->height());
+        }
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
             spdlog::error(
