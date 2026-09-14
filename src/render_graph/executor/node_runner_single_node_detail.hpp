@@ -68,6 +68,23 @@ void execute_single_node(
         const CompiledLayerBatch* batch_for_root =
             compiled.program.layer_batch_for(id);
         if (!batch_for_root || batch_for_root->root_node != id) {
+            // A lowered batch member that is not its root produces NO output of
+            // its own: the batch root publishes the fused destination. If any
+            // consumer outside the batch still reads this node, that consumer
+            // gets a null input and silently degenerates (a Composite reads no
+            // top and passes its bottom through), so name the two ids here.
+            if (ctx.frame_input.frame <= 2) {
+                spdlog::info(
+                    "[batch-member-skip] frame={} node_id={} name='{}' "
+                    "batch_root={} batch_members={} consumers={}",
+                    static_cast<int>(ctx.frame_input.frame), id,
+                    graph.node(id).name(),
+                    batch_for_root ? batch_for_root->root_node : k_invalid_node,
+                    batch_for_root ? batch_for_root->member_nodes.size() : 0,
+                    id < compiled.nodes.size()
+                        ? compiled.nodes[id].consumers.size()
+                        : 0);
+            }
             commit_transparent_skip(
                 state, id, ctx, parent_pool,
                 SkipReason::StaticBaked,
