@@ -19,9 +19,28 @@ namespace chronon3d::graph::detail {
 
 void synchronize_native_output(RenderGraphContext& ctx,
                                const std::shared_ptr<Framebuffer>& framebuffer) {
+    if (native_surface_promotion_diag_enabled()) {
+        spdlog::info(
+            "[native-output-diag] frame={} fb={} handle={} cpu_auth={} gpu_auth={}",
+            static_cast<int>(ctx.frame_input.frame), framebuffer ? 1 : 0,
+            framebuffer ? framebuffer->surface_handle() : runtime::kInvalidRenderSurfaceHandle,
+            framebuffer && framebuffer->is_cpu_authoritative() ? 1 : 0,
+            framebuffer && framebuffer->is_gpu_authoritative() ? 1 : 0);
+    }
     if (!framebuffer || !ctx.backend ||
         framebuffer->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return;
+    }
+    if (native_surface_promotion_diag_enabled()) {
+        spdlog::info(
+            "[native-output-diag] frame={} handle={} cpu_auth={} gpu_auth={} "
+            "retain={} encode_surface={} disable_readback={}",
+            static_cast<int>(ctx.frame_input.frame), framebuffer->surface_handle(),
+            framebuffer->is_cpu_authoritative() ? 1 : 0,
+            framebuffer->is_gpu_authoritative() ? 1 : 0,
+            ctx.policy.retain_native_surface_for_video ? 1 : 0,
+            ctx.policy.native_video_encode_surface,
+            ctx.policy.disable_pixel_readback ? 1 : 0);
     }
     // A native encode surface is the authoritative output contract for
     // Vulkan+NVENC. Never read it back merely because the public API also
@@ -85,6 +104,14 @@ void synchronize_native_output(RenderGraphContext& ctx,
         reinterpret_cast<const Color*>(scratch.data()),
         framebuffer->width() /* packed source has no padding */,
         framebuffer->width(), framebuffer->height());
+    if (native_surface_promotion_diag_enabled()) {
+        const auto sample = reinterpret_cast<const Color*>(scratch.data())[
+            static_cast<std::size_t>(std::min(300, framebuffer->height() - 1)) *
+                static_cast<std::size_t>(framebuffer->width()) +
+            static_cast<std::size_t>(std::min(1300, framebuffer->width() - 1))];
+        spdlog::info("[native-output-diag] downloaded_sample=({}, {}, {}, {})",
+                     sample.r, sample.g, sample.b, sample.a);
+    }
     if (ctx.surface_registry) {
         (void)ctx.backend->release_surface(framebuffer->surface_handle());
         (void)ctx.surface_registry->release(framebuffer->surface_handle());

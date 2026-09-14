@@ -326,5 +326,38 @@ l'accumulo per-frame fino all'esaurimento della VRAM.
 `initialized`. `d1f43877a` (fix dell'hang Vulkan↔CUDA) ha **deliberatamente**
 cambiato il contratto a "immagine materializzata (non-null)", quindi i due
 `CHECK_FALSE(valid(...))` erano stale e il target falliva **14/16 anche su
-`HEAD`**. Le assertion ora verificano `image.initialized` direttamente: il
-target è **16/16**.
+`HEAD`**. Le assertion ora verificano `image.initialized` direttamente.
+
+**Aggiornamento 2026-09-13 (quinta sessione) — la lane Vulkan-gated esiste.**
+Chiuso il gap di copertura che questo ticket nomina: nessun workflow compilava
+le suite Vulkan-gated (`native-video.yml` configura lo *stesso* preset
+`linux-video-test` con `-DCHRONON3D_ENABLE_VULKAN=OFF`). Aggiunti:
+
+- `scripts/ci/verify_vulkan_gated_unit_tests.sh` — configura (se serve),
+  compila ed esegue le 8 suite headless;
+- job `vulkan-gated-unit` in `.github/workflows/native-video.yml`.
+
+Esito locale: **8/8 PASS** (`shader_abi`, `vulkan_debug_context`,
+`vulkan_descriptor_arena`, `vulkan_kernel_store`,
+`vulkan_surface_materializer`, `vulkan_interop_generation`,
+`vulkan_submission_ring`, `vulkan_upload_ring`).
+`chronon3d_vulkan_surface_materializer_tests` è ora **17/17**.
+
+**Rosso pre-esistente, NON escluso per comodità:**
+`chronon3d_text_tile_raster_canary_tests` fallisce 13 assertion di pixel
+(`full.r/g/b`, `half.*`, `mtsdf.*`, `counts[*] >= 1` tutte a 0 → il dispatch
+compute non scrive). È **provato non correlato** a questo change set:
+neutralizzando completamente il retirement per-slot
+(`record_slot_transient_surface`/`retire_frame_slot_transient_surfaces` no-op)
+le 13 failure si riproducono **identiche**. Inoltre il canary non usa
+`VulkanBackend`/la surface authority: fa dispatch SPIR-V raw. Per questo è
+escluso dalla lane — includerlo renderebbe verde/rosso il gate per una ragione
+che non è un contratto di backend. Va diagnosticato a parte (driver/GPU).
+
+**Terza assertion stale chiusa:** `test_vulkan_debug_context.cpp` si aspettava
+`stats.passes_executed >= 6` per 6 `draw_node`, ne otteneva 5. Causa: il nodo
+Path con `cubic_to` è **deliberatamente** respinto dal gate di CPU-exactness di
+`try_native_path_stroke` (solo un singolo segmento retto opaco è
+native-equivalente; una cubica sfumerebbe i giunti e intaccherebbe i cap).
+L'expectation `>= 6` precedeva quel gate: ora è `>= 5` con la motivazione, e il
+target è **8/8**.

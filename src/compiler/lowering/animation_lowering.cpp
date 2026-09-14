@@ -9,9 +9,16 @@ AnimationProperty property_kind(std::string_view property) {
     if (property == "position.x") return AnimationProperty::PositionX;
     if (property == "position.y") return AnimationProperty::PositionY;
     if (property == "position.z") return AnimationProperty::PositionZ;
+    if (property == "position_x") return AnimationProperty::PositionXOffset;
+    if (property == "position_y") return AnimationProperty::PositionYOffset;
+    if (property == "position_z") return AnimationProperty::PositionZOffset;
     if (property == "scale.x") return AnimationProperty::ScaleX;
     if (property == "scale.y") return AnimationProperty::ScaleY;
     if (property == "scale.z") return AnimationProperty::ScaleZ;
+    if (property == "scale_x") return AnimationProperty::ScaleX;
+    if (property == "scale_y") return AnimationProperty::ScaleY;
+    if (property == "scale_z") return AnimationProperty::ScaleZ;
+    if (property == "scale") return AnimationProperty::UniformScale;
     return AnimationProperty::Unknown;
 }
 }

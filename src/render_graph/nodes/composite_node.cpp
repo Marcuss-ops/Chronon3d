@@ -325,6 +325,7 @@ NodeExecResult CompositeNode::execute(
     const FramebufferRef& bottom = in0 ? in0 : in1;
     const FramebufferRef& top = in0 ? in1 : empty_fb;
 
+
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info(
             "[dirty-debug] frame={} Composite mode={} bottom_opaque={} top_opaque={} clip=[{}:{} -> {}:{}]",

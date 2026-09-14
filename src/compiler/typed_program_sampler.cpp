@@ -95,17 +95,26 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
             const auto first = animation.first_track;
             const auto last = std::min<std::size_t>(
                 first + animation.track_count, program.animation_tracks().size());
+            // Layer animation keyframes are local to the layer window. This
+            // is how the render-plan builder evaluates them and is required
+            // for overlays that enter after frame zero.
+            const Frame animation_frame{
+                std::max<std::int64_t>(0, frame.integral() - start)};
             for (std::size_t i = first; i < last; ++i) {
                 const auto& track = program.animation_tracks()[i];
-                const auto value = sample_track(program, track, frame, 0.0f);
+                const auto value = sample_track(program, track, animation_frame, 0.0f);
                 switch (track.property_kind) {
                     case AnimationProperty::Opacity: sampled.opacity = value; break;
                     case AnimationProperty::PositionX: position.x = value; break;
                     case AnimationProperty::PositionY: position.y = value; break;
                     case AnimationProperty::PositionZ: position.z = value; break;
+                    case AnimationProperty::PositionXOffset: position.x += value; break;
+                    case AnimationProperty::PositionYOffset: position.y += value; break;
+                    case AnimationProperty::PositionZOffset: position.z += value; break;
                     case AnimationProperty::ScaleX: scale.x = value; break;
                     case AnimationProperty::ScaleY: scale.y = value; break;
                     case AnimationProperty::ScaleZ: scale.z = value; break;
+                    case AnimationProperty::UniformScale: scale = {value, value, value}; break;
                     case AnimationProperty::Unknown: break;
                 }
             }

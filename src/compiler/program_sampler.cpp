@@ -31,6 +31,14 @@ chronon3d::Scene ProgramSampler::materialize_scene(
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
                     params.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                    // RectParams are authored around their local centre. A
+                    // full-canvas background has no explicit position, so
+                    // place its top-left at the canvas origin exactly as the
+                    // render-plan compatibility compiler does.
+                    if (layer.position_dimensions < 2) {
+                        builder.pin_to(Anchor::Center);
+                        params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
+                    }
                     builder.rect("color", std::move(params));
                     break;
                 }
@@ -40,6 +48,7 @@ chronon3d::Scene ProgramSampler::materialize_scene(
                     params.size = layer.size_dimensions == 2
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
+                    params.fit = static_cast<chronon3d::FitMode>(layer.fit);
                     params.radius = layer.radius;
                     builder.image("image", std::move(params));
                     break;

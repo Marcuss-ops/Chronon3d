@@ -388,11 +388,20 @@ NodeExecResult TransformNode::execute(
                 RenderBackendErrorCode::InvalidInput,
                 "TransformNode: unable to allocate native affine output handle"));
         if (created.ok()) {
+            // A new storage image has undefined contents. The affine pass
+            // writes only its clipped/source-covered rectangle, so establish
+            // transparent pixels before dispatch to prevent an opaque black
+            // ROI from reaching the final composite.
+            const auto cleared = ctx.backend->initialize_transparent_surface(handle);
             const auto transformed = ctx.backend->transform_surface_affine(
                 handle, input->surface_handle(), transform);
-            if (transformed.ok()) {
+            if (cleared.ok() && transformed.ok()) {
                 result->set_surface_handle(handle);
                 return NodeExecResult{std::move(result)};
+            }
+            if (!cleared.ok()) {
+                spdlog::warn("[transform-native] affine output clear failed node='{}' handle={} error='{}'",
+                             name(), handle, cleared.error().message);
             }
             spdlog::warn("[transform-native] affine transform failed node='{}' source={} dest={} error='{}'",
                          name(), input->surface_handle(), handle,

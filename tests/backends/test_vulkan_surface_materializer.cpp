@@ -332,21 +332,42 @@ TEST_CASE("ensure transient reuse prefers compatible unused transient slots only
           runtime::LifetimeClass::FrameTransient);
 }
 
-TEST_CASE("initialized binding refuses to move to another physical slot") {
+TEST_CASE("initialized persistent binding refuses to move to another physical slot") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
     FakeSurfaceOwner owner;
     authority.owner_ = &owner;
 
     constexpr runtime::RenderSurfaceHandle handle{0xC3D451u};
+    auto desc = persistent_desc();
+
+    auto& image = authority.bind(handle, 1, desc);
+    image.initialized = true;
+
+    // Persistent / initialized external content is never silently replaced by
+    // a plan re-placement.
+    CHECK_THROWS_AS(
+        authority.bind(handle, 2, desc),
+        std::logic_error);
+    CHECK(authority.bound_slot(handle) == 1);
+}
+
+TEST_CASE("initialized transient binding is re-slot by content-aware placement") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC3D452u};
     auto desc = test_desc();
 
     auto& image = authority.bind(handle, 1, desc);
     image.initialized = true;
 
-    CHECK_THROWS_AS(
-        authority.bind(handle, 2, desc),
-        std::logic_error);
-    CHECK(authority.bound_slot(handle) == 1);
+    // The plan is the placement authority: a FrameTransient binding may be
+    // re-placed once its content has retired ("make Vulkan planned placement
+    // content aware"). Only persistent/initialized external content is pinned.
+    auto& moved = authority.bind(handle, 2, desc);
+    (void)moved;
+    CHECK(authority.bound_slot(handle) == 2);
 }
 
 // ── Audit N4: recording lease + generation token ─────────────────────────

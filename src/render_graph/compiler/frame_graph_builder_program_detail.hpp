@@ -77,6 +77,15 @@ bool is_fusible_layer_node(
     const bool is_canonical_layer_source =
         (dynamic_cast<const SourceNode*>(&graph_node) != nullptr && source_is_image) ||
         (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr && multi_source_is_image_only);
+    // Frame-bound image layers carry sampled transforms and external GPU
+    // assets.  Keep them on SourceNode's native image path until the fused
+    // storage-image batch has an equivalent descriptor/readback contract for
+    // those assets.  The native path remains device-local and supports the
+    // same Vulkan/NVENC production lane; batching static-compatible layers is
+    // still allowed below.
+    const bool frame_bound_image_source =
+        source_is_image && node_info.binding_meta.has_binding();
+    if (frame_bound_image_source) return false;
     const bool is_text_layer_source =
         node_info.kind == RenderGraphNodeKind::TextRun &&
         dynamic_cast<const TextRunNode*>(&graph_node) != nullptr;

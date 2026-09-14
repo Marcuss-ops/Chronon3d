@@ -209,6 +209,14 @@ public:
 
         /// Backend identifier (e.g. "native-av", "raw-file").
         std::string_view backend;
+
+        /// Frames between keyframes the encoder was configured with, as a
+        /// producer-side fact. The assembly-ready output contract fixes a
+        /// 2-second cadence (48 frames at 24 fps); exposing the configured GOP
+        /// lets a test assert what the producer will emit at the encoder
+        /// boundary instead of re-deriving it from the frame rate. 0 means
+        /// "no encoder open" (the sink has no GOP yet).
+        int keyframe_interval_frames{0};
     };
 
     /// Return runtime diagnostics from the sink implementation.
