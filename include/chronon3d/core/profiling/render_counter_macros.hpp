@@ -401,6 +401,7 @@ namespace chronon3d {
     X(gpu_native_encode_frames) \
     X(nv12_to_rgba_frames) \
     X(rgba_to_nv12_frames) \
+    X(nv12_partial_handoff_frames)  /**< RGBA surface -> NV12 boundary frames converted as a SUB-region. Non-zero means a producer declared destination continuity; on the pooled encoder-frame path that claim is unproven, so this is a defect signal. */ \
     X(gpu_surface_copy_frames) \
     X(cpu_pixel_readback_count) \
     X(cpu_pixel_readback_bytes) \

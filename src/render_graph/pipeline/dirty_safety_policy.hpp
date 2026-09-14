@@ -18,6 +18,13 @@ namespace chronon3d::effects {
 
 namespace chronon3d::graph::detail {
 
+struct LayerSpatialHalo {
+    f32 left{0.0f};
+    f32 top{0.0f};
+    f32 right{0.0f};
+    f32 bottom{0.0f};
+};
+
 // Forward declaration (full definition in builder/graph_builder_internal.hpp)
 struct LayerResolutionResult;
 
@@ -42,6 +49,7 @@ struct LayerResolutionResult;
 /// raw radius-driven extent.  Returns 0.0f when the layer has no
 /// spatial-expanding effects.
 [[nodiscard]] f32 compute_layer_spatial_spread(const Layer& layer);
+[[nodiscard]] LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer);
 
 /// Returns true when any active layer in the scene has spatial effects
 /// (blur, glow, bloom, shadow, distort, temporal) that would cause visible

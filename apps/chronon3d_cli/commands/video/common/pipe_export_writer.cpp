@@ -224,9 +224,11 @@ void run_writer_thread_impl(const WriterThreadContext& ctx) {
             const bool encoded = gpu_frame
                 ? (slot->native_surface_prepared()
                     ? ctx.encoder.write_prepared_native_surface(
-                        *slot->backend, slot->source_surface, slot->native_surface)
+                        *slot->backend, slot->source_surface, slot->native_surface,
+                        full->dirty_regions)
                     : ctx.encoder.write_native_surface(
-                        *slot->backend, slot->source_surface, slot->native_surface))
+                        *slot->backend, slot->source_surface, slot->native_surface,
+                        full->dirty_regions))
                 : ctx.encoder.write_frame_async(fb_ref, std::move(full->cpu_fallback));
 
             if (!encoded) {

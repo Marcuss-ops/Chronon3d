@@ -60,23 +60,7 @@ struct BitstreamTargetContract {
     }
 };
 
-struct BitstreamCompatibility {
-    bool codec_match{false};
-    bool profile_match{false};
-    bool level_compatible{false};
-    bool dimensions_match{false};
-    bool pixel_format_match{false};
-    bool parameter_sets_compatible{false};  ///< SPS/PPS
-    bool color_params_match{false};         ///< color_range/space/transfer/primaries
-    bool random_access_safe{false};        ///< closed GOP, no cross-references
-
-    [[nodiscard]] bool safe_to_splice() const noexcept {
-        return codec_match && profile_match && level_compatible &&
-            dimensions_match && pixel_format_match &&
-            parameter_sets_compatible && color_params_match &&
-            random_access_safe;
-    }
-};
+using BitstreamCompatibility = chronon3d::media::BitstreamCompatibility;
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 /// Compare the complete decoder configuration needed to splice two encoded
@@ -106,6 +90,10 @@ struct CompressedPacketInfo {
     std::int64_t dts{0};
     bool keyframe{false};
     bool references_prior_gop{false};
+    /// Synthetic packet descriptions default to certified so the pure
+    /// planner remains useful without a codec parser. Real demuxed packets
+    /// set this explicitly; unknown syntax stays fail-closed.
+    bool random_access_certified{true};
 };
 
 /// Tests an edit interval against the presentation-time envelope of a GOP.
@@ -159,9 +147,10 @@ struct CompressedPacketInfo {
         .first_pts = min_pts->pts,
         .last_pts = max_pts->pts,
         .codec_parameters_match = codec_parameters_match,
-        .closed = first.keyframe && !first.references_prior_gop,
+        .closed = first.keyframe && !first.references_prior_gop &&
+            first.random_access_certified,
         .safe_random_access = first.keyframe && !first.references_prior_gop &&
-            monotonic_dts,
+            first.random_access_certified && monotonic_dts,
         .intersects_edit = intersects_edit,
         .first_dts = first.dts,
         .last_dts = packets.back().dts,
@@ -173,6 +162,10 @@ struct GopPlan {
     std::int64_t last_pts{0};
     std::int64_t first_dts{0};
     std::int64_t last_dts{0};
+    /// Decode dependency closure. The output/render range remains the
+    /// current GOP, while an Open-GOP may need packets from an earlier unit.
+    std::int64_t decode_first_pts{0};
+    std::int64_t decode_first_dts{0};
     GopExecutionMode mode{GopExecutionMode::Reencode};
     // Stable ordinal in source presentation order. The hybrid executor uses
     // this to preserve packet ordering when copy and reencode work completes

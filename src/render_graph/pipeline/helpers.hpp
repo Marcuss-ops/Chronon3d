@@ -187,6 +187,7 @@ inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
             .require_native_gpu = settings.require_native_gpu,
             .native_video_encode_surface = settings.native_video_encode_surface,
             .native_video_source_surface = settings.native_video_source_surface,
+            .native_video_previous_surface = settings.native_video_previous_surface,
             // Keep node clipping in sync with framebuffer reuse.
             .diagnostics_enabled = settings.diagnostics.enabled,
             .ssaa_factor         = settings.ssaa_factor,

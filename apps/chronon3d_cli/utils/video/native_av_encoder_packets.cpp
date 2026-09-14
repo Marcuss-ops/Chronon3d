@@ -11,6 +11,19 @@ double elapsed_ms(const Clock::time_point& start) {
 }
 } // namespace
 
+bool NativeAvEncoder::submit_copied_video(
+    AVPacket& packet, AVRational source_time_base) {
+    std::lock_guard lock(mutex_);
+    if (!open_complete_ || !mux_ || !packet.data) {
+        spdlog::error("[native_av] copied packet submitted outside an open mux session");
+        return false;
+    }
+    const auto started = Clock::now();
+    const bool ok = mux_->submit_video(packet, source_time_base);
+    native_mux_write_ms_ += elapsed_ms(started);
+    return ok;
+}
+
 // ---------------------------------------------------------------------------
 // drain_packets — common helper used during write and close
 // ---------------------------------------------------------------------------

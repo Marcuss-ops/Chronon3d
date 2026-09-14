@@ -12,8 +12,8 @@
 //   - Scratch Handle acquisition (the ONLY place this is done).
 //   - Per-span font handle resolution (Phase 1.4 multi-font path) OR
 //     single-font alias (legacy / pre-Phase-1.4).
-//   - Glyph bbox expansion (active side + crossfade side) and shadow
-//     padding.
+//   - Glyph bbox expansion (active side + crossfade side), including the
+//     canonical text-shadow halo.
 //   - Image dimensions + supersample factor precomputation (FASE 3b).
 //
 // Populates TextRunStageState fully (raster uses s.span_handles + s.img_w +
@@ -262,41 +262,6 @@ namespace chronon3d::renderer::text_run_stages {
         s.min_y = std::min(s.min_y, local_bounds->min_y);
         s.max_x = std::max(s.max_x, local_bounds->max_x);
         s.max_y = std::max(s.max_y, local_bounds->max_y);
-    }
-
-    // ── Stage 1.2 shadow padding (active side ONLY — shadows track paint) ─
-    // TICKET-TEXT-CLIP-ASCENT — same baseline/ascent fix as in
-    // compute_text_run_visual_bounds(): previously `s.min_y = gy - sh_pad`
-    // and `s.max_y = gy + sh_pad` cut off ascenders and descenders in
-    // the shadow scratch surface.  Use real baseline metrics so the
-    // shadow scratch surface is sized to the actual glyph ink extent
-    // (plus the shadow's blur + offset + 8 px safety padding).
-    const float shadow_font_size = shape.layout->font_size;
-    const float shadow_ascent  = std::max({
-        0.0f, shape.layout->placed.ascent, shadow_font_size * 0.8f});
-    const float shadow_descent = std::max({
-        0.0f, shape.layout->placed.descent, shadow_font_size * 0.2f});
-    const auto& shadow_placed  = shape.layout->placed;
-    const std::size_t shadow_glyph_count = std::min(
-        shape.glyphs.size(), shadow_placed.glyphs.size());
-    for (std::size_t gi = 0; gi < shadow_glyph_count; ++gi) {
-        const auto& g = shape.glyphs[gi];
-        const float gx = g.layout_position.x + g.position.x;
-        const float gy = g.layout_position.y + g.position.y;
-        const float shadow_scale_y = std::abs(g.scale.y * g.scale.z);
-        const float shadow_advance = std::max(
-            1.0f, std::abs(shadow_placed.glyphs[gi].advance_x));
-        for (const auto& sh : shape.shadows) {
-            if (!sh.enabled) continue;
-            const float sh_pad = sh.blur + std::abs(sh.offset.x) +
-                std::abs(sh.offset.y) + 8.0f;
-            s.min_x = std::min(s.min_x, gx - sh_pad);
-            s.max_x = std::max(s.max_x, gx + shadow_advance + sh_pad);
-            s.min_y = std::min(
-                s.min_y, gy - shadow_ascent * shadow_scale_y - sh_pad);
-            s.max_y = std::max(
-                s.max_y, gy + shadow_descent * shadow_scale_y + sh_pad);
-        }
     }
 
     // ── Stage 2 derived image dimensions ────────────────────────────────

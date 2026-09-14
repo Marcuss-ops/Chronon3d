@@ -17,6 +17,7 @@
 #include "scene_dirty_helpers.hpp"
 #include "scene_internal.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace chronon3d::graph::detail {
 
@@ -54,10 +55,17 @@ DirtyRectOutput compute_dirty_rect(
     compute_scene_root_bboxes(out.layer_bboxes, scene, ctx, sw_renderer);
 
     // ── Decide whether to use dirty rects ───────────────────────────────
+    const bool previous_cpu_surface =
+        sw_renderer->buffer_ring().prev_framebuffer() &&
+        sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+        sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
+    // Native video keeps the previous composite device-local in the
+    // completed-surface ring.  It deliberately has no CPU framebuffer, but
+    // the temporal adjacency still makes FrameDelta authoritative for the
+    // next sparse GPU update.
+    const bool previous_native_surface = settings.require_native_gpu;
     out.use_dirty_rects = settings.dirty.enabled &&
-                          sw_renderer->buffer_ring().prev_framebuffer() &&
-                          sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
-                          sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
+                          (previous_cpu_surface || previous_native_surface) &&
                           sw_renderer->frame_history().prev_frame == frame - 1;
 
     if (!out.use_dirty_rects) {
@@ -67,7 +75,7 @@ DirtyRectOutput compute_dirty_rect(
         if (tiles_enabled) tile_grid = raster::TileGrid(width, height, effective_tile_size);
         const bool has_previous_state =
             sw_renderer->frame_history().prev_frame == frame - 1 &&
-            sw_renderer->buffer_ring().prev_framebuffer() != nullptr;
+            (previous_cpu_surface || previous_native_surface);
         const bool cam_changed = FrameDeltaCompiler::camera_unchanged(
             cam25d, &sw_renderer->frame_history().prev_camera,
             sw_renderer->frame_history().prev_camera_valid) == false;
@@ -149,6 +157,21 @@ DirtyRectOutput compute_dirty_rect(
                     *resolved_layer.layer));
             }
             return 0.0;
+        };
+        options.spatial_halo = [&resolved, frame](std::string_view layer_id) {
+            for (const auto& resolved_layer : resolved.layers) {
+                if (!resolved_layer.layer || !resolved_layer.layer->active_at(frame) ||
+                    std::string_view(resolved_layer.layer->name) != layer_id) {
+                    continue;
+                }
+                const auto halo = compute_layer_spatial_halo(*resolved_layer.layer);
+                return FrameDeltaCompileOptions::SpatialHalo{
+                    static_cast<int>(std::ceil(halo.left)),
+                    static_cast<int>(std::ceil(halo.top)),
+                    static_cast<int>(std::ceil(halo.right)),
+                    static_cast<int>(std::ceil(halo.bottom))};
+            }
+            return FrameDeltaCompileOptions::SpatialHalo{};
         };
         delta = FrameDeltaCompiler::compile(
             frame,

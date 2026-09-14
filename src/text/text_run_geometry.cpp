@@ -45,9 +45,9 @@ namespace chronon3d::renderer {
 //   - 2.5D shear estimates (rotation.x/y tangent projection)
 //   - scale.z expansion
 //
-// Excludes: model transform, world-space projection, shadow padding,
-// spread (shadow/glow), and heuristic rasterizer margin.  Those are caller
-// concerns.
+// Excludes: model transform and world-space projection. Text shadow halos are
+// included here because they are paint bounds of the text run itself; callers
+// still add their outer raster safety margin where appropriate.
 
 std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
     const TextRunShape& shape
@@ -181,6 +181,16 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
     if (has_crossfade) {
         accumulate(shape.dissolve_glyphs,
                   shape.dissolve_layout->placed);
+    }
+
+    // Shadows belong to the same local-space paint surface as the glyphs.
+    // Expand the union once so active and crossfade sides share one contract.
+    for (const auto& shadow : shape.shadows) {
+        const auto halo = text_shadow_spatial_halo(shadow);
+        min_x -= halo.min_x;
+        min_y -= halo.min_y;
+        max_x += halo.max_x;
+        max_y += halo.max_y;
     }
 
     return TextRunLocalBounds{min_x, min_y, max_x, max_y};

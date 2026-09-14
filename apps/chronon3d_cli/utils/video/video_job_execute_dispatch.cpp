@@ -106,15 +106,32 @@ media::GopAnalysisSummary inspect_source_once(
     summary.source_time_base_den = analysis->source_time_base_den;
     summary.work_units.reserve(analysis->plans.size());
     for (const auto& plan : analysis->plans) {
+        const media::TimestampRange source_packets{
+            plan.first_dts, plan.last_dts, true};
+        const media::TimestampRange decode_range{
+            plan.decode_first_dts, plan.last_dts, true};
+        const media::TimestampRange render_range{
+            plan.first_pts, plan.last_pts, true};
+        const bool copy_packets = plan.copy_packets();
         summary.work_units.push_back(media::GopWorkUnit{
             .ordinal = plan.ordinal,
             .first_pts = plan.first_pts,
             .last_pts = plan.last_pts,
             .first_dts = plan.first_dts,
             .last_dts = plan.last_dts,
-            .kind = plan.copy_packets()
+            .kind = copy_packets
                 ? media::GopWorkKind::CopyPackets
-                : media::GopWorkKind::Reencode});
+                : media::GopWorkKind::Reencode,
+            .source_packets = source_packets,
+            .decode_range = copy_packets ? media::TimestampRange{}
+                                         : decode_range,
+            .render_range = copy_packets ? media::TimestampRange{}
+                                         : render_range,
+            .encode_range = copy_packets ? media::TimestampRange{}
+                                         : render_range,
+            .force_idr_at_start = !copy_packets,
+            .closes_dependencies_at_end = plan.compatibility.random_access_safe,
+            .compatibility = plan.compatibility});
     }
     // Splice safety matters only when some GOPs are copied alongside
     // re-encoded ones: every planned Copy must have passed the gate.
@@ -263,6 +280,7 @@ int render_and_encode_ffmpeg(
             cli_effective_capabilities(opts));
         decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
+        render_opts.resolved_gop_plan = decision.gop_plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
@@ -293,6 +311,7 @@ int render_and_encode_ffmpeg(
             summary);
         decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
+        render_opts.resolved_gop_plan = decision.gop_plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;

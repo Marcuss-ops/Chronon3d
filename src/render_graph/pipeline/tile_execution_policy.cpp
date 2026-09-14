@@ -204,7 +204,8 @@ void apply_sparse_or_full_decision(
         set_full_rgb(plan, "no_dirty_tiles");
         return;
     }
-    if (!has_matching_previous_surface(sw_renderer, dirty_out.tile_grid->width(),
+    if (!settings.require_native_gpu &&
+        !has_matching_previous_surface(sw_renderer, dirty_out.tile_grid->width(),
                                        dirty_out.tile_grid->height())) {
         set_full_rgb(plan, "missing_previous_surface");
         return;
@@ -218,9 +219,13 @@ void apply_sparse_or_full_decision(
         set_full_rgb(plan, "no_dirty_regions");
         return;
     }
-    plan.previous_framebuffer = sw_renderer->buffer_ring().prev_framebuffer();
+    plan.previous_framebuffer = settings.require_native_gpu
+        ? nullptr : sw_renderer->buffer_ring().prev_framebuffer();
     plan.previous_surface.reset();
-    plan.copy_previous_surface = true;
+    // Native sparse rendering preserves the completed device surface in the
+    // current encode slot before graph execution.  The CPU coordinator must
+    // not try to dereference a missing previous framebuffer on this path.
+    plan.copy_previous_surface = !settings.require_native_gpu;
 
     const auto& cost = sw_renderer->dirty_telemetry();
     if (cost.tile_cost_model_ready() &&

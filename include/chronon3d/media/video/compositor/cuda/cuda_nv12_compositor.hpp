@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/media/video/cuda_layer_resource.hpp>
 #include <chronon3d/backends/vulkan/cuda_yuv_conversion.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 
 #include <cuda.h>
 
@@ -80,12 +81,36 @@ public:
         std::uint32_t width, std::uint32_t height, CUstream stream,
         CudaYuvFormat format = CudaYuvFormat::Nv12);
 
+    /// Transfer encode applied at the RGBA surface → NV12 boundary.
+    ///
+    /// The canonical graphics surface is RGBA32F with a LINEAR transfer
+    /// (BT.709 primaries, premultiplied alpha); the NVENC/P010 SDR target is
+    /// nonlinear. The OETF therefore runs here, chosen by the TARGET, and is
+    /// deliberately not inferred from the surface: assuming "already encoded"
+    /// is what made every natively drawn image/colour/text layer render in
+    /// linear light (mid-grey 128 arrived as 54).
+    enum TransferEncode : std::uint32_t {
+        TransferNone = 0,  ///< target is linear — no encode required
+        TransferSrgb = 1,  ///< sRGB / BT.709 SDR OETF (the encoder default)
+    };
+
     /// Converts the already-composited imported RGBA surface directly into
     /// CUDA NV12 planes. This is the native encoder handoff: no intermediate
     /// RGBA CUDA allocation or device-to-device staging copy is created.
+    /// A surface exported as 8-bit already carries the encoder's domain, so
+    /// the transfer encode is applied only to the RGBA32F (linear) surface.
+    ///
+    /// `dirty_regions` requests a partial conversion. That is honoured only
+    /// when `destination_retains_previous_frame` proves the untouched pixels
+    /// are already this frame's (see media/video/nv12_region_policy.hpp); a
+    /// pooled encoder frame does not provide that proof, so callers on that
+    /// path pass no regions and the whole frame is converted.
     bool composite_surface_to_nv12(
         CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
-        std::uint32_t width, std::uint32_t height, CUstream stream);
+        std::uint32_t width, std::uint32_t height, CUstream stream,
+        std::span<const raster::BBox> dirty_regions = {},
+        std::uint32_t transfer_encode = TransferSrgb,
+        bool destination_retains_previous_frame = false);
 
 private:
     CUcontext context_{nullptr};

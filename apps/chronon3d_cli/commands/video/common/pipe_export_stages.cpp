@@ -24,6 +24,7 @@ NativeSurfacePrep prepare_frame(
     // the cost of copying the whole RenderSettings on every frame.
     frame_settings.native_video_encode_surface = runtime::kInvalidRenderSurfaceHandle;
     frame_settings.native_video_source_surface = runtime::kInvalidRenderSurfaceHandle;
+    frame_settings.native_video_previous_surface = runtime::kInvalidRenderSurfaceHandle;
     const bool explicit_native_graph =
         ctx.opts.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
     const bool plan_requests_native_graph = explicit_native_graph ||
@@ -66,6 +67,8 @@ NativeSurfacePrep prepare_frame(
     // FullGraph has one physical encode backing per slot. The source role is
     // an alias used by the writer contract, never a second allocation.
     frame_settings.native_video_source_surface = execution_slot.native_surface;
+    frame_settings.native_video_previous_surface =
+        ctx.execution_slots.last_completed_surface();
     return prep;
 }
 
@@ -94,6 +97,17 @@ RenderOutcome render_frame(
     out.dirty_ratio = ctx.sw_renderer->last_dirty_area_ratio();
     out.dirty_rect_enabled = ctx.sw_renderer->last_dirty_rect_enabled();
     out.dirty_rect = ctx.sw_renderer->last_dirty_rect();
+    // NOTE: `dirty_rect` above is the CPU-side renderer's PREDICTED damage; it
+    // feeds diagnostics and the software paths only. It is deliberately not
+    // promoted into `out.dirty_regions`, which is the region set for the GPU
+    // surface handoff: the encoder's NV12 destination is a pooled frame that
+    // does not retain the previous frame, so a partial conversion derived from
+    // a prediction publishes a torn frame (background/foreground/watermark
+    // clips encoded as a flat field while the graph had rendered every layer).
+    // The graph composites the full surface on this lane, so the boundary must
+    // convert the full surface. `out.dirty_regions` stays empty until a
+    // producer can prove destination continuity
+    // (media/video/nv12_region_policy.hpp).
     out.tile_execution_used = ctx.sw_renderer->last_tile_execution_used();
     out.fast_path_reused = ctx.sw_renderer->last_fast_path_reused();
     out.graph_reused = ctx.sw_renderer->last_graph_reused();
@@ -107,7 +121,8 @@ EncodeOutcome encode_frame(
     std::shared_ptr<FramebufferArena> current_arena,
     NativeSurfacePrep prep,
     Frame current_frame,
-    PipeExportStatus& status) {
+    PipeExportStatus& status,
+    std::span<const raster::BBox> dirty_regions) {
     EncodeOutcome out;
     const auto wait_t0 = profiling::now();
     auto source_surface = fb ? fb->surface_handle() : runtime::kInvalidRenderSurfaceHandle;
@@ -236,8 +251,16 @@ EncodeOutcome encode_frame(
     full_package.slot = std::move(prep.slot);
     full_package.cpu_fallback = std::move(fb);
     full_package.cpu_arena = std::move(current_arena);
+    full_package.dirty_regions.assign(dirty_regions.begin(), dirty_regions.end());
     ++status.frames_rendered;
 
+    if (execution_slot && execution_slot->native_surface !=
+            runtime::kInvalidRenderSurfaceHandle) {
+        // Publish encoder ownership before the package becomes visible to the
+        // writer.  Otherwise a very fast writer could release the slot and
+        // race a stale ownership publication from the producer.
+        ctx.execution_slots.mark_encoder_owned(execution_slot->native_surface);
+    }
     out.pushed = ctx.queue.push(out.package, ctx.opts.cancellation_token);
     out.wait_ms = profiling::duration_ms(wait_t0, profiling::now());
 

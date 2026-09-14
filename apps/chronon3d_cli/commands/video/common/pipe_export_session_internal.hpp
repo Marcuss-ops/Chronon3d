@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 namespace chronon3d::cli::detail {
 
 struct FrameProfileSample {
@@ -75,6 +76,7 @@ struct RenderOutcome {
     double dirty_ratio{0.0};
     bool dirty_rect_enabled{false};
     std::optional<raster::BBox> dirty_rect;
+    std::vector<raster::BBox> dirty_regions;
     bool tile_execution_used{false};
     bool fast_path_reused{false};
     bool graph_reused{false};
@@ -107,7 +109,8 @@ struct EncodeOutcome {
     std::shared_ptr<FramebufferArena> current_arena,
     NativeSurfacePrep prep,
     Frame current_frame,
-    PipeExportStatus& status);
+    PipeExportStatus& status,
+    std::span<const raster::BBox> dirty_regions = {});
 void finalize_render_session(PipeExportStatus& status, Frame current_frame, Frame end);
 
 } // namespace chronon3d::cli::detail

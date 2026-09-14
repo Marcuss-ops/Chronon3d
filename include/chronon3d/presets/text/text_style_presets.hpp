@@ -240,5 +240,89 @@ inline TextStyle premium_cta() {
     return style;
 }
 
-} // namespace chronon3d::presets::text
+// ── Fast shadow/stroke presets ─────────────────────────────────────────────
+//
+// These are intentionally small, concrete presets for overlay/typewriter
+// authoring.  They keep the visual contract in one place: the renderer still
+// owns the actual MSDF/blur/compositing work, while callers only choose the
+// visual weight.
+enum class ShadowStrokePreset {
+    Crisp,
+    Soft,
+    Heavy,
+    Neon,
+};
 
+inline TextStyle shadow_stroke(ShadowStrokePreset preset) {
+    TextStyle style;
+    style.font_family = "Inter";
+    style.font_weight = 800;
+    style.size = 64.0f;
+    style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    style.paint.fill = style.color;
+    style.paint.stroke_enabled = true;
+    style.paint.stroke_color = Color{0.03f, 0.05f, 0.10f, 1.0f};
+    style.align = TextAlign::Center;
+    style.vertical_align = VerticalAlign::Middle;
+
+    switch (preset) {
+    case ShadowStrokePreset::Crisp:
+        style.paint.stroke_width = 1.5f;
+        style.shadows.push_back(TextShadow{
+            .enabled = true,
+            .offset = {1.0f, 2.0f},
+            .blur = 2.0f,
+            .opacity = 0.30f,
+            .color = {0.0f, 0.0f, 0.0f, 1.0f},
+        });
+        break;
+    case ShadowStrokePreset::Soft:
+        style.paint.stroke_width = 2.5f;
+        style.shadows.push_back(TextShadow{
+            .enabled = true,
+            .offset = {0.0f, 4.0f},
+            .blur = 8.0f,
+            .opacity = 0.45f,
+            .color = {0.0f, 0.0f, 0.0f, 1.0f},
+        });
+        break;
+    case ShadowStrokePreset::Heavy:
+        style.paint.stroke_width = 6.0f;
+        style.shadows.push_back(TextShadow{
+            .enabled = true,
+            .offset = {4.0f, 8.0f},
+            .blur = 18.0f,
+            .opacity = 0.68f,
+            .color = {0.0f, 0.0f, 0.0f, 1.0f},
+        });
+        break;
+    case ShadowStrokePreset::Neon:
+        style.color = Color{0.72f, 1.0f, 0.96f, 1.0f};
+        style.paint.fill = style.color;
+        style.paint.stroke_color = Color{0.02f, 0.18f, 0.20f, 1.0f};
+        style.paint.stroke_width = 2.0f;
+        style.shadows.push_back(TextShadow{
+            .enabled = true,
+            .offset = {0.0f, 0.0f},
+            .blur = 8.0f,
+            .opacity = 0.80f,
+            .color = {0.05f, 1.0f, 0.82f, 1.0f},
+        });
+        style.shadows.push_back(TextShadow{
+            .enabled = true,
+            .offset = {0.0f, 0.0f},
+            .blur = 22.0f,
+            .opacity = 0.36f,
+            .color = {0.05f, 1.0f, 0.82f, 1.0f},
+        });
+        break;
+    }
+    return style;
+}
+
+/// Recommended one-call default for typewriter overlays.
+inline TextStyle typewriter_shadow_stroke() {
+    return shadow_stroke(ShadowStrokePreset::Soft);
+}
+
+} // namespace chronon3d::presets::text

@@ -94,6 +94,10 @@ struct FfmpegExportOptions {
     // The resolver's authoritative orthogonal FINAL plan. It is optional only
     // for legacy direct callers that predate the resolver boundary.
     std::optional<chronon3d::media::VideoExecutionPlan> resolved_execution_plan;
+    // Compiler-owned GOP schedule. The render/mux executor may consume this
+    // verbatim; it must never reconstruct copy/reencode decisions from the
+    // scene or from the source a second time.
+    std::optional<chronon3d::media::GopExecutionPlan> resolved_gop_plan;
     // Structured resolver reason for the final plan (e.g. a downgrade reason
     // such as "hybrid_pipeline_unavailable"). Receipt surface: surfaced in
     // logs today and available for timing-sidecar/telemetry persistence.

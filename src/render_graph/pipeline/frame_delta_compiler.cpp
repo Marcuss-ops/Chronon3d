@@ -86,14 +86,28 @@ FrameDelta compile_layer_delta(
         }
     };
 
+    const auto add_layer_dirty = [&](raster::BBox bbox, std::string_view layer_id) {
+        if (bbox.is_empty()) return;
+        if (options.spatial_halo) {
+            const auto halo = options.spatial_halo(layer_id);
+            bbox.x0 -= halo.left;
+            bbox.y0 -= halo.top;
+            bbox.x1 += halo.right;
+            bbox.y1 += halo.bottom;
+            add_dirty_bbox(bbox);
+        } else {
+            add_dirty_bbox(bbox, options.spatial_spread
+                ? options.spatial_spread(layer_id) : 0.0);
+        }
+    };
+
     for (const auto& [name, curr] : current) {
         const auto prev_it = previous.find(name);
         if (prev_it == previous.end()) {
             std::uint32_t mask = LayerAdded | LayerStructure;
             mark_present_semantics(curr, mask);
             result.changes.push_back(LayerDelta{name, mask, raster::BBox{}, curr.bbox});
-            add_dirty_bbox(curr.bbox, options.spatial_spread
-                ? options.spatial_spread(name) : 0.0);
+            add_layer_dirty(curr.bbox, name);
             continue;
         }
 
@@ -146,16 +160,12 @@ FrameDelta compile_layer_delta(
 
         result.changes.push_back(LayerDelta{name, mask, prev.bbox, curr.bbox});
         if (visibility_changed) {
-            add_dirty_bbox(curr.visible ? curr.bbox : prev.bbox,
-                           options.spatial_spread ? options.spatial_spread(name) : 0.0);
+            add_layer_dirty(curr.visible ? curr.bbox : prev.bbox, name);
         } else if (geometry_changed) {
-            const auto spread = options.spatial_spread
-                ? options.spatial_spread(name) : 0.0;
-            add_dirty_bbox(curr.bbox, spread);
-            add_dirty_bbox(prev.bbox, spread);
+            add_layer_dirty(curr.bbox, name);
+            add_layer_dirty(prev.bbox, name);
         } else if (content_changed && curr.visible) {
-            add_dirty_bbox(curr.bbox, options.spatial_spread
-                ? options.spatial_spread(name) : 0.0);
+            add_layer_dirty(curr.bbox, name);
         }
     }
 
@@ -164,8 +174,7 @@ FrameDelta compile_layer_delta(
             std::uint32_t mask = LayerRemoved | LayerStructure;
             mark_present_semantics(prev, mask);
             result.changes.push_back(LayerDelta{name, mask, prev.bbox, raster::BBox{}});
-            add_dirty_bbox(prev.bbox, options.spatial_spread
-                ? options.spatial_spread(name) : 0.0);
+            add_layer_dirty(prev.bbox, name);
         }
     }
 

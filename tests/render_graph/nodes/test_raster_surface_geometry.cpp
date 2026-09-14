@@ -74,6 +74,27 @@ TEST_CASE("tight raster surface is deterministic for the same text bounds") {
     CHECK(first->content_size.y == doctest::Approx(second->content_size.y));
 }
 
+TEST_CASE("tight raster surface includes the directional text shadow halo") {
+    const auto shape = make_shape();
+    shape->shadows.push_back(TextShadow{
+        .enabled = true,
+        .offset = {0.0f, 4.0f},
+        .blur = 12.0f,
+        .opacity = 0.72f,
+        .color = Color::black(),
+    });
+
+    const auto geometry = compute_tight_text_surface_geometry(*shape);
+    REQUIRE(geometry.has_value());
+
+    // The canonical shadow halo is blur + directional offset + 8px safety;
+    // the producer surface then adds its own 8px outer raster margin.
+    CHECK(geometry->origin.x == doctest::Approx(-22.0f));
+    CHECK(geometry->origin.y == doctest::Approx(-38.0f));
+    CHECK(geometry->content_size.x == doctest::Approx(166.0f));
+    CHECK(geometry->content_size.y == doctest::Approx(97.0f));
+}
+
 TEST_CASE("tight raster surface rejects empty text") {
     TextRunShape shape;
     CHECK_FALSE(compute_tight_text_surface_geometry(shape).has_value());

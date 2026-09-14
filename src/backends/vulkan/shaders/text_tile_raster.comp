@@ -185,7 +185,15 @@ void main() {
         return;
     }
 
-    vec4 current_color = imageLoad(dst_image, pixel_coord);
+    // Keep the destination, the union shadow mask, the complete-string stroke
+    // pass, and the complete-string fill pass in separate layers.  The
+    // canonical contract is exactly: shadow -> stroke -> fill.  In
+    // particular, never let a later glyph's stroke blend over an earlier
+    // glyph's fill merely because the tile loop visits glyphs one by one.
+    vec4 destination_color = imageLoad(dst_image, pixel_coord);
+    vec4 shadow_layer = vec4(0.0);
+    vec4 stroke_layer = vec4(0.0);
+    vec4 fill_layer = vec4(0.0);
 
     for (uint i = 0; i < count; ++i) {
         uint gid = s_glyph_indices[i];
@@ -297,11 +305,21 @@ void main() {
                     float shadow_softness_px = clamp(
                         run.shadow_blur * screen_scale,
                         0.0, max(distance_range * 0.75, 0.0));
-                    float shadow_alpha = shadow_softness_px > 0.0
-                        ? smoothstep(-shadow_softness_px, 0.0,
-                                     shadow_distance_px)
-                        : step(0.0, shadow_distance_px);
-                    src = unpack_color(run.shadow_color) * shadow_alpha;
+                    // MTSDF encodes distances beyond its range at the
+                    // 0.0 endpoint.  Treating that endpoint as a blurred
+                    // edge makes the entire padded atlas rectangle opaque
+                    // for large shadows (the old typewriter halo).  It is
+                    // outside the representable field, not a real contour.
+                    float shadow_alpha = shadow_msd <= (1.0 / 255.0)
+                        ? 0.0
+                        : (shadow_softness_px > 0.0
+                            ? smoothstep(-shadow_softness_px, 0.0,
+                                         shadow_distance_px)
+                            : step(0.0, shadow_distance_px));
+                    vec4 glyph_shadow = unpack_color(run.shadow_color) * shadow_alpha;
+                    if (glyph_shadow.a > shadow_layer.a) {
+                        shadow_layer = glyph_shadow;
+                    }
                 }
             }
             if ((run.effect_flags & 1u) != 0u) {
@@ -309,21 +327,25 @@ void main() {
                     ((sample_value.a - 0.5) * distance_range + run.stroke_width) *
                     screen_scale + 0.5, 0.0, 1.0);
                 vec4 stroke = unpack_color(run.stroke_color) * stroke_alpha;
-                src = stroke + src * (1.0 - stroke.a);
+                stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+                stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
             }
             vec4 fill = unpack_color(run.color) * fill_alpha;
-            src = fill + src * (1.0 - fill.a);
+            fill *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            fill_layer = fill + fill_layer * (1.0 - fill.a);
         } else {
             src = sample_value;
             if (run.color != 0xFFFFFFFFu && run.color != 0u) {
                 src *= unpack_color(run.color);
             }
+            src *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
+            fill_layer = src + fill_layer * (1.0 - src.a);
         }
 
-        src *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
-
-        current_color = src + current_color * (1.0 - src.a);
     }
 
+    vec4 current_color = shadow_layer + destination_color * (1.0 - shadow_layer.a);
+    current_color = stroke_layer + current_color * (1.0 - stroke_layer.a);
+    current_color = fill_layer + current_color * (1.0 - fill_layer.a);
     imageStore(dst_image, pixel_coord, current_color);
 }

@@ -34,9 +34,10 @@ chronon3d::TextDefinition materialize_text(
         definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
     }
     if (layer.style->shadow) {
-        const auto shadow_color = parse_hex_color(
-            layer.style->shadow->color,
-            layer.style->shadow->opacity.value_or(1.0f));
+        // Keep colour alpha and shadow opacity as separate factors.  The
+        // canonical text renderer applies opacity once to the blurred union
+        // mask; baking it into the colour here would multiply it twice.
+        const auto shadow_color = parse_hex_color(layer.style->shadow->color);
         if (!shadow_color)
             throw std::runtime_error("text layer '" + layer.id + "' has invalid shadow color");
         chronon3d::TextShadow shadow;

@@ -135,6 +135,40 @@ struct VideoCapabilities {
     bool cuda_native{false};
 };
 
+/// A closed timestamp envelope in the source stream time base. The four
+/// schedule ranges deliberately do not share one overloaded pair of
+/// timestamps: decode may need a dependency prefix while render/encode only
+/// cover the pixels that become part of the output.
+struct TimestampRange {
+    std::int64_t first{0};
+    std::int64_t last{0};
+    bool present{false};
+
+    [[nodiscard]] constexpr bool valid() const noexcept {
+        return present && first <= last;
+    }
+};
+
+/// Backend-neutral bitstream facts used by the compiler-owned schedule. The
+/// concrete FFmpeg codec ids stay outside this public media contract.
+struct BitstreamCompatibility {
+    bool codec_match{false};
+    bool profile_match{false};
+    bool level_compatible{false};
+    bool dimensions_match{false};
+    bool pixel_format_match{false};
+    bool parameter_sets_compatible{false};
+    bool color_params_match{false};
+    bool random_access_safe{false};
+
+    [[nodiscard]] constexpr bool safe_to_splice() const noexcept {
+        return codec_match && profile_match && level_compatible &&
+            dimensions_match && pixel_format_match &&
+            parameter_sets_compatible && color_params_match &&
+            random_access_safe;
+    }
+};
+
 /// One unit in the compiler-owned minimum-work schedule. The timestamps are
 /// source-stream timestamps; the executor uses the ordinal and mode to keep
 /// copied and re-encoded GOPs in presentation order.
@@ -150,6 +184,19 @@ struct GopWorkUnit {
     std::int64_t first_dts{0};
     std::int64_t last_dts{0};
     GopWorkKind kind{GopWorkKind::Reencode};
+
+    /// Packet envelope consumed by the unit. For a re-encode this may be
+    /// narrower than decode_range once dependency closure is implemented.
+    TimestampRange source_packets{};
+    /// Decode-only dependency window; it is allowed to precede render_range.
+    TimestampRange decode_range{};
+    /// Pixels that must be rendered for this unit.
+    TimestampRange render_range{};
+    /// Encoded output envelope emitted into the shared MuxSession.
+    TimestampRange encode_range{};
+    bool force_idr_at_start{false};
+    bool closes_dependencies_at_end{false};
+    BitstreamCompatibility compatibility{};
 
     [[nodiscard]] constexpr bool copies_packets() const noexcept {
         return kind == GopWorkKind::CopyPackets;

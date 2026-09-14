@@ -127,6 +127,12 @@ struct RenderSettings {
         runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_video_source_surface{
         runtime::kInvalidRenderSurfaceHandle};
+    /// Device-local surface from the last completed encode slot.  When
+    /// present, native sparse rendering preserves it into the current slot
+    /// before applying the FrameDelta dirty regions.  It is never the surface
+    /// currently owned by the encoder.
+    runtime::RenderSurfaceHandle native_video_previous_surface{
+        runtime::kInvalidRenderSurfaceHandle};
     /// Canonical resource budget applied by the render-plan/runtime boundary.
     /// Temporal accumulation consumes `render_budget.max_temporal_pixels`;
     /// zero is not used here because the default RenderBudget is finite.

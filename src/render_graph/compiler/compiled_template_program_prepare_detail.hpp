@@ -37,6 +37,11 @@ PreparedFrameProgram prepare(const CompiledTemplateProgram& program) {
         PreparedStaticBake bake;
         bake.bake_id = region.bake_id;
         bake.root = region.root;
+        // BakedSurfaceHandle is a stable logical slot, not a backend handle.
+        // The backend surface authority materializes this slot once for the
+        // job and keeps the resulting device-local pixels alive across
+        // frames.  It must never be re-derived from the current frame.
+        bake.surface.index = region.bake_id + 1;
 
         // All members EXCEPT the root are interior nodes: they are fully
         // skipped during frame execution.  The root is the source whose
@@ -50,8 +55,8 @@ PreparedFrameProgram prepare(const CompiledTemplateProgram& program) {
             }
         }
 
-        // The root node's surface handle will be wired by the physical
-        // resource plan (Phase 5).  For now, mark the bake as valid.
+        // The root node's physical RenderSurfaceHandle is wired by the
+        // resource authority; the logical slot above is already stable.
         prepared.baked_regions[region.bake_id] = std::move(bake);
     }
 

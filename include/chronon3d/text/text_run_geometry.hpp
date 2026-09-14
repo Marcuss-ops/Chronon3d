@@ -14,6 +14,8 @@
 #include <chronon3d/math/raster_utils.hpp>
 
 #include <optional>
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d::renderer {
 
@@ -25,6 +27,22 @@ struct TextRunLocalBounds {
     f32 max_x;
     f32 max_y;
 };
+
+/// Paint-space halo for one text shadow. The extra safety margin matches the
+/// text scratch-surface contract and protects the antialiased blur fringe.
+[[nodiscard]] inline TextRunLocalBounds text_shadow_spatial_halo(
+    const TextShadow& shadow,
+    f32 safety_margin = 8.0f
+) noexcept {
+    if (!shadow.enabled || shadow.opacity <= 0.0f) return {};
+    const f32 blur = std::ceil(std::max(0.0f, shadow.blur));
+    return {
+        blur + std::max(0.0f, -shadow.offset.x) + safety_margin,
+        blur + std::max(0.0f, -shadow.offset.y) + safety_margin,
+        blur + std::max(0.0f, shadow.offset.x) + safety_margin,
+        blur + std::max(0.0f, shadow.offset.y) + safety_margin,
+    };
+}
 
 /// Convert local bounds to the project's canonical Rect.
 [[nodiscard]] inline Rect to_rect(const TextRunLocalBounds& b) noexcept {

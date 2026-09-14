@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
@@ -70,8 +71,27 @@ private:
             }
             case DropShadow: {
                 if (auto* p = std::get_if<DropShadowParams>(&inst.params))
+                    {
+                        const auto halo = effects::drop_shadow_spatial_halo(*p);
+                        max_spread = std::max(max_spread,
+                            std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                    }
+                break;
+            }
+            case Offset: {
+                if (auto* p = std::get_if<OffsetParams>(&inst.params)) {
+                    const auto halo = effects::offset_spatial_halo(*p);
                     max_spread = std::max(max_spread,
-                        std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
+                        std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                }
+                break;
+            }
+            case DirectionalBlur: {
+                if (auto* p = std::get_if<DirectionalBlurParams>(&inst.params)) {
+                    const auto halo = effects::directional_blur_spatial_halo(*p);
+                    max_spread = std::max(max_spread,
+                        std::max({halo.left, halo.top, halo.right, halo.bottom}));
+                }
                 break;
             }
             case Glow: {

@@ -106,15 +106,17 @@ namespace {
     // maps the selected source rectangle into the authored image box first.
     const float sx = state.matrix[0][0] * placement.dst_rect.size.x / source_size.x;
     const float sy = state.matrix[1][1] * placement.dst_rect.size.y / source_size.y;
-    // ImageShape stores its local origin at the top-left of the authored
-    // box, while RenderNode's anchor is the box centre.  The native affine
-    // path samples from destination pixels directly and therefore must apply
-    // the same anchor subtraction as the canonical image processor.  Without
-    // it, a tight ROI uses the world-space centre as its left edge and the
-    // image is sampled mostly outside the source surface.
-    const float tx = state.matrix[3][0] - node.world_transform.anchor.x +
+    // The authored box origin is the matrix translation plus the placement's
+    // destination offset.  `Transform::to_mat4()` is
+    // `T(position) * R * S * T(-anchor)`, so the anchor is ALREADY baked into
+    // `state.matrix`: subtracting it a second time shifted every natively
+    // drawn image by -anchor (half the canvas for a full-frame plate), and the
+    // affine clip then kept only the top-left quadrant of the destination.
+    // The canonical CPU image renderer consumes the same matrix and applies no
+    // anchor subtraction, so this is the reference behaviour.
+    const float tx = state.matrix[3][0] +
                      state.matrix[0][0] * placement.dst_rect.origin.x;
-    const float ty = state.matrix[3][1] - node.world_transform.anchor.y +
+    const float ty = state.matrix[3][1] +
                      state.matrix[1][1] * placement.dst_rect.origin.y;
     if (std::abs(sx) < 1e-6f || std::abs(sy) < 1e-6f) {
         release_native_surface(ctx, fb);

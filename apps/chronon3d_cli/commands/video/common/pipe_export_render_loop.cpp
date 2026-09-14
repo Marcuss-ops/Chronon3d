@@ -161,7 +161,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             EncodeOutcome enc = encode_frame(
                 ctx, shot.fb, frame_settings, current_arena, std::move(prep),
-                current_frame, status);
+                current_frame, status, shot.dirty_regions);
             result.queue_wait_ms += enc.wait_ms;
             const double wait_ms = enc.wait_ms;
             const double frame_loop_ms = profiling::duration_ms(
