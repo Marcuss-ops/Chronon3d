@@ -28,17 +28,19 @@ Sul host senza NVENC stampa Z6_SKIPPED con reason strutturato.
 import argparse, json, subprocess, sys, os, re, time
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 def find_cli():
     env = os.environ.get("CHRONON3D_CLI")
     if env and Path(env).is_file():
         return env
     for p in [
-        "build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli",
-        "build/chronon/linux-video-fast-dev/apps/chronon3d_cli/chronon3d_cli",
-        "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli",
+        REPO_ROOT / "build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli",
+        REPO_ROOT / "build/chronon/linux-video-fast-dev/apps/chronon3d_cli/chronon3d_cli",
+        REPO_ROOT / "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli",
     ]:
-        if Path(p).is_file():
-            return str(Path(p).resolve())
+        if p.is_file():
+            return str(p.resolve())
     return ""
 
 def extract_timing_sidecar(report_json):
@@ -70,7 +72,11 @@ def extract_timing_sidecar(report_json):
         "encode_frames_in_flight_peak": pipeline.get("encode_frames_in_flight_peak", ""),
         "cuda_encode_event_wait_us": gpu.get("cuda_encode_event_wait_us", ""),
         "cuda_encode_event_wait_count": gpu.get("cuda_encode_event_wait_count", ""),
-        "writer_queue_wait_ms": first(job.get("writer_queue_wait_total_ms"), summary.get("writer_queue_wait_total_ms")),
+        "writer_queue_wait_ms": first(
+            job.get("writer_queue_wait_total_ms"),
+            summary.get("writer_queue_wait_total_ms"),
+            summary.get("frame_to_nvenc", {}).get("writer_queue_wait_total_ms"),
+        ),
         "rgba_to_nv12_frames": gpu.get("rgba_to_nv12_frames", ""),
         "encoder_staging_copy_bytes": gpu.get("encoder_staging_copy_bytes", ""),
         "gpu_surface_copy_frames": gpu.get("gpu_surface_copy_frames", ""),
@@ -90,10 +96,15 @@ def metric_number(row, name):
 
 def run_one(cli, scene, frames, warmup, lane, depth, outdir):
     mode = "require_direct_yuv" if lane == "direct_yuv" else "require_gpu_native"
-    # Depth is communicated via env override consumed by GpuSlotPool if present;
-    # otherwise document as param for manual tuning.
     env = os.environ.copy()
-    env["CHRONON_GPUSLOT_DEPTH"] = str(depth)
+    # CHRONON_GPUSLOT_DEPTH configures FullGraphSession's GpuSlotPool only.
+    # DirectYUV has a separate CUDA pending-frame ring, so its rows must not be
+    # presented as evidence for the FullGraph slot-lifetime hypothesis.
+    depth_applied = lane == "fullgraph"
+    if depth_applied:
+        env["CHRONON_GPUSLOT_DEPTH"] = str(depth)
+    else:
+        env.pop("CHRONON_GPUSLOT_DEPTH", None)
     out_mp4 = str(outdir / f"z6_{lane}_d{depth}.mp4")
     timing = str(Path(out_mp4).with_suffix(".mp4.timing.json"))
     args = [
@@ -124,6 +135,7 @@ def run_one(cli, scene, frames, warmup, lane, depth, outdir):
     metrics = extract_timing_sidecar(timing)
     metrics["lane"] = lane
     metrics["depth"] = depth
+    metrics["depth_applied"] = depth_applied
     metrics["rc"] = r.returncode
     return metrics
 
@@ -228,11 +240,14 @@ print(" ".join(f"{column:>28}" for column in columns))
 for row in rows:
     print(" ".join(f"{str(row.get(column, '')):>28}" for column in columns))
 
-# Compare depth only when the complete rows exist. Lower wait and wall time at
-# the deepest point is evidence for slot-lifetime backpressure; it is not a
-# claim of causality when telemetry is absent or noisy.
+# Compare depth only for FullGraph rows where the override is consumed. Lower
+# wait and wall time at the deepest point is evidence for slot-lifetime
+# backpressure; it is not a claim of causality when telemetry is absent/noisy.
 for lane in lanes:
-    lane_rows = [row for row in rows if row.get("lane") == lane and complete(row)]
+    lane_rows = [row for row in rows
+                 if row.get("lane") == lane
+                 and row.get("depth_applied") is True
+                 and complete(row)]
     lane_rows.sort(key=lambda row: row["depth"])
     if len(lane_rows) >= 2:
         waits = [metric_number(row, "frame_slot_wait_us") for row in lane_rows]

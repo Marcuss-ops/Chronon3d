@@ -119,6 +119,18 @@ ProbedVideoCapabilities probe_video_capabilities(
 }
 #endif
 
+uint32_t resolve_render_job_slots() {
+    if (const char* env = std::getenv("CHRONON_RENDER_JOB_SLOTS")) {
+        try {
+            int val = std::stoi(env);
+            if (val >= 1 && val <= 8) {
+                return static_cast<uint32_t>(val);
+            }
+        } catch (...) {}
+    }
+    return 2U; // Target production: 2 concurrent jobs
+}
+
 } // anonymous namespace
 
 DaemonService::DaemonService(const CompositionRegistry& registry,
@@ -176,6 +188,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         capabilities.h264 = probed.h264 && probed.cuda;
         capabilities.hevc = probed.hevc && probed.cuda;
         capabilities.av1 = probed.av1 && probed.cuda;
+        const uint32_t job_slots = resolve_render_job_slots();
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
@@ -184,11 +197,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                 .nvdec_sessions = probed.nvdec ? 8U : 0U,
                 .nvenc_sessions = probed.nvenc ? 8U : 0U,
                 .pcie_bandwidth = 8.0f,
-                // The daemon owns one Vulkan/CUDA context per device and
-                // serializes job execution at the IPC boundary. Advertising
-                // eight slots let concurrent full-frame exporters overcommit
-                // VRAM before the daemon mutex could protect the job domain.
-                .render_job_slots = 1U});
+                .render_job_slots = job_slots});
     };
     for (const auto& device : discovered_devices) {
         register_device(device);
@@ -198,6 +207,7 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
         runtime::DeviceCapabilities capabilities;
         capabilities.id = 0;
         capabilities.name = m_backend;
+        const uint32_t job_slots = resolve_render_job_slots();
         m_device_scheduler.register_device(
             std::move(capabilities),
             runtime::DeviceResourceVector{
@@ -205,10 +215,13 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
                 .nvdec_sessions = 8U,
                 .nvenc_sessions = 8U,
                 .pcie_bandwidth = 8.0f,
-                .render_job_slots = 1U});
+                .render_job_slots = job_slots});
     }
-    spdlog::info("🔥 Worker initialised. backend={}, renderer lazy, asset/CUDA caches process-persistent.",
-                 m_backend);
+    m_device_scheduler.set_release_callback([this](runtime::DeviceId, const runtime::DeviceResourceVector&) {
+        m_admission_cv.notify_all();
+    });
+    spdlog::info("🔥 Worker initialised. backend={}, render_job_slots={}, renderer lazy, asset/CUDA caches process-persistent.",
+                 m_backend, resolve_render_job_slots());
     spdlog::info("   {} compositions registered.", m_registry.available().size());
 }
 

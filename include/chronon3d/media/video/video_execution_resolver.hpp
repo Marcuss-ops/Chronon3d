@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d::media {
 
@@ -113,9 +114,29 @@ struct VideoCapabilities {
     bool cuda_native{false};
 };
 
+/// One unit in the compiler-owned minimum-work schedule. The timestamps are
+/// source-stream timestamps; the executor uses the ordinal and mode to keep
+/// copied and re-encoded GOPs in presentation order.
+enum class GopWorkKind : std::uint8_t {
+    CopyPackets,
+    Reencode,
+};
+
+struct GopWorkUnit {
+    std::size_t ordinal{0};
+    std::int64_t first_pts{0};
+    std::int64_t last_pts{0};
+    GopWorkKind kind{GopWorkKind::Reencode};
+
+    [[nodiscard]] constexpr bool copies_packets() const noexcept {
+        return kind == GopWorkKind::CopyPackets;
+    }
+};
+
 /// GOP-level execution plan produced by the resolver when the path is
-/// SmartGopCopy or BitstreamCopy. The caller uses this to drive the
-/// per-GOP demux/mux + selective NVDEC/NVENC pipeline.
+/// SmartGopCopy or BitstreamCopy. This is the first concrete form of the
+/// compiler-owned MinimumWorkSchedule: no executor is allowed to infer a
+/// copied/re-encoded GOP from the scene again.
 struct GopExecutionPlan {
     /// Total GOPs in the source interval.
     std::size_t total_gops{0};
@@ -131,6 +152,9 @@ struct GopExecutionPlan {
     /// source packets + NVENC packets would corrupt the decoder; the
     /// resolver must downgrade to DirectYuv for the entire clip.
     bool safe_to_splice{false};
+    /// Ordered work units. Empty is valid for legacy intent-only decisions;
+    /// source preflight fills it before a final decision is dispatched.
+    std::vector<GopWorkUnit> work_units{};
 };
 
 // ── Codec-boundary decision ─────────────────────────────────────────────
@@ -231,6 +255,8 @@ struct GopAnalysisSummary {
     bool all_copy{false};         ///< copy_gops == total_gops
     bool hybrid{false};           ///< copy_gops > 0 && reencode_gops > 0
     bool safe_to_splice{false};   ///< valid only when hybrid
+    /// Ordered schedule emitted by compressed-source preflight.
+    std::vector<GopWorkUnit> work_units{};
 };
 
 /// Reduce GOP pre-analysis + authoring intent to the boundary decision.

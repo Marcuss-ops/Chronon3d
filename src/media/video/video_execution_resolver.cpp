@@ -335,6 +335,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             gop.all_copy = true;
             gop.hybrid = false;
             gop.safe_to_splice = true;
+            gop.work_units = analysis.work_units;
             VideoExecutionDecision decision;
             decision.plan = packet_copy_plan();
             decision.reason = "explicit_gop_copy";
@@ -368,6 +369,7 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             gop.all_copy = true;
             gop.hybrid = false;
             gop.safe_to_splice = true;
+            gop.work_units = analysis.work_units;
             VideoExecutionDecision decision;
             decision.plan = packet_copy_plan();
             decision.reason = "gop_all_copy_eligible";
@@ -397,6 +399,14 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             decision.reason = "gop_reencode_required";
         }
         decision.downgrade_count = 1;
+        decision.gop_plan = GopExecutionPlan{
+            .total_gops = analysis.total_gops,
+            .copy_gops = analysis.copy_gops,
+            .reencode_gops = analysis.reencode_gops,
+            .all_copy = analysis.all_copy,
+            .hybrid = analysis.hybrid,
+            .safe_to_splice = analysis.safe_to_splice,
+            .work_units = analysis.work_units};
         // The boundary ideal may be BoundaryReencode, but the shipped plan
         // re-encodes every frame (DirectYuv); the FINAL codec path is
         // therefore FullReencode and `downgrade_count` records the loss.

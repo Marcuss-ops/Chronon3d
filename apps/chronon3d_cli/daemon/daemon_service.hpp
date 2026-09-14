@@ -10,6 +10,7 @@
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include "chronon_ipc.hpp"
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <string>
 #include <memory>
@@ -168,6 +169,13 @@ private:
     // the actual GPU job domain at this owner boundary. This is the same
     // single-lane contract exposed by RenderingGen's gpu_lanes=1 setting.
     mutable std::mutex m_render_job_mutex;
+    // Dynamic VRAM-credit admission domain for RENDER_JOB.
+    // Concurrency is governed dynamically by DeviceScheduler based on
+    // VRAM credits and render job slots (default: 2 concurrent jobs).
+    // When device resources are saturated, incoming jobs block on
+    // m_admission_cv until an active job finishes and releases its reservation.
+    mutable std::mutex m_admission_mutex;
+    mutable std::condition_variable m_admission_cv;
     bool m_running{true};
     std::atomic<int> m_render_count{0};
     std::atomic<double> m_total_render_ms{0.0};
