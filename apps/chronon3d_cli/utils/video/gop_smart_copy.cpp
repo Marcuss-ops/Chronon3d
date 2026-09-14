@@ -13,9 +13,96 @@ extern "C" {
 #include <string_view>
 #include <limits>
 #include <cstring>
+#include <spdlog/spdlog.h>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 namespace {
+bool nal_is_random_access(AVCodecID codec, const std::uint8_t* nal,
+                          std::size_t size) noexcept {
+    if (!nal || size == 0) return false;
+    if (codec == AV_CODEC_ID_H264) {
+        return (nal[0] & 0x1fU) == 5U; // IDR slice
+    }
+    if (codec == AV_CODEC_ID_HEVC) {
+        const unsigned type = (nal[0] >> 1U) & 0x3fU;
+        return type >= 16U && type <= 21U; // BLA/IDR/CRA random access
+    }
+    return false;
+}
+
+bool packet_is_certified_random_access(
+    const AVPacket& packet, const AVCodecParameters& params) noexcept {
+    if ((packet.flags & AV_PKT_FLAG_KEY) == 0 || !packet.data || packet.size <= 0) {
+        return false;
+    }
+    if (params.codec_id != AV_CODEC_ID_H264 && params.codec_id != AV_CODEC_ID_HEVC) {
+        return false;
+    }
+
+    const auto* data = packet.data;
+    const std::size_t size = static_cast<std::size_t>(packet.size);
+    const auto has_annexb_start = [&]() {
+        for (std::size_t i = 0; i + 3 < size; ++i) {
+            if (data[i] == 0 && data[i + 1] == 0 &&
+                (data[i + 2] == 1 ||
+                 (data[i + 2] == 0 && data[i + 3] == 1))) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (has_annexb_start()) {
+        std::size_t i = 0;
+        while (i + 3 < size) {
+            while (i + 3 < size &&
+                   !(data[i] == 0 && data[i + 1] == 0 &&
+                     (data[i + 2] == 1 ||
+                      (data[i + 2] == 0 && data[i + 3] == 1)))) {
+                ++i;
+            }
+            if (i + 3 >= size) break;
+            i += data[i + 2] == 1 ? 3 : 4;
+            const std::size_t nal_start = i;
+            while (i + 3 < size &&
+                   !(data[i] == 0 && data[i + 1] == 0 &&
+                     (data[i + 2] == 1 ||
+                      (data[i + 2] == 0 && data[i + 3] == 1)))) {
+                ++i;
+            }
+            if (nal_is_random_access(params.codec_id, data + nal_start,
+                                     i - nal_start)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // AVC/HEVC in MP4/MKV is normally length-prefixed. The NAL length size
+    // is carried in avcC/hvcC extradata; unknown lengths are rejected rather
+    // than guessed, preserving the fail-closed splice contract.
+    if (!params.extradata || params.extradata_size < 5 ||
+        params.extradata[0] != 1) {
+        return false;
+    }
+    const std::size_t length_size =
+        static_cast<std::size_t>((params.extradata[4] & 0x03) + 1);
+    std::size_t offset = 0;
+    while (offset + length_size <= size) {
+        std::uint32_t nal_size = 0;
+        for (std::size_t byte = 0; byte < length_size; ++byte) {
+            nal_size = (nal_size << 8U) | data[offset + byte];
+        }
+        offset += length_size;
+        if (nal_size == 0 || offset + nal_size > size) return false;
+        if (nal_is_random_access(params.codec_id, data + offset, nal_size)) {
+            return true;
+        }
+        offset += nal_size;
+    }
+    return offset == size;
+}
+
 bool codec_matches(AVCodecID source, std::string_view requested) noexcept {
     if (requested == "h264" || requested == "libx264" || requested == "h264_nvenc") {
         return source == AV_CODEC_ID_H264;
@@ -166,13 +253,18 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     }
     while (av_read_frame(format, packet) >= 0) {
         if (packet->stream_index == video_stream_index) {
+            const bool random_access = packet_is_certified_random_access(
+                *packet, *source_params);
             const CompressedPacketInfo info{
                 .pts = packet->pts == AV_NOPTS_VALUE ? packet->dts : packet->pts,
                 .dts = packet->dts == AV_NOPTS_VALUE ? packet->pts : packet->dts,
                 .keyframe = (packet->flags & AV_PKT_FLAG_KEY) != 0,
                 // A GOP starts at a keyframe. Packets before the first
                 // keyframe are deliberately left out of copy candidates.
-                .references_prior_gop = false,
+                // Ordinary I-frames and unknown packet syntax are not
+                // certified random-access boundaries.
+                .references_prior_gop = !random_access,
+                .random_access_certified = random_access,
             };
             if (info.keyframe || groups.empty()) {
                 groups.emplace_back();
@@ -225,6 +317,33 @@ std::optional<GopSourceAnalysis> inspect_gop_source(
     }
     close_format();
     if (result.plans.empty()) return std::nullopt;
+
+    // A key packet is not sufficient to certify a splice boundary. If the
+    // first packet of a GOP is an ordinary I-frame (or its syntax is
+    // unknown), conservatively expand the re-encode closure backwards to the
+    // last certified random-access GOP. This keeps the copied stream outside
+    // the unsafe boundary and gives the re-encoder a dependency window it can
+    // decode before emitting a forced-IDR output GOP.
+    for (std::size_t index = 0; index < result.plans.size(); ++index) {
+        auto& plan = result.plans[index];
+        if (plan.compatibility.random_access_safe) continue;
+
+        std::size_t closure_start = index;
+        while (closure_start > 0 &&
+               !result.plans[closure_start].compatibility.random_access_safe) {
+            --closure_start;
+        }
+        // Include the last certified GOP as the decode/render closure anchor:
+        // the executor may decode it, but only the unsafe suffix is required
+        // to be emitted as re-encoded output.
+        if (closure_start > 0) --closure_start;
+        for (std::size_t closure = closure_start; closure <= index; ++closure) {
+            result.plans[closure].mode = GopExecutionMode::Reencode;
+        }
+        plan.decode_first_pts = result.plans[closure_start].first_pts;
+        plan.decode_first_dts = result.plans[closure_start].first_dts;
+    }
+
     result.first_pts = result.plans.front().first_pts;
     result.last_pts = result.plans.back().last_pts;
     // Aggregate the per-GOP plans into copy/reencode counts and the
@@ -363,46 +482,29 @@ std::optional<GopCopyResult> copy_gop_source(
     const auto audio_end = input_audio >= 0
         ? to_source_pts(snapped_end_seconds, input->streams[input_audio]->time_base) : 0;
 
-    AVFormatContext* output = nullptr;
-    if (avformat_alloc_output_context2(&output, nullptr, nullptr, output_path.c_str()) < 0 || !output) {
+    chronon3d::media::MuxSession mux;
+    std::optional<chronon3d::media::AudioStreamConfig> audio_config;
+    if (input_audio >= 0) {
+        audio_config = chronon3d::media::AudioStreamConfig{
+            .params = input->streams[input_audio]->codecpar,
+            .time_base = input->streams[input_audio]->time_base};
+    }
+    std::string mux_reason;
+    if (!mux.open(chronon3d::media::MuxOpenConfig{
+            .output_path = output_path,
+            .video_codec = nullptr,
+            .audio = audio_config,
+            .video_params = input->streams[input_video]->codecpar,
+            .video_time_base = input->streams[input_video]->time_base}, mux_reason)) {
+        spdlog::error("[bitstream-copy] mux open failed for '{}': {}",
+                      output_path, mux_reason);
         close_input();
         return std::nullopt;
     }
     const auto fail = [&]() -> std::optional<GopCopyResult> {
-        if (output) {
-            if (output->pb && output->oformat &&
-                !(output->oformat->flags & AVFMT_NOFILE)) {
-                avio_closep(&output->pb);
-            }
-            avformat_free_context(output);
-            output = nullptr;
-        }
         close_input();
         return std::nullopt;
     };
-
-    AVStream* output_video = avformat_new_stream(output, nullptr);
-    if (!output_video || avcodec_parameters_copy(
-            output_video->codecpar, input->streams[input_video]->codecpar) < 0) {
-        return fail();
-    }
-    output_video->time_base = input->streams[input_video]->time_base;
-    AVStream* output_audio = nullptr;
-    if (input_audio >= 0) {
-        output_audio = avformat_new_stream(output, nullptr);
-        if (!output_audio || avcodec_parameters_copy(
-                output_audio->codecpar, input->streams[input_audio]->codecpar) < 0) {
-            return fail();
-        }
-        output_audio->time_base = input->streams[input_audio]->time_base;
-    }
-
-    if (!(output->oformat->flags & AVFMT_NOFILE) &&
-        avio_open(&output->pb, output_path.c_str(), AVIO_FLAG_WRITE) < 0) {
-        return fail();
-    }
-    if (avformat_write_header(output, nullptr) < 0) return fail();
-    chronon3d::media::PacketAssembler assembler(output, output_video, output_audio);
 
     GopCopyResult result;
     bool selected_video_started = false;
@@ -440,9 +542,16 @@ std::optional<GopCopyResult> copy_gop_source(
             }
             if (packet->pts != AV_NOPTS_VALUE) packet->pts -= start;
             if (packet->dts != AV_NOPTS_VALUE) packet->dts -= start;
-            const bool submitted = is_video
-                ? assembler.submit_copied_video(*packet, input->streams[input_video]->time_base)
-                : assembler.submit_audio(*packet, input->streams[input_audio]->time_base);
+            bool submitted = false;
+            if (is_video) {
+                submitted = mux.submit_video(
+                    *packet, input->streams[input_video]->time_base);
+            } else {
+                auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+                submitted = owned && av_packet_ref(owned.get(), packet) >= 0 &&
+                    mux.submit_audio(chronon3d::media::EncodedPacket{
+                        std::move(owned), input->streams[input_audio]->time_base, false});
+            }
             if (!submitted) {
                 av_packet_unref(packet);
                 av_packet_free(&packet);
@@ -455,13 +564,7 @@ std::optional<GopCopyResult> copy_gop_source(
     }
     av_packet_free(&packet);
     if (!selected_video_started) return fail();
-    if (!assembler.finalize()) return fail();
-    if (output->pb && output->oformat &&
-        !(output->oformat->flags & AVFMT_NOFILE)) {
-        avio_closep(&output->pb);
-    }
-    avformat_free_context(output);
-    output = nullptr;
+    if (!mux.finalize()) return fail();
     close_input();
     return result;
 #endif

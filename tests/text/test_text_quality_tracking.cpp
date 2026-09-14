@@ -502,3 +502,30 @@ TEST_CASE("TextQuality: typewriter tracking — different tracking values scale 
     auto& tw15 = *tw15_res;
     CHECK(tw15.total_width == doctest::Approx(tw0.total_width + track15).epsilon(0.2f));
 }
+
+TEST_CASE("TextQuality: typewriter — progressive reveal keeps final anchor fixed") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    if (!require_font(engine)) return;
+
+    const std::string text = "T.y. {W!g?#% 123} - AV";
+    const float size = 64.0f;
+    const float tracking = 2.0f;
+    const FontSpec spec = inter_bold_quality();
+    auto layout_result = ct::compute_typewriter_layout(
+        text, size, tracking, {2400.0f, 400.0f}, 1.0f, spec, engine);
+    REQUIRE(layout_result);
+    const auto& layout = *layout_result;
+    REQUIRE(layout.chars.size() > 4);
+
+    float pen = -layout.total_width * 0.5f;
+    for (const auto& character : layout.chars) {
+        CHECK(character.x == doctest::Approx(pen + character.advance * 0.5f)
+              .epsilon(0.01f));
+        pen += character.advance;
+        CHECK(character.y == doctest::Approx(layout.chars.front().y).epsilon(0.01f));
+    }
+    CHECK(pen == doctest::Approx(layout.total_width * 0.5f).epsilon(0.02f));
+}

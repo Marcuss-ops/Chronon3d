@@ -439,6 +439,31 @@ TEST_CASE("FrameDeltaCompiler propagates spatial damage spread to bounds and til
     CHECK(delta.dirty_tiles->dirty_count() == 9);
 }
 
+TEST_CASE("FrameDeltaCompiler applies anisotropic effect halos") {
+    auto previous_layer = layer(BBox{40, 40, 60, 60});
+    auto current_layer = previous_layer;
+    current_layer.content_hash = 2;
+
+    chronon3d::graph::detail::FrameDeltaCompileOptions options;
+    options.full_frame_threshold = 0.0;
+    options.spatial_halo = [](std::string_view) {
+        return chronon3d::graph::detail::FrameDeltaCompileOptions::SpatialHalo{
+            .left = 3, .top = 4, .right = 7, .bottom = 9};
+    };
+
+    const auto delta = FrameDeltaCompiler::compile(
+        chronon3d::Frame{10},
+        {{"shadow", current_layer}},
+        {{"shadow", previous_layer}},
+        false, 128, 128, nullptr, options);
+
+    REQUIRE(delta.dirty_bounds.has_value());
+    CHECK(delta.dirty_bounds->x0 == 37);
+    CHECK(delta.dirty_bounds->y0 == 36);
+    CHECK(delta.dirty_bounds->x1 == 67);
+    CHECK(delta.dirty_bounds->y1 == 69);
+}
+
 TEST_CASE("FrameDeltaCompiler normalizes full-frame damage and tiles") {
     const TileGrid grid(64, 64, 16);
     const auto delta = FrameDeltaCompiler::compile(

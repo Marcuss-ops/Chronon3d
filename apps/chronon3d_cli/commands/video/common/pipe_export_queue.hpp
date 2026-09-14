@@ -5,6 +5,7 @@
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/runtime/bounded_spsc_ring.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include "gpu_slot_pool.hpp"
 
@@ -24,6 +25,13 @@ struct FullGraphFramePackage {
     runtime::GpuSlotPool::Lease slot;
     std::shared_ptr<Framebuffer> cpu_fallback;
     std::shared_ptr<FramebufferArena> cpu_arena;
+    /// Regions the RGBA->NV12 encoder boundary may convert selectively. Only a
+    /// producer that can prove the pooled encoder frame already holds this
+    /// frame's pixels outside these regions may fill it; otherwise the frame is
+    /// converted whole (see media/video/nv12_region_policy.hpp). The pipeline
+    /// currently passes none, so the field is the seam for a future producer
+    /// with that proof, not a dirty-rect passthrough.
+    std::vector<raster::BBox> dirty_regions;
 };
 
 struct DirectYuvFramePackage {

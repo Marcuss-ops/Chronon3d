@@ -5,6 +5,7 @@
 #include "scene_native_output.hpp"
 
 #include "../nodes/native_surface.hpp"
+#include "tile_execution_policy.hpp"
 
 #include <chronon3d/cache/framebuffer_copy.hpp>
 
@@ -159,6 +160,35 @@ void NativeSourceResidency::begin_frame_batch() {
         backend_.begin_frame_batch();
         encode_batch_active_ = true;
     }
+}
+
+bool NativeSourceResidency::preserve_previous_surface_if_needed(
+    const FrameExecutionPlan& plan) {
+    if (!encode_batch_active_ || !ctx_.policy.require_native_gpu ||
+        !plan.use_dirty_region ||
+        ctx_.policy.native_video_previous_surface ==
+            runtime::kInvalidRenderSurfaceHandle ||
+        ctx_.policy.native_video_encode_surface ==
+            runtime::kInvalidRenderSurfaceHandle ||
+        ctx_.policy.native_video_previous_surface ==
+            ctx_.policy.native_video_encode_surface) {
+        return true;
+    }
+
+    const auto copy = backend_.copy_surface(
+        ctx_.policy.native_video_encode_surface,
+        ctx_.policy.native_video_previous_surface);
+    if (!copy.ok()) {
+        spdlog::error(
+            "[native-residency] previous-surface preserve failed for frame {}: {}",
+            static_cast<int>(ctx_.frame_input.frame), copy.error().message);
+        return false;
+    }
+    if (ctx_.node_exec.counters) {
+        ctx_.node_exec.counters->gpu_surface_copy_frames.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+    return true;
 }
 
 runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(

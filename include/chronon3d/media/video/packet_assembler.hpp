@@ -74,6 +74,8 @@ struct MuxOpenConfig {
     std::string output_path;
     const AVCodecContext* video_codec{nullptr};  ///< borrowed, not owned
     std::optional<AudioStreamConfig> audio{};
+    const AVCodecParameters* video_params{nullptr}; ///< borrowed, not owned
+    AVRational video_time_base{0, 1};
 };
 
 struct SegmentAssemblyRequest {

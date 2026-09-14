@@ -66,34 +66,6 @@ compute_tight_text_surface_geometry(
     f32 max_x = local->max_x;
     f32 max_y = local->max_y;
 
-    // Keep shadow expansion identical to prepare_text_run(). Shadows are
-    // paint bounds, not glyph-layout bounds, and therefore belong in the
-    // producer-side surface contract.
-    const float font_size = shape.layout->font_size;
-    const float ascent = std::max({0.0f, shape.layout->placed.ascent,
-                                   font_size * 0.8f});
-    const float descent = std::max({0.0f, shape.layout->placed.descent,
-                                    font_size * 0.2f});
-    const auto& placed = shape.layout->placed;
-    const std::size_t shadow_glyph_count = std::min(
-        shape.glyphs.size(), placed.glyphs.size());
-    for (std::size_t gi = 0; gi < shadow_glyph_count; ++gi) {
-        const auto& glyph = shape.glyphs[gi];
-        const float gx = glyph.layout_position.x + glyph.position.x;
-        const float gy = glyph.layout_position.y + glyph.position.y;
-        const float scale_y = std::abs(glyph.scale.y * glyph.scale.z);
-        const float advance = std::max(1.0f, std::abs(placed.glyphs[gi].advance_x));
-        for (const auto& shadow : shape.shadows) {
-            if (!shadow.enabled) continue;
-            const float padding = shadow.blur + std::abs(shadow.offset.x) +
-                                  std::abs(shadow.offset.y) + margin;
-            min_x = std::min(min_x, gx - padding);
-            max_x = std::max(max_x, gx + advance + padding);
-            min_y = std::min(min_y, gy - ascent * scale_y - padding);
-            max_y = std::max(max_y, gy + descent * scale_y + padding);
-        }
-    }
-
     if (!(max_x > min_x && max_y > min_y)) {
         return std::nullopt;
     }

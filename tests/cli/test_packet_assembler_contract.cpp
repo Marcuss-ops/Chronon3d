@@ -7,6 +7,7 @@
 #include <string>
 
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/media/video/gop_execution_executor.hpp>
 #include "utils/video/gop_smart_copy.hpp"
 #include "utils/video/variant_batch.hpp"
 
@@ -361,6 +362,75 @@ TEST_CASE("PacketAssembler exposes a distinct copied-video submission path") {
                    AVRational time_base) {
         assembler.submit_copied_video(packet, time_base);
     });
+}
+
+TEST_CASE("GOP executor dispatches the verified schedule through one MuxSession") {
+    using namespace chronon3d::media;
+    MuxSession mux;
+    const auto compatible = BitstreamCompatibility{
+        .codec_match = true,
+        .profile_match = true,
+        .level_compatible = true,
+        .dimensions_match = true,
+        .pixel_format_match = true,
+        .parameter_sets_compatible = true,
+        .color_params_match = true,
+        .random_access_safe = true};
+    const auto encoded_range = TimestampRange{30, 59, true};
+    const GopExecutionPlan plan{
+        .total_gops = 2,
+        .copy_gops = 1,
+        .reencode_gops = 1,
+        .all_copy = false,
+        .hybrid = true,
+        .safe_to_splice = true,
+        .work_units = {
+            GopWorkUnit{
+                .ordinal = 0,
+                .first_pts = 0,
+                .last_pts = 29,
+                .first_dts = 0,
+                .last_dts = 29,
+                .kind = GopWorkKind::CopyPackets,
+                .source_packets = TimestampRange{0, 29, true},
+                .compatibility = compatible},
+            GopWorkUnit{
+                .ordinal = 1,
+                .first_pts = 30,
+                .last_pts = 59,
+                .first_dts = 30,
+                .last_dts = 59,
+                .kind = GopWorkKind::Reencode,
+                .source_packets = encoded_range,
+                .decode_range = encoded_range,
+                .render_range = encoded_range,
+                .encode_range = encoded_range,
+                .force_idr_at_start = true}},
+    };
+
+    std::array<GopWorkKind, 2> seen{};
+    std::size_t seen_count = 0;
+    GopExecutionCallbacks callbacks;
+    callbacks.copy_packets = [&](const GopWorkUnit& unit, MuxSession& sink) {
+        CHECK(&sink == &mux);
+        seen[seen_count++] = unit.kind;
+        return true;
+    };
+    callbacks.reencode = [&](const GopWorkUnit& unit, MuxSession& sink) {
+        CHECK(&sink == &mux);
+        seen[seen_count++] = unit.kind;
+        return true;
+    };
+
+    GopExecutionResult result;
+    std::string reason;
+    CHECK(GopExecutionExecutor::execute(plan, mux, callbacks, result, reason));
+    CHECK(reason.empty());
+    CHECK(result.copied_gops == 1);
+    CHECK(result.reencoded_gops == 1);
+    CHECK(seen_count == 2);
+    CHECK(seen[0] == GopWorkKind::CopyPackets);
+    CHECK(seen[1] == GopWorkKind::Reencode);
 }
 
 TEST_CASE("GOP planner copies only a closed safe untouched GOP") {

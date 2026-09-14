@@ -7,8 +7,11 @@
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/media/video/nv12_region_policy.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <algorithm>
 
 namespace chronon3d::media::video {
 
@@ -97,7 +100,10 @@ bool CudaNv12Compositor::composite_direct_nv12(
 
 bool CudaNv12Compositor::composite_surface_to_nv12(
     CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
-    std::uint32_t width, std::uint32_t height, CUstream stream) {
+    std::uint32_t width, std::uint32_t height, CUstream stream,
+    std::span<const raster::BBox> dirty_regions,
+    std::uint32_t transfer_encode,
+    bool destination_retains_previous_frame) {
     using cuda_nv12_detail::check_cuda;
 
     const CUfunction kernel = surface_u8_ ? rgba_u8_to_nv12_kernel_ : rgba_to_nv12_kernel_;
@@ -116,12 +122,41 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
     // Vulkan→CUDA semaphore for this read path.
     bridge_->wait_for_vulkan(active);
     CUsurfObject surface = bridge_->surface_object();
-    void* args[] = {&surface, &out_y, &out_yp, &out_uv, &out_uvp,
-                    &width, &height};
-    check_cuda(cuLaunchKernel(kernel, (width + 31) / 32,
-                              (height + 31) / 32, 1, 16, 16, 1, 0, active,
-                              args, nullptr),
-               "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
+    // Region authority (nv12_region_policy.hpp): a sub-region is converted only
+    // when the caller proved the destination already holds the previous frame
+    // outside it. The predicted dirty rect of the CPU-side renderer is not that
+    // proof, and neither is a pooled encoder frame — so the frame is widened to
+    // full instead of publishing a torn frame.
+    const auto conversion = plan_nv12_conversion(
+        dirty_regions, width, height, destination_retains_previous_frame);
+    if (conversion.partial_rejected) {
+        static std::atomic<bool> rejection_warned{false};
+        bool expected = false;
+        if (rejection_warned.compare_exchange_strong(expected, true)) {
+            spdlog::error(
+                "[nv12_region] partial handoff rejected ({} requested regions, "
+                "destination continuity unproven): converting the full frame",
+                dirty_regions.size());
+        }
+    }
+    const bool partial_handoff = !conversion.full_frame;
+    const auto launch_region = [&](raster::BBox region) {
+        int x0 = region.x0;
+        int y0 = region.y0;
+        int x1 = region.x1;
+        int y1 = region.y1;
+        // The u8 kernel reads an already-encoded 8-bit surface; only the
+        // RGBA32F (canonical linear) kernel takes the transfer encode.
+        std::uint32_t transfer = surface_u8_ ? 0u : transfer_encode;
+        void* args[] = {&surface, &out_y, &out_yp, &out_uv, &out_uvp,
+                        &width, &height, &x0, &y0, &x1, &y1,
+                        &transfer};
+        check_cuda(cuLaunchKernel(kernel, (x1 - x0 + 31) / 32,
+                                  (y1 - y0 + 31) / 32, 1, 16, 16, 1, 0,
+                                  active, args, nullptr),
+                   "cuLaunchKernel(rgba_surface_to_nv12_2x2)");
+    };
+    for (const auto& region : conversion.regions) launch_region(region);
 
     // The conversion only reads the imported Vulkan image. Return the
     // ownership token so Vulkan cannot rewrite this ring surface while the
@@ -142,6 +177,13 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
         // Zero-copy gate 4: every RGBA→NV12 kernel launch is an encoder
         // staging conversion.  composite_direct_nv12* keeps this at zero.
         counters->rgba_to_nv12_frames.fetch_add(1, std::memory_order_relaxed);
+        if (partial_handoff) {
+            // Non-zero means a producer claimed destination continuity. On the
+            // pooled encoder-frame path that claim is not established by the
+            // pipeline, so this counter is a defect signal, not a usage stat.
+            counters->nv12_partial_handoff_frames.fetch_add(
+                1, std::memory_order_relaxed);
+        }
     }
     return true;
 }

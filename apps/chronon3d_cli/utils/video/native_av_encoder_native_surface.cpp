@@ -77,7 +77,8 @@ bool NativeAvEncoder::write_native_surface_impl(
     graph::RenderBackend& backend,
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle destination,
-    bool surface_already_prepared) {
+    bool surface_already_prepared,
+    std::span<const raster::BBox> dirty_regions) {
 #if !defined(CHRONON3D_ENABLE_CUDA_INTEROP) || !defined(CHRONON3D_ENABLE_VULKAN)
     (void)backend; (void)source; (void)destination; (void)surface_already_prepared;
     return false;
@@ -175,7 +176,8 @@ bool NativeAvEncoder::write_native_surface_impl(
                 reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
                 gpu_frame->linesize[1],
                 static_cast<std::uint32_t>(options_.width),
-                static_cast<std::uint32_t>(options_.height), cuda_stream_)) {
+                static_cast<std::uint32_t>(options_.height), cuda_stream_,
+                dirty_regions)) {
             spdlog::error("[native_av] direct RGBA->NV12 CUDA compositor failed");
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);

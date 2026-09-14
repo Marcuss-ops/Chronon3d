@@ -65,6 +65,8 @@ public:
     bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override;
     bool write_frame(const Framebuffer& fb);
     bool write_direct_yuv(const media::video::DirectYuvFrame& frame) override;
+    bool submit_copied_video(AVPacket& packet,
+                             AVRational source_time_base) override;
     bool prepare_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle destination) override;
@@ -72,10 +74,20 @@ public:
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination) override;
+    bool write_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination,
+        std::span<const raster::BBox> dirty_regions) override;
     bool write_prepared_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination) override;
+    bool write_prepared_native_surface(
+        graph::RenderBackend& backend,
+        runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle destination,
+        std::span<const raster::BBox> dirty_regions) override;
     bool finish_native_surface(
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle destination) override;
@@ -223,7 +235,8 @@ private:
         graph::RenderBackend& backend,
         runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle destination,
-        bool surface_already_prepared);
+        bool surface_already_prepared,
+        std::span<const raster::BBox> dirty_regions = {});
 
     // Single-entry converted-frame cache. The key is built by the shared
     // conversion-cache authority, so eligibility is one contract for every

@@ -777,8 +777,12 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     constexpr std::uint16_t kEmPx = 64;
-    constexpr std::uint16_t kRangePx = 8;
-    constexpr std::uint16_t kPaddingPx = 16;
+    // Keep enough representable signed distance for the certified overlay
+    // stroke/shadow presets.  A range of 8 made a 10–15% title stroke hit the
+    // atlas endpoint and forced the legacy raster route; 16 leaves room for
+    // the stroke and the medium/high shadow halo while retaining MTSDF.
+    constexpr std::uint16_t kRangePx = 16;
+    constexpr std::uint16_t kPaddingPx = 24;
     constexpr std::uint16_t kProfileId = 1;
     const runtime::DistanceFieldProfile profile{
         runtime::GlyphRepresentation::Mtsdf, kEmPx, kRangePx, kPaddingPx};
@@ -1032,7 +1036,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
 
     const auto& layout = *shape.layout;
-    constexpr std::uint16_t kRangePx = 8;
+    constexpr std::uint16_t kRangePx = 16;
 
     runtime::TextRunDynamic run{};
     run.tx = model_matrix[3][0];

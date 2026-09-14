@@ -409,13 +409,38 @@ extern "C" __global__ void p010_composite_layer_batch_2x2(
   out_uv[uv + 1] = (unsigned short)(fminf(fmaxf(roundf((1.0f-a)*bg_v + a*v), 64.0f), 960.0f) * 64.0f);
 }
 
+// ── Canonical colour boundary: linear light → target transfer ──────────
+//
+// The canonical graphics surface is RGBA32F with a LINEAR transfer (BT.709
+// primaries, premultiplied alpha). The NV12/P010 encoder target is nonlinear
+// BT.709 SDR. The transfer encode therefore belongs at THIS boundary — the
+// last step before the encoder — and it is the exact mirror of the decode-side
+// EOTF applied when a decoded frame is brought back into the canonical linear
+// domain. Deciding it here, from the target, is what stops "the surface is
+// already encoded" assumptions from silently darkening every non-video layer.
+//
+// codes (mirroring the renderer's transfer vocabulary):
+//   0 = none           — the surface already carries the target domain
+//   1 = sRGB / BT.709  — SDR camera OETF, the NVENC SDR target
+// Mirrors chronon3d::Color::to_srgb() so host and device cannot drift.
+__device__ inline float encode_transfer_channel(float linear,
+                                                unsigned int transfer) {
+  if (transfer == 0u) return linear;
+  if (linear <= 0.0f) return 0.0f;
+  if (linear >= 1.0f) return 1.0f;
+  return (linear <= 0.0031308f)
+      ? (linear * 12.92f)
+      : (1.055f * powf(linear, 1.0f / 2.4f) - 0.055f);
+}
+
 extern "C" __global__ void rgba_surface_to_nv12_2x2(
     cudaSurfaceObject_t fg_rgba,
     unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
-    int width, int height) {
-  const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
-  const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
-  if (x >= width || y >= height) return;
+    int width, int height, int region_x0, int region_y0,
+    int region_x1, int region_y1, unsigned int transfer) {
+  const int x = region_x0 + ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
+  const int y = region_y0 + ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
+  if (x >= region_x1 || y >= region_y1 || x >= width || y >= height) return;
   const int x1 = min(x + 1, width - 1);
   const int y1 = min(y + 1, height - 1);
   const float4 f00 = overlay_load(fg_rgba, x, y, width, height);
@@ -429,12 +454,12 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
   for (int i = 0; i < 4; ++i) {
     const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
     const float inv_a = (a > 1e-5f) ? (1.0f / a) : 0.0f;
-    // The compositor surface already carries the encoder's target transfer
-    // domain, so an sRGB OETF must NOT be re-applied here: doing so raised the
-    // midtones (~+50 on BGR) relative to the source. Clamp into [0,1] only.
-    srgb[i].x = fminf(fmaxf(fs[i].x * inv_a, 0.0f), 1.0f);
-    srgb[i].y = fminf(fmaxf(fs[i].y * inv_a, 0.0f), 1.0f);
-    srgb[i].z = fminf(fmaxf(fs[i].z * inv_a, 0.0f), 1.0f);
+    // Linear light in, target transfer out. `transfer == 0` keeps the legacy
+    // pass-through for a writer whose target is already linear; every SDR
+    // encoder target (NVENC BT.709) requests the OETF.
+    srgb[i].x = encode_transfer_channel(fminf(fmaxf(fs[i].x * inv_a, 0.0f), 1.0f), transfer);
+    srgb[i].y = encode_transfer_channel(fminf(fmaxf(fs[i].y * inv_a, 0.0f), 1.0f), transfer);
+    srgb[i].z = encode_transfer_channel(fminf(fmaxf(fs[i].z * inv_a, 0.0f), 1.0f), transfer);
     const float y_value = 16.0f + 219.0f *
         (0.2126f * srgb[i].x + 0.7152f * srgb[i].y + 0.0722f * srgb[i].z);
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(
@@ -462,10 +487,11 @@ __device__ float4 overlay_load_u8(cudaSurfaceObject_t surface, int x, int y,
 extern "C" __global__ void rgba_u8_surface_to_nv12_2x2(
     cudaSurfaceObject_t fg_rgba,
     unsigned char* out_y, int out_yp, unsigned char* out_uv, int out_uvp,
-    int width, int height) {
-  const int x = ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
-  const int y = ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
-  if (x >= width || y >= height) return;
+    int width, int height, int region_x0, int region_y0,
+    int region_x1, int region_y1) {
+  const int x = region_x0 + ((int)blockIdx.x * blockDim.x + threadIdx.x) * 2;
+  const int y = region_y0 + ((int)blockIdx.y * blockDim.y + threadIdx.y) * 2;
+  if (x >= region_x1 || y >= region_y1 || x >= width || y >= height) return;
   const int x1 = min(x + 1, width - 1);
   const int y1 = min(y + 1, height - 1);
   const float4 f00 = overlay_load_u8(fg_rgba, x, y, width, height);

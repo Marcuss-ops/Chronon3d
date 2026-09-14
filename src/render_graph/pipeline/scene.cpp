@@ -180,6 +180,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             return native_residency.finish_reused_native_frame(
                 execution_plan.reuse_surface, frame);
         }
+        if (ctx.policy.require_native_gpu &&
+            !native_residency.preserve_previous_surface_if_needed(execution_plan)) {
+            return nullptr;
+        }
     }
 
     // ── 4. Graph-structure hint + diagnostics plan ──

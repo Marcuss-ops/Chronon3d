@@ -37,6 +37,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <optional>
 
 // Forward-declare build_glyph_matrix in its canonical namespace so the
@@ -77,6 +78,37 @@ struct SingleGlyphRun {
     SingleGlyphRun(SingleGlyphRun&&) = delete;
     SingleGlyphRun& operator=(SingleGlyphRun&&) = delete;
 };
+
+// A text shadow is the blur of the union of the glyph masks, not the
+// source-over accumulation of one translucent shadow per glyph.  The latter
+// saturates in the overlaps between adjacent glyphs and produces the opaque
+// rectangular band that used to appear behind typewriter overlays.
+[[nodiscard]] bool has_binary_glyph_opacity(
+    const std::vector<GlyphInstanceState>& glyphs) noexcept {
+    return std::all_of(glyphs.begin(), glyphs.end(), [](const auto& glyph) {
+        return glyph.opacity <= 1e-4f || glyph.opacity >= 1.0f - 1e-4f;
+    });
+}
+
+// The shadow colour/opacity is applied after the union mask has been blurred.
+// Scaling all four bytes preserves PRGB32 premultiplication and is independent
+// of the platform byte order used by Blend2D.
+void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
+    factor = std::clamp(factor, 0.0f, 1.0f);
+    BLImageData data{};
+    if (image.empty() || image.getData(&data) != BL_SUCCESS ||
+        data.format != BL_FORMAT_PRGB32 || !data.pixelData) {
+        return;
+    }
+    for (int y = 0; y < data.size.h; ++y) {
+        auto* row = static_cast<std::uint8_t*>(data.pixelData) +
+            static_cast<std::size_t>(y) * data.stride;
+        for (int x = 0; x < data.size.w * 4; ++x) {
+            row[x] = static_cast<std::uint8_t>(std::clamp(
+                std::lround(static_cast<float>(row[x]) * factor), 0L, 255L));
+        }
+    }
+}
 
 // ── build_blur_tiers — O(G), once per side ─────────────────────────────────
 //
@@ -302,9 +334,11 @@ struct SingleGlyphRun {
 
         const f32 incoming_alpha = (shape.dissolve_layout && !shape.dissolve_glyphs.empty())
             ? shape.dissolve_mix : 1.0f;
+        const bool union_shadow_mask = has_binary_glyph_opacity(shape.glyphs);
         const Color shadow_color = {
             shadow.color.r, shadow.color.g, shadow.color.b,
-            shadow.color.a * shadow.opacity * incoming_alpha
+            union_shadow_mask ? 1.0f
+                              : shadow.color.a * shadow.opacity * incoming_alpha
         };
         const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
         const std::size_t sh_drawn = render_tier_to_image(
@@ -315,6 +349,10 @@ struct SingleGlyphRun {
         if (sh_drawn == 0) {
             release_surface(s, std::move(shadow_img));
             continue;
+        }
+        if (union_shadow_mask) {
+            scale_prgb32_alpha(
+                shadow_img, shadow.color.a * shadow.opacity * incoming_alpha);
         }
 
         Mat4 shadow_model = params.model_matrix;
@@ -384,9 +422,12 @@ struct SingleGlyphRun {
             BLImage shadow_img = acquire_surface(s, s.img_w, s.img_h);
             if (shadow_img.empty()) shadow_img = BLImage(s.img_w, s.img_h, BL_FORMAT_PRGB32);
 
+            const bool union_shadow_mask = has_binary_glyph_opacity(
+                shape.dissolve_glyphs);
             const Color shadow_color = {
                 shadow.color.r, shadow.color.g, shadow.color.b,
-                shadow.color.a * shadow.opacity * cf_fade
+                union_shadow_mask ? 1.0f
+                                  : shadow.color.a * shadow.opacity * cf_fade
             };
             const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
             const std::size_t sh_drawn = render_tier_to_image(
@@ -397,6 +438,10 @@ struct SingleGlyphRun {
             if (sh_drawn == 0) {
                 release_surface(s, std::move(shadow_img));
                 continue;
+            }
+            if (union_shadow_mask) {
+                scale_prgb32_alpha(
+                    shadow_img, shadow.color.a * shadow.opacity * cf_fade);
             }
 
             Mat4 shadow_model = params.model_matrix;

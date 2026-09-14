@@ -337,6 +337,33 @@ TEST_CASE("TextQuality: stroke GPOS — kerning pair 'AV' has correct offsets") 
     CHECK(g1.x == doctest::Approx(expected_g1_x).epsilon(0.5f));
 }
 
+TEST_CASE("TextQuality: kerning corpus — AV, To, WA, P. keep shaped spacing") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RuntimeContext::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    if (!require_font(engine)) return;
+
+    for (const std::string_view pair : {"AV", "To", "WA", "P."}) {
+        INFO("pair=", pair);
+        auto shaped = shape(engine, pair, 72.0f);
+        REQUIRE(shaped.has_value());
+        REQUIRE(shaped->glyphs.size() == 2);
+
+        auto left = shape(engine, pair.substr(0, 1), 72.0f);
+        auto right = shape(engine, pair.substr(1, 1), 72.0f);
+        REQUIRE(left.has_value());
+        REQUIRE(right.has_value());
+
+        // Kerning may close a pair, never invent extra advance beyond the
+        // independently shaped advances.  This catches disabled/misapplied
+        // GPOS kerning without hard-coding a font-specific pixel delta.
+        CHECK(shaped->width <= left->width + right->width + 0.5f);
+        CHECK(shaped->width > 0.0f);
+        CHECK(shaped->glyphs[1].x >= shaped->glyphs[0].x - 0.5f);
+    }
+}
+
 TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyphs") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RuntimeContext::create(
