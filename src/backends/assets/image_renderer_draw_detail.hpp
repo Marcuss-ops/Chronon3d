@@ -108,6 +108,8 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     // boundary; the sampler and compositor must only see surface-local
     // coordinates.
     Vec2 scale = placement.dst_rect.size / Vec2(static_cast<float>(src_w), static_cast<float>(src_h));
+    const runtime::SurfaceCoordinateMapper surface_mapper{
+        fb.origin_x(), fb.origin_y()};
     const Mat4 canvas_to_surface = glm::translate(
         Mat4(1.0f),
         Vec3{-static_cast<float>(fb.origin_x()),
@@ -128,12 +130,14 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     // before handing state to the software sampler.
     RenderState surface_state = state;
     if (state.clip_rect && (fb.origin_x() != 0 || fb.origin_y() != 0)) {
-        auto local_clip = *state.clip_rect;
-        local_clip.x0 -= fb.origin_x();
-        local_clip.y0 -= fb.origin_y();
-        local_clip.x1 -= fb.origin_x();
-        local_clip.y1 -= fb.origin_y();
-        surface_state.clip_rect = local_clip;
+        const auto local_clip = surface_mapper.canvas_to_surface(runtime::RectF{
+            static_cast<float>(state.clip_rect->x0),
+            static_cast<float>(state.clip_rect->y0),
+            static_cast<float>(state.clip_rect->x1),
+            static_cast<float>(state.clip_rect->y1)});
+        surface_state.clip_rect = raster::BBox{
+            static_cast<int>(local_clip.x0), static_cast<int>(local_clip.y0),
+            static_cast<int>(local_clip.x1), static_cast<int>(local_clip.y1)};
     }
     const bool mask_enabled = surface_state.mask && surface_state.mask->enabled();
     const int clip_x0 = surface_state.clip_rect ? surface_state.clip_rect->x0 : -1;

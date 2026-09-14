@@ -368,10 +368,17 @@ NodeExecResult TransformNode::execute(
         transform.destination_origin_y = result->origin_y();
         if (ctx.node_exec.clip_rect) {
             transform.clip_enabled = 1u;
-            transform.clip_rect[0] = ctx.node_exec.clip_rect->x0;
-            transform.clip_rect[1] = ctx.node_exec.clip_rect->y0;
-            transform.clip_rect[2] = ctx.node_exec.clip_rect->x1;
-            transform.clip_rect[3] = ctx.node_exec.clip_rect->y1;
+            const runtime::SurfaceCoordinateMapper surface_mapper{
+                result->origin_x(), result->origin_y()};
+            const auto local_clip = surface_mapper.canvas_to_surface(runtime::RectF{
+                static_cast<float>(ctx.node_exec.clip_rect->x0),
+                static_cast<float>(ctx.node_exec.clip_rect->y0),
+                static_cast<float>(ctx.node_exec.clip_rect->x1),
+                static_cast<float>(ctx.node_exec.clip_rect->y1)});
+            transform.clip_rect[0] = static_cast<std::int32_t>(local_clip.x0);
+            transform.clip_rect[1] = static_cast<std::int32_t>(local_clip.y0);
+            transform.clip_rect[2] = static_cast<std::int32_t>(local_clip.x1);
+            transform.clip_rect[3] = static_cast<std::int32_t>(local_clip.y1);
         }
 
         const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(

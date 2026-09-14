@@ -166,10 +166,17 @@ namespace {
     }
 
     transform.clip_enabled = 1u;
-    transform.clip_rect[0] = effective_clip_x0;
-    transform.clip_rect[1] = effective_clip_y0;
-    transform.clip_rect[2] = effective_clip_x1;
-    transform.clip_rect[3] = effective_clip_y1;
+    const runtime::SurfaceCoordinateMapper surface_mapper{
+        fb.origin_x(), fb.origin_y()};
+    const auto local_clip = surface_mapper.canvas_to_surface(runtime::RectF{
+        static_cast<float>(effective_clip_x0),
+        static_cast<float>(effective_clip_y0),
+        static_cast<float>(effective_clip_x1),
+        static_cast<float>(effective_clip_y1)});
+    transform.clip_rect[0] = static_cast<std::int32_t>(local_clip.x0);
+    transform.clip_rect[1] = static_cast<std::int32_t>(local_clip.y0);
+    transform.clip_rect[2] = static_cast<std::int32_t>(local_clip.x1);
+    transform.clip_rect[3] = static_cast<std::int32_t>(local_clip.y1);
 
     const auto result = ctx.backend->transform_surface_affine(
         fb.surface_handle(), acquired.handle, transform);

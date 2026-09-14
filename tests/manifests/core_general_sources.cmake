@@ -88,6 +88,7 @@ set(CORE_TEST_SOURCES
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
     core/test_result.cpp
+    core/test_surface_coordinate_mapper.cpp
     core/test_canonical_error.cpp
     core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp

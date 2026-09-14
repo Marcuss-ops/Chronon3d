@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <functional>
