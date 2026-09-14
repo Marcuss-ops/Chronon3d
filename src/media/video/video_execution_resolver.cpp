@@ -273,10 +273,14 @@ VideoExecutionPath resolve_video_execution_path_from_gop_analysis(
         // Explicit copy intent the preflight cannot prove: fail closed.
         return VideoExecutionPath::FullReencode;
     }
-    // A preflight that found every GOP copy-eligible collapses a hybrid
-    // intent to a whole-clip copy; otherwise the change is interior-or-
-    // boundary and the predicate table decides.
+    // A preflight that found every GOP copy-eligible is a trim when the
+    // requested window is narrower than the source; only the full source is
+    // a whole-clip copy. Otherwise the change is interior-or-boundary and the
+    // predicate table decides.
     const bool reusable = analysis.available && analysis.all_copy;
+    if (reusable && analysis.trim_only) {
+        return VideoExecutionPath::TrimPackets;
+    }
     const bool content_changed = intent_allow_hybrid_gop && !reusable;
     return resolve_video_execution_path(
         /*content_changed=*/content_changed,
@@ -336,6 +340,9 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             gop.hybrid = false;
             gop.safe_to_splice = true;
             gop.work_units = analysis.work_units;
+            gop.source_time_base_num = analysis.source_time_base_num;
+            gop.source_time_base_den = analysis.source_time_base_den;
+            gop.trim_only = analysis.trim_only;
             VideoExecutionDecision decision;
             decision.plan = packet_copy_plan();
             decision.reason = "explicit_gop_copy";
@@ -370,6 +377,9 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             gop.hybrid = false;
             gop.safe_to_splice = true;
             gop.work_units = analysis.work_units;
+            gop.source_time_base_num = analysis.source_time_base_num;
+            gop.source_time_base_den = analysis.source_time_base_den;
+            gop.trim_only = analysis.trim_only;
             VideoExecutionDecision decision;
             decision.plan = packet_copy_plan();
             decision.reason = "gop_all_copy_eligible";
@@ -406,7 +416,10 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             .all_copy = analysis.all_copy,
             .hybrid = analysis.hybrid,
             .safe_to_splice = analysis.safe_to_splice,
-            .work_units = analysis.work_units};
+            .work_units = analysis.work_units,
+            .source_time_base_num = analysis.source_time_base_num,
+            .source_time_base_den = analysis.source_time_base_den,
+            .trim_only = analysis.trim_only};
         // The boundary ideal may be BoundaryReencode, but the shipped plan
         // re-encodes every frame (DirectYuv); the FINAL codec path is
         // therefore FullReencode and `downgrade_count` records the loss.

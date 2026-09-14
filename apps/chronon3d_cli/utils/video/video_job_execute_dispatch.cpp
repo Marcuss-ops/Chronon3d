@@ -100,12 +100,17 @@ media::GopAnalysisSummary inspect_source_once(
     summary.reencode_gops = analysis->reencode_count;
     summary.all_copy = analysis->all_copy_eligible;
     summary.hybrid = analysis->is_hybrid();
+    summary.trim_only = analysis->trim_only;
+    summary.source_time_base_num = analysis->source_time_base_num;
+    summary.source_time_base_den = analysis->source_time_base_den;
     summary.work_units.reserve(analysis->plans.size());
     for (const auto& plan : analysis->plans) {
         summary.work_units.push_back(media::GopWorkUnit{
             .ordinal = plan.ordinal,
             .first_pts = plan.first_pts,
             .last_pts = plan.last_pts,
+            .first_dts = plan.first_dts,
+            .last_dts = plan.last_dts,
             .kind = plan.copy_packets()
                 ? media::GopWorkKind::CopyPackets
                 : media::GopWorkKind::Reencode});
