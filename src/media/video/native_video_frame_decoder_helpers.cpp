@@ -30,6 +30,21 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
         static_cast<AVPixelFormat>(frame->format), frame->width, frame->height,
         AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!sws) return nullptr;
+    // Keep the CPU reference boundary identical to the CUDA NV12 importer.
+    // Goal3 sources commonly omit colour metadata; Chronon's canonical SDR
+    // fallback is BT.709 limited-range YUV decoded to full-range RGB. The
+    // libswscale defaults otherwise select BT.601 for these frames, which
+    // produces a large green-channel parity error despite correct placement.
+    const int source_cs = frame->colorspace == AVCOL_SPC_BT2020_NCL
+        ? SWS_CS_BT2020
+        : ((frame->colorspace == AVCOL_SPC_BT470BG ||
+            frame->colorspace == AVCOL_SPC_SMPTE170M)
+            ? SWS_CS_DEFAULT : SWS_CS_ITU709);
+    const int* source_coefficients = sws_getCoefficients(source_cs);
+    const int source_range = frame->color_range == AVCOL_RANGE_JPEG ? 1 : 0;
+    const int* destination_coefficients = sws_getCoefficients(SWS_CS_ITU709);
+    sws_setColorspaceDetails(sws, source_coefficients, source_range,
+                             destination_coefficients, 1, 0, 1 << 16, 1 << 16);
     uint8_t* dst_data[4] = {nullptr, nullptr, nullptr, nullptr};
     int dst_stride[4] = {0, 0, 0, 0};
     const int image_bytes = av_image_get_buffer_size(

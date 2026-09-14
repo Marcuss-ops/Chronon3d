@@ -61,6 +61,10 @@ public:
         m_native_importer = std::move(importer);
     }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime> runtime) { m_video_runtime = std::move(runtime); }
+    /// Force the reference/software lane to avoid selecting a CUVID decoder.
+    /// Native GPU export leaves this disabled and continues to use the shared
+    /// registry-owned CUDA device when one is available.
+    void set_software_only(bool software_only) noexcept { m_software_only = software_only; }
     void set_gpu_hot_path_mode(GpuHotPathMode mode) override { m_gpu_hot_path_mode = mode; }
     void set_trace_job_id(std::uint64_t job_id) noexcept { m_trace_job_id.store(job_id, std::memory_order_relaxed); }
     void set_test_options(NativeDecoderTestOptions opts) noexcept { m_test_options = opts; }
@@ -160,6 +164,7 @@ private:
     RenderCounters* m_counters{nullptr};
     std::shared_ptr<NativeFrameImporter> m_native_importer;
     std::shared_ptr<VideoDeviceRuntime> m_video_runtime;
+    bool m_software_only{false};
     GpuHotPathMode m_gpu_hot_path_mode{GpuHotPathMode::Auto};
     std::atomic<std::uint64_t> m_trace_job_id{0};
     NativeDecoderTestOptions m_test_options;

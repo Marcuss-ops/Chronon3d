@@ -1,6 +1,7 @@
 #include "cli_render_utils.hpp"
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
+#include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -65,6 +66,8 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     double* backend_init_ms) {
     const auto engine_t0 = profiling::now();
     Config cfg = config.has_value() ? std::move(*config) : Config::from_environment();
+    const bool software_backend =
+        cfg.backend_preference() == graph::BackendPreference::Software;
     auto runtime_res = runtime::RuntimeContext::create(
         runtime::RuntimeConfig{.config = cfg, .assets_root = assets_root});
     if (!runtime_res) {
@@ -85,6 +88,15 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
 
     // Inject default backends
     renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
+    // The standalone `render --backend software` path still executes VideoNode
+    // through the render graph. Keep its CPU reference semantically complete:
+    // without a provider, VideoNode fail-softs to an empty framebuffer and the
+    // native/software parity test compares a decoded native frame with black.
+    // The decoder owns its FFmpeg sessions and is retained by SoftwareRenderer
+    // for the lifetime of the render job.
+    auto video_decoder = std::make_shared<media::NativeVideoFrameDecoder>();
+    video_decoder->set_software_only(software_backend);
+    renderer->set_video_decoder(std::move(video_decoder));
     if (engine_init_ms) {
         *engine_init_ms = profiling::duration_ms(engine_t0, profiling::now());
     }

@@ -1,6 +1,6 @@
 # TICKET-GOAL3-NATIVE-COMPOSITE-COLLISION — a baked text layer hides a scaled video layer, and lands at the canvas origin
 
-**Status:** RE-DIAGNOSED (third pass, 2026-09-14) — placement is FIXED; color parity and encoder determinism are implemented and await GPU validation
+**Status:** CLOSED (2026-09-14) — placement, color parity, boundary behavior and determinism pass on the release GPU lane
 **Created:** 2026-09-14
 **Scope:** `chronon3d_cli` GPU-native lane (`required_gpu_native_full_graph`)
 **Reporter:** RenderingGen audit session (read-only; RenderGen tree untouched)
@@ -12,13 +12,16 @@
   bbox to the actual input surface before publishing the tight surface. The plate is now
   full-canvas (`[0,0→1920,1080]`) and the foreground is the centered `1344×756` box
   (`[288,162→1632,918]`). Pixel, watermark, video-composited and boundary checks pass.
-- **R2 color: implementation complete, E2E pending.** Native NV12/P010 import applies the
-  inverse transfer before publishing canonical `RGBA Linear/Identity/Full`; the software
-  decoder applies the same inverse transfer before entering the framebuffer. The current
-  host has no NVIDIA driver, so native/software MAE cannot be re-measured here.
-- **R3 determinism: encoder contract hardened, E2E pending.** Goal3 pins NVENC to constant
-  QP 23 and the software reference to explicit CRF 18; neither lane relies on an implicit
-  driver-default rate-control mode. Re-run the full harness on a host with NVENC.
+- **R2 color: CLOSED.** Native NV12/P010 import applies the inverse transfer before publishing
+  canonical `RGBA Linear/Identity/Full`; the software decoder uses the same BT.709 limited-range
+  conversion. The CUDA importer also preserves NVDEC ordering by using FFmpeg's legacy default
+  stream when no decoder stream is published. Goal3 parity MAE is below the gate on all three
+  image/video/source cases.
+- **R3 determinism: CLOSED.** Goal3 pins NVENC to constant QP 23 and the software reference to
+  explicit CRF 18; the full harness passes `determinism/same_plan_same_frames`.
+
+The full Goal3 acceptance run is green: structural, pixel placement/watermark/video checks,
+native/software parity, non-canvas fail-closed boundary and determinism all pass.
 
 ## Second pass — VERIFIED against the current engine (2026-09-14)
 

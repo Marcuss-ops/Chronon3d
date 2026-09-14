@@ -227,6 +227,16 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
                     "no supported encoder pixel format for requested output");
     }
 
+    // The compositor's video contract is SDR BT.709 limited-range. The
+    // native CLI encoder already publishes these fields; the shared pipe
+    // sink must publish the same metadata or downstream decoders interpret
+    // identical YUV bytes differently (and parity probes compare different
+    // transfer/range conversions).
+    codec_->color_range = AVCOL_RANGE_MPEG;
+    codec_->colorspace = AVCOL_SPC_BT709;
+    codec_->color_trc = AVCOL_TRC_BT709;
+    codec_->color_primaries = AVCOL_PRI_BT709;
+
     if (config.encoder.rate_control_mode == RateControlMode::Bitrate) {
         codec_->bit_rate = config.encoder.bitrate;
     }
@@ -284,6 +294,10 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     frame_->format = codec_->pix_fmt;
     frame_->width = codec_->width;
     frame_->height = codec_->height;
+    frame_->color_range = codec_->color_range;
+    frame_->colorspace = codec_->colorspace;
+    frame_->color_trc = codec_->color_trc;
+    frame_->color_primaries = codec_->color_primaries;
     const int buffer_result = av_frame_get_buffer(frame_, 32);
     if (buffer_result < 0) {
         return fail(VideoSinkError::EncoderFailed,
