@@ -140,6 +140,34 @@ bool fused_batch_payload_compatible(
     return true;
 }
 
+// A fused batch publishes exactly ONE output: its root. Every other member is
+// skipped at execution time, so a member whose output is consumed OUTSIDE the
+// batch hands that consumer a null framebuffer — and a Composite with a
+// missing top silently degrades to a pass-through, which drops a whole layer
+// from the finished frame while every node still reports success (observed:
+// "background + foreground + watermark" clips finished without the watermark
+// and without the foreground, because the text member was fused under a
+// Transform root its own consumer did not read).
+//
+// An island is therefore only sound when each non-root member's consumers all
+// live inside it; otherwise the members stay standalone and execute normally.
+[[nodiscard]] bool batch_is_sound(
+    const CompiledFrameGraph& compiled,
+    const std::vector<GraphNodeId>& members) {
+    if (members.size() < 2) return false;
+    const GraphNodeId root = members.back();
+    for (GraphNodeId member : members) {
+        if (member == root || member >= compiled.nodes.size()) continue;
+        for (GraphNodeId consumer : compiled.nodes[member].consumers) {
+            if (std::find(members.begin(), members.end(), consumer) ==
+                members.end()) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
     std::vector<GraphNodeId> current_fused_batch;
     for (const auto& level : compiled.levels) {
@@ -152,16 +180,18 @@ std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
                 compiled, node_id, node_info, !current_fused_batch.empty());
             if (candidate_fusible && !fused_batch_payload_compatible(
                     compiled, current_fused_batch, node_info)) {
-                CompiledLayerBatch batch;
-                batch.member_nodes = std::move(current_fused_batch);
-                batch.root_node = batch.member_nodes.back();
-                if (batch.root_node < compiled.nodes.size()) {
-                    if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
-                        batch.output_physical_slot = resource->physical_slot;
+                if (batch_is_sound(compiled, current_fused_batch)) {
+                    CompiledLayerBatch batch;
+                    batch.member_nodes = std::move(current_fused_batch);
+                    batch.root_node = batch.member_nodes.back();
+                    if (batch.root_node < compiled.nodes.size()) {
+                        if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
+                            batch.output_physical_slot = resource->physical_slot;
+                        }
                     }
+                    batch.is_gpu_fused = true;
+                    compiled.program.layer_batches.push_back(std::move(batch));
                 }
-                batch.is_gpu_fused = true;
-                compiled.program.layer_batches.push_back(std::move(batch));
                 current_fused_batch.clear();
                 candidate_fusible = is_fusible_layer_node(
                     compiled, node_id, node_info, false);
@@ -169,16 +199,18 @@ std::vector<GraphNodeId> collect_layer_batches(CompiledFrameGraph& compiled) {
             if (candidate_fusible) {
                 current_fused_batch.push_back(node_id);
             } else if (!current_fused_batch.empty()) {
-                CompiledLayerBatch batch;
-                batch.member_nodes = std::move(current_fused_batch);
-                batch.root_node = batch.member_nodes.back();
-                if (batch.root_node < compiled.nodes.size()) {
-                    if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
-                        batch.output_physical_slot = resource->physical_slot;
+                if (batch_is_sound(compiled, current_fused_batch)) {
+                    CompiledLayerBatch batch;
+                    batch.member_nodes = std::move(current_fused_batch);
+                    batch.root_node = batch.member_nodes.back();
+                    if (batch.root_node < compiled.nodes.size()) {
+                        if (const auto* resource = compiled.resource_table().resource_for(batch.root_node)) {
+                            batch.output_physical_slot = resource->physical_slot;
+                        }
                     }
+                    batch.is_gpu_fused = true;
+                    compiled.program.layer_batches.push_back(std::move(batch));
                 }
-                batch.is_gpu_fused = true;
-                compiled.program.layer_batches.push_back(std::move(batch));
                 current_fused_batch.clear();
             }
         }
@@ -190,6 +222,7 @@ void flush_tail_fused_batch(
     CompiledFrameGraph& compiled,
     std::vector<GraphNodeId> current_fused_batch) {
     if (current_fused_batch.empty()) return;
+    if (!batch_is_sound(compiled, current_fused_batch)) return;
     CompiledLayerBatch batch;
     batch.member_nodes = std::move(current_fused_batch);
     batch.root_node = batch.member_nodes.back();
