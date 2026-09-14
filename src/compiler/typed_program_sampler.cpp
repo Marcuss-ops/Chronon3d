@@ -123,7 +123,8 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         Transform transform;
         transform.position = position;
         transform.scale = scale;
-        transform.rotation = Quat(glm::radians(layer.rotation[2]), Vec3{0.0f, 0.0f, 1.0f});
+        transform.rotation = glm::angleAxis(
+            glm::radians(layer.rotation[2]), Vec3{0.0f, 0.0f, 1.0f});
         transform.opacity = sampled.opacity;
         sampled.matrix = transform.to_matrix();
         block.layers.push_back(std::move(sampled));

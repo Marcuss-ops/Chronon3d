@@ -24,6 +24,7 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -33,12 +34,36 @@
 
 namespace chronon3d::graph {
 
+Mat4 SourceNode::effective_matrix(const RenderGraphContext& ctx) const {
+    if (ctx.frame_parameters && layer_index() != UINT32_MAX) {
+        if (const auto* sampled = compiler::find_layer(
+                *ctx.frame_parameters, layer_index())) {
+            // Typed program transforms are authored in the canonical
+            // center-relative layer basis. Compose the layer transform with
+            // the node-local anchor exactly once before the source backend.
+            return detail::implicit_canvas_center_matrix(ctx) *
+                   sampled->matrix * m_node.world_transform.to_mat4();
+        }
+    }
+    return m_matrix_override.value_or(m_node.world_transform.to_mat4());
+}
+
+f32 SourceNode::effective_opacity(const RenderGraphContext& ctx) const {
+    if (ctx.frame_parameters && layer_index() != UINT32_MAX) {
+        if (const auto* sampled = compiler::find_layer(
+                *ctx.frame_parameters, layer_index())) {
+            return sampled->opacity * m_node.world_transform.opacity;
+        }
+    }
+    return m_opacity_override.value_or(m_node.world_transform.opacity);
+}
+
 std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    const f32 opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+    const Mat4 base_matrix = effective_matrix(ctx);
+    const f32 opacity = effective_opacity(ctx);
     const bool exclude_from_projection = m_node.shape.type() == ShapeType::FakeBox3D;
     const auto placement = detail::evaluate_source_payload_placement(
         base_matrix,
@@ -103,8 +128,8 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
 std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
     const SourceNode& node,
     const RenderGraphContext& ctx) {
-    const Mat4 base_matrix = node.m_matrix_override.value_or(node.m_node.world_transform.to_mat4());
-    const f32 opacity = node.m_opacity_override.value_or(node.m_node.world_transform.opacity);
+    const Mat4 base_matrix = node.effective_matrix(ctx);
+    const f32 opacity = node.effective_opacity(ctx);
     const bool exclude_from_projection = node.m_node.shape.type() == ShapeType::FakeBox3D;
     const auto placement = detail::evaluate_source_payload_placement(
         base_matrix, opacity, ctx, node.m_apply_camera_projection,
@@ -200,12 +225,12 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     // params_hash alone would collide (e.g. zoom-identical states).
     key.frame = cache_frame_for_policy(cache_policy(), ctx.frame_input.frame);
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
-    if (m_matrix_override) {
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_matrix_override)[0][0], sizeof(Mat4)));
-    }
-    if (m_opacity_override) {
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
-    }
+    const auto effective = effective_matrix(ctx);
+    key.params_hash = hash_combine(key.params_hash,
+        hash_bytes(&effective[0][0], sizeof(Mat4)));
+    const auto opacity = effective_opacity(ctx);
+    key.params_hash = hash_combine(key.params_hash,
+        hash_bytes(&opacity, sizeof(f32)));
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):
     // canonical conditional fold — single implementation for the invariant.
     cache::fold_camera_if(

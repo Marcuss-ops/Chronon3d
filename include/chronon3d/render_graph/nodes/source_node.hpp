@@ -80,6 +80,9 @@ public:
 
 
 private:
+    [[nodiscard]] Mat4 effective_matrix(const RenderGraphContext& ctx) const;
+    [[nodiscard]] f32 effective_opacity(const RenderGraphContext& ctx) const;
+
     friend std::optional<raster::BBox> detail::preflight_diagnostic_bbox(
         const SourceNode&, const RenderGraphContext&);
 

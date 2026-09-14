@@ -17,7 +17,9 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <tests/helpers/test_utils.hpp>
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <vector>
@@ -65,6 +67,30 @@ bool bit_equal(const chronon3d::Framebuffer& a,
         }
     }
     return true;
+}
+
+struct AlphaBounds {
+    int x0{0};
+    int y0{0};
+    int x1{0};
+    int y1{0};
+    int pixels{0};
+};
+
+AlphaBounds alpha_bounds(const chronon3d::Framebuffer& fb) {
+    AlphaBounds out{fb.width(), fb.height(), 0, 0, 0};
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            if (fb.get_pixel(x, y).a <= 0.05f) continue;
+            out.x0 = std::min(out.x0, x);
+            out.y0 = std::min(out.y0, y);
+            out.x1 = std::max(out.x1, x + 1);
+            out.y1 = std::max(out.y1, y + 1);
+            ++out.pixels;
+        }
+    }
+    if (out.pixels == 0) return {};
+    return out;
 }
 
 /// Corpus entry: a render plan plus the frames the gate renders.
@@ -168,7 +194,71 @@ TEST_CASE("typed-program overlay lowering preserves full-canvas color and image 
     const auto rendered = engine.render_program(program, chronon3d::Frame{22});
     REQUIRE(rendered);
     const auto pixel = rendered->get_pixel(0, 0);
-    CHECK(pixel.r == doctest::Approx(0.9333333f).epsilon(0.02f));
-    CHECK(pixel.g == doctest::Approx(0.945098f).epsilon(0.02f));
-    CHECK(pixel.b == doctest::Approx(0.9058823f).epsilon(0.02f));
+    // The graph framebuffer is the canonical linear-light working domain;
+    // render-plan color literals are decoded from their video/sRGB notation
+    // at the source boundary.
+    const auto expected = chronon3d::Color{
+        0.9333333f, 0.945098f, 0.9058823f, 1.0f}.to_linear();
+    CHECK(pixel.r == doctest::Approx(expected.r).epsilon(0.02f));
+    CHECK(pixel.g == doctest::Approx(expected.g).epsilon(0.02f));
+    CHECK(pixel.b == doctest::Approx(expected.b).epsilon(0.02f));
+}
+
+TEST_CASE("animated image overlay keeps its prepared box centred across motion frames") {
+    RenderPlan plan = make_plan(
+        "animated-image-centre-regression", 192, 128, chronon3d::Frame{8}, {});
+
+    LayerPlan image;
+    image.id = "portrait";
+    image.type = LayerType::Image;
+    image.asset = "tests/install_consumer/assets/test_image.png";
+    image.size = {48.0f, 48.0f};
+    image.size_dimensions = 2;
+    image.fit = chronon3d::render_plan::FitMode::Contain;
+    image.position = {0.0f, 0.0f, 0.0f};
+    image.position_dimensions = 2;
+    image.start_frame = chronon3d::Frame{0};
+    image.duration_frames = chronon3d::Frame{8};
+    image.animation = chronon3d::render_plan::AnimationPlan{};
+    image.animation->tracks.push_back({
+        "position_x",
+        {{chronon3d::Frame{0}, {-40.0f}},
+         {chronon3d::Frame{4}, {0.0f}}},
+        "linear"});
+    plan.layers.push_back(std::move(image));
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(chronon3d::test::test_repo_root());
+    auto compiled = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+
+    // Use the fully-wired software lane here.  RenderEngine defaults to the
+    // Vulkan graph on this build, which is not the lane this regression is
+    // measuring and has no legacy-node fallback for this test asset.
+    auto renderer = chronon3d::test::make_renderer();
+    const auto frame0 = renderer.render_program(compiled.value(), chronon3d::Frame{0});
+    const auto frame2 = renderer.render_program(compiled.value(), chronon3d::Frame{2});
+    const auto frame4 = renderer.render_program(compiled.value(), chronon3d::Frame{4});
+    REQUIRE(frame0);
+    REQUIRE(frame2);
+    REQUIRE(frame4);
+
+    const auto b0 = alpha_bounds(*frame0);
+    const auto b2 = alpha_bounds(*frame2);
+    const auto b4 = alpha_bounds(*frame4);
+    REQUIRE(b0.pixels > 0);
+    REQUIRE(b2.pixels > 0);
+    REQUIRE(b4.pixels > 0);
+
+    // The image surface is 48x48 and its animation is a translation in the
+    // same centred basis. It must not change raster size or acquire a second
+    // canvas translation as the layer animation becomes active.
+    CHECK(b0.x1 - b0.x0 == doctest::Approx(48).epsilon(0.25));
+    CHECK(b0.y1 - b0.y0 == doctest::Approx(48).epsilon(0.25));
+    CHECK(b4.x1 - b4.x0 == doctest::Approx(48).epsilon(0.25));
+    CHECK(b4.y1 - b4.y0 == doctest::Approx(48).epsilon(0.25));
+    CHECK((b0.x0 + b0.x1) / 2.0 == doctest::Approx(56.0).epsilon(1.0));
+    CHECK((b0.y0 + b0.y1) / 2.0 == doctest::Approx(64.0).epsilon(1.0));
+    CHECK((b4.x0 + b4.x1) / 2.0 == doctest::Approx(96.0).epsilon(1.0));
+    CHECK((b4.y0 + b4.y1) / 2.0 == doctest::Approx(64.0).epsilon(1.0));
 }
