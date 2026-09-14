@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -43,6 +44,19 @@ struct FullGraphSession {
     // (NVENC was measured at 73% avg utilization, starved between drains).
     static constexpr std::size_t kGpuEncodeSlotCapacity = 6;
 
+    static std::size_t configured_gpu_encode_slot_capacity() noexcept {
+        const char* raw = std::getenv("CHRONON_GPUSLOT_DEPTH");
+        if (!raw || *raw == '\0') return kGpuEncodeSlotCapacity;
+        char* end = nullptr;
+        const unsigned long parsed = std::strtoul(raw, &end, 10);
+        if (end == raw || *end != '\0' || parsed == 0 || parsed > 64) {
+            spdlog::warn("[video] ignoring invalid CHRONON_GPUSLOT_DEPTH={}; using {}",
+                         raw, kGpuEncodeSlotCapacity);
+            return kGpuEncodeSlotCapacity;
+        }
+        return static_cast<std::size_t>(parsed);
+    }
+
     std::shared_ptr<SoftwareRenderer> renderer;
     graph::RenderBackend* surface_backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
@@ -50,7 +64,7 @@ struct FullGraphSession {
     std::unique_ptr<TripleBufferArena> triple_arena;
 
     FullGraphSession()
-        : execution_slots(kGpuEncodeSlotCapacity) {}
+        : execution_slots(configured_gpu_encode_slot_capacity()) {}
 
     ~FullGraphSession() {
         execution_slots.close();
