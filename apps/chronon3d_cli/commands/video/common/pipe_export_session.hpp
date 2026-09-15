@@ -173,16 +173,15 @@ struct PipeExportSession {
     // queue_capacity is retained for source compatibility and its non-zero
     // contract (F8.1 — the video pipeline REQUIRES bounded backpressure: an
     // unbounded queue would buffer whole frames until OOM under encoder
-    // stall). The SPSC ring capacity is a compile-time constant
-    // (RenderFrameQueue::kCapacity); the argument only guards the historic
-    // 0 = unbounded misuse.
+    // stall). The SPSC ring and CPU framebuffer arena share the single
+    // kCpuVideoPipelineDepth authority.
     explicit PipeExportSession(size_t queue_capacity) {
         if (queue_capacity == 0) {
             throw std::invalid_argument(
                 "PipeExportSession requires a bounded queue capacity (> 0)");
         }
-        static_assert(RenderFrameQueue::kCapacity == 4,
-                      "SPSC ring capacity must match the historic 4-slot handoff");
+        static_assert(RenderFrameQueue::kCapacity == kCpuVideoPipelineDepth,
+                      "SPSC ring must use the bounded CPU pipeline depth");
     }
 
     ~PipeExportSession() {

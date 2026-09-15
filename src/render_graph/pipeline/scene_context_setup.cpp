@@ -68,6 +68,14 @@ SoftwareRenderer* setup_render_graph_context(
     // shared_ptr instead of deep-copying the string (hot-path tax C).
     if (sw_renderer) {
         ctx.runtime = sw_renderer->execution_context().runtime;
+        if (ctx.runtime) {
+            ctx.gpu_asset_cache = &ctx.runtime->gpu_asset_cache();
+            ctx.gpu_glyph_atlas = &ctx.runtime->gpu_glyph_atlas();
+            ctx.gpu_text_atlas_cache = &ctx.runtime->gpu_text_atlas_cache();
+            ctx.gpu_styled_glyph_cache = &ctx.runtime->gpu_styled_glyph_cache();
+            ctx.gpu_text_prepared_cache = &ctx.runtime->gpu_text_prepared_cache();
+            ctx.image_cache = &ctx.runtime->image_cache();
+        }
         ctx.asset_resolver = sw_renderer->execution_context().runtime
             ? &sw_renderer->execution_context().runtime->resolver() : nullptr;
         if (sw_renderer->execution_context().runtime) {
@@ -79,6 +87,12 @@ SoftwareRenderer* setup_render_graph_context(
             }
         }
     } else if (ctx.runtime && !ctx.asset_resolver) {
+        ctx.gpu_asset_cache = &ctx.runtime->gpu_asset_cache();
+        ctx.gpu_glyph_atlas = &ctx.runtime->gpu_glyph_atlas();
+        ctx.gpu_text_atlas_cache = &ctx.runtime->gpu_text_atlas_cache();
+        ctx.gpu_styled_glyph_cache = &ctx.runtime->gpu_styled_glyph_cache();
+        ctx.gpu_text_prepared_cache = &ctx.runtime->gpu_text_prepared_cache();
+        ctx.image_cache = &ctx.runtime->image_cache();
         ctx.asset_resolver = &ctx.runtime->resolver();
         if (!ctx.frame_input.static_context) {
             if (const auto root = ctx.runtime->resolver().mount_root();

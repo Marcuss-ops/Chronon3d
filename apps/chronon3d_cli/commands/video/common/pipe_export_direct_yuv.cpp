@@ -31,7 +31,9 @@ RenderLoopOutput run_direct_yuv_loop(
         Frame frame{0};
         double wall_start_ms{0.0};
         double execute_ms{0.0};
+        double decode_ms{0.0};
         double submit_wait_ms{0.0};
+        bool template_reused{false};
     };
 
     const int total = static_cast<int>((end - start).integral());
@@ -76,6 +78,9 @@ RenderLoopOutput run_direct_yuv_loop(
                 completed = false;
                 break;
             }
+
+            timing.decode_ms = direct_frame->decode_ms;
+            timing.template_reused = direct_frame->template_reused;
 
             const auto submit_start = std::chrono::steady_clock::now();
             RenderFramePackage package = DirectYuvFramePackage{
@@ -149,11 +154,11 @@ RenderLoopOutput run_direct_yuv_loop(
             .duration_ms = timing.execute_ms + timing.submit_wait_ms,
             .preparation_ms = 0.0,
             .encode_handoff_ms = timing.submit_wait_ms,
-            .cache_hit = true,
+            .cache_hit = timing.template_reused,
             .dirty_area_ratio = 0.0,
             .node_lookup_ms = 0.0,
             .graph_eval_ms = 0.0,
-            .direct_yuv_decode_ms = timing.execute_ms,
+            .direct_yuv_decode_ms = timing.decode_ms,
             .queue_wait_ms = timing.submit_wait_ms,
             .render_breakdown = {},
             .image_timing = {},
@@ -164,9 +169,9 @@ RenderLoopOutput run_direct_yuv_loop(
             .dirty_rect_x1 = 0,
             .dirty_rect_y1 = 0,
             .tile_execution_used = false,
-            .fast_path_reused = true,
-            .graph_reused = true,
-            .program_cache_capacity = 1});
+            .fast_path_reused = timing.template_reused,
+            .graph_reused = false,
+            .program_cache_capacity = 0});
     }
     return output;
 }

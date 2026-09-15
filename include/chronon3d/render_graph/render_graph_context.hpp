@@ -105,6 +105,8 @@ namespace chronon3d::runtime {
     class GpuAssetCache;
     class GpuGlyphAtlas;
     class GpuStyledGlyphCache;
+    class GpuTextAtlasCache;
+    class GpuTextRunPreparedCache;
 }
 
 namespace chronon3d::media {
@@ -503,6 +505,15 @@ struct RenderGraphContext {
     RenderBackend* backend{nullptr};
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     TextRenderResources* text_render_resources{nullptr};
+    // Explicit borrowed cache views. RuntimeContext remains the owner; graph
+    // hot paths consume these typed dependencies instead of looking services
+    // up through the runtime composition root.
+    runtime::GpuAssetCache* gpu_asset_cache{nullptr};
+    runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
+    runtime::GpuTextAtlasCache* gpu_text_atlas_cache{nullptr};
+    runtime::GpuStyledGlyphCache* gpu_styled_glyph_cache{nullptr};
+    runtime::GpuTextRunPreparedCache* gpu_text_prepared_cache{nullptr};
+    ImageCache* image_cache{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     const CompositionRegistry* registry{nullptr};

@@ -39,6 +39,7 @@ namespace runtime {
 class RuntimeContext;
 class RenderSurfaceRegistry;
 class GpuTextRunPreparedCache;
+class GpuGlyphAtlas;
 }
 
 /// Registry and policy lookup surface for one software execution job.
@@ -71,6 +72,7 @@ struct SoftwareTextServices {
     TextRenderResources* resources{nullptr};
     FontEngine* fonts{nullptr};
     assets::AssetResolver* assets{nullptr};
+    runtime::GpuGlyphAtlas* glyph_atlas{nullptr};
     runtime::GpuTextRunPreparedCache* prepared_cache{nullptr};
 };
 

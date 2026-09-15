@@ -11,7 +11,8 @@
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
-#include <chronon3d/backends/text/mtsdf_generator.hpp>
+#include <chronon3d/text/mtsdf_preparation.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
@@ -510,7 +511,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
     // The bitmap payload is immutable for a prepared/styled run.  Keep the
     // packed GPU surface persistent and rebuild only GlyphInstance records,
     // whose position/opacity/highlight fields are frame-dynamic.
-    if (ctx.runtime) {
+    if (ctx.gpu_text_atlas_cache) {
         std::vector<runtime::PackedGlyphBitmap> bitmap_views;
         bitmap_views.reserve(glyphs.size());
         std::uint64_t key_bytes_hashed = 0;
@@ -522,7 +523,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
                 static_cast<std::uint64_t>(pixels.size_bytes());
         }
         const auto acquire_start = profiling::now();
-        const bool acquired = ctx.runtime->gpu_text_atlas_cache().acquire(
+        const bool acquired = ctx.gpu_text_atlas_cache->acquire(
             bitmap_views, persistent_atlas);
         if (profiling::g_current_counters) {
             auto* counters = profiling::g_current_counters;
@@ -586,7 +587,7 @@ graph::RenderOpResult draw_packed_text_run_surface(
         atlas_desc = runtime::SurfaceDesc::make(
             dims.width, dims.height, runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
-            ctx.runtime != nullptr ? runtime::LifetimeClass::JobPersistent
+            ctx.gpu_text_atlas_cache != nullptr ? runtime::LifetimeClass::JobPersistent
                                    : runtime::LifetimeClass::FrameTransient);
         for (std::size_t i = 0; i < glyphs.size(); ++i) {
             const auto& glyph = glyphs[i];
@@ -751,8 +752,7 @@ graph::RenderOpResult draw_packed_text_run(
 }
 
 std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
-    runtime::RuntimeContext& runtime,
-    TextRenderResources* text_resources,
+    runtime::GpuGlyphAtlas& glyph_atlas,
     const assets::AssetResolver* resolver,
     const TextRunShape& shape) {
     if (!shape.layout ||
@@ -776,14 +776,11 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         }
     }
 
-    constexpr std::uint16_t kEmPx = 64;
-    // Keep enough representable signed distance for the certified overlay
-    // stroke/shadow presets.  A range of 8 made a 10–15% title stroke hit the
-    // atlas endpoint and forced the legacy raster route; 16 leaves room for
-    // the stroke and the medium/high shadow halo while retaining MTSDF.
-    constexpr std::uint16_t kRangePx = 16;
-    constexpr std::uint16_t kPaddingPx = 24;
-    constexpr std::uint16_t kProfileId = 1;
+    constexpr auto profile_spec = text::kCanonicalMtsdfProfile;
+    constexpr std::uint16_t kEmPx = profile_spec.em_px;
+    constexpr std::uint16_t kRangePx = profile_spec.distance_range_px;
+    constexpr std::uint16_t kPaddingPx = profile_spec.padding_px;
+    constexpr std::uint16_t kProfileId = profile_spec.generation_id;
     const runtime::DistanceFieldProfile profile{
         runtime::GlyphRepresentation::Mtsdf, kEmPx, kRangePx, kPaddingPx};
     const auto& layout = *shape.layout;
@@ -814,48 +811,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             selector_spec,
             layout.units, layout.source_text, &layout.placed);
     }
-    std::vector<FontFaceHandle> fonts;
-    try {
-        if (text_resources && resolver) {
-            fonts.reserve(layout.font_spans.size());
-            for (const auto& span : layout.font_spans) {
-                // The glyph-span continuity/bounds invariants are already
-                // enforced by the canonical loop above (the one that walks
-                // covered_glyphs), so they are not re-checked here: one
-                // decision, one place.
-                if (span.font.font_path.empty()) {
-                    return nullptr;
-                }
-                fonts.push_back(text_resources->resolve_handle(
-                    span.font.font_path, static_cast<float>(kEmPx), *resolver));
-            }
-        }
-    } catch (const std::exception& e) {
-        // A font-handle resolution throw is NOT the same thing as "GPU text
-        // unsupported": the caller still falls back to the compatibility path
-        // and the composition renders, so without this signal a real resolve
-        // failure is invisible.  Count it, name it, and keep fail-closed.
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->gpu_text_font_resolve_failures.fetch_add(
-                1, std::memory_order_relaxed);
-        }
-        spdlog::warn(
-            "[text-mtsdf] font handle resolution failed; GPU text run rejected: {}",
-            e.what());
-        return nullptr;
-    } catch (...) {
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->gpu_text_font_resolve_failures.fetch_add(
-                1, std::memory_order_relaxed);
-        }
-        spdlog::warn(
-            "[text-mtsdf] font handle resolution failed (non-standard exception); "
-            "GPU text run rejected");
-        return nullptr;
-    }
-    if (fonts.size() != layout.font_spans.size()) {
-        return nullptr;
-    }
+    if (!resolver) return nullptr;
 
     std::vector<runtime::GpuGlyphKey> keys;
     // drawable_layout[i] is the layout index of keys[i]. It is recorded in the
@@ -902,7 +858,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         // every glyph of the run.
         std::array<std::optional<runtime::GpuGlyphAtlas::Residency>, 1> resident_slot{};
         const std::array<runtime::GpuGlyphKey, 1> key_slot{key};
-        runtime.gpu_glyph_atlas().resolve_resident(key_slot, resident_slot);
+        glyph_atlas.resolve_resident(key_slot, resident_slot);
         if (resident_slot[0].has_value()) {
             const auto& resident = *resident_slot[0];
             widths.push_back(resident.location.width);
@@ -911,10 +867,9 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
                 runtime::GpuGlyphMetrics{0, 0, placed.advance_x}));
             continue;
         }
-        const auto generated = generate_mtsdf_glyph(
-            MtsdfFaceGuard{fonts[span_index].ft_face,
-                           fonts[span_index].ft_mutex.get()},
-            state.glyph_id, kEmPx, kRangePx, kPaddingPx);
+        const auto generated = text::prepare_mtsdf_glyph(
+            *resolver, layout.font_spans[span_index].font.font_path,
+            state.glyph_id, profile_spec);
         if (!generated || generated->rgba8.empty()) {
             // A drawable glyph cannot be silently omitted: a partial batch is
             // visually non-deterministic and must not be marked GPU-ready.
@@ -934,7 +889,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     if (!pending_keys.empty()) {
-        const auto uploaded = runtime.gpu_glyph_atlas().prepare_batch(
+        const auto uploaded = glyph_atlas.prepare_batch(
             pending_keys, pending_widths, pending_heights, pending_pixels,
             pending_metrics, profile);
         if (!uploaded.has_value()) {
@@ -947,7 +902,7 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     // location() + page_handle() pair cost two acquisitions per glyph per frame
     // on the same mutex, and the diagnostic run can carry thousands of glyphs.
     std::vector<std::optional<runtime::GpuGlyphAtlas::Residency>> residency(keys.size());
-    runtime.gpu_glyph_atlas().resolve_resident(keys, residency);
+    glyph_atlas.resolve_resident(keys, residency);
     for (std::size_t key_index = 0; key_index < keys.size(); ++key_index) {
         const auto& resident = residency[key_index];
         if (!resident) continue;
@@ -1009,23 +964,24 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
-    if (!ctx.runtime || !ctx.asset_resolver || !ctx.backend ||
+    if (!ctx.gpu_glyph_atlas || !ctx.gpu_text_prepared_cache ||
+        !ctx.asset_resolver || !ctx.backend ||
         !ctx.surface_registry || !shape.layout) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this run"));
     }
 
-    auto prepared = ctx.runtime->gpu_text_prepared_cache().find(*shape.layout);
+    auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout);
     if (!prepared) {
-        auto created = prepare_mtsdf_text_run(*ctx.runtime, ctx.text_render_resources,
-                                              ctx.asset_resolver, shape);
+        auto created = prepare_mtsdf_text_run(
+            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
         if (!created || !created->ready) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "MTSDF text route has no resident glyphs"));
         }
-        ctx.runtime->gpu_text_prepared_cache().store(*shape.layout, created);
+        ctx.gpu_text_prepared_cache->store(*shape.layout, created);
         prepared = created;
     }
 
@@ -1036,7 +992,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     }
 
     const auto& layout = *shape.layout;
-    constexpr std::uint16_t kRangePx = 16;
+    constexpr std::uint16_t kRangePx = text::kCanonicalMtsdfProfile.distance_range_px;
 
     runtime::TextRunDynamic run{};
     run.tx = model_matrix[3][0];

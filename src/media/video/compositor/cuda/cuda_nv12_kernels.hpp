@@ -261,7 +261,7 @@ __device__ inline float direct_mtsdf_band_dest(const DirectYuvLayer& layer) {
       (fabsf(layer.dst_x1 - layer.dst_x0) / fmaxf((float)layer.source_width, 1.0f) +
        fabsf(layer.dst_y1 - layer.dst_y0) / fmaxf((float)layer.source_height, 1.0f));
   const float range = layer.distance_range_px > 0.0f
-      ? layer.distance_range_px : 8.0f;
+      ? layer.distance_range_px : 16.0f;
   return range * source_scale;
 }
 
@@ -416,7 +416,7 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
         (fabsf(layer.dst_x1 - layer.dst_x0) / (float)layer.source_width +
          fabsf(layer.dst_y1 - layer.dst_y0) / (float)layer.source_height);
     const float range = layer.distance_range_px > 0.0f
-        ? layer.distance_range_px : 8.0f;
+        ? layer.distance_range_px : 16.0f;
     // Keep the fill coverage independent of the destination scale. The
     // watermark atlas is already generated at the canonical 64px profile;
     // applying the downscale factor to the distance field collapses ordinary

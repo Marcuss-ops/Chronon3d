@@ -36,6 +36,11 @@ struct DirectYuvFrame {
     ::chronon3d::media::HwFrameRef decoded;
     std::vector<::chronon3d::media::HwFrameRef> video_layers;
     std::shared_ptr<const DirectYuvTemplate> program;
+    // Facts captured by DirectYuvProgram::execute(), consumed by the
+    // exporter telemetry projection. These are deliberately per-frame rather
+    // than reconstructed from cumulative counters in the CLI.
+    double decode_ms{0.0};
+    bool template_reused{false};
 };
 
 } // namespace chronon3d::media::video

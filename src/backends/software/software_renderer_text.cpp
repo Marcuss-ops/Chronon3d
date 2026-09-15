@@ -126,10 +126,12 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
                 h.value->layout->font.font_path,
                 h.value->layout->font_size);
             if (!seen.insert(key).second) continue;
-            if (m_execution_context.text.assets && m_execution_context.text.prepared_cache &&
+            if (m_execution_context.text.assets &&
+                m_execution_context.text.glyph_atlas &&
+                m_execution_context.text.prepared_cache &&
                 graph::text_run::can_lower_gpu_text_animation(*h.value)) {
                 auto prepared = graph::text_run::prepare_mtsdf_text_run(
-                    *m_execution_context.runtime, trr, &resolver, *h.value);
+                    *m_execution_context.text.glyph_atlas, &resolver, *h.value);
                 if (prepared && prepared->ready) {
                     m_execution_context.text.prepared_cache->store(
                         *h.value->layout, prepared);

@@ -73,6 +73,7 @@ add_library(chronon3d_text_core OBJECT
 # lowerings without linking the Blend2D renderer objects into the media lane.
 add_library(chronon3d_text_mtsdf STATIC
     ${CMAKE_SOURCE_DIR}/src/backends/text/mtsdf_generator.cpp
+    ${CMAKE_SOURCE_DIR}/src/backends/text/mtsdf_preparation.cpp
 )
 set_target_properties(chronon3d_text_mtsdf PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_text_mtsdf PUBLIC
