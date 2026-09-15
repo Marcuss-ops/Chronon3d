@@ -15,6 +15,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
@@ -32,6 +33,94 @@ std::string read_plan_source(const RenderPlanPreparationOptions& options) {
     std::ostringstream contents;
     contents << input.rdbuf();
     return contents.str();
+}
+
+PreparedOverlayPackageSummary read_prepared_package(
+    const std::string& path, const std::string& plan_id) {
+    std::ifstream input(path);
+    if (!input) {
+        throw std::runtime_error("cannot open prepared overlay package: " + path);
+    }
+    nlohmann::json package;
+    try {
+        input >> package;
+    } catch (const std::exception& error) {
+        throw std::runtime_error(
+            "cannot parse prepared overlay package " + path + ": " + error.what());
+    }
+    if (!package.is_object()) {
+        throw std::runtime_error("prepared overlay package must be a JSON object: " + path);
+    }
+
+    const auto package_plan_id = package.value("plan_id", std::string{});
+    const auto content_hash = package.value("content_hash", std::string{});
+    if (package_plan_id.empty() || content_hash.empty()) {
+        throw std::runtime_error(
+            "prepared overlay package requires plan_id and content_hash: " + path);
+    }
+    if (!plan_id.empty() && package_plan_id != plan_id) {
+        throw std::runtime_error(
+            "prepared overlay package plan_id does not match render plan: " + path);
+    }
+
+    const auto& text_runs = package.value("text_runs", nlohmann::json::array());
+    const auto& assets = package.value("assets", nlohmann::json::array());
+    const auto& overlays = package.value("overlays", nlohmann::json::array());
+    if (!text_runs.is_array() || !assets.is_array() || !overlays.is_array()) {
+        throw std::runtime_error(
+            "prepared overlay package text_runs/assets/overlays must be arrays: " + path);
+    }
+
+    std::unordered_set<std::string> text_keys;
+    for (const auto& text : text_runs) {
+        const auto key = text.value("key", std::string{});
+        const auto value = text.value("text", std::string{});
+        if (key.empty() || value.empty() || !text_keys.insert(key).second) {
+            throw std::runtime_error(
+                "prepared overlay package contains an invalid or duplicate text key: " + path);
+        }
+    }
+
+    std::unordered_set<std::string> asset_keys;
+    for (const auto& asset : assets) {
+        const auto key = asset.value("key", std::string{});
+        const auto hash = asset.value("content_hash", std::string{});
+        const auto logical_path = asset.value("logical_path", std::string{});
+        if (key.empty() || hash.empty() || logical_path.empty() ||
+            !asset_keys.insert(key).second) {
+            throw std::runtime_error(
+                "prepared overlay package contains an invalid or duplicate asset key: " + path);
+        }
+    }
+
+    for (const auto& overlay : overlays) {
+        const auto id = overlay.value("id", std::string{});
+        const auto kind = overlay.value("kind", std::string{});
+        if (id.empty()) {
+            throw std::runtime_error(
+                "prepared overlay package contains an overlay without an id: " + path);
+        }
+        if (kind == "text") {
+            if (!text_keys.contains(overlay.value("text_key", std::string{}))) {
+                throw std::runtime_error(
+                    "prepared overlay package text overlay references an unknown text key: " + path);
+            }
+        } else if (kind == "image" || kind == "video") {
+            if (!asset_keys.contains(overlay.value("asset_key", std::string{}))) {
+                throw std::runtime_error(
+                    "prepared overlay package media overlay references an unknown asset key: " + path);
+            }
+        }
+    }
+
+    return PreparedOverlayPackageSummary{
+        path,
+        package_plan_id,
+        package.value("language", std::string{}),
+        content_hash,
+        assets.size(),
+        text_runs.size(),
+        overlays.size()};
 }
 
 /// Map the CLI's effective render settings into the backend-neutral fingerprint
@@ -104,6 +193,16 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
                 ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
 
         auto plan = std::move(decoded).value();
+        std::optional<PreparedOverlayPackageSummary> prepared_package;
+        if (!options.prepared_package.empty()) {
+            prepared_package = read_prepared_package(
+                options.prepared_package, plan.job_id);
+            spdlog::info(
+                "[overlay-prepare] validated package={} hash={} assets={} text_runs={} overlays={}",
+                prepared_package->path, prepared_package->content_hash,
+                prepared_package->asset_count, prepared_package->text_run_count,
+                prepared_package->overlay_count);
+        }
         // Explicit plan output.crf overrides the engine default when the plan
         // document carries it (the decoder defaults an absent crf to 0, so
         // presence is checked on the raw document, never the decoded value).
@@ -143,6 +242,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 
         PreparedRenderPlanContext context;
         context.decoded = std::move(plan);
+        context.prepared_package = std::move(prepared_package);
         context.program = std::make_shared<const compiler::CompiledProgram>(
             std::move(compiled).value());
 		// The numeric compiler is the canonical plan authority. The current

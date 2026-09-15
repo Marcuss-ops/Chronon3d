@@ -17,6 +17,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("render", "Render a composition");
     cmd->add_option("input", args.comp_id, "Composition name");
     cmd->add_option("--plan", state->plan_file, "Render a chronon.render-plan.v2 file through the canonical executor");
+    cmd->add_option("--prepared-package", state->prepared_package,
+                    "Immutable prepared overlay package sidecar");
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("--frame", args.frames, "Single frame number (alias for --frames)");
     // Explicit chunk range for the --plan route (mirrors the render-plan
@@ -110,6 +112,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             }
             runtime::job::RenderJobRequest request;
             request.plan_path = state->plan_file;
+            request.prepared_package_path = state->prepared_package;
             request.output_path = render_args.output;
             request.assets_root = render_args.assets_root;
             request.backend = backend_cli_name(render_args.backend);
