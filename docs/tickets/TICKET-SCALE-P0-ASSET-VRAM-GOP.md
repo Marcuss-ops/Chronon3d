@@ -145,6 +145,241 @@ Evidenza: la validazione è nel percorso di produzione
 (`apps/chronon3d_cli/utils/video/video_job_execute_dispatch.cpp`) e compila nel
 build video; l'equivalenza byte-per-byte è l'exit condition del debito.
 
+## P0-5A — il gate di splice è encoder-owned, non più sorgente-contro-sorgente
+
+Il preflight della sorgente compressa costruiva il target confrontandolo con sé
+stesso. `make_bitstream_target_contract()` apriva `source_path` e
+**sovrascriveva** codec, profile, level, dimensioni, pixel format, parameter
+sets e color metadata con quelli della sorgente; subito dopo
+`inspect_gop_source()` chiamava `compare_bitstream_compatibility(source_params,
+target, ...)`. Il gate risultava quindi:
+
+```text
+source SPS/PPS  vs  source SPS/PPS   → compatible ✅   (tautologia)
+```
+
+mentre la domanda reale è:
+
+```text
+SOURCE bitstream  vs  ENCODER OUTPUT CONTRACT
+```
+
+Con il direct splice un falso positivo significa file che decodificano male ai
+boundary. Ora il target è **encoder-owned** e la sorgente può essere solo il
+lato `source` del confronto:
+
+| Produttore | Dove | Cosa sa |
+|---|---|---|
+| **Encoder** (dichiarato) | `make_encoder_bitstream_contract()` in `encoder_bitstream_contract.{hpp,cpp}` | codec, dimensioni, color — dalle stesse `FfmpegPipeOptions` + `ResolvedEncoderConfig` che `NativeAvEncoder::open()` applica. profile/level/pixel format/parameter sets restano **unknown**: sono output dell'encoder, non configurazione |
+| **Encoder** (materializzato) | `encoder_bitstream_contract_from_codec()` | profile, level e pixel format letti dal bitstream reale: `libavcodec` apre un decoder sull'extra data prodotto e riferisce i fatti che il demuxer consegnerà al playback decoder (nessuna inferenza da stringhe) |
+| **Remux** (nessun encoder) | `make_remux_target_contract()` in `gop_smart_copy.cpp` | la lane whole-clip packet copy non ha encoder: lo stream del container *è* lo stream della sorgente. Nome e `producer` espliciti, raggiungibile solo dalla lane `gop_copy_only` |
+
+`BitstreamTargetContract` porta ora `producer` (`Encoder`/`Remux`) e
+`encoder_materialized`; `NativeAvEncoder::encoder_target_contract()` espone il
+contratto materializzato per il direct mux (5C/5D) e lo azzera su `close()`.
+
+### Cosa significa per la lane ibrida (fail-closed, dichiarato)
+
+Il preflight avviene **prima** che esista un encoder, quindi il contratto
+materializzato non è disponibile in quel punto: `profile`/`level`/parameter
+sets restano unknown, `safe_to_splice()` è false e il resolver produce un
+downgrade strutturato e contato (`gop_reencode_required`, `downgrade_count=1`)
+invece di un copy non certificato. Non è una perdita silenziosa: è la stessa
+rete di sicurezza già usata da `gop_splice_unsafe`.
+
+**Reperto empirico (misurato su questa lane, `libx264`):** l'encoder non
+espone i propri parameter sets nel `AVCodecContext` all'`avcodec_open2()` —
+`profile=-99`, `level=-99`, `extradata_size=0` anche dopo il primo frame;
+l'avcC del container viene sintetizzato dal muxer a partire dal bitstream. Un
+fatto confermato dal test: il contratto resta `encoder_materialized=false` e
+**non può essere falsamente materializzato** (invariante pinnata). Di
+conseguenza il gate di splice **non può essere un preflight a priori**: i fatti
+dell'encoder esistono solo dopo che l'encoder ha prodotto output. È
+esattamente il motivo per cui 5D (copy-to-mux) precede il ripristino del copy.
+
+Evidenza: 4 case in `tests/cli/test_packet_assembler_contract.cpp`
+(`P0-5A: ...`) — contratto dichiarato encoder-owned e fail-closed; un target
+non materializzato **non** certifica lo splice (il caso che prima era verde per
+tautologia); la lane remux conserva i fatti della sorgente e pianifica ancora
+le copie; il contratto non è mai falsamente materializzato.
+
+Verifica sulla lane GPU reale (RTX A4000, `hevc_nvenc`, sorgente HEVC 3 GOP,
+`--changed-interval 1.0:1.2:content`):
+
+```text
+gop preflight target: producer=encoder materialized=false
+gop preflight: 3 GOPs (0 copy-eligible, 3 re-encode)
+execution plan resolved (reason: gop_reencode_required}
+final plan is a structured downgrade (reason: gop_reencode_required); count=1
+native_av Opened: hevc_nvenc → output hevc Main 1280x720, 90 frame
+```
+
+Il downgrade è dichiarato, contato e produce comunque un artefatto valido: la
+lane ibrida non certifica più uno splice non dimostrabile, e la sua riaccensione
+dipende ora solo da 5D.
+
+## P0-5B — parity harness del BoundaryReencode
+
+La demolition (5G) richiede parità fra il percorso a segmenti e il direct mux.
+Il **comparatore oracle** è ora in `tests/cli/test_gop_direct_mux_parity.cpp`:
+
+- `gop_parity_corpus()` congela le forme che il gate deve coprire:
+  `copy_reencode_copy`, `reencode_copy`, `copy_reencode`,
+  `two_separate_modified_blocks`, `trim_plus_content_edit`;
+- `probe_container()` estrae i fatti oracle: codec/profile/level/dimensioni/
+pixel format/SHA-256 dell'extradata, e **per ogni packet** SHA-256 del payload,
+PTS, DTS, duration, flags, più frame decodificati, durata e fatti audio;
+- `compare_containers()` decide la parità. Per i packet copiati l'identità dei
+byte è assoluta; l'SHA-256 dell'intero file è riportato **a parte** e non è mai
+l'unico criterio (layout/metadati possono differire lecitamente).
+
+Evidenza: 3 case — corpus congelato; un container identico ha zero differenze;
+ogni classe di differenza (trim, re-encode, audio rimosso) è rilevata.
+
+**NOT RUN (alla 5B):** la run end-to-end fra `execute_hybrid_gop_plan` (oracle)
+e il direct mux non era eseguibile finché 5C/5D non esistevano. Chiusa da 5D
+(vedi sotto).
+
+## P0-5D — copy-to-mux nella MuxSession condivisa + parità end-to-end
+
+Il percorso nuovo esiste ed è certificato contro l'oracle. Tre primitive, nello
+stesso modulo `gop_smart_copy.{hpp,cpp}` (nessun secondo executor):
+
+- `open_source_declared_mux(source, out, mux, include_audio)` — dichiara il
+  container **dalla sorgente** (`MuxSession::open` accetta già `video_params`,
+  quindi un packet copiato è corretto per costruzione) e restituisce i fatti
+  che servono a certificare l'encoder contro lo stream dichiarato;
+- `SourceMuxDeclaration::encoder_reproduces(encoder_contract)` — la
+  certificazione di splice di questa lane, e usa **la stessa** authority di
+  confronto (`compare_bitstream_compatibility`): nessuna seconda tabella;
+- `submit_gop_source_packets(source, unit, mux)` — scrive i packet di **un**
+  `GopWorkUnit` usando `unit.source_packets` / `first_dts` / `last_dts` nella
+  **time base della sorgente**. Nessun `timestamp → secondi → frame → secondi →
+  timestamp`: quella seconda interpretazione dello schedule è rimossa;
+- `submit_source_audio(source, mux, video_window)` — audio **una volta sola**,
+  con la finestra dello schedule espressa nella time base **video** della
+  sorgente e convertita con `av_rescale_q`: una sola conversione, quella del
+  container. Il chiamante finalizza **una** volta.
+
+Vincolo di design risolto: i fatti bitstream dell'encoder esistono solo dopo il
+primo frame encodato, quindi la certificazione non può avvenire a `open()`.
+La lane direct-mux dichiara quindi il container dalla sorgente e **richiede** che
+l'encoder riproduca quello stream; il gate non confronta mai la sorgente con sé
+stessa (5A) perché il lato `target` è il contratto materializzato dell'encoder.
+
+Evidenza (`P0-5D: source-declared direct mux matches the copy oracle`,
+`tests/cli/test_gop_direct_mux_parity.cpp`):
+
+```text
+corpus reale: sorgente H.264 3 GOP (10 fps, GOP chiusi), all-copy
+
+video:  packet count uguale, SHA-256 del payload uguale packet-per-packet,
+        PTS/DTS/duration/flags uguali, extradata uguale, codec/profile/level/
+        dimensioni/pixel format uguali
+frame:  decodifica OK, stesso numero di frame decodificati
+container: durata uguale
+audio:  stesso numero di packet, stesso codec/sample rate/canali
+SHA-256 dell'INTERO FILE: 6889c1a92591aecaddc8922528cdf1841c2b1b9203ded04b3d97b232362bed88
+        oracle ≡ direct  (byte-identico, riportato a parte, mai unico criterio)
+```
+
+Il residuo è di **wiring**, non di primitive: `execute_hybrid_gop_plan` continua
+a scrivere un MP4 per segmento. 5E/5F significano far scrivere il child render
+dentro la stessa `MuxSession` presa in prestito (`FfmpegExportOptions` →
+`make_pipe_options` → `FfmpegPipeOptions::borrowed_mux`, già esistente) e
+lasciare audio+trailer al chiamante. 5G segue quella parità, non questa.
+
+---
+
+## P0-GOP-HEVC — il NAL length di `hvcC` (l'intera lane HEVC era re-encode)
+
+Trovato eseguendo il preflight 5A sulla lane GPU reale: **0 GOP copy-eligible su
+ogni sorgente HEVC**, quindi `gop_copy_preflight_failed` e re-encode completo.
+Non era causato da 5A: il binario `linux-video-release` **precedente** alle
+modifiche dà lo stesso risultato.
+
+Causa: `packet_is_certified_random_access()` leggeva la lunghezza dei NAL dal
+record di configurazione con l'offset di **avcC** (byte 4) anche sui record
+**hvcC**, dove `lengthSizeMinusOne` sta al **byte 21**. Misurato sul fixture:
+
+```text
+hvcC: 01 01 60 00 00 00 90 ...
+  extradata[4]  & 3 + 1 = 1   ← offset avcC (quello che il codice usava)
+  extradata[21] & 3 + 1 = 4   ← offset hvcC (corretto)
+```
+
+Con `length_size = 1` su un bitstream con prefissi a 4 byte il parse fallisce,
+`random_access_certified` è sempre false, e **ogni GOP HEVC viene forzato a
+re-encode**: la packet-copy lane è morta per il codec che la lane DirectYUV usa.
+
+Correzione: `config_record_nal_length_size()` legge l'offset **per-codec**
+(avcC byte 4, hvcC byte 21) e, quando un record valido esiste, la lettura
+length-prefixed è **deterministica** e precede lo scan Annex-B — `00 00 01`
+compare dentro slice data legittime, quindi dedurre Annex B dal payload
+disclassificava stream validi.
+
+Evidenza (stessa sorgente HEVC 1280x720, 3 GOP, `hevc_nvenc`, prima/dopo):
+
+```text
+prima: gop preflight: 3 GOPs (0 copy-eligible, 3 re-encode) → gop_copy_preflight_failed
+ dopo: gop preflight: 3 GOPs (3 copy-eligible, 0 re-encode, all-copy) → explicit_gop_copy
+       bitstream-copy: 90 video packets, 130 audio packets in 17.3ms
+       ffprobe: hevc Main 1280x720, 90 packet letti (nessun NVDEC/NVENC/Vulkan)
+```
+
+Test di regressione: `HEVC length-prefixed GOPs are certified copy-eligible
+(hvcC)` in `tests/cli/test_packet_assembler_contract.cpp` (fixture `libx265`,
+quindi eseguibile anche senza GPU).
+
+## P0-5C — `MuxSession` caller-owned (seam landed)
+
+`FfmpegPipeOptions::borrowed_mux` aggiunge la proprietà caller-owned senza
+cambiare la lane normale (`nullptr` = l'encoder apre e finalizza il proprio
+container). Con un mux preso in prestito:
+
+- `NativeAvEncoder` distingue `owned_mux_` (proprietà) da `mux_` (il sink
+  effettivamente scritto) e `borrows_mux_`;
+- `close()` fa **solo** flush del codec: niente audio, niente trailer. Finalizzare
+  lì chiuderebbe il container dopo il **primo** GOP ri-encodato, perdendo tutti
+  i work unit successivi — esattamente il rischio elencato in apertura;
+- la telemetria del container (`open_mux_header_ms`, `hash_metrics`,
+  `full_file_reread_count`) resta al **proprietario**, senza doppio conteggio.
+
+Evidenza: `P0-5C: an encoder writes through a caller-owned MuxSession` — il
+chiamante apre il container sulla propria dichiarazione di stream, l'encoder
+scrive un frame, `close()` lascia il container aperto, il chiamante finalizza
+una sola volta, e il file prodotto contiene esattamente 1 packet H.264.
+
+## P0-5I — misura VRAM DirectYUV (sostituisce il floor da 1 GB come unico dato)
+
+Misura su host reale (RTX A4000 16 GB), esportazione DirectYUV 90 frame /
+`hevc_nvenc`, campionando `nvidia-smi --query-compute-apps=pid,used_memory`
+ogni 20 ms e attribuendo il picco **al processo del job**:
+
+```text
+720p  (1280×720)   solo       279 / 281 / 279 MiB    (3 repliche)
+1080p (1920×1080)  solo       400 / 400 / 400 MiB    (3 repliche)
+1080p              2 concorrenti  A=400 MiB  B=400 MiB
+                                60 campioni realmente sovrapposti,
+                                entrambi hanno raggiunto il loop direct-yuv
+```
+
+Due cose che il dato dice e una che non dice:
+
+- il picco cresce **sub-linearmente**: 2.25× i pixel (0.92 → 2.07 MP) danno
+  1.43× la VRAM (280 → 400 MiB). L'overhead fisso domina;
+- due job concorrenti **non gonfiano** il footprint per job: 400 MiB ciascuno,
+  identico al solo. Il contendere si vede nel tempo
+  (`total_render` 410 ms → 2159 ms), non nella VRAM;
+- 4K resta **NOT RUN**, e il numero è di **picco**, non di saturazione: una
+  misura non sostituisce il modello `derive_vram_working_set()`.
+
+Conseguenza: il floor DirectYUV di 1 GB in `daemon_render_concurrency.hpp` è
+~2.5× il picco misurato a 1080p, quindi ha margine per essere abbassato — ma
+questo ticket **non** rimuove `m_render_job_mutex`: un floor più basso cambia
+l'admission, non la correttezza della concorrenza, che va decisa sul modello, non
+sul picco di due job.
+
 ---
 
 ## MTSDF — identità content-addressed (e regressione di performance evitata)
@@ -199,14 +434,46 @@ certificata same-SHA: resta il punto del debito sotto.
 | **Owner** | video/media lane (CLI video export) |
 | **Reason** | `execute_hybrid_gop_plan()` è sopravvissuto come secondo executor: ricostruisce il grouping da `work_units`, ricrea i confini di segmento, decide copy/reencode, scrive un MP4 per segmento e poi rimuxa. Serve solo finché la scrittura diretta in una `MuxSession` non è certificata sul corpus. |
 | **Exit condition** | `GopExecutionExecutor` + una sola `MuxSession` produce output byte-identico al percorso a segmenti sul corpus hybrid, e `execute_hybrid_gop_plan` ha zero caller. |
-| **Equivalence test/gate** | test di parità `GopExecutionExecutor::execute` + uguaglianza hash del mux sui due percorsi (stesso corpus, stesso SHA input). |
+| **Equivalence test/gate** | `tests/cli/test_gop_direct_mux_parity.cpp` — corpus congelato (`gop_parity_corpus()`) + comparatore oracle (`probe_container()`/`compare_containers()`): identità di payload/PTS/DTS/duration/flags per i packet copiati, fatti di stream, frame decodificati, durata, audio; SHA-256 dell'intero file riportato a parte. La lane **copy** è già verde con SHA-256 identico (5D); l'exit condition copre però l'intero corpus hybrid, quindi serve il reencode nel mux condiviso (5E/5F). |
 | **Removal scope** | `struct HybridSegment`, workspace `.hybrid-*`, `segment_paths`, il caller hybrid di `assemble_segments()`, `execute_hybrid_gop_plan()`, e i commenti di debito in `video_job_execute_dispatch.cpp`. |
-| **Status** | `ACTIVE` (fase 1 landata: validazione schedule attraverso l'executor) |
+| **Status** | `ACTIVE` — fase 1 (validazione schedule via executor), **5A** (target di splice encoder-owned), **5B** (gate di parità), **5C** (seam caller-owned) e **5D** (copy-to-mux + parità end-to-end, SHA-256 identico) landate. Restano 5E/5F (il child render deve scrivere nel mux del chiamante) e poi 5G. |
 
 Percorso pagato oggi per lavoro che potrebbe essere un solo mux:
 `encode → write → close → open → demux → timestamp-normalize → remux → delete`.
 
 ---
+
+## Verifica (2026-09-15, P0-5A + 5B + hvcC + 5C)
+
+```text
+linux-video-test (Vulkan + CUDA interop + FFmpeg + text + daemon, ccache + mold)
+  ninja chronon3d_cli_video_export / chronon3d_cli / chronon3d_cli_tests   EXIT 0
+  chronon3d_cli_tests                     177/177 case, 2022 assertion  PASS
+    (9 nuovi: 4× P0-5A, 3× P0-5B, 1× hvcC, 1× P0-5C)
+
+lane GPU reale (RTX A4000 16 GB, driver 595.91.07, CUDA 13.2)
+  copy-only HEVC 3 GOP  → all-copy, bitstream-copy 90 video + 130 audio packet, 17.3ms
+  hybrid intent HEVC    → gop_reencode_required, downgrade contato, hevc Main 90 frame
+  DirectYUV 720p        → picco 285 MiB (baseline 5121 escluso)
+
+gates
+  python3.11 tools/check_architecture.py          GATE_PASS 191/191
+  tools/check_test_hygiene.sh                     HYGIENE_PASS 3/3
+  tools/check_doc_sha_dedup.sh                    DEDUP_PASS
+  tools/check_conflict_markers.sh                 GATE_PASS
+  tools/check_filename_drift.sh                   nessun drift nuovo sui file toccati
+  tools/check_cmake_format.sh                     NOT RUN (cmake-format non installato)
+
+build acceleration
+  mold 1.0.3 — `-fuse-ld=mold` nelle regole di link della lane
+  ccache — launcher su 1151 regole, 5064 richieste, 51.6% hit
+```
+
+Nota di non-regressione: la lane `linux-fast-dev` (VIDEO=OFF,
+NATIVE_FFMPEG=OFF) non compila nessuno dei TU toccati (vivono in
+`chronon3d_cli_video_export`, gated su `CHRONON3D_ENABLE_VIDEO`); il percorso
+`#else` di `encoder_bitstream_contract.cpp` è stato verificato con
+`g++ -fsyntax-only` senza `CHRONON3D_ENABLE_NATIVE_FFMPEG`.
 
 ## Verifica (2026-09-15, questo change set)
 
@@ -246,7 +513,14 @@ fallisce in 7/7 e 1/5 case) che non hanno nulla a che vedere col codice.
 | Piano VRAM derivato dal footprint compilato | **PASS (modello) / PARTIAL (site)** | `derive_vram_working_set()` è l'unico modello di composizione: `planned_physical_bytes` + `peak_live_bytes` + ring (footprint × `kDefaultFrameRingDepth`) + budget NVDEC/NVENC/atlasi/scratch + margine 15%, le stesse categorie di `graph::DeviceMemoryPlan`. La calibrazione misurata è il **floor** che il charge non può sottopassare. Resta PARTIAL sul *site*: il payload `RENDER_JOB` porta solo `plan_path`, quindi al punto di admission pre-compile **non esiste** alcun footprint e il daemon usa legittimamente il floor; il numero post-compile è derivato dal grafo reale in `render_job_finalize.cpp` |
 | Gate `estimated_peak_vram` vs `observed_peak_vram` | **PARTIAL** | `reconcile_vram_working_set()` rileva l'under-admission (compiled > charged: `verdict == UnderCharged`, `fail_loud()`), coperto da test. Il confronto dati-vs-stima su una run GPU-host resta **NOT RUN**: nessuna GPU in questa sessione |
 | Lane `linux-video-test` | **LANDED** | liberati i due alberi `.tmp/chronon-builds/*` (33 GB; il daemon e `pipelinegen` girano da `build/chronon/linux-video-release`, nessun file aperto sotto `.tmp`), poi `cmake --preset linux-video-test` + build mirata: 648/648 step, EXIT 0, 19 GB liberi residui. Il vcpkg per-preset esisteva già (`vcpkg_installed/linux-video-test`), quindi nessuna reinstallazione di dipendenze |
-| P0-3 fasi 2/3 (mux diretto, cancellazione segmenti) | **OPEN — gate ora eseguibile** | La lane video-test non è più un blocco: il parity gate è eseguibile. Fase 2 significa cambiare la proprietà di encoder/mux: `render_and_encode_ffmpeg_pipe` oggi possiede encoder e output path e deve invece ricevere una `MuxSession` caller-owned in cui finiscano sia i packet copiati sia quelli NVENC. Superficie del cambio: `setup_pipe_export_session`, il sink nativo, `PacketAssembler`, `FfmpegExportOptions` + continuità dei timestamp. Resta il lavoro più grande del ticket e non è stato avviato: l'exit condition è la **parità byte-identica** fra i due percorsi sul corpus hybrid, non la compilazione |
+| P0-5A gate encoder-owned | **LANDED + verificato su GPU** | Il target non è più derivato dalla sorgente su nessuna lane che ri-encoda; `producer` esplicito (`Encoder`/`Remux`), contratto materializzato esposto da `NativeAvEncoder`, fail-closed quando i fatti dell'encoder non esistono ancora. Su `hevc_nvenc` reale il preflight produce un downgrade strutturato `gop_reencode_required` e un artefatto valido |
+| P0-GOP-HEVC NAL length `hvcC` | **FIXED** | `packet_is_certified_random_access()` leggeva l'offset avcC (byte 4) sui record hvcC (byte 21 corretto) → `length_size=1` invece di 4 → **0 GOP copy-eligible su ogni sorgente HEVC**, lane packet-copy morta per il codec usato da DirectYUV. Ora 3/3 GOP copy-eligible e `bitstream-copy` 90 packet in 17.3 ms; test di regressione con fixture `libx265` (CPU-only) |
+| P0-5B parity comparator | **LANDED** | Corpus congelato + comparatore oracle (`tests/cli/test_gop_direct_mux_parity.cpp`): un container identico ha zero differenze e ogni classe di differenza (trim, re-encode, audio rimosso) è rilevata |
+| P0-5C seam `MuxSession` caller-owned | **LANDED** | `FfmpegPipeOptions::borrowed_mux` + `owned_mux_`/`mux_`/`borrows_mux_`: in prestito `close()` fa solo flush del codec (niente audio, niente trailer) e la telemetria del container resta al proprietario. Test dedicato con 16 assertion |
+| P0-5D copy-to-mux + parità end-to-end | **LANDED** | `open_source_declared_mux` + `encoder_reproduces` + `submit_gop_source_packets` + `submit_source_audio`: i packet copiati entrano nella `MuxSession` condivisa dalla time base della sorgente e il gate oracle passa — **SHA-256 dell'intero file byte-identico** fra i due percorsi, oltre a identità payload/PTS/DTS/flags, frame decodificati, durata e audio |
+| P0-5E/5F (reencode nella stessa sessione, audio/finalize una volta) | **OPEN — wiring** | Le primitive ci sono; manca solo il collegamento di `FfmpegExportOptions` → `make_pipe_options` → `FfmpegPipeOptions::borrowed_mux` così che il child render scriva nel mux del chiamante, che resta l'unico owner di audio e trailer |
+| P0-5I picco VRAM DirectYUV | **PASS (720p + 1080p + 2 job) / 4K NOT RUN** | 279–281 MiB @720p, 400 MiB @1080p (`hevc_nvenc`, 3 repliche ciascuno, campionamento per-PID), e **400 MiB per job** con due job realmente sovrapposti. Il floor di 1 GB ha ~2.5× margine a 1080p; la rimozione di `m_render_job_mutex` resta una decisione sul modello, non sul picco |
+| P0-3 fasi 2/3 (mux diretto, cancellazione segmenti) | **OPEN — metà copy certificata (5D)** | Fase 2 significa cambiare la proprietà di encoder/mux: `render_and_encode_ffmpeg_pipe` oggi possiede encoder e output path e deve invece ricevere una `MuxSession` caller-owned in cui finiscano sia i packet copiati sia quelli NVENC. Superficie del cambio: `FfmpegExportOptions` → `make_pipe_options` → `FfmpegPipeOptions::borrowed_mux` (esiste), `setup_pipe_export_session`, il sink nativo, `PacketAssembler` + continuità dei timestamp. Il lato **copy** è certificato: i packet copiati entrano nella sessione condivisa e producono un file **byte-identico** all'oracle. Manca il lato **reencode** nel mux del chiamante: finché non c'è, l'exit condition (parità sull'intero corpus hybrid) non è raggiunta e la demolizione 5G non è legale |
 | Certificazione same-SHA main + Vulkan planned/unplanned | **NOT RUN** | `CURRENT_STATUS` resta valido: main non è "green" senza evidenza same-SHA |
 | `compatibility_composition` / C22→C23 | **OPEN** | invariato da questo ticket |
 | `chronon3d_render_graph_tests` | **RESOLVED — 378/378 PASS** | Non causato dal change set P0. Il `REQUIRE` aggiunto ha sbloccato la run (378 casi invece di 31, la `CHECK` indicizzava un vettore vuoto) ed è emerso un terzo rosso latente. Entrambe le cause diagnosticate con esperimenti e chiuse secondo la decisione presa: vedi §Diagnosi layer-batch |

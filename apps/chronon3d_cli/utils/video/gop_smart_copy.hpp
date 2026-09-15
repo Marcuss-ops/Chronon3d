@@ -15,6 +15,13 @@ extern "C" {
 #include <string_view>
 #include <vector>
 
+namespace chronon3d::media {
+// Forward declaration only: this header must stay usable in a video build
+// without native FFmpeg, where packet_assembler.hpp's libav includes are not
+// available. Every use below is a reference parameter.
+class MuxSession;
+} // namespace chronon3d::media
+
 namespace chronon3d::cli {
 
 enum class GopExecutionMode : std::uint8_t {
@@ -38,9 +45,29 @@ enum class BitstreamCodecId : int {};
 enum class BitstreamPixelFormat : int {};
 #endif
 
-/// Encoder-owned bitstream contract used as the single target authority for
-/// source inspection and GOP splice validation.
+/// Who produced a BitstreamTargetContract.
+///
+/// `Encoder` is the only legal producer whenever a re-encode participates in
+/// the output (hybrid / boundary re-encode): the target must describe what the
+/// encoder will emit, never what the source happens to contain.
+/// `Remux` is the no-encoder lane: the output container literally carries the
+/// source stream, so the source's own codec parameters ARE the output
+/// contract. Keeping the two producers distinct is what stops the splice gate
+/// from degenerating into `source vs source`.
+enum class BitstreamTargetProducer : std::uint8_t {
+    Encoder,
+    Remux,
+};
+
+/// Bitstream contract used as the single target authority for source
+/// inspection and GOP splice validation.
 struct BitstreamTargetContract {
+    BitstreamTargetProducer producer{BitstreamTargetProducer::Encoder};
+    /// True only when profile, level and parameter sets were read from an
+    /// OPENED AVCodecContext (encoder_bitstream_contract_from_codec). A
+    /// declared contract is honest about what it does not know yet and can
+    /// never certify a splice on its own.
+    bool encoder_materialized{false};
     BitstreamCodecId codec{static_cast<BitstreamCodecId>(0)};
     int profile{-1};
     int level{-1};
@@ -230,11 +257,96 @@ struct GopCopyResult {
     double start_seconds,
     double end_seconds);
 
+// ── Source-declared container (direct-mux / splice lane, P0-5D) ───────────
+//
+// On the splice lane the container is declared from the COMPRESSED SOURCE, not
+// from the encoder: a copied packet is then correct by construction, and the
+// only thing left to prove is that the encoder reproduces the declared stream.
+// That proof is deterministic — two runs of the same encoder configuration
+// emit byte-identical parameter sets — so a same-configuration source
+// certifies and a foreign source does not.
+
+/// Facts captured while the container was declared from the source. Enough to
+/// certify the encoder against the declared stream without keeping the
+/// demuxer (or its AVCodecParameters) alive.
+struct SourceMuxDeclaration {
+    std::vector<std::uint8_t> video_extradata;
+    int video_codec_id{-1};
+    int video_profile{-1};
+    int video_level{-1};
+    int video_pixel_format{-1};
+    int video_width{0};
+    int video_height{0};
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    AVRational video_time_base{0, 1};
+    AVColorRange color_range{AVCOL_RANGE_UNSPECIFIED};
+    AVColorSpace color_space{AVCOL_SPC_UNSPECIFIED};
+    AVColorPrimaries color_primaries{AVCOL_PRI_UNSPECIFIED};
+    AVColorTransferCharacteristic color_trc{AVCOL_TRC_UNSPECIFIED};
+#endif
+    int source_video_stream{-1};
+    int source_audio_stream{-1};
+    bool audio_declared{false};
+
+    /// Splice certification for this lane: the encoder's materialized contract
+    /// must reproduce the stream the container was declared from. Uses the one
+    /// compatibility authority — no second comparison table.
+    [[nodiscard]] bool encoder_reproduces(
+        const BitstreamTargetContract& encoder_contract) const noexcept;
+};
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+/// Declare `mux`'s video stream (and, when `include_audio`, its audio stream)
+/// from the source's own codec parameters, then return the facts the splice
+/// certification needs. The caller owns `mux` and finalizes it exactly once.
+[[nodiscard]] std::optional<SourceMuxDeclaration> open_source_declared_mux(
+    const std::string& source_path, const std::string& output_path,
+    chronon3d::media::MuxSession& mux, bool include_audio);
+#endif
+
+/// Submit the video packets of ONE work unit into the shared mux, straight
+/// from the source's own timestamps.
+///
+/// `unit.source_packets` is a source-time-base range and `unit.first_dts` /
+/// `unit.last_dts` the unit's decode envelope: packets are selected by DTS,
+/// which is the order the container stores them in. Nothing round-trips
+/// through seconds or frames — that second interpretation of the schedule is
+/// exactly what this primitive exists to remove.
+[[nodiscard]] std::optional<GopCopyResult> submit_gop_source_packets(
+    const std::string& source_path, const chronon3d::media::GopWorkUnit& unit,
+    chronon3d::media::MuxSession& mux);
+
+/// Submit the source audio track for the SCHEDULED window, once.
+///
+/// `video_window` is expressed in the SOURCE VIDEO time base — the same
+/// authority the work units and the analysis speak — and is converted to the
+/// audio stream's time base by the container's own rescale. Seconds are never
+/// reintroduced, so the schedule keeps exactly one interpretation.
+///
+/// Audio is not GOP-aligned, so this is called exactly once per export no
+/// matter how many work units ran: a per-unit call would duplicate the track.
+/// A window with `present == false` means "the whole track".
+[[nodiscard]] std::optional<GopCopyResult> submit_source_audio(
+    const std::string& source_path, chronon3d::media::MuxSession& mux,
+    chronon3d::media::TimestampRange video_window);
+
+/// Build the target contract for a WHOLE-CLIP packet copy.
+///
+/// This lane has no encoder: the output container's video stream is the source
+/// stream, so the source's own codec parameters (including its SPS/PPS) are by
+/// definition the output contract. This is the only place a compressed source
+/// may produce a target, and it is legal precisely because no encoder is
+/// involved. Never use it when a re-encode participates in the same output —
+/// use the encoder-owned contract authority instead.
+[[nodiscard]] std::optional<BitstreamTargetContract> make_remux_target_contract(
+    const std::string& source_path);
+
 /// Inspect a compressed video source without decoding its frames. The edit
 /// interval is expressed in seconds and converted to the source stream time
 /// base by the analyzer. Packet copy is
 /// only planned for complete untouched GOPs whose codec parameters are known
-/// to match the requested output.
+/// to match the requested output — supplied by the caller as `target`, which
+/// must be the ENCODER-owned contract whenever a re-encode participates.
 [[nodiscard]] std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
     const BitstreamTargetContract& target,
