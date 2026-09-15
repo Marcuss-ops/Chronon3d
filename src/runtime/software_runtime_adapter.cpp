@@ -45,6 +45,7 @@ SoftwareExecutionContext make_software_renderer_context(
     context.images.cache = &runtime.image_cache();
     context.images.surfaces = &runtime.surface_registry();
     context.text.assets = &runtime.resolver();
+    context.text.glyph_atlas = &runtime.gpu_glyph_atlas();
     context.text.prepared_cache = &runtime.gpu_text_prepared_cache();
     context.executor = &runtime.executor();
     return context;

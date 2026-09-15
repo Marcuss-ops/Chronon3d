@@ -28,6 +28,8 @@
 #include <span>
 #include <vector>
 
+namespace chronon3d::runtime { class GpuGlyphAtlas; }
+
 namespace chronon3d::graph::text_run {
 
 /// Return true when the text animator stack can be lowered to the GPU text
@@ -119,8 +121,7 @@ struct GpuTextGlyph {
 /// Prepare the MTSDF representation of a TextRun into the persistent GPU glyph atlas
 /// and return a prepared record suitable for cached dispatch.
 [[nodiscard]] std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
-    runtime::RuntimeContext& runtime,
-    TextRenderResources* text_resources,
+    runtime::GpuGlyphAtlas& glyph_atlas,
     const assets::AssetResolver* resolver,
     const TextRunShape& shape);
 

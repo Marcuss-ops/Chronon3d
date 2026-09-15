@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/text/mtsdf_profile.hpp>
+
 #include <cstdint>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -31,7 +33,8 @@ struct CudaLayerResource {
     int uv_pitch_bytes{0};
     std::uint32_t width{0};
     std::uint32_t height{0};
-    float distance_range_px{8.0f};
+    float distance_range_px{
+        static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px)};
     std::uint32_t color{0xFFFFFFFFu};
     std::uint32_t stroke_color{0};
     float stroke_width{0.0f};

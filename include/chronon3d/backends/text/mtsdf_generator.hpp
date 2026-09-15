@@ -4,6 +4,8 @@
 #include <mutex>
 #include <optional>
 #include <vector>
+#include <chronon3d/text/mtsdf_glyph.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -13,18 +15,6 @@
 namespace chronon3d {
 
 #ifdef CHRONON3D_ENABLE_TEXT
-
-/// Canonical CPU preparation result for one glyph. `rgba8` contains one
-/// bit-preserving float cell per RGBA8 texel, matching the Vulkan upload ABI.
-/// RGB are edge-coloured signed distances; alpha is the true signed distance.
-struct MtsdfGlyphBitmap {
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    std::int32_t x_offset{0};
-    std::int32_t y_offset{0};
-    float advance_x{0.0f};
-    std::vector<float> rgba8;
-};
 
 /// Per-face access token for MTSDF generation.
 ///
@@ -52,9 +42,9 @@ struct MtsdfFaceGuard {
 [[nodiscard]] std::optional<MtsdfGlyphBitmap> generate_mtsdf_glyph(
     MtsdfFaceGuard face_guard,
     std::uint32_t glyph_id,
-    std::uint16_t em_px = 64,
-    std::uint16_t distance_range_px = 8,
-    std::uint16_t padding_px = 10);
+    std::uint16_t em_px = text::kCanonicalMtsdfProfile.em_px,
+    std::uint16_t distance_range_px = text::kCanonicalMtsdfProfile.distance_range_px,
+    std::uint16_t padding_px = text::kCanonicalMtsdfProfile.padding_px);
 
 #endif
 

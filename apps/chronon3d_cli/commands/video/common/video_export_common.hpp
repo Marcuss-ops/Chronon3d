@@ -98,16 +98,15 @@ struct FfmpegExportOptions {
     // verbatim; it must never reconstruct copy/reencode decisions from the
     // scene or from the source a second time.
     std::optional<chronon3d::media::GopExecutionPlan> resolved_gop_plan;
-    // Structured resolver reason for the final plan (e.g. a downgrade reason
-    // such as "hybrid_pipeline_unavailable"). Receipt surface: surfaced in
-    // logs today and available for timing-sidecar/telemetry persistence.
+    // Structured resolver reason for the final plan (for example
+    // "hybrid_gop_boundary_reencode"). Receipt surface: surfaced in logs
+    // today and available for timing-sidecar/telemetry persistence.
     std::string resolved_execution_reason;
     // Resolver-owned downgrade receipt. Zero means that the final plan was
     // selected directly; it never means that an executor may fallback.
     std::uint32_t resolved_execution_downgrade_count{0};
-    // Resolver validity for the final plan (false = fail-closed downgrade or
-    // unsupported requirement; the exporter still executes the plan axes and
-    // downstream failure handling is unchanged).
+    // Resolver validity for the final plan. A false value is fail-closed and
+    // means the requested requirements cannot be executed on this host.
     bool resolved_execution_valid{true};
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

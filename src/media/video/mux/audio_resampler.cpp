@@ -34,18 +34,22 @@ int channel_count(const AVCodecParameters* params) {
 #endif
 }
 
-std::uint64_t channel_layout(const AVCodecParameters* params) {
 #if LIBAVUTIL_VERSION_MAJOR >= 57
-    return params->ch_layout.order == AV_CHANNEL_ORDER_NATIVE
-        ? params->ch_layout.u.mask : 0;
+bool copy_or_default_layout(const AVCodecParameters* params,
+                            AVChannelLayout& layout) noexcept {
+    if (params->ch_layout.nb_channels > 0) {
+        return av_channel_layout_copy(&layout, &params->ch_layout) >= 0;
+    }
+    av_channel_layout_default(&layout, channel_count(params));
+    return layout.nb_channels > 0;
+}
 #else
-    return params->channel_layout;
+std::uint64_t channel_layout(const AVCodecParameters* params) {
+    return params->channel_layout != 0
+        ? params->channel_layout
+        : av_get_default_channel_layout(channel_count(params));
+}
 #endif
-}
-
-std::uint64_t default_layout(int channels) {
-    return channels > 0 ? av_get_default_channel_layout(channels) : 0;
-}
 
 /// Frees a frame allocated inside a noexcept path.
 void free_frame(AVFrame*& frame) noexcept {
@@ -84,8 +88,15 @@ bool AudioResampler::open(const AVCodecParameters* source,
         reason = "source audio has no channel count";
         return false;
     }
-    const auto source_layout = channel_layout(source) != 0
-        ? channel_layout(source) : default_layout(source_channels);
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    AVChannelLayout source_layout{};
+    if (!copy_or_default_layout(source, source_layout)) {
+        reason = "source audio channel layout is invalid";
+        return false;
+    }
+#else
+    const auto source_layout = channel_layout(source);
+#endif
     if (source->sample_rate <= 0) {
         reason = "source audio has no sample rate";
         return false;
@@ -116,8 +127,15 @@ bool AudioResampler::open(const AVCodecParameters* source,
     encoder_->sample_rate = target_sample_rate;
     encoder_->sample_fmt = encoder_codec->sample_fmts
         ? encoder_codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    if (av_channel_layout_copy(&encoder_->ch_layout, &source_layout) < 0) {
+        reason = "failed to copy source audio channel layout";
+        return false;
+    }
+#else
     encoder_->channels = source_channels;
     encoder_->channel_layout = source_layout;
+#endif
     encoder_->bit_rate = target_bitrate > 0 ? target_bitrate : kCanonicalAudioBitrate;
     encoder_->time_base = AVRational{1, target_sample_rate};
     // MP4 must carry the AudioSpecificConfig in extradata, which the encoder
@@ -128,12 +146,24 @@ bool AudioResampler::open(const AVCodecParameters* source,
         return false;
     }
 
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    if (swr_alloc_set_opts2(&swr_, &encoder_->ch_layout, encoder_->sample_fmt,
+                            encoder_->sample_rate, &source_layout,
+                            decoder_->sample_fmt, decoder_->sample_rate,
+                            0, nullptr) < 0) {
+        swr_ = nullptr;
+    }
+#else
     swr_ = swr_alloc_set_opts(nullptr,
                               encoder_->channel_layout, encoder_->sample_fmt,
                               encoder_->sample_rate,
                               source_layout, decoder_->sample_fmt,
                               decoder_->sample_rate,
                               0, nullptr);
+#endif
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    av_channel_layout_uninit(&source_layout);
+#endif
     if (!swr_ || swr_init(swr_) < 0) {
         reason = "failed to initialise the audio resampler";
         return false;
@@ -189,7 +219,14 @@ bool AudioResampler::resample_into_fifo(const AVFrame* decoded, int count,
     AVFrame* resampled = av_frame_alloc();
     if (!resampled) return false;
     resampled->format = encoder_->sample_fmt;
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    if (av_channel_layout_copy(&resampled->ch_layout, &encoder_->ch_layout) < 0) {
+        free_frame(resampled);
+        return false;
+    }
+#else
     resampled->channel_layout = encoder_->channel_layout;
+#endif
     resampled->sample_rate = encoder_->sample_rate;
     resampled->nb_samples = out_capacity;
     if (av_frame_get_buffer(resampled, 0) < 0) {
@@ -227,7 +264,14 @@ bool AudioResampler::drain_fifo(bool final,
         AVFrame* frame = av_frame_alloc();
         if (!frame) return false;
         frame->format = encoder_->sample_fmt;
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+        if (av_channel_layout_copy(&frame->ch_layout, &encoder_->ch_layout) < 0) {
+            free_frame(frame);
+            return false;
+        }
+#else
         frame->channel_layout = encoder_->channel_layout;
+#endif
         frame->sample_rate = encoder_->sample_rate;
         frame->nb_samples = take;
         if (av_frame_get_buffer(frame, 0) < 0) {

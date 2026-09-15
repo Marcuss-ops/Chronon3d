@@ -48,7 +48,7 @@ namespace {
                      node.world_transform.anchor.x, node.world_transform.anchor.y,
                      image.opacity, state.opacity);
     }
-    if (!ctx.runtime ||
+    if (!ctx.image_cache || !ctx.gpu_asset_cache ||
         !ctx.backend || !ctx.surface_registry ||
         image.path.empty() || image.radius > 0.0f ||
         native_promotion::has_active_mask(state) ||
@@ -56,8 +56,8 @@ namespace {
         return false;
     }
 
-    auto& image_cache = ctx.runtime->image_cache();
-    auto& gpu_asset_cache = ctx.runtime->gpu_asset_cache();
+    auto& image_cache = *ctx.image_cache;
+    auto& gpu_asset_cache = *ctx.gpu_asset_cache;
     auto cached = image_cache.find(
         image.path, image.decode_options);
     if (!cached) {

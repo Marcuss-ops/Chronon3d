@@ -6,6 +6,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition&,
     ImageCache&,
     std::shared_ptr<::chronon3d::media::VideoDeviceRuntime>,
+    const assets::AssetResolver&,
     std::string& reason) {
     reason = "DirectYUV requires native FFmpeg support";
     return nullptr;

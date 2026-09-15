@@ -3,6 +3,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 
 #include <cstddef>
@@ -10,6 +11,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+namespace chronon3d::assets { class AssetResolver; }
 
 namespace chronon3d::media::video {
 
@@ -22,14 +25,16 @@ struct RasterizedTextTexture {
     int height{0};
     float display_width{0.0f};
     float display_height{0.0f};
-    float distance_range_px{8.0f};
+    float distance_range_px{
+        static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px)};
     bool mtsdf{false};
     std::vector<float> gpu_rgba;
     assets::ContentDigest digest{};
 };
 
 RasterizedTextTexture rasterize_text_texture(
-    const TextRunShape& prepared_shape);
+    const TextRunShape& prepared_shape,
+    const assets::AssetResolver& resolver);
 
 /// Daemon-lifetime cache for the CPU preparation step of DirectYUV text.
 ///
@@ -60,7 +65,8 @@ public:
     /// invoked once; other callers wait for the same prepared payload instead
     /// of rasterizing the same font run in parallel.
     [[nodiscard]] std::shared_ptr<const RasterizedTextTexture> get_or_create(
-        const TextRunShape& prepared_shape);
+        const TextRunShape& prepared_shape,
+        const assets::AssetResolver& resolver);
 
     void clear() noexcept { entries_.clear(); }
 
