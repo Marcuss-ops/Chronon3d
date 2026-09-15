@@ -177,7 +177,8 @@ bool NativeAvEncoder::write_native_surface_impl(
                 gpu_frame->linesize[1],
                 static_cast<std::uint32_t>(options_.width),
                 static_cast<std::uint32_t>(options_.height), cuda_stream_,
-                dirty_regions)) {
+                dirty_regions,
+                media::video::transfer_encode_for(output_frame_format_.transfer))) {
             spdlog::error("[native_av] direct RGBA->NV12 CUDA compositor failed");
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);
