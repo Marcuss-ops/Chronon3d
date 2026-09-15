@@ -268,6 +268,33 @@ struct RectF {
     friend bool operator==(const RectF&, const RectF&) = default;
 };
 
+/// Populate the source equation consumed by the affine shader.
+///
+/// The shader evaluates source coordinates from canvas-space pixel centres:
+///
+///     source_x = x_x * canvas.x + x_y * canvas.y + x_offset
+///     source_y = y_x * canvas.x + y_y * canvas.y + y_offset
+///
+/// The resulting source rectangle is surface-local and half-open. Keeping
+/// this write in one helper prevents producers from mixing canvas origins with
+/// surface-local source coordinates or forgetting the lower bound of a crop.
+inline constexpr void set_canvas_source_mapping(
+    SurfaceAffineTransform& transform,
+    float source_x_x, float source_x_y, float source_x_offset,
+    float source_y_x, float source_y_y, float source_y_offset,
+    RectF source_bounds) noexcept {
+    transform.source_x[0] = source_x_x;
+    transform.source_x[1] = source_x_y;
+    transform.source_x[2] = source_x_offset;
+    transform.source_x[3] = source_bounds.x0;
+    transform.source_y[0] = source_y_x;
+    transform.source_y[1] = source_y_y;
+    transform.source_y[2] = source_y_offset;
+    transform.source_y[3] = source_bounds.y0;
+    transform.max_x = source_bounds.x1;
+    transform.max_y = source_bounds.y1;
+}
+
 /// Canonical basis conversion at a tight-surface boundary. Authored graph
 /// rectangles remain in canvas coordinates; raster backends consume the
 /// surface-local 0-based rectangle. Keep this conversion in one place so a

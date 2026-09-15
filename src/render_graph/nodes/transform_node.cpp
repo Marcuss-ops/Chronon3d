@@ -352,16 +352,11 @@ NodeExecResult TransformNode::execute(
         input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend && ctx.surface_registry) {
         runtime::SurfaceAffineTransform transform{};
-        transform.source_x[0] = inv_H_corrected[0][0];
-        transform.source_x[1] = inv_H_corrected[1][0];
-        transform.source_x[2] = inv_H_corrected[2][0];
-        transform.source_x[3] = x_min_src;
-        transform.source_y[0] = inv_H_corrected[0][1];
-        transform.source_y[1] = inv_H_corrected[1][1];
-        transform.source_y[2] = inv_H_corrected[2][1];
-        transform.source_y[3] = y_min_src;
-        transform.max_x = x_max_src;
-        transform.max_y = y_max_src;
+        runtime::set_canvas_source_mapping(
+            transform,
+            inv_H_corrected[0][0], inv_H_corrected[1][0], inv_H_corrected[2][0],
+            inv_H_corrected[0][1], inv_H_corrected[1][1], inv_H_corrected[2][1],
+            runtime::RectF{x_min_src, y_min_src, x_max_src, y_max_src});
         transform.opacity = opacity;
         transform.bilinear = m_mode == SamplingMode::Bilinear ? 1u : 0u;
         transform.destination_origin_x = result->origin_x();

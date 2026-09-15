@@ -124,12 +124,13 @@ namespace {
     }
 
     runtime::SurfaceAffineTransform transform{};
-    transform.source_x[0] = 1.0f / sx;
-    transform.source_x[2] = source_origin.x - tx / sx;
-    transform.source_y[1] = 1.0f / sy;
-    transform.source_y[2] = source_origin.y - ty / sy;
-    transform.max_x = source_origin.x + source_size.x;
-    transform.max_y = source_origin.y + source_size.y;
+    runtime::set_canvas_source_mapping(
+        transform,
+        1.0f / sx, 0.0f, source_origin.x - tx / sx,
+        0.0f, 1.0f / sy, source_origin.y - ty / sy,
+        runtime::RectF{source_origin.x, source_origin.y,
+                       source_origin.x + source_size.x,
+                       source_origin.y + source_size.y});
     transform.opacity = image.opacity * state.opacity;
     transform.bilinear = 1u;
     transform.destination_origin_x = fb.origin_x();
