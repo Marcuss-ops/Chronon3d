@@ -83,6 +83,7 @@ normalize_render_job(
 
     NormalizedRenderJob resolved;
     resolved.plan_path = request.plan_path;
+    resolved.prepared_package_path = request.prepared_package_path;
     resolved.output_path = request.output_path;
     resolved.assets_root = request.assets_root;
     resolved.frame_range = request.frame_range;
@@ -145,6 +146,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     // END so existing fingerprints keep their meaning across extensions.
     std::string fp;
     append_field(fp, "plan", job.plan_path.string());
+    append_field(fp, "prepared_package", job.prepared_package_path.string());
     append_field(fp, "output", job.output_path.string());
     append_field(fp, "assets", job.assets_root.string());
     if (job.frame_range) {

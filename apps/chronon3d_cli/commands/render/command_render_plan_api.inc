@@ -45,6 +45,8 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
         "render-plan", "Compatibility alias for render --plan");
     auto state = std::make_shared<RenderPlanState>();
     command->add_option("--input", state->input, "Render plan JSON")->required();
+    command->add_option("--prepared-package", state->prepared_package,
+                        "Immutable prepared overlay package sidecar");
     command->add_option("--output", state->output, "Output file (overrides plan output.path)");
     command->add_option("--assets-root", state->assets_root, "Instance asset root");
     command->add_option("--backend", state->backend,

@@ -42,10 +42,22 @@ struct RenderPlanPreparationOptions {
     std::string input;       // plan file path (used when `json` is empty)
     std::string json;        // inline JSON document (used when `input` is empty)
     std::string assets_root; // explicit; empty falls back to CHRONON3D_CLI_ASSETS_ROOT
+    std::string prepared_package; // optional immutable overlay preparation sidecar
+};
+
+struct PreparedOverlayPackageSummary {
+    std::string path;
+    std::string plan_id;
+    std::string language;
+    std::string content_hash;
+    std::size_t asset_count{0};
+    std::size_t text_run_count{0};
+    std::size_t overlay_count{0};
 };
 
 struct PreparedRenderPlanContext {
     render_plan::RenderPlan decoded;
+    std::optional<PreparedOverlayPackageSummary> prepared_package;
     std::shared_ptr<const compiler::CompiledProgram> program;
     // Video export still consumes the composition-shaped executor until its
     // encoder bridge is numeric-program native. This is a temporary view

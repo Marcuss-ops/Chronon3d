@@ -6,6 +6,7 @@ struct RenderState {
     std::string props_file;
     std::string props_json;
     std::string plan_file;
+    std::string prepared_package;
 
     // Raw CLI spellings live only at the CLI11 boundary. The callback parses
     // these once into RenderArgs' canonical runtime types.

@@ -121,6 +121,7 @@ runtime::job::RenderJobRequest decode_render_job_payload(
 
     runtime::job::RenderJobRequest job_request;
     job_request.plan_path = request.value("plan_path", "");
+    job_request.prepared_package_path = request.value("prepared_package_path", "");
     job_request.output_path = request.value("output", "");
     job_request.assets_root = request.value("assets_root", "");
     job_request.report = request.value("report", false);
