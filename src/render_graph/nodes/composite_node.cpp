@@ -61,12 +61,15 @@ bool try_native_affine_composite(
     const float src_h = static_cast<float>(source.height());
 
     runtime::SurfaceAffineTransform transform{};
-    transform.source_x[0] = 1.0f;
-    transform.source_x[2] = -dx;
-    transform.source_y[1] = 1.0f;
-    transform.source_y[2] = -dy;
-    transform.max_x = src_w;
-    transform.max_y = src_h;
+    // The shader evaluates the source equation in canvas coordinates.  Do
+    // not use the destination-relative delta here: destination_origin is
+    // added by the shader before evaluation, so the source surface origin is
+    // the only offset that belongs in the equation.
+    runtime::set_canvas_source_mapping(
+        transform,
+        1.0f, 0.0f, -static_cast<float>(source.origin_x()),
+        0.0f, 1.0f, -static_cast<float>(source.origin_y()),
+        runtime::RectF{0.0f, 0.0f, src_w, src_h});
     transform.opacity = 1.0f;
     transform.bilinear = 0u; // Direct 1:1 pixel sampling
     transform.destination_origin_x = destination.origin_x();
@@ -78,10 +81,15 @@ bool try_native_affine_composite(
     std::int32_t eff_y1 = static_cast<std::int32_t>(dy + src_h);
 
     if (clip) {
-        const std::int32_t local_clip_x0 = clip->x0 - destination.origin_x();
-        const std::int32_t local_clip_y0 = clip->y0 - destination.origin_y();
-        const std::int32_t local_clip_x1 = clip->x1 - destination.origin_x();
-        const std::int32_t local_clip_y1 = clip->y1 - destination.origin_y();
+        const runtime::SurfaceCoordinateMapper mapper{
+            destination.origin_x(), destination.origin_y()};
+        const auto local_clip = mapper.canvas_to_surface(runtime::RectF{
+            static_cast<float>(clip->x0), static_cast<float>(clip->y0),
+            static_cast<float>(clip->x1), static_cast<float>(clip->y1)});
+        const std::int32_t local_clip_x0 = static_cast<std::int32_t>(local_clip.x0);
+        const std::int32_t local_clip_y0 = static_cast<std::int32_t>(local_clip.y0);
+        const std::int32_t local_clip_x1 = static_cast<std::int32_t>(local_clip.x1);
+        const std::int32_t local_clip_y1 = static_cast<std::int32_t>(local_clip.y1);
 
         eff_x0 = std::max(eff_x0, local_clip_x0);
         eff_y0 = std::max(eff_y0, local_clip_y0);

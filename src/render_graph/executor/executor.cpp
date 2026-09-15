@@ -195,10 +195,14 @@ bool GraphExecutor::execute(
                         params.destination, instances, params.sources, {}, {});
                 } else if constexpr (std::is_same_v<P, runtime::ScalePass>) {
                     runtime::SurfaceAffineTransform transform{};
-                    transform.source_x[0] = params.scale_x != 0.0f
-                        ? 1.0f / params.scale_x : 1.0f;
-                    transform.source_y[1] = params.scale_y != 0.0f
-                        ? 1.0f / params.scale_y : 1.0f;
+                    runtime::set_canvas_source_mapping(
+                        transform,
+                        params.scale_x != 0.0f ? 1.0f / params.scale_x : 1.0f,
+                        0.0f, 0.0f,
+                        0.0f,
+                        params.scale_y != 0.0f ? 1.0f / params.scale_y : 1.0f,
+                        0.0f,
+                        runtime::RectF{0.0f, 0.0f, 0.0f, 0.0f});
                     transform.opacity = 1.0f;
                     transform.bilinear = static_cast<std::uint32_t>(
                         params.filter_mode != 0);
