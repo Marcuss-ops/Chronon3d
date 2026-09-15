@@ -107,6 +107,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                 RenderPlanPreparationOptions options;
                 options.input = state->plan_file;
                 options.assets_root = render_args.assets_root;
+                options.prepared_package = state->prepared_package;
                 ctx.exit_code = validate_render_plan(options);
                 return;
             }
