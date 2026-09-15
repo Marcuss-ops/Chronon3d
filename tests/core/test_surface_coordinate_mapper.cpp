@@ -19,3 +19,23 @@ TEST_CASE("SurfaceCoordinateMapper maps full canvas into tight local basis") {
         chronon3d::runtime::RectF{0.0f, 0.0f, 1920.0f, 1080.0f}) ==
           chronon3d::runtime::RectF{-288.0f, -162.0f, 1632.0f, 918.0f});
 }
+
+TEST_CASE("source mapping keeps canvas coefficients and local bounds together") {
+    chronon3d::runtime::SurfaceAffineTransform transform{};
+    chronon3d::runtime::set_canvas_source_mapping(
+        transform,
+        0.5f, 0.25f, -12.0f,
+        -0.125f, 0.75f, 8.0f,
+        chronon3d::runtime::RectF{4.0f, 6.0f, 100.0f, 120.0f});
+
+    CHECK(transform.source_x[0] == 0.5f);
+    CHECK(transform.source_x[1] == 0.25f);
+    CHECK(transform.source_x[2] == -12.0f);
+    CHECK(transform.source_x[3] == 4.0f);
+    CHECK(transform.source_y[0] == -0.125f);
+    CHECK(transform.source_y[1] == 0.75f);
+    CHECK(transform.source_y[2] == 8.0f);
+    CHECK(transform.source_y[3] == 6.0f);
+    CHECK(transform.max_x == 100.0f);
+    CHECK(transform.max_y == 120.0f);
+}
