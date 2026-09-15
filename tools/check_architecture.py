@@ -293,6 +293,152 @@ class Runner:
         else:
             self.ok(name, f"{references} tool reference(s) resolved")
 
+    def check_scan_path_existence(self) -> None:
+        """Every declared scan_path must resolve (or be a declared exception).
+
+        A rule whose scan_path no longer exists can never fail, so its silence
+        is indistinguishable from a pass — the gate looks enforced while
+        enforcing nothing. That is how `render_session_include_boundary` kept
+        "guarding" a header that had already been deleted. Paths that are
+        legitimately absent from a core checkout (external content packs) are
+        listed in the registry's `[scan_path_policy] optional_globs`.
+        """
+        policy = self.rules.get("scan_path_policy") or {}
+        name = policy.get("name", "scan_path_existence")
+        if not self.selected(name):
+            return
+        optional = list(policy.get("optional_globs", []))
+        missing: dict[str, set[str]] = {}
+        for kind in (
+            "forbidden_symbol", "forbidden_include", "boundary", "scan",
+            "occurrence_cap", "presence", "unique_source_owner",
+        ):
+            for rule in self.rules.get(kind, []):
+                for scan_path in rule.get("scan_paths") or []:
+                    if (self.root / scan_path).exists():
+                        continue
+                    if any(fnmatch.fnmatch(scan_path, glob) for glob in optional):
+                        continue
+                    missing.setdefault(scan_path, set()).add(rule.get("name", "?"))
+        if missing:
+            self.fail(name, f"{len(missing)} scan_path(s) do not exist")
+            for scan_path, owners in sorted(missing.items())[:12]:
+                print(f"         {scan_path}  <- {', '.join(sorted(owners))}")
+        else:
+            self.ok(name)
+
+    @staticmethod
+    def _normalize_legacy_type(qualified: str) -> str:
+        """Reduce a kLegacyErrorMappings type to its adapter-rule stem form.
+
+        Namespace components are kept: the adapter rules name the type as the
+        programmer sees it, and a namespace can be the only thing distinguishing
+        two rows.
+
+        `chronon3d::sdk::RenderErrorCode`            → `sdk_render_error`
+        `chronon3d::runtime::job::RenderJobRequestErrorCode`
+                                                     → `runtime_job_render_job_request_error`
+        `chronon3d::runtime::PreparationError::Code` → `runtime_preparation_error`
+        """
+        parts = [p for p in qualified.split("::") if p]
+        if parts and parts[0] == "chronon3d":
+            parts = parts[1:]
+        # A nested `::Code`/`::Kind` qualifier names the enum inside a struct:
+        # the struct is the identity that matters.
+        if len(parts) > 1 and parts[-1] in {"Code", "Kind", "Type", "Reason"}:
+            parts = parts[:-1]
+        if not parts:
+            return ""
+        parts[-1] = re.sub(
+            r"(?<!^)(?=[A-Z])", "_", parts[-1])
+        joined = "_".join(parts).lower()
+        return re.sub(r"_(code|kind|reason|policy|path|state|pressure)$", "", joined)
+
+    def check_error_adapter_inventory(self) -> None:
+        """The migration gate must project the inventory, not duplicate it.
+
+        AUDIT F18 — the legacy error inventory lives in
+        include/chronon3d/core/types/error.hpp (kLegacyErrorMappings), while each
+        `<stem>_error_construction_adapter_only` scan rule repeats one row of it.
+        Nothing tied the two together, so a rule could keep guarding a type that
+        had already been deleted from the tree — enforcement that cannot fail,
+        the same defect class as the phantom scan paths. The header is the
+        authority for *which* adapter guards may exist; this check requires every
+        adapter-rule stem to resolve to a registered legacy type, and pins the
+        declared array arity to the number of rows actually present.
+        """
+        cfg = self.rules.get("error_adapter_inventory") or {}
+        name = cfg.get("name", "error_adapter_inventory_coverage")
+        if not self.selected(name):
+            return
+        header_rel = cfg.get(
+            "header", "include/chronon3d/core/types/error.hpp")
+        header = self.root / header_rel
+        if not header.exists():
+            self.fail(name, f"canonical error header missing: {header_rel}")
+            return
+        text = strip_comments(read_text(header))
+        declared = re.search(
+            r"std::array<LegacyErrorMapping,\s*(\d+)>\s*kLegacyErrorMappings\{\{(.*?)\}\};",
+            text, re.DOTALL)
+        if not declared:
+            self.fail(name, "kLegacyErrorMappings block not found")
+            return
+        arity = int(declared.group(1))
+        rows = re.findall(r'\{\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\}', declared.group(2))
+        stems = {self._normalize_legacy_type(qualified) for qualified, _ in rows}
+        # Adapter guards for types deliberately outside the inventory (typed
+        # Result payloads whose construction is already owned, not `from_legacy`
+        # registrations). Declared explicitly so the exemption stays auditable.
+        foreign = {
+            self._normalize_legacy_type(str(t))
+            for t in cfg.get("foreign_adapter_types", [])
+        }
+
+        # The error-adapter family is `<subject>_error_construction_adapter_only`;
+        # the bare `_construction_adapter_only` suffix also carries unrelated
+        # guards (e.g. conversion_result), so select on the full family name and
+        # slice only the shared tail.
+        family = "_error_construction_adapter_only"
+        suffix = "_construction_adapter_only"
+        stems_by_rule = {
+            rule["name"][: -len(suffix)]: rule["name"]
+            for rule in self.rules.get("scan", [])
+            if str(rule.get("name", "")).endswith(family)
+        }
+
+        def related(stem: str, candidate: str) -> bool:
+            """True when one underscore-stem is a prefix/suffix-extension of the
+            other. The rule stems and the normalized inventory names differ only
+            in how much namespace they carry, so containment either way is the
+            honest test."""
+            return (stem == candidate or stem.startswith(candidate + "_") or
+                    candidate.startswith(stem + "_") or
+                    stem.endswith("_" + candidate) or
+                    candidate.endswith("_" + stem))
+
+        def resolves(stem: str) -> bool:
+            if any(related(stem, extra) for extra in foreign):
+                return True
+            return any(related(stem, known) for known in stems)
+
+        unmatched = sorted(
+            rule_name for stem, rule_name in stems_by_rule.items()
+            if not resolves(stem))
+        problems: list[str] = []
+        if arity != len(rows):
+            problems.append(
+                f"declared arity {arity} != {len(rows)} inventory row(s)")
+        if unmatched:
+            problems.append(
+                f"adapter rule(s) with no registered legacy type: {unmatched}")
+        if not stems_by_rule:
+            problems.append("no adapter-construction rules loaded")
+        if problems:
+            self.fail(name, "; ".join(problems))
+        else:
+            self.ok(name, f"{len(rows)} inventory row(s) ↔ {len(stems_by_rule)} adapter rule(s)")
+
     def check_scan(self, rule: dict[str, Any]) -> None:
         name = rule["name"]
         if not self.selected(name):
@@ -908,6 +1054,8 @@ class Runner:
             self.ok(name)
 
     def run(self) -> int:
+        self.check_scan_path_existence()
+        self.check_error_adapter_inventory()
         for rule in self.rules.get("forbidden_path", []):
             self.check_forbidden_path(rule)
         for rule in self.rules.get("required_path", []):

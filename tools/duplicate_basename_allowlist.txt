@@ -17,7 +17,6 @@ render_engine.hpp
 render_graph.hpp
 render_job.hpp
 render_pipeline.hpp
-render_receipt.cpp
 render_receipt.hpp
 render_settings.hpp
 render_to_media.hpp

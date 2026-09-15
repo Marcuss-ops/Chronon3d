@@ -73,6 +73,10 @@ struct VideoSettings {
     // Optional compressed source used by the GOP smart-copy planner.
     // Empty keeps the regular render path.
     std::string gop_source;
+    /// Requested output audio sample rate (Hz). 0 keeps the copy path (the
+    /// muxed artifact inherits the source rate); a positive rate that differs
+    /// from the source makes the native mux resample the audio to that rate.
+    int         audio_target_sample_rate{0};
     bool        gop_copy_only{false};
     std::vector<media::ChangedInterval> changed_intervals;
 
@@ -83,9 +87,12 @@ struct VideoSettings {
     std::string color_output{"srgb"};
     std::string pipe_writer{"classic"};
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    std::string encoder_backend{"native"};
+    // AUDIT F4 — the canonical selector vocabulary lives in the media execution
+    // resolver (kEncoderTransportNative/kEncoderTransportPipe); the CLI aliases
+    // the same names, so the default is spelled once.
+    std::string encoder_backend{std::string(media::kEncoderTransportNative)};
 #else
-    std::string encoder_backend{"pipe"};
+    std::string encoder_backend{std::string(media::kEncoderTransportPipe)};
 #endif
     std::string sink_type{"ffmpeg"};
     bool        dry_run{false};

@@ -258,3 +258,34 @@ TEST_CASE("Phase1 semantic core: video cache identity includes pixel aspect rati
 
     CHECK(square.digest() != anamorphic.digest());
 }
+
+TEST_CASE("Phase1 semantic core: pipe and encoder-output formats have one parser each") {
+    // The pipe route and the encoder-output route answer DIFFERENT questions
+    // ("how are host frames packed?" vs "what does FFmpeg write?"), so they are
+    // two named parsers over ONE taxonomy. They used to be answered by three
+    // separate tables at the CLI boundary, one of which silently substituted
+    // yuv420p for anything it did not recognise — and did not know p010 at all,
+    // so a truthful 10-bit encoder output was encoded as 8-bit yuv420p.
+    CHECK(rt::pipe_pixel_format_names() ==
+          std::array<std::string_view, 5>{"rgba", "yuv420p", "nv12", "p010", "p010le"});
+
+    // The encoder-output parser is a strict SUPERSET: every pipe name parses...
+    for (const auto name : rt::pipe_pixel_format_names()) {
+        INFO("encoder output name: " << name);
+        CHECK(rt::try_parse_encoder_output_pixel_format(name).has_value());
+    }
+    // ...plus the packed RGB name FFmpeg accepts as an encoder output but that
+    // no pipe frame is ever submitted in.
+    CHECK(rt::try_parse_encoder_output_pixel_format("rgb24").value_or(rt::PixelFormat::Unknown) ==
+          rt::PixelFormat::Rgb24);
+    CHECK(rt::try_parse_encoder_output_pixel_format("p010").value_or(rt::PixelFormat::Unknown) ==
+          rt::PixelFormat::P010);
+
+    // No fallback: an unrecognised name is nullopt, never yuv420p. The list
+    // includes the private spellings the retired CLI tables used to accept.
+    for (const char* rejected : {"yuv", "420p", "yuv420", "yuv420p8", "nv-12", "NV12", "",
+                                 "p010be", "banana"}) {
+        INFO("rejected encoder output format: '" << rejected << "'");
+        CHECK_FALSE(rt::try_parse_encoder_output_pixel_format(rejected).has_value());
+    }
+}

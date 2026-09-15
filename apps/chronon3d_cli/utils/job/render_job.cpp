@@ -1,6 +1,7 @@
 #include "render_job.hpp"
 
 #include "../common/cli_utils.hpp"
+#include "../video/encoder_config_resolution.hpp"
 
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
@@ -105,7 +106,7 @@ std::optional<RenderRequest> make_render_request(
 
     const bool gpu_native =
         (args.video_settings.hardware_encoder == "nvenc" &&
-         args.video_settings.encoder_backend == "native" &&
+         is_native_encoder_transport(args.video_settings.encoder_backend) &&
          args.backend != chronon3d::graph::BackendPreference::Software) ||
         args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
 

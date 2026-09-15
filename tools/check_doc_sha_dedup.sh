@@ -5,12 +5,18 @@
 # CI gate for the TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica recipe.
 #
 # Scans `docs/adr/*.md` for (file, sha_7_char_prefix) cite pairs with
-# > 1 line-occurrence.  Filters the EXEMPT pairs identified in the ticket:
-#   - ADR-015/c03ce2a2 (EXEMPT_SPECIAL_CASE): single-SHA 17x cites are the
-#     corpus-consolidation ADR for the matrix-fix commit (structurally required).
-#   - ADR-016 (LEGITIMATE_MULTI_CITE): multi-SHA multi-role cite (33798b0a,
-#     0f47d591, fab2046e, 7eb5c2ba, a0fbc57b) with distinct semantic roles.
-# Also skips INDEX.md (cross-references only, not a dedup target).
+# > 1 line-occurrence, then filters the exempt pairs identified in
+# TICKET-FOLLOWUP-DE-DUP-REFERENCES.
+#
+# AUDIT F20 — the exemption list is DATA, not code: it lives in
+# tools/gates/doc_sha_dedup_exemptions.txt, which tools/architecture_rules.toml
+# also declares ([[required_path]] doc_sha_dedup_exemptions). Keeping the list in
+# the script made this gate the only executable record of a decision documented
+# in the ticket; keeping it in a declared data file gives both readers the same
+# audit trail and makes an unknown/typo'd directive a hard failure instead of a
+# silently non-applying exemption.
+#
+# Env: CHRONON_DOC_SHA_DEDUP_EXEMPTIONS overrides the data-file path.
 #
 # Exits 0 if no NON-EXEMPT duplicate pair (gate PASS).
 # Exits 1 if at least one non-EXEMPT duplicate pair (gate FAIL).
@@ -28,28 +34,47 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
-# EXEMPT list (per TICKET-FOLLOWUP-DE-DUP-REFERENCES Confine + EXEMPT_SPECIAL_CASE/LEGITIMATE_MULTI_CITE)
-EXEMPT_ADRS=(
-    "ADR-015"  # single-SHA / c03ce2a2 cited 17x; corpus-consolidation ADR
-    "ADR-016"  # multi-SHA / multi-role structural cite (33798b0a/0f47d591/fab2046e/7eb5c2ba/a0fbc57b)
-)
-# Per-file SHA exemptions: pairs that are legitimate multi-cite (e.g. baseline references).
-# Format: "BASENAME:SHA7"
-EXEMPT_FILE_SHAS=(
-    "ADR-020-shared-static-fontengine-singleton.md:7eb5c2b"  # green baseline main@7eb5c2ba, cited in multiple semantic roles
-)
-SKIP_FILES=("INDEX.md")  # INDEX is a pure cross-ref index, not a dedup target
+# ── Exemptions (data-driven; see tools/gates/doc_sha_dedup_exemptions.txt) ──
+EXEMPTIONS_FILE="${CHRONON_DOC_SHA_DEDUP_EXEMPTIONS:-${SCRIPT_DIR}/gates/doc_sha_dedup_exemptions.txt}"
+if [[ ! -f "${EXEMPTIONS_FILE}" ]]; then
+    echo "GATE_FAIL_INTERNAL: exemption data file missing: ${EXEMPTIONS_FILE}" >&2
+    exit 2
+fi
+
+EXEMPT_ADRS=()
+EXEMPT_FILE_SHAS=()
+SKIP_FILES=()
+while IFS= read -r raw_line || [[ -n "${raw_line}" ]]; do
+    line="${raw_line%%#*}"
+    line="$(printf '%s' "${line}" | tr -s '[:space:]' ' ')"
+    line="${line# }"
+    line="${line% }"
+    [[ -z "${line}" ]] && continue
+    directive="${line%% *}"
+    value="${line#* }"
+    case "${directive}" in
+        exempt_adr)        EXEMPT_ADRS+=("${value}") ;;
+        exempt_file_sha)   EXEMPT_FILE_SHAS+=("${value}") ;;
+        skip_file)         SKIP_FILES+=("${value}") ;;
+        *)
+            echo "GATE_FAIL_INTERNAL: unknown exemption directive '${directive}' in ${EXEMPTIONS_FILE}" >&2
+            exit 2
+            ;;
+    esac
+done < "${EXEMPTIONS_FILE}"
+
+echo "Exemptions  : ${EXEMPTIONS_FILE}"
 
 echo "================================================================"
 echo "TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate"
 echo "================================================================"
 echo ""
 echo "EXEMPT ADRs (full file excluded, all sha7 / any line-count):"
-for ex in "${EXEMPT_ADRS[@]}"; do
+for ex in ${EXEMPT_ADRS[@]+"${EXEMPT_ADRS[@]}"}; do
     echo "  - ${ex}-*.md"
 done
 echo "SKIP files (cross-ref only):"
-for sk in "${SKIP_FILES[@]}"; do
+for sk in ${SKIP_FILES[@]+"${SKIP_FILES[@]}"}; do
     echo "  - ${sk}"
 done
 echo ""
@@ -65,13 +90,13 @@ for f in docs/adr/*.md; do
     base="$(basename "$f")"
 
     skip=0
-    for sk in "${SKIP_FILES[@]}"; do
+    for sk in ${SKIP_FILES[@]+"${SKIP_FILES[@]}"}; do
         [[ "${base}" == "${sk}" ]] && { skip=1; break; }
     done
     [[ "${skip}" -eq 1 ]] && continue
 
     skip=0
-    for ex in "${EXEMPT_ADRS[@]}"; do
+    for ex in ${EXEMPT_ADRS[@]+"${EXEMPT_ADRS[@]}"}; do
         if [[ "${base}" == "${ex}-"* ]]; then
             skip=1
             break
@@ -89,7 +114,7 @@ for f in docs/adr/*.md; do
             sha7="${sha:0:7}"
             pair="${base}:${sha7}"
             exempt=0
-            for ex_pair in "${EXEMPT_FILE_SHAS[@]}"; do
+            for ex_pair in ${EXEMPT_FILE_SHAS[@]+"${EXEMPT_FILE_SHAS[@]}"}; do
                 [[ "${pair}" == "${ex_pair}" ]] && { exempt=1; break; }
             done
             [[ "${exempt}" -eq 1 ]] && continue

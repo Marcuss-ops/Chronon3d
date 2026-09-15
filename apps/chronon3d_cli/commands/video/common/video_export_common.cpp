@@ -1,4 +1,5 @@
 #include "video_export_common.hpp"
+#include "../../../utils/video/encoder_config_resolution.hpp"
 #include "../../../utils/video/video_sink_adapter.hpp"
 #include "../../../utils/video/video_sink_encoders.hpp"
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
@@ -33,11 +34,11 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(
     }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    if (opts.encoder.encoder_backend == "native") {
+    if (is_native_encoder_transport(opts.encoder.encoder_backend)) {
         return std::make_unique<NativeAvEncoder>(context.device_runtime);
     }
 #else
-    if (opts.encoder.encoder_backend == "native") {
+    if (is_native_encoder_transport(opts.encoder.encoder_backend)) {
         // Native is an explicit execution contract. Do not silently change
         // the encoder authority to the external-process pipe path when this
         // build has no in-process libav support.
@@ -57,7 +58,7 @@ bool ffmpeg_in_path() {
 
 bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend) {
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    return encoder_backend != "native";
+    return !is_native_encoder_transport(encoder_backend);
 #else
     (void)encoder_backend;
     return true;

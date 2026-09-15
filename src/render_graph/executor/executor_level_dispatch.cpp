@@ -48,6 +48,35 @@ void dispatch_level_nodes(
     }
 
     if (use_parallel) {
+        // AUDIT F6 — the worker-telemetry array and its per-node sampling used
+        // to run on EVERY parallel level of EVERY frame and were then read back
+        // only under `if (parent_counters)`. Node dispatch is the unit of
+        // scheduling on the data plane, so that meant paying
+        // std::hash<std::thread::id> (not a trivial call) plus three atomic
+        // RMWs per node on cache-line-padded slots that are never consumed when
+        // telemetry is off — inter-core line bouncing for nothing. Collection is
+        // now gated on `parent_counters`, which is already known before the
+        // dispatch; the sentinel-protected sequential path below is unchanged.
+        const auto execute_one = [&](std::size_t level_index) {
+            const auto node_t0 = profiling::now();
+            const auto node_id = level[level_index];
+            execute_single_node(
+                state, graph, ctx, level_resolved, node_id, level_index,
+                parent_counters, parent_pool, consumer_remaining,
+                compiled, nullptr);
+            if (ctx.frame_input.frame <= 2) {
+                const double node_ms = profiling::duration_ms(node_t0, profiling::now());
+                spdlog::info("[exec-node-diag] frame={} (parallel) node_id={} name='{}' ms={:.3f}",
+                             static_cast<int>(ctx.frame_input.frame), node_id,
+                             graph.node(node_id).name(), node_ms);
+            }
+        };
+
+        if (!parent_counters) {
+            scheduler.for_each_index(level.size(), execute_one);
+            return;
+        }
+
         // FIXING.md H-03 — zero heap alloc per dispatch: fixed array on
         // stack, no std::vector reallocation.  A thread-id hash is only a
         // distribution hint, not an ownership proof: distinct workers may
@@ -62,26 +91,27 @@ void dispatch_level_nodes(
             std::clamp(scheduler.concurrency(), 1, static_cast<int>(kMaxWorkers)));
         std::array<WorkerTelemetry, kMaxWorkers> workers{};
         scheduler.for_each_index(level.size(), [&](std::size_t level_index) {
-            const std::size_t slot = std::hash<std::thread::id>{}(std::this_thread::get_id()) % worker_count;
-            auto& local = workers[slot];
+            // AUDIT F6 — resolve the telemetry slot once per (thread,
+            // worker_count) pair instead of hashing std::thread::id per node.
+            // The hash is only a distribution hint (distinct workers can
+            // collide modulo worker_count), which is why the slots stay atomic.
+            static constexpr std::size_t kUnresolvedSlot =
+                static_cast<std::size_t>(-1);
+            static thread_local std::size_t tls_worker_count = kUnresolvedSlot;
+            static thread_local std::size_t tls_slot = 0;
+            if (tls_worker_count != worker_count) {
+                tls_worker_count = worker_count;
+                tls_slot = std::hash<std::thread::id>{}(
+                               std::this_thread::get_id()) % worker_count;
+            }
+            auto& local = workers[tls_slot];
             local.samples.fetch_add(1, std::memory_order_relaxed);
             local.active_sum.fetch_add(1, std::memory_order_relaxed);
             auto peak = local.peak_local.load(std::memory_order_relaxed);
             while (peak < 1 && !local.peak_local.compare_exchange_weak(
                        peak, 1, std::memory_order_relaxed)) {}
 
-            const auto node_t0 = profiling::now();
-            const auto node_id = level[level_index];
-            execute_single_node(
-                state, graph, ctx, level_resolved, node_id, level_index,
-                parent_counters, parent_pool, consumer_remaining,
-                compiled, nullptr);
-            if (ctx.frame_input.frame <= 2) {
-                const double node_ms = profiling::duration_ms(node_t0, profiling::now());
-                spdlog::info("[exec-node-diag] frame={} (parallel) node_id={} name='{}' ms={:.3f}",
-                             static_cast<int>(ctx.frame_input.frame), node_id,
-                             graph.node(node_id).name(), node_ms);
-            }
+            execute_one(level_index);
         });
 
         if (parent_counters) {

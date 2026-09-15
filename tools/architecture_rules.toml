@@ -15,6 +15,24 @@ includes = [
   "architecture_rules_wave1.toml",
 ]
 
+# -----------------------------------------------------------------------------
+# scan_path existence policy
+#
+# A rule that scans a path which no longer exists can never fail, so its
+# silence is indistinguishable from a pass. `scan_path_existence` (enforced by
+# tools/check_architecture.py) hard-fails every declared scan_path that does
+# not resolve, unless it matches one of the globs below. Project content packs
+# live outside the core checkout, so those trees are the only declared
+# exceptions; anything else must be repointed or the dead rule removed.
+# -----------------------------------------------------------------------------
+[scan_path_policy]
+name = "scan_path_existence"
+description = "Every declared scan_path must resolve, or be listed in optional_globs."
+optional_globs = [
+  "content",
+  "examples",
+]
+
 [[duplicate_basename]]
 name = "duplicate_source_basenames"
 description = "Prevent new source basename collisions and namespace/directory drift; historical collisions require explicit grandfathering."
@@ -71,6 +89,35 @@ scan_paths = ["include", "src", "apps", "tests"]
 patterns = ["namespace\\s+chronon3d::render\\s*\\{(?:(?!\\}).){0,1200}enum\\s+class\\s+RenderErrorCode"]
 multiline = true
 skip_comments = true
+
+# ── The error-adapter rules project the inventory, they do not duplicate it ──
+# AUDIT F18 — kLegacyErrorMappings is the single inventory of legacy error
+# enums; the 18 `<stem>_error_construction_adapter_only` scan rules below are a
+# projection of it. This table names the authority and lets the engine prove the
+# projection is faithful (every adapter rule resolves to a registered legacy
+# type, and the declared array arity matches the rows on disk), so neither side
+# can silently drift into a second source of truth.
+# ── Gate exemptions are declared data, not script-local literals ────────────
+# AUDIT F20 — check_doc_sha_dedup.sh used to carry its exemption arrays in the
+# script, so a decision documented in TICKET-FOLLOWUP-DE-DUP-REFERENCES had its
+# only executable record inside the gate. The data file is now declared here so
+# the registry fails if it disappears or is renamed out from under the gate.
+[[required_path]]
+name = "doc_sha_dedup_exemptions"
+description = "Single audit trail for the doc-sha dedup gate exemptions."
+paths = ["tools/gates/doc_sha_dedup_exemptions.txt"]
+
+[error_adapter_inventory]
+name = "error_adapter_inventory_coverage"
+description = "Adapter-construction rules must project kLegacyErrorMappings."
+header = "include/chronon3d/core/types/error.hpp"
+# Adapter guards for error types that are intentionally NOT legacy-mapping rows:
+# they are typed Result payloads whose construction is already owned by one
+# header, not `from_legacy` registrations.  Naming them here keeps the
+# exemption visible instead of letting the rule silently outlive its subject.
+foreign_adapter_types = [
+  "chronon3d::CameraEvaluationError",
+]
 
 [[scan]]
 name = "render_job_error_construction_adapter_only"
@@ -329,6 +376,40 @@ patterns = [
 ]
 skip_comments = true
 hint = "Delegate storage/eviction to include/chronon3d/cache/lru_cache.hpp. Specialized residency managers may own allocation, but they are not a second generic primitive."
+
+# ── The C ABI contract must compile in a default CI lane ─────────────
+# CHRONON3D_BUILD_C_API defaults to OFF in CMakeLists.txt, and the only CMake
+# file that creates the chronon3d_c target is cmake/Chronon3DSdkTargets.cmake
+# inside that `if()`. Leaving the option off in the SDK-distribution preset
+# means the whole C ABI v0.2 surface (chronon3d.h, the .inc fragments,
+# SOVERSION 2) is compiled in no default lane — the `linux-ci` preset is the
+# one CI Gate 4 configures, builds `chronon3d_c` from and installs, and
+# tests/install_consumer/CMakeLists.txt hard-requires the exported target.
+[[presence]]
+name = "c_api_builds_in_default_ci_lane"
+description = "The `linux-ci` preset (SDK-distribution lane) must enable CHRONON3D_BUILD_C_API so the C ABI compiles on a default CI run (AUDIT F2)."
+scan_paths = ["cmake/presets/ci.json"]
+extensions = [".json"]
+pattern = '(?s)"name":\s*"linux-ci",(?:(?!"name":).)*?"CHRONON3D_BUILD_C_API":\s*"ON"'
+min_matches = 1
+skip_comments = false
+hint = "Set \"CHRONON3D_BUILD_C_API\": \"ON\" in the linux-ci preset, or move the SDK-distribution lane to a preset that does."
+
+# ── Demolition-debt counters must have a reader ──────────────────────
+# AGENTS.md requires every compatibility path to declare an observable exit
+# condition. A counter that is written but snapshot by nothing is a dead
+# lighthouse: the branch it measures can never be proven removable, so it
+# survives forever. This rule keeps those counters wired to the canonical
+# telemetry snapshot surface (apps/chronon3d_cli/utils/telemetry/
+# telemetry_capture.hpp), which feeds reports and the corpus gates.
+[[presence]]
+name = "demolition_debt_counters_are_observable"
+description = "TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT counters must be readable from the canonical telemetry snapshot (AUDIT F1); remove the rule together with the branch when the exit condition is met."
+scan_paths = ["apps/chronon3d_cli/utils/telemetry/telemetry_capture.hpp"]
+pattern = "gpu_text_cpu_selector_compat_(?:frames|glyph_evals)"
+min_matches = 2
+skip_comments = true
+hint = "Snapshot the counter in capture_counters() (or delete both the counter and the compatibility branch it measures)."
 
 [[contract]]
 name = "cache_taxonomy_gpu_artifact_doctrine"

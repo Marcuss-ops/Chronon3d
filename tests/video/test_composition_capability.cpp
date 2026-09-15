@@ -35,7 +35,15 @@ TEST_CASE("composition capability: certified effect set classifies in-domain") {
     text.effect = DirectYuvEffectClass::TextOverlay;
     text.gpu_resident = true;
     CHECK(classify_direct_yuv(text) == DirectYuvSupport::RequiresFullFrame);
+    // The prepared MTSDF contract alone is not enough: the run's remaining
+    // style semantics must lower faithfully too. The matrix owns that decision
+    // through the classifier's flag, so an unrepresentable shadow stack can
+    // never be approximated on the zero-conversion lane.
     text.prepared_mtsdf = true;
+    CHECK(classify_direct_yuv(text) == DirectYuvSupport::Unsupported);
+    CHECK(resolve_direct_yuv_support(text, DirectYuvPolicy::Require).reason ==
+          "text_style_unsupported");
+    text.text_style_representable = true;
     CHECK(classify_direct_yuv(text) == DirectYuvSupport::Certified);
 
     LayerYuvQuery generic_gpu_text = text;

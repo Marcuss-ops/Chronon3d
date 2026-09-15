@@ -15,6 +15,7 @@ extern "C" {
 namespace chronon3d::media {
 
 struct MuxAvioHashWriter;
+class AudioResampler;
 
 /// FFmpeg AVPacket ownership.  Encoded packets handed to MuxSession are
 /// consumed synchronously inside submit_video/submit_audio (the mux never
@@ -66,6 +67,22 @@ struct EncodedPacket {
 struct AudioStreamConfig {
     AVCodecParameters* params{nullptr};  ///< borrowed, not owned
     AVRational time_base{1, 1};
+    /// Optional target sample rate for the OUTPUT audio stream.
+    ///
+    /// 0 (the default) keeps the historical zero-cost copy path: the source
+    /// stream is muxed verbatim, so the artifact inherits the source's rate
+    /// and time_base. A positive value that differs from the source rate makes
+    /// MuxSession transcode the audio (decode -> libswresample -> AAC encode)
+    /// so the published artifact satisfies the declared rate instead of
+    /// inheriting it. The requested rate is part of the output contract, so a
+    /// request that cannot be honoured FAILS the render rather than degrading
+    /// silently to the source rate.
+    int target_sample_rate{0};
+    /// Optional target bitrate (bits/second) for the resampled OUTPUT audio.
+    /// 0 selects the canonical assembly-ready audio profile rate
+    /// (128 kbit/s) — the value the output contract's audio block declares.
+    /// Ignored on the copy path, where the source bitrate is preserved.
+    int target_bitrate{0};
 };
 
 /// Complete mux opening contract. All streams are declared before the
@@ -108,7 +125,11 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request);
 
 class MuxSession final {
 public:
-    MuxSession() = default;
+    // Declared, not defaulted inline: MuxSession owns a unique_ptr to the
+    // forward-declared AudioResampler, so both the constructor's exception
+    // cleanup and the destructor are defined in the translation unit where
+    // AudioResampler is complete (packet_assembler.cpp).
+    MuxSession();
     ~MuxSession();
     MuxSession(const MuxSession&) = delete;
     MuxSession& operator=(const MuxSession&) = delete;
@@ -162,9 +183,19 @@ public:
     [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept;
 
 private:
+    /// Writes one already-encoded audio packet to the mux. Shared by the copy
+    /// path and the resampler output so both honour the same interleaving and
+    /// timestamp rules.
+    [[nodiscard]] bool write_audio_packet(AVPacket& packet,
+                                          AVRational source_time_base) noexcept;
+
     AVFormatContext* format_{nullptr};
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
+    /// Non-null only when the caller declared a target sample rate that
+    /// differs from the source. Owns the decode/resample/encode chain and is
+    /// drained before the container trailer is written.
+    std::unique_ptr<AudioResampler> audio_resampler_;
     std::unique_ptr<MuxAvioHashWriter, void(*)(MuxAvioHashWriter*)> writer_{
         nullptr, [](MuxAvioHashWriter* p) { delete_writer(p); }};
     static void delete_writer(MuxAvioHashWriter* writer) noexcept;

@@ -1,0 +1,43 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "direct-yuv-text-shadow-cert",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 16
+  },
+  "layers": [
+    {
+      "id": "nv12_background",
+      "type": "video",
+      "source": "test_renders/overlay/trump-overlay-fixed-test.mp4",
+      "size": [1280, 720],
+      "fit": "stretch",
+      "start_frame": 0,
+      "duration_frames": 16
+    },
+    {
+      "id": "shadowed_phrase",
+      "type": "text",
+      "text": "THIS CHANGES EVERYTHING",
+      "position": [0, -170],
+      "style": {
+        "font": "assets/fonts/Poppins-Bold.ttf",
+        "font_size": 64,
+        "fill": "#FFFFFF",
+        "stroke": { "color": "#111827", "width": 3.5 },
+        "shadow": { "color": "#000000", "opacity": 0.72, "blur": 12, "offset": [0, 4] }
+      },
+      "start_frame": 0,
+      "duration_frames": 16
+    }
+  ],
+  "output": {
+    "path": ".tmp/direct-yuv-shadow-cert/shadow-output.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

@@ -1,5 +1,6 @@
 #include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "../../../utils/video/encoder_config_resolution.hpp"
 #include "pipe_timing_sidecar.hpp"
 #include "../../../utils/process_start.hpp"
 #include "../../../utils/telemetry/nvml_sampler.hpp"
@@ -142,7 +143,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     if (session->native_decoder) {
         decode_stats = session->native_decoder->decode_profiling_stats();
     }
-    if (session->opts.encoder.encoder_backend == "native" && session->renderer_ptr()) {
+    if (is_native_encoder_transport(session->opts.encoder.encoder_backend) &&
+        session->renderer_ptr()) {
         auto& backend = *session->renderer_ptr()->execution_context().backend;
 #ifdef CHRONON3D_ENABLE_VULKAN
         if (auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend)) {
@@ -203,7 +205,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // Wave 1D — events only.  Telemetry persistence (record_pipe_telemetry)
     // is removed: Chronon owns no database; hosts/collectors observe
     // Chronon out-of-band and RenderingGen receives only the bounded result.
-    const bool is_native = (session->opts.encoder.encoder_backend == "native");
+    const bool is_native =
+        is_native_encoder_transport(session->opts.encoder.encoder_backend);
     pipe_timing::JobTimings timings;
     if (session->direct_yuv_selected()) {
         timings.execution_path = "direct_yuv";

@@ -114,6 +114,10 @@ struct FfmpegExportOptions {
 
     // Optional compressed source for packet-level GOP analysis.
     std::string gop_source;
+    /// Requested OUTPUT audio sample rate (Hz) for the muxed master audio.
+    /// 0 keeps the source rate (copy semantics); a positive rate that differs
+    /// from the source makes the native mux resample the audio to that rate.
+    int audio_target_sample_rate{0};
     bool gop_copy_only{false};
 
     // Optional SIMO outputs. An empty list preserves the single-output path;

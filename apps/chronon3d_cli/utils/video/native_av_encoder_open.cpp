@@ -412,7 +412,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         }
         audio_config = chronon3d::media::AudioStreamConfig{
             .params = audio_input_->streams[audio_input_stream_]->codecpar,
-            .time_base = audio_input_->streams[audio_input_stream_]->time_base};
+            .time_base = audio_input_->streams[audio_input_stream_]->time_base,
+            .target_sample_rate = options_.audio_target_sample_rate};
     }
 
     mux_ = std::make_unique<chronon3d::media::MuxSession>();

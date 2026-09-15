@@ -31,6 +31,7 @@
 #include <chronon3d/media/frame_conversion/encoder_frame_pool.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -99,8 +100,10 @@ private:
     static chronon3d::media::video::PixelFormat map_pixel_format(
         PipePixelFormat fmt);
 
-    /// Map output pix fmt string → media::video::PixelFormat.
-    static chronon3d::media::video::PixelFormat map_output_pix_fmt(
+    /// Map an encoder-output pix fmt string to media::video::PixelFormat.
+    /// std::nullopt means "not a format the engine knows": the caller must
+    /// refuse the config, never substitute a default.
+    static std::optional<chronon3d::media::video::PixelFormat> map_output_pix_fmt(
         const std::string& fmt);
 
     /// Detect VideoContainer from output path extension.

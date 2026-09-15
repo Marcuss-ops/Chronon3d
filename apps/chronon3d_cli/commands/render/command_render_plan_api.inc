@@ -68,6 +68,9 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
                         "CUDA/pipe surface format: nv12 or p010")
         ->check(CLI::IsMember(pipe_pixfmt_cuda_surface_names()));
     command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
+    command->add_option("--audio-sample-rate", state->video.audio_sample_rate,
+                        "Output audio sample rate in Hz (0 = keep the source rate)")
+        ->check(CLI::Range(0, 192000));
     command->add_option("--trace", state->trace_output,
                         "Write a Perfetto timeline trace to this .pftrace path (job-end only, RING_BUFFER)");
     command->add_option("--trace-level", state->trace_level,

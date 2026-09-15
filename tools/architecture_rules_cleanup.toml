@@ -156,12 +156,11 @@ patterns = [
 scan_paths = ["content", "examples"]
 skip_comments = true
 
-[[scan]]
-name = "logical_asset_path_remains_kind_free"
-patterns = ['class\s+LogicalAssetPath\b.*?\bstatic\s+constexpr\b.*?\bkind\b']
-scan_paths = ["include/chronon3d/authoring/asset.hpp"]
-multiline = true
-skip_comments = true
+# RETIRED 2026-09-15: `logical_asset_path_remains_kind_free` scanned
+# include/chronon3d/authoring/asset.hpp, which was deleted with the legacy
+# authoring asset facade (commit 0d674502b). The subject class `LogicalAssetPath`
+# no longer exists in the tree, so the rule could never fail. Removed under the
+# scan_path_existence policy (tools/architecture_rules.toml).
 
 [[forbidden_path]]
 name = "retired_public_umbrella_headers"
@@ -176,17 +175,11 @@ paths = [
 # Include-graph boundaries previously enforced by a standalone Python test
 # -----------------------------------------------------------------------------
 
-[[forbidden_include]]
-name = "render_session_include_boundary"
-patterns = ['#include\s*[<\"][^>\"]*(?:backends/software/|render_graph/)']
-scan_paths = ["include/chronon3d/internal/runtime/render_session.hpp"]
-allow_line_patterns = [
-  'scene_hasher\.hpp',
-  'scene_program_store\.hpp',
-  'node_memory_tracker\.hpp',
-  'execution_workspace\.hpp',
-]
-skip_comments = true
+# RETIRED 2026-09-15: `render_session_include_boundary` scanned
+# include/chronon3d/internal/runtime/render_session.hpp, a header that does not
+# exist (see tools/architecture_rules_core.toml forbidden_path entries, which
+# assert it stays absent). A rule that scans the void can never fail, so it was
+# removed under the scan_path_existence policy.
 
 [[forbidden_include]]
 name = "graph_executor_no_software_backend_include"

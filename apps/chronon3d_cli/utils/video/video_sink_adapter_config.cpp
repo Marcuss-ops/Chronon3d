@@ -44,14 +44,17 @@ VideoSinkEncoderAdapter::map_pixel_format(PipePixelFormat fmt) {
     return PixelFormat::RGBA8;
 }
 
-chronon3d::media::video::PixelFormat
+std::optional<chronon3d::media::video::PixelFormat>
 VideoSinkEncoderAdapter::map_output_pix_fmt(const std::string& fmt) {
-    using media::video::PixelFormat;
-    if (fmt == "yuv420p") return PixelFormat::YUV420P;
-    if (fmt == "nv12") return PixelFormat::NV12;
-    if (fmt == "rgb24") return PixelFormat::RGB24;
-    if (fmt == "rgba") return PixelFormat::RGBA8;
-    return PixelFormat::YUV420P;
+    // ONE parser, shared with the pipe vocabulary via
+    // <chronon3d/runtime/frame_format.hpp>. The mapping used to be a private
+    // table here that knew only four names (so a truthful `p010` encoder output
+    // was silently encoded as 8-bit yuv420p) and returned yuv420p for every
+    // unknown name instead of failing.
+    //
+    // No translation is needed: media::video::PixelFormat IS
+    // runtime::PixelFormat (see media/video/video_frame.hpp).
+    return runtime::try_parse_encoder_output_pixel_format(fmt);
 }
 
 chronon3d::media::video::VideoContainer
@@ -186,7 +189,17 @@ bool VideoSinkEncoderAdapter::build_sink_config(
         }
     }
 
-    config.encoder.encoded_pixel_format = map_output_pix_fmt(opts.output_pix_fmt);
+    const auto encoded_pixel_format = map_output_pix_fmt(opts.output_pix_fmt);
+    if (!encoded_pixel_format) {
+        // Fail closed. Substituting yuv420p here would produce a formally
+        // successful export in the wrong pixel format, which is exactly the
+        // failure mode the canonical parser exists to prevent.
+        spdlog::error("[video_adapter] unsupported encoder output pixel format '{}'; "
+                      "refusing config instead of silently encoding yuv420p",
+                      opts.output_pix_fmt);
+        return false;
+    }
+    config.encoder.encoded_pixel_format = *encoded_pixel_format;
     config.encoder.apply_gamma = opts.color_transform.apply_gamma;
     // The implemented pipe transports are synchronous single-frame writers:
     // the config must describe exactly what they do (queue_capacity=1,

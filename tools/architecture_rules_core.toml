@@ -251,7 +251,7 @@ description = "No SoftwareRenderer& in process surfaces — 06 R5 boundary gate 
 patterns = ['SoftwareRenderer&']
 scan_paths = [
     "src/backends/software/processors",
-    "src/backends/software/text_run_processor.cpp",
+    "src/backends/software/software_renderer_text.cpp",
     "src/render_graph",
     "src/runtime",
     "include/chronon3d/backends",

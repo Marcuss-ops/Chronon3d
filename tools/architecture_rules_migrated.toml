@@ -60,7 +60,6 @@ patterns = [
 ]
 scan_paths = [
   "include/chronon3d/text/text_material.hpp",
-  "include/chronon3d/authoring/material.hpp",
   "src/text",
 ]
 allow_line_patterns = ['bevel_shadow_opacity', 'f32\s+shadow_opacity']

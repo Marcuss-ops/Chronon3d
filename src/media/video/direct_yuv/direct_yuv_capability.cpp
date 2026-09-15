@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/direct_yuv_program.hpp>
+#include "direct_yuv_text_contract.hpp"
 
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
@@ -6,6 +7,8 @@
 
 #include <cmath>
 #include <exception>
+#include <string>
+#include <string_view>
 
 namespace chronon3d::media::video {
 namespace {
@@ -15,32 +18,6 @@ bool is_2d_transform_for_capability(const Transform& transform) noexcept {
            std::abs(transform.rotation.y) < 1e-3f &&
            std::abs(transform.position.z) < 1e-3f &&
            std::abs(transform.anchor.z) < 1e-3f;
-}
-
-// DirectYUV lowers a TextRun from the canonical prepared layout into the
-// shared MTSDF glyph representation. Keep this gate next to capability
-// resolution: accepting richer text here would silently discard glyph state
-// in the CUDA lowering.
-[[nodiscard]] const char* direct_yuv_text_rejection(
-    const TextRunShape& shape) noexcept {
-    if (!shape.layout) return "text_missing_canonical_layout";
-    if (shape.layout->placed.glyphs.empty()) return "text_layout_has_no_glyphs";
-    if (shape.animated_doc) return "text_animated_document_unsupported";
-    if (shape.dissolve_layout || !shape.dissolve_glyphs.empty()) {
-        return "text_dissolve_unsupported";
-    }
-    for (const auto& animator : shape.animators) {
-        if (animator.enabled) return "text_glyph_animation_unsupported";
-    }
-    if (shape.layout->font_spans.empty()) return "text_missing_font_spans";
-    for (const auto& shadow : shape.shadows) {
-        if (shadow.enabled) return "text_shadow_unsupported";
-    }
-    if (shape.paint.fill_style || shape.paint.stroke_style) {
-        return "text_gradient_paint_unsupported";
-    }
-    if (shape.material.enabled) return "text_material_unsupported";
-    return nullptr;
 }
 
 } // namespace
@@ -76,6 +53,10 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
         query.mask_enabled = layer.mask.enabled();
         query.projection_enabled = layer.uses_2_5d_projection;
         query.blend = layer.blend_mode;
+        // The text contract classifier owns the text-specific reason so the
+        // reported class stays precise; the declared matrix owns the lane
+        // decision it feeds.
+        std::string_view text_reason;
 
         if (layer.video_source) {
             query.effect = video_seen
@@ -104,16 +85,20 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
                             std::string(layer.name) + "')";
                         return report;
                     }
-                    if (const char* rejection = direct_yuv_text_rejection(*handle.value)) {
-                        report.support = DirectYuvSupport::Unsupported;
-                        report.reason = std::string(rejection) + " (layer '" +
-                            std::string(layer.name) + "')";
-                        return report;
+                    // One classifier: the canonical prepared layout/MTSDF
+                    // contract, the representability of every remaining style
+                    // semantic (including the single canonical drop shadow the
+                    // CUDA kernel resamples from the same distance field), and
+                    // the exact rejection reason. Both flags it produces are
+                    // inputs of the declared matrix below.
+                    const auto text_contract =
+                        resolve_direct_yuv_text_contract(*handle.value);
+                    query.prepared_mtsdf = text_contract.prepared_mtsdf;
+                    query.text_style_representable =
+                        text_contract.style_representable;
+                    if (text_contract.rejection) {
+                        text_reason = text_contract.rejection;
                     }
-                    // These checks establish the canonical
-                    // PreparedTextRun/MTSDF contract consumed by the CUDA
-                    // lowering. Do not admit arbitrary GPU text textures.
-                    query.prepared_mtsdf = true;
                 } else {
                     report.support = DirectYuvSupport::Unsupported;
                     report.reason = "text_not_using_prepared_text_run (layer '" +
@@ -130,7 +115,9 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
         const auto eligibility = resolve_direct_yuv_support(query, policy);
         if (!eligibility.eligible) {
             report.support = eligibility.support;
-            report.reason = std::string(eligibility.reason) +
+            const std::string_view reason =
+                text_reason.empty() ? eligibility.reason : text_reason;
+            report.reason = std::string(reason) +
                 " (layer '" + std::string(layer.name) + "')";
             return report;
         }

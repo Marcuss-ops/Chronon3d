@@ -1,4 +1,6 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+
+#include "sha256.hpp"
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
@@ -25,7 +27,7 @@
 namespace chronon3d::assets {
 namespace {
 
-#include "prepared_asset_manifest_sha_detail.hpp"
+using detail::Sha256;
 #include "prepared_asset_manifest_support_detail.hpp"
 #include "prepared_asset_manifest_digest_cache_detail.hpp"
 

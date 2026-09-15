@@ -388,8 +388,13 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     const auto placement = resolve_text_run_placement(
                         item, render_ref, ctx, opacity);
                     const std::string layer_name_str(rl->layer->name);
-                    const bool item_static = is_static_cache.count(layer_name_str)
-                        ? is_static_cache.at(layer_name_str) : rl->layer->cache_static;
+                    // AUDIT F12 — one hash per layer instead of two: the
+                    // previous count()-then-at() pair hashed the layer name
+                    // twice per refresh; a single find() hashes once and
+                    // keeps the fallback bit-identical.
+                    const auto static_it = is_static_cache.find(layer_name_str);
+                    const bool item_static = static_it != is_static_cache.end()
+                        ? static_it->second : rl->layer->cache_static;
                     const bool source_is_static = item_static;
                     // Canonical cache identity via the builder. Camera is
                     // intentionally NOT folded here (parity with the fresh

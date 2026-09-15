@@ -1,5 +1,7 @@
 #include "pipe_export_pipeline_internal.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <utility>
@@ -9,7 +11,7 @@ namespace chronon3d::cli::detail {
 media::VideoExecutionPlan render_graph_fallback_plan(const FfmpegExportOptions& opts) {
     const bool native_gpu_graph =
         opts.backend_preference == graph::BackendPreference::GPU &&
-        opts.encoder.encoder_backend == "native" &&
+        is_native_encoder_transport(opts.encoder.encoder_backend) &&
         opts.encoder.hardware_encoder == "nvenc";
     if (native_gpu_graph) {
         return {

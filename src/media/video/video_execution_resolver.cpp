@@ -506,10 +506,10 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         // still select DirectYUV for certified simple overlays or FullGraph
         // for richer compositions.
         if (pipe_composition) {
-            params.encoder_backend = "pipe";
+            params.encoder_backend = std::string(kEncoderTransportPipe);
             params.gpu_hot_path_mode = "auto";
         } else {
-            params.encoder_backend = "native";
+            params.encoder_backend = std::string(kEncoderTransportNative);
             // CompositionRequired is a semantic requirement, not a render
             // path selection.  Keep the request on the automatic lane so
             // the compiled composition can be classified by Chronon after

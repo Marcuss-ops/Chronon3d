@@ -8,6 +8,8 @@
 
 #include "pipe_timing_sidecar_detail.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -414,9 +416,14 @@ void build_summary_and_job_sections(
     }
     gpu["decoder_backend"] = decoder_backend;
 
-    std::string encoder_backend = "software";
+    // AUDIT F4 — this is the *resolved codec* backend axis (software vs
+    // hardware), reported under the `encoder_backend` key that
+    // tools/verify_zero_copy_end_to_end.sh asserts equals "nvenc". It is NOT the
+    // CLI transport selector; both labels come from the canonical
+    // EncoderBackend vocabulary so the sidecar contract has one spelling.
+    std::string encoder_backend{to_string(EncoderBackend::Software)};
     if (timings.gpu.nvenc_frames && *timings.gpu.nvenc_frames > 0) {
-        encoder_backend = "nvenc";
+        encoder_backend = to_string(EncoderBackend::Nvenc);
     }
     gpu["encoder_backend"] = encoder_backend;
 

@@ -84,6 +84,12 @@ struct LayerYuvQuery {
     /// generic RGBA/host texture claim: the DirectYUV kernel needs the shared
     /// PreparedTextRun/MTSDF ABI.
     bool prepared_mtsdf{false};
+    /// True only when the prepared run's remaining style semantics lower
+    /// faithfully (no gradient paint, no premium material, no animated or
+    /// dissolving document, and at most one enabled drop shadow, which the
+    /// kernel resamples from the same prepared distance field). Resolved by
+    /// the canonical text contract classifier; never asserted by a caller.
+    bool text_style_representable{false};
     ::chronon3d::BlendMode blend{::chronon3d::BlendMode::Normal};
 };
 
@@ -124,6 +130,12 @@ struct LayerYuvQuery {
             // the field encoding and glyph/layout contract.
             if (!query.gpu_resident || !query.prepared_mtsdf) {
                 return DirectYuvSupport::RequiresFullFrame;
+            }
+            // The prepared run must ALSO lower its style semantics faithfully;
+            // the classifier resolved this from the canonical text contract, so
+            // an unsupported shadow stack can never be approximated here.
+            if (!query.text_style_representable) {
+                return DirectYuvSupport::Unsupported;
             }
             return (structural && additive_blend)
                 ? DirectYuvSupport::Certified
@@ -213,6 +225,9 @@ struct DirectYuvEligibility {
             else if (query.mask_enabled) result.reason = "mask_enabled";
             else if (query.projection_enabled) result.reason = "projection_enabled";
             else if (!query.single_shape_node) result.reason = "multi_node_layer";
+            else if (query.effect == DirectYuvEffectClass::TextOverlay &&
+                     !query.text_style_representable)
+                result.reason = "text_style_unsupported";
             else result.reason = "unsupported_blend_mode";
             break;
     }

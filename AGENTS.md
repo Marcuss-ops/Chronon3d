@@ -145,7 +145,7 @@ authority persistente compilata è `graph::CompiledResourceTable`.
 - **Resolver canonico**: AssetResolver (include/chronon3d/assets/asset_resolver.hpp).
 - **Unico compilatore**: CompiledFrameGraph (include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp).
 - **Unica authority persistente di allocazione hot-path**: CompiledResourceTable (include/chronon3d/render_graph/compiler/compiled_resource_table.hpp); ResourcePlanner/ResourcePlan restano solo placement effimero durante il lowering.
-- **Unico executor**: GraphExecutor → node_runner.cpp (compiled path) o node_executor.cpp (fallback).
+- **Unico executor**: GraphExecutor → node_runner.cpp.  `node_executor.cpp` non è un secondo executor né un fallback: è un helper estratto (`run_node`) che `node_runner.cpp` include e invoca per ogni nodo del compiled path. Un solo percorso di esecuzione.
 
 ---
 

@@ -33,10 +33,16 @@ struct alignas(8) DirectYuvLayerHost {
     unsigned int color{0xFFFFFFFFu};
     unsigned int stroke_color{0};
     float stroke_width{0.0f};
+    unsigned int shadow_color{0};
+    float shadow_opacity{0.0f};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
 };
 // Keep the host staging ABI byte-identical to the embedded CUDA
-// DirectYuvLayer. The text material fields bring the record to 80 bytes.
-static_assert(sizeof(DirectYuvLayerHost) == 80);
+// DirectYuvLayer. The text material fields plus the canonical single shadow
+// bring the record to 104 bytes.
+static_assert(sizeof(DirectYuvLayerHost) == 104);
 
 // Defined in cuda_nv12_compositor.cpp.
 [[noreturn]] void fail(const char* operation, const std::string& detail);

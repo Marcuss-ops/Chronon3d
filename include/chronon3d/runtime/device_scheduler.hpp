@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -146,6 +147,20 @@ public:
     [[nodiscard]] std::optional<DeviceCapabilities> capability_snapshot(DeviceId id) const;
     [[nodiscard]] std::optional<DeviceResourceState> resource_state(DeviceId id) const noexcept;
 
+    /// AUDIT F5 — number of release() calls that asked to give back more of a
+    /// dimension than the scheduler held reserved.
+    ///
+    /// The reserved counters are still clamped to zero (the scheduler must
+    /// never publish a negative reservation), but an unbalanced
+    /// reserve/release — a double release, or a release of a different
+    /// DeviceResourceVector than was reserved — is a caller ownership bug. It
+    /// used to be absorbed with no trace, which made it indistinguishable from
+    /// correct accounting. Non-zero here means the reservations no longer
+    /// describe reality and the caller's release path must be inspected.
+    [[nodiscard]] std::uint64_t release_underflow_count() const noexcept {
+        return m_release_underflow_count.load(std::memory_order_relaxed);
+    }
+
     /// Calculate deterministic pressure score for candidate evaluation [0.0 .. 1.0+]
     static float calculate_pressure(const DeviceResourceState& state, const DeviceResourceVector& req) noexcept;
 
@@ -159,6 +174,9 @@ private:
     std::vector<DeviceEntry> m_devices;
     bool m_discovery_sealed{false};
     ReleaseCallback m_release_cb;
+    /// AUDIT F5 — see release_underflow_count(). Mutable through const because
+    /// release() is noexcept and the fault path must stay observable.
+    mutable std::atomic<std::uint64_t> m_release_underflow_count{0};
 
     void seal_discovery_locked() noexcept { m_discovery_sealed = true; }
     [[nodiscard]] std::optional<DeviceReservation> reserve_locked(
