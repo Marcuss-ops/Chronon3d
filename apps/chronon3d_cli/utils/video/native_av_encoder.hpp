@@ -152,6 +152,13 @@ public:
     /// (options.borrowed_mux): close() then only flushes the encoder, and the
     /// caller owns audio plus the container trailer.
     [[nodiscard]] bool borrows_caller_mux() const noexcept { return borrows_mux_; }
+
+    /// P0-5E — did this session reproduce the stream its borrowed container was
+    /// declared from? False when the gate was never evaluated (no declared
+    /// stream supplied) or was violated.
+    [[nodiscard]] bool borrowed_stream_reproduced() const noexcept {
+        return borrowed_stream_reproduced_ && borrowed_stream_checked_;
+    }
     [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
     [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
     [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }
@@ -240,6 +247,11 @@ private:
     // never publish their parameter sets through the codec context stay
     // fail-closed instead of paying a decoder open on every accessor call.
     bool bitstream_contract_probed_{false};
+    /// Result of the borrowed-stream reproduction gate (P0-5E). A session that
+    /// borrowed a container but did not reproduce its declared stream has
+    /// written packets a decoder cannot follow across the splice.
+    bool borrowed_stream_reproduced_{false};
+    bool borrowed_stream_checked_{false};
     // The encoder target is the one color-boundary authority for both the
     // DirectYUV and FullGraph native paths. CUDA transfer codes are derived
     // from this value at the call site; no path relies on a gamma boolean.

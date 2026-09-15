@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bitstream_target_contract.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
@@ -29,65 +31,49 @@ enum class GopExecutionMode : std::uint8_t {
     Reencode,
 };
 
-/// Per-stream bitstream compatibility gate. Before splicing source H.264
-/// packets and NVENC-produced H.264 packets into one container the resolver
-/// MUST verify that the two bitstreams are structurally compatible.
-/// A mismatch on any of these fields means the decoder will corrupt on
-/// the splice boundary (green frames, seek errors, player-specific crashes).
-///
-/// The gate is fail-closed: safe_to_splice() returns false unless every
-/// field has been explicitly verified (no default-true).
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-using BitstreamCodecId = AVCodecID;
-using BitstreamPixelFormat = AVPixelFormat;
-#else
-enum class BitstreamCodecId : int {};
-enum class BitstreamPixelFormat : int {};
-#endif
-
-/// Who produced a BitstreamTargetContract.
-///
-/// `Encoder` is the only legal producer whenever a re-encode participates in
-/// the output (hybrid / boundary re-encode): the target must describe what the
-/// encoder will emit, never what the source happens to contain.
-/// `Remux` is the no-encoder lane: the output container literally carries the
-/// source stream, so the source's own codec parameters ARE the output
-/// contract. Keeping the two producers distinct is what stops the splice gate
-/// from degenerating into `source vs source`.
-enum class BitstreamTargetProducer : std::uint8_t {
-    Encoder,
-    Remux,
-};
-
-/// Bitstream contract used as the single target authority for source
-/// inspection and GOP splice validation.
-struct BitstreamTargetContract {
-    BitstreamTargetProducer producer{BitstreamTargetProducer::Encoder};
-    /// True only when profile, level and parameter sets were read from an
-    /// OPENED AVCodecContext (encoder_bitstream_contract_from_codec). A
-    /// declared contract is honest about what it does not know yet and can
-    /// never certify a splice on its own.
-    bool encoder_materialized{false};
-    BitstreamCodecId codec{static_cast<BitstreamCodecId>(0)};
-    int profile{-1};
-    int level{-1};
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    BitstreamPixelFormat pixel_format{static_cast<BitstreamPixelFormat>(-1)};
-    std::vector<std::uint8_t> parameter_sets{};
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    AVColorRange color_range{ AVCOL_RANGE_UNSPECIFIED };
-    AVColorSpace color_space{ AVCOL_SPC_UNSPECIFIED };
-    AVColorPrimaries color_primaries{ AVCOL_PRI_UNSPECIFIED };
-    AVColorTransferCharacteristic color_trc{ AVCOL_TRC_UNSPECIFIED };
-#endif
-
-    [[nodiscard]] bool valid() const noexcept {
-        return width > 0 && height > 0 && profile >= 0 && level >= 0;
-    }
-};
-
+// Per-stream bitstream compatibility gate. Before splicing source H.264
+// packets and NVENC-produced H.264 packets into one container the resolver
+// MUST verify that the two bitstreams are structurally compatible.
+// A mismatch on any of these fields means the decoder will corrupt on
+// the splice boundary (green frames, seek errors, player-specific crashes).
+//
+// The gate is fail-closed: safe_to_splice() returns false unless every
+// field has been explicitly verified (no default-true).
+//
+// `BitstreamTargetContract` / `BitstreamTargetProducer` (the identity of the
+// target side) live in bitstream_target_contract.hpp so the encoder layer can
+// describe its own output without depending on this module.
 using BitstreamCompatibility = chronon3d::media::BitstreamCompatibility;
+
+/// Normalize a codec configuration to the parameter-set NAL payloads it
+/// carries, in the order the stream declares them.
+///
+/// The same stream is described in two shapes depending on who is talking: a
+/// demuxer reports an avcC/hvcC CONFIGURATION RECORD (what a playback decoder
+/// receives from the container), while an encoder publishes its SPS/PPS
+/// IN-BAND as Annex-B NALs (libx264 and NVENC both do). Comparing those two
+/// byte-for-byte would reject a stream the encoder reproduced exactly, so the
+/// splice gate compares the NAL payloads instead — the real question is
+/// whether the same parameter sets are described, not how they are wrapped.
+///
+/// Video-only parameter sets (H.264 SPS/PPS, HEVC VPS/SPS/PPS) are kept; every
+/// other NAL (SEI, slice) is ignored. An unrecognized layout yields an empty
+/// list, which callers must treat as "cannot certify".
+[[nodiscard]] std::vector<std::vector<std::uint8_t>> parameter_set_nals(
+    BitstreamCodecId codec, const std::uint8_t* data, std::size_t size);
+
+/// Leading Annex-B parameter-set prefix of an encoded packet payload.
+///
+/// Encoders that are NOT opened with a global header (libx264's default, and
+/// how this pipeline opens them) repeat SPS/PPS at the start of every keyframe
+/// and leave the codec context's extradata empty, so the packet payload is the
+/// only place their parameter sets exist. The scan stops at the first NAL that
+/// is not a parameter set, which is what keeps it away from slice data.
+///
+/// Returns the number of leading payload bytes that ARE parameter sets (0 when
+/// the payload does not begin with one).
+[[nodiscard]] std::size_t leading_parameter_set_prefix_size(
+    BitstreamCodecId codec, const std::uint8_t* data, std::size_t size) noexcept;
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 /// Compare the complete decoder configuration needed to splice two encoded
@@ -248,6 +234,19 @@ struct GopCopyResult {
     std::uint64_t audio_packets{0};
 };
 
+/// ── ONE mapping: GOP analysis → compiler-owned schedule ────────────────
+///
+/// The preflight that feeds the resolver and every executor that consumes the
+/// schedule go through this function, so a work unit can never mean two
+/// different things depending on who built it. `splice_safe` is the caller's
+/// certification of the copied units: the preflight derives it from the
+/// per-GOP compatibility gate, while the direct-mux lane certifies it by
+/// declaring the container FROM the source — its copied packets are the source
+/// stream by construction, and a participating encoder must reproduce that
+/// stream.
+[[nodiscard]] chronon3d::media::GopExecutionPlan build_gop_plan_from_analysis(
+    const GopSourceAnalysis& analysis, bool splice_safe);
+
 /// Copy the selected compressed interval directly into the output container.
 /// The caller must have established source/composition equivalence; this
 /// function deliberately performs no scene rendering or pixel conversion.
@@ -295,6 +294,26 @@ struct SourceMuxDeclaration {
         const BitstreamTargetContract& encoder_contract) const noexcept;
 };
 
+/// Sample framing of a container declared from these parameter sets.
+///
+/// True when the bytes are an avcC / hvcC configuration record, which is what
+/// a demuxer reports for a stream whose SAMPLES are length-prefixed. The
+/// distinction decides who must convert: libavformat converts an Annex-B
+/// producer's packets automatically only while the output stream carries no
+/// extradata, so a container declared from a compressed source needs its
+/// producer to emit the declared format itself.
+[[nodiscard]] bool parameter_sets_are_config_record(BitstreamCodecId codec,
+                                                    const std::uint8_t* data,
+                                                    std::size_t size) noexcept;
+
+/// Rewrite an Annex-B packet IN PLACE into the length-prefixed sample format a
+/// configuration-record container stores, preserving every NAL and the
+/// packet's timing, flags and side data. Returns false when the packet is
+/// already container-native (or cannot be converted), so the caller can treat
+/// it as a no-op rather than a failure.
+[[nodiscard]] bool convert_annex_b_to_length_prefixed(
+    AVPacket& packet, BitstreamCodecId codec) noexcept;
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 /// Declare `mux`'s video stream (and, when `include_audio`, its audio stream)
 /// from the source's own codec parameters, then return the facts the splice
@@ -312,9 +331,16 @@ struct SourceMuxDeclaration {
 /// which is the order the container stores them in. Nothing round-trips
 /// through seconds or frames — that second interpretation of the schedule is
 /// exactly what this primitive exists to remove.
+///
+/// `window_origin` is the SOURCE tick the output container's zero corresponds
+/// to — the schedule's own left edge for a trimmed export, 0 for a whole-clip
+/// one. It is subtracted from the source tick of every copied packet, in the
+/// source time base, with integer arithmetic: the one conversion the schedule
+/// needs is a translation, never a round-trip through seconds or frames.
 [[nodiscard]] std::optional<GopCopyResult> submit_gop_source_packets(
     const std::string& source_path, const chronon3d::media::GopWorkUnit& unit,
-    chronon3d::media::MuxSession& mux);
+    chronon3d::media::MuxSession& mux,
+    std::int64_t window_origin = 0);
 
 /// Submit the source audio track for the SCHEDULED window, once.
 ///
@@ -323,12 +349,19 @@ struct SourceMuxDeclaration {
 /// audio stream's time base by the container's own rescale. Seconds are never
 /// reintroduced, so the schedule keeps exactly one interpretation.
 ///
+/// `window_origin` (source video ticks) is the same origin
+/// submit_gop_source_packets() places the copied video at, rescaled once into
+/// the audio stream's time base: without it the video track would start at the
+/// container's zero while the audio track kept the source's absolute
+/// timestamps, i.e. an A/V offset equal to the trim start.
+///
 /// Audio is not GOP-aligned, so this is called exactly once per export no
 /// matter how many work units ran: a per-unit call would duplicate the track.
 /// A window with `present == false` means "the whole track".
 [[nodiscard]] std::optional<GopCopyResult> submit_source_audio(
     const std::string& source_path, chronon3d::media::MuxSession& mux,
-    chronon3d::media::TimestampRange video_window);
+    chronon3d::media::TimestampRange video_window,
+    std::int64_t window_origin = 0);
 
 /// Build the target contract for a WHOLE-CLIP packet copy.
 ///
