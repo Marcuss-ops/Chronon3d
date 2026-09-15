@@ -1,9 +1,8 @@
 #include "text_texture_cache.hpp"
 
-#ifdef CHRONON3D_ENABLE_TEXT
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/text/mtsdf_preparation.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
-#endif
 
 #include <algorithm>
 #include <bit>
@@ -26,6 +25,38 @@ std::uint32_t checked_dimension(float value, const char* label) {
         throw std::runtime_error(std::string("invalid MTSDF atlas ") + label);
     }
     return static_cast<std::uint32_t>(std::ceil(value));
+}
+
+// Content-aware key: the layout fingerprint mixed with each run's canonical
+// prepared-font content identity.  If /assets/foo.ttf changes bytes during the
+// life of a daemon, the packed texture built from the old bytes must not be
+// returned as a hit.  The MTSDF glyph cache is content-addressed, but this
+// packed lowering cache sits IN FRONT of it, so a path-only key would satisfy
+// the lookup here and never reach the digest check at all.
+//
+// The font identity is not derived here: text::prepared_font_content_digest()
+// is the single identity authority (one file hash per font version), so this
+// lowering cannot invent a second font-identity notion.
+std::uint64_t content_aware_texture_key(
+    const TextRunLayout& layout,
+    const assets::AssetResolver& resolver) {
+    std::uint64_t key = layout.layout_hash();
+    for (const auto& span : layout.font_spans) {
+        if (span.font.font_path.empty()) continue;
+        const auto digest =
+            text::prepared_font_content_digest(resolver, span.font.font_path);
+        if (digest) {
+            for (auto b : digest->bytes) {
+                key ^= static_cast<std::uint64_t>(std::to_integer<unsigned char>(b)) +
+                    0x9e3779b97f4a7c15ULL + (key << 6U) + (key >> 2U);
+            }
+        }
+        // Mix the span's glyph coverage so two spans that share a font but
+        // cover different glyph ranges cannot collide on the same key.
+        key ^= static_cast<std::uint64_t>(span.glyph_end - span.glyph_begin) +
+            0x9e3779b97f4a7c15ULL + (key << 6U) + (key >> 2U);
+    }
+    return key;
 }
 
 } // namespace
@@ -172,13 +203,41 @@ RasterizedTextTexture rasterize_text_texture(
 
 #endif
 
+std::uint64_t DirectYuvTextTextureCache::key_for(
+    const TextRunLayout& layout, const assets::AssetResolver* resolver) {
+    return resolver != nullptr ? content_aware_texture_key(layout, *resolver)
+                               : layout.layout_hash();
+}
+
+std::shared_ptr<const RasterizedTextTexture> DirectYuvTextTextureCache::find(
+    const TextRunLayout& layout,
+    const assets::AssetResolver& resolver) const {
+    const auto value = entries_.get(key_for(layout, &resolver));
+    return value ? *value : nullptr;
+}
+
+std::shared_ptr<const RasterizedTextTexture> DirectYuvTextTextureCache::find(
+    const TextRunLayout& layout) const {
+    const auto value = entries_.get(key_for(layout, nullptr));
+    return value ? *value : nullptr;
+}
+
+void DirectYuvTextTextureCache::store(
+    const TextRunLayout& layout, const assets::AssetResolver& resolver,
+    std::shared_ptr<const RasterizedTextTexture> texture) {
+    if (!texture || texture->gpu_rgba.empty()) return;
+    const auto weight = sizeof(RasterizedTextTexture) +
+        texture->gpu_rgba.size() * sizeof(float);
+    entries_.put(key_for(layout, &resolver), std::move(texture), weight);
+}
+
 void DirectYuvTextTextureCache::store(
     const TextRunLayout& layout,
     std::shared_ptr<const RasterizedTextTexture> texture) {
     if (!texture || texture->gpu_rgba.empty()) return;
     const auto weight = sizeof(RasterizedTextTexture) +
         texture->gpu_rgba.size() * sizeof(float);
-    entries_.put(layout.layout_hash(), std::move(texture), weight);
+    entries_.put(key_for(layout, nullptr), std::move(texture), weight);
 }
 
 std::shared_ptr<const RasterizedTextTexture>
@@ -188,7 +247,7 @@ DirectYuvTextTextureCache::get_or_create(
     if (!prepared_shape.layout) {
         throw std::runtime_error("DirectYUV text cache requires a prepared layout");
     }
-    const auto key = prepared_shape.layout->layout_hash();
+    const auto key = key_for(*prepared_shape.layout, &resolver);
     return entries_.compute_if_absent(key, [&]() {
         auto texture = std::make_shared<RasterizedTextTexture>(
             rasterize_text_texture(prepared_shape, resolver));

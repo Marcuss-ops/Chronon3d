@@ -15,6 +15,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include "../../../daemon/daemon_render_concurrency.hpp"
 
 #include <spdlog/spdlog.h>
 #include <chrono>
@@ -63,18 +64,37 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     } else if (execution && execution->video_runtimes) {
         session->device_id = 0;
     } else if (device_scheduler) {
-        runtime::DeviceSelectionRequirements requirements;
-        requirements.resources.compute_units =
-            (opts.backend_preference == graph::BackendPreference::GPU ||
-             direct_yuv_requested) ? 0.5f : 0.0f;
-        requirements.resources.nvenc_sessions =
-            opts.encoder.hardware_encoder == "nvenc" ? 1U : 0U;
-        requirements.resources.nvdec_sessions =
-            (opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested) ? 1U : 0U;
-        requirements.resources.render_job_slots = 1U;
-        requirements.cuda = opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested;
-        requirements.nvenc = opts.encoder.hardware_encoder == "nvenc";
-        requirements.nvdec = requirements.resources.nvdec_sessions > 0;
+        // P0-4: unified policy — same function as daemon admission, no second
+        // bespoke builder.  VRAM estimate is conservative (observed 8.8 GB at
+        // 1080p FullGraph) so admission reflects physical reality.
+        const bool native_nvenc =
+            opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested;
+        const std::string hot =
+            opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv ? "require_direct_yuv" : "";
+        auto requirements = resolve_device_requirements(
+            static_cast<std::uint32_t>(compiled.composition->width()),
+            static_cast<std::uint32_t>(compiled.composition->height()),
+            direct_yuv_requested, native_nvenc, opts.encoder.codec, hot);
+        // P0-2: build the charge through the same derived-working-set model the
+        // post-preparation reconciliation uses.  No compiled footprint exists
+        // yet here (the graph is compiled during preparation), so the measured
+        // calibration IS the estimate and the working set records exactly that
+        // instead of leaving the number unexplained.
+        session->vram_working_set = derive_vram_working_set(
+            /*planned_physical_bytes=*/0,
+            /*peak_live_bytes=*/0,
+            static_cast<std::uint32_t>(compiled.composition->width()),
+            static_cast<std::uint32_t>(compiled.composition->height()),
+            direct_yuv_requested, native_nvenc);
+        requirements.resources.vram_bytes =
+            session->vram_working_set.estimated_peak_bytes;
+        // CLI fallback is not the daemon FullGraph path when no scheduler
+        // advertises Vulkan interop; keep the original compute_units heuristic
+        // for the software/DirectYUV distinction.
+        if (opts.backend_preference == graph::BackendPreference::GPU ||
+            direct_yuv_requested) {
+            requirements.resources.compute_units = std::max(requirements.resources.compute_units, 0.5f);
+        }
         auto reservation = device_scheduler->reserve(requirements);
         if (!reservation) {
             spdlog::error("[video] DeviceScheduler could not reserve a compatible device");
@@ -214,7 +234,13 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                    env_root && *env_root) {
             direct.asset_resolver->mount(std::filesystem::path{env_root});
         }
-        session->device_runtime->image_cache().set_asset_resolver(direct.asset_resolver.get());
+        // P0-1 FIX: Do NOT mutate the persistent VideoDeviceRuntime ImageCache
+        // with a job-scoped resolver pointer.  The cache is process/device
+        // lifetime; the resolver is job lifetime.  Storing the raw pointer
+        // races between two concurrent DirectYUV jobs (A resolves using B's
+        // root) and dangles after DirectYuvSession destruction.  DirectYuv
+        // now passes the resolver explicitly per get_or_load() call, so the
+        // shared cache stays resolver-agnostic and keys on ContentDigest.
     }
 
     if (direct_yuv_requested) {

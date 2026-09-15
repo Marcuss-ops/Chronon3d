@@ -3,6 +3,7 @@
 #include "pipe_export_types.hpp"
 #include "pipe_startup_breakdown.hpp"
 #include "video_export_common.hpp"
+#include "../../../daemon/daemon_render_concurrency.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
@@ -118,6 +119,14 @@ struct PipeExportSession {
 
     std::optional<runtime::DeviceReservation> device_reservation;
     runtime::DeviceId device_id{0};
+
+    /// P0-2: the device working set admission charged for THIS job.  Kept on
+    /// the session so the compiled footprint that only appears after renderer
+    /// preparation can be reconciled against it (see
+    /// `reconcile_vram_working_set`) instead of the estimate vanishing into a
+    /// log line.  Default-constructed (`estimated_peak_bytes == 0`) on the
+    /// paths where the daemon already holds the reservation.
+    VramWorkingSet vram_working_set;
 
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime;
 

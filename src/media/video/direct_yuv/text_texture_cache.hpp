@@ -52,12 +52,27 @@ public:
     DirectYuvTextTextureCache()
         : entries_(kCapacityBytes, kShardCount, cache::CapacityMode::Weight) {}
 
+    /// Resolver-aware lookup — the canonical path. The key mixes the layout
+    /// fingerprint with the prepared-font content identity, so a font whose
+    /// bytes change mid-daemon cannot be served from the previous packed
+    /// texture.  The cache never retains the resolver.
     [[nodiscard]] std::shared_ptr<const RasterizedTextTexture> find(
-        const TextRunLayout& layout) const {
-        const auto value = entries_.get(layout.layout_hash());
-        return value ? *value : nullptr;
-    }
+        const TextRunLayout& layout,
+        const assets::AssetResolver& resolver) const;
 
+    /// LEGACY path-only lookup: keyed on `layout.layout_hash()` alone.  Kept for
+    /// callers that hold no resolver (the fingerprint/reuse contract test); new
+    /// production callers MUST use the resolver-aware overload so the packed
+    /// lowering cannot bypass the content-addressed glyph identity.
+    [[nodiscard]] std::shared_ptr<const RasterizedTextTexture> find(
+        const TextRunLayout& layout) const;
+
+    /// Resolver-aware store — the canonical path, matching find()/get_or_create().
+    void store(const TextRunLayout& layout,
+               const assets::AssetResolver& resolver,
+               std::shared_ptr<const RasterizedTextTexture> texture);
+
+    /// LEGACY path-only store: see the note on the path-only find().
     void store(const TextRunLayout& layout,
                std::shared_ptr<const RasterizedTextTexture> texture);
 
@@ -81,6 +96,13 @@ public:
     }
 
 private:
+    /// Single key authority for find/store/get_or_create.  `resolver == nullptr`
+    /// selects the legacy path-only fingerprint; a real resolver mixes the
+    /// canonical prepared-font content identity into the key.  One function so
+    /// the three entry points can never key differently again.
+    [[nodiscard]] static std::uint64_t key_for(const TextRunLayout& layout,
+                                               const assets::AssetResolver* resolver);
+
     using Cache = cache::LruCache<
         std::uint64_t,
         std::shared_ptr<const RasterizedTextTexture>>;

@@ -190,6 +190,7 @@ public:
             "native FFmpeg decoder support is disabled"});
     }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
+    void set_software_only(bool) noexcept {}
     [[nodiscard]] HwFrameRef decode_native_frame_at(const std::string&, RationalTime, int, int) { return {}; }
     [[nodiscard]] DecodeProfilingStats decode_profiling_stats() const { return {}; }
     void set_trace_job_id(std::uint64_t) noexcept {}

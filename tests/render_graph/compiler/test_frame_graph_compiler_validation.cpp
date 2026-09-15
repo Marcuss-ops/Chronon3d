@@ -3,6 +3,8 @@
 // processor resolution and snapshot-generation/reuse identity gate group.
 #include "test_frame_graph_compiler_fixtures.hpp"
 
+#include <algorithm>
+
 TEST_CASE("FrameGraphCompiler - handles empty graph") {
     RenderGraph graph;
     RenderGraphContext ctx;
@@ -106,15 +108,29 @@ TEST_CASE("FrameGraphCompiler - TextRun bypasses Shape processor validation") {
     CHECK(compiled.valid);
     REQUIRE(compiled.nodes.size() > text_id);
     CHECK(compiled.nodes[text_id].kind == RenderGraphNodeKind::TextRun);
-    CHECK(compiled.nodes[text_id].lowered_into_batch);
-    bool text_has_execution_operation = false;
+
+    // The contract under test is "a TextRun never reaches a ShapeProcessor":
+    // the compile above succeeded with ShapeType::None, so the bypass held.
+    //
+    // The former proxy for that (`lowered_into_batch == true` plus
+    // `operation.is_fused`) pinned a degenerate SINGLE-MEMBER batch: this graph
+    // is one TextRun node, and a batch of one fuses nothing.  batch_is_sound()
+    // now rejects it (members.size() < 2), so the node executes standalone.
+    // What must still hold is that the node owns exactly one execution
+    // operation and is not fused into a batch.
+    CHECK_FALSE(compiled.nodes[text_id].lowered_into_batch);
+    std::size_t text_operations = 0;
     for (const auto& operation : compiled.program.operations) {
         if (operation.node == text_id) {
-            text_has_execution_operation = true;
-            CHECK(operation.is_fused);
+            ++text_operations;
+            CHECK_FALSE(operation.is_fused);
         }
     }
-    CHECK(text_has_execution_operation);
+    CHECK(text_operations >= 1);
+    for (const auto& batch : compiled.program.layer_batches) {
+        CHECK(std::find(batch.member_nodes.begin(), batch.member_nodes.end(),
+                        text_id) == batch.member_nodes.end());
+    }
 }
 
 TEST_CASE("FrameGraphCompiler - rejects renderable without backend before execution") {

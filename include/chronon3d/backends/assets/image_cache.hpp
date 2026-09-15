@@ -72,15 +72,33 @@ public:
 
     /// Load an image from path (synchronous).  Returns shared_ptr to
     /// immutable CachedImage, or nullptr on failure.
+    /// Legacy overload: uses the resolver installed via set_asset_resolver()
+    /// if any, otherwise lexically_normal.  New callers MUST use the
+    /// resolver-explicit overload below.
     [[nodiscard]] std::shared_ptr<const CachedImage>
     get_or_load(const std::string& path,
                 ImageDecodeOptions options = {});
+
+    /// Resolver-explicit overload — the only safe path for shared/device
+    /// caches.  The cache never retains the resolver; the caller keeps it
+    /// alive for the duration of the call.  No persistent pointer is stored,
+    /// so two concurrent DirectYUV jobs with different asset roots cannot
+    /// race on a single mutable `AssetResolver*`.
+    [[nodiscard]] std::shared_ptr<const CachedImage>
+    get_or_load(const std::string& path,
+                ImageDecodeOptions options,
+                const assets::AssetResolver& resolver);
 
     /// Lookup-only path used by frame rendering. Never touches the backend
     /// and never performs filesystem I/O; preparation must populate the entry.
     [[nodiscard]] std::shared_ptr<const CachedImage>
     find(const std::string& path,
          ImageDecodeOptions options = {});
+
+    [[nodiscard]] std::shared_ptr<const CachedImage>
+    find(const std::string& path,
+         ImageDecodeOptions options,
+         const assets::AssetResolver& resolver);
 
     /// Resolve the exact key used by the cache, including decode options.
     /// Derived render surfaces must use this canonical key rather than the
@@ -89,7 +107,17 @@ public:
     canonical_key_for(const std::string& path,
                       ImageDecodeOptions options = {}) const;
 
+    [[nodiscard]] std::optional<ImageAssetKey>
+    canonical_key_for(const std::string& path,
+                      ImageDecodeOptions options,
+                      const assets::AssetResolver& resolver) const;
+
     void clear();
+    // LEGACY: per-runtime caches (RuntimeContext) may still use this for their
+    // job-scoped resolver because lifetime is tied to the owning RuntimeContext.
+    // Device-persistent caches (VideoDeviceRuntime::ImageCache) MUST NOT use it:
+    // pass the resolver explicitly to get_or_load/find instead.  This setter
+    // will be removed once all shared-cache call sites are explicit.
     void set_asset_resolver(const assets::AssetResolver* resolver) noexcept {
         m_asset_resolver = resolver;
     }
@@ -118,6 +146,11 @@ private:
 
     [[nodiscard]] std::optional<ImageAssetKey>
     canonical_key(const std::string& path, ImageDecodeOptions options) const;
+
+    [[nodiscard]] std::optional<ImageAssetKey>
+    canonical_key(const std::string& path,
+                  ImageDecodeOptions options,
+                  const assets::AssetResolver& resolver) const;
 };
 
 } // namespace chronon3d

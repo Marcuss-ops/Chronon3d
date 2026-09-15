@@ -18,11 +18,18 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 
+using chronon3d::cli::derive_vram_working_set;
+using chronon3d::cli::estimate_peak_vram_bytes;
+using chronon3d::cli::kDefaultFrameRingDepth;
+using chronon3d::cli::reconcile_vram_working_set;
+using chronon3d::cli::VramReconciliation;
 using chronon3d::cli::kMaxConfigurableRenderJobSlots;
 using chronon3d::cli::kRenderJobExecutionSerialized;
 using chronon3d::cli::kSerializedRenderJobSlots;
 using chronon3d::cli::kTargetConcurrentRenderJobs;
+using chronon3d::cli::resolve_device_requirements;
 using chronon3d::cli::resolve_render_job_slots;
 
 // The mutex is held for the whole job: one holder means one slot.
@@ -74,4 +81,209 @@ TEST_CASE("render concurrency: the advertised capacity is bounded by the executi
     for (const char* env : std::array<const char*, 4>{nullptr, "1", "2", "8"}) {
         CHECK(resolve_render_job_slots(env).slots <= execution_limit);
     }
+}
+
+// ---------------------------------------------------------------------------
+// VRAM admission truth (P0-2).
+//
+// The admission estimator used to return ~1 GB for a 1080p FullGraph while the
+// measured peak was ~8.8 GB — an order of magnitude low. Behind the mutex that
+// was invisible; the moment the mutex comes off the DeviceScheduler would admit
+// jobs against a working set that does not exist. These cases pin the estimate
+// to the observed peak and pin that a 16 GB device cannot hold two of them.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr std::uint64_t kGiB = 1024ULL * 1024ULL * 1024ULL;
+constexpr std::uint64_t kObserved1080pPeak = 8800ULL * 1024ULL * 1024ULL;
+constexpr std::uint64_t kDevice16GiB = 16ULL * kGiB;
+
+} // namespace
+
+TEST_CASE("vram estimate: 1080p FullGraph reflects the observed peak, not the rejected 1 GB model") {
+    const auto vram = estimate_peak_vram_bytes(1920, 1080, false, true);
+    CHECK(vram >= kObserved1080pPeak);
+    // The rejected model clamped to 1 GB; anything near it means admission is
+    // back to promising memory the device does not have.
+    CHECK(vram > 4ULL * kGiB);
+}
+
+TEST_CASE("vram estimate: a 16 GB device cannot admit two 1080p FullGraph jobs") {
+    const auto per_job = estimate_peak_vram_bytes(1920, 1080, false, true);
+    CHECK(per_job * 2ULL > kDevice16GiB);
+}
+
+TEST_CASE("vram estimate: scales with pixels, keeps a floor and claims nothing without native NVENC") {
+    const auto hd = estimate_peak_vram_bytes(1920, 1080, false, true);
+    CHECK(estimate_peak_vram_bytes(3840, 2160, false, true) > hd);
+    CHECK(estimate_peak_vram_bytes(1280, 720, false, true) < hd);
+    // Unknown dimensions fall back to the reference size instead of 0.
+    CHECK(estimate_peak_vram_bytes(0, 0, false, true) == hd);
+    // Small resolutions still reserve meaningfully (2 GB floor).
+    CHECK(estimate_peak_vram_bytes(640, 360, false, true) >= 2ULL * kGiB);
+    // A pure software job claims no VRAM at all.
+    CHECK(estimate_peak_vram_bytes(1920, 1080, false, false) == 0U);
+    CHECK(estimate_peak_vram_bytes(1920, 1080, true, false) == 0U);
+    // DirectYUV keeps its own conservative floor.
+    CHECK(estimate_peak_vram_bytes(1920, 1080, true, true) >= 1ULL * kGiB);
+}
+
+// ---------------------------------------------------------------------------
+// Compiled-footprint working set (P0-2).
+//
+// The estimate must come from what the job compiled, not from a constant
+// calibrated on a single observation.  These cases pin the composition model:
+// the compiled term is used when a footprint exists, the measured calibration
+// stays as a floor the charge can never fall under, and the still-unexplained
+// gap is reported instead of hidden.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("vram working set: without a compiled footprint the calibration is the estimate") {
+    const auto ws = derive_vram_working_set(0, 0, 1920, 1080, false, true);
+    CHECK_FALSE(ws.derived_from_compiled);
+    CHECK(ws.derived_bytes == 0U);
+    CHECK(ws.estimated_peak_bytes == estimate_peak_vram_bytes(1920, 1080, false, true));
+    // Nothing compiled ⇒ the whole charge is unexplained by the compiled model.
+    CHECK(ws.calibration_gap_bytes() == ws.calibration_floor_bytes);
+    CHECK(ws.calibration_gap_ratio() == 1.0);
+}
+
+TEST_CASE("vram working set: the compiled footprint is used and the calibration floors it") {
+    constexpr std::uint64_t kFootprint = 40ULL * 1024ULL * 1024ULL;  // 40 MB plan
+    const auto ws = derive_vram_working_set(kFootprint, 0, 1920, 1080, false, true);
+    REQUIRE(ws.derived_from_compiled);
+    CHECK(ws.compiled_bytes == kFootprint);
+    // One ring depth per compiled footprint, mirroring the submission ring.
+    CHECK(ws.frame_ring_bytes == kFootprint * kDefaultFrameRingDepth);
+    CHECK(ws.safety_margin_bytes > 0U);
+    CHECK(ws.estimated_peak_bytes == ws.calibration_floor_bytes);
+    // The compiled plan explains only a fraction of the measured peak: that
+    // unexplained remainder is what the gap reports.
+    CHECK(ws.calibration_gap_bytes() > 6ULL * kGiB);
+    CHECK(ws.calibration_gap_ratio() > 0.9);
+}
+
+TEST_CASE("vram working set: a footprint larger than the calibration becomes the charge") {
+    constexpr std::uint64_t kHugeFootprint = 2ULL * kGiB;
+    const auto ws = derive_vram_working_set(kHugeFootprint, 0, 1920, 1080, false, true);
+    REQUIRE(ws.derived_from_compiled);
+    CHECK(ws.derived_bytes > ws.calibration_floor_bytes);
+    CHECK(ws.estimated_peak_bytes == ws.derived_bytes);
+    CHECK(ws.calibration_gap_bytes() == 0U);
+    // Monotonic: more compiled bytes can only ever raise the charge.
+    const auto bigger = derive_vram_working_set(kHugeFootprint * 2ULL, 0, 1920, 1080, false, true);
+    CHECK(bigger.estimated_peak_bytes > ws.estimated_peak_bytes);
+}
+
+TEST_CASE("vram working set: a software job has no calibration but still owns its compiled plan") {
+    // No native NVENC: the video calibration does not describe this lane.
+    const auto compiled = derive_vram_working_set(40ULL * 1024ULL * 1024ULL, 0, 1920, 1080, false, false);
+    CHECK(compiled.calibration_floor_bytes == 0U);
+    CHECK(compiled.derived_from_compiled);
+    CHECK(compiled.estimated_peak_bytes == compiled.derived_bytes);
+    // Nothing compiled and no hardware lane: the job claims no device memory.
+    const auto nothing = derive_vram_working_set(0, 0, 1920, 1080, false, false);
+    CHECK(nothing.estimated_peak_bytes == 0U);
+    CHECK_FALSE(nothing.derived_from_compiled);
+}
+
+TEST_CASE("vram reconciliation: under-admission is detected, everything else is not") {
+    constexpr std::uint64_t kFootprint = 40ULL * 1024ULL * 1024ULL;
+    const auto ws = derive_vram_working_set(kFootprint, 0, 1920, 1080, false, true);
+
+    // No compiled footprint yet: the calibration is all there is to reconcile.
+    CHECK(reconcile_vram_working_set(derive_vram_working_set(0, 0, 1920, 1080, false, true),
+                                     8ULL * kGiB)
+              .verdict == VramReconciliation::CalibrationOnly);
+    // Not admission-controlled: nothing to compare against.
+    CHECK(reconcile_vram_working_set(ws, 0).verdict == VramReconciliation::CalibrationOnly);
+    // The charge covers the compiled model.
+    const auto consistent =
+        reconcile_vram_working_set(ws, ws.estimated_peak_bytes);
+    CHECK(consistent.verdict == VramReconciliation::Consistent);
+    CHECK_FALSE(consistent.fail_loud());
+    // The job compiled to more than it was admitted with.
+    const auto under = reconcile_vram_working_set(ws, ws.derived_bytes - 1U);
+    CHECK(under.verdict == VramReconciliation::UnderCharged);
+    CHECK(under.fail_loud());
+    CHECK(std::string{under.verdict_name()} == "UNDER-CHARGED");
+}
+
+// ---------------------------------------------------------------------------
+// Single DeviceSelectionRequirements policy authority (P0-4).
+//
+// The daemon and the CLI fallback used to build the requirements from two
+// different policies, so a request could be admitted by one path and refused by
+// the other. Both now call resolve_device_requirements(); these cases pin the
+// policy that function expresses.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("device requirements: one authority pins codec, interop and VRAM policy") {
+    const auto req = resolve_device_requirements(1920, 1080, false, true, "auto", "");
+    CHECK(req.cuda);
+    CHECK(req.nvenc);
+    CHECK(req.nvdec);
+    CHECK(req.nv12);
+    CHECK(req.vulkan_interop);
+    CHECK(req.h264);
+    CHECK_FALSE(req.hevc);
+    CHECK_FALSE(req.av1);
+    CHECK(req.resources.vram_bytes == estimate_peak_vram_bytes(1920, 1080, false, true));
+    CHECK(req.resources.render_job_slots == kSerializedRenderJobSlots);
+    CHECK(req.resources.nvenc_sessions == 1U);
+    CHECK(req.resources.nvdec_sessions == 1U);
+}
+
+TEST_CASE("device requirements: codec selection follows the requested codec only") {
+    for (const char* codec : {"hevc", "h265", "libx265", "hevc_nvenc"}) {
+        const auto req = resolve_device_requirements(1920, 1080, false, true, codec, "");
+        CHECK(req.hevc);
+        CHECK_FALSE(req.h264);
+        CHECK_FALSE(req.av1);
+    }
+    const auto av1 = resolve_device_requirements(1920, 1080, false, true, "av1_nvenc", "");
+    CHECK(av1.av1);
+    CHECK_FALSE(av1.h264);
+    CHECK_FALSE(av1.hevc);
+    // An unknown codec claims no encoder capability rather than guessing one.
+    const auto unknown = resolve_device_requirements(1920, 1080, false, true, "vp9", "");
+    CHECK_FALSE(unknown.h264);
+    CHECK_FALSE(unknown.hevc);
+    CHECK_FALSE(unknown.av1);
+}
+
+TEST_CASE("device requirements: require_direct_yuv drops Vulkan interop from the same request") {
+    const auto direct =
+        resolve_device_requirements(1920, 1080, true, true, "h264", "require_direct_yuv");
+    CHECK_FALSE(direct.vulkan_interop);
+    CHECK(direct.cuda);
+    CHECK(direct.nvenc);
+    CHECK(direct.resources.vram_bytes == estimate_peak_vram_bytes(1920, 1080, true, true));
+}
+
+TEST_CASE("device requirements: a software job claims no hardware and no VRAM") {
+    const auto software = resolve_device_requirements(1920, 1080, false, false, "h264", "");
+    CHECK_FALSE(software.cuda);
+    CHECK_FALSE(software.nvenc);
+    CHECK_FALSE(software.nvdec);
+    CHECK_FALSE(software.nv12);
+    CHECK_FALSE(software.vulkan_interop);
+    CHECK_FALSE(software.h264);
+    CHECK(software.resources.nvenc_sessions == 0U);
+    CHECK(software.resources.vram_bytes == 0U);
+}
+
+TEST_CASE("device requirements: the direct and FullGraph policies differ only by the recorded lane") {
+    // Same sizes and same codec: the two lanes must not silently diverge in a
+    // field the scheduler consumes.
+    const auto full = resolve_device_requirements(1920, 1080, false, true, "h264", "");
+    const auto direct =
+        resolve_device_requirements(1920, 1080, true, true, "h264", "require_direct_yuv");
+    CHECK(full.cuda == direct.cuda);
+    CHECK(full.nvenc == direct.nvenc);
+    CHECK(full.nvdec == direct.nvdec);
+    CHECK(full.h264 == direct.h264);
+    CHECK(full.vulkan_interop != direct.vulkan_interop);
+    CHECK(full.resources.vram_bytes != direct.resources.vram_bytes);
 }

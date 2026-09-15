@@ -75,9 +75,25 @@ std::optional<ImageAssetKey> ImageCache::canonical_key(
     return key;
 }
 
+std::optional<ImageAssetKey> ImageCache::canonical_key(
+    const std::string& path, ImageDecodeOptions options,
+    const assets::AssetResolver& resolver) const {
+    ImageAssetKey key{.options = options};
+    const auto resolved = resolver.resolve_lexical(path);
+    if (!resolved) return std::nullopt;
+    key.canonical_path = resolved->lexically_normal();
+    return key;
+}
+
 std::optional<ImageAssetKey> ImageCache::canonical_key_for(
     const std::string& path, ImageDecodeOptions options) const {
     return canonical_key(path, options);
+}
+
+std::optional<ImageAssetKey> ImageCache::canonical_key_for(
+    const std::string& path, ImageDecodeOptions options,
+    const assets::AssetResolver& resolver) const {
+    return canonical_key(path, options, resolver);
 }
 
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(
@@ -240,6 +256,135 @@ std::shared_ptr<const CachedImage> ImageCache::find(
     }
     const auto cached = m_cache.get(*key);
     return cached ? *cached : nullptr;
+}
+
+std::shared_ptr<const CachedImage> ImageCache::find(
+    const std::string& path, ImageDecodeOptions options,
+    const assets::AssetResolver& resolver) {
+    const auto key = canonical_key(path, options, resolver);
+    if (!key) return nullptr;
+    const auto cached = m_cache.get(*key);
+    return cached ? *cached : nullptr;
+}
+
+// Resolver-explicit load: never touches m_asset_resolver, so a shared
+// device cache cannot be polluted by a job-scoped pointer.
+std::shared_ptr<const CachedImage> ImageCache::get_or_load(
+    const std::string& path, ImageDecodeOptions options,
+    const assets::AssetResolver& resolver) {
+    const auto resolve_t0 = profiling::now();
+    const auto key = canonical_key(path, options, resolver);
+    const double resolve_us = profiling::duration_us(resolve_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->image_resolve_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(resolve_us)), std::memory_order_relaxed);
+    }
+    if (!key) {
+        spdlog::warn("ImageCache: asset '{}' is outside the engine asset root", path);
+        return nullptr;
+    }
+    const std::string resolved_path = key->canonical_path.string();
+    std::shared_ptr<image::ImageBackend> backend;
+    {
+        std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
+        backend = m_backend;
+    }
+    if (!backend) {
+        spdlog::error("ImageCache: cannot load '{}' - no backend set", path);
+        return nullptr;
+    }
+    if (profiling::g_current_counters) {
+        if (m_cache.contains(*key)) {
+            profiling::g_current_counters->image_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->image_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    auto shared = m_cache.compute_if_absent(*key,
+        [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
+            const auto t0 = profiling::now();
+            const auto decode_t0 = profiling::now();
+            auto buffer = backend->load_image(resolved_path);
+            const double decode_us = profiling::duration_us(decode_t0, profiling::now());
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->image_decode_wall_us.fetch_add(
+                    static_cast<uint64_t>(std::llround(decode_us)), std::memory_order_relaxed);
+                profiling::g_current_counters->image_decode_count.fetch_add(1, std::memory_order_relaxed);
+            }
+            if (!buffer || !buffer->pixels) {
+                return {std::make_shared<CachedImage>(), 1};
+            }
+            downscale_for_runtime(*buffer);
+            auto entry = std::make_shared<CachedImage>();
+            entry->width = buffer->width;
+            entry->height = buffer->height;
+#ifdef CHRONON3D_USE_BLEND2D
+            entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
+            BLImageData bl_data;
+            if (entry->bl_img.getData(&bl_data) == BL_SUCCESS) {
+                uint32_t* dst = static_cast<uint32_t*>(bl_data.pixelData);
+                const uint8_t* src = buffer->pixels.get();
+                const int stride = static_cast<int>(bl_data.stride / sizeof(uint32_t));
+                if (stride == entry->width) {
+                    simd::premultiply_alpha_rgba8(dst, src, entry->width * entry->height);
+                } else {
+                    for (int y = 0; y < entry->height; ++y) {
+                        simd::premultiply_alpha_rgba8(dst + y * stride, src + y * entry->width * 4, entry->width);
+                    }
+                }
+            }
+#endif
+            entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
+            if (entry->fb_img) {
+                entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
+                const uint8_t* src = buffer->pixels.get();
+                tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
+                    [&](const tbb::blocked_range<int>& rows) {
+                        for (int y = rows.begin(); y < rows.end(); ++y) {
+                            Color* dst_row = entry->fb_img->pixels_row(y);
+                            float* gpu_row = entry->gpu_rgba.data() +
+                                static_cast<std::size_t>(y) * entry->width * 4;
+                            for (int x = 0; x < entry->width; ++x) {
+                                const int idx = (y * entry->width + x) * 4;
+                                const float r = src[idx + 0] / 255.0f;
+                                const float g = src[idx + 1] / 255.0f;
+                                const float b = src[idx + 2] / 255.0f;
+                                const float a = src[idx + 3] / 255.0f;
+                                const auto color = Color{r, g, b, a}.to_linear().premultiplied();
+                                dst_row[x] = color;
+                                gpu_row[x * 4 + 0] = color.r;
+                                gpu_row[x * 4 + 1] = color.g;
+                                gpu_row[x * 4 + 2] = color.b;
+                                gpu_row[x * 4 + 3] = color.a;
+                            }
+                        }
+                    });
+                const std::string_view bytes(
+                    reinterpret_cast<const char*>(entry->gpu_rgba.data()),
+                    entry->gpu_rgba.size() * sizeof(float));
+                entry->gpu_key = runtime::GpuAssetKey{
+                    assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
+                    static_cast<std::uint32_t>(entry->width),
+                    static_cast<std::uint32_t>(entry->height)};
+            }
+            const double convert_us = profiling::duration_us(profiling::now(), profiling::now());
+            (void)convert_us;
+            const double load_dur_ms = profiling::elapsed_ms(t0);
+            spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
+            const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4
+#ifdef CHRONON3D_USE_BLEND2D
+                                 + static_cast<size_t>(entry->width) * entry->height * 16
+#endif
+                                 + entry->gpu_rgba.size() * sizeof(float);
+            return std::pair<std::shared_ptr<CachedImage>, size_t>{entry, weight};
+        });
+    if (!shared) return nullptr;
+    if (!shared->valid()) {
+        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache",
+                     path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
+        return nullptr;
+    }
+    return shared;
 }
 
 void ImageCache::clear() {
