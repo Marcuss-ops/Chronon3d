@@ -35,6 +35,16 @@ struct CudaLayerResource {
     std::uint32_t color{0xFFFFFFFFu};
     std::uint32_t stroke_color{0};
     float stroke_width{0.0f};
+    /// Canonical single drop shadow of a prepared MTSDF text run. The colour
+    /// packs linear premultiplied-by-alpha RGB plus the authored colour alpha;
+    /// `shadow_opacity` stays a separate factor exactly like the canonical
+    /// text renderer, and `shadow_dx/dy/blur` are destination pixels. A layer
+    /// without an enabled shadow carries `shadow_color == 0`.
+    std::uint32_t shadow_color{0};
+    float shadow_opacity{0.0f};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
 };
 
 #endif

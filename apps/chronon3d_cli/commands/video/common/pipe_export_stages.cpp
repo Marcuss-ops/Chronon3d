@@ -1,6 +1,8 @@
 #include "pipe_export_session_internal.hpp"
 #include "temporal_render_bridge.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
@@ -32,7 +34,7 @@ NativeSurfacePrep prepare_frame(
             ? (ctx.execution_plan->composite == media::CompositePath::VulkanGraph &&
                ctx.execution_plan->encode == media::EncodePath::Nvenc &&
                ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
-            : (ctx.opts.encoder.encoder_backend == "native" &&
+            : (is_native_encoder_transport(ctx.opts.encoder.encoder_backend) &&
                ctx.opts.encoder.hardware_encoder == "nvenc"));
     frame_settings.retain_native_surface_for_video =
         plan_requests_native_graph && ctx.backend.supports_native_video_surface();

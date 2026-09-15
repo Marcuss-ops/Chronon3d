@@ -40,10 +40,12 @@
 
 #include <cuda.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
@@ -419,6 +421,199 @@ TEST_CASE("NV12 contract matrix: independent instances, unified compositor") {
     std::printf("[NV12-EQ] matrix result: %zu/%zu cases within documented expectations\n",
                 passed, corpus.size());
     CHECK(passed == corpus.size());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// MTSDF text shadow: the canonical overlay shadow composites on the SAME
+// direct NV12 pass that carries the text. The prepared distance field is
+// resampled in the kernel, so the shadow needs no second rasterization, no
+// RGBA intermediate and no extra per-frame asset work. This case pins the
+// visible contract: the authored offset direction, the blur widening the
+// silhouette coverage, and bit-exact determinism.
+// ═════════════════════════════════════════════════════════════════════════
+namespace {
+
+/// Pack one MTSDF texel bit-preservingly: the alpha lane is the canonical
+/// signed distance (0.5 == outline) normalized over `range_px`, exactly the
+/// atlas upload ABI the CUDA kernel decodes.
+std::uint32_t pack_mtsdf_texel(float signed_distance_px, float range_px) {
+    const float alpha = std::clamp(0.5f + signed_distance_px / range_px, 0.0f, 1.0f);
+    return static_cast<std::uint32_t>(std::lround(alpha * 255.0f)) << 24u;
+}
+
+/// Flat disc silhouette: the simplest field whose offset/blur behaviour is
+/// analytically checkable.
+std::vector<float> make_disc_atlas(int size, float radius, float range_px) {
+    std::vector<float> atlas(static_cast<std::size_t>(size) * static_cast<std::size_t>(size),
+                             0.0f);
+    const float center = (static_cast<float>(size) - 1.0f) * 0.5f;
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            const float dx = static_cast<float>(x) - center;
+            const float dy = static_cast<float>(y) - center;
+            const float distance = radius - std::sqrt(dx * dx + dy * dy);
+            const std::uint32_t packed = pack_mtsdf_texel(distance, range_px);
+            std::memcpy(&atlas[static_cast<std::size_t>(y) * static_cast<std::size_t>(size) +
+                              static_cast<std::size_t>(x)],
+                        &packed, sizeof(packed));
+        }
+    }
+    return atlas;
+}
+
+int luma_at(const std::vector<std::uint8_t>& y, int width, int x, int row) {
+    return static_cast<int>(y[static_cast<std::size_t>(row) * static_cast<std::size_t>(width) +
+                               static_cast<std::size_t>(x)]);
+}
+
+} // namespace
+
+TEST_CASE("NV12 direct batch: the text drop shadow composites from the prepared field") {
+    using namespace chronon3d::nv12_equiv;
+    using chronon3d::media::CudaLayerResource;
+    using chronon3d::media::CudaLayerResourceKind;
+    if (!gpu_tests_enabled()) {
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run the MTSDF shadow contract test");
+        return;
+    }
+
+    CudaSession session;
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; MTSDF shadow contract is NOT RUN");
+        return;
+    }
+    session.set_current();
+
+    chronon3d::media::video::CudaNv12Compositor comp_a(session.context);
+    chronon3d::media::video::CudaNv12Compositor comp_b(session.context);
+
+    const int w = 640;
+    const int h = 360;
+    const int atlas_size = 64;
+    const float range_px = 8.0f;
+    const float disc_radius = 20.0f;
+    const auto bg = make_background_nv12(w, h, 0x5AD0ULL);
+    const auto atlas = make_disc_atlas(atlas_size, disc_radius, range_px);
+
+    const std::size_t y_bytes = static_cast<std::size_t>(w) * h;
+    const std::size_t uv_bytes = static_cast<std::size_t>(w) * ((h + 1) / 2);
+
+    // Glyph plane placed away from the frame edges: the shadow envelope and
+    // the surrounding background are both observable.
+    const float dst_x0 = 288.0f;
+    const float dst_y0 = 148.0f;
+    const float dst_x1 = dst_x0 + static_cast<float>(atlas_size);
+    const float dst_y1 = dst_y0 + static_cast<float>(atlas_size);
+    // True atlas-space disc centre (the field is built around it).
+    const int center_x = static_cast<int>(dst_x0 + (atlas_size - 1) * 0.5f);
+    const int center_y = static_cast<int>(dst_y0 + (atlas_size - 1) * 0.5f);
+
+    DevBuffer atlas_d, bg_y_d, bg_uv_d;
+    atlas_d.alloc(atlas.size() * sizeof(float));
+    atlas_d.upload_async(session.stream, atlas.data());
+    bg_y_d.alloc(y_bytes);
+    bg_uv_d.alloc(uv_bytes);
+
+    chronon3d::runtime::LayerInstance instance;
+    instance.kind = chronon3d::runtime::PrimitiveKind::Text;
+    instance.resource_index = 0;
+    instance.src_x0 = 0.0f;
+    instance.src_y0 = 0.0f;
+    instance.src_x1 = 1.0f;
+    instance.src_y1 = 1.0f;
+    instance.dst_x0 = dst_x0;
+    instance.dst_y0 = dst_y0;
+    instance.dst_x1 = dst_x1;
+    instance.dst_y1 = dst_y1;
+    instance.opacity = 1.0f;
+
+    chronon3d::runtime::GpuLayerBatch batch;
+    batch.instances = {instance};
+
+    CudaLayerResource resource;
+    resource.kind = CudaLayerResourceKind::Mtsdf;
+    resource.rgba = atlas_d.ptr;
+    resource.pitch_bytes = atlas_size * static_cast<int>(sizeof(std::uint32_t));
+    resource.width = static_cast<std::uint32_t>(atlas_size);
+    resource.height = static_cast<std::uint32_t>(atlas_size);
+    resource.distance_range_px = range_px;
+    resource.color = 0xFFFFFFFFu;  // opaque white fill, linear
+
+    // Canonical overlay preset shadow: #000000 / opacity 0.72 / offset (0,4).
+    const auto run_with = [&](float blur, std::vector<std::uint8_t>& out_y,
+                              chronon3d::media::video::CudaNv12Compositor& compositor,
+                              const std::vector<std::uint8_t>& bg_uv) {
+        CudaLayerResource shaded = resource;
+        if (blur >= 0.0f) {
+            shaded.shadow_color = 0xFF000000u;  // opaque black, linear
+            shaded.shadow_opacity = 0.72f;
+            shaded.shadow_dx = 0.0f;
+            shaded.shadow_dy = 4.0f;
+            shaded.shadow_blur = blur;
+        }
+        const std::vector<CudaLayerResource> resources = {shaded};
+        DevBuffer out_y_d, out_uv_d;
+        out_y_d.alloc(y_bytes);
+        out_uv_d.alloc(uv_bytes);
+        bg_y_d.upload_async(session.stream, bg.y.data());
+        bg_uv_d.upload_async(session.stream, bg_uv.data());
+        REQUIRE(compositor.composite_direct_nv12_batch(
+            batch, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w, out_y_d.ptr, w,
+            out_uv_d.ptr, w, static_cast<std::uint32_t>(w),
+            static_cast<std::uint32_t>(h), session.stream));
+        check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize");
+        out_y.resize(y_bytes);
+        out_y_d.download(out_y.data());
+    };
+
+    std::vector<std::uint8_t> plain_y, soft_y, hard_y, soft_y_b;
+    run_with(-1.0f, plain_y, comp_a, bg.uv);            // no shadow at all
+    run_with(12.0f, soft_y, comp_a, bg.uv);             // canonical preset blur
+    run_with(0.0f, hard_y, comp_a, bg.uv);              // hard offset silhouette
+    run_with(12.0f, soft_y_b, comp_b, bg.uv);           // second instance
+
+    // Inside the silhouette the fill still wins: the shadow cannot leak over
+    // the glyph body.
+    CHECK(luma_at(soft_y, w, center_x, center_y) ==
+          luma_at(plain_y, w, center_x, center_y));
+
+    // 7 px OUTSIDE the silhouette, below it: the authored blur must spread the
+    // shadow past the glyph edge (and past the hard offset silhouette), while a
+    // blur of 0 keeps that hard silhouette and contributes nothing there.
+    const int radius_px = static_cast<int>(disc_radius);
+    const int below = center_y + radius_px + 7;
+    const int soft_delta = luma_at(plain_y, w, center_x, below) -
+                           luma_at(soft_y, w, center_x, below);
+    const int hard_delta = luma_at(plain_y, w, center_x, below) -
+                           luma_at(hard_y, w, center_x, below);
+    // 10 px outside the same edge: still inside the authored radius, but the
+    // falloff must already be weaker — a step function would be flat here.
+    const int reach = center_y + radius_px + 10;
+    const int reach_delta = luma_at(plain_y, w, center_x, reach) -
+                            luma_at(soft_y, w, center_x, reach);
+    std::printf("[NV12-SHADOW] below edge: 7px soft=%d hard=%d | 10px soft=%d"
+                " (Y delta)\n",
+                soft_delta, hard_delta, reach_delta);
+    CHECK(soft_delta > 5);
+    CHECK(hard_delta == 0);
+    CHECK(soft_delta > reach_delta);
+    CHECK(reach_delta >= 0);
+
+    // The offset is authored downward: nothing may darken ABOVE the glyph.
+    const int above = center_y - radius_px - 7;
+    CHECK(luma_at(soft_y, w, center_x, above) == luma_at(plain_y, w, center_x, above));
+
+    // Beyond the offset + blur envelope the background is untouched.
+    const int far_below = center_y + radius_px + 30;
+    CHECK(luma_at(soft_y, w, center_x, far_below) ==
+          luma_at(plain_y, w, center_x, far_below));
+
+    // Two independent compositor instances must agree bit-exactly.
+    const auto shadow_plane = compare_plane(soft_y.data(), soft_y_b.data(), y_bytes);
+    std::printf("[NV12-SHADOW] instance agreement: identical=%d diff=%zu/%zu\n",
+                shadow_plane.identical ? 1 : 0, shadow_plane.differing,
+                shadow_plane.total);
+    CHECK(shadow_plane.identical);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

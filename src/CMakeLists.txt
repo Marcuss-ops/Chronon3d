@@ -22,6 +22,12 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     find_library(CHRONON3D_FFMPEG_AVUTIL_LIBRARY
         NAMES avutil
         REQUIRED)
+    # Required, not optional: the audio resample stage (AudioResampler) is the
+    # only authority that can honour a declared output sample rate, and a
+    # build without it would silently reintroduce source-rate audio.
+    find_library(CHRONON3D_FFMPEG_SWRESAMPLE_LIBRARY
+        NAMES swresample
+        REQUIRED)
 
     add_library(chronon3d_ffmpeg_light INTERFACE)
     target_include_directories(chronon3d_ffmpeg_light INTERFACE
@@ -35,6 +41,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         "${CHRONON3D_FFMPEG_INCLUDE_DIR}")
     target_link_libraries(chronon3d_ffmpeg_full INTERFACE
         "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
+        "${CHRONON3D_FFMPEG_SWRESAMPLE_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVCODEC_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVFORMAT_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")

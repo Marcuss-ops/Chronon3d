@@ -6,7 +6,7 @@
       "name": "linux-ci",
       "inherits": "base-linux",
       "displayName": "Linux CI (daily core + install-consumer gate)",
-      "description": "Daily CI for the engine core: CLI + tests + install consumer, with bundled compositions external.",
+      "description": "Daily CI for the engine core: CLI + tests + install consumer, with bundled compositions external. CHRONON3D_BUILD_C_API is ON here because this is the SDK-distribution lane: CI Gate 4 builds and installs `chronon3d_c`, and tests/install_consumer/CMakeLists.txt hard-requires the exported Chronon3D::C target. With the option left OFF (its CMakeLists default) the whole C ABI v0.2 contract — SOVERSION 2, chronon3d.h, the .inc fragments — never compiled in a default lane, so an ABI/API break could land unnoticed (AUDIT F2).",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -14,6 +14,7 @@
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_ENABLE_IPC": "ON",
         "CHRONON3D_ENABLE_VERIFICATION": "ON",
+        "CHRONON3D_BUILD_C_API": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests;ipc",
         "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
       }

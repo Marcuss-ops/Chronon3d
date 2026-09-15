@@ -217,6 +217,12 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     video->add_option("--frames-dir", args.video_settings.frames_dir, "Override temporary frames directory");
     video->add_option("--chunks", args.video_settings.chunks, "Render frame range in N chunks")->check(CLI::Range(1, 1024));
     video->add_option("--gop-source", args.video_settings.gop_source, "Compressed video source for GOP smart-copy analysis");
+    // Output audio sample rate. 0 (absent) keeps the historical copy path; a
+    // positive rate that differs from the source makes the native mux resample
+    // the master audio so the artifact satisfies the declared rate.
+    video->add_option("--audio-sample-rate", args.video_settings.audio_target_sample_rate,
+                      "Output audio sample rate in Hz (0 = keep the source rate)")
+        ->check(CLI::Range(0, 192000));
     video->add_flag("--gop-copy-only", args.video_settings.gop_copy_only, "Copy compressed video/audio packets without rendering (explicit source-equivalence contract)");
     video->add_option_function<std::string>(
         "--changed-interval",
@@ -235,11 +241,13 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
         ->check(CLI::IsMember(pipe_pixfmt_source_names()));
     video->add_option("--color-output", args.video_settings.color_output, "Output color space")->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
     video->add_option("--pipe-writer", args.video_settings.pipe_writer, "Pipe writer: classic or io_uring")->check(CLI::IsMember({"classic", "io_uring"}));
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    video->add_option("--encoder-backend", args.video_settings.encoder_backend, "Encoder backend: pipe or native")->check(CLI::IsMember({"pipe", "native"}));
-#else
-    video->add_option("--encoder-backend", args.video_settings.encoder_backend, "Encoder backend: external FFmpeg pipe")->check(CLI::IsMember({"pipe"}));
-#endif
+    // ONE vocabulary (AUDIT F4): the accepted set is the canonical transport
+    // vocabulary filtered by build capability, so this option can never
+    // advertise "native" on a build that cannot execute it, nor accept a name
+    // the parser rejects — and a new transport needs no edit here.
+    video->add_option("--encoder-backend", args.video_settings.encoder_backend,
+                      "Encoder backend: pipe or native")
+        ->check(CLI::IsMember(available_encoder_transport_names()));
     video->add_flag("--dry-run", args.video_settings.dry_run, "Validate without rendering (video settings; render-plan validation with --plan)");
 }
 

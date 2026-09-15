@@ -19,7 +19,12 @@ namespace chronon3d::cli {
 /// Controls pixel format, pipe writer backend, colour space conversion,
 /// and FFmpeg subprocess verbosity.
 struct PipeOptions {
-    /// Pixel format for pipe input: "rgba", "yuv420p", "nv12", "yuv444p".
+    /// Pixel format for pipe input. The accepted names are NOT restated here:
+    /// chronon3d::runtime::pipe_pixel_format_names() in
+    /// <chronon3d/runtime/frame_format.hpp> is the one vocabulary, projected for
+    /// the CLI by pipe_pixfmt_vocabulary.hpp. (The list that used to sit in this
+    /// comment named "yuv444p", which the canonical parser rejects, and omitted
+    /// "p010", which it accepts.)
     std::string pipe_pixfmt{"rgba"};
 
     /// Pipe writer backend: "classic" (stdio) or "io_uring" (Linux experimental).

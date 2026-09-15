@@ -31,8 +31,10 @@
 #include <cctype>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -108,6 +110,48 @@ const char* to_string(EncoderBackend backend) noexcept {
         case EncoderBackend::Nvenc: return "nvenc";
     }
     return "unknown";
+}
+
+const char* to_string(EncoderTransport transport) noexcept {
+    switch (transport) {
+        case EncoderTransport::Native: return "native";
+        case EncoderTransport::Pipe: return "pipe";
+    }
+    return "unknown";
+}
+
+// AUDIT F4 — one list, one order, consumed by the CLI's CLI::IsMember() option
+// gate, so the accepted vocabulary and its help text cannot drift from the
+// parser below.
+std::span<const std::string_view> encoder_transport_names() noexcept {
+    static constexpr std::array<std::string_view, 2> kNames{
+        kEncoderTransportNative, kEncoderTransportPipe};
+    return kNames;
+}
+
+std::vector<std::string> available_encoder_transport_names() {
+    std::vector<std::string> names;
+    names.reserve(2);
+    for (const auto name : encoder_transport_names()) {
+        EncoderTransport transport{};
+        if (!parse_encoder_transport(name, transport)) continue;
+        if (!encoder_transport_available(transport)) continue;
+        names.emplace_back(name);
+    }
+    return names;
+}
+
+bool parse_encoder_transport(std::string_view value,
+                             EncoderTransport& out) noexcept {
+    if (value == kEncoderTransportNative) {
+        out = EncoderTransport::Native;
+        return true;
+    }
+    if (value == kEncoderTransportPipe) {
+        out = EncoderTransport::Pipe;
+        return true;
+    }
+    return false;
 }
 
 const char* to_string(EncoderRateControlRequest rc) noexcept {

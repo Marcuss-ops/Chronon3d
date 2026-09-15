@@ -53,6 +53,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.qp = args.video.qp;
     request.output.bitrate = args.video.bitrate;
     request.output.audio_source_path = args.video.gop_source;
+    request.output.audio_target_sample_rate = args.video.audio_sample_rate;
     request.output.gop_copy_only = args.video.gop_copy_only;
     request.output.pipe_pixfmt = args.video.pipe_pixfmt;
     request.output.fps_num = args.fps_num == 30 && args.fps_den == 1
@@ -170,6 +171,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         // adapter. The native encoder uses it to mux the master audio stream;
         // dropping it here produces a valid video-only MP4 silently.
         request.video_settings.gop_source = normalized_job.output.audio_source_path;
+        request.video_settings.audio_target_sample_rate =
+            normalized_job.output.audio_target_sample_rate;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
@@ -222,7 +225,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.last_frame = Frame{last};
             const bool gpu_native =
                 request.video_settings.hardware_encoder == "nvenc" &&
-                request.video_settings.encoder_backend == "native" &&
+                is_native_encoder_transport(
+                    request.video_settings.encoder_backend) &&
                 normalized_job.backend == "vulkan";
             request.execution.warmup_renderer = !gpu_native;
             request.execution.warmup_dummy_frame = !gpu_native;

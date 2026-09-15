@@ -29,11 +29,14 @@
 // =============================================================================
 
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/media/video/video_execution_resolver.hpp>
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -47,6 +50,59 @@ enum class EncoderBackend : std::uint8_t {
 };
 
 [[nodiscard]] const char* to_string(EncoderBackend backend) noexcept;
+
+// ── CLI encoder transport selector ─────────────────────────────────────────
+//
+// AUDIT F4 — `encoder_backend` ("native" = in-process libavcodec, "pipe" =
+// external ffmpeg subprocess) is an identity fact of the video lane, but it was
+// spelled as a raw string literal at every consumer. A rename, a third
+// transport, or one forgotten site silently downgrades a job to the pipe
+// encoder — the exact failure class this module exists to eliminate (see the
+// module header). The vocabulary and its single parser therefore live here; the
+// CLI's CLI::IsMember() gate is generated from encoder_transport_names().
+//
+// Do not confuse this with EncoderBackend above: that is the *codec* axis
+// (software libx264/libx265 vs h264_nvenc/hevc_nvenc). EncoderTransport is the
+// *execution* axis (in-process vs subprocess). Both are recorded on the timing
+// sidecar, under different keys.
+
+enum class EncoderTransport : std::uint8_t {
+    Native,  // "native": in-process libavcodec
+    Pipe,    // "pipe": external ffmpeg subprocess
+};
+
+/// Canonical selector strings — aliases of the media-layer authority so the SDK
+/// job contract, the execution resolver and the CLI share ONE literal pair
+/// (AUDIT F4). Prefer these over literal "native"/"pipe".
+inline constexpr std::string_view kEncoderTransportNative =
+    ::chronon3d::media::kEncoderTransportNative;
+inline constexpr std::string_view kEncoderTransportPipe =
+    ::chronon3d::media::kEncoderTransportPipe;
+
+[[nodiscard]] const char* to_string(EncoderTransport transport) noexcept;
+
+/// The accepted selector set (help-text order), for CLI11::IsMember and JSON
+/// schema validation.
+[[nodiscard]] std::span<const std::string_view> encoder_transport_names() noexcept;
+
+/// Available transports for this build as owning strings, for CLI11::IsMember
+/// (which needs a container of std::string). Generated from the same capability
+/// predicate the runtime uses, so the option gate can never advertise a
+/// transport this build cannot execute, and adding a transport updates the CLI
+/// without editing it.
+[[nodiscard]] std::vector<std::string> available_encoder_transport_names();
+
+/// Parse a selector string. Empty means "unset" and is deliberately NOT
+/// accepted: every caller must decide its own default explicitly (the CLI
+/// default is Native).
+[[nodiscard]] bool parse_encoder_transport(std::string_view value,
+                                           EncoderTransport& out) noexcept;
+
+/// The question almost every call site actually asks.
+[[nodiscard]] constexpr bool is_native_encoder_transport(
+    std::string_view value) noexcept {
+    return value == kEncoderTransportNative;
+}
 
 // ── Rate-control intent (backend-neutral user vocabulary) ──────────────────
 //
@@ -249,6 +305,21 @@ private:
     const ResolvedEncoderConfig& resolved) noexcept;
 
 // ── Backend helpers (single source of truth) ────────────────────────────────
+
+/// Resolution of the *declared* transport selector against build capability.
+///
+/// On a build without CHRONON3D_ENABLE_NATIVE_FFMPEG an explicit "native"
+/// request is a hard failure, never a silent downgrade to the pipe encoder —
+/// that contract is restated here so the capability check has one authority
+/// alongside the vocabulary.
+[[nodiscard]] constexpr bool encoder_transport_available(
+    EncoderTransport transport) noexcept {
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    return true;
+#else
+    return transport != EncoderTransport::Native;
+#endif
+}
 
 /// Resolve the encoder backend from codec + hardware_encoder strings.
 [[nodiscard]] EncoderBackend resolve_encoder_backend(

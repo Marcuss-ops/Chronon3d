@@ -1,5 +1,7 @@
 #include "pipe_export_helpers.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
@@ -83,7 +85,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     // rewrite must never run when a hardware encoder is selected — passing
     // "ultrafast" to h264_nvenc would fail option validation at open.
     const bool x264_preset_vocab =
-        opts.encoder.encoder_backend == "native" &&
+        is_native_encoder_transport(opts.encoder.encoder_backend) &&
         (opts.encoder.hardware_encoder.empty() ||
          opts.encoder.hardware_encoder == "none");
     const std::string effective_preset =
@@ -93,7 +95,8 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     const std::string effective_tune =
         (!opts.encoder.tune.empty())
             ? opts.encoder.tune
-            : ((opts.encoder.codec == "libx264" && opts.encoder.encoder_backend != "native") ? "zerolatency" : "");
+            : ((opts.encoder.codec == "libx264" &&
+                !is_native_encoder_transport(opts.encoder.encoder_backend)) ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
         .width = compiled.composition->width(),
@@ -125,6 +128,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .tune_explicit = !opts.encoder.tune.empty() && opts.encoder.tune_explicit,
         .pipe_writer = opts.pipe.pipe_writer,
         .audio_source_path = opts.gop_source,
+        .audio_target_sample_rate = opts.audio_target_sample_rate,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 
@@ -160,7 +164,7 @@ void track_pipe_encoder_process(
     IVideoEncoder& encoder,
     SystemMetricsCollector& sys_metrics)
 {
-    if (opts.encoder.encoder_backend == "native") {
+    if (is_native_encoder_transport(opts.encoder.encoder_backend)) {
         return;
     }
 

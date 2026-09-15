@@ -25,12 +25,16 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <condition_variable>
+#include <functional>
 #include <mutex>
+#include <vector>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 
 namespace chronon3d::runtime {
 
@@ -39,6 +43,114 @@ namespace chronon3d::runtime {
 RenderPipeline::RenderPipeline(
     SoftwareRenderer* renderer, ::chronon3d::SoftwareExecutionContext& context) noexcept
     : m_renderer(renderer), m_context(context) {}
+
+// ============================================================================
+// StagePool — AUDIT F7
+//
+// The batch pipeline has exactly three fixed, equal-lifetime stages
+// (evaluation, render, encode) that must run concurrently and be joined at one
+// barrier before the batch result is read. That shape is a job barrier, not a
+// work-stealing scheduler, so the pool is deliberately minimal:
+//
+//   - one thread per stage slot, created once per pipeline (lazily), parked on
+//     a condition variable between batches;
+//   - run() publishes the job array plus an epoch, wakes the workers, and waits
+//     for every slot to report completion;
+//   - a worker whose slot index is beyond the submitted job count still consumes
+//     the epoch (so no worker spins) but contributes no completion.
+//
+// A stage loop already owns its failure reporting (`fail()` records the error
+// and flips the shared `failed` flag), so a throw escaping a stage is a bug in
+// that reporting; it is contained here rather than allowed to terminate the
+// process from inside a pool thread.
+// ============================================================================
+class RenderPipeline::StagePool {
+public:
+    explicit StagePool(std::size_t worker_count) {
+        m_workers.reserve(worker_count);
+        for (std::size_t index = 0; index < worker_count; ++index) {
+            m_workers.emplace_back([this, index] { worker(index); });
+        }
+    }
+
+    ~StagePool() {
+        {
+            std::lock_guard lock(m_mutex);
+            m_stop = true;
+        }
+        m_start_changed.notify_all();
+        for (auto& worker_thread : m_workers) {
+            if (worker_thread.joinable()) worker_thread.join();
+        }
+    }
+
+    StagePool(const StagePool&) = delete;
+    StagePool& operator=(const StagePool&) = delete;
+
+    /// Run `job_count` jobs concurrently (one per pool slot) and block until all
+    /// of them have returned. `jobs` must outlive this call.
+    void run(std::size_t job_count, const std::function<void()>* jobs) {
+        if (job_count == 0) return;
+        {
+            std::lock_guard lock(m_mutex);
+            m_jobs = jobs;
+            m_job_count = job_count;
+            m_completed = 0;
+            ++m_epoch;
+        }
+        m_start_changed.notify_all();
+        {
+            std::unique_lock lock(m_mutex);
+            m_done_changed.wait(lock, [this] { return m_completed == m_job_count; });
+            m_jobs = nullptr;
+            m_job_count = 0;
+        }
+    }
+
+private:
+    void worker(std::size_t index) {
+        std::uint64_t seen_epoch = 0;
+        for (;;) {
+            const std::function<void()>* job = nullptr;
+            {
+                std::unique_lock lock(m_mutex);
+                m_start_changed.wait(lock, [this, seen_epoch] {
+                    return m_stop || m_epoch != seen_epoch;
+                });
+                if (m_stop) return;
+                seen_epoch = m_epoch;
+                if (index < m_job_count) job = &m_jobs[index];
+            }
+            if (job) {
+                try {
+                    (*job)();
+                } catch (const std::exception& exception) {
+                    spdlog::error("[render-pipeline] batch stage threw: {}",
+                                  exception.what());
+                } catch (...) {
+                    spdlog::error("[render-pipeline] batch stage threw an unknown exception");
+                }
+            }
+            std::lock_guard lock(m_mutex);
+            if (job) {
+                ++m_completed;
+                if (m_completed == m_job_count) m_done_changed.notify_all();
+            }
+        }
+    }
+
+    std::mutex m_mutex;
+    std::condition_variable m_start_changed;
+    std::condition_variable m_done_changed;
+    std::vector<std::thread> m_workers;
+    const std::function<void()>* m_jobs{nullptr};
+    std::size_t m_job_count{0};
+    std::size_t m_completed{0};
+    std::uint64_t m_epoch{0};
+    bool m_stop{false};
+};
+
+RenderPipeline::~RenderPipeline() = default;
 
 const char* frame_scheduling_class_name(
     FrameSchedulingClass scheduling_class) noexcept {
@@ -150,33 +262,19 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             program, frame, compatibility_parameters);
         frame_parameters = &compatibility_parameters;
     }
-    // FIXING.md S-04 — double-checked locking: allocate outside lock.
-    // materialize_scene (Scene::clone + topology build) is heavy and must
-    // not be held under m_topology_mutex when multiple jobs race.
-    std::shared_ptr<const Scene> topology;
+    // AUDIT F11 — the canonical LruCache owns lookup, LRU eviction and request
+    // coalescing. materialize_scene (Scene::clone + topology build) is heavy and
+    // runs outside the shard lock: concurrent jobs asking for the same
+    // fingerprint share one materialization instead of racing to build it twice,
+    // and a bounded Count-mode cache evicts the least recently *used* entry
+    // rather than whichever was inserted first.
     const auto key = program.fingerprint();
-    {
-        std::shared_lock lock(m_topology_mutex);
-        const auto found = m_topologies.find(key);
-        if (found != m_topologies.end()) {
-            topology = found->second;
-        }
-    }
-    if (!topology) {
-        auto fresh = std::make_shared<const Scene>(
-            compiler::ProgramSampler{}.materialize_scene(program));
-        std::unique_lock lock(m_topology_mutex);
-        const auto found = m_topologies.find(key);
-        if (found != m_topologies.end()) {
-            topology = found->second;
-        } else {
-            if (m_topologies.size() >= 32) {
-                m_topologies.erase(m_topologies.begin());
-            }
-            topology = fresh;
-            m_topologies.emplace(key, topology);
-        }
-    }
+    const auto topology = m_topologies.compute_if_absent(
+        key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
+            return {std::make_shared<const Scene>(
+                        compiler::ProgramSampler{}.materialize_scene(program)),
+                    1};
+        });
     return chronon3d::graph::render_scene_via_graph(
         *m_context.backend, *m_context.scratch.node_cache, *topology, Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
@@ -414,7 +512,13 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
 
     const Frame end = first + count;
 
-    std::thread evaluation_thread([&] {
+    // AUDIT F7 — the three stage loops below are byte-for-byte the loops that
+    // used to live in three per-call std::thread objects. They are now submitted
+    // as jobs to the pipeline-owned StagePool; m_stage_pool->run() replaces the
+    // join() barrier, so no stage ownership, wake-up or ordering semantics
+    // change — only the thread lifecycle is amortized across batches.
+    std::array<std::function<void()>, 3> stage_jobs{
+    [&] {
         for (Frame frame = first; frame < end; ++frame) {
             FrameExecutionSlot* slot = nullptr;
             {
@@ -447,9 +551,9 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
         }
         evaluation_done.store(true, std::memory_order_release);
         render_changed.notify_all();
-    });
+    },
 
-    std::thread render_thread([&] {
+    [&] {
         for (;;) {
             FrameExecutionSlot* slot = nullptr;
             {
@@ -507,9 +611,9 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
             }
             encoder_changed.notify_one();
         }
-    });
+    },
 
-    std::thread encoder_thread([&] {
+    [&] {
         for (;;) {
             FrameExecutionSlot* slot = nullptr;
             {
@@ -553,11 +657,13 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
             ++frames_encoded;
             evaluation_changed.notify_one();
         }
-    });
+    },
+    };
 
-    evaluation_thread.join();
-    render_thread.join();
-    encoder_thread.join();
+    if (!m_stage_pool) {
+        m_stage_pool = std::make_unique<StagePool>(stage_jobs.size());
+    }
+    m_stage_pool->run(stage_jobs.size(), stage_jobs.data());
     session.reset_slots();
 
     RenderBatchResult result;

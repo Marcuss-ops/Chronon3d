@@ -224,6 +224,11 @@ struct DirectYuvLayer {
   unsigned int color;
   unsigned int stroke_color;
   float stroke_width;
+  unsigned int shadow_color;
+  float shadow_opacity;
+  float shadow_dx;
+  float shadow_dy;
+  float shadow_blur;
 };
 
 __device__ float4 unpack_direct_color(unsigned int color) {
@@ -235,6 +240,113 @@ __device__ float4 unpack_direct_color(unsigned int color) {
 
 __device__ float direct_median3(float a, float b, float c) {
   return max(min(a, b), min(max(a, b), c));
+}
+
+// ── Canonical single MTSDF drop shadow ──────────────────────────────────────
+// A drop shadow is the coverage of the silhouette offset by the authored
+// vector and softened by the authored blur. The prepared MTSDF atlas already
+// encodes that silhouette as a signed distance, so the DirectYUV lane lowers a
+// shadow by resampling the SAME field: no second rasterization, no RGBA
+// intermediate and no per-frame asset rebuild.
+
+__device__ inline bool direct_layer_has_shadow(const DirectYuvLayer& layer) {
+  // resource_kind 2 is the prepared MTSDF text atlas; only it carries a
+  // signed-distance field to resample.
+  return layer.resource_kind == 2 && layer.shadow_color != 0u &&
+         layer.shadow_opacity > 0.0f;
+}
+
+__device__ inline float direct_mtsdf_band_dest(const DirectYuvLayer& layer) {
+  const float source_scale = 0.5f *
+      (fabsf(layer.dst_x1 - layer.dst_x0) / fmaxf((float)layer.source_width, 1.0f) +
+       fabsf(layer.dst_y1 - layer.dst_y0) / fmaxf((float)layer.source_height, 1.0f));
+  const float range = layer.distance_range_px > 0.0f
+      ? layer.distance_range_px : 8.0f;
+  return range * source_scale;
+}
+
+__device__ float direct_mtsdf_signed_distance(const DirectYuvLayer& layer,
+                                              float dst_x, float dst_y) {
+  const float u = layer.src_x0 + (layer.src_x1 - layer.src_x0) *
+      (dst_x - layer.dst_x0) / fmaxf(layer.dst_x1 - layer.dst_x0, 1.0f);
+  const float v = layer.src_y0 + (layer.src_y1 - layer.src_y0) *
+      (dst_y - layer.dst_y0) / fmaxf(layer.dst_y1 - layer.dst_y0, 1.0f);
+  // Outside the prepared plane there is no silhouette, so the field reads as
+  // fully outside (alpha 0 → below the outline).
+  if (u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f) return 0.0f;
+  const int sx = min(max((int)floorf(u * (float)layer.source_width), 0),
+                     layer.source_width - 1);
+  const int sy = min(max((int)floorf(v * (float)layer.source_height), 0),
+                     layer.source_height - 1);
+  const char* row = (const char*)layer.rgba + sy * layer.pitch;
+  const unsigned int packed = ((const unsigned int*)row)[sx];
+  return (float)((packed >> 24u) & 0xFFu) / 255.0f;
+}
+
+__device__ float direct_mtsdf_shadow_tap(const DirectYuvLayer& layer,
+                                         float dst_x, float dst_y,
+                                         float width_dest, float band_dest) {
+  const float distance_dest =
+      (direct_mtsdf_signed_distance(layer, dst_x, dst_y) - 0.5f) * band_dest;
+  return fminf(fmaxf(distance_dest / fmaxf(width_dest, 1e-4f) + 0.5f, 0.0f), 1.0f);
+}
+
+__device__ float direct_mtsdf_shadow_coverage(const DirectYuvLayer& layer,
+                                              int x, int y, float band_dest) {
+  const float base_x = (float)x - layer.shadow_dx;
+  const float base_y = (float)y - layer.shadow_dy;
+  const float blur = fmaxf(layer.shadow_blur, 0.0f);
+  if (blur <= 1e-4f) {
+    // Blur 0 keeps the canonical hard offset silhouette.
+    const float distance_dest =
+        (direct_mtsdf_signed_distance(layer, base_x, base_y) - 0.5f) * band_dest;
+    return distance_dest > 0.0f ? 1.0f : 0.0f;
+  }
+  // The prepared field can only express an edge as soft as its own distance
+  // band (`band_dest`); the value saturates outside it. The authored blur is
+  // therefore completed by a normalized binomial 3x3 kernel whose taps sit at
+  // half the authored radius: the visible softness tracks the authored blur
+  // instead of stopping at the field range, and the taps are still samples of
+  // the SAME prepared field — no second rasterization, no RGBA intermediate.
+  const float width = fminf(blur, band_dest);
+  const float step = 0.5f * blur;
+  float coverage = 0.25f *
+      direct_mtsdf_shadow_tap(layer, base_x, base_y, width, band_dest);
+  // Binomial 3x3: centre 4/16, edge 2/16, corner 1/16 (0.25 / 0.125 / 0.0625).
+  float axis = direct_mtsdf_shadow_tap(layer, base_x + step, base_y, width, band_dest) +
+               direct_mtsdf_shadow_tap(layer, base_x - step, base_y, width, band_dest) +
+               direct_mtsdf_shadow_tap(layer, base_x, base_y + step, width, band_dest) +
+               direct_mtsdf_shadow_tap(layer, base_x, base_y - step, width, band_dest);
+  float corner = direct_mtsdf_shadow_tap(layer, base_x + step, base_y + step, width, band_dest) +
+                 direct_mtsdf_shadow_tap(layer, base_x + step, base_y - step, width, band_dest) +
+                 direct_mtsdf_shadow_tap(layer, base_x - step, base_y + step, width, band_dest) +
+                 direct_mtsdf_shadow_tap(layer, base_x - step, base_y - step, width, band_dest);
+  coverage += 0.125f * axis + 0.0625f * corner;
+  return coverage;
+}
+
+__device__ float4 direct_mtsdf_shadow_sample(const DirectYuvLayer& layer,
+                                             int x, int y) {
+  const float coverage = direct_mtsdf_shadow_coverage(
+      layer, x, y, direct_mtsdf_band_dest(layer));
+  const float4 shadow = unpack_direct_color(layer.shadow_color);
+  // Straight RGB plus alpha: the painter premultiplies exactly once, the same
+  // convention the stroke and fill branches use.
+  return make_float4(shadow.x, shadow.y, shadow.z,
+                     shadow.w * layer.shadow_opacity * coverage);
+}
+
+__device__ inline bool direct_layer_shadow_in_bounds(const DirectYuvLayer& layer,
+                                                     int x, int y) {
+  // The authored radius plus the prepared field's own edge softness, so the
+  // faint outer falloff is not clipped by the glyph box.
+  const float halo = 0.5f * fmaxf(layer.shadow_blur, 0.0f) +
+      0.5f * direct_mtsdf_band_dest(layer) + 0.5f;
+  const float x0 = fminf(layer.dst_x0, layer.dst_x0 + layer.shadow_dx - halo);
+  const float x1 = fmaxf(layer.dst_x1, layer.dst_x1 + layer.shadow_dx + halo);
+  const float y0 = fminf(layer.dst_y0, layer.dst_y0 + layer.shadow_dy - halo);
+  const float y1 = fmaxf(layer.dst_y1, layer.dst_y1 + layer.shadow_dy + halo);
+  return (float)x >= x0 && (float)x < x1 && (float)y >= y0 && (float)y < y1;
 }
 
 // DirectYUV consumes canonical linear resources and emits SDR video by
@@ -312,7 +424,11 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
     // The signed-distance threshold is stable under nearest sampling and
     // preserves the complete glyph silhouette in the NV12 fast path.
     const float fill_alpha = signed_distance > 0.5f ? 1.0f : 0.0f;
-    float4 src = make_float4(0, 0, 0, 0);
+    // The shadow is painted first — under the stroke, under the fill — from
+    // the same prepared distance field.
+    float4 src = direct_layer_has_shadow(layer)
+        ? direct_mtsdf_shadow_sample(layer, x, y)
+        : make_float4(0, 0, 0, 0);
     if (layer.stroke_width > 0.0f && layer.stroke_color != 0u) {
       const float stroke_alpha = fminf(fmaxf(
           ((a_channel - 0.5f) * range + layer.stroke_width) *
@@ -351,9 +467,18 @@ __device__ float4 direct_layer_pixel(const DirectYuvLayer* layers, int count,
   float4 accum = make_float4(0, 0, 0, 0);
   for (int i = 0; i < count; ++i) {
     const DirectYuvLayer& layer = layers[i];
-    if (x < layer.dst_x0 || x >= layer.dst_x1 ||
-        y < layer.dst_y0 || y >= layer.dst_y1) continue;
-    float4 src = direct_layer_load(layer, x, y, width, height);
+    float4 src;
+    if (x >= layer.dst_x0 && x < layer.dst_x1 &&
+        y >= layer.dst_y0 && y < layer.dst_y1) {
+      src = direct_layer_load(layer, x, y, width, height);
+    } else if (direct_layer_has_shadow(layer) &&
+               direct_layer_shadow_in_bounds(layer, x, y)) {
+      // The blur envelope is authored OUTSIDE the glyph box: composite the
+      // shadow alone there instead of letting the layer rect cut it off.
+      src = direct_mtsdf_shadow_sample(layer, x, y);
+    } else {
+      continue;
+    }
     src.w = fminf(fmaxf(src.w * layer.opacity, 0.0f), 1.0f);
     if (layer.blend_mode == 1) {
       accum.x += src.x * src.w;

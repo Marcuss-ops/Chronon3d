@@ -1,7 +1,10 @@
 #include <chronon3d/runtime/device_scheduler.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <limits>
 #include <stdexcept>
 
@@ -171,31 +174,70 @@ void DeviceScheduler::set_release_callback(ReleaseCallback cb) {
 
 void DeviceScheduler::release(DeviceId id, const DeviceResourceVector& resources) noexcept {
     ReleaseCallback cb;
+    bool underflow = false;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (id >= m_devices.size()) {
             return;
         }
 
-        auto& entry = m_devices[id];
-        entry.state.reserved.compute_units = std::max(0.0f, entry.state.reserved.compute_units - resources.compute_units);
-        entry.state.reserved.vram_bytes = (entry.state.reserved.vram_bytes >= resources.vram_bytes)
-            ? entry.state.reserved.vram_bytes - resources.vram_bytes : 0;
-        entry.state.reserved.nvdec_sessions = (entry.state.reserved.nvdec_sessions >= resources.nvdec_sessions)
-            ? entry.state.reserved.nvdec_sessions - resources.nvdec_sessions : 0;
-        entry.state.reserved.nvenc_sessions = (entry.state.reserved.nvenc_sessions >= resources.nvenc_sessions)
-            ? entry.state.reserved.nvenc_sessions - resources.nvenc_sessions : 0;
-        entry.state.reserved.pcie_bandwidth = std::max(
-            0.0f, entry.state.reserved.pcie_bandwidth - resources.pcie_bandwidth);
-        entry.state.reserved.render_job_slots =
-            entry.state.reserved.render_job_slots >= resources.render_job_slots
-                ? entry.state.reserved.render_job_slots - resources.render_job_slots : 0;
+        auto& reserved = m_devices[id].state.reserved;
+        // AUDIT F5 — subtraction is still clamped to zero (a reservation must
+        // never go negative), but an actual clamp is a caller accounting bug,
+        // not normal operation: it silently turned a double release or a
+        // mismatched DeviceResourceVector into "plausible" state. Record it.
+        const auto take_f32 = [&underflow](float& held, float want) {
+            if (held >= want) { held -= want; return; }
+            underflow = true;
+            held = 0.0f;
+        };
+        const auto take_u64 = [&underflow](std::uint64_t& held, std::uint64_t want) {
+            if (held >= want) { held -= want; return; }
+            underflow = true;
+            held = 0;
+        };
+        const auto take_u32 = [&underflow](std::uint32_t& held, std::uint32_t want) {
+            if (held >= want) { held -= want; return; }
+            underflow = true;
+            held = 0;
+        };
+        take_f32(reserved.compute_units, resources.compute_units);
+        take_u64(reserved.vram_bytes, resources.vram_bytes);
+        take_u32(reserved.nvdec_sessions, resources.nvdec_sessions);
+        take_u32(reserved.nvenc_sessions, resources.nvenc_sessions);
+        take_f32(reserved.pcie_bandwidth, resources.pcie_bandwidth);
+        take_u32(reserved.render_job_slots, resources.render_job_slots);
+        if (underflow) {
+            m_release_underflow_count.fetch_add(1, std::memory_order_relaxed);
+        }
         cb = m_release_cb;
+    }
+    if (underflow) {
+        // AUDIT F5 — the condition is now observable (counter + log) instead of
+        // being swallowed by std::max(0.0f, ...) and a ternary.
+        spdlog::warn(
+            "[device-scheduler] unbalanced release on device {}: released more than "
+            "reserved (double release or mismatched DeviceResourceVector); reserved "
+            "counters clamped to zero (release_underflow_count={})",
+            id, m_release_underflow_count.load(std::memory_order_relaxed));
     }
     if (cb) {
         try {
             cb(id, resources);
-        } catch (...) {}
+        } catch (const std::exception& exception) {
+            // AUDIT F17 — a throwing release callback was previously swallowed
+            // by `catch (...) {}` with no log and no metric, so a bug inside the
+            // callback was invisible. It is a callback contract (the scheduler
+            // cannot propagate from a noexcept release), but it must be
+            // reported rather than mistaken for success.
+            spdlog::error(
+                "[device-scheduler] release callback for device {} threw: {}",
+                id, exception.what());
+        } catch (...) {
+            spdlog::error(
+                "[device-scheduler] release callback for device {} threw an unknown exception",
+                id);
+        }
     }
 }
 

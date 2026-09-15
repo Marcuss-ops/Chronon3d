@@ -1,5 +1,7 @@
 #include "../common/pipe_export_pipeline.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/native_frame_importer_factory.hpp>
@@ -141,7 +143,8 @@ RenderLoopOutput run_pipe_export_loop(
     }
     spdlog::info("[video] frame-loop cleanup complete");
 
-    const bool native_encoder = session.opts.encoder.encoder_backend == "native";
+    const bool native_encoder =
+        is_native_encoder_transport(session.opts.encoder.encoder_backend);
     if (session.renderer_ptr() && !native_encoder) {
         auto& rt = *session.renderer_ptr()->execution_context().runtime;
         rt.backend().release_frame_transient_surfaces();

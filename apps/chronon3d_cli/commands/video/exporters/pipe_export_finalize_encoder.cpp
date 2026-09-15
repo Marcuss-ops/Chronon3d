@@ -1,5 +1,6 @@
 #include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
+#include "../../../utils/video/encoder_config_resolution.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/output_contract.hpp>
@@ -12,7 +13,8 @@ namespace chronon3d::cli {
 EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     EncoderCloseResult result;
 
-    const bool is_native = (session.opts.encoder.encoder_backend == "native");
+    const bool is_native =
+        is_native_encoder_transport(session.opts.encoder.encoder_backend);
     result.write_blocked_ms = pipe_write_blocked_ms(is_native, *session.encoder);
 
     const double conv_copy_ms = session.renderer_ptr() && session.renderer_ptr()->counters()
@@ -134,7 +136,8 @@ PipeExportResult make_pipe_export_result(
         contract.height = session.canvas_height;
         contract.fps = session.opts.output.frame_rate();
         contract.frame_count = session.total_frames;
-        contract.audio_required = session.opts.encoder.encoder_backend == "native" &&
+        contract.audio_required =
+            is_native_encoder_transport(session.opts.encoder.encoder_backend) &&
             !session.opts.gop_source.empty();
         contract.audio_streams = contract.audio_required ? 1 : 0;
 

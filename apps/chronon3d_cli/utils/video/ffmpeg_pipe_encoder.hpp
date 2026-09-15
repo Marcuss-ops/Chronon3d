@@ -234,6 +234,8 @@ struct FfmpegPipeOptions {
     int encode_threads{0};
     bool direct_yuv_mode{false};
     std::string audio_source_path;
+    /// Requested output audio sample rate (Hz); 0 keeps the source rate.
+    int audio_target_sample_rate{0};
     double audio_start_seconds{0.0};
     double audio_end_seconds{0.0};
 

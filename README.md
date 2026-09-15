@@ -59,7 +59,7 @@ Gli include restano espliciti e focalizzati: non esiste un nuovo mega-header
 Composition
   → Scene
   → RenderGraph
-  → FrameGraphCompiler
+  → GraphCompilePipeline
   → CompiledFrameGraph
   → GraphExecutor
   → RenderBackend

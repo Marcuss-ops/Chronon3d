@@ -1,6 +1,8 @@
 #include "pipe_export_pipeline_internal.hpp"
 #include "utils/process_start.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -142,7 +144,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         : resolve_cli_ffmpeg_codec(session->opts.encoder.codec, session->opts.encoder.hardware_encoder);
 
     if (!session->opts.variants.empty()) {
-        if (session->opts.encoder.encoder_backend == "native") {
+        if (is_native_encoder_transport(session->opts.encoder.encoder_backend)) {
             spdlog::error("[video] SIMO variants require the shared CPU-frame encoder path; "
                           "native surface fanout is not yet supported");
             return session;
@@ -381,7 +383,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         .frames_encoded = session->frames_encoded,
         .require_native_gpu =
             opts.backend_preference == graph::BackendPreference::GPU &&
-            opts.encoder.encoder_backend == "native" &&
+            is_native_encoder_transport(opts.encoder.encoder_backend) &&
             opts.encoder.hardware_encoder == "nvenc",
         .frame_encoder_telemetry = session->frame_encoder_telemetry,
         .telemetry_anchor_ns = session->telemetry_anchor_ns,
