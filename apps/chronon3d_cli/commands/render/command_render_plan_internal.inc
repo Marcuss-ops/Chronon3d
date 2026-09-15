@@ -2,6 +2,7 @@ namespace {
 
 struct RenderPlanState {
     std::string input;
+    std::string prepared_package;
     std::string output;
     std::string assets_root;
     std::uint64_t start_frame{0};
@@ -32,6 +33,7 @@ struct RenderPlanState {
 runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& args) {
     runtime::job::RenderJobRequest request;
     request.plan_path = args.input;
+    request.prepared_package_path = args.prepared_package;
     request.output_path = args.output;
     request.assets_root = args.assets_root;
     request.report = args.report;
@@ -104,6 +106,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         RenderPlanPreparationOptions options;
         options.input = normalized_job.plan_path.string();
         options.assets_root = normalized_job.assets_root.string();
+        options.prepared_package = normalized_job.prepared_package_path.string();
         auto preparation = prepare_render_plan(options);
         if (!preparation) {
             spdlog::error("Render plan preparation failed: {}",

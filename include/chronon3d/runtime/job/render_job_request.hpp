@@ -51,6 +51,10 @@ struct OutputSpec {
 
 struct RenderJobRequest {
     std::filesystem::path plan_path;
+    /// Optional immutable overlay preparation sidecar produced by the
+    /// authoring pipeline. When present, the CLI validates it at the same
+    /// preparation boundary as the render plan.
+    std::filesystem::path prepared_package_path;
     std::filesystem::path output_path;
     std::filesystem::path assets_root;
 
@@ -94,6 +98,7 @@ struct RenderJobRequestError {
 
 struct NormalizedRenderJob {
     std::filesystem::path plan_path;
+    std::filesystem::path prepared_package_path;
     std::filesystem::path output_path;
     std::filesystem::path assets_root;
     std::optional<FrameRange> frame_range;
