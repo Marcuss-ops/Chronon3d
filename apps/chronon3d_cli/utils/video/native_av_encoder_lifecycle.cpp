@@ -2,6 +2,7 @@
 #include "native_av_encoder_internal.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <mutex>
@@ -44,12 +45,60 @@ bool NativeAvEncoder::close() {
         // and happen exactly once, after every work unit of the schedule has
         // been submitted. Finalizing here would close the container after the
         // FIRST re-encoded GOP and drop every subsequent one.
+        //
+        // P0-5E — splice certification, at the last moment it is still
+        // possible: this is the only point where the encoder has already
+        // published its parameter sets AND the container is still open. The
+        // container's stream was declared from the compressed source, so the
+        // encoder must reproduce it or the container it just wrote into is
+        // one a decoder cannot follow across the copy/reencode boundary.
+        std::string reproduction_failure;
+        if (options_.borrowed_declared_stream) {
+            // Refresh first: an encoder that has produced packets by now has
+            // published profile/level/SPS-PPS. A still-unmaterialized contract
+            // stays fail-closed rather than being assumed equal.
+            const auto& materialized = encoder_target_contract();
+            borrowed_stream_checked_ = true;
+            borrowed_stream_reproduced_ = encoder_reproduces_declared_stream(
+                *options_.borrowed_declared_stream, materialized);
+            if (!borrowed_stream_reproduced_) {
+                reproduction_failure = fmt::format(
+                    "declared codec={} profile={} level={} {}x{} sets={} vs "
+                    "encoder codec={} profile={} level={} {}x{} sets={} "
+                    "materialized={}",
+                    static_cast<int>(options_.borrowed_declared_stream->codec),
+                    options_.borrowed_declared_stream->profile,
+                    options_.borrowed_declared_stream->level,
+                    options_.borrowed_declared_stream->width,
+                    options_.borrowed_declared_stream->height,
+                    options_.borrowed_declared_stream->parameter_sets.size(),
+                    static_cast<int>(materialized.codec), materialized.profile,
+                    materialized.level, materialized.width, materialized.height,
+                    materialized.parameter_sets.size(),
+                    materialized.encoder_materialized);
+            }
+        }
         spdlog::info(
             "[native_av] close: borrowed mux session left open for the caller "
-            "(no audio, no trailer)");
+            "(no audio, no trailer); stream reproduction verified={}",
+            borrowed_stream_checked_ ? (borrowed_stream_reproduced_ ? "true" : "false")
+                                     : "not-required");
         // The container is the caller's from here on: never touch it again.
         mux_ = nullptr;
         borrows_mux_ = false;
+        if (!reproduction_failure.empty()) {
+            spdlog::error(
+                "[native_av] FAIL_CLOSED: the encoder did not reproduce the "
+                "borrowed container's declared stream ({}); this work unit "
+                "cannot be spliced with the copied GOPs in the same container",
+                reproduction_failure);
+            av_packet_free(&packet_);
+            av_frame_free(&frame_);
+            avcodec_free_context(&codec_);
+            bitstream_contract_ = BitstreamTargetContract{};
+            bitstream_contract_probed_ = false;
+            return false;
+        }
     } else {
         if (audio_input_ && !mux_source_audio()) {
             spdlog::error("[native_av] failed to mux source audio");

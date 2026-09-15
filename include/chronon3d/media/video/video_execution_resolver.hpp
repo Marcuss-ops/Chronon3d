@@ -248,6 +248,41 @@ struct GopExecutionPlan {
     bool trim_only{false};
 };
 
+/// The work units a requested window [window_first, window_last) actually
+/// needs, in schedule order, as indices into `plan.work_units`.
+///
+/// A preflight plan covers the WHOLE source: nothing about a GOP's identity
+/// depends on the export window, so the window selects units rather than
+/// changing them. A unit is selected when its tick span intersects the window
+/// — a GOP that merely straddles an edge still participates, because both ends
+/// are resolved by the caller (a copy is all-or-nothing and therefore demands
+/// an aligned edge, while a re-encode can be rendered for exactly the
+/// requested frames).
+[[nodiscard]] inline std::vector<std::size_t> gop_units_in_window(
+    const GopExecutionPlan& plan, std::int64_t window_first,
+    std::int64_t window_last) noexcept {
+    std::vector<std::size_t> selected;
+    if (window_last <= window_first) return selected;
+    for (std::size_t index = 0; index < plan.work_units.size(); ++index) {
+        const auto& unit = plan.work_units[index];
+        const std::int64_t unit_start = unit.render_range.present
+            ? unit.render_range.first : unit.first_pts;
+        // Right edge: the next unit's start is this GOP's right edge, and the
+        // window is authoritative for the final unit of the plan.
+        const std::int64_t next_start = index + 1 < plan.work_units.size()
+            ? (plan.work_units[index + 1].render_range.present
+                   ? plan.work_units[index + 1].render_range.first
+                   : plan.work_units[index + 1].first_pts)
+            : window_last;
+        const std::int64_t unit_end =
+            std::max<std::int64_t>(next_start, unit_start + 1);
+        if (unit_end > window_first && unit_start < window_last) {
+            selected.push_back(index);
+        }
+    }
+    return selected;
+}
+
 // ── Codec-boundary decision ─────────────────────────────────────────────
 //
 // The video analogue of AudioExecutionPath (packet_assembler.hpp): the same

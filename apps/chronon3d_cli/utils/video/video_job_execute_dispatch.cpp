@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -98,96 +99,112 @@ media::GopAnalysisSummary inspect_source_once(
     summary.trim_only = analysis->trim_only;
     summary.source_time_base_num = analysis->source_time_base_num;
     summary.source_time_base_den = analysis->source_time_base_den;
-    summary.work_units.reserve(analysis->plans.size());
-    for (const auto& plan : analysis->plans) {
-        const media::TimestampRange source_packets{
-            plan.first_dts, plan.last_dts, true};
-        const media::TimestampRange decode_range{
-            plan.decode_first_dts, plan.last_dts, true};
-        const media::TimestampRange render_range{
-            plan.first_pts, plan.last_pts, true};
-        const bool copy_packets = plan.copy_packets();
-        summary.work_units.push_back(media::GopWorkUnit{
-            .ordinal = plan.ordinal,
-            .first_pts = plan.first_pts,
-            .last_pts = plan.last_pts,
-            .first_dts = plan.first_dts,
-            .last_dts = plan.last_dts,
-            .kind = copy_packets
-                ? media::GopWorkKind::CopyPackets
-                : media::GopWorkKind::Reencode,
-            .source_packets = source_packets,
-            .decode_range = copy_packets ? media::TimestampRange{}
-                                         : decode_range,
-            .render_range = copy_packets ? media::TimestampRange{}
-                                         : render_range,
-            .encode_range = copy_packets ? media::TimestampRange{}
-                                         : render_range,
-            .force_idr_at_start = !copy_packets,
-            .closes_dependencies_at_end = plan.compatibility.random_access_safe,
-            .compatibility = plan.compatibility});
-    }
     // Splice safety matters only when some GOPs are copied alongside
     // re-encoded ones: every planned Copy must have passed the gate.
-    summary.safe_to_splice = summary.hybrid;
-    if (summary.safe_to_splice) {
-        for (const auto& plan : analysis->plans) {
-            if (plan.copy_packets() && !plan.compatibility.safe_to_splice()) {
-                summary.safe_to_splice = false;
+    bool safe_to_splice = analysis->is_hybrid();
+    if (safe_to_splice) {
+        for (const auto& gop : analysis->plans) {
+            if (gop.copy_packets() && !gop.compatibility.safe_to_splice()) {
+                safe_to_splice = false;
                 break;
             }
         }
     }
+    summary.safe_to_splice = safe_to_splice;
+    summary.work_units =
+        build_gop_plan_from_analysis(*analysis, safe_to_splice).work_units;
     return summary;
 }
 
-struct HybridSegment {
-    bool copy{false};
-    std::int64_t start_pts{0};
-    std::int64_t end_pts{0};
-};
+// The analysis → schedule mapping is shared with the preflight and the parity
+// gate: `build_gop_plan_from_analysis` (utils/video/gop_smart_copy.hpp). This
+// lane uses it with `splice_safe = true`, which is exactly what declaring the
+// container FROM the source certifies.
 
-// P0-3 DEMOLITION DEBT — second hybrid authority.
+// ── Exact tick ↔ frame rescale ──────────────────────────────────────────
 //
-// This function is the legacy segment-file executor: it re-derives
-// HybridSegment[] from GopExecutionPlan, writes one temp MP4 per segment,
-// then remuxes.  The declared architecture is:
+// One integer conversion between the source's own time base and the frame
+// grid, with no double seconds in between. The schedule speaks source ticks
+// and the renderer speaks Frames; this is the single, exact place the two
+// meet, so a GOP boundary cannot drift by a rounding tick.
+std::int64_t rescale_ticks_exact(std::int64_t ticks, std::int64_t from_num,
+                                 std::int64_t from_den, std::int64_t to_num,
+                                 std::int64_t to_den,
+                                 FrameRounding rounding) noexcept {
+    if (from_num <= 0 || from_den <= 0 || to_num <= 0 || to_den <= 0) return 0;
+    const __int128 numerator =
+        static_cast<__int128>(ticks) * from_num * to_num;
+    const __int128 denominator = static_cast<__int128>(from_den) * to_den;
+    if (denominator == 0) return 0;
+    __int128 result = 0;
+    switch (rounding) {
+        case FrameRounding::Floor:
+            result = numerator >= 0
+                ? numerator / denominator
+                : -((-numerator + denominator - 1) / denominator);
+            break;
+        case FrameRounding::Ceiling:
+            result = numerator >= 0
+                ? (numerator + denominator - 1) / denominator
+                : -((-numerator) / denominator);
+            break;
+        case FrameRounding::Nearest:
+        default:
+            result = numerator >= 0
+                ? (numerator + denominator / 2) / denominator
+                : -((-numerator + denominator / 2) / denominator);
+            break;
+    }
+    if (result > std::numeric_limits<std::int64_t>::max()) {
+        return std::numeric_limits<std::int64_t>::max();
+    }
+    if (result < std::numeric_limits<std::int64_t>::min()) {
+        return std::numeric_limits<std::int64_t>::min();
+    }
+    return static_cast<std::int64_t>(result);
+}
+
+Frame tick_to_frame(std::int64_t tick, std::int64_t tb_num,
+                    std::int64_t tb_den, FrameRate rate,
+                    FrameRounding rounding) noexcept {
+    return Frame{rescale_ticks_exact(tick, tb_num, tb_den, rate.numerator,
+                                     rate.denominator, rounding)};
+}
+
+std::int64_t frame_to_tick(Frame frame, std::int64_t tb_num,
+                           std::int64_t tb_den, FrameRate rate,
+                           FrameRounding rounding) noexcept {
+    return rescale_ticks_exact(frame.integral(), rate.numerator,
+                               rate.denominator, tb_num, tb_den, rounding);
+}
+
+// ── The ONE hybrid executor: COPY + REENCODE → ONE MuxSession (P0-3/5E/5F) ──
+//
+// The declared architecture is:
 //
 //   GopExecutionPlan → GopExecutionExecutor → single caller-owned MuxSession
 //                                           (COPY + REENCODE → one mux)
 //
-// The segment/filesystem/remux path pays: encode→write→close→open→demux→
-// timestamp-normalize→mux→delete for work that could be:
+// This function IS that path. It used to exist twice: the legacy executor
+// wrote one temp MP4 per segment and remuxed (encode→write→close→open→demux→
+// timestamp-normalize→mux→delete), while GopExecutionExecutor only validated
+// the schedule. P0-5G deleted the segment/file/remux path once the direct mux
+// passed the parity gate (tests/cli/test_gop_direct_mux_parity.cpp).
 //
-//   COPY PACKETS ──────────┐
-//                           ├→ one MuxSession → output.mp4
-//   NVENC PACKETS ─────────┘
+// CONTAINER DECLARATION (P0-5D): the output container's video stream is
+// declared from the compressed SOURCE, which makes a copied packet correct by
+// construction. That declaration is also the only target this schedule is
+// decided against — no encoder-owned contract exists yet at preflight time,
+// which is exactly why the encoder owns the OTHER side of the comparison:
+// every re-encoded work unit must REPRODUCE the declared stream and certifies
+// it at close() (fail-closed). A source the encoder cannot match therefore
+// never publishes a container a decoder cannot follow across the splice.
 //
-// Validated exit plan:
-//   Phase 1 (this commit): route ordering/validation through
-//     GopExecutionExecutor so the schedule has one authority even while the
-//     segment-file execution remains; add a gate comparing segment vs direct-
-//     mux byte identity on the 100x corpus.
-//   Phase 2: replace filesystem segments with direct GopExecutionExecutor
-//     callbacks that submit to the same MuxSession (no temp files).
-//   Phase 3: delete HybridSegment, .hybrid-* workspace, assemble_segments()
-//     from the hybrid path, and close the ticket — see Demolition Debt
-//     card below.
-//
-// Demolition Debt card:
-//   Owner: video/media team. Reason: hybrid GOP was shipped with file
-//   segments before MuxSession direct-mux was certified. Exit condition:
-//   GopExecutionExecutor + one MuxSession produces byte-identical outputs on
-//   the hybrid corpus and `execute_hybrid_gop_plan` has zero callers.
-//   Equivalence gate: `GopExecutionExecutor::execute` parity test + mux hash
-//   equality. Removal scope: HybridSegment, .hybrid-* dirs, segment_paths,
-//   assemble_segments() hybrid caller, and this function. Status: ACTIVE.
-
-// Consume the compiler-owned hybrid schedule as closed GOP segments. Changed
-// GOPs use the existing native render/encode pipeline; untouched GOP runs use
-// packet copy. The canonical media muxer joins both kinds of segment and is
-// the only timestamp/container boundary.
-bool execute_hybrid_gop_plan(
+// P0-5F: audio is submitted exactly once and the container is finalized
+// exactly once — here, after every work unit. A child render that finalized
+// the borrowed container would close it after the FIRST re-encoded GOP and
+// drop every later unit of the schedule.
+bool execute_direct_mux_gop_plan(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
     const std::string& composition_id,
@@ -195,210 +212,342 @@ bool execute_hybrid_gop_plan(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts,
-    const media::GopExecutionPlan& plan,
     const chronon3d::CpuBudget& cpu_budget,
-    const std::shared_ptr<media::VideoJobExecutionContext>& execution) {
+    const std::shared_ptr<media::VideoJobExecutionContext>& execution,
+    std::string& reason) {
 #ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
     (void)registry; (void)compiled; (void)composition_id; (void)settings;
-    (void)start; (void)end; (void)opts; (void)plan; (void)cpu_budget;
-    (void)execution;
+    (void)start; (void)end; (void)opts; (void)cpu_budget; (void)execution;
+    reason = "native_ffmpeg_disabled";
     return false;
 #else
-    if (!plan.hybrid || !plan.safe_to_splice || plan.work_units.empty() ||
-        plan.source_time_base_num <= 0 || plan.source_time_base_den <= 0 ||
-        opts.gop_source.empty()) {
+    if (opts.gop_source.empty()) {
+        reason = "no_compressed_source";
         return false;
     }
-    // P0-3 Phase 1: schedule validation MUST go through the single declared
-    // authority (GopExecutionExecutor).  The legacy path re-derived grouping
-    // from work_units; this check guarantees the executor's ordering/
-    // validation contract is the source of truth even while the segment-file
-    // execution debt remains.  Fail here loudly if the plan is invalid.
-    {
-        media::MuxSession dummy_mux; // not opened; execute() validates before using it
-        media::GopExecutionCallbacks validate_cbs{
-            .copy_packets = [](const media::GopWorkUnit&, media::MuxSession&) { return true; },
-            .reencode     = [](const media::GopWorkUnit&, media::MuxSession&) { return true; }};
-        media::GopExecutionResult validate_result;
-        std::string validate_reason;
-        if (!media::GopExecutionExecutor::execute(plan, dummy_mux, validate_cbs, validate_result, validate_reason)) {
-            spdlog::error("[hybrid-executor] schedule rejected by GopExecutionExecutor: {}", validate_reason);
+    if (!opts.variants.empty()) {
+        // A SIMO fan-out encoder owns one container per variant; it cannot
+        // share this caller-owned container. Refuse instead of silently
+        // writing the variants' packets somewhere else.
+        reason = "direct_mux_variants_unsupported";
+        return false;
+    }
+
+    // ── 1. Declare the schedule against the stream the container WILL carry ─
+    const auto declared = make_remux_target_contract(opts.gop_source);
+    if (!declared) {
+        reason = "source_contract_unavailable";
+        return false;
+    }
+    const double fps = opts.output.fps_value() > 0.0
+        ? opts.output.fps_value() : 30.0;
+    const double start_sec = static_cast<double>(start.integral()) / fps;
+    const double end_sec = static_cast<double>(end.integral()) / fps;
+    const auto analysis = inspect_gop_source(
+        opts.gop_source, *declared, start_sec, end_sec,
+        /*content_changed=*/!opts.changed_intervals.empty(),
+        opts.changed_intervals);
+    if (!analysis || !analysis->valid()) {
+        reason = "gop_inspection_failed";
+        return false;
+    }
+    if (!analysis->is_hybrid()) {
+        // Whole-clip copy is the BitstreamCopy lane and a fully re-encoded
+        // clip is the ordinary render path; neither belongs here.
+        reason = analysis->all_copy_eligible ? "schedule_is_all_copy"
+                                             : "schedule_has_no_copy_units";
+        return false;
+    }
+    // The copied units are certified BY CONSTRUCTION on this lane: the
+    // container was declared from the source, so a copied packet is the
+    // output stream. The re-encoded units carry the other half of the proof —
+    // each child encoder must reproduce that declaration (see
+    // NativeAvEncoder::close).
+    auto plan = build_gop_plan_from_analysis(*analysis, /*splice_safe=*/true);
+    if (plan.work_units.empty()) {
+        reason = "schedule_invalid";
+        return false;
+    }
+    const std::int64_t source_tb_num = plan.source_time_base_num;
+    const std::int64_t source_tb_den = plan.source_time_base_den;
+    const auto rate = opts.output.frame_rate();
+
+    // The requested window, in the schedule's own time base: exact integer
+    // rescale of the frame window the job asked for.
+    const std::int64_t request_start_pts = frame_to_tick(
+        start, source_tb_num, source_tb_den, rate, FrameRounding::Floor);
+    const std::int64_t request_end_pts = frame_to_tick(
+        end, source_tb_num, source_tb_den, rate, FrameRounding::Ceiling);
+    if (request_end_pts <= request_start_pts) {
+        reason = "empty_request_window";
+        return false;
+    }
+
+    // ── The units this window needs (the plan covers the whole source) ────
+    const auto selected = media::gop_units_in_window(
+        plan, request_start_pts, request_end_pts);
+    if (selected.empty()) {
+        reason = "window_outside_source";
+        return false;
+    }
+    const auto& first_unit = plan.work_units[selected.front()];
+    const auto& last_unit = plan.work_units[selected.back()];
+    const std::int64_t first_unit_start = first_unit.render_range.present
+        ? first_unit.render_range.first : first_unit.first_pts;
+    const std::int64_t last_unit_start = last_unit.render_range.present
+        ? last_unit.render_range.first : last_unit.first_pts;
+    const std::int64_t last_unit_end = std::max<std::int64_t>(
+        request_end_pts, last_unit_start + 1);
+    // A COPIED unit is all-or-nothing: its packet envelope cannot be trimmed to
+    // an arbitrary tick, so a window edge that falls INSIDE a copied unit is a
+    // window this lane cannot honour. A re-encoded unit can be rendered for
+    // exactly the requested frames, which is why the edges are only checked
+    // against the units that are copied. Refusing (instead of emitting the
+    // whole GOP) keeps the published frame count equal to the requested one.
+    if (first_unit.copies_packets() && first_unit_start < request_start_pts) {
+        reason = "window_start_not_gop_aligned";
+        return false;
+    }
+    if (last_unit.copies_packets() && last_unit_end > request_end_pts) {
+        reason = "window_end_not_gop_aligned";
+        return false;
+    }
+
+    // Each unit's right edge: the next unit's start, clipped to the window for
+    // the final one (a re-encode may stop mid-GOP; a copy never does).
+    std::vector<std::int64_t> unit_end_ticks;
+    unit_end_ticks.reserve(selected.size());
+    for (std::size_t position = 0; position < selected.size(); ++position) {
+        const auto& unit = plan.work_units[selected[position]];
+        const std::int64_t unit_start = unit.render_range.present
+            ? unit.render_range.first : unit.first_pts;
+        const std::int64_t next_start =
+            position + 1 < selected.size()
+            ? (plan.work_units[selected[position + 1]].render_range.present
+                   ? plan.work_units[selected[position + 1]].render_range.first
+                   : plan.work_units[selected[position + 1]].first_pts)
+            : request_end_pts;
+        unit_end_ticks.push_back(std::max<std::int64_t>(
+            next_start, unit_start + 1));
+    }
+
+    // ── The container's zero: the requested window's own first tick ───────
+    // A trimmed export starts where the job asked it to, and every unit is
+    // placed relative to that same integer tick — one interpretation of the
+    // timeline, which the copy lane used to redo through seconds.
+    const std::int64_t schedule_origin = request_start_pts;
+
+    const auto final_path = std::filesystem::path(opts.output.output);
+    auto partial_path = final_path;
+    const auto extension = final_path.extension().empty()
+        ? std::string{".mp4"} : final_path.extension().string();
+    partial_path.replace_filename(
+        final_path.stem().string() + ".partial" + extension);
+    if (const auto parent = final_path.parent_path(); !parent.empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
+            spdlog::error("[direct-mux] failed to create output directory '{}': {}",
+                          parent.string(), ec.message());
+            reason = "output_directory_unavailable";
             return false;
         }
     }
 
-    const double source_time_base =
-        static_cast<double>(plan.source_time_base_num) /
-        static_cast<double>(plan.source_time_base_den);
-    const double fps = opts.output.fps_value() > 0.0
-        ? opts.output.fps_value() : 30.0;
-    const auto request_start_pts = static_cast<std::int64_t>(std::llround(
-        static_cast<double>(start.integral()) / fps / source_time_base));
-    const auto request_end_pts = static_cast<std::int64_t>(std::llround(
-        static_cast<double>(end.integral()) / fps / source_time_base));
-    if (request_end_pts <= request_start_pts) return false;
-
-    std::vector<HybridSegment> segments;
-    for (const auto& unit : plan.work_units) {
-        if (unit.last_pts < request_start_pts ||
-            unit.first_pts >= request_end_pts) {
-            continue;
-        }
-        const bool copy = unit.copies_packets();
-        if (!segments.empty() && segments.back().copy == copy &&
-            segments.back().end_pts == unit.first_pts) {
-            segments.back().end_pts = unit.last_pts;
-        } else {
-            segments.push_back(HybridSegment{
-                .copy = copy,
-                .start_pts = unit.first_pts,
-                .end_pts = unit.last_pts});
-        }
-    }
-    if (segments.empty()) return false;
-
-    // A GOP's right edge is the next GOP start. The requested interval is the
-    // authoritative right edge for the final segment.
-    for (std::size_t index = 0; index < segments.size(); ++index) {
-        const auto next_start = index + 1 < segments.size()
-            ? segments[index + 1].start_pts : request_end_pts;
-        segments[index].end_pts = std::max(segments[index].end_pts + 1, next_start);
-    }
-
-    const auto final_path = std::filesystem::path(opts.output.output);
-    const auto extension = final_path.extension().empty()
-        ? std::string{".mp4"} : final_path.extension().string();
-    const auto work_dir = final_path.parent_path() /
-        (final_path.stem().string() + ".hybrid-" +
-         std::to_string(profiling::timestamp_ns()));
-    std::error_code ec;
-    std::filesystem::create_directories(work_dir, ec);
-    if (ec) {
-        spdlog::error("[boundary-reencode] failed to create workspace '{}': {}",
-                      work_dir.string(), ec.message());
+    // ── 2. ONE container for copied AND re-encoded work units (P0-5E) ──────
+    media::MuxSession mux;
+    const auto declaration = open_source_declared_mux(
+        opts.gop_source, partial_path.string(), mux, /*include_audio=*/true);
+    if (!declaration) {
+        spdlog::error("[direct-mux] failed to declare the output container from '{}'",
+                      opts.gop_source);
+        reason = "container_declaration_failed";
         return false;
     }
-    const auto cleanup = [&]() {
-        std::error_code cleanup_ec;
-        std::filesystem::remove_all(work_dir, cleanup_ec);
-        if (cleanup_ec) {
-            spdlog::warn("[boundary-reencode] failed to remove workspace '{}': {}",
-                         work_dir.string(), cleanup_ec.message());
-        }
+    const auto discard_partial = [&]() {
+        std::error_code ec;
+        std::filesystem::remove(partial_path, ec);
     };
 
-    std::vector<std::string> segment_paths;
-    segment_paths.reserve(segments.size());
-    std::size_t copied_gops = 0;
-    std::size_t reencoded_gops = 0;
-    const auto rate = opts.output.frame_rate();
-    for (std::size_t index = 0; index < segments.size(); ++index) {
-        const auto& segment = segments[index];
-        const auto segment_path = work_dir /
-            ("segment-" + std::to_string(index) + extension);
-        const double segment_start_seconds =
-            static_cast<double>(segment.start_pts) * source_time_base;
-        const double segment_end_seconds =
-            static_cast<double>(segment.end_pts) * source_time_base;
+    // The executor consumes a plan whose units are exactly the selected ones,
+    // in schedule order: the window decides WHICH units run, never what a unit
+    // is. Ordinals are renumbered so a callback can index the schedule it was
+    // handed (one authority for right edges, no ordinal remapping table).
+    media::GopExecutionPlan window_plan = plan;
+    window_plan.work_units.clear();
+    window_plan.work_units.reserve(selected.size());
+    for (const auto index : selected) {
+        auto unit = plan.work_units[index];
+        unit.ordinal = window_plan.work_units.size();
+        window_plan.work_units.push_back(unit);
+    }
 
-        if (segment.copy) {
-            const auto copied = copy_gop_source(
-                opts.gop_source, segment_path.string(),
-                segment_start_seconds, segment_end_seconds);
-            if (!copied) {
-                spdlog::error("[boundary-reencode] copy segment {} failed", index);
-                cleanup();
+    std::size_t copy_units = 0;
+    std::size_t reencode_units = 0;
+    media::GopExecutionCallbacks callbacks{
+        .copy_packets = [&](const media::GopWorkUnit& unit,
+                            media::MuxSession& session) {
+            // Untouched GOPs enter the container verbatim, at their own
+            // source timestamps: no second interpretation of the schedule.
+            const auto submitted = submit_gop_source_packets(
+                opts.gop_source, unit, session, schedule_origin);
+            if (!submitted) {
+                spdlog::error("[direct-mux] copy work unit {} failed", unit.ordinal);
                 return false;
             }
-            ++copied_gops;
-        } else {
-            const Frame segment_start = seconds_to_frame(
-                segment_start_seconds, rate, FrameRounding::Floor);
-            Frame segment_end = seconds_to_frame(
-                segment_end_seconds, rate, FrameRounding::Ceiling);
-            if (segment_end <= segment_start) segment_end = segment_start + Frame{1};
+            if (submitted->video_packets == 0) {
+                spdlog::error(
+                    "[direct-mux] copy work unit {} submitted no packets "
+                    "(dts window {}-{})", unit.ordinal, unit.first_dts,
+                    unit.last_dts);
+                return false;
+            }
+            ++copy_units;
+            return true;
+        },
+        .reencode = [&](const media::GopWorkUnit& unit,
+                        media::MuxSession& session) {
+            if (unit.ordinal >= unit_end_ticks.size()) {
+                spdlog::error("[direct-mux] work unit {} has no scheduled right edge",
+                              unit.ordinal);
+                return false;
+            }
+            const std::int64_t unit_start = unit.render_range.present
+                ? unit.render_range.first : unit.first_pts;
+            // A unit that straddles the window's left edge contributes only the
+            // frames inside the window (a re-encode can be rendered for exactly
+            // the requested frames; the copy lane refuses such a unit above).
+            const std::int64_t render_first =
+                std::max<std::int64_t>(unit_start, schedule_origin);
+            const Frame render_start = tick_to_frame(
+                render_first, source_tb_num, source_tb_den, rate,
+                FrameRounding::Floor);
+            const Frame render_end = tick_to_frame(
+                unit_end_ticks[unit.ordinal], source_tb_num, source_tb_den,
+                rate, FrameRounding::Ceiling);
+            if (render_end <= render_start) {
+                spdlog::error(
+                    "[direct-mux] work unit {} maps to an empty frame window "
+                    "(ticks {}-{})", unit.ordinal, unit_start,
+                    unit_end_ticks[unit.ordinal]);
+                return false;
+            }
 
-            auto child_opts = opts;
-            child_opts.output.output = segment_path.string();
-            child_opts.gop_copy_only = false;
-            child_opts.changed_intervals.clear();
-            child_opts.resolved_gop_plan.reset();
-            child_opts.resolved_execution_reason = "boundary_reencode_segment";
-            child_opts.resolved_execution_valid = true;
-            child_opts.resolved_execution_downgrade_count = 0;
-            child_opts.resolved_execution_path =
+            // P0-5E — this unit's output belongs at the tick the schedule
+            // reserved for it, not at the container's zero. The child emits
+            // its own zero-based ticks, so the placement is the unit's tick
+            // RELATIVE to the window origin the copied units were shifted by.
+            session.set_video_origin(render_first - schedule_origin);
+
+            auto child = opts;
+            child.output.output = opts.output.output;
+            child.gop_copy_only = false;
+            child.changed_intervals.clear();
+            child.resolved_gop_plan.reset();
+            child.variants.clear();
+            child.resolved_execution_reason = "direct_mux_work_unit";
+            child.resolved_execution_valid = true;
+            child.resolved_execution_downgrade_count = 0;
+            child.resolved_execution_path =
                 opts.resolved_execution_plan &&
                         opts.resolved_execution_plan->composite ==
                             media::CompositePath::DirectYuv
                     ? FfmpegExportOptions::ResolvedExecutionPath::DirectYuv
                     : FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
+            // The child writes into the caller's container and is certified
+            // against the stream that container was declared from; it never
+            // opens, finalizes or publishes a container of its own.
+            child.borrowed_mux = BorrowedMuxTarget{&session, *declared};
 
             const auto rendered = render_and_encode_ffmpeg_pipe(
-                registry, compiled, composition_id, settings,
-                segment_start, segment_end, child_opts, cpu_budget,
+                registry, compiled, composition_id, settings, render_start,
+                render_end, child, cpu_budget,
                 execution ? execution->video_runtimes : nullptr,
                 execution ? execution->device_scheduler : nullptr,
                 execution);
             if (rendered.return_code != 0 || !rendered.success) {
-                spdlog::error("[boundary-reencode] render segment {} failed", index);
-                cleanup();
+                spdlog::error(
+                    "[direct-mux] re-encode work unit {} failed "
+                    "(frames {}-{}, reason={})", unit.ordinal,
+                    render_start.integral(), render_end.integral(),
+                    child.resolved_execution_reason);
                 return false;
             }
-            ++reencoded_gops;
-        }
-        segment_paths.push_back(segment_path.string());
+            ++reencode_units;
+            return true;
+        }};
+
+    media::GopExecutionResult execution_result;
+    std::string execution_reason;
+    if (!media::GopExecutionExecutor::execute(window_plan, mux, callbacks,
+                                              execution_result, execution_reason)) {
+        spdlog::error("[direct-mux] schedule execution failed: {}", execution_reason);
+        reason = "schedule_execution_failed";
+        discard_partial();
+        return false;
     }
 
-    auto partial_path = final_path;
-    if (partial_path.extension().empty()) {
-        partial_path += ".partial";
-    } else {
-        partial_path.replace_filename(
-            final_path.stem().string() + ".partial" + extension);
+    // ── 3. Audio once, trailer once, publish once (P0-5F) ────────────────
+    // The audio window is the container's own window: from the schedule's left
+    // edge to the right edge of its last work unit (the schedule, not the
+    // requested frames, is authoritative for the last unit).
+    const media::TimestampRange scheduled_window{
+        schedule_origin, unit_end_ticks.back(), true};
+    const auto audio = submit_source_audio(opts.gop_source, mux, scheduled_window,
+                                           schedule_origin);
+    if (!audio) {
+        spdlog::error("[direct-mux] audio submission failed");
+        reason = "audio_submission_failed";
+        discard_partial();
+        return false;
     }
-    const auto assembled = media::assemble_segments({segment_paths, partial_path.string()});
-    if (!assembled.success) {
-        spdlog::error("[boundary-reencode] segment assembly failed: {}",
-                      assembled.reason);
-        cleanup();
+    if (!mux.finalize()) {
+        spdlog::error("[direct-mux] container finalize failed");
+        reason = "container_finalize_failed";
+        discard_partial();
         return false;
     }
 
     auto contract_result = media::video::resolve_output_contract("youtube_overlay_v1");
     if (!contract_result) {
-        spdlog::error("[boundary-reencode] output contract unavailable: {}",
+        spdlog::error("[direct-mux] output contract unavailable: {}",
                       contract_result.error());
-        std::filesystem::remove(partial_path, ec);
-        cleanup();
+        reason = "output_contract_unavailable";
+        discard_partial();
         return false;
     }
     auto contract = std::move(contract_result).value();
     contract.width = compiled.composition->width();
     contract.height = compiled.composition->height();
-    contract.fps = opts.output.frame_rate();
+    contract.fps = rate;
     contract.frame_count = static_cast<std::int64_t>(end - start);
-    contract.audio_required = true;
-    contract.audio_streams = 1;
-    const auto verification = media::video::verify_output_contract(partial_path, contract);
+    contract.audio_required = mux.has_audio();
+    contract.audio_streams = contract.audio_required ? 1 : 0;
+    const auto verification =
+        media::video::verify_output_contract(partial_path, contract);
     if (!verification.passed) {
-        spdlog::error("[boundary-reencode] assembled output failed verification: {}",
+        spdlog::error("[direct-mux] output failed verification: {}",
                       verification.failure);
-        std::filesystem::remove(partial_path, ec);
-        cleanup();
+        reason = "output_verification_failed";
+        discard_partial();
         return false;
     }
 
-    std::filesystem::rename(partial_path, final_path, ec);
-    if (ec) {
-        spdlog::error("[boundary-reencode] failed to publish '{}': {}",
-                      final_path.string(), ec.message());
-        std::filesystem::remove(partial_path, ec);
-        cleanup();
+    std::error_code rename_ec;
+    std::filesystem::rename(partial_path, final_path, rename_ec);
+    if (rename_ec) {
+        spdlog::error("[direct-mux] failed to publish '{}': {}",
+                      final_path.string(), rename_ec.message());
+        reason = "publish_failed";
+        discard_partial();
         return false;
     }
-    spdlog::info("[boundary-reencode] completed: {} copied GOPs, {} re-encoded GOPs → {}",
-                 copied_gops, reencoded_gops, final_path.string());
-    cleanup();
+    spdlog::info(
+        "[direct-mux] completed: {} copied work units, {} re-encoded work units, "
+        "{} audio packets, sha256={} → {}",
+        copy_units, reencode_units, audio->audio_packets,
+        verification.sha256, final_path.string());
+    reason = "direct_mux_hybrid";
     return true;
 #endif
 }
@@ -665,18 +814,32 @@ int render_and_encode_ffmpeg(
         return 0;
     }
 
-    // ── Hybrid GOP boundary re-encode ────────────────────────────────────
-    // The resolver has already certified this schedule. Consume it before
-    // the ordinary full-clip render path so untouched GOPs never enter
-    // NVDEC/NVENC. A failure is terminal: silently turning a certified
-    // hybrid plan into a full re-encode would violate the execution receipt.
-    if (render_opts.resolved_gop_plan &&
-        render_opts.resolved_gop_plan->hybrid &&
-        render_opts.resolved_gop_plan->safe_to_splice) {
-        const bool completed = execute_hybrid_gop_plan(
-            registry, compiled, composition_id, settings, start, end,
-            render_opts, *render_opts.resolved_gop_plan, cpu_budget, execution);
-        return completed ? 0 : 1;
+    // ── Hybrid GOP: direct mux (P0-3 phase 2 / P0-5E / P0-5F) ─────────────
+    // A caller that supplied a compressed source with hybrid intent reuses
+    // every untouched GOP verbatim. The encoder-owned preflight cannot certify
+    // a copy before an encoder exists (P0-5A), so this lane declares the
+    // container FROM the source and certifies the ENCODER against that
+    // declaration instead: copied packets are the output stream by
+    // construction, and a re-encoded unit that does not reproduce the stream
+    // fails the export closed. When the schedule is not a hybrid one the
+    // resolved plan runs unchanged — the lane is refused, never guessed.
+    if (!opts.gop_source.empty() && !opts.gop_copy_only) {
+        std::string direct_mux_reason;
+        if (execute_direct_mux_gop_plan(
+                registry, compiled, composition_id, settings, start, end,
+                render_opts, cpu_budget, execution, direct_mux_reason)) {
+            return 0;
+        }
+        // The lane declined, or it could not certify itself. It publishes
+        // nothing on any failure path (the partial container is removed), and
+        // the fallback is the plan the resolver ALREADY chose for this job:
+        // for a hybrid-intent caller that is the structured
+        // `gop_reencode_required` downgrade, not a new decision taken here.
+        // Surfaced at warn level so a declined optimization is never silent.
+        spdlog::warn(
+            "[direct-mux] hybrid lane not used ({}); executing the resolved "
+            "plan instead",
+            direct_mux_reason);
     }
 
     // ── Render path: dispatch purely on the final plan's composite axis ───

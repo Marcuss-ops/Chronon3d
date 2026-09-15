@@ -132,6 +132,15 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 
+    // P0-5E — the direct-mux hybrid lane hands the child render a container it
+    // owns. Nothing is re-decided here: the caller already declared the
+    // container from the source, placed this work unit on the schedule's tick
+    // and named the stream the encoder has to reproduce.
+    if (opts.borrowed_mux) {
+        pipe_options.borrowed_mux = opts.borrowed_mux->session;
+        pipe_options.borrowed_declared_stream = opts.borrowed_mux->declared_stream;
+    }
+
     // The output transfer is part of the one color contract. A linear target
     // must not pass through the CPU converter's legacy gamma switch, while
     // every encoded SDR target must perform exactly one OETF before YUV.

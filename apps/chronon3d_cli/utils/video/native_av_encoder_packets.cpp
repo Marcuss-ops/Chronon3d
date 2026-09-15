@@ -1,4 +1,5 @@
 #include "native_av_encoder.hpp"
+#include "gop_smart_copy.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
@@ -48,6 +49,49 @@ bool NativeAvEncoder::drain_packets() {
             return false;
         }
 
+        // P0-5E — capture the encoder's OWN output facts from the first packet
+        // that publishes them (libx264 and NVENC keep their parameter sets
+        // in-band, so the codec context never carries them). This is the
+        // contract the borrowed-mux splice gate certifies against.
+        if (!bitstream_contract_.encoder_materialized &&
+            resolved_encoder_config_) {
+            if (auto published = encoder_bitstream_contract_from_packet(
+                    *packet_, *codec_, options_, *resolved_encoder_config_)) {
+                bitstream_contract_ = std::move(*published);
+                spdlog::info(
+                    "[native_av] encoder bitstream contract materialized from "
+                    "the produced packet: profile={} level={} pix_fmt={} "
+                    "parameter_sets={}",
+                    bitstream_contract_.profile, bitstream_contract_.level,
+                    static_cast<int>(bitstream_contract_.pixel_format),
+                    bitstream_contract_.parameter_sets.size());
+            }
+        }
+
+        // P0-5E — emit the format the borrowed container STORES.
+        //
+        // This encoder produces Annex-B, and libavformat converts that to the
+        // length-prefixed samples an mp4 stream carries only while the output
+        // stream has no extradata. A container declared from a compressed
+        // source (the whole point of this lane) already carries that source's
+        // configuration record, so nothing would convert the packets and the
+        // spliced output would not decode. The format conversion therefore
+        // belongs to the producer that knows both sides: here, right before the
+        // packet is handed to the mux that owns the container.
+        if (borrows_mux_ && options_.borrowed_declared_stream) {
+            const auto& declared = *options_.borrowed_declared_stream;
+            if (parameter_sets_are_config_record(
+                    declared.codec, declared.parameter_sets.data(),
+                    declared.parameter_sets.size()) &&
+                convert_annex_b_to_length_prefixed(*packet_, declared.codec)) {
+                spdlog::debug(
+                    "[native_av] borrowed container stores length-prefixed "
+                    "samples; converted the encoded packet into the declared "
+                    "format ({} bytes)",
+                    packet_->size);
+            }
+        }
+
         const auto t_mux0 = Clock::now();
         // Move-only packet ownership: MuxSession consumes the packet inside
         // submit() and never retains it, so no shared_ptr control block is
@@ -56,9 +100,18 @@ bool NativeAvEncoder::drain_packets() {
         if (!owned_packet || av_packet_ref(owned_packet.get(), packet_) < 0) {
             ret = AVERROR(ENOMEM);
         } else {
-            ret = mux_->submit(media::EncodedPacket{
-                std::move(owned_packet), codec_->time_base,
-                (packet_->flags & AV_PKT_FLAG_KEY) != 0}) ? 0 : AVERROR_EXTERNAL;
+            // P0-5E: on a borrowed container this encode belongs at the tick
+            // the schedule reserved for the work unit being rendered, so the
+            // packet is placed at the container's scheduled origin. On an
+            // owned container the packet's own timestamps are the truth.
+            ret = mux_->submit(
+                      media::EncodedPacket{
+                          std::move(owned_packet), codec_->time_base,
+                          (packet_->flags & AV_PKT_FLAG_KEY) != 0},
+                      borrows_mux_ ? media::MuxVideoPlacement::ScheduledOrigin
+                                   : media::MuxVideoPlacement::AsSubmitted)
+                ? 0
+                : AVERROR_EXTERNAL;
         }
         const double mux_ms = elapsed_ms(t_mux0);
         native_mux_write_ms_ += mux_ms;

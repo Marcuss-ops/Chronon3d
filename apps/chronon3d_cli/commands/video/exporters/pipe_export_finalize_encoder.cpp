@@ -106,6 +106,18 @@ PipeExportResult make_pipe_export_result(
     const auto partial_path = std::filesystem::path(session.opts.output.output);
     const auto final_path = std::filesystem::path(session.original_output_path);
 
+    // ── P0-5E: the container belongs to the CALLER ────────────────────────
+    // On the direct-mux hybrid lane this child render wrote its packets into a
+    // caller-owned MuxSession that is still open and still missing the other
+    // work units, its audio track and its trailer. Verifying or renaming that
+    // file here would publish an unfinalized container and could delete a
+    // container the caller still owns. The caller validates and publishes once,
+    // after the last work unit.
+    if (session.opts.borrowed_mux) {
+        if (!result.success) log_pipe_export_failure(status);
+        return result;
+    }
+
     if (!result.success) {
         if (result.encoder_close_failed) {
             spdlog::error("[video] Export failed: encoder close failed after all frames rendered");

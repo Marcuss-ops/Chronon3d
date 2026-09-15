@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include "bitstream_target_contract.hpp"
 
 // =============================================================================
 // ffmpeg_pipe_encoder.hpp — Abstract IVideoEncoder interface
@@ -14,6 +15,7 @@
 #include <chronon3d/color/output_transform.hpp>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <span>
@@ -23,6 +25,26 @@ struct DirectYuvFrame;
 }
 
 namespace chronon3d::cli {
+
+/// P0-5E — a child render that must write into a container it does not own.
+///
+/// The hybrid GOP schedule produces one container for copied AND re-encoded
+/// work units, so the re-encode lane borrows the caller's MuxSession instead
+/// of opening a per-segment MP4. Everything the child needs to place and
+/// certify itself lives here:
+///
+///   session          the open, caller-owned container (null = normal export)
+///   declared_stream  the source facts the container was declared from; the
+///                    child MUST reproduce them or the export fails closed
+///
+/// The child's placement in the container is not carried here: the owner sets
+/// the work unit's origin on the MuxSession itself (set_video_origin), so the
+/// schedule keeps exactly one interpretation and the container stays the one
+/// timestamp authority.
+struct BorrowedMuxTarget {
+    chronon3d::media::MuxSession* session{nullptr};
+    std::optional<BitstreamTargetContract> declared_stream{};
+};
 
 struct EncoderFrameTelemetry {
     double conversion_copy_ms{0.0};
@@ -234,7 +256,7 @@ struct FfmpegPipeOptions {
     int encode_threads{0};
     bool direct_yuv_mode{false};
 
-    // ── Caller-owned mux (splice lanes, P0-5C) ────────────────────────────
+    // ── Caller-owned mux (splice lanes, P0-5C/5E) ─────────────────────────
     //
     // Null (the normal export) means the encoder owns its container: it opens
     // a MuxSession on `output_path` and finalizes it in close().
@@ -246,6 +268,22 @@ struct FfmpegPipeOptions {
     // (copied AND re-encoded) of the schedule has been submitted. A borrowed
     // session must already be open.
     chronon3d::media::MuxSession* borrowed_mux{nullptr};
+
+    // ── Borrowed-mux certification (P0-5E) ────────────────────────────────
+    //
+    // The stream facts the container was declared from (P0-5D declares it from
+    // the compressed source). When present the encoder must REPRODUCE them
+    // (profile / level / SPS-PPS included) or the export fails: the copied
+    // GOPs in the same container do carry that stream, so an encoder that
+    // emits a different one produces a container a decoder cannot follow
+    // across the splice. Checked at close() with the one comparison authority,
+    // after the encoder published its parameter sets.
+    //
+    // Placement is the container's business, not the encoder's: the owner of
+    // the borrowed session calls MuxSession::set_video_origin() with the tick
+    // the schedule reserved for the work unit being rendered, and the borrowed
+    // producer submits with MuxVideoPlacement::ScheduledOrigin.
+    std::optional<BitstreamTargetContract> borrowed_declared_stream{};
     std::string audio_source_path;
     /// Requested output audio sample rate (Hz); 0 keeps the source rate.
     int audio_target_sample_rate{0};

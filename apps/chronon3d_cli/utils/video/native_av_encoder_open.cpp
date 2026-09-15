@@ -146,6 +146,8 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     borrows_mux_ = false;
     mux_ = nullptr;
     owned_mux_.reset();
+    borrowed_stream_reproduced_ = false;
+    borrowed_stream_checked_ = false;
 
     // ── C-1/C-2: resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup. NativeAvEncoder applies the resolved
@@ -210,6 +212,15 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     codec_->gop_size = media::video::keyframe_interval_frames(
         options_.fps_num, options_.fps_den);
     codec_->max_b_frames = 0;
+    // ── Self-describing output stream ────────────────────────────────────
+    // The container must describe the stream it carries, and this encoder must
+    // be able to state its own parameter sets (profile/level/SPS-PPS) rather
+    // than repeating them in-band on every keyframe. Both halves of the splice
+    // lane depend on it: the borrowed container is declared from the source and
+    // the encoder is certified to reproduce exactly that stream (P0-5E), and
+    // the segment/oracle mechanism refuses a segment whose codec parameters do
+    // not carry the same configuration record.
+    codec_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (gpu_nvenc_) {
@@ -469,9 +480,16 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         if (codec_ == nullptr) return false;
         borrows_mux_ = true;
         mux_ = options_.borrowed_mux;
+        // P0-5E — placement is the container's business: the owner of the
+        // borrowed session sets the scheduled origin on it
+        // (MuxSession::set_video_origin) and this session submits with
+        // MuxVideoPlacement::ScheduledOrigin, so its packets land on the tick
+        // the schedule reserved for the work unit it just rendered.
         spdlog::info(
             "[native_av] borrowing the caller-owned mux session (close() will "
-            "only flush the encoder; the caller owns audio + trailer)");
+            "only flush the encoder; the caller owns audio + trailer); "
+            "scheduled origin tick={} (container time base)",
+            options_.borrowed_mux->video_origin());
     } else {
         owned_mux_ = std::make_unique<chronon3d::media::MuxSession>();
         std::string mux_reason;
