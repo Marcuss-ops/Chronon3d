@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -140,6 +141,35 @@ struct LayerPlan {
     bool loop{false};
 };
 
+// Immutable producer-side preparation metadata. The JSON sidecar is decoded
+// and validated at the CLI boundary, then carried into the canonical compiler
+// so equal text identities can share one PreparedTextRun. It contains no
+// backend handles and is intentionally not a second render plan.
+struct PreparedOverlayPackage {
+    struct OverlayBinding {
+        std::string id;
+        std::string kind;
+        std::string text_key;
+        std::string asset_key;
+    };
+    struct TextBinding {
+        std::string key;
+        std::string text;
+    };
+    struct AssetBinding {
+        std::string key;
+        std::string logical_path;
+        std::string content_hash;
+    };
+
+    std::string plan_id;
+    std::string language;
+    std::string content_hash;
+    std::vector<OverlayBinding> overlays;
+    std::vector<TextBinding> text_runs;
+    std::vector<AssetBinding> assets;
+};
+
 struct OutputSpec {
     std::string path;
     OutputFormat format{OutputFormat::Png};
@@ -157,6 +187,7 @@ struct RenderPlan {
     std::uint64_t content_fingerprint{0};
     CanvasSpec canvas;
     std::vector<LayerPlan> layers;
+    std::shared_ptr<const PreparedOverlayPackage> prepared_overlay_package{};
     OutputSpec output;
     RenderBudget budget{};
 };
