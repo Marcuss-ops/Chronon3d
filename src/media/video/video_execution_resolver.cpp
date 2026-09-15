@@ -318,11 +318,34 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
 
     // Composition is an explicit visual requirement. GOP copy/hybrid intent
     // may still provide audio timing, but it must not replace the graph with
-    // DirectYuv or packet-copy execution and lose authored layers.
+    // DirectYuv or packet-copy execution and lose authored layers. A verified
+    // hybrid schedule is still useful here: the changed GOPs use the required
+    // graph while untouched GOPs remain eligible for packet copy.
     if (requirements.gpu_required && requirements.composition_required) {
         VideoExecutionDecision decision = resolve_video_execution(
             requirements, output, capabilities, false, false, false);
-        decision.codec_path = VideoExecutionPath::FullReencode;
+        const bool preserved_hybrid =
+            !intent_gop_copy_only && intent_allow_hybrid_gop &&
+            analysis.available && analysis.hybrid && analysis.safe_to_splice &&
+            analysis.valid_schedule();
+        if (preserved_hybrid) {
+            GopExecutionPlan gop;
+            gop.total_gops = analysis.total_gops;
+            gop.copy_gops = analysis.copy_gops;
+            gop.reencode_gops = analysis.reencode_gops;
+            gop.all_copy = false;
+            gop.hybrid = true;
+            gop.safe_to_splice = true;
+            gop.work_units = analysis.work_units;
+            gop.source_time_base_num = analysis.source_time_base_num;
+            gop.source_time_base_den = analysis.source_time_base_den;
+            gop.trim_only = analysis.trim_only;
+            decision.gop_plan = std::move(gop);
+            decision.reason = "hybrid_gop_full_graph";
+            decision.codec_path = VideoExecutionPath::BoundaryReencode;
+        } else {
+            decision.codec_path = VideoExecutionPath::FullReencode;
+        }
         return decision;
     }
 

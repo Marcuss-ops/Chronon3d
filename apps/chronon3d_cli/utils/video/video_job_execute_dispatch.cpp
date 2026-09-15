@@ -284,7 +284,11 @@ bool execute_hybrid_gop_plan(
             child_opts.resolved_execution_valid = true;
             child_opts.resolved_execution_downgrade_count = 0;
             child_opts.resolved_execution_path =
-                FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
+                opts.resolved_execution_plan &&
+                        opts.resolved_execution_plan->composite ==
+                            media::CompositePath::DirectYuv
+                    ? FfmpegExportOptions::ResolvedExecutionPath::DirectYuv
+                    : FfmpegExportOptions::ResolvedExecutionPath::FullGraph;
 
             const auto rendered = render_and_encode_ffmpeg_pipe(
                 registry, compiled, composition_id, settings,
@@ -624,8 +628,7 @@ int render_and_encode_ffmpeg(
     // hybrid plan into a full re-encode would violate the execution receipt.
     if (render_opts.resolved_gop_plan &&
         render_opts.resolved_gop_plan->hybrid &&
-        render_opts.resolved_gop_plan->safe_to_splice &&
-        render_opts.resolved_execution_reason == "hybrid_pipeline_unavailable") {
+        render_opts.resolved_gop_plan->safe_to_splice) {
         const bool completed = execute_hybrid_gop_plan(
             registry, compiled, composition_id, settings, start, end,
             render_opts, *render_opts.resolved_gop_plan, cpu_budget, execution);
