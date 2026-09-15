@@ -6,6 +6,7 @@
 #include "../../commands/video/common/video_export_common.hpp"
 #include <chronon3d/media/video/direct_yuv_program.hpp>
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/media/video/gop_execution_executor.hpp>
 #include <chronon3d/media/video/output_contract.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -158,6 +159,42 @@ struct HybridSegment {
     std::int64_t end_pts{0};
 };
 
+// P0-3 DEMOLITION DEBT — second hybrid authority.
+//
+// This function is the legacy segment-file executor: it re-derives
+// HybridSegment[] from GopExecutionPlan, writes one temp MP4 per segment,
+// then remuxes.  The declared architecture is:
+//
+//   GopExecutionPlan → GopExecutionExecutor → single caller-owned MuxSession
+//                                           (COPY + REENCODE → one mux)
+//
+// The segment/filesystem/remux path pays: encode→write→close→open→demux→
+// timestamp-normalize→mux→delete for work that could be:
+//
+//   COPY PACKETS ──────────┐
+//                           ├→ one MuxSession → output.mp4
+//   NVENC PACKETS ─────────┘
+//
+// Validated exit plan:
+//   Phase 1 (this commit): route ordering/validation through
+//     GopExecutionExecutor so the schedule has one authority even while the
+//     segment-file execution remains; add a gate comparing segment vs direct-
+//     mux byte identity on the 100x corpus.
+//   Phase 2: replace filesystem segments with direct GopExecutionExecutor
+//     callbacks that submit to the same MuxSession (no temp files).
+//   Phase 3: delete HybridSegment, .hybrid-* workspace, assemble_segments()
+//     from the hybrid path, and close the ticket — see Demolition Debt
+//     card below.
+//
+// Demolition Debt card:
+//   Owner: video/media team. Reason: hybrid GOP was shipped with file
+//   segments before MuxSession direct-mux was certified. Exit condition:
+//   GopExecutionExecutor + one MuxSession produces byte-identical outputs on
+//   the hybrid corpus and `execute_hybrid_gop_plan` has zero callers.
+//   Equivalence gate: `GopExecutionExecutor::execute` parity test + mux hash
+//   equality. Removal scope: HybridSegment, .hybrid-* dirs, segment_paths,
+//   assemble_segments() hybrid caller, and this function. Status: ACTIVE.
+
 // Consume the compiler-owned hybrid schedule as closed GOP segments. Changed
 // GOPs use the existing native render/encode pipeline; untouched GOP runs use
 // packet copy. The canonical media muxer joins both kinds of segment and is
@@ -183,6 +220,23 @@ bool execute_hybrid_gop_plan(
         plan.source_time_base_num <= 0 || plan.source_time_base_den <= 0 ||
         opts.gop_source.empty()) {
         return false;
+    }
+    // P0-3 Phase 1: schedule validation MUST go through the single declared
+    // authority (GopExecutionExecutor).  The legacy path re-derived grouping
+    // from work_units; this check guarantees the executor's ordering/
+    // validation contract is the source of truth even while the segment-file
+    // execution debt remains.  Fail here loudly if the plan is invalid.
+    {
+        media::MuxSession dummy_mux; // not opened; execute() validates before using it
+        media::GopExecutionCallbacks validate_cbs{
+            .copy_packets = [](const media::GopWorkUnit&, media::MuxSession&) { return true; },
+            .reencode     = [](const media::GopWorkUnit&, media::MuxSession&) { return true; }};
+        media::GopExecutionResult validate_result;
+        std::string validate_reason;
+        if (!media::GopExecutionExecutor::execute(plan, dummy_mux, validate_cbs, validate_result, validate_reason)) {
+            spdlog::error("[hybrid-executor] schedule rejected by GopExecutionExecutor: {}", validate_reason);
+            return false;
+        }
     }
 
     const double source_time_base =

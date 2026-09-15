@@ -2,6 +2,7 @@
 #include "../process_start.hpp"
 #include "../telemetry/telemetry_run.hpp"
 #include "report/render_job_report.hpp"
+#include "../../daemon/daemon_render_concurrency.hpp"
 
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -109,6 +110,31 @@ bool finalize_render_job(
             setup.resource_plan = planner.build();
         }
     }
+    // P0-2: the working set is derived from what this job actually compiled
+    // (`ResourcePlan` == `planned_physical_bytes` / `peak_live_bytes`, the byte
+    // footprint the compiler certified), not from a constant calibrated on one
+    // observation.  Admission charged a pre-compile estimate; this is the
+    // post-compile number, so a footprint that outgrows its charge cannot pass
+    // unnoticed.  `calibration_gap_bytes` is how much of the eventual peak the
+    // compiled plan still does not explain.
+    if (setup.resource_plan.planned_physical_bytes > 0) {
+        const auto working_set = derive_vram_working_set(
+            setup.resource_plan.planned_physical_bytes,
+            setup.resource_plan.peak_live_bytes,
+            static_cast<std::uint32_t>(job.metadata.width),
+            static_cast<std::uint32_t>(job.metadata.height),
+            /*direct_yuv=*/false,
+            /*native_nvenc=*/false);
+        spdlog::info(
+            "[INFO] vram working-set: compiled={}MB peak_live={}MB ring={}MB "
+            "derived={}MB derived_from_compiled={}",
+            working_set.compiled_bytes / (1024 * 1024),
+            working_set.peak_live_bytes / (1024 * 1024),
+            working_set.frame_ring_bytes / (1024 * 1024),
+            working_set.derived_bytes / (1024 * 1024),
+            working_set.derived_from_compiled);
+    }
+
     const auto& plan_telemetry = setup.resource_plan.telemetry;
     run.logical_resource_count = plan_telemetry.logical_count;
     run.physical_resource_slot_count = plan_telemetry.physical_count;

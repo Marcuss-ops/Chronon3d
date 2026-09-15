@@ -1,3 +1,13 @@
 # Canonical normalized CompiledFrameProgram hash for make_determinism_fixture.
 # Regenerate only when the compiled-program contract intentionally changes.
-fnv1a64=0x610ce49755184814
+#
+# 2026-09-15 — INTENTIONAL contract change, previously 0x610ce49755184814.
+# Image layers no longer lower into the fused storage-image batch: every
+# reachable image source carries scene-binding metadata, so
+# is_fusible_layer_node() excludes all of them and fusion survives only for
+# TextRun sources. The normalized program therefore contains the standalone
+# image/transform/composite operations and no batch entries.
+# The retired value was regenerated on 2026-08-27 for the pre-retirement
+# contract; see docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md for the evidence
+# (including why this changed in 00be928ab without the golden being updated).
+fnv1a64=0x65304b41dbf40d8f

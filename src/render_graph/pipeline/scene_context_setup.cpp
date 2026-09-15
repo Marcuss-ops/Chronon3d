@@ -67,33 +67,27 @@ SoftwareRenderer* setup_render_graph_context(
     // shared immutable FrameStaticContext: per-node context clones copy a
     // shared_ptr instead of deep-copying the string (hot-path tax C).
     if (sw_renderer) {
-        ctx.runtime = sw_renderer->execution_context().runtime;
-        if (ctx.runtime) {
-            ctx.gpu_asset_cache = &ctx.runtime->gpu_asset_cache();
-            ctx.gpu_glyph_atlas = &ctx.runtime->gpu_glyph_atlas();
-            ctx.gpu_text_atlas_cache = &ctx.runtime->gpu_text_atlas_cache();
-            ctx.gpu_styled_glyph_cache = &ctx.runtime->gpu_styled_glyph_cache();
-            ctx.gpu_text_prepared_cache = &ctx.runtime->gpu_text_prepared_cache();
-            ctx.image_cache = &ctx.runtime->image_cache();
+        // Native video rendering can provide a SoftwareRenderer sidecar whose
+        // execution context has no runtime of its own.  In that case the
+        // prepared job above is still the authoritative owner.  Do not
+        // overwrite it with nullptr: image/text native paths depend on the
+        // runtime-owned GPU caches being present in this context.
+        if (auto* sidecar_runtime = sw_renderer->execution_context().runtime) {
+            ctx.runtime = sidecar_runtime;
         }
-        ctx.asset_resolver = sw_renderer->execution_context().runtime
-            ? &sw_renderer->execution_context().runtime->resolver() : nullptr;
-        if (sw_renderer->execution_context().runtime) {
-            if (const auto root = sw_renderer->execution_context().runtime->resolver().mount_root();
-                !root.empty()) {
-                ctx.frame_input.static_context =
-                    std::make_shared<const graph::FrameStaticContext>(
-                        graph::FrameStaticContext{root.string()});
-            }
-        }
-    } else if (ctx.runtime && !ctx.asset_resolver) {
+    }
+
+    // Wire runtime-owned caches independently from the sidecar.  Previously
+    // this lived in an `else if`, so a non-null sidecar with a null runtime
+    // left image_cache/gpu_asset_cache unset even when ctx.runtime was valid.
+    if (ctx.runtime) {
         ctx.gpu_asset_cache = &ctx.runtime->gpu_asset_cache();
         ctx.gpu_glyph_atlas = &ctx.runtime->gpu_glyph_atlas();
         ctx.gpu_text_atlas_cache = &ctx.runtime->gpu_text_atlas_cache();
         ctx.gpu_styled_glyph_cache = &ctx.runtime->gpu_styled_glyph_cache();
         ctx.gpu_text_prepared_cache = &ctx.runtime->gpu_text_prepared_cache();
         ctx.image_cache = &ctx.runtime->image_cache();
-        ctx.asset_resolver = &ctx.runtime->resolver();
+        if (!ctx.asset_resolver) ctx.asset_resolver = &ctx.runtime->resolver();
         if (!ctx.frame_input.static_context) {
             if (const auto root = ctx.runtime->resolver().mount_root();
                 !root.empty()) {
