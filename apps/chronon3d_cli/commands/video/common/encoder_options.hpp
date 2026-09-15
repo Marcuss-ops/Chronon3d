@@ -1,5 +1,13 @@
 #pragma once
 
+// Adding an encoder field? See docs/tickets/TICKET-ENCODER-DTO-PROJECTION.md for
+// the full projection chain this DTO is one hop of (audit F16).
+//
+// AUDIT F4 — the canonical encoder-transport vocabulary lives in the
+// encoder-config resolution authority. Included relative so the header resolves
+// regardless of which target's include roots are in scope.
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 // ---------------------------------------------------------------------------
 // encoder_options.hpp
 //
@@ -57,8 +65,10 @@ struct EncoderOptions {
     std::int64_t bitrate{0};
     bool bitrate_explicit{false};
 
-    /// Encoder backend: "native" (in-process libavcodec) or "pipe" (external ffmpeg).
-    std::string encoder_backend{"native"};
+    /// Encoder transport selector: "native" (in-process libavcodec) or "pipe"
+    /// (external ffmpeg). The default is the canonical constant from
+    /// encoder_config_resolution.hpp (AUDIT F4) — do not respell the literal.
+    std::string encoder_backend{std::string(kEncoderTransportNative)};
 
     /// NVENC async depth: how many frames may be queued inside the FFmpeg
     /// nvenc wrapper before avcodec_send_frame blocks. 0 keeps the engine

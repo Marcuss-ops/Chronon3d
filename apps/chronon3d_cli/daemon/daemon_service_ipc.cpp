@@ -152,6 +152,8 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     out.qp = static_cast<int>(spec_or_root_int(request, "qp", -1));
     out.bitrate = spec_or_root_int(request, "bitrate", 0);
     out.audio_source_path = request.value("audio_source_path", "");
+    out.audio_target_sample_rate = static_cast<int>(
+        spec_or_root_int(request, "audio_target_sample_rate", 0));
     out.gop_copy_only = request.value("gop_copy_only", false);
     const nlohmann::json* intervals = nullptr;
     const auto spec_it = request.find("output_spec");

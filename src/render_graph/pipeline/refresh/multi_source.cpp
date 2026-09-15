@@ -34,8 +34,12 @@ void refresh_multi_source_node(
 
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const std::string layer_name_str(layer.name);
-    const bool item_static = is_static_cache.count(layer_name_str)
-        ? is_static_cache.at(layer_name_str) : layer.cache_static;
+    // AUDIT F12 — one hash per layer instead of two: the previous
+    // count()-then-at() pair hashed the layer name twice per refresh; a
+    // single find() hashes once and keeps the fallback bit-identical.
+    const auto static_it = is_static_cache.find(layer_name_str);
+    const bool item_static = static_it != is_static_cache.end()
+        ? static_it->second : layer.cache_static;
     const bool source_is_static = item_static;
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());

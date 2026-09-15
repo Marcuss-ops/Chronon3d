@@ -1,5 +1,10 @@
 #include <chronon3d/media/video/gop_execution_executor.hpp>
 
+#include <spdlog/spdlog.h>
+
+#include <exception>
+#include <string>
+
 namespace chronon3d::media {
 namespace {
 
@@ -98,8 +103,19 @@ bool GopExecutionExecutor::execute(
             else ++result.reencoded_gops;
         }
         return true;
+    } catch (const std::exception& exception) {
+        // AUDIT F17 — a throwing callback used to degrade to a bare `reason`
+        // string with no log at the catch point, so an unexpected exception was
+        // indistinguishable from a planned "callback returned false" failure in
+        // the downstream structured-downgrade report. It is still reported as
+        // `false` (execute() is noexcept and the caller formats `reason`), but
+        // the throw is now named, logged, and classified as `threw`.
+        reason = std::string{"gop executor callback threw: "} + exception.what();
+        spdlog::error("[gop-executor] callback threw: {}", exception.what());
+        return false;
     } catch (...) {
-        reason = "gop executor callback threw";
+        reason = "gop executor callback threw (unknown exception)";
+        spdlog::error("[gop-executor] callback threw an unknown exception");
         return false;
     }
 }

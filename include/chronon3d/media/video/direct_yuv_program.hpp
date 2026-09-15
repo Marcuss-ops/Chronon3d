@@ -34,6 +34,15 @@ struct DirectLayerResourceEntry {
     std::uint32_t color{0xFFFFFFFFu};
     std::uint32_t stroke_color{0};
     float stroke_width{0.0f};
+    /// Canonical single drop shadow lowered from the prepared text style.
+    /// `shadow_color` is zero (and the shadow inactive) unless the run carries
+    /// exactly one enabled shadow the DirectYUV kernel can resample from the
+    /// prepared MTSDF field.
+    std::uint32_t shadow_color{0};
+    float shadow_opacity{0.0f};
+    float shadow_dx{0.0f};
+    float shadow_dy{0.0f};
+    float shadow_blur{0.0f};
     // AUDIT-10: local_offset_x/local_offset_y removed (0 readers repo-wide).
 };
 

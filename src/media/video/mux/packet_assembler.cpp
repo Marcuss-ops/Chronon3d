@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/packet_assembler.hpp>
+#include <chronon3d/media/video/audio_resampler.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
@@ -453,6 +454,8 @@ void MuxSession::delete_writer(MuxAvioHashWriter* writer) noexcept {
     delete writer;
 }
 
+MuxSession::MuxSession() = default;
+
 MuxSession::~MuxSession() {
     if (!format_) return;
     if (format_->pb && format_->oformat && !(format_->oformat->flags & AVFMT_NOFILE)) {
@@ -512,11 +515,35 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
             reason = "avformat_new_stream failed for audio";
             return false;
         }
-        if (avcodec_parameters_copy(audio_stream_->codecpar, audio.params) < 0) {
-            reason = "avcodec_parameters_copy failed for audio";
-            return false;
+        // A declared target rate that differs from the source is an OUTPUT
+        // CONTRACT, not a hint: the copy path cannot satisfy it, so the mux
+        // builds a real transcode chain instead of publishing audio at the
+        // wrong rate. An unhonourable request fails here, before the header is
+        // written, rather than surfacing as a contract violation downstream.
+        const bool transcode = audio.target_sample_rate > 0 &&
+            audio.target_sample_rate != audio.params->sample_rate;
+        if (transcode) {
+            auto resampler = std::make_unique<AudioResampler>();
+            std::string resample_reason;
+            if (!resampler->open(audio.params, audio.target_sample_rate,
+                                 audio.target_bitrate, resample_reason)) {
+                reason = "audio resample failed: " + resample_reason;
+                return false;
+            }
+            if (avcodec_parameters_copy(audio_stream_->codecpar,
+                                        resampler->output_parameters()) < 0) {
+                reason = "failed to copy resampled audio codec parameters";
+                return false;
+            }
+            audio_stream_->time_base = resampler->output_time_base();
+            audio_resampler_ = std::move(resampler);
+        } else {
+            if (avcodec_parameters_copy(audio_stream_->codecpar, audio.params) < 0) {
+                reason = "avcodec_parameters_copy failed for audio";
+                return false;
+            }
+            audio_stream_->time_base = audio.time_base;
         }
-        audio_stream_->time_base = audio.time_base;
     }
     if (!write_header(config.output_path, reason)) return false;
     open_header_ms_ = std::chrono::duration<double, std::milli>(
@@ -593,16 +620,37 @@ bool MuxSession::submit_video(AVPacket& packet,
     return ok;
 }
 
-bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
-    if (!format_ || !audio_stream_ || !encoded.packet) return false;
+bool MuxSession::write_audio_packet(AVPacket& packet,
+                                    AVRational source_time_base) noexcept {
+    if (!format_ || !audio_stream_) return false;
     const auto started = std::chrono::steady_clock::now();
-    auto& packet = *encoded.packet;
-    av_packet_rescale_ts(&packet, encoded.time_base, audio_stream_->time_base);
+    av_packet_rescale_ts(&packet, source_time_base, audio_stream_->time_base);
     packet.stream_index = audio_stream_->index;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
     audio_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return ok;
+}
+
+bool MuxSession::submit_audio(EncodedPacket encoded) noexcept {
+    if (!format_ || !audio_stream_ || !encoded.packet) return false;
+    if (audio_resampler_) {
+        // Transcode path: the encoded source packet is decoded, resampled and
+        // re-encoded, and only the ENCODER output is written. The source
+        // packet is never written verbatim, so the artifact cannot carry the
+        // source rate by accident.
+        std::vector<OwnedAVPacket> produced;
+        if (!audio_resampler_->push(*encoded.packet, produced)) return false;
+        for (auto& packet : produced) {
+            if (!write_audio_packet(*packet,
+                                    audio_resampler_->output_time_base())) {
+                return false;
+            }
+        }
+        return true;
+    }
+    // Copy path: the source stream is muxed verbatim at its own rate.
+    return write_audio_packet(*encoded.packet, encoded.time_base);
 }
 
 bool MuxSession::finalize() noexcept {
@@ -611,6 +659,19 @@ bool MuxSession::finalize() noexcept {
     finalize_attempted_ = true;
 
     const auto started = std::chrono::steady_clock::now();
+    // Drain the audio transcode chain BEFORE the trailer: frames still held by
+    // the decoder or the encoder are part of the artifact, and a trailer
+    // written first would publish a truncated audio track.
+    bool audio_ok = true;
+    if (audio_resampler_) {
+        std::vector<OwnedAVPacket> produced;
+        audio_ok = audio_resampler_->flush(produced);
+        for (auto& packet : produced) {
+            if (!audio_ok) break;
+            audio_ok = write_audio_packet(*packet,
+                                          audio_resampler_->output_time_base());
+        }
+    }
     const bool trailer_ok = av_write_trailer(format_) >= 0;
     trailer_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
@@ -626,7 +687,7 @@ bool MuxSession::finalize() noexcept {
         checksum_ok = writer_->close_and_checksum(output_path_, output_checksum_,
                                                    checksum_used_reread_);
     }
-    finalized_ = trailer_ok && checksum_ok;
+    finalized_ = trailer_ok && checksum_ok && audio_ok;
     return finalized_;
 }
 

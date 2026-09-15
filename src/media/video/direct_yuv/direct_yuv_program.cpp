@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/direct_yuv_program.hpp>
+#include "direct_yuv_text_contract.hpp"
 #include "text_texture_cache.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
@@ -236,6 +237,17 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 reason = "text layer has no prepared TextRunShape: " + layer_name;
                 return false;
             }
+            // The capability matrix already accepted this scene through the
+            // same classifier, so a rejection here means the prepared run
+            // changed after resolution. Fail closed rather than dropping an
+            // authored shadow silently.
+            const auto text_contract =
+                resolve_direct_yuv_text_contract(*prepared_shape);
+            if (text_contract.rejection) {
+                reason = std::string(text_contract.rejection) +
+                    " (layer '" + layer_name + "')";
+                return false;
+            }
             auto rasterized = text_texture_cache().get_or_create(*prepared_shape);
             watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
 
@@ -261,6 +273,16 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             entry.stroke_color = pack_text_color(prepared_shape->paint.stroke_color);
             entry.stroke_width = prepared_shape->paint.stroke_enabled
                 ? prepared_shape->paint.stroke_width : 0.0f;
+            // Canonical single drop shadow. The kernel resamples the prepared
+            // distance field for it, so only the parameters travel here; no
+            // extra texture, upload or per-frame work is created.
+            if (text_contract.shadow.enabled) {
+                entry.shadow_color = pack_text_color(text_contract.shadow.color);
+                entry.shadow_opacity = text_contract.shadow.opacity;
+                entry.shadow_dx = text_contract.shadow.offset_x;
+                entry.shadow_dy = text_contract.shadow.offset_y;
+                entry.shadow_blur = text_contract.shadow.blur;
+            }
             layer_resources[layer_name] = entry;
             persistent_resources.push_back(resource);
             return true;
@@ -647,6 +669,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         res.color = entry.color;
         res.stroke_color = entry.stroke_color;
         res.stroke_width = entry.stroke_width;
+        res.shadow_color = entry.shadow_color;
+        res.shadow_opacity = entry.shadow_opacity;
+        res.shadow_dx = entry.shadow_dx;
+        res.shadow_dy = entry.shadow_dy;
+        res.shadow_blur = entry.shadow_blur;
         template_frame->resources.push_back(res);
         if (!template_frame->resource_owner) {
             template_frame->resource_owner = entry.gpu_resource;

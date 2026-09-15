@@ -1,5 +1,6 @@
 #include "video_export_support.hpp"
 #include "gop_smart_copy.hpp"
+#include "encoder_config_resolution.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
@@ -43,7 +44,7 @@ BitstreamTargetContract make_bitstream_target_contract(
     }
     target.width = static_cast<std::uint32_t>(compiled.composition->width());
     target.height = static_cast<std::uint32_t>(compiled.composition->height());
-    target.pixel_format = opts.encoder.encoder_backend == "native" &&
+    target.pixel_format = is_native_encoder_transport(opts.encoder.encoder_backend) &&
             opts.encoder.hardware_encoder == "nvenc"
         ? AV_PIX_FMT_CUDA : AV_PIX_FMT_YUV420P;
 
@@ -380,8 +381,9 @@ media::ExecutionRequirements cli_execution_requirements(
 
 media::VideoCapabilities cli_effective_capabilities(
     const FfmpegExportOptions& opts) {
-    const bool native_nvenc = opts.encoder.encoder_backend == "native" &&
-                              opts.encoder.hardware_encoder == "nvenc";
+    const bool native_nvenc =
+        is_native_encoder_transport(opts.encoder.encoder_backend) &&
+        opts.encoder.hardware_encoder == "nvenc";
     return media::VideoCapabilities{
         .nvdec = native_nvenc,
         .nvenc = native_nvenc,

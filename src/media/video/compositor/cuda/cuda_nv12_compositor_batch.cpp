@@ -89,6 +89,11 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
         layer.color = resource.color;
         layer.stroke_color = resource.stroke_color;
         layer.stroke_width = resource.stroke_width;
+        layer.shadow_color = resource.shadow_color;
+        layer.shadow_opacity = resource.shadow_opacity;
+        layer.shadow_dx = resource.shadow_dx;
+        layer.shadow_dy = resource.shadow_dy;
+        layer.shadow_blur = resource.shadow_blur;
     }
 
     check_cuda(cuCtxSetCurrent(context_), "cuCtxSetCurrent");

@@ -56,6 +56,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.sink = std::move(sink);
     opts.assets_root = job.execution.assets_root;
     opts.gop_source = job.video_settings.gop_source;
+    opts.audio_target_sample_rate = job.video_settings.audio_target_sample_rate;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
     opts.changed_intervals = job.video_settings.changed_intervals;
     opts.backend_preference = job.execution.config

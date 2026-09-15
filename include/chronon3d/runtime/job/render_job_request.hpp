@@ -36,6 +36,13 @@ struct OutputSpec {
     int qp{-1};
     std::int64_t bitrate{0};
     std::string audio_source_path;
+    /// Requested OUTPUT audio sample rate in Hz. 0 (the default) keeps the
+    /// legacy copy semantics: the source audio stream is muxed verbatim and
+    /// the artifact inherits the source rate. A positive value that differs
+    /// from the source makes the native mux transcode the audio so the
+    /// published artifact satisfies the declared rate. It is part of the
+    /// output contract, so it participates in the normalized job fingerprint.
+    int audio_target_sample_rate{0};
     bool gop_copy_only{false};
     /// Source-time content/trim intervals supplied by the authoring layer.
     /// Empty preserves the legacy whole-export content-change semantics.

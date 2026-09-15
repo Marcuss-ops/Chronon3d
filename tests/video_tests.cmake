@@ -74,5 +74,6 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_media_video
     SOURCES video/test_encoder_capability.cpp
             video/test_composition_capability.cpp
+            video/test_direct_yuv_text_contract.cpp
             video/test_nv12_region_policy.cpp
 )

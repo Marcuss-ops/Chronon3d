@@ -272,6 +272,29 @@ using ColorMetadata = FrameFormat;
     return format == PixelFormat::Nv12 || format == PixelFormat::P010;
 }
 
+/// Parser for the encoder-OUTPUT pixel format: the value FFmpeg itself is given
+/// as `-pix_fmt`, as opposed to the format the host frames are piped in.
+///
+/// It is a strict SUPERSET of the pipe vocabulary and is declared next to it so
+/// that there is exactly one parser for both. The pipe route only ever carries
+/// the interchange formats the host frames are packed into, while an encoder
+/// output may additionally be a packed RGB format that FFmpeg accepts on its own
+/// side (`rgb24`).
+///
+/// The superset is the point: the CLI video adapter used to keep a private
+/// table for this direction, which (a) knew only "yuv420p", "nv12", "rgb24"
+/// and "rgba", so a truthful `p010` encoder output was silently encoded as
+/// 8-bit yuv420p, and (b) returned yuv420p for EVERY unrecognised name instead
+/// of failing — the same silent-fallback defect this file already documents as
+/// eliminated at the pipe boundary. Callers must surface `std::nullopt` as an
+/// error, never as a fallback.
+[[nodiscard]] inline std::optional<PixelFormat> try_parse_encoder_output_pixel_format(
+    std::string_view name) noexcept {
+    if (const auto pipe = try_parse_pixel_format(name)) return pipe;
+    if (name == "rgb24") return PixelFormat::Rgb24;
+    return std::nullopt;
+}
+
 // Single canonical calculation of tightly packed bytes. Padded/external
 // resources may still provide an explicit allocation-size override at the
 // resource request boundary; descriptors themselves do not own format math.

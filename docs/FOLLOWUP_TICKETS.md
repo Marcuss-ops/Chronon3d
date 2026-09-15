@@ -21,6 +21,13 @@
 | Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
 | CLI/IPC hot-path parity (video build) | P1 | RESOLVED | [CLI-IPC-HOTPATH-PARITY](tickets/TICKET-CLI-IPC-HOTPATH-PARITY.md) — opzione A atterrata in `0db926a47` (`test(cli): pin wire fidelity for resolved encoder selection`): il sottocaso `pure-video GPU job carries its resolved hot path to DirectYUV` autora `gpu_hot_path_mode` dentro `output_spec`, quindi entrambi i transport portano la selezione risolta e i fingerprint coincidono. La riga era rimasta OPEN per mancato aggiornamento dell'indice |
 
+## Deferred by certification precondition
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| Audit remediation residue | P1/P2 | DEFERRED (each with a named precondition) | [AUDIT-REMEDIATION-DEFERRED](tickets/TICKET-AUDIT-REMEDIATION-DEFERRED.md) — F8 surface/lease lock consolidation (needs the N4 regression run + lock-wait evidence), F12 dirty-path string keys (needs pixel-parity + an interned cross-frame key), F13 motion-blur per-sample isolation (determinism-certified pooling), F14 non-pooled framebuffer wrappers (ADR for a new residency primitive) |
+| Encoder DTO change amplification | P2 | DOCUMENTED | [ENCODER-DTO-PROJECTION](tickets/TICKET-ENCODER-DTO-PROJECTION.md) — the projection chain and the per-hop extension protocol; consolidating the DTOs would move encoding fingerprints and needs its own ticket |
+
 ## Demolition Debt (exit-condition driven)
 
 | Area | Pri | Stato | Scheda |

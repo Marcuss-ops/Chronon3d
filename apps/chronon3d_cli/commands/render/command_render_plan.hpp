@@ -18,6 +18,9 @@ namespace chronon3d::cli {
 
 struct RenderPlanVideoOverrides {
     std::string codec;
+    /// Requested output audio sample rate (Hz) for the muxed master audio.
+    /// 0 keeps the source rate (copy semantics).
+    int audio_sample_rate{0};
     std::string hardware_encoder;
     std::string encoder_backend;
     std::string ffmpeg_mode;

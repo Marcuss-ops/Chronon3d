@@ -3,6 +3,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <chronon3d/runtime/frame_format.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -52,18 +53,22 @@ static uint64_t count_mismatched_bytes(const uint8_t* a, const uint8_t* b, uint6
     return mismatches;
 }
 
-static std::string normalize_output_format(std::string fmt) {
-    std::transform(fmt.begin(), fmt.end(), fmt.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-
-    if (fmt == "yuv" || fmt == "420p" || fmt == "yuv420" || fmt == "yuv420p8") {
-        return "yuv420p";
+// The bench converts to exactly the two 4:2:0 packing formats it can address
+// (see the caller's check). The name→format decision comes from the engine
+// authority in <chronon3d/runtime/frame_format.hpp> instead of the private
+// table that used to live here: that table additionally accepted "yuv",
+// "420p", "yuv420", "yuv420p8" and "nv-12" — spellings no other boundary in
+// the toolchain accepts and that the CLI help never documented — and was
+// case-insensitive, while the canonical parser is exact. An unrecognised name
+// is returned unchanged so the caller's error path reports it verbatim.
+static std::string normalize_output_format(const std::string& fmt) {
+    const auto parsed = chronon3d::runtime::try_parse_pixel_format(fmt);
+    if (!parsed) return fmt;
+    switch (*parsed) {
+        case chronon3d::runtime::PixelFormat::Yuv420P: return "yuv420p";
+        case chronon3d::runtime::PixelFormat::Nv12:    return "nv12";
+        default:                                       return fmt;
     }
-    if (fmt == "nv12" || fmt == "nv-12") {
-        return "nv12";
-    }
-    return fmt;
 }
 
 static double max_abs_diff(const uint8_t* a, const uint8_t* b, uint64_t len) {

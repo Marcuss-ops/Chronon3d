@@ -31,6 +31,7 @@
 //     are wired.
 // ===========================================================================
 
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
@@ -44,10 +45,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <shared_mutex>
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 namespace chronon3d {
 class SoftwareRenderer;
@@ -172,6 +171,10 @@ public:
     RenderPipeline(SoftwareRenderer* renderer,
                    ::chronon3d::SoftwareExecutionContext& context) noexcept;
 
+    /// Out-of-line so the PIMPL stage pool below stays an implementation detail
+    /// (AUDIT F7).
+    ~RenderPipeline();
+
     // ── Canonical prepared-plan execution entry ────────────────────
     /// Compatibility adapter for an immutable CompiledComposition. New typed
     /// production jobs use render(JobSession&, Frame) below.
@@ -230,12 +233,36 @@ public:
         float fps, Frame frame = 0, f32 frame_time = 0.0f);
 
 private:
+    /// AUDIT F7 — persistent executor for the batch pipeline's three stages.
+    ///
+    /// render_compatibility_frames() used to construct and join three
+    /// std::thread objects per call, paying a spawn/join round trip (and losing
+    /// worker affinity) for every batch. The three stage loops, their per-stage
+    /// mutexes/CVs and the terminal join barrier are all unchanged; only the
+    /// thread lifecycle is amortized: the workers are created once per pipeline,
+    /// lazily on first use, and park on a condition variable between batches.
+    /// The class is defined in the .cpp so no threading detail leaks into this
+    /// header.
+    class StagePool;
+    std::unique_ptr<StagePool> m_stage_pool;
+
     SoftwareRenderer* m_renderer;
     ::chronon3d::SoftwareExecutionContext& m_context;
     // Bounded topology cache: Scene is a legacy graph input adapter, never a
     // frame-varying value. Its lifetime must not depend on FrameContext's arena.
-    std::shared_mutex m_topology_mutex;
-    std::unordered_map<std::uint64_t, std::shared_ptr<const Scene>> m_topologies;
+    //
+    // AUDIT F11 — this used to be a hand-rolled `unordered_map` with FIFO
+    // eviction (`erase(begin())`). That violated two invariants at once: the
+    // declared cache taxonomy ("Primitive canonica: LruCache — Nessuna seconda
+    // cache engine") and the eviction semantics the call site needs — a FIFO
+    // victim can be the most recently *used* topology whenever insert order
+    // diverges from use order, and re-materializing one is a Scene::clone plus a
+    // topology rebuild. It is now the canonical primitive in Count mode, with
+    // the same 32-entry bound.
+    static constexpr std::size_t kTopologyCacheCapacity = 32;
+
+    cache::LruCache<std::uint64_t, std::shared_ptr<const Scene>> m_topologies{
+        kTopologyCacheCapacity, /*num_shards=*/2, cache::CapacityMode::Count};
 };
 
 } // namespace chronon3d::runtime

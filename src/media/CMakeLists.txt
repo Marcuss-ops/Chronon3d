@@ -37,6 +37,7 @@ if(CHRONON3D_ENABLE_VIDEO)
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
             video/mux/packet_assembler.cpp
+            video/mux/audio_resampler.cpp
             video/gop_execution_executor.cpp
         )
         target_include_directories(chronon3d_media_native PRIVATE

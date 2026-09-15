@@ -51,8 +51,13 @@ bool try_native_matte(RenderGraphContext& ctx,
     }
 
     const auto desc = native_surface_desc(target.width(), target.height());
-    const auto target_pixels = pack_framebuffer_rgba(target);
-    const auto matte_pixels = pack_framebuffer_rgba(matte);
+    // AUDIT F10 — two full-frame packs per frame on the matte path became two
+    // zero-copy views: framebuffer_rgba_view() only allocates for a
+    // stride-padded framebuffer, which is not the graph-owned case here.
+    std::vector<float> target_packed;
+    std::vector<float> matte_packed;
+    const auto target_pixels = framebuffer_rgba_view(target, target_packed);
+    const auto matte_pixels = framebuffer_rgba_view(matte, matte_packed);
     const auto destination = ctx.surface_registry->create(desc);
     const auto target_surface = ctx.surface_registry->create(desc);
     const auto matte_surface = ctx.surface_registry->create(desc);

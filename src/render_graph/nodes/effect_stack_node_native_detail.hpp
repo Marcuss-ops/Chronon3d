@@ -35,7 +35,15 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     }
 
     const auto desc = native_surface_desc(result.width(), result.height());
-    const auto rgba = pack_framebuffer_rgba(result);
+    // AUDIT F10 — zero-copy when the framebuffer storage is tightly packed (the
+    // common case for graph-owned "result" buffers): only a stride-padded
+    // framebuffer now pays a full-frame pack. The uploader copies into its
+    // staging buffer before returning, so the view only needs to outlive this
+    // call. This removed a ~33 MB allocate+copy per effect per frame at 1080p
+    // (RGBA-f32), which is exactly the steady-state heap churn the
+    // check_steady_state_allocations gate is meant to catch.
+    std::vector<float> packed_rgba;
+    const auto rgba = framebuffer_rgba_view(result, packed_rgba);
     const auto output = ctx.surface_registry->create(desc);
     const auto horizontal = ctx.surface_registry->create(desc);
     const auto vertical = ctx.surface_registry->create(desc);
@@ -105,7 +113,9 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
     }
 
     const auto desc = native_surface_desc(result.width(), result.height());
-    const auto rgba = pack_framebuffer_rgba(result);
+    // AUDIT F10 — zero-copy tight-storage path (see the glow fast-path above).
+    std::vector<float> packed_rgba;
+    const auto rgba = framebuffer_rgba_view(result, packed_rgba);
     const auto source = ctx.surface_registry->create(desc);
     const auto destination = ctx.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
@@ -194,8 +204,10 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     if (source_ready.ok() && !source_is_existing) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
+        // AUDIT F10 — zero-copy tight-storage path (see the glow fast-path).
+        std::vector<float> packed_rgba;
         uploaded = ctx.backend->upload_surface(
-            source, desc, pack_framebuffer_rgba(result));
+            source, desc, framebuffer_rgba_view(result, packed_rgba));
     }
     const auto created_horizontal = uploaded.ok()
         ? ctx.backend->create_surface(horizontal, desc)

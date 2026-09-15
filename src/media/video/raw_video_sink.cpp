@@ -20,14 +20,22 @@ RawVideoSink::~RawVideoSink() noexcept {
 }
 
 // ============================================================================
-//  validate_frame_match() — session contract enforcement
+//  validate_frame_match() — per-frame identity check
 // ============================================================================
-
+//
+// AUDIT F5 — this used to re-derive two *session* invariants on every submitted
+// frame: dimension positivity and the YUV420P/NV12 even-dimension rule. Both
+// are properties of the opened session, and open() already rejects them via
+// validate_video_sink_config() → check_yuv_dimensions(), so deciding them again
+// per frame is duplicated contract validation in the hot loop (the demolition
+// class AGENTS.md names as "validazione manuale duplicata da un contratto
+// generato"). What genuinely varies per call is the identity of the frame the
+// caller hands us, so the per-frame check is exactly that.
+//
+// Behaviour is unchanged: expected_width_/expected_height_ are positive because
+// open() validated the config, so a non-positive frame dimension can only
+// arrive as a mismatch and still fails here with the same error.
 bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) {
-    if (width <= 0 || height <= 0) {
-        fail(VideoSinkError::InvalidFrame, "frame dimensions must be positive");
-        return false;
-    }
     if (width != expected_width_ || height != expected_height_) {
         fail(VideoSinkError::InvalidFrame, "frame dimensions do not match the opened sink");
         return false;
@@ -35,13 +43,6 @@ bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) 
     if (fmt != expected_format_) {
         fail(VideoSinkError::InvalidFrame, "frame pixel format does not match the opened sink");
         return false;
-    }
-    // YUV420P and NV12 require even dimensions.
-    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
-        if (width % 2 != 0 || height % 2 != 0) {
-            fail(VideoSinkError::InvalidFrame, "YUV frame dimensions must be even");
-            return false;
-        }
     }
     return true;
 }

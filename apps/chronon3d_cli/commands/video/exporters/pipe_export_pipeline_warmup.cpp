@@ -1,5 +1,7 @@
 #include "../common/pipe_export_pipeline.hpp"
 
+#include "../../../utils/video/encoder_config_resolution.hpp"
+
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <spdlog/spdlog.h>
 
@@ -44,7 +46,7 @@ void warmup_pipe_slots(PipeExportSession& session) {
         return;
     }
     const bool is_native_nvenc =
-        session.opts.encoder.encoder_backend == "native" &&
+        is_native_encoder_transport(session.opts.encoder.encoder_backend) &&
         session.opts.encoder.hardware_encoder == "nvenc";
     if (!is_native_nvenc) return;
 

@@ -47,6 +47,20 @@ inline constexpr std::string_view kAutoCodec{"auto"};
 inline constexpr std::string_view kDefaultCodec{"h264"};
 inline constexpr std::string_view kDefaultGpuBackend{"vulkan"};
 
+// The `encoder_backend` selector vocabulary: which encoder authority executes
+// the job. It lives here, with the other canonical defaults, because the SDK job
+// contract (include/chronon3d/timeline/render_job.hpp), this resolver and the
+// CLI validator/resolver (apps/chronon3d_cli/utils/video/
+// encoder_config_resolution.hpp) must agree on it, and src/ may not depend on
+// apps/. AUDIT F4: this was previously spelled as a raw "native"/"pipe" literal
+// at ~20 sites, where one forgotten comparison silently downgrades a job to the
+// subprocess encoder. The CLI header aliases these two names; do not respell
+// the literals.
+//   kEncoderTransportNative — "native": in-process libavcodec.
+//   kEncoderTransportPipe   — "pipe": external ffmpeg subprocess.
+inline constexpr std::string_view kEncoderTransportNative{"native"};
+inline constexpr std::string_view kEncoderTransportPipe{"pipe"};
+
 // These dimensions are independent.  A composition can therefore select a
 // Vulkan graph while the encoder remains NVENC, without overloading one enum
 // with the meaning of all four decisions.

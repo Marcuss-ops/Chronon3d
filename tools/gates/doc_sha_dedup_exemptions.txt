@@ -1,0 +1,35 @@
+# tools/gates/doc_sha_dedup_exemptions.txt
+#
+# Single audit trail for the TICKET-FOLLOWUP-DE-DUP-REFERENCES exemptions.
+#
+# AUDIT F20 — these exemptions used to be hard-coded arrays inside
+# tools/check_doc_sha_dedup.sh, which made the gate the only executable record of
+# a decision documented in the ticket, with no declarative counterpart. They now
+# live here as data, and the file is declared in tools/architecture_rules.toml
+# ([[required_path]] doc_sha_dedup_exemptions) so the exemption is visible to the
+# architecture registry as well as to the gate.
+#
+# Format — one directive per line; blank lines and everything after '#' is
+# ignored:
+#
+#   exempt_adr      <ADR-prefix>        whole file excluded (any sha7, any count)
+#   exempt_file_sha <BASENAME>:<SHA7>   this single (file, sha7) pair is legitimate
+#   skip_file       <BASENAME>          not a dedup target at all
+#
+# Any other directive is a hard gate failure (unknown directive = the exemption
+# silently stopped applying, which is worse than a red gate).
+
+# ADR-015: single-SHA / c03ce2a2 cited 17x — the corpus-consolidation ADR for the
+# matrix-fix commit (structurally required, EXEMPT_SPECIAL_CASE).
+exempt_adr ADR-015
+
+# ADR-016: multi-SHA / multi-role structural cite
+# (33798b0a / 0f47d591 / fab2046e / 7eb5c2ba / a0fbc57b), each with a distinct
+# semantic role (LEGITIMATE_MULTI_CITE).
+exempt_adr ADR-016
+
+# ADR-020: green baseline main@7eb5c2ba, cited in multiple semantic roles.
+exempt_file_sha ADR-020-shared-static-fontengine-singleton.md:7eb5c2b
+
+# INDEX is a pure cross-reference index, not a dedup target.
+skip_file INDEX.md
