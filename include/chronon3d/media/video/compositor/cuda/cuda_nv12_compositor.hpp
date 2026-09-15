@@ -29,7 +29,30 @@ enum class CudaYuvFormat : std::uint8_t {
 enum TransferEncode : std::uint32_t {
     TransferNone = 0,  ///< target is linear — no encode required
     TransferSrgb = 1,  ///< sRGB / BT.709 SDR OETF (the encoder default)
+    TransferBt1886 = 2, ///< BT.1886 SDR transfer
+    TransferPq = 3,    ///< SMPTE ST 2084 perceptual quantizer
+    TransferHlg = 4,   ///< ARIB STD-B67 hybrid log-gamma
 };
+
+/// Map the canonical runtime transfer vocabulary to the CUDA ABI. Keeping
+/// this conversion beside the kernel ABI makes the output FrameFormat the
+/// sole authority; callers must not invent a second boolean "gamma" flag.
+[[nodiscard]] constexpr std::uint32_t transfer_encode_for(
+    runtime::TransferFunction transfer) noexcept {
+    switch (transfer) {
+        case runtime::TransferFunction::Linear:
+            return TransferNone;
+        case runtime::TransferFunction::Bt1886:
+            return TransferBt1886;
+        case runtime::TransferFunction::Pq:
+            return TransferPq;
+        case runtime::TransferFunction::Hlg:
+            return TransferHlg;
+        case runtime::TransferFunction::Srgb:
+        default:
+            return TransferSrgb;
+    }
+}
 
 /// CUDA address table for the resources referenced by a GpuLayerBatch.
 /// `rgba` points to device-local pixels; ordinary RGBA resources use float4

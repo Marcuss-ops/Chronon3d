@@ -24,6 +24,25 @@ using detail::elapsed_ms;
 
 namespace {
 
+runtime::TransferFunction transfer_from_output_space(
+    color::ColorSpace output) noexcept {
+    switch (output) {
+        case color::ColorSpace::LinearSRGB:
+        case color::ColorSpace::ACEScg:
+            return runtime::TransferFunction::Linear;
+        case color::ColorSpace::SRGB:
+        case color::ColorSpace::Rec709:
+        default:
+            return runtime::TransferFunction::Srgb;
+    }
+}
+
+AVColorTransferCharacteristic av_transfer_from_output_space(
+    color::ColorSpace output) noexcept {
+    return transfer_from_output_space(output) == runtime::TransferFunction::Linear
+        ? AVCOL_TRC_LINEAR : AVCOL_TRC_BT709;
+}
+
 bool set_codec_option_checked(AVCodecContext* codec, const char* key,
                               const std::string& value) {
     const int rc = av_opt_set(codec, key, value.c_str(), AV_OPT_SEARCH_CHILDREN);
@@ -254,8 +273,18 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
 
     codec_->color_range = AVCOL_RANGE_MPEG;
     codec_->colorspace = AVCOL_SPC_BT709;
-    codec_->color_trc = AVCOL_TRC_BT709;
+    codec_->color_trc = av_transfer_from_output_space(options_.color_transform.output);
     codec_->color_primaries = AVCOL_PRI_BT709;
+    output_frame_format_ = runtime::FrameFormat{
+        options_.direct_yuv_mode && options_.input_format == PipePixelFormat::P010
+            ? runtime::PixelFormat::P010
+            : runtime::PixelFormat::Nv12,
+        runtime::ColorPrimaries::Bt709,
+        transfer_from_output_space(options_.color_transform.output),
+        runtime::ColorMatrix::Bt709,
+        runtime::ColorRange::Limited,
+        runtime::ChromaLocation::Left,
+        runtime::AlphaMode::Opaque};
 
     // ── Apply the RESOLVED configuration verbatim ────────────────────────
     // Everything below is driven by `resolved` (from

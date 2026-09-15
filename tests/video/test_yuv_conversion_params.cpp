@@ -3,6 +3,10 @@
 
 #include <chronon3d/backends/vulkan/cuda_yuv_conversion.hpp>
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+#include <chronon3d/media/video/compositor/cuda/cuda_nv12_compositor.hpp>
+#endif
+
 using chronon3d::backends::vulkan::make_yuv_to_rgb_params;
 using chronon3d::runtime::ColorMatrix;
 using chronon3d::runtime::ColorMetadata;
@@ -75,3 +79,20 @@ TEST_CASE("P010 full range scales ten-bit code values") {
     CHECK(params.uv_offset == doctest::Approx(512.0f));
     CHECK(params.uv_scale == doctest::Approx(1.0f / 896.0f));
 }
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+TEST_CASE("FrameFormat transfer maps to the CUDA encode ABI") {
+    using chronon3d::media::video::TransferBt1886;
+    using chronon3d::media::video::TransferHlg;
+    using chronon3d::media::video::TransferNone;
+    using chronon3d::media::video::TransferPq;
+    using chronon3d::media::video::TransferSrgb;
+    using chronon3d::media::video::transfer_encode_for;
+
+    CHECK(transfer_encode_for(TransferFunction::Linear) == TransferNone);
+    CHECK(transfer_encode_for(TransferFunction::Srgb) == TransferSrgb);
+    CHECK(transfer_encode_for(TransferFunction::Bt1886) == TransferBt1886);
+    CHECK(transfer_encode_for(TransferFunction::Pq) == TransferPq);
+    CHECK(transfer_encode_for(TransferFunction::Hlg) == TransferHlg);
+}
+#endif
