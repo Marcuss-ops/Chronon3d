@@ -344,6 +344,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         auto* audio_stream = input->audio_index >= 0 ? input->format->streams[input->audio_index] : nullptr;
         std::int64_t first_video_dts = AV_NOPTS_VALUE;
         std::int64_t first_audio_dts = AV_NOPTS_VALUE;
+        std::int64_t segment_last_video_timestamp = AV_NOPTS_VALUE;
+        std::int64_t segment_last_audio_timestamp = AV_NOPTS_VALUE;
         bool saw_video = false;
         bool saw_audio = false;
         AVPacket* raw = av_packet_alloc();
@@ -374,6 +376,12 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                 copy->pts = normalize_timestamp(copy->pts, first_video_dts, video_offset);
                 copy->dts = normalize_timestamp(copy->dts, first_video_dts, video_offset);
                 copy->stream_index = 0;
+                const auto packet_duration = std::max<std::int64_t>(1, copy->duration);
+                const auto packet_end = std::max(copy->dts, copy->pts);
+                if (packet_end != AV_NOPTS_VALUE) {
+                    segment_last_video_timestamp = std::max(
+                        segment_last_video_timestamp, packet_end + packet_duration);
+                }
                 const bool keyframe = (copy->flags & AV_PKT_FLAG_KEY) != 0;
                 if (!mux.submit_video(EncodedPacket{std::move(owned), video_stream->time_base,
                                                      keyframe})) {
@@ -401,6 +409,12 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                 copy->pts = normalize_timestamp(copy->pts, first_audio_dts, audio_offset);
                 copy->dts = normalize_timestamp(copy->dts, first_audio_dts, audio_offset);
                 copy->stream_index = 1;
+                const auto packet_duration = std::max<std::int64_t>(1, copy->duration);
+                const auto packet_end = std::max(copy->dts, copy->pts);
+                if (packet_end != AV_NOPTS_VALUE) {
+                    segment_last_audio_timestamp = std::max(
+                        segment_last_audio_timestamp, packet_end + packet_duration);
+                }
                 if (!mux.submit_audio(EncodedPacket{std::move(owned), audio_stream->time_base, false})) {
                     av_packet_unref(raw); av_packet_free(&raw);
                     result.reason = "failed to write audio packet";
@@ -411,10 +425,18 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         }
         av_packet_free(&raw);
         const auto video_duration = stream_duration(video_stream);
-        video_offset += video_duration > 0 ? video_duration : 0;
+        if (segment_last_video_timestamp != AV_NOPTS_VALUE) {
+            video_offset = segment_last_video_timestamp;
+        } else if (video_duration > 0) {
+            video_offset += video_duration;
+        }
         if (audio_stream) {
             const auto audio_duration = stream_duration(audio_stream);
-            audio_offset += audio_duration > 0 ? audio_duration : 0;
+            if (segment_last_audio_timestamp != AV_NOPTS_VALUE) {
+                audio_offset = segment_last_audio_timestamp;
+            } else if (audio_duration > 0) {
+                audio_offset += audio_duration;
+            }
         }
     }
     if (!mux.finalize()) {

@@ -165,6 +165,23 @@ TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semanti
     CHECK(scheduled.gop_plan->work_units[0].copies_packets());
     CHECK_FALSE(scheduled.gop_plan->work_units[1].copies_packets());
 
+    // A visual composition may require the Vulkan graph for the changed GOP,
+    // while untouched GOPs are still safe to copy. The graph requirement must
+    // not erase the compiler-owned hybrid schedule.
+    auto gpu_composition = video_only;
+    gpu_composition.gpu_required = true;
+    gpu_composition.composition_required = true;
+    const auto graph_hybrid = resolve_video_execution_with_gop_analysis(
+        gpu_composition, output, capable, false, true, scheduled_hybrid);
+    CHECK(graph_hybrid.valid);
+    CHECK(graph_hybrid.reason == "hybrid_gop_full_graph");
+    CHECK(graph_hybrid.codec_path == VideoExecutionPath::BoundaryReencode);
+    CHECK(graph_hybrid.plan.composite == CompositePath::VulkanGraph);
+    REQUIRE(graph_hybrid.gop_plan.has_value());
+    CHECK(graph_hybrid.gop_plan->hybrid);
+    CHECK(graph_hybrid.gop_plan->copy_gops == 1);
+    CHECK(graph_hybrid.gop_plan->reencode_gops == 1);
+
     auto malformed = scheduled_hybrid;
     malformed.copy_gops = 2;
     CHECK_FALSE(malformed.valid_schedule());
