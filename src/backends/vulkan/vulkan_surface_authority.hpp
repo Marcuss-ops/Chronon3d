@@ -102,7 +102,15 @@ public:
     static constexpr std::size_t kFrameBatchSlotCount = 6;
     std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
         frame_slot_transient_handles{};
-    std::size_t next_slot{0};
+    // P0/P1 hardening: compiled placement slots (bind()) are plan-local 0..N
+    // but were aliased into the same size_t namespace as the backend-global
+    // unplanned allocator (ensure()/next_slot).  Start the unplanned allocator
+    // high so a plan slot 0 never collides with a backend-global slot 0 under
+    // concurrent jobs with divergent plans.  Compiled vs external is now a
+    // different numeric range; logical equality is by slot+domain, not slot
+    // alone.  See docs/architecture/VULKAN-AUTHORITY-MAP.md.
+    static constexpr std::size_t kUnplannedSlotBase = 1u << 20;
+    std::size_t next_slot{kUnplannedSlotBase};
 
     // Policy owns binding state; materializer owns only the physical Vulkan
     // mechanism. It receives an already-selected Image record and never a
@@ -421,9 +429,9 @@ private:
             max_active_slot = std::max(max_active_slot, slot);
         }
         if (!physical_surfaces.empty()) {
-            next_slot = max_active_slot + 1;
+            next_slot = std::max(max_active_slot + 1, kUnplannedSlotBase);
         } else {
-            next_slot = 0;
+            next_slot = kUnplannedSlotBase;
         }
     }
 

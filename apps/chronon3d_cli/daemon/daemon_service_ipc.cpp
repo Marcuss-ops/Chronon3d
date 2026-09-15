@@ -89,25 +89,6 @@ void extract_plan_dimensions(const std::filesystem::path& plan_path,
     } catch (...) {}
 }
 
-std::uint64_t estimate_peak_vram_bytes(
-    std::uint32_t width, std::uint32_t height, bool direct_yuv, bool native_nvenc) {
-    if (!native_nvenc) return 0;
-    if (width == 0) width = 1920;
-    if (height == 0) height = 1080;
-    if (direct_yuv) {
-        return 384ULL * 1024ULL * 1024ULL; // 384 MB for direct YUV pipeline
-    }
-    // FullGraph Vulkan + CUDA + NVENC:
-    // Frame execution slot surfaces: RGBA32F = width * height * 16 bytes.
-    // 8x dynamic buffer multiplier covers ring depth (4), staging surfaces,
-    // and intermediate scratch targets. Base 512 MB covers driver, Vulkan device,
-    // pipeline state and NVENC sessions.
-    const uint64_t frame_bytes = static_cast<uint64_t>(width) * height * 16ULL;
-    const uint64_t dynamic_bytes = 8ULL * frame_bytes;
-    const uint64_t estimated = (512ULL * 1024ULL * 1024ULL) + dynamic_bytes;
-    return std::max<uint64_t>(estimated, 1024ULL * 1024ULL * 1024ULL); // Minimum 1 GB
-}
-
 } // namespace
 
 RenderJobDispatcher& render_job_dispatcher() {
@@ -311,27 +292,10 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             std::uint32_t plan_width = 0;
             std::uint32_t plan_height = 0;
             extract_plan_dimensions(resolved.plan_path, plan_width, plan_height);
-            const uint64_t estimated_vram = estimate_peak_vram_bytes(
-                plan_width, plan_height, direct_yuv, native_nvenc);
-
-            runtime::DeviceSelectionRequirements requirements;
-            requirements.resources.compute_units = native_nvenc ? 0.5f : 0.0f;
-            requirements.cuda = native_nvenc;
-            requirements.vulkan_interop = native_nvenc && hot_path != "require_direct_yuv";
-            requirements.nvenc = native_nvenc;
-            requirements.nv12 = native_nvenc;
-            requirements.resources.nvenc_sessions = native_nvenc ? 1U : 0U;
-            requirements.resources.render_job_slots = 1U;
-            requirements.resources.vram_bytes = estimated_vram;
-            requirements.resources.pcie_bandwidth = native_nvenc ? 0.25f : 0.0f;
-            requirements.h264 = native_nvenc &&
-                (codec == "auto" || codec == "h264" || codec == "libx264" ||
-                 codec == "h264_nvenc");
-            requirements.hevc = native_nvenc &&
-                (codec == "hevc" || codec == "h265" || codec == "libx265" ||
-                 codec == "hevc_nvenc");
-            requirements.av1 = native_nvenc &&
-                (codec == "av1" || codec == "libsvtav1" || codec == "av1_nvenc");
+            // P0-2/4: single policy authority — no second ad-hoc builder.
+            auto requirements = resolve_device_requirements(
+                plan_width, plan_height, direct_yuv, native_nvenc, codec, hot_path);
+            const auto estimated_vram = requirements.resources.vram_bytes;
 
             // Admission control with backpressure:
             // Concurrency is governed dynamically by DeviceScheduler capacity

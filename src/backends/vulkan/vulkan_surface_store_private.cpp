@@ -133,9 +133,16 @@ namespace chronon3d::backends::vulkan {
         }
         const auto binding = surfaces.surface_bindings.find(handle);
         if (binding == surfaces.surface_bindings.end()) return;
-        wait_for_pending();
+        // Capture the slot BEFORE the wait.  wait_for_pending() retires the
+        // completed frame-batch slots' transient surfaces, and that retirement
+        // ERASES entries from surface_bindings.  Holding the iterator across
+        // the wait made `binding` dangle and the erase below ran on a stale
+        // node (SIGSEGV inside std::_Hashtable::erase, reproduced on the CLI
+        // Vulkan export at the warmup frame).  Erasing by KEY afterwards is
+        // safe whether or not the wait already retired this very binding.
         const auto slot = binding->second;
-        surfaces.surface_bindings.erase(binding);
+        wait_for_pending();
+        if (surfaces.surface_bindings.erase(handle) == 0) return;
         // Retain surfaces.physical_surfaces[slot] so subsequent ensure_surface calls
         // can reuse the allocated physical surface without re-allocating memory!
         surfaces.unplanned_surface_handles.erase(handle);

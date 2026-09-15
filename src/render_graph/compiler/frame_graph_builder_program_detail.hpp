@@ -77,15 +77,30 @@ bool is_fusible_layer_node(
     const bool is_canonical_layer_source =
         (dynamic_cast<const SourceNode*>(&graph_node) != nullptr && source_is_image) ||
         (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr && multi_source_is_image_only);
-    // Frame-bound image layers carry sampled transforms and external GPU
-    // assets.  Keep them on SourceNode's native image path until the fused
-    // storage-image batch has an equivalent descriptor/readback contract for
-    // those assets.  The native path remains device-local and supports the
-    // same Vulkan/NVENC production lane; batching static-compatible layers is
-    // still allowed below.
-    const bool frame_bound_image_source =
+    // POLICY — image layers execute on SourceNode's native image path, never as
+    // members of the fused storage-image batch.  The native path stays
+    // device-local and supports the same Vulkan/NVENC production lane; the
+    // fused storage-image batch has no equivalent descriptor/readback contract
+    // for image assets.
+    //
+    // Be precise about what this predicate actually selects:
+    // `binding_meta.active` is set by frame_graph_builder_metadata_detail.hpp
+    // for BOTH `has_layer_location` and `is_root_source`, so `has_binding()` is
+    // true for every reachable image Source.  The exclusion is therefore TOTAL,
+    // not limited to some "frame-bound" subset — there is no static-compatible
+    // image layer left that could still fuse, and no such subset is claimed
+    // here any more.
+    //
+    // Fusion survives only for TextRun sources (`is_text_layer_source` below)
+    // plus the Transform nodes that ride along with them; `batch_is_sound()`
+    // still guards those batches against the dropped-layer failure.
+    //
+    // The retired contract ("image layers fuse into one storage-image batch")
+    // and its demolition record live in
+    // docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md.
+    const bool image_source_uses_native_path =
         source_is_image && node_info.binding_meta.has_binding();
-    if (frame_bound_image_source) return false;
+    if (image_source_uses_native_path) return false;
     const bool is_text_layer_source =
         node_info.kind == RenderGraphNodeKind::TextRun &&
         dynamic_cast<const TextRunNode*>(&graph_node) != nullptr;

@@ -53,6 +53,15 @@ namespace {
         image.path.empty() || image.radius > 0.0f ||
         native_promotion::has_active_mask(state) ||
         !native_promotion::is_axis_aligned_affine(state)) {
+        if (native_surface_promotion_diag_enabled()) {
+        spdlog::info("[native_image_diag] rejected before cache: runtime={} image_cache={} gpu_cache={} backend={} surfaces={} path={} radius={:.1f} mask={} affine={}",
+                     static_cast<const void*>(ctx.runtime),
+                     ctx.image_cache != nullptr, ctx.gpu_asset_cache != nullptr,
+                         ctx.backend != nullptr, ctx.surface_registry != nullptr,
+                         !image.path.empty(), image.radius,
+                         native_promotion::has_active_mask(state),
+                         native_promotion::is_axis_aligned_affine(state));
+        }
         return false;
     }
 
@@ -64,7 +73,14 @@ namespace {
         cached = image_cache.get_or_load(
             image.path, image.decode_options);
     }
-    if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) return false;
+    if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) {
+        if (native_surface_promotion_diag_enabled()) {
+            spdlog::info("[native_image_diag] rejected cache: cached={} fb={} valid={} gpu_rgba={}",
+                         cached != nullptr, cached && cached->fb_img != nullptr,
+                         cached && cached->valid(), cached && !cached->gpu_rgba.empty());
+        }
+        return false;
+    }
 
     const auto& key = cached->gpu_key;
     const runtime::SurfaceDesc desc{
@@ -75,7 +91,14 @@ namespace {
         runtime::LifetimeClass::JobPersistent,
         cached->gpu_rgba.size() * sizeof(float)};
     const auto acquired = gpu_asset_cache.acquire(key, desc, cached->gpu_rgba);
-    if (!acquired.ok()) return false;
+    if (!acquired.ok()) {
+        if (native_surface_promotion_diag_enabled()) {
+            spdlog::info("[native_image_diag] rejected GPU asset acquire: handle={} error='{}' bytes={} size={}x{}",
+                         static_cast<std::uint64_t>(acquired.handle), acquired.error,
+                         desc.bytes, desc.width, desc.height);
+        }
+        return false;
+    }
     if (ctx.policy.diagnostics_enabled && acquired.cache_hit) {
         spdlog::debug("[gpu-asset-cache] static image '{}' reused resident handle={}",
                       image.path, static_cast<std::uint64_t>(acquired.handle));
@@ -83,7 +106,13 @@ namespace {
 
     const auto& source = *cached->fb_img;
 
-    if (!ensure_empty_native_surface(ctx, fb)) return false;
+    if (!ensure_empty_native_surface(ctx, fb)) {
+        if (native_surface_promotion_diag_enabled()) {
+            spdlog::info("[native_image_diag] rejected destination surface: fb={}x{} handle={}",
+                         fb.width(), fb.height(), static_cast<std::uint64_t>(fb.surface_handle()));
+        }
+        return false;
+    }
     const Vec2 original_source_size{
         static_cast<float>(source.width()), static_cast<float>(source.height())};
     Vec2 effective_source_size = original_source_size;

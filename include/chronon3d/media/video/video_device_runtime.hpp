@@ -55,7 +55,12 @@ public:    /// Creates a runtime for `device`. If `gpu` is null a new GpuRuntime
     [[nodiscard]] runtime::DeviceId device_id() const noexcept { return device_; }
 
     /// Worker-owned decoded image cache. It is shared by all DirectYuv jobs
-    /// using this persistent per-device runtime.
+    /// using this persistent per-device runtime.  Callers MUST NOT call
+    /// `image_cache().set_asset_resolver(job_ptr)`: the cache is
+    /// process/device lifetime, the resolver is job lifetime — storing a raw
+    /// pointer dangles after the job and races when two jobs run concurrently.
+    /// Pass the resolver explicitly per get_or_load/find call and let the
+    /// persistent CUDA cache key on ContentDigest.
     [[nodiscard]] ImageCache& image_cache() noexcept { return image_cache_; }
     [[nodiscard]] const ImageCache& image_cache() const noexcept { return image_cache_; }
 

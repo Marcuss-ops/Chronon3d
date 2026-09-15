@@ -25,6 +25,16 @@ if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
         EXTRA_LINK_TARGETS chronon3d_backend_text
         LABELS text-mtsdf
     )
+
+    # Content-addressed prepared-font identity: the glyph/face caches must key
+    # on the font's content digest, not on its path.
+    chronon3d_add_test_suite(
+        NAME chronon3d_mtsdf_font_identity_tests
+        TIER UNIT
+        SOURCES text/test_mtsdf_font_identity.cpp
+        EXTRA_LINK_TARGETS chronon3d_backend_text
+        LABELS text-mtsdf
+    )
 endif()
 
 if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT)

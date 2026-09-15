@@ -163,7 +163,11 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             const auto& image = node.shape.image();
             if (image.path.empty()) return true;
             const auto img_t0 = profiling::now();
-            auto cached = image_cache.get_or_load(image.path, image.decode_options);
+            // P0-1 fix: resolver-explicit path. The VideoDeviceRuntime ImageCache
+            // is process-persistent and shared by all jobs on that device; it
+            // must never retain a job-scoped AssetResolver* (dangling + race on
+            // concurrent jobs).  Pass the job resolver per-call instead.
+            auto cached = image_cache.get_or_load(image.path, image.decode_options, asset_resolver);
             watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
             if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
                 reason = "overlay is not available through the canonical ImageCache: " + image.path;

@@ -27,6 +27,12 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.backend = backend;
     copy.surface_registry = surface_registry;
     copy.text_render_resources = text_render_resources;
+    copy.gpu_asset_cache = gpu_asset_cache;
+    copy.gpu_glyph_atlas = gpu_glyph_atlas;
+    copy.gpu_text_atlas_cache = gpu_text_atlas_cache;
+    copy.gpu_styled_glyph_cache = gpu_styled_glyph_cache;
+    copy.gpu_text_prepared_cache = gpu_text_prepared_cache;
+    copy.image_cache = image_cache;
     copy.node_cache = node_cache;
     copy.framebuffer_pool = framebuffer_pool;
     copy.registry = registry;

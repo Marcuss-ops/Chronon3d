@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 TEST_CASE("ExecutionWorkspaceRing - leases and releases workspace slots deterministically") {
     ExecutionWorkspaceRing ring;
@@ -188,19 +189,34 @@ TEST_CASE("CompiledFrameProgram: operation capabilities and fusion properties") 
     CHECK(program.has_fused_passes);
 }
 
-TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 legacy ops") {
+// Contract: image layers execute on SourceNode's native image path and are
+// NEVER members of the fused storage-image batch.  Every reachable image source
+// carries scene-binding metadata (frame_graph_builder_metadata_detail.hpp sets
+// binding_meta.active for BOTH has_layer_location and is_root_source), and
+// is_fusible_layer_node() rejects every image source that has a binding.  Batch
+// fusion therefore survives only for TextRun sources and the Transform nodes
+// that ride along with them.
+//
+// The retired contract was "100 Image layers lower into 1 CompiledLayerBatch
+// and 0 legacy ops".  Evidence for the retirement and the demolition record of
+// the retired image path live in
+// docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md.
+TEST_CASE("Invariant: 100 Image layers stay on the native path and are never fused") {
     using namespace chronon3d::graph;
 
     RenderGraph graph;
     auto clear_node = std::make_unique<ClearNode>();
     GraphNodeId current = graph.add_node(std::move(clear_node));
 
+    std::vector<GraphNodeId> image_nodes;
+    image_nodes.reserve(100);
     cache::NodeCacheKey key{.scope = "img", .frame = 0, .width = 1920, .height = 1080};
     for (int i = 0; i < 100; ++i) {
         RenderNode rn;
         rn.shape = Shape{ImageShape{.path = "assets/images/camera_reference.jpg", .size = Vec2{160.0f, 90.0f}}};
         auto img_node = std::make_unique<SourceNode>("img_" + std::to_string(i), rn, key);
         GraphNodeId img_id = graph.add_node(std::move(img_node));
+        image_nodes.push_back(img_id);
 
         Transform t{Vec3{static_cast<float>(i * 10), static_cast<float>(i * 5), 0.0f}};
         auto xform_node = std::make_unique<TransformNode>(t);
@@ -222,29 +238,44 @@ TEST_CASE("Invariant: 100 Image layers lower into 1 CompiledLayerBatch and 0 leg
     ctx.backend = &backend;
     auto compiled = compiler.compile(std::move(graph), ctx);
 
-    CHECK(compiled.program.layer_batches.size() == 1);
-    CHECK(compiled.program.layer_batches[0].instances.size() == 100);
+    CHECK(compiled.valid);
 
-    auto count_legacy_transform_ops = [](const CompiledFrameGraph& g) {
-        std::size_t count = 0;
-        for (const auto& op : g.program.operations) {
-            if (op.node < g.nodes.size() && g.nodes[op.node].kind == RenderGraphNodeKind::Transform) {
-                count++;
-            }
-        }
-        return count;
-    };
+    // No batch is emitted for image layers: the fused storage-image path is
+    // retired, so the batch list must be EMPTY rather than one 100-instance
+    // batch.  Asserting `empty()` also makes the former out-of-bounds access on
+    // element 0 — which used to SIGSEGV the whole binary and hide the rest of
+    // the suite — impossible by construction.
+    CHECK(compiled.program.layer_batches.empty());
 
-    auto count_legacy_composite_ops = [](const CompiledFrameGraph& g) {
-        std::size_t count = 0;
-        for (const auto& op : g.program.operations) {
-            if (!op.is_fused && op.node < g.nodes.size() && g.nodes[op.node].kind == RenderGraphNodeKind::Composite) {
-                count++;
-            }
-        }
-        return count;
-    };
+    // "Not fused" must never mean "dropped": every image layer still owns at
+    // least one execution operation and none of them is marked fused.
+    std::vector<bool> node_has_operation(compiled.nodes.size(), false);
+    for (const auto& op : compiled.program.operations) {
+        if (op.node < compiled.nodes.size()) node_has_operation[op.node] = true;
+    }
+    std::size_t covered_image_layers = 0;
+    for (const GraphNodeId image_id : image_nodes) {
+        REQUIRE(image_id < compiled.nodes.size());
+        CHECK_FALSE(compiled.nodes[image_id].lowered_into_batch);
+        if (node_has_operation[image_id]) ++covered_image_layers;
+    }
+    CHECK(covered_image_layers == 100);
 
-    CHECK(count_legacy_transform_ops(compiled) == 0);
-    CHECK(count_legacy_composite_ops(compiled) == 0);
+    // The graph output (the outermost Composite) must still be executed, so
+    // "no batch" cannot mean a silently dead program.
+    REQUIRE(current < compiled.nodes.size());
+    CHECK(node_has_operation[current]);
+
+    // With an empty batch list nothing else may own a node, so every operation
+    // must be standalone — including the transforms and composites that the
+    // retired contract absorbed into the single 100-instance batch (which is
+    // exactly why the retired test asserted 0 legacy ops).
+    //
+    // Deliberately NOT asserting an exact transform/composite op count: one
+    // compile-time pass-through (the zero-translation identity transform of
+    // layer 0) does not emit its own operation, so a hardcoded 100 would pin an
+    // incidental fixture property rather than this contract.
+    for (const auto& op : compiled.program.operations) {
+        CHECK_FALSE(op.is_fused);
+    }
 }
