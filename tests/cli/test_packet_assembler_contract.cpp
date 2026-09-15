@@ -160,6 +160,9 @@ TEST_CASE("VideoExecutionResolver: final GOP decisions are equivalent to semanti
                         .kind = GopWorkKind::Reencode}}};
     const auto scheduled = resolve_video_execution_with_gop_analysis(
         video_only, output, capable, false, true, scheduled_hybrid);
+    CHECK(scheduled.valid);
+    CHECK(scheduled.reason == "hybrid_gop_boundary_reencode");
+    CHECK(scheduled.codec_path == VideoExecutionPath::BoundaryReencode);
     REQUIRE(scheduled.gop_plan.has_value());
     REQUIRE(scheduled.gop_plan->work_units.size() == 2);
     CHECK(scheduled.gop_plan->work_units[0].copies_packets());

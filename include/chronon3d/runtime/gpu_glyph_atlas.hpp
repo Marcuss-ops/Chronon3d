@@ -2,6 +2,7 @@
 
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/math/color.hpp>
@@ -53,9 +54,10 @@ enum class GlyphRepresentation : std::uint8_t {
 /// Distance field profile for distance-field representations.
 struct DistanceFieldProfile {
     GlyphRepresentation representation{GlyphRepresentation::Mtsdf};
-    std::uint16_t em_px{64};
-    std::uint16_t distance_range_px{8};
-    std::uint16_t padding_px{10};
+    std::uint16_t em_px{::chronon3d::text::kCanonicalMtsdfProfile.em_px};
+    std::uint16_t distance_range_px{
+        ::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px};
+    std::uint16_t padding_px{::chronon3d::text::kCanonicalMtsdfProfile.padding_px};
 
     friend bool operator==(const DistanceFieldProfile&, const DistanceFieldProfile&) = default;
 };
@@ -159,8 +161,9 @@ struct GlyphLocation {
 
 struct AtlasPageInfo {
     GlyphRepresentation representation{GlyphRepresentation::Mtsdf};
-    float distance_range_px{8.0f};
-    float em_px{64.0f};
+    float distance_range_px{
+        static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px)};
+    float em_px{static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.em_px)};
     float inv_width{1.0f / 2048.0f};
     float inv_height{1.0f / 2048.0f};
 };

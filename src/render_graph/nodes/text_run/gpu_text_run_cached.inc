@@ -6,7 +6,7 @@ graph::RenderOpResult draw_cached_text_run(
     float opacity) {
     // MTSDF is the canonical lowering shared with DirectYUV. Keep the packed
     // atlas below as a compatibility fallback for runs outside that contract.
-    if (ctx.runtime && ctx.backend && ctx.surface_registry) {
+    if (ctx.gpu_text_prepared_cache && ctx.backend && ctx.surface_registry) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
         if (mtsdf.ok()) return mtsdf;
@@ -179,8 +179,7 @@ graph::RenderOpResult draw_cached_text_run(
             state.stroke,
             state.stroke_width,
             shadow_hash};
-        auto* styled_cache = ctx.runtime
-            ? &ctx.runtime->gpu_styled_glyph_cache() : nullptr;
+        auto* styled_cache = ctx.gpu_styled_glyph_cache;
         auto styled = styled_cache
             ? styled_cache->find_styled(style_key)
             : std::shared_ptr<const runtime::GpuStyledGlyphCache::StyledGlyphBitmap>{};

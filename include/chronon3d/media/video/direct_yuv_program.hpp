@@ -7,6 +7,7 @@
 #include <chronon3d/media/video/hw_frame_ref.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/cuda_layer_resource.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <cstddef>
@@ -19,6 +20,7 @@
 
 namespace chronon3d {
 class ImageCache;
+namespace assets { class AssetResolver; }
 namespace media { class NativeVideoFrameDecoder; }
 }
 
@@ -30,7 +32,8 @@ struct DirectLayerResourceEntry {
     float native_height{0.0f};
     float corner_radius{0.0f};
     media::CudaLayerResourceKind kind{media::CudaLayerResourceKind::Rgba};
-    float distance_range_px{8.0f};
+    float distance_range_px{
+        static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px)};
     std::uint32_t color{0xFFFFFFFFu};
     std::uint32_t stroke_color{0};
     float stroke_width{0.0f};
@@ -70,6 +73,7 @@ public:
         const CompiledComposition& compiled,
         ImageCache& image_cache,
         std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
+        const assets::AssetResolver& asset_resolver,
         std::string& reason);
 
     /// AUDIT-04A: execute() is deliberately NON-const. It mutates the

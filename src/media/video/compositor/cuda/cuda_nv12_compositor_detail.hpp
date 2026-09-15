@@ -9,6 +9,7 @@
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
 #include "cuda_nv12_kernels.hpp"
+#include <chronon3d/text/mtsdf_profile.hpp>
 
 #include <nvrtc.h>
 
@@ -29,7 +30,8 @@ struct alignas(8) DirectYuvLayerHost {
     float opacity{1.0f};
     int blend_mode{0};
     int resource_kind{0};
-    float distance_range_px{8.0f};
+    float distance_range_px{
+        static_cast<float>(::chronon3d::text::kCanonicalMtsdfProfile.distance_range_px)};
     unsigned int color{0xFFFFFFFFu};
     unsigned int stroke_color{0};
     float stroke_width{0.0f};

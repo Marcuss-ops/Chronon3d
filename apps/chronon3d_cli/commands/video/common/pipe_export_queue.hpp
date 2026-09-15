@@ -19,6 +19,12 @@
 
 namespace chronon3d::cli {
 
+/// Bounded CPU render→writer working set. The queue and the matching
+/// framebuffer arena use the same depth so a stalled encoder cannot make
+/// either side grow independently. GPU submission depth is a separate
+/// backend concern and is intentionally not folded into this CPU limit.
+inline constexpr std::size_t kCpuVideoPipelineDepth = 4;
+
 struct FullGraphFramePackage {
     Frame frame_number{0};
     std::chrono::steady_clock::time_point enqueued_at{};
@@ -78,9 +84,8 @@ using RenderFramePackage = std::variant<FullGraphFramePackage, DirectYuvFramePac
 // ===========================================================================
 class RenderFrameQueue {
 public:
-    // Old PipeExportSession capacity (kArenaPoolCount). Fixed at compile time
-    // because BoundedSpscRing stores the ring inline.
-    static constexpr std::size_t kCapacity = 4;
+    // Fixed at compile time because BoundedSpscRing stores the ring inline.
+    static constexpr std::size_t kCapacity = kCpuVideoPipelineDepth;
 
     enum class State : std::uint8_t { Open = 0, Closed = 1, Failed = 2 };
 

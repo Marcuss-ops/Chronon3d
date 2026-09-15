@@ -442,10 +442,24 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             // would corrupt the decoder: the whole clip must re-encode.
             decision.reason = "gop_splice_unsafe";
         } else if (analysis.hybrid) {
-            // Hybrid is splice-safe but the hybrid executor is not shipped:
-            // the resolver downgrades up front with a structured reason (the
-            // executor never logs-and-downgrades at runtime).
-            decision.reason = "hybrid_pipeline_unavailable";
+            // The schedule is splice-safe and is consumed by the concrete
+            // BoundaryReencode executor before the ordinary full-clip path.
+            decision.valid = true;
+            decision.reason = "hybrid_gop_boundary_reencode";
+            decision.codec_path = VideoExecutionPath::BoundaryReencode;
+            decision.downgrade_count = 0;
+            decision.gop_plan = GopExecutionPlan{
+                .total_gops = analysis.total_gops,
+                .copy_gops = analysis.copy_gops,
+                .reencode_gops = analysis.reencode_gops,
+                .all_copy = false,
+                .hybrid = true,
+                .safe_to_splice = true,
+                .work_units = analysis.work_units,
+                .source_time_base_num = analysis.source_time_base_num,
+                .source_time_base_den = analysis.source_time_base_den,
+                .trim_only = analysis.trim_only};
+            return decision;
         } else {
             decision.reason = "gop_reencode_required";
         }

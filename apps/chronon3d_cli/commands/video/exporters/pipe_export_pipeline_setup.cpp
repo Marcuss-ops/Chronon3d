@@ -40,8 +40,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     runtime::DeviceScheduler* device_scheduler,
     std::shared_ptr<media::VideoJobExecutionContext> execution)
 {
-    constexpr size_t kArenaPoolCount = 4;
-    auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
+    constexpr size_t kArenaPoolCount = kCpuVideoPipelineDepth;
+    auto session = std::make_unique<PipeExportSession>(kCpuVideoPipelineDepth);
     session->execution_plan = opts.resolved_execution_plan;
     bool direct_yuv_requested =
         opts.resolved_execution_path ==
@@ -222,6 +222,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         std::string direct_reason;
         session->direct_yuv_session->program = media::video::DirectYuvProgram::prepare(
             compiled, session->device_runtime->image_cache(), session->device_runtime,
+            *session->direct_yuv_session->asset_resolver,
             direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {

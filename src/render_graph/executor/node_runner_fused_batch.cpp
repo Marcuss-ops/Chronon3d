@@ -41,6 +41,7 @@
 
 #include <spdlog/spdlog.h>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #endif
 
 namespace chronon3d::graph::detail {
@@ -165,14 +166,15 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
     run.sy = sy;
     run.opacity = opacity;
     run.color = pack_text_color(shape.paint.fill);
-    run.distance_range_bits = std::bit_cast<std::uint32_t>(8.0f);
+    run.distance_range_bits = std::bit_cast<std::uint32_t>(
+        static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
     if (shape.layout && !shape.animators.empty()) {
         // The prepared selector is compiled and owned by the runtime cache;
         // this helper only samples its immutable program for the current
         // frame. Non-lowerable animation is rejected by the reuse preflight.
-        auto prepared = ctx.runtime
-            ? ctx.runtime->gpu_text_prepared_cache().find(*shape.layout)
+        auto prepared = ctx.gpu_text_prepared_cache
+            ? ctx.gpu_text_prepared_cache->find(*shape.layout)
             : nullptr;
         // Lowerable glyph selectors are evaluated by the GPU text shader from
         // the compact dynamic run record.  Do not walk every glyph here: that
@@ -273,7 +275,7 @@ void execute_fused_batch_impl(
         // for the lifetime of that compiled graph.  Preflight the topology
         // before using the cache so a later style/animation incompatibility
         // cannot silently mix cached and legacy metadata.
-        if (ctx.runtime) {
+        if (ctx.gpu_text_prepared_cache) {
             const auto cached = scratch.prepared_text_batches.find(&batch);
             if (cached != scratch.prepared_text_batches.end() &&
                 !cached->second.glyphs.empty() &&
@@ -293,7 +295,7 @@ void execute_fused_batch_impl(
                         can_reuse = false;
                         break;
                     }
-                    const auto prepared = ctx.runtime->gpu_text_prepared_cache().find(
+                    const auto prepared = ctx.gpu_text_prepared_cache->find(
                         *shape->layout);
                     if (!prepared || !prepared->ready ||
                         prepared->batches.size() != 1 ||
@@ -341,7 +343,7 @@ void execute_fused_batch_impl(
             }
         }
 
-        bool current_all_prepared = ctx.runtime != nullptr;
+        bool current_all_prepared = ctx.gpu_text_prepared_cache != nullptr;
         bool current_saw_text = false;
         if (!reused_prepared_batch) for (const auto& inst : batch.instances) {
             if (inst.node >= graph.size() || !graph.has_node(inst.node)) {
@@ -405,14 +407,13 @@ void execute_fused_batch_impl(
             // persistent GpuGlyphAtlas once per (runtime, shape, layout).
             // Steady-state frames only append already-compiled metadata and
             // update the small dynamic run record.
-            if (ctx.runtime) {
-                auto prepared = ctx.runtime->gpu_text_prepared_cache().find(layout);
+            if (ctx.gpu_text_prepared_cache && ctx.gpu_glyph_atlas) {
+                auto prepared = ctx.gpu_text_prepared_cache->find(layout);
                 if (!prepared) {
                     prepared = text_run::prepare_mtsdf_text_run(
-                        *ctx.runtime, ctx.text_render_resources,
-                        ctx.asset_resolver, *render_shape);
+                        *ctx.gpu_glyph_atlas, ctx.asset_resolver, *render_shape);
                     if (prepared && prepared->ready) {
-                        ctx.runtime->gpu_text_prepared_cache().store(layout, prepared);
+                        ctx.gpu_text_prepared_cache->store(layout, prepared);
                     }
                 }
                 if (prepared && prepared->ready && prepared->batches.size() == 1) {
@@ -459,8 +460,8 @@ void execute_fused_batch_impl(
                                 glyph_run.sy = sy * glyph.scale.y;
                                 glyph_run.opacity = opacity * glyph.opacity;
                                 glyph_run.color = pack_text_color(glyph.fill);
-                                glyph_run.distance_range_bits =
-                                    std::bit_cast<std::uint32_t>(8.0f);
+                                glyph_run.distance_range_bits = std::bit_cast<std::uint32_t>(
+                                    static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
                                 glyph_run.visible_glyph_count =
                                     std::numeric_limits<std::uint32_t>::max();
                                 glyph_run.flags = 0u;
@@ -482,7 +483,8 @@ void execute_fused_batch_impl(
                         run_dyn.color = pack_text_color(render_shape->paint.fill);
                         text_run::sample_gpu_run_level_animation(
                             *render_shape, ctx.frame_input.sample_time, run_dyn);
-                        run_dyn.distance_range_bits = std::bit_cast<std::uint32_t>(8.0f);
+                        run_dyn.distance_range_bits = std::bit_cast<std::uint32_t>(
+                            static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
                         run_dyn.visible_glyph_count =
                             std::numeric_limits<std::uint32_t>::max();
                         if (prepared->reveal_selector &&
@@ -537,8 +539,8 @@ void execute_fused_batch_impl(
             // text authority.  Fail before touching that fallback; Auto and
             // compatibility callers retain the explicitly non-native route.
             if (ctx.policy.is_gpu_native_required()) {
-                const auto prepared_diag = ctx.runtime
-                    ? ctx.runtime->gpu_text_prepared_cache().find(layout)
+                const auto prepared_diag = ctx.gpu_text_prepared_cache
+                    ? ctx.gpu_text_prepared_cache->find(layout)
                     : nullptr;
                 std::string detail =
                     " layout_glyphs=" + std::to_string(layout.placed.glyphs.size()) +
@@ -690,10 +692,10 @@ void execute_fused_batch_impl(
                 "image batch source has an empty asset path");
             return;
         }
-        if (!ctx.runtime) {
+        if (!ctx.image_cache || !ctx.gpu_asset_cache) {
             report_fused_batch_error(
                 ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch requires RuntimeContext");
+                "image batch requires explicit image cache dependencies");
             return;
         }
 
@@ -719,7 +721,7 @@ void execute_fused_batch_impl(
             res_idx = scratch.resource_slots[compiled_resource_id];
             original_source_size = scratch.resource_sizes[res_idx];
         } else {
-            const auto cached = ctx.runtime->image_cache().find(img.path, img.decode_options);
+            const auto cached = ctx.image_cache->find(img.path, img.decode_options);
             if (!cached || !cached->valid() || cached->gpu_rgba.empty() || !cached->fb_img) {
                 report_fused_batch_error(
                     ctx, RenderBackendErrorCode::ExecutionFailure,
@@ -733,7 +735,7 @@ void execute_fused_batch_impl(
                 runtime::ResourceUsage::Storage,
                 runtime::LifetimeClass::JobPersistent,
                 cached->gpu_rgba.size() * sizeof(float)};
-            const auto acquired = ctx.runtime->gpu_asset_cache().acquire(key, desc, cached->gpu_rgba);
+            const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
             if (!acquired.ok()) {
                 report_fused_batch_error(
                     ctx, RenderBackendErrorCode::ExecutionFailure,

@@ -1,14 +1,14 @@
 #include "text_texture_cache.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
-#include <chronon3d/backends/text/mtsdf_generator.hpp>
+#include <chronon3d/text/mtsdf_preparation.hpp>
+#include <chronon3d/text/mtsdf_profile.hpp>
 #endif
 
 #include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdint>
-#include <filesystem>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -21,31 +21,6 @@ namespace chronon3d::media::video {
 #ifdef CHRONON3D_ENABLE_TEXT
 namespace {
 
-FT_Library text_library() {
-    static FT_Library library = [] {
-        FT_Library result = nullptr;
-        if (FT_Init_FreeType(&result) != 0) {
-            throw std::runtime_error("MTSDF FreeType initialization failed");
-        }
-        return result;
-    }();
-    return library;
-}
-
-struct FaceOwner {
-    FT_Face face{nullptr};
-    // These faces are created and used only inside one rasterize_text_texture
-    // call, but the mutex keeps the generator's per-face guard uniform: the
-    // boundary always receives the lock that protects its face.
-    std::mutex mutex;
-    FaceOwner() noexcept = default;
-    ~FaceOwner() {
-        if (face) FT_Done_Face(face);
-    }
-    FaceOwner(const FaceOwner&) = delete;
-    FaceOwner& operator=(const FaceOwner&) = delete;
-};
-
 std::uint32_t checked_dimension(float value, const char* label) {
     if (!std::isfinite(value) || value <= 0.0f || value > 65535.0f) {
         throw std::runtime_error(std::string("invalid MTSDF atlas ") + label);
@@ -56,7 +31,8 @@ std::uint32_t checked_dimension(float value, const char* label) {
 } // namespace
 
 RasterizedTextTexture rasterize_text_texture(
-    const TextRunShape& prepared_shape) {
+    const TextRunShape& prepared_shape,
+    const assets::AssetResolver& resolver) {
     if (!prepared_shape.layout) {
         throw std::runtime_error("text layer has no prepared TextRunLayout");
     }
@@ -82,30 +58,24 @@ RasterizedTextTexture rasterize_text_texture(
         throw std::runtime_error("prepared text has no valid font size");
     }
 
-    constexpr std::uint16_t kEmPx = 64;
-    constexpr std::uint16_t kRangePx = 8;
-    constexpr std::uint16_t kPaddingPx = 16;
+    constexpr auto profile = text::kCanonicalMtsdfProfile;
+    constexpr std::uint16_t kEmPx = profile.em_px;
+    constexpr std::uint16_t kRangePx = profile.distance_range_px;
+    constexpr std::uint16_t kPaddingPx = profile.padding_px;
     const float layout_scale = font_size / static_cast<float>(kEmPx);
 
-    std::vector<std::unique_ptr<FaceOwner>> faces;
-    faces.reserve(layout.font_spans.size());
     for (const auto& span : layout.font_spans) {
         if (span.glyph_begin > span.glyph_end ||
             span.glyph_end > layout.placed.glyphs.size() ||
-            span.font.font_path.empty() ||
-            !std::filesystem::exists(span.font.font_path)) {
+            span.font.font_path.empty()) {
             throw std::runtime_error("prepared text font span is invalid");
         }
-        auto owner = std::make_unique<FaceOwner>();
-        if (FT_New_Face(text_library(), span.font.font_path.c_str(), 0,
-                        &owner->face) != 0 || !owner->face ||
-            FT_Set_Pixel_Sizes(owner->face, kEmPx, kEmPx) != 0) {
-            throw std::runtime_error("prepared text font asset could not be loaded: " +
-                                     span.font.font_path);
-        }
-        faces.push_back(std::move(owner));
     }
 
+    // The DirectYUV caller supplies prepared/canonical font paths. The
+    // backend-neutral preparation cache performs the resolver lookup and owns
+    // all FreeType face lifecycle; this lowering only packs immutable glyph
+    // payloads into one contiguous CUDA texture.
     struct PreparedGlyph {
         MtsdfGlyphBitmap bitmap;
         float x{0.0f};
@@ -122,9 +92,9 @@ RasterizedTextTexture rasterize_text_texture(
         for (std::size_t index = span.glyph_begin; index < span.glyph_end; ++index) {
             const auto& state = prepared_shape.glyphs[index];
             if (state.glyph_id == 0) continue;
-            auto bitmap = generate_mtsdf_glyph(
-                MtsdfFaceGuard{faces[span_index]->face, &faces[span_index]->mutex},
-                state.glyph_id, kEmPx, kRangePx, kPaddingPx);
+            const auto bitmap = text::prepare_mtsdf_glyph(
+                resolver, layout.font_spans[span_index].font.font_path,
+                state.glyph_id, profile);
             if (!bitmap || bitmap->rgba8.empty()) {
                 // Spaces and other advance-only glyphs have no outline by
                 // design. They still participate in shaping/layout, but do
@@ -196,7 +166,7 @@ RasterizedTextTexture rasterize_text_texture(
 #else
 
 RasterizedTextTexture rasterize_text_texture(
-    const TextRunShape&) {
+    const TextRunShape&, const assets::AssetResolver&) {
     throw std::runtime_error("DirectYUV text requires CHRONON3D_ENABLE_TEXT");
 }
 
@@ -212,14 +182,16 @@ void DirectYuvTextTextureCache::store(
 }
 
 std::shared_ptr<const RasterizedTextTexture>
-DirectYuvTextTextureCache::get_or_create(const TextRunShape& prepared_shape) {
+DirectYuvTextTextureCache::get_or_create(
+    const TextRunShape& prepared_shape,
+    const assets::AssetResolver& resolver) {
     if (!prepared_shape.layout) {
         throw std::runtime_error("DirectYUV text cache requires a prepared layout");
     }
     const auto key = prepared_shape.layout->layout_hash();
     return entries_.compute_if_absent(key, [&]() {
         auto texture = std::make_shared<RasterizedTextTexture>(
-            rasterize_text_texture(prepared_shape));
+            rasterize_text_texture(prepared_shape, resolver));
         if (texture->gpu_rgba.empty() || !texture->mtsdf) {
             throw std::runtime_error(
                 "DirectYUV text cache received an incomplete MTSDF texture");

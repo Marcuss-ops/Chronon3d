@@ -3,6 +3,7 @@
 #include "text_texture_cache.hpp"
 
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
@@ -70,9 +71,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition& compiled,
     ImageCache& image_cache,
     std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
+    const assets::AssetResolver& asset_resolver,
     std::string& reason) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
-    (void)compiled; (void)image_cache; (void)video_runtime;
+    (void)compiled; (void)image_cache; (void)video_runtime; (void)asset_resolver;
     reason = "CUDA interop is not compiled";
     return nullptr;
 #else
@@ -80,15 +82,11 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         reason = "compiled composition is empty";
         return nullptr;
     }
-    // Z4 is enforced twice by design: the session resolver chooses the lane
-    // before encoder open(), while the prepared media program refuses a
-    // direct execution contract that was assembled by any other caller.
-    const auto capability = resolve_support(compiled, DirectYuvPolicy::Require);
-    if (!capability.eligible) {
-        reason = "DirectYUV capability matrix rejected the composition: " +
-            capability.reason;
-        return nullptr;
-    }
+    // Lane selection is final before this preparation boundary. The resolver
+    // and compiled-composition classifier already produced the immutable
+    // DirectYUV decision; preparation may fail for missing assets, upload
+    // errors, or broken invariants, but it must not classify the composition
+    // again and silently switch lanes.
     if (!video_runtime) {
         reason = "video device runtime is unavailable";
         return nullptr;
@@ -248,7 +246,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     " (layer '" + layer_name + "')";
                 return false;
             }
-            auto rasterized = text_texture_cache().get_or_create(*prepared_shape);
+            auto rasterized = text_texture_cache().get_or_create(
+                *prepared_shape, asset_resolver);
             watermark_load_ms += profiling::duration_ms(text_t0, profiling::now());
 
             bool cache_hit = false;
@@ -421,6 +420,8 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::acquire_frame() {
             candidate->decoded = {};
             candidate->video_layers.clear();
             candidate->program.reset();
+            candidate->decode_ms = 0.0;
+            candidate->template_reused = false;
             return candidate;
         }
     }
@@ -437,8 +438,10 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     (void)decoder; (void)frame;
     return nullptr;
 #else
+    const auto decode_t0 = profiling::now();
     auto decoded = decoder.decode_native_frame_at(
         video_path_, composition_->frame_rate().presentation_time(frame), width_, height_);
+    const double decode_ms = profiling::duration_ms(decode_t0, profiling::now());
     if (!decoded) {
         // A decode error is a failed frame, not an implicit hold-last-frame
         // policy. Repeating a previous image produces a formally successful
@@ -450,6 +453,8 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     auto result = acquire_frame();
     result->decoded = std::move(decoded);
+    result->decode_ms = decode_ms;
+    result->template_reused = false;
 
     if (all_overlay_layers_static_ && video_layers_.empty()) {
         if (cached_template_.template_frame &&
@@ -457,6 +462,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
             frame < cached_template_.valid_until) {
             ++template_reuse_count_;
             result->program = cached_template_.template_frame;
+            result->template_reused = true;
             return result;
         }
     }
