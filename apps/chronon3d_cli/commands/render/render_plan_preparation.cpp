@@ -276,6 +276,26 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
             prepared_package = read_prepared_package(
                 options.prepared_package, plan.job_id);
             validate_package_matches_plan(*prepared_package, plan);
+            auto package_metadata =
+                std::make_shared<render_plan::PreparedOverlayPackage>();
+            package_metadata->plan_id = prepared_package->plan_id;
+            package_metadata->language = prepared_package->language;
+            package_metadata->content_hash = prepared_package->content_hash;
+            package_metadata->overlays.reserve(prepared_package->overlays.size());
+            for (const auto& binding : prepared_package->overlays) {
+                package_metadata->overlays.push_back({
+                    binding.id, binding.kind, binding.text_key, binding.asset_key});
+            }
+            package_metadata->text_runs.reserve(prepared_package->text_runs.size());
+            for (const auto& binding : prepared_package->text_runs) {
+                package_metadata->text_runs.push_back({binding.key, binding.text});
+            }
+            package_metadata->assets.reserve(prepared_package->assets.size());
+            for (const auto& binding : prepared_package->assets) {
+                package_metadata->assets.push_back({
+                    binding.key, binding.logical_path, binding.content_hash});
+            }
+            plan.prepared_overlay_package = std::move(package_metadata);
             spdlog::info(
                 "[overlay-prepare] validated package={} hash={} assets={} text_runs={} overlays={}",
                 prepared_package->path, prepared_package->content_hash,
