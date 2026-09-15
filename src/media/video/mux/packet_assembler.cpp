@@ -596,24 +596,53 @@ bool MuxSession::write_header(const std::string& output_path,
     return true;
 }
 
-bool MuxSession::submit_video(EncodedPacket encoded) noexcept {
+bool MuxSession::place_video_packet(
+    AVPacket& packet, MuxVideoPlacement placement) const noexcept {
+    // P0-5E — placement, after the rescale into the stream time base: a
+    // borrowed producer's packets are shifted onto the tick the schedule
+    // reserved for its work unit. Shifting AFTER the rescale is what keeps the
+    // origin exact (no time-base round trip through the producer's own grid).
+    if (placement != MuxVideoPlacement::ScheduledOrigin || video_origin_ == 0) {
+        return true;
+    }
+    if (packet.pts != AV_NOPTS_VALUE) packet.pts += video_origin_;
+    if (packet.dts != AV_NOPTS_VALUE) packet.dts += video_origin_;
+    return packet.pts != AV_NOPTS_VALUE || packet.dts != AV_NOPTS_VALUE;
+}
+
+bool MuxSession::submit_video(EncodedPacket encoded,
+                              MuxVideoPlacement placement) noexcept {
     if (!format_ || !video_stream_ || !encoded.packet) return false;
     const auto started = std::chrono::steady_clock::now();
     auto& packet = *encoded.packet;
+    // A packet with no duration describes no time in the container. Encoders
+    // routinely leave the FINAL packet's duration unset (the frame duration is
+    // only known from the next packet, and there is none), and a container that
+    // keeps the zero loses that sample from the stream's duration — an edit
+    // list shorter than the picture, and a last frame the demuxer flags as
+    // discarded. One tick of the PRODUCER's time base is the frame duration for
+    // every frame-at-a-time producer, which is the same default the legacy
+    // PacketAssembler boundary applied.
+    if (packet.duration <= 0) packet.duration = 1;
     av_packet_rescale_ts(&packet, encoded.time_base, video_stream_->time_base);
     packet.stream_index = video_stream_->index;
+    if (!place_video_packet(packet, placement)) return false;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
     packet_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     return ok;
 }
 
-bool MuxSession::submit_video(AVPacket& packet,
-                              AVRational source_time_base) noexcept {
+bool MuxSession::submit_video(AVPacket& packet, AVRational source_time_base,
+                              MuxVideoPlacement placement) noexcept {
     if (!format_ || !video_stream_) return false;
     const auto started = std::chrono::steady_clock::now();
+    // Same convention as the EncodedPacket overload: a copied or encoded packet
+    // that states no duration states one frame.
+    if (packet.duration <= 0) packet.duration = 1;
     av_packet_rescale_ts(&packet, source_time_base, video_stream_->time_base);
     packet.stream_index = video_stream_->index;
+    if (!place_video_packet(packet, placement)) return false;
     const bool ok = av_interleaved_write_frame(format_, &packet) >= 0;
     packet_write_ms_ += std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();

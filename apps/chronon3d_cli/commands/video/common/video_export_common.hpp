@@ -65,6 +65,11 @@ color::ColorSpace parse_color_output(const std::string& cs);
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder);
 std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec);
 
+// The borrowed-container target (BorrowedMuxTarget) lives with the pipe
+// options that carry it — utils/video/ffmpeg_pipe_encoder.hpp — so the encoder
+// layer can describe and consume it without depending on the CLI command
+// header.
+
 struct FfmpegExportOptions {
     OutputOptions         output;
     EncoderOptions        encoder;
@@ -118,6 +123,11 @@ struct FfmpegExportOptions {
     /// from the source makes the native mux resample the audio to that rate.
     int audio_target_sample_rate{0};
     bool gop_copy_only{false};
+
+    // P0-5E: set only by the direct-mux hybrid executor for the child render of
+    // a re-encoded work unit. Unset (the normal case) means the encoder owns
+    // its own container exactly as before.
+    std::optional<BorrowedMuxTarget> borrowed_mux{};
 
     // Optional SIMO outputs. An empty list preserves the single-output path;
     // populated variants share the render master and fan out at the encoder

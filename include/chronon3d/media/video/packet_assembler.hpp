@@ -61,6 +61,26 @@ struct EncodedPacket {
     bool keyframe{false};
 };
 
+/// P0-5E — where a BORROWED producer's packets belong in the container.
+///
+/// A container declared from the compressed source (open_source_declared_mux)
+/// carries copied GOPs at their own source ticks and freshly encoded GOPs at
+/// the tick the schedule reserved for the work unit that produced them. Which
+/// of the two a packet is cannot be read off the packet: it is the producer's
+/// placement that decides, and the MuxSession stays the one timestamp
+/// authority that applies it.
+///
+enum class MuxVideoPlacement : std::uint8_t {
+    /// The packet's own timestamps, rescaled into the stream time base. Copied
+    /// source packets and ordinary single-owner exports.
+    AsSubmitted,
+    /// Rescaled and then shifted by the container's scheduled origin
+    /// (set_video_origin): what a borrowed encoder's packets need so the work
+    /// unit it just rendered lands where the schedule put it instead of
+    /// restarting the container at zero.
+    ScheduledOrigin,
+};
+
 /// Describes an audio stream to add to a MuxSession. The caller supplies
 /// codec parameters (typically copied from the source or the TTS output)
 /// and the source time_base so rescale_ts works correctly.
@@ -149,16 +169,26 @@ public:
     [[nodiscard]] bool write_header(const std::string& output_path,
                                      std::string& reason);
 
+    /// Declare the container tick a BORROWED producer's output starts at. The
+    /// owner of the session sets it before handing the session to the producer
+    /// of one work unit; packets submitted with MuxVideoPlacement::
+    /// ScheduledOrigin are shifted by exactly this many stream ticks.
+    void set_video_origin(std::int64_t origin_ticks) noexcept { video_origin_ = origin_ticks; }
+    [[nodiscard]] std::int64_t video_origin() const noexcept { return video_origin_; }
+
     /// Submit a video packet. This is the canonical sink for all encoded
     /// video: NVENC output, copied bitstream packets, and any future
     /// encoder path. The MuxSession owns the timestamp authority — callers
     /// never rescale PTS themselves.
-    [[nodiscard]] bool submit_video(EncodedPacket packet) noexcept;
+    [[nodiscard]] bool submit_video(
+        EncodedPacket packet,
+        MuxVideoPlacement placement = MuxVideoPlacement::AsSubmitted) noexcept;
     /// Synchronous borrowed-packet path. The packet is consumed before this
     /// call returns, so the caller can reuse it without cloning it into a
     /// shared_ptr control block.
-    [[nodiscard]] bool submit_video(AVPacket& packet,
-                                    AVRational source_time_base) noexcept;
+    [[nodiscard]] bool submit_video(
+        AVPacket& packet, AVRational source_time_base,
+        MuxVideoPlacement placement = MuxVideoPlacement::AsSubmitted) noexcept;
 
     /// Submit an audio packet. Same contract as submit_video: the MuxSession
     /// rescales the packet from the declared time_base into the audio
@@ -168,8 +198,10 @@ public:
 
     /// Legacy alias for submit_video. Retained for callers that were
     /// written before the A/V split; new code should call submit_video.
-    [[nodiscard]] bool submit(EncodedPacket packet) noexcept {
-        return submit_video(std::move(packet));
+    [[nodiscard]] bool submit(
+        EncodedPacket packet,
+        MuxVideoPlacement placement = MuxVideoPlacement::AsSubmitted) noexcept {
+        return submit_video(std::move(packet), placement);
     }
 
     [[nodiscard]] bool finalize() noexcept;
@@ -189,6 +221,10 @@ private:
     [[nodiscard]] bool write_audio_packet(AVPacket& packet,
                                           AVRational source_time_base) noexcept;
 
+    /// Shifts a rescaled packet onto the schedule's origin (P0-5E).
+    [[nodiscard]] bool place_video_packet(AVPacket& packet,
+                                          MuxVideoPlacement placement) const noexcept;
+
     AVFormatContext* format_{nullptr};
     AVStream* video_stream_{nullptr};
     AVStream* audio_stream_{nullptr};
@@ -201,6 +237,8 @@ private:
     static void delete_writer(MuxAvioHashWriter* writer) noexcept;
     std::string output_path_;
     std::string output_checksum_;
+    /// P0-5E — container tick a BORROWED producer's output starts at.
+    std::int64_t video_origin_{0};
     bool checksum_used_reread_{false};
     bool finalize_attempted_{false};
     bool finalized_{false};

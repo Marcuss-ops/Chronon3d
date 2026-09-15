@@ -187,21 +187,31 @@ downgrade strutturato e contato (`gop_reencode_required`, `downgrade_count=1`)
 invece di un copy non certificato. Non è una perdita silenziosa: è la stessa
 rete di sicurezza già usata da `gop_splice_unsafe`.
 
-**Reperto empirico (misurato su questa lane, `libx264`):** l'encoder non
-espone i propri parameter sets nel `AVCodecContext` all'`avcodec_open2()` —
-`profile=-99`, `level=-99`, `extradata_size=0` anche dopo il primo frame;
-l'avcC del container viene sintetizzato dal muxer a partire dal bitstream. Un
-fatto confermato dal test: il contratto resta `encoder_materialized=false` e
-**non può essere falsamente materializzato** (invariante pinnata). Di
-conseguenza il gate di splice **non può essere un preflight a priori**: i fatti
-dell'encoder esistono solo dopo che l'encoder ha prodotto output. È
-esattamente il motivo per cui 5D (copy-to-mux) precede il ripristino del copy.
+**Reperto empirico (misurato su questa lane, `libx264`):** senza
+`AV_CODEC_FLAG_GLOBAL_HEADER` l'encoder non espone i propri parameter sets nel
+`AVCodecContext` — `extradata_size=0` anche dopo il primo frame, e l'avcC del
+container viene sintetizzato dal muxer a partire dal bitstream in-band.
+`NativeAvEncoder::open()` ora **pretende** l'header globale: un container deve
+descrivere lo stream che porta, e la lane di splice ha bisogno che l'encoder sia
+grado di dichiarare i propri parameter set invece di ripeterli su ogni
+keyframe. Il contratto è quindi materializzato **già all'apertura** (codec,
+dimensioni, configuration record dell'encoder), con `profile`/`level`/pixel
+format esplicitamente **unstated** finché un consumatore li può derivare: i due
+produttori del contratto (contesto codec e packet in-band, per gli encoder che
+non onorano l'header globale) applicano ora **la stessa** regola di
+materializzazione, altrimenti dichiarano due cose diverse sullo stesso stream.
+La forma del contratto resta comunque fail-closed: un contratto **di sola
+configurazione** (prima che un encoder esista) non è mai materializzato, e il
+preflight continua a produrre il downgrade dichiarato `gop_reencode_required`.
 
 Evidenza: 4 case in `tests/cli/test_packet_assembler_contract.cpp`
-(`P0-5A: ...`) — contratto dichiarato encoder-owned e fail-closed; un target
-non materializzato **non** certifica lo splice (il caso che prima era verde per
-tautologia); la lane remux conserva i fatti della sorgente e pianifica ancora
-le copie; il contratto non è mai falsamente materializzato.
+(`P0-5A: ...`) — contratto dichiarato encoder-owned e fail-closed; un target non
+materializzato **non** certifica lo splice (il caso che prima era verde per
+tautologia); la lane remux conserva i fatti della sorgente e pianifica ancora le
+copie; il contratto materializzato descrive **esattamente** lo stream che il
+demuxer rilegge dal container prodotto (parametri confrontati come NAL, non come
+wrapper avcC-vs-Annex-B) e la stessa authority di riproduzione **rifiuta** uno
+stream che l'encoder non ha prodotto.
 
 Verifica sulla lane GPU reale (RTX A4000, `hevc_nvenc`, sorgente HEVC 3 GOP,
 `--changed-interval 1.0:1.2:content`):
@@ -236,9 +246,32 @@ l'unico criterio (layout/metadati possono differire lecitamente).
 Evidenza: 3 case — corpus congelato; un container identico ha zero differenze;
 ogni classe di differenza (trim, re-encode, audio rimosso) è rilevata.
 
-**NOT RUN (alla 5B):** la run end-to-end fra `execute_hybrid_gop_plan` (oracle)
-e il direct mux non era eseguibile finché 5C/5D non esistevano. Chiusa da 5D
-(vedi sotto).
+**CHIUSA (5E/5F/5G).** Il corpus non è più solo dichiarato: ogni forma viene
+autorata su **una** fixture da 14 s (7 GOP della cadenza contrattuale di 2 s,
+prodotta dallo *stesso* encoder che poi re-encoda, perché il gate pretende che
+l'encoder riproduca lo stream dichiarato) e fatta girare due volte — direct mux
+(copie + child encoder nel mux del chiamante + audio + un finalize) contro il
+meccanismo a segmenti (`copy_gop_source` per unità copiata, un MP4 per unità
+re-encodata, `assemble_segments`). Il test
+`P0-5B: every frozen hybrid shape matches the segment-file oracle` verifica,
+per **tutte e cinque** le forme:
+
+```text
+schedule    le kind pianificate sono quelle congelate (COPY/REENCODE, in ordine)
+packet      stessa sequenza di payload (SHA-256), PTS, DTS, duration e flags
+frame       stesse frame decodificate, decodifica OK, stessa durata container
+copie       byte identity ASSOLUTA contro la SORGENTE, con il tick assegnato
+            dallo schedule (più forte della parità con l'oracle)
+audio       packet inviati esattamente una volta per l'intero schedule, contati
+            dalla sorgente nella time base audio (una submit per unità
+            moltiplicherebbe il conteggio)
+```
+
+Le finestre dei casi coprono `0..6` (COPY,RE,COPY), `2..6` (RE,COPY), `0..4`
+(COPY,RE), `0..10` con **due** blocchi modificati separati, e `4..10` (trim +
+content edit). La forma `trim` prova anche l'origine della finestra: il zero del
+container è il primo tick richiesto, applicato a video **e** audio con lo stesso
+intero.
 
 ## P0-5D — copy-to-mux nella MuxSession condivisa + parità end-to-end
 
@@ -252,14 +285,18 @@ stesso modulo `gop_smart_copy.{hpp,cpp}` (nessun secondo executor):
 - `SourceMuxDeclaration::encoder_reproduces(encoder_contract)` — la
   certificazione di splice di questa lane, e usa **la stessa** authority di
   confronto (`compare_bitstream_compatibility`): nessuna seconda tabella;
-- `submit_gop_source_packets(source, unit, mux)` — scrive i packet di **un**
-  `GopWorkUnit` usando `unit.source_packets` / `first_dts` / `last_dts` nella
-  **time base della sorgente**. Nessun `timestamp → secondi → frame → secondi →
-  timestamp`: quella seconda interpretazione dello schedule è rimossa;
-- `submit_source_audio(source, mux, video_window)` — audio **una volta sola**,
-  con la finestra dello schedule espressa nella time base **video** della
-  sorgente e convertita con `av_rescale_q`: una sola conversione, quella del
-  container. Il chiamante finalizza **una** volta.
+- `submit_gop_source_packets(source, unit, mux, window_origin)` — scrive i
+  packet di **un** `GopWorkUnit` usando `unit.source_packets` / `first_dts` /
+  `last_dts` nella **time base della sorgente**, traslati sullo zero del
+  container da un'origine in **tick interi** della stessa time base. Nessun
+  `timestamp → secondi → frame → secondi → timestamp`: quella seconda
+  interpretazione dello schedule è rimossa;
+- `submit_source_audio(source, mux, video_window, window_origin)` — audio
+  **una volta sola**, con la finestra dello schedule espressa nella time base
+  **video** della sorgente, convertita con `av_rescale_q` e traslata dalla
+  **stessa** origine: senza l'origine l'audio resterebbe sui suoi timestamp
+  assoluti mentre il video parte da zero, cioè un offset A/V pari al trim;
+- il chiamante finalizza **una** volta.
 
 Vincolo di design risolto: i fatti bitstream dell'encoder esistono solo dopo il
 primo frame encodato, quindi la certificazione non può avvenire a `open()`.
@@ -331,24 +368,36 @@ Test di regressione: `HEVC length-prefixed GOPs are certified copy-eligible
 (hvcC)` in `tests/cli/test_packet_assembler_contract.cpp` (fixture `libx265`,
 quindi eseguibile anche senza GPU).
 
-## P0-5C — `MuxSession` caller-owned (seam landed)
+## P0-5C — `MuxSession` caller-owned (chiusa)
 
-`FfmpegPipeOptions::borrowed_mux` aggiunge la proprietà caller-owned senza
-cambiare la lane normale (`nullptr` = l'encoder apre e finalizza il proprio
-container). Con un mux preso in prestito:
+`FfmpegPipeOptions::borrowed_mux` + `borrowed_declared_stream` aggiungono la
+proprietà caller-owned senza cambiare la lane normale (`nullptr` = l'encoder apre
+e finalizza il proprio container). Con un mux preso in prestito:
 
 - `NativeAvEncoder` distingue `owned_mux_` (proprietà) da `mux_` (il sink
   effettivamente scritto) e `borrows_mux_`;
 - `close()` fa **solo** flush del codec: niente audio, niente trailer. Finalizzare
   lì chiuderebbe il container dopo il **primo** GOP ri-encodato, perdendo tutti
   i work unit successivi — esattamente il rischio elencato in apertura;
+- nella stessa `close()`, **prima** di lasciare il container al chiamante,
+  l'encoder viene certificato contro lo stream che il container dichiara
+  (`encoder_reproduces_declared_stream`): se non lo riproduce, `close()`
+  fallisce e il lavoro non viene pubblicato;
 - la telemetria del container (`open_mux_header_ms`, `hash_metrics`,
   `full_file_reread_count`) resta al **proprietario**, senza doppio conteggio.
 
-Evidenza: `P0-5C: an encoder writes through a caller-owned MuxSession` — il
-chiamante apre il container sulla propria dichiarazione di stream, l'encoder
-scrive un frame, `close()` lascia il container aperto, il chiamante finalizza
-una sola volta, e il file prodotto contiene esattamente 1 packet H.264.
+Una nota sul contenuto del container prestato, perché non è ovvio: la
+**dichiarazione** dello stream viene dalla **sorgente** (è ciò che rende
+corretto per costruzione un packet copiato), quindi il container porta già il
+configuration record della sorgente. Il child encoder deve perciò emettere il
+formato che quel container memorizza — vedi il punto 4 di 5E/5F.
+
+Evidenza: `P0-5C: an encoder writes through a caller-owned MuxSession` — la
+sorgente è prodotta dallo stesso encoder, il chiamante apre il container sulla
+dichiarazione della sorgente, l'encoder scrive un frame, `close()` lascia il
+container aperto **e certifica la riproduzione**, il chiamante finalizza una
+sola volta, e il file prodotto è leggibile dal demuxer e contiene esattamente 1
+packet H.264.
 
 ## P0-5I — misura VRAM DirectYUV (sostituisce il floor da 1 GB come unico dato)
 
@@ -436,12 +485,76 @@ certificata same-SHA: resta il punto del debito sotto.
 | **Exit condition** | `GopExecutionExecutor` + una sola `MuxSession` produce output byte-identico al percorso a segmenti sul corpus hybrid, e `execute_hybrid_gop_plan` ha zero caller. |
 | **Equivalence test/gate** | `tests/cli/test_gop_direct_mux_parity.cpp` — corpus congelato (`gop_parity_corpus()`) + comparatore oracle (`probe_container()`/`compare_containers()`): identità di payload/PTS/DTS/duration/flags per i packet copiati, fatti di stream, frame decodificati, durata, audio; SHA-256 dell'intero file riportato a parte. La lane **copy** è già verde con SHA-256 identico (5D); l'exit condition copre però l'intero corpus hybrid, quindi serve il reencode nel mux condiviso (5E/5F). |
 | **Removal scope** | `struct HybridSegment`, workspace `.hybrid-*`, `segment_paths`, il caller hybrid di `assemble_segments()`, `execute_hybrid_gop_plan()`, e i commenti di debito in `video_job_execute_dispatch.cpp`. |
-| **Status** | `ACTIVE` — fase 1 (validazione schedule via executor), **5A** (target di splice encoder-owned), **5B** (gate di parità), **5C** (seam caller-owned) e **5D** (copy-to-mux + parità end-to-end, SHA-256 identico) landate. Restano 5E/5F (il child render deve scrivere nel mux del chiamante) e poi 5G. |
+| **Status** | `DONE` — **5A** (target encoder-owned), **5B** (gate di parità, cinque forme), **5C** (seam caller-owned), **5D** (copy-to-mux + parità), **5E/5F** (child render nel mux del chiamante, audio e trailer una volta) e **5G** (demolizione) landati. Il percorso `encode → write → close → open → demux → timestamp-normalize → remux → delete` non esiste più: `execute_direct_mux_gop_plan` è l'unico executor. Resta **5H** (evidenza same-SHA su GPU reale). |
+| **Residuo cosciente** | `copy_gop_source()` **non** è stata rimossa: non è più un meccanismo a segmenti ma (a) l'implementazione della lane **whole-clip packet copy** (scrive il container finale, pubblicato con rename atomico) e (b) **l'oracle** del gate di parità. Il suo scope di rimozione non la elencava; eliminarla oggi toglierebbe l'oracle contro cui la lane ibrida è certificata senza sostituirlo con niente. Candidata a cadere quando la lane copy passerà anch'essa dalle primitive `open_source_declared_mux` + `submit_gop_source_packets` con un oracle congelato equivalente. |
 
-Percorso pagato oggi per lavoro che potrebbe essere un solo mux:
-`encode → write → close → open → demux → timestamp-normalize → remux → delete`.
+## P0-5E/5F — un solo executor, un solo mux caller-owned
+
+`execute_direct_mux_gop_plan` (`video_job_execute_dispatch.cpp`) è l'unico
+executor della lane ibrida. Struttura:
+
+```text
+GopExecutionPlan (source intera)
+   ↓ gop_units_in_window(plan, request_start, request_end)   ← una authority di selezione
+unità della finestra
+   ↓ GopExecutionExecutor
+COPY (submit_gop_source_packets)  REENCODE (child nel mux prestato)
+   ↓ av_interleaved_write_frame (una MuxSession)
+submit_source_audio (una volta) → finalize (una volta) → verifica contratto → rename atomico
+```
+
+Punti che sono costati un difetto vero e sono ora fissati e testati:
+
+1. **Il piano copre la sorgente intera.** La finestra *seleziona* le unità
+   (`gop_units_in_window`, la stessa funzione usata dal gate di parità); un
+   bordo che cade **dentro** un'unità copiata viene **rifiutato**
+   (`window_start_not_gop_aligned` / `window_end_not_gop_aligned`) invece di
+   emettere il GOP intero, perché il frame count pubblicato deve essere quello
+   richiesto. Un'unità re-encodata invece viene resa esattamente per i frame
+   dentro la finestra.
+2. **Un solo zero per video e audio**: `request_start_pts` in tick interi,
+   applicato ai packet copiati, all'origine del child (`set_video_origin`) e
+   all'audio via `av_rescale_q`. Numeri interi in una time base, nessun secondo
+   reintrodotto.
+3. **L'ultimo packet di un child encode non aveva duration**: il container
+   perdeva l'ultimo sample dalla durata (edit list più corta del filmato, e la
+   demuxer marcava l'ultima frame come discard). Il confine del mux ora applica
+   la convenzione "un packet senza duration vale un tick del produttore", la
+   stessa che il vecchio `PacketAssembler` usava.
+4. **Il container prestato dichiara il proprio formato.** Il child encoder
+   emette Annex-B; poiché il container prestato porta **già** il configuration
+   record della sorgente, libavformat non inserisce il BSF automatico di
+   conversione e i packet sarebbero finiti grezzi nell'mp4 (file non
+   decodificabile). Il producer converte (`convert_annex_b_to_length_prefixed`)
+   esattamente quando il container dichiara un configuration record.
+5. **Certificazione a `close()`** del child contro lo stream dichiarato
+   (`encoder_reproduces_declared_stream`), fail-closed: un encoder che non
+   riproduce lo stream del container non pubblica nulla.
 
 ---
+
+## Verifica (2026-09-15, P0-5A/5B/5C/5D/5E/5F/5G — questo change set)
+
+```text
+linux-video-test (Vulkan OFF, CUDA interop OFF, FFmpeg ON, text OFF, ccache + ninja -j16)
+  cmake --build --target chronon3d_cli_tests                        EXIT 0
+  chronon3d_cli_tests                 180/180 case, 3574 assertion  PASS
+  cmake --build --target chronon3d_native_video_sink_factory_tests  EXIT 0
+  chronon3d_native_video_sink_factory_tests   8/8 case, 268 assertion PASS
+
+gate di parità (tests/cli/test_gop_direct_mux_parity.cpp)
+  P0-5D  copy lane vs oracle                        PASS (parità packet-per-packet)
+  P0-5E/5F  COPY+REENCODE+COPY vs oracle            PASS (60/60 packet, 60 frame)
+  P0-5B  cinque forme del corpus vs oracle          PASS (tutte, packet-per-packet)
+  P0-5F  audio una volta sola (conteggio dalla sorgente) PASS
+  P0-5A  contratto encoder-owned + authority di riproduzione PASS
+  P0-5C  container prestato + certificazione a close PASS
+```
+
+Non-regressione: il gate di parità confronta **payload/PTS/DTS/duration/flags
+packet per packet** contro il meccanismo a segmenti; l'SHA-256 dell'intero file
+resta riportato a parte (il layout del container può differire lecitamente: nel
+case ibrido i due file sono semanticamente identici ma non byte-identici).
 
 ## Verifica (2026-09-15, P0-5A + 5B + hvcC + 5C)
 

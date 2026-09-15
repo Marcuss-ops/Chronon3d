@@ -95,6 +95,24 @@ struct EncoderColorContract {
     const AVCodecContext& codec,
     const FfmpegPipeOptions& options,
     const ResolvedEncoderConfig& resolved) noexcept;
+
+/// MATERIALIZED encoder-owned contract built from the encoder's OWN output
+/// packet.
+///
+/// libx264 and NVENC publish their parameter sets IN-BAND: the first packet
+/// carries the SPS/PPS as AV_PKT_DATA_NEW_EXTRADATA and leaves the codec
+/// context's extradata empty, so the codec-context probe above legitimately
+/// never materializes for them. The packet is therefore where the stream a
+/// demuxer will read back actually becomes visible, and it is the instrument
+/// the borrowed-mux gate needs (P0-5E).
+///
+/// Returns std::nullopt while no packet has published the facts yet; callers
+/// stay fail-closed in that case.
+[[nodiscard]] std::optional<BitstreamTargetContract>
+encoder_bitstream_contract_from_packet(const AVPacket& packet,
+                                       const AVCodecContext& codec,
+                                       const FfmpegPipeOptions& options,
+                                       const ResolvedEncoderConfig& resolved) noexcept;
 #endif
 
 /// Resolve the encoder configuration this FfmpegPipeOptions pair would apply
@@ -102,5 +120,25 @@ struct EncoderColorContract {
 /// configuration cannot be resolved — no target, therefore no copy.
 [[nodiscard]] std::optional<BitstreamTargetContract>
 resolve_encoder_bitstream_contract(const FfmpegPipeOptions& options) noexcept;
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+/// P0-5E — did the encoder reproduce the stream the borrowed container was
+/// declared from?
+///
+/// On the direct-mux splice lane the container's video stream is declared from
+/// the compressed SOURCE (a copied packet is then correct by construction), so
+/// the only thing left to prove is that the encoder's own output reproduces
+/// that declaration: same codec, profile, level, dimensions, pixel format,
+/// parameter sets and colour. `declared` is the source side of the
+/// comparison, `encoder_contract` the materialized output of the encoder that
+/// will write into the same container.
+///
+/// This is the same comparison authority the source preflight uses
+/// (compare_bitstream_compatibility) — no second table, and the source is
+/// never allowed to certify itself: the target is always the encoder's.
+[[nodiscard]] bool encoder_reproduces_declared_stream(
+    const BitstreamTargetContract& declared,
+    const BitstreamTargetContract& encoder_contract) noexcept;
+#endif
 
 } // namespace chronon3d::cli

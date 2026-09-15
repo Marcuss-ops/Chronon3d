@@ -34,6 +34,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::cli::test_gop_parity {
@@ -42,24 +43,42 @@ namespace chronon3d::cli::test_gop_parity {
 /// schedule shapes the legacy segment-file executor is the oracle for.
 struct GopParityCase {
     std::string_view name;
-    /// Comma-separated planned GOP kinds, in source order.
+    /// The planned GOP kinds the schedule MUST produce, in source order. The
+    /// corpus is the gate's input AND its expectation: a shape whose schedule
+    /// silently changes is a different shape.
     std::string_view schedule;
     /// Number of disjoint modified blocks (content edits) in the timeline.
     std::size_t edited_blocks{0};
-    /// The requested window is narrower than the source.
+    /// The requested window is narrower than the source (a real trim).
     bool trim{false};
+    /// Requested window, in seconds, against the shared 14 s fixture.
+    double window_start_seconds{0.0};
+    double window_end_seconds{0.0};
+    /// Content edits, in seconds, against the same fixture.
+    std::vector<std::pair<double, double>> edits{};
+
+    [[nodiscard]] std::string expected_schedule() const {
+        std::string out(schedule);
+        out.push_back(',');
+        return out;
+    }
 };
 
 /// The frozen corpus. Growing it is fine; removing a shape silently shrinks
-/// the demolition gate, which is why the test pins every name.
+/// the demolition gate, which is why the test pins every name and the aligned
+/// schedule each one must produce on the shared 14 s fixture (7 GOPs of the
+/// contract's 2 s cadence).
 [[nodiscard]] inline const std::vector<GopParityCase>& gop_parity_corpus() {
     static const std::vector<GopParityCase> corpus{
-        {"copy_reencode_copy", "COPY,REENCODE,COPY", 1, false},
-        {"reencode_copy", "REENCODE,COPY", 1, false},
-        {"copy_reencode", "COPY,REENCODE", 1, false},
+        {"copy_reencode_copy", "COPY,REENCODE,COPY", 1, false, 0.0, 6.0,
+         {{2.0, 2.1}}},
+        {"reencode_copy", "REENCODE,COPY", 1, false, 2.0, 6.0, {{2.0, 2.1}}},
+        {"copy_reencode", "COPY,REENCODE", 1, false, 0.0, 4.0, {{2.0, 2.1}}},
         {"two_separate_modified_blocks",
-         "COPY,REENCODE,COPY,REENCODE,COPY", 2, false},
-        {"trim_plus_content_edit", "COPY,REENCODE", 1, true},
+         "COPY,REENCODE,COPY,REENCODE,COPY", 2, false, 0.0, 10.0,
+         {{2.0, 2.1}, {6.0, 6.1}}},
+        {"trim_plus_content_edit", "COPY,REENCODE,COPY", 1, true, 4.0, 10.0,
+         {{6.0, 6.1}}},
     };
     return corpus;
 }
@@ -85,7 +104,22 @@ TEST_CASE("BoundaryReencode parity corpus is frozen") {
     for (const auto& entry : corpus) {
         INFO("case: " << entry.name);
         CHECK(entry.schedule.find("REENCODE") != std::string_view::npos);
+        CHECK(entry.edited_blocks >= 1);
+        CHECK(entry.edits.size() == entry.edited_blocks);
+        CHECK(entry.window_end_seconds > entry.window_start_seconds);
     }
+    // The two shapes that must not collapse into each other: a single modified
+    // block and two SEPARATE ones, plus the trimmed window.
+    const auto entry_for = [&](std::string_view name)
+        -> const chronon3d::cli::test_gop_parity::GopParityCase& {
+        for (const auto& entry : corpus) {
+            if (entry.name == name) return entry;
+        }
+        return corpus.front();
+    };
+    CHECK(entry_for("two_separate_modified_blocks").edited_blocks == 2);
+    CHECK(entry_for("trim_plus_content_edit").trim);
+    CHECK(entry_for("trim_plus_content_edit").window_start_seconds > 0.0);
 }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -97,10 +131,32 @@ extern "C" {
 }
 
 #include "utils/video/gop_smart_copy.hpp"
+#include "utils/video/native_av_encoder.hpp"
 // Full definition of MuxSession: the direct-mux test owns the session itself.
 #include "chronon3d/media/video/packet_assembler.hpp"
 
 namespace chronon3d::cli::test_gop_parity {
+
+/// Encoder options for the hybrid parity fixture: the SAME configuration is
+/// used for the direct lane's borrowed encoder and for the oracle's segment
+/// encoder, so the re-encoded payloads are comparable at all.
+[[nodiscard]] inline chronon3d::cli::FfmpegPipeOptions parity_encoder_options(
+    const std::string& output_path) {
+    chronon3d::cli::FfmpegPipeOptions options;
+    options.width = 64;
+    options.height = 64;
+    options.fps_num = 10;
+    options.fps_den = 1;
+    options.codec = "libx264";
+    options.hardware_encoder = "none";
+    options.preset = "ultrafast";
+    options.rate_control_mode = "crf";
+    options.rate_control_mode_explicit = true;
+    options.crf = 23;
+    options.crf_explicit = true;
+    options.output_path = output_path;
+    return options;
+}
 
 struct PacketFacts {
     std::int64_t pts{0};
@@ -128,6 +184,11 @@ struct AudioFacts {
     int sample_rate{0};
     int channels{0};
     std::uint64_t packet_count{0};
+    /// Audio stream time base and the PTS of every packet, so a window can be
+    /// counted independently of any producer.
+    int time_base_num{0};
+    int time_base_den{1};
+    std::vector<std::int64_t> packet_pts;
 };
 
 struct ContainerFacts {
@@ -250,6 +311,8 @@ ContainerFacts probe_container(const std::string& path) {
         facts.audio.codec_id = params->codec_id;
         facts.audio.sample_rate = params->sample_rate;
         facts.audio.channels = params->channels;
+        facts.audio.time_base_num = format->streams[audio_index]->time_base.num;
+        facts.audio.time_base_den = format->streams[audio_index]->time_base.den;
     }
 
     AVPacket* packet = av_packet_alloc();
@@ -279,6 +342,9 @@ ContainerFacts probe_container(const std::string& path) {
             facts.video.packets.push_back(std::move(entry));
         } else if (packet->stream_index == audio_index) {
             ++facts.audio.packet_count;
+            if (packet->pts != AV_NOPTS_VALUE) {
+                facts.audio.packet_pts.push_back(packet->pts);
+            }
         }
         av_packet_unref(packet);
     }
@@ -571,6 +637,665 @@ TEST_CASE("P0-5D: source-declared direct mux matches the copy oracle") {
     CHECK(diffs.empty());
 
     std::filesystem::remove_all(dir, cleanup_error);
+}
+
+// ── P0-5E/5F — COPY + REENCODE + COPY in ONE caller-owned container ──────
+//
+// The mechanism the production executor is built from, against the legacy
+// segment-file mechanism as oracle (one temp MP4 per segment, then remux):
+//
+//   direct:  source-declared mux ← copy(GOP0) + borrowed encoder(GOP1 @ its
+//            scheduled tick) + copy(GOP2) → finalize once
+//   oracle:  copy_gop_source(0..1s) + encoder segment file +
+//            copy_gop_source(2..3s) → assemble_segments()
+//
+// Both must agree packet-for-packet: the copied GOPs byte-identical, every
+// packet identical in PTS/DTS/duration/flags, the same decodable frame count.
+// This is the gate the demolition of the segment path (P0-5G) depended on.
+TEST_CASE("P0-5E/5F: the direct hybrid mux matches the segment-file oracle") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = std::filesystem::temp_directory_path() /
+        "chronon3d_hybrid_direct_mux";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(dir, cleanup_error);
+    std::filesystem::create_directories(dir, cleanup_error);
+
+    // The compressed source is authored with the SAME encoder configuration
+    // the re-encode lane will use. That is not a convenience: the splice gate
+    // requires the encoder to REPRODUCE the declared stream, and the legacy
+    // segment mechanism (the oracle below) requires the segments it assembles
+    // to carry the same configuration record, so a foreign source could not
+    // reach the boundary either way. 6 s at 10 fps with the contract's 2 s
+    // keyframe cadence is exactly 3 GOPs.
+    const auto source = dir / "source.mp4";
+    {
+        chronon3d::cli::NativeAvEncoder writer;
+        REQUIRE(writer.open(
+            chronon3d::cli::test_gop_parity::parity_encoder_options(source.string())));
+        for (int index = 0; index < 60; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(writer.write_frame(frame));
+        }
+        REQUIRE(writer.close());
+    }
+
+    // The schedule comes from the REAL preflight, against the container
+    // declaration the direct lane opens: the source's own stream.
+    const auto declared = chronon3d::cli::make_remux_target_contract(source.string());
+    REQUIRE(declared.has_value());
+    const std::vector<chronon3d::media::ChangedInterval> edits{
+        {2.0, 2.1, chronon3d::media::ChangedIntervalKind::Content}};
+    const auto analysis = chronon3d::cli::inspect_gop_source(
+        source.string(), *declared, 0.0, 6.0, /*content_changed=*/true, edits);
+    REQUIRE(analysis.has_value());
+    REQUIRE(analysis->plans.size() == 3);
+    // Frozen corpus shape `copy_reencode_copy`.
+    CHECK(analysis->plans[0].copy_packets());
+    CHECK_FALSE(analysis->plans[1].copy_packets());
+    CHECK(analysis->plans[2].copy_packets());
+    REQUIRE(analysis->is_hybrid());
+    // The container's zero is the schedule's own left edge (0 here: the window
+    // starts at the source's start).
+    const std::int64_t schedule_origin = analysis->plans.front().first_dts;
+
+    const auto unit_for = [&](std::size_t index) {
+        chronon3d::media::GopWorkUnit unit;
+        unit.ordinal = index;
+        unit.first_pts = analysis->plans[index].first_pts;
+        unit.last_pts = analysis->plans[index].last_pts;
+        unit.first_dts = analysis->plans[index].first_dts;
+        unit.last_dts = analysis->plans[index].last_dts;
+        unit.kind = analysis->plans[index].copy_packets()
+            ? chronon3d::media::GopWorkKind::CopyPackets
+            : chronon3d::media::GopWorkKind::Reencode;
+        unit.source_packets = chronon3d::media::TimestampRange{
+            analysis->plans[index].first_dts, analysis->plans[index].last_dts,
+            true};
+        unit.decode_range = chronon3d::media::TimestampRange{
+            analysis->plans[index].decode_first_dts,
+            analysis->plans[index].last_dts, true};
+        unit.render_range = chronon3d::media::TimestampRange{
+            analysis->plans[index].first_pts, analysis->plans[index].last_pts,
+            true};
+        unit.encode_range = unit.render_range;
+        unit.force_idr_at_start = !unit.copies_packets();
+        unit.compatibility = analysis->plans[index].compatibility;
+        return unit;
+    };
+    // Frame count of the re-encoded unit, derived from its tick span exactly
+    // the way the executor's exact rescale does (source ticks → frames).
+    const std::int64_t tb_num = analysis->source_time_base_num;
+    const std::int64_t tb_den = analysis->source_time_base_den;
+    REQUIRE(tb_num > 0);
+    REQUIRE(tb_den > 0);
+    REQUIRE(tb_den > 0);
+    const auto middle_frames = static_cast<int>(
+        ((analysis->plans[1].last_pts - analysis->plans[1].first_pts) * tb_num *
+         10) /
+            (tb_den * 1) +
+        1);
+    REQUIRE(middle_frames > 0);
+    MESSAGE("re-encoded unit frames: " << middle_frames << " (ticks "
+            << analysis->plans[1].first_pts << "-"
+            << analysis->plans[1].last_pts << " @ " << tb_num << "/" << tb_den
+            << ")");
+
+    // ── Path B: the direct mux (production mechanism) ────────────────────
+    const auto direct_path = dir / "direct.mp4";
+    std::uint64_t direct_video = 0;
+    {
+        chronon3d::media::MuxSession mux;
+        const auto declaration = chronon3d::cli::open_source_declared_mux(
+            source.string(), direct_path.string(), mux, /*include_audio=*/false);
+        REQUIRE(declaration.has_value());
+
+        const auto first = chronon3d::cli::submit_gop_source_packets(
+            source.string(), unit_for(0), mux, schedule_origin);
+        REQUIRE(first.has_value());
+        direct_video += first->video_packets;
+
+        // The re-encoded unit is a CHILD render writing into the caller's
+        // container at the tick the schedule reserved for it, certified against
+        // the stream the container was declared from (P0-5E).
+        mux.set_video_origin(analysis->plans[1].first_pts - schedule_origin);
+        {
+            chronon3d::cli::NativeAvEncoder encoder;
+            auto options = chronon3d::cli::test_gop_parity::parity_encoder_options(
+                (dir / "unused.mp4").string());
+            options.borrowed_mux = &mux;
+            options.borrowed_declared_stream = *declared;
+            REQUIRE(encoder.open(options));
+            CHECK(encoder.borrows_caller_mux());
+            for (int index = 0; index < middle_frames; ++index) {
+                chronon3d::Framebuffer frame(64, 64);
+                REQUIRE(encoder.write_frame(frame));
+            }
+            // close() flushes the encoder only: the container stays open for
+            // the work units that follow (P0-5C), and it certifies that this
+            // encoder reproduced the declared stream (otherwise a decoder
+            // could not follow the splice).
+            REQUIRE(encoder.close());
+            CHECK(encoder.borrowed_stream_reproduced());
+        }
+
+        const auto last = chronon3d::cli::submit_gop_source_packets(
+            source.string(), unit_for(2), mux, schedule_origin);
+        REQUIRE(last.has_value());
+        direct_video += last->video_packets;
+
+        // The container is finalized exactly once, by its owner (P0-5F).
+        REQUIRE(mux.finalize());
+    }
+
+    // ── Path A: the oracle (segment files + assemble_segments) ───────────
+    const auto oracle_path = dir / "oracle.mp4";
+    std::vector<std::string> segments;
+    const auto copy_segment = [&](int index, double start_seconds,
+                                  double end_seconds) {
+        const auto segment = dir / ("segment-" + std::to_string(index) + ".mp4");
+        REQUIRE(chronon3d::cli::copy_gop_source(
+                    source.string(), segment.string(), start_seconds,
+                    end_seconds)
+                    .has_value());
+        segments.push_back(segment.string());
+    };
+    copy_segment(0, 0.0, 2.0);
+    // The middle segment is the same encoder configuration, writing into a
+    // container of its own exactly like the legacy executor did.
+    {
+        const auto segment = dir / "segment-1.mp4";
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(
+            chronon3d::cli::test_gop_parity::parity_encoder_options(
+                segment.string())));
+        for (int index = 0; index < middle_frames; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+        segments.push_back(segment.string());
+    }
+    copy_segment(2, 4.0, 6.0);
+    REQUIRE(segments.size() == 3);
+    const auto assembled = chronon3d::media::assemble_segments(
+        {segments, oracle_path.string()});
+    MESSAGE("segment assembly: success=" << assembled.success
+            << " reason=" << assembled.reason);
+    REQUIRE(assembled.success);
+
+    // ── Parity gate ──────────────────────────────────────────────────────
+    const auto expected =
+        chronon3d::cli::test_gop_parity::probe_container(oracle_path.string());
+    const auto actual =
+        chronon3d::cli::test_gop_parity::probe_container(direct_path.string());
+    REQUIRE(expected.valid);
+    REQUIRE(actual.valid);
+    MESSAGE("oracle whole-file sha256: " << expected.file_sha256);
+    MESSAGE("direct whole-file sha256: " << actual.file_sha256);
+    // The copy units must cover exactly the copies the oracle produced; the
+    // re-encoded unit adds its own frames on top.
+    CHECK(direct_video + static_cast<std::uint64_t>(middle_frames) ==
+          expected.video.packets.size());
+    CHECK(actual.video.packets.size() == expected.video.packets.size());
+
+    MESSAGE("direct copied packets=" << direct_video << ", re-encoded="
+            << middle_frames << ", oracle packets="
+            << expected.video.packets.size() << ", direct packets="
+            << actual.video.packets.size() << ", oracle frames="
+            << expected.decoded_video_frames << ", direct frames="
+            << actual.decoded_video_frames << ", decoded ok: oracle="
+            << expected.decoded_ok << " direct=" << actual.decoded_ok);
+    const auto diffs =
+        chronon3d::cli::test_gop_parity::compare_containers(expected, actual);
+    for (const auto& diff : diffs) MESSAGE("parity diff: " << diff);
+    CHECK(diffs.empty());
+
+    // Placement, stated explicitly: the re-encoded unit sits exactly where the
+    // schedule put it, and no packet restarts the container at zero.
+    std::int64_t previous_pts = -1;
+    for (const auto& packet : actual.video.packets) {
+        CHECK(packet.pts > previous_pts);
+        previous_pts = packet.pts;
+    }
+    REQUIRE(actual.video.packets.size() > static_cast<std::size_t>(middle_frames));
+    CHECK(actual.video.packets[middle_frames].pts ==
+          analysis->plans[1].first_pts - schedule_origin);
+
+    if (std::getenv("CHRONON3D_KEEP_PARITY_FIXTURES") == nullptr) {
+        std::filesystem::remove_all(dir, cleanup_error);
+    } else {
+        MESSAGE("fixtures kept in " << dir.string());
+    }
+}
+
+// ── P0-5B/5G — the whole frozen corpus, direct lane vs the segment oracle ──
+//
+// Every shape in `gop_parity_corpus()` is authored on ONE 14 s fixture and run
+// twice: once through the single caller-owned MuxSession (copies + borrowed
+// encoders + audio once + one finalize) and once through the legacy
+// segment-file mechanism (one MP4 per unit, then assemble_segments). The gate
+// is the legacy output, so the demolition of that mechanism (P0-5G) is only
+// legal while every shape stays packet-for-packet identical to it.
+//
+// Audio is part of the fixture on purpose: P0-5F is exactly the claim that the
+// track is submitted ONCE regardless of how many work units ran, and that the
+// container's zero applies to video and audio together.
+TEST_CASE("P0-5B: every frozen hybrid shape matches the segment-file oracle") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = std::filesystem::temp_directory_path() /
+        "chronon3d_hybrid_corpus";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(dir, cleanup_error);
+    std::filesystem::create_directories(dir, cleanup_error);
+
+    // ── Fixture: 7 GOPs of the contract's 2 s cadence, authored by the SAME
+    // encoder configuration the splice lane re-encodes with (the gate requires
+    // the encoder to reproduce the declared stream), plus an audio track added
+    // by remuxing the video stream verbatim.
+    const auto video_source = dir / "source-video.mp4";
+    {
+        chronon3d::cli::NativeAvEncoder writer;
+        REQUIRE(writer.open(
+            chronon3d::cli::test_gop_parity::parity_encoder_options(
+                video_source.string())));
+        for (int index = 0; index < 140; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(writer.write_frame(frame));
+        }
+        REQUIRE(writer.close());
+    }
+    const auto source = video_source;
+
+    // The audio-bearing variant exists for ONE claim (P0-5F): the track is
+    // submitted exactly once for the whole schedule. It is not used for the
+    // oracle comparison, because the legacy mechanism assembles per-segment
+    // files and a re-encoded segment has no audio of its own (an encoder does
+    // not invent a track) — that is a limitation of the mechanism, not of the
+    // direct lane.
+    const auto source_audio = dir / "source-with-audio.mp4";
+    REQUIRE(std::system(("ffmpeg -hide_banner -loglevel error -y -i " +
+                         source.string() +
+                         " -f lavfi -i sine=frequency=440:duration=14 "
+                         "-c:v copy -c:a aac -shortest " +
+                         source_audio.string()).c_str()) == 0);
+
+    const auto declared = chronon3d::cli::make_remux_target_contract(source.string());
+    REQUIRE(declared.has_value());
+    const auto source_facts =
+        chronon3d::cli::test_gop_parity::probe_container(source.string());
+    REQUIRE(source_facts.valid);
+    REQUIRE_FALSE(source_facts.audio.present);
+    REQUIRE(source_facts.video.packets.size() == 140);
+
+    for (const auto& entry :
+         chronon3d::cli::test_gop_parity::gop_parity_corpus()) {
+        INFO("corpus case: " << entry.name);
+        std::vector<chronon3d::media::ChangedInterval> edits;
+        for (const auto& edit : entry.edits) {
+            edits.push_back(chronon3d::media::ChangedInterval{
+                edit.first, edit.second,
+                chronon3d::media::ChangedIntervalKind::Content});
+        }
+        const auto analysis = chronon3d::cli::inspect_gop_source(
+            source.string(), *declared, entry.window_start_seconds,
+            entry.window_end_seconds, /*content_changed=*/!edits.empty(), edits);
+        REQUIRE(analysis.has_value());
+        REQUIRE(analysis->valid());
+        REQUIRE(analysis->is_hybrid());
+
+        const std::int64_t tb_num = analysis->source_time_base_num;
+        const std::int64_t tb_den = analysis->source_time_base_den;
+        REQUIRE(tb_num > 0);
+        REQUIRE(tb_den > 0);
+
+        // The preflight plan covers the whole source; the window selects the
+        // units it needs. Same selection authority the production executor
+        // uses, so the gate exercises the real window semantics.
+        const auto plan =
+            chronon3d::cli::build_gop_plan_from_analysis(*analysis,
+                                                         /*splice_safe=*/true);
+        const std::int64_t request_start = static_cast<std::int64_t>(
+            std::llround(entry.window_start_seconds * tb_den / tb_num));
+        const std::int64_t request_end = static_cast<std::int64_t>(
+            std::llround(entry.window_end_seconds * tb_den / tb_num));
+        const auto selected = chronon3d::media::gop_units_in_window(
+            plan, request_start, request_end);
+        REQUIRE_FALSE(selected.empty());
+        // The window's own units, in schedule order — the same view the
+        // executor renders from.
+        const auto selected_schedule = [&]() {
+            std::vector<chronon3d::cli::GopPlan> units;
+            for (const auto index : selected) {
+                units.push_back(analysis->plans[index]);
+            }
+            return units;
+        };
+        const std::int64_t schedule_origin = request_start;
+        // The frames a re-encoded unit must produce, from its own tick span,
+        // clipped to the window on the left exactly like the executor does.
+        // The unit's frames are its HALF-OPEN tick span [start, right edge)
+        // rescaled exactly: the exported frame the schedule reserved for this
+        // unit, never one more (an extra frame would overlap the next unit).
+        const auto unit_frames = [&](std::size_t index) {
+            const auto schedule = selected_schedule();
+            const std::int64_t unit_start = std::max<std::int64_t>(
+                schedule[index].first_pts, schedule_origin);
+            const std::int64_t unit_end = index + 1 < schedule.size()
+                ? schedule[index + 1].first_pts
+                : request_end;
+            return static_cast<int>(
+                ((unit_end - unit_start) * tb_num * 10) / (tb_den * 1));
+        };
+
+        // ── The schedule THIS window needs is pinned ────────────────────────
+        std::string planned;
+        for (const auto& unit : selected_schedule()) {
+            planned += unit.copy_packets() ? "COPY" : "REENCODE";
+            planned.push_back(',');
+        }
+        MESSAGE("planned schedule: " << planned << " (expected "
+                << entry.expected_schedule() << ")");
+        CHECK(planned == entry.expected_schedule());
+
+        // ── Direct lane: ONE caller-owned container (video only here; audio
+        // is asserted once, below, on its own fixture) ────────────────────
+        const auto direct_path = dir / (std::string(entry.name) + "-direct.mp4");
+        const auto oracle_path = dir / (std::string(entry.name) + "-oracle.mp4");
+        std::vector<std::string> segments;
+        std::uint64_t direct_copies = 0;
+        std::uint64_t direct_reencoded = 0;
+        {
+            chronon3d::media::MuxSession mux;
+            const auto declaration = chronon3d::cli::open_source_declared_mux(
+                source.string(), direct_path.string(), mux,
+                /*include_audio=*/false);
+            REQUIRE(declaration.has_value());
+            const auto units = selected_schedule();
+            for (std::size_t index = 0; index < units.size(); ++index) {
+                const auto& plan = units[index];
+                if (plan.copy_packets()) {
+                    const auto unit = chronon3d::media::GopWorkUnit{
+                        .ordinal = index,
+                        .first_pts = plan.first_pts,
+                        .last_pts = plan.last_pts,
+                        .first_dts = plan.first_dts,
+                        .last_dts = plan.last_dts,
+                        .kind = chronon3d::media::GopWorkKind::CopyPackets,
+                        .source_packets = chronon3d::media::TimestampRange{
+                            plan.first_dts, plan.last_dts, true},
+                        .compatibility = plan.compatibility};
+                    const auto submitted =
+                        chronon3d::cli::submit_gop_source_packets(
+                            source.string(), unit, mux, schedule_origin);
+                    REQUIRE(submitted.has_value());
+                    direct_copies += submitted->video_packets;
+                    continue;
+                }
+                mux.set_video_origin(plan.first_pts - schedule_origin);
+                chronon3d::cli::NativeAvEncoder encoder;
+                auto options =
+                    chronon3d::cli::test_gop_parity::parity_encoder_options(
+                        (dir / "unused.mp4").string());
+                options.borrowed_mux = &mux;
+                options.borrowed_declared_stream = *declared;
+                REQUIRE(encoder.open(options));
+                const int frames = unit_frames(index);
+                REQUIRE(frames > 0);
+                for (int frame = 0; frame < frames; ++frame) {
+                    chronon3d::Framebuffer rendered(64, 64);
+                    REQUIRE(encoder.write_frame(rendered));
+                }
+                REQUIRE(encoder.close());
+                CHECK(encoder.borrowed_stream_reproduced());
+                direct_reencoded += static_cast<std::uint64_t>(frames);
+            }
+            REQUIRE(mux.finalize());
+        }
+
+        // ── Oracle lane: one segment per unit, then assemble ──────────────
+        const auto oracle_units = selected_schedule();
+        for (std::size_t index = 0; index < oracle_units.size(); ++index) {
+            const auto& plan = oracle_units[index];
+            const auto segment = dir / (std::string(entry.name) + "-segment-" +
+                                        std::to_string(index) + ".mp4");
+            // The legacy mechanism works on the SOURCE's own timeline (it
+            // normalizes each segment to zero itself), so it is given absolute
+            // source seconds — the window origin is this lane's business.
+            const double start_seconds =
+                static_cast<double>(plan.first_dts) * tb_num / tb_den;
+            const double end_seconds =
+                static_cast<double>(plan.last_dts + 1) * tb_num / tb_den;
+            if (plan.copy_packets()) {
+                REQUIRE(chronon3d::cli::copy_gop_source(
+                            source.string(), segment.string(), start_seconds,
+                            end_seconds)
+                            .has_value());
+                segments.push_back(segment.string());
+                continue;
+            }
+            chronon3d::cli::NativeAvEncoder encoder;
+            REQUIRE(encoder.open(
+                chronon3d::cli::test_gop_parity::parity_encoder_options(
+                    segment.string())));
+            const int frames = unit_frames(index);
+            for (int frame = 0; frame < frames; ++frame) {
+                chronon3d::Framebuffer rendered(64, 64);
+                REQUIRE(encoder.write_frame(rendered));
+            }
+            REQUIRE(encoder.close());
+            segments.push_back(segment.string());
+        }
+        const auto assembled = chronon3d::media::assemble_segments(
+            {segments, oracle_path.string()});
+        MESSAGE("assembly: success=" << assembled.success
+                << " reason=" << assembled.reason);
+        REQUIRE(assembled.success);
+
+        // ── The gate ──────────────────────────────────────────────────────
+        const auto expected =
+            chronon3d::cli::test_gop_parity::probe_container(oracle_path.string());
+        const auto actual = chronon3d::cli::test_gop_parity::probe_container(
+            direct_path.string());
+        REQUIRE(expected.valid);
+        REQUIRE(actual.valid);
+        MESSAGE("copies=" << direct_copies << " reencoded=" << direct_reencoded
+                << " direct packets=" << actual.video.packets.size()
+                << " oracle packets=" << expected.video.packets.size()
+                << " window=" << schedule_origin << "-" << request_end);
+        CHECK(direct_copies + direct_reencoded ==
+              expected.video.packets.size());
+        CHECK(actual.video.packets.size() == expected.video.packets.size());
+        const auto diffs =
+            chronon3d::cli::test_gop_parity::compare_containers(expected, actual);
+        for (const auto& diff : diffs) MESSAGE("parity diff: " << diff);
+        if (!diffs.empty()) {
+            // Pinpoint the first differing packets: index, payload, PTS, flags.
+            for (std::size_t index = 0;
+                 index < expected.video.packets.size() &&
+                 index < actual.video.packets.size() && index < 64;
+                 ++index) {
+                const auto& lhs = expected.video.packets[index];
+                const auto& rhs = actual.video.packets[index];
+                if (lhs.payload_sha256 == rhs.payload_sha256 &&
+                    lhs.pts == rhs.pts && lhs.flags == rhs.flags) {
+                    continue;
+                }
+                MESSAGE("packet " << index << " oracle "
+                        << lhs.payload_sha256.substr(0, 10) << " pts=" << lhs.pts
+                        << " flags=" << lhs.flags << " | direct "
+                        << rhs.payload_sha256.substr(0, 10) << " pts=" << rhs.pts
+                        << " flags=" << rhs.flags);
+            }
+            MESSAGE("frames: oracle=" << expected.decoded_video_frames
+                    << " direct=" << actual.decoded_video_frames
+                    << " duration: oracle=" << expected.duration_us
+                    << " direct=" << actual.duration_us);
+        }
+        CHECK(actual.decoded_video_frames == actual.video.packets.size());
+        CHECK(diffs.empty());
+        CHECK(actual.decoded_ok);
+
+        // ── Copied packets: byte identity against the SOURCE itself ───────
+        // Stronger than parity with the oracle: every copied unit must carry
+        // the source's own bytes, at the container tick the schedule assigned.
+        std::size_t output_index = 0;
+        for (std::size_t index = 0; index < oracle_units.size(); ++index) {
+            const auto& plan = oracle_units[index];
+            if (!plan.copy_packets()) {
+                output_index += static_cast<std::size_t>(unit_frames(index));
+                continue;
+            }
+            std::size_t compared = 0;
+            for (const auto& packet : source_facts.video.packets) {
+                if (packet.pts < plan.first_pts || packet.pts > plan.last_pts) {
+                    continue;
+                }
+                REQUIRE(output_index < actual.video.packets.size());
+                CHECK(actual.video.packets[output_index].payload_sha256 ==
+                      packet.payload_sha256);
+                CHECK(actual.video.packets[output_index].pts ==
+                      packet.pts - schedule_origin);
+                CHECK(actual.video.packets[output_index].flags == packet.flags);
+                ++output_index;
+                ++compared;
+            }
+            CHECK(compared > 0);
+        }
+
+    }
+
+    // ── P0-5F — audio is submitted ONCE, for the whole schedule ───────────
+    // Run on the audio-bearing fixture, on the shape with three units: a
+    // per-unit submission (the defect this asserts against) would multiply the
+    // count, and a missing window origin would offset the track.
+    {
+        const auto& entry = chronon3d::cli::test_gop_parity::gop_parity_corpus()[0];
+        INFO("audio case: " << entry.name);
+        const auto declared_audio =
+            chronon3d::cli::make_remux_target_contract(source_audio.string());
+        REQUIRE(declared_audio.has_value());
+        const auto audio_facts =
+            chronon3d::cli::test_gop_parity::probe_container(source_audio.string());
+        REQUIRE(audio_facts.valid);
+        REQUIRE(audio_facts.audio.present);
+
+        std::vector<chronon3d::media::ChangedInterval> edits;
+        for (const auto& edit : entry.edits) {
+            edits.push_back(chronon3d::media::ChangedInterval{
+                edit.first, edit.second,
+                chronon3d::media::ChangedIntervalKind::Content});
+        }
+        const auto analysis = chronon3d::cli::inspect_gop_source(
+            source_audio.string(), *declared_audio, entry.window_start_seconds,
+            entry.window_end_seconds, /*content_changed=*/true, edits);
+        REQUIRE(analysis.has_value());
+        const std::int64_t tb_num = analysis->source_time_base_num;
+        const std::int64_t tb_den = analysis->source_time_base_den;
+        const std::int64_t schedule_origin = static_cast<std::int64_t>(
+            std::llround(entry.window_start_seconds * tb_den / tb_num));
+        const std::int64_t request_end = static_cast<std::int64_t>(
+            std::llround(entry.window_end_seconds * tb_den / tb_num));
+        const auto plan = chronon3d::cli::build_gop_plan_from_analysis(
+            *analysis, /*splice_safe=*/true);
+        const auto selected = chronon3d::media::gop_units_in_window(
+            plan, schedule_origin, request_end);
+        REQUIRE_FALSE(selected.empty());
+        std::vector<chronon3d::cli::GopPlan> units;
+        for (const auto index : selected) units.push_back(analysis->plans[index]);
+        const auto frames_for = [&](std::size_t index) {
+            const std::int64_t unit_start = std::max<std::int64_t>(
+                units[index].first_pts, schedule_origin);
+            const std::int64_t unit_end = index + 1 < units.size()
+                ? units[index + 1].first_pts
+                : request_end;
+            return static_cast<int>(
+                ((unit_end - unit_start) * tb_num * 10) / (tb_den * 1));
+        };
+
+        const auto direct_path = dir / "audio-direct.mp4";
+        chronon3d::media::MuxSession mux;
+        const auto declaration = chronon3d::cli::open_source_declared_mux(
+            source_audio.string(), direct_path.string(), mux,
+            /*include_audio=*/true);
+        REQUIRE(declaration.has_value());
+        for (std::size_t index = 0; index < units.size(); ++index) {
+            const auto& plan = units[index];
+            if (plan.copy_packets()) {
+                const auto unit = chronon3d::media::GopWorkUnit{
+                    .ordinal = index,
+                    .first_pts = plan.first_pts,
+                    .last_pts = plan.last_pts,
+                    .first_dts = plan.first_dts,
+                    .last_dts = plan.last_dts,
+                    .kind = chronon3d::media::GopWorkKind::CopyPackets,
+                    .source_packets = chronon3d::media::TimestampRange{
+                        plan.first_dts, plan.last_dts, true},
+                    .compatibility = plan.compatibility};
+                REQUIRE(chronon3d::cli::submit_gop_source_packets(
+                            source_audio.string(), unit, mux, schedule_origin)
+                            .has_value());
+                continue;
+            }
+            const int frames = frames_for(index);
+            REQUIRE(frames > 0);
+            mux.set_video_origin(plan.first_pts - schedule_origin);
+            chronon3d::cli::NativeAvEncoder encoder;
+            auto options = chronon3d::cli::test_gop_parity::parity_encoder_options(
+                (dir / "unused.mp4").string());
+            options.borrowed_mux = &mux;
+            options.borrowed_declared_stream = *declared_audio;
+            REQUIRE(encoder.open(options));
+            for (int frame = 0; frame < frames; ++frame) {
+                chronon3d::Framebuffer rendered(64, 64);
+                REQUIRE(encoder.write_frame(rendered));
+            }
+            REQUIRE(encoder.close());
+        }
+        const chronon3d::media::TimestampRange window{
+            schedule_origin, request_end, true};
+        const auto audio = chronon3d::cli::submit_source_audio(
+            source_audio.string(), mux, window, schedule_origin);
+        REQUIRE(audio.has_value());
+        REQUIRE(mux.finalize());
+
+        // Counted from the SOURCE itself, in the audio time base, over the same
+        // half-open window the submission used.
+        const AVRational video_tb{static_cast<int>(tb_num),
+                                  static_cast<int>(tb_den)};
+        const AVRational audio_tb{audio_facts.audio.time_base_num,
+                                  audio_facts.audio.time_base_den};
+        const std::int64_t audio_first =
+            av_rescale_q(schedule_origin, video_tb, audio_tb);
+        const std::int64_t audio_last =
+            av_rescale_q(request_end, video_tb, audio_tb);
+        std::uint64_t expected_audio = 0;
+        for (const auto pts : audio_facts.audio.packet_pts) {
+            if (pts >= audio_first && pts < audio_last) ++expected_audio;
+        }
+        CHECK(expected_audio > 0);
+        CHECK(audio->audio_packets == expected_audio);
+
+        const auto produced =
+            chronon3d::cli::test_gop_parity::probe_container(direct_path.string());
+        REQUIRE(produced.valid);
+        CHECK(produced.audio.present);
+        CHECK(produced.audio.packet_count == expected_audio);
+        CHECK(produced.decoded_ok);
+        // Video is unchanged by the presence of the track.
+        CHECK(produced.video.packets.size() == 60);
+    }
+
+    if (std::getenv("CHRONON3D_KEEP_PARITY_FIXTURES") == nullptr) {
+        std::filesystem::remove_all(dir, cleanup_error);
+    } else {
+        MESSAGE("fixtures kept in " << dir.string());
+    }
 }
 
 TEST_CASE("BoundaryReencode parity comparator reports each difference class") {

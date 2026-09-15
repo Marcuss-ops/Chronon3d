@@ -1057,20 +1057,27 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     chronon3d::cli::NativeAvEncoder encoder;
     REQUIRE(encoder.open(p0_5a_pipe_options(output.string())));
 
-    // Zero frames encoded: no bitstream exists yet, so the contract is
-    // deliberately incomplete and the splice gate stays fail-closed.
+    // The opened encoder states the stream it will produce, from its OWN
+    // configuration record — zero frames encoded, and the compressed source is
+    // never consulted. The scalars libavcodec cannot derive from parameter sets
+    // alone (profile/level/pixel format) stay explicitly unstated rather than
+    // being guessed, which is what keeps the gate fail-closed when they are the
+    // only thing two streams differ in.
     {
         const auto& pending = encoder.encoder_target_contract();
         CHECK(pending.producer == chronon3d::cli::BitstreamTargetProducer::Encoder);
         CHECK(pending.codec == AV_CODEC_ID_H264);
         CHECK(pending.width == 64);
         CHECK(pending.height == 64);
-        CHECK_FALSE(pending.encoder_materialized);
-        CHECK(pending.parameter_sets.empty());
+        CHECK(pending.encoder_materialized);
+        CHECK_FALSE(pending.parameter_sets.empty());
+        CHECK(pending.profile < 0);
+        CHECK(pending.level < 0);
+        // The container the encoder owns is declared from this same context, so
+        // the parameter sets are already the ones a demuxer will read back.
+        CHECK(pending.parameter_sets.size() > 10);
     }
 
-    // The encoder publishes its parameter sets with the first packet; the
-    // contract is then materialized from the encoder's OWN output.
     chronon3d::Framebuffer frame(64, 64);
     REQUIRE(encoder.write_frame(frame));
 
@@ -1083,21 +1090,13 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     const bool closed = encoder.close();
 
     // The invariant that matters for splice safety: the contract is never
-    // FALSELY materialized. libx264 emits its SPS/PPS with the first packet
-    // (in-band side data) rather than into the codec context, so a contract
-    // that cannot see the encoder's real parameter sets stays unmaterialized
-    // and the gate stays fail-closed. Capturing them from the produced packet
-    // is the direct-mux step (P0-5D).
-    if (!contract.encoder_materialized) {
-        MESSAGE("Encoder contract not materialized from the codec context: "
-                "the splice gate stays fail-closed (no false-positive splice)");
-        CHECK(contract.parameter_sets.empty());
-        std::filesystem::remove(output, cleanup_error);
-        return;
-    }
-
-    // Materialized: it must describe the stream a demuxer reads back from the
-    // produced file — the exact facts the splice gate compares against.
+    // FALSELY materialized. An encoder that has produced no parameter sets (or
+    // publishes them in-band only, without a configuration record) stays
+    // unmaterialized and the gate stays fail-closed; a materialized contract
+    // must describe the stream a demuxer reads back from the produced file.
+    REQUIRE(contract.encoder_materialized);
+    CHECK(contract.profile < 0);
+    CHECK(contract.level < 0);
     if (!closed || !std::filesystem::exists(output)) {
         MESSAGE("Skipping demux comparison — encoder produced no container");
         std::filesystem::remove(output, cleanup_error);
@@ -1118,19 +1117,50 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     }
     REQUIRE(params != nullptr);
     CHECK(contract.codec == params->codec_id);
-    CHECK(contract.profile == params->profile);
-    CHECK(contract.level == params->level);
     CHECK(contract.width == static_cast<std::uint32_t>(params->width));
     CHECK(contract.height == static_cast<std::uint32_t>(params->height));
-    REQUIRE(static_cast<std::size_t>(params->extradata_size) ==
-            contract.parameter_sets.size());
-    CHECK(std::memcmp(params->extradata, contract.parameter_sets.data(),
-                      contract.parameter_sets.size()) == 0);
-    // A demuxed stream is decoder-visible by construction, so the same
-    // compatibility gate must accept it against its own contract.
-    CHECK(chronon3d::cli::compare_bitstream_compatibility(
-              *params, contract, /*random_access_safe=*/true)
-              .safe_to_splice());
+    // The container is self-describing: its configuration record carries the
+    // encoder's own parameter sets. The comparison is on the NAL payloads, the
+    // stream's real identity, because a demuxer reports an avcC wrapper while
+    // the encoder publishes Annex-B — comparing the wrappers would reject a
+    // stream that was reproduced exactly.
+    const auto encoder_nals = chronon3d::cli::parameter_set_nals(
+        contract.codec, contract.parameter_sets.data(),
+        contract.parameter_sets.size());
+    const auto demuxed_nals = chronon3d::cli::parameter_set_nals(
+        params->codec_id, params->extradata,
+        static_cast<std::size_t>(params->extradata_size));
+    CHECK_FALSE(encoder_nals.empty());
+    CHECK(encoder_nals == demuxed_nals);
+
+    // The stream the container carries is the stream the encoder stated: the
+    // ONE reproduction authority accepts it, and it is the same authority the
+    // splice gate uses (never a raw byte comparison of an avcC against the
+    // encoder's Annex-B parameter sets, which would reject a stream that was
+    // reproduced exactly).
+    chronon3d::cli::BitstreamTargetContract declared{};
+    declared.producer = chronon3d::cli::BitstreamTargetProducer::Remux;
+    declared.codec = params->codec_id;
+    declared.profile = params->profile;
+    declared.level = params->level;
+    declared.pixel_format = static_cast<chronon3d::cli::BitstreamPixelFormat>(
+        params->format);
+    declared.width = static_cast<std::uint32_t>(params->width);
+    declared.height = static_cast<std::uint32_t>(params->height);
+    declared.parameter_sets.assign(
+        params->extradata,
+        params->extradata + static_cast<std::size_t>(params->extradata_size));
+    declared.color_range = params->color_range;
+    declared.color_space = params->color_space;
+    declared.color_primaries = params->color_primaries;
+    declared.color_trc = params->color_trc;
+    CHECK(chronon3d::cli::encoder_reproduces_declared_stream(declared, contract));
+    // And it fails closed: a stream this encoder did NOT produce can never
+    // certify, which is what keeps a false-positive splice impossible.
+    auto foreign = declared;
+    foreign.width = declared.width / 2;
+    CHECK_FALSE(
+        chronon3d::cli::encoder_reproduces_declared_stream(foreign, contract));
     avformat_close_input(&format);
     std::filesystem::remove(output, cleanup_error);
 }
@@ -1142,48 +1172,58 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
 // its codec: finalizing it (or writing audio) after the first re-encoded GOP
 // would close the container and drop every later work unit of the schedule.
 TEST_CASE("P0-5C: an encoder writes through a caller-owned MuxSession") {
+    const auto source = std::filesystem::temp_directory_path() /
+        "chronon3d_p0_5c_source.mp4";
     const auto output = std::filesystem::temp_directory_path() /
         "chronon3d_p0_5c_shared_mux.mp4";
     std::error_code cleanup_error;
+    std::filesystem::remove(source, cleanup_error);
     std::filesystem::remove(output, cleanup_error);
 
-    // The caller declares the container's video stream — on a splice lane that
-    // is the SOURCE contract the splice gate certified.
-    const AVCodec* stream_codec = avcodec_find_encoder_by_name("libx264");
-    REQUIRE(stream_codec != nullptr);
-    AVCodecContext* stream_context = avcodec_alloc_context3(stream_codec);
-    REQUIRE(stream_context != nullptr);
-    stream_context->width = 64;
-    stream_context->height = 64;
-    stream_context->time_base = AVRational{1, 10};
-    stream_context->framerate = AVRational{10, 1};
-    stream_context->pix_fmt = AV_PIX_FMT_YUV420P;
-    stream_context->gop_size = 10;
-    stream_context->max_b_frames = 0;
-    REQUIRE(avcodec_open2(stream_context, stream_codec, nullptr) >= 0);
+    // The compressed SOURCE whose stream the copied GOPs carry. The re-encode
+    // lane must reproduce exactly this stream, which is why the caller declares
+    // the borrowed container from it (open_source_declared_mux) instead of
+    // inventing a codec context of its own: a declaration that does not match
+    // the packets already in the container produces a file a decoder cannot
+    // follow across the splice.
+    {
+        chronon3d::cli::NativeAvEncoder writer;
+        REQUIRE(writer.open(p0_5a_pipe_options(source.string())));
+        for (int index = 0; index < 10; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(writer.write_frame(frame));
+        }
+        REQUIRE(writer.close());
+    }
+
+    const auto declared =
+        chronon3d::cli::make_remux_target_contract(source.string());
+    REQUIRE(declared.has_value());
 
     chronon3d::media::MuxSession shared_mux;
-    std::string reason;
-    REQUIRE(shared_mux.open(chronon3d::media::MuxOpenConfig{
-        .output_path = output.string(),
-        .video_codec = stream_context}, reason));
+    const auto declaration = chronon3d::cli::open_source_declared_mux(
+        source.string(), output.string(), shared_mux, /*include_audio=*/false);
+    REQUIRE(declaration.has_value());
 
     chronon3d::cli::NativeAvEncoder encoder;
     auto options = p0_5a_pipe_options(output.string());
     options.borrowed_mux = &shared_mux;
+    options.borrowed_declared_stream = *declared;
     REQUIRE(encoder.open(options));
     CHECK(encoder.borrows_caller_mux());
 
     chronon3d::Framebuffer frame(64, 64);
     REQUIRE(encoder.write_frame(frame));
 
-    // close() must flush the encoder and leave the container open.
+    // close() must flush the encoder, certify that it reproduced the declared
+    // stream, and leave the container open.
     REQUIRE(encoder.close());
+    CHECK(encoder.borrowed_stream_reproduced());
     CHECK_FALSE(encoder.borrows_caller_mux());
 
     // The caller finalizes exactly once, after every work unit.
-    CHECK(shared_mux.finalize());
-    avcodec_free_context(&stream_context);
+    REQUIRE(shared_mux.finalize());
+    std::filesystem::remove(source, cleanup_error);
 
     AVFormatContext* format = nullptr;
     REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
