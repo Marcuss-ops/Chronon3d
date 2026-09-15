@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -201,6 +202,28 @@ void validate_package_matches_plan(
     }
 }
 
+void validate_package_asset_hashes(
+    const PreparedOverlayPackageSummary& package,
+    const assets::PreparedAssetManifest& manifest) {
+    for (const auto& expected : package.assets) {
+        const auto it = std::find_if(
+            manifest.assets().begin(), manifest.assets().end(),
+            [&](const assets::PreparedAsset& asset) {
+                return asset.logical_path == expected.logical_path;
+            });
+        if (it == manifest.assets().end()) {
+            throw std::runtime_error(
+                "prepared overlay package asset is absent from the prepared manifest: " +
+                expected.logical_path);
+        }
+        if (it->content_digest.hex() != expected.content_hash) {
+            throw std::runtime_error(
+                "prepared overlay package asset content hash does not match prepared bytes: " +
+                expected.logical_path);
+        }
+    }
+}
+
 /// Map the CLI's effective render settings into the backend-neutral fingerprint
 /// identity.  Kept in one place so render, validate and future inspect all
 /// derive the SAME request/content digest for a given plan + settings.
@@ -333,6 +356,11 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         }
         const double compile_ms = profiling::duration_ms(compile_t0, profiling::now());
         startup_trace().plan_compile_ms = compile_ms;
+        auto compiled_value = std::move(compiled).value();
+        if (prepared_package) {
+            validate_package_asset_hashes(
+                *prepared_package, compiled_value.metadata().asset_manifest);
+        }
         const double total_ms = profiling::duration_ms(preparation_t0, profiling::now());
         spdlog::info(
             "[plan-profile] read={:.2f}ms parse={:.2f}ms decode={:.2f}ms "
@@ -343,7 +371,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         context.decoded = std::move(plan);
         context.prepared_package = std::move(prepared_package);
         context.program = std::make_shared<const compiler::CompiledProgram>(
-            std::move(compiled).value());
+            std::move(compiled_value));
 		// The numeric compiler is the canonical plan authority. The current
 		// FFmpeg video exporter still accepts CompiledComposition, so create its
 		// temporary compatibility view from the already compiled program. This
