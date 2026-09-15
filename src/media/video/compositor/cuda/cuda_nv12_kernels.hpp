@@ -245,6 +245,27 @@ __device__ inline float direct_encode_transfer_channel(float linear,
   if (transfer == 0u) return linear;
   if (linear <= 0.0f) return 0.0f;
   if (linear >= 1.0f) return 1.0f;
+  if (transfer == 2u) return powf(linear, 1.0f / 2.4f);
+  if (transfer == 3u) {
+    // SMPTE ST 2084 OETF, with the canonical linear value normalized to the
+    // 10,000-nit reference white domain.
+    constexpr float m1 = 2610.0f / 16384.0f;
+    constexpr float m2 = 2523.0f / 32.0f;
+    constexpr float c1 = 3424.0f / 4096.0f;
+    constexpr float c2 = 2413.0f / 128.0f;
+    constexpr float c3 = 2392.0f / 128.0f;
+    const float p = powf(linear, m1);
+    return powf((c1 + c2 * p) / (1.0f + c3 * p), m2);
+  }
+  if (transfer == 4u) {
+    // ARIB STD-B67 OETF, scene-linear input normalized to reference white.
+    constexpr float a = 0.17883277f;
+    constexpr float b = 0.28466892f;
+    constexpr float c = 0.55991073f;
+    return linear <= (1.0f / 12.0f)
+        ? sqrtf(3.0f * linear)
+        : a * logf(12.0f * linear - b) + c;
+  }
   return (linear <= 0.0031308f)
       ? (linear * 12.92f)
       : (1.055f * powf(linear, 1.0f / 2.4f) - 0.055f);
@@ -486,6 +507,24 @@ __device__ inline float encode_transfer_channel(float linear,
   if (transfer == 0u) return linear;
   if (linear <= 0.0f) return 0.0f;
   if (linear >= 1.0f) return 1.0f;
+  if (transfer == 2u) return powf(linear, 1.0f / 2.4f);
+  if (transfer == 3u) {
+    constexpr float m1 = 2610.0f / 16384.0f;
+    constexpr float m2 = 2523.0f / 32.0f;
+    constexpr float c1 = 3424.0f / 4096.0f;
+    constexpr float c2 = 2413.0f / 128.0f;
+    constexpr float c3 = 2392.0f / 128.0f;
+    const float p = powf(linear, m1);
+    return powf((c1 + c2 * p) / (1.0f + c3 * p), m2);
+  }
+  if (transfer == 4u) {
+    constexpr float a = 0.17883277f;
+    constexpr float b = 0.28466892f;
+    constexpr float c = 0.55991073f;
+    return linear <= (1.0f / 12.0f)
+        ? sqrtf(3.0f * linear)
+        : a * logf(12.0f * linear - b) + c;
+  }
   return (linear <= 0.0031308f)
       ? (linear * 12.92f)
       : (1.055f * powf(linear, 1.0f / 2.4f) - 0.055f);

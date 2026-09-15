@@ -7,6 +7,7 @@
 #include <chronon3d/media/frame_conversion/conversion_cache_key.hpp>
 #include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
+#include <chronon3d/runtime/frame_format.hpp>
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -149,6 +150,10 @@ public:
         return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
     }
 
+    [[nodiscard]] const runtime::FrameFormat& output_frame_format() const noexcept {
+        return output_frame_format_;
+    }
+
 private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
@@ -202,6 +207,10 @@ private:
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
+    // The encoder target is the one color-boundary authority for both the
+    // DirectYUV and FullGraph native paths. CUDA transfer codes are derived
+    // from this value at the call site; no path relies on a gamma boolean.
+    runtime::FrameFormat output_frame_format_{runtime::PixelFormat::Nv12};
     // ── Encoder configuration telemetry ────────────────────────────────
     // `applied_*` = post-resolution values actually applied at open() time;
     // `requested_*` = what the caller explicitly asked for ("engine-default"

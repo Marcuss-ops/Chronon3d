@@ -167,7 +167,8 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             static_cast<std::uint32_t>(options_.width),
             static_cast<std::uint32_t>(options_.height), cuda_stream_,
             p010 ? media::video::CudaYuvFormat::P010
-                 : media::video::CudaYuvFormat::Nv12);
+                 : media::video::CudaYuvFormat::Nv12,
+            media::video::transfer_encode_for(output_frame_format_.transfer));
     } else {
         CUDA_MEMCPY2D copy{};
         copy.srcMemoryType = CU_MEMORYTYPE_DEVICE;

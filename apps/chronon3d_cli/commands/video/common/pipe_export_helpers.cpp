@@ -128,6 +128,12 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 
+    // The output transfer is part of the one color contract. A linear target
+    // must not pass through the CPU converter's legacy gamma switch, while
+    // every encoded SDR target must perform exactly one OETF before YUV.
+    pipe_options.color_transform.apply_gamma =
+        pipe_options.color_transform.output != color::ColorSpace::LinearSRGB;
+
     // Apply the unified CPU budget so the encoder respects the encode pool.
     // The writer thread itself is part of this pool, so reserve one thread
     // for it and give the remainder to the encoder internal thread pool.
