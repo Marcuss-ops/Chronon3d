@@ -15,6 +15,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <spdlog/spdlog.h>
 
@@ -72,6 +73,7 @@ PreparedOverlayPackageSummary read_prepared_package(
     }
 
     std::unordered_set<std::string> text_keys;
+    std::vector<PreparedOverlayPackageSummary::TextBinding> prepared_text_runs;
     for (const auto& text : text_runs) {
         const auto key = text.value("key", std::string{});
         const auto value = text.value("text", std::string{});
@@ -79,9 +81,11 @@ PreparedOverlayPackageSummary read_prepared_package(
             throw std::runtime_error(
                 "prepared overlay package contains an invalid or duplicate text key: " + path);
         }
+        prepared_text_runs.push_back({key, value});
     }
 
     std::unordered_set<std::string> asset_keys;
+    std::vector<PreparedOverlayPackageSummary::AssetBinding> prepared_assets;
     for (const auto& asset : assets) {
         const auto key = asset.value("key", std::string{});
         const auto hash = asset.value("content_hash", std::string{});
@@ -91,36 +95,110 @@ PreparedOverlayPackageSummary read_prepared_package(
             throw std::runtime_error(
                 "prepared overlay package contains an invalid or duplicate asset key: " + path);
         }
+        prepared_assets.push_back({key, logical_path, hash});
     }
 
+    std::vector<PreparedOverlayPackageSummary::OverlayBinding> prepared_overlays;
+    std::unordered_set<std::string> overlay_ids;
     for (const auto& overlay : overlays) {
         const auto id = overlay.value("id", std::string{});
         const auto kind = overlay.value("kind", std::string{});
-        if (id.empty()) {
+        if (id.empty() || !overlay_ids.insert(id).second) {
             throw std::runtime_error(
-                "prepared overlay package contains an overlay without an id: " + path);
+                "prepared overlay package contains an invalid or duplicate overlay id: " + path);
         }
+        PreparedOverlayPackageSummary::OverlayBinding binding{
+            id, kind, overlay.value("text_key", std::string{}),
+            overlay.value("asset_key", std::string{})};
         if (kind == "text") {
-            if (!text_keys.contains(overlay.value("text_key", std::string{}))) {
+            if (!text_keys.contains(binding.text_key)) {
                 throw std::runtime_error(
                     "prepared overlay package text overlay references an unknown text key: " + path);
             }
         } else if (kind == "image" || kind == "video") {
-            if (!asset_keys.contains(overlay.value("asset_key", std::string{}))) {
+            if (!asset_keys.contains(binding.asset_key)) {
                 throw std::runtime_error(
                     "prepared overlay package media overlay references an unknown asset key: " + path);
             }
+        } else if (kind != "color") {
+            throw std::runtime_error(
+                "prepared overlay package contains unsupported overlay kind: " + path);
         }
+        prepared_overlays.push_back(std::move(binding));
     }
 
-    return PreparedOverlayPackageSummary{
-        path,
-        package_plan_id,
-        package.value("language", std::string{}),
-        content_hash,
-        assets.size(),
-        text_runs.size(),
-        overlays.size()};
+    PreparedOverlayPackageSummary summary;
+    summary.path = path;
+    summary.plan_id = package_plan_id;
+    summary.language = package.value("language", std::string{});
+    summary.content_hash = content_hash;
+    summary.asset_count = assets.size();
+    summary.text_run_count = text_runs.size();
+    summary.overlay_count = overlays.size();
+    summary.overlays = std::move(prepared_overlays);
+    summary.text_runs = std::move(prepared_text_runs);
+    summary.assets = std::move(prepared_assets);
+    return summary;
+}
+
+void validate_package_matches_plan(
+    const PreparedOverlayPackageSummary& package,
+    const render_plan::RenderPlan& plan) {
+    const auto layer_kind = [](render_plan::LayerType type) {
+        switch (type) {
+            case render_plan::LayerType::Image: return std::string{"image"};
+            case render_plan::LayerType::Video: return std::string{"video"};
+            case render_plan::LayerType::Text: return std::string{"text"};
+            case render_plan::LayerType::Color: return std::string{"color"};
+        }
+        return std::string{"unknown"};
+    };
+
+    std::unordered_map<std::string, const render_plan::LayerPlan*> layers;
+    layers.reserve(plan.layers.size());
+    for (const auto& layer : plan.layers) {
+        if (!layers.emplace(layer.id, &layer).second) {
+            throw std::runtime_error(
+                "render plan contains duplicate layer id required by prepared package: " + layer.id);
+        }
+    }
+    std::unordered_map<std::string, std::string> text_by_key;
+    for (const auto& text : package.text_runs) text_by_key.emplace(text.key, text.text);
+    std::unordered_map<std::string, std::string> asset_by_key;
+    for (const auto& asset : package.assets) asset_by_key.emplace(asset.key, asset.logical_path);
+
+    if (package.overlays.size() != plan.layers.size()) {
+        throw std::runtime_error(
+            "prepared overlay package layer count does not match render plan");
+    }
+    for (const auto& overlay : package.overlays) {
+        const auto it = layers.find(overlay.id);
+        if (it == layers.end()) {
+            throw std::runtime_error(
+                "prepared overlay package references a layer absent from render plan: " + overlay.id);
+        }
+        const auto& layer = *it->second;
+        if (overlay.kind != layer_kind(layer.type)) {
+            throw std::runtime_error(
+                "prepared overlay package kind does not match render plan layer: " + overlay.id);
+        }
+        if (layer.type == render_plan::LayerType::Text) {
+            const auto text = text_by_key.find(overlay.text_key);
+            if (text == text_by_key.end() || text->second != layer.text) {
+                throw std::runtime_error(
+                    "prepared overlay package text does not match render plan layer: " + overlay.id);
+            }
+        } else if (layer.type == render_plan::LayerType::Image ||
+                   layer.type == render_plan::LayerType::Video) {
+            const auto asset = asset_by_key.find(overlay.asset_key);
+            const auto plan_path = !layer.asset.empty() ? layer.asset : layer.source;
+            if (asset == asset_by_key.end() || plan_path.empty() ||
+                asset->second != plan_path) {
+                throw std::runtime_error(
+                    "prepared overlay package asset does not match render plan layer: " + overlay.id);
+            }
+        }
+    }
 }
 
 /// Map the CLI's effective render settings into the backend-neutral fingerprint
@@ -197,6 +275,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         if (!options.prepared_package.empty()) {
             prepared_package = read_prepared_package(
                 options.prepared_package, plan.job_id);
+            validate_package_matches_plan(*prepared_package, plan);
             spdlog::info(
                 "[overlay-prepare] validated package={} hash={} assets={} text_runs={} overlays={}",
                 prepared_package->path, prepared_package->content_hash,
