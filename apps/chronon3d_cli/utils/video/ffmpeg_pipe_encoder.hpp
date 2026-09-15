@@ -233,6 +233,19 @@ struct FfmpegPipeOptions {
     std::string pipe_writer{"classic"};
     int encode_threads{0};
     bool direct_yuv_mode{false};
+
+    // ── Caller-owned mux (splice lanes, P0-5C) ────────────────────────────
+    //
+    // Null (the normal export) means the encoder owns its container: it opens
+    // a MuxSession on `output_path` and finalizes it in close().
+    //
+    // Non-null means the CALLER owns the container and the encoder only
+    // produces packets into it. Its video stream is already declared, so
+    // close() must flush the codec and NOT finalize the container or write
+    // audio — the caller does both exactly once, after every work unit
+    // (copied AND re-encoded) of the schedule has been submitted. A borrowed
+    // session must already be open.
+    chronon3d::media::MuxSession* borrowed_mux{nullptr};
     std::string audio_source_path;
     /// Requested output audio sample rate (Hz); 0 keeps the source rate.
     int audio_target_sample_rate{0};

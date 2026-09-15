@@ -2,6 +2,7 @@
 
 #include "ffmpeg_pipe_encoder.hpp"
 #include "encoder_config_resolution.hpp"
+#include "encoder_bitstream_contract.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
 #include <chronon3d/media/frame_conversion/conversion_cache_key.hpp>
@@ -133,13 +134,24 @@ public:
     [[nodiscard]] double open_hw_ctx_ms() const override { return open_hw_ctx_ms_; }
     [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
     [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
-    [[nodiscard]] double open_mux_header_ms() const override { return mux_ ? mux_->open_header_ms() : 0.0; }
+    // Mux telemetry belongs to the owner of the container. On a borrowed-mux
+    // session the caller owns the mux, so the encoder reports nothing here
+    // (the caller reads its own MuxSession) — no double counting.
+    [[nodiscard]] double open_mux_header_ms() const override {
+        return mux_ && !borrows_mux_ ? mux_->open_header_ms() : 0.0;
+    }
     [[nodiscard]] std::uint64_t full_file_reread_count() const override {
-        return mux_ && mux_->checksum_used_reread() ? 1 : 0;
+        return mux_ && !borrows_mux_ && mux_->checksum_used_reread() ? 1 : 0;
     }
     [[nodiscard]] chronon3d::media::MuxHashMetrics hash_metrics() const override {
-        return mux_ ? mux_->hash_metrics() : chronon3d::media::MuxHashMetrics{};
+        return mux_ && !borrows_mux_ ? mux_->hash_metrics()
+                                     : chronon3d::media::MuxHashMetrics{};
     }
+
+    /// True when this session writes into a caller-owned MuxSession
+    /// (options.borrowed_mux): close() then only flushes the encoder, and the
+    /// caller owns audio plus the container trailer.
+    [[nodiscard]] bool borrows_caller_mux() const noexcept { return borrows_mux_; }
     [[nodiscard]] std::string applied_encoder_preset() const override { return applied_encoder_preset_; }
     [[nodiscard]] std::string applied_encoder_rate_control() const override { return applied_encoder_rate_control_; }
     [[nodiscard]] int applied_encoder_async_depth() const override { return applied_encoder_async_depth_; }
@@ -149,6 +161,17 @@ public:
     [[nodiscard]] bool pool_reset_safe() const noexcept {
         return !open_complete_ && !codec_ && !mux_ && !frame_ && !packet_;
     }
+
+    /// Encoder-owned bitstream contract, materialized from the OPENED codec
+    /// context (P0-5A). This is the only producer of the splice-gate target:
+    /// the compressed source is never allowed to describe the output stream.
+    ///
+    /// The contract is refreshed on demand, because an encoder publishes its
+    /// output facts (profile / level / SPS-PPS) only once it has produced its
+    /// first packet — with zero frames encoded there is nothing to describe
+    /// and `encoder_materialized` stays false, which keeps the splice gate
+    /// fail-closed. Never valid after close().
+    [[nodiscard]] const BitstreamTargetContract& encoder_target_contract();
 
     [[nodiscard]] const runtime::FrameFormat& output_frame_format() const noexcept {
         return output_frame_format_;
@@ -169,7 +192,12 @@ private:
     double direct_yuv_cuda_launch_ms_{0.0};
     double direct_yuv_cuda_wait_ms_{0.0};
 
-    std::unique_ptr<chronon3d::media::MuxSession> mux_;
+    // Container ownership: `owned_mux_` is non-null only when this encoder
+    // opened the container itself. `mux_` is the sink actually written to
+    // (owned or borrowed) and never owns anything.
+    std::unique_ptr<chronon3d::media::MuxSession> owned_mux_;
+    chronon3d::media::MuxSession* mux_{nullptr};
+    bool borrows_mux_{false};
     AVCodecContext*  codec_{nullptr};
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
@@ -207,6 +235,11 @@ private:
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
     bool gpu_nvenc_{false};
     bool open_complete_{false};
+    BitstreamTargetContract bitstream_contract_{};
+    // One-shot guard for the post-first-frame contract probe. Encoders that
+    // never publish their parameter sets through the codec context stay
+    // fail-closed instead of paying a decoder open on every accessor call.
+    bool bitstream_contract_probed_{false};
     // The encoder target is the one color-boundary authority for both the
     // DirectYUV and FullGraph native paths. CUDA transfer codes are derived
     // from this value at the call site; no path relies on a gamma boolean.

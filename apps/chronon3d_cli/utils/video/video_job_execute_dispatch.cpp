@@ -1,6 +1,8 @@
 #include "video_export_support.hpp"
 #include "gop_smart_copy.hpp"
 #include "encoder_config_resolution.hpp"
+#include "encoder_bitstream_contract.hpp"
+#include "../../commands/video/common/pipe_export_helpers.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
@@ -14,72 +16,44 @@
 
 #include <spdlog/spdlog.h>
 
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-extern "C" {
-#include <libavformat/avformat.h>
-}
-#endif
-
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <optional>
 #include <utility>
 #include <vector>
 
 namespace chronon3d::cli {
 namespace {
 
-BitstreamTargetContract make_bitstream_target_contract(
+// ── Target contract: the stream the OUTPUT container will carry ───────────
+//
+// The compressed source may only ever be the `source` side of the splice
+// comparison. Which producer owns the target depends on the lane:
+//
+//   whole-clip packet copy  → no encoder runs, so the output stream IS the
+//                             source stream (make_remux_target_contract)
+//   anything that re-encodes → the target MUST be the encoder-owned contract
+//                             (resolve_encoder_bitstream_contract), built from
+//                             the exact configuration the encoder will apply.
+//
+// P0-5A: the previous implementation opened `source_path` and overwrote every
+// target field with the source's own, so inspect_gop_source() compared the
+// source with itself and always certified the splice. That source-driven
+// overwrite is gone. When the encoder's output facts are not yet materialized
+// the contract is incomplete on purpose and the splice gate fails closed.
+std::optional<BitstreamTargetContract> make_bitstream_target_contract(
     const FfmpegExportOptions& opts, const CompiledComposition& compiled,
-    const std::string& source_path) {
-    BitstreamTargetContract target;
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    if (opts.encoder.codec == "h264" || opts.encoder.codec == "libx264" ||
-        opts.encoder.codec == "h264_nvenc") {
-        target.codec = AV_CODEC_ID_H264;
-    } else if (opts.encoder.codec == "hevc" || opts.encoder.codec == "h265" ||
-               opts.encoder.codec == "libx265" || opts.encoder.codec == "hevc_nvenc") {
-        target.codec = AV_CODEC_ID_HEVC;
-    } else if (opts.encoder.codec == "av1" || opts.encoder.codec == "av1_nvenc") {
-        target.codec = AV_CODEC_ID_AV1;
+    const chronon3d::CpuBudget& cpu_budget) {
+    if (opts.gop_copy_only) {
+        return make_remux_target_contract(opts.gop_source);
     }
-    target.width = static_cast<std::uint32_t>(compiled.composition->width());
-    target.height = static_cast<std::uint32_t>(compiled.composition->height());
-    target.pixel_format = is_native_encoder_transport(opts.encoder.encoder_backend) &&
-            opts.encoder.hardware_encoder == "nvenc"
-        ? AV_PIX_FMT_CUDA : AV_PIX_FMT_YUV420P;
-
-    AVFormatContext* format = nullptr;
-    if (!source_path.empty() &&
-        avformat_open_input(&format, source_path.c_str(), nullptr, nullptr) >= 0 &&
-        avformat_find_stream_info(format, nullptr) >= 0) {
-        for (unsigned int index = 0; index < format->nb_streams; ++index) {
-            const auto* params = format->streams[index]->codecpar;
-            if (params->codec_type != AVMEDIA_TYPE_VIDEO) continue;
-            target.codec = params->codec_id;
-            target.profile = params->profile;
-            target.level = params->level;
-            target.width = static_cast<std::uint32_t>(params->width);
-            target.height = static_cast<std::uint32_t>(params->height);
-            target.pixel_format = static_cast<BitstreamPixelFormat>(params->format);
-            if (params->extradata && params->extradata_size > 0) {
-                target.parameter_sets.assign(
-                    params->extradata, params->extradata + params->extradata_size);
-            }
-            target.color_range = params->color_range;
-            target.color_space = params->color_space;
-            target.color_primaries = params->color_primaries;
-            target.color_trc = params->color_trc;
-            break;
-        }
-        avformat_close_input(&format);
-    }
-#else
-    (void)opts;
-    (void)compiled;
-    (void)source_path;
-#endif
-    return target;
+    const auto codec = resolve_cli_ffmpeg_codec(
+        opts.encoder.codec, opts.encoder.hardware_encoder);
+    const auto pipe_options =
+        make_pipe_options(compiled, opts, codec, cpu_budget);
+    if (!pipe_options) return std::nullopt;
+    return resolve_encoder_bitstream_contract(*pipe_options);
 }
 
 // ── Single GOP preflight (before any decision) ─────────────────────────────
@@ -88,12 +62,22 @@ BitstreamTargetContract make_bitstream_target_contract(
 // executor must not re-inspect or re-resolve later.
 media::GopAnalysisSummary inspect_source_once(
     const FfmpegExportOptions& opts, const CompiledComposition& compiled,
-    double start_sec, double end_sec) {
+    double start_sec, double end_sec,
+    const chronon3d::CpuBudget& cpu_budget) {
     media::GopAnalysisSummary summary;
     if (opts.gop_source.empty()) return summary;
+    const auto target = make_bitstream_target_contract(opts, compiled, cpu_budget);
+    if (!target) {
+        // No encoder-owned contract could be produced for a lane that
+        // re-encodes: the splice gate cannot be evaluated, so it is unsafe.
+        spdlog::warn(
+            "[video] gop preflight: encoder-owned target contract unavailable; "
+            "packet copy is not certified for this lane");
+        summary.available = false;
+        return summary;
+    }
     const auto analysis = inspect_gop_source(
-        opts.gop_source,
-        make_bitstream_target_contract(opts, compiled, opts.gop_source),
+        opts.gop_source, *target,
         start_sec, end_sec,
         /*content_changed=*/!opts.gop_copy_only,
         opts.changed_intervals);
@@ -101,6 +85,10 @@ media::GopAnalysisSummary inspect_source_once(
         summary.available = false;
         return summary;
     }
+    spdlog::info(
+        "[video] gop preflight target: producer={} materialized={}",
+        target->producer == BitstreamTargetProducer::Remux ? "remux" : "encoder",
+        target->encoder_materialized);
     summary.available = true;
     summary.total_gops = analysis->plans.size();
     summary.copy_gops = analysis->copy_count;
@@ -563,7 +551,7 @@ int render_and_encode_ffmpeg(
                      static_cast<int>(decision.codec_path));
     } else {
         const media::GopAnalysisSummary summary = inspect_source_once(
-            opts, compiled, start_sec, end_sec);
+            opts, compiled, start_sec, end_sec, cpu_budget);
         if (summary.available) {
             spdlog::info("[video] gop preflight: {} GOPs ({} copy-eligible, {} re-encode{}), splice_safe={}",
                          summary.total_gops, summary.copy_gops,
