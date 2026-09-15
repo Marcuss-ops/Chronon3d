@@ -38,19 +38,32 @@ bool NativeAvEncoder::close() {
 
     drain_packets();
     spdlog::info("[native_av] close: packets drained");
-    if (audio_input_ && !mux_source_audio()) {
-        spdlog::error("[native_av] failed to mux source audio");
+    double trailer_ms = 0.0;
+    if (borrows_mux_) {
+        // Caller-owned container: audio and the trailer belong to the caller
+        // and happen exactly once, after every work unit of the schedule has
+        // been submitted. Finalizing here would close the container after the
+        // FIRST re-encoded GOP and drop every subsequent one.
+        spdlog::info(
+            "[native_av] close: borrowed mux session left open for the caller "
+            "(no audio, no trailer)");
+        // The container is the caller's from here on: never touch it again.
+        mux_ = nullptr;
+        borrows_mux_ = false;
+    } else {
+        if (audio_input_ && !mux_source_audio()) {
+            spdlog::error("[native_av] failed to mux source audio");
+        }
+        const auto t_trailer0 = Clock::now();
+        if (mux_) {
+            spdlog::info("[native_av] close: finalizing mux session");
+            (void)mux_->finalize();
+            spdlog::info("[native_av] close: mux session finalized");
+        }
+        trailer_ms = elapsed_ms(t_trailer0);
     }
     const double flush_ms = elapsed_ms(t_flush0);
     native_flush_ms_ += flush_ms;
-
-    const auto t_trailer0 = Clock::now();
-    if (mux_) {
-        spdlog::info("[native_av] close: finalizing mux session");
-        (void)mux_->finalize();
-        spdlog::info("[native_av] close: mux session finalized");
-    }
-    const double trailer_ms = elapsed_ms(t_trailer0);
     native_trailer_ms_ += trailer_ms;
 
     if (profiling::g_current_counters) {
@@ -62,6 +75,14 @@ bool NativeAvEncoder::close() {
 
     spdlog::info("[native_av] Closed native encoder — {} frames written, YUV cache: {} hits / {} misses",
                  frames_written_, cache_hits_, cache_misses_);
+    // The encoder-owned bitstream contract describes a live session only; a
+    // closed (or pooled) instance must not leak it into the next job.
+    bitstream_contract_ = BitstreamTargetContract{};
+    bitstream_contract_probed_ = false;
+    // A container this encoder opened stays reachable through `mux_` after
+    // close() so the hash/checksum telemetry remains readable until the
+    // encoder is torn down (abort_open releases it). A borrowed container was
+    // already detached above.
     return true;
 }
 
@@ -107,7 +128,11 @@ void NativeAvEncoder::abort_open() noexcept {
     avcodec_free_context(&codec_);
     avformat_close_input(&audio_input_);
     audio_input_stream_ = -1;
-    mux_.reset();
+    // Only the container this encoder opened is destroyed here; a borrowed
+    // MuxSession belongs to the caller.
+    owned_mux_.reset();
+    mux_ = nullptr;
+    borrows_mux_ = false;
     packet_ = nullptr;
     frame_ = nullptr;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -116,6 +141,8 @@ void NativeAvEncoder::abort_open() noexcept {
     cuda_context_ = nullptr;
     gpu_nvenc_ = false;
 #endif
+    bitstream_contract_ = BitstreamTargetContract{};
+    bitstream_contract_probed_ = false;
     open_complete_ = false;
 }
 

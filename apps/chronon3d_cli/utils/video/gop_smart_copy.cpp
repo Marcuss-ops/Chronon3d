@@ -13,6 +13,7 @@ extern "C" {
 #include <string_view>
 #include <limits>
 #include <cstring>
+#include <utility>
 #include <spdlog/spdlog.h>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -30,6 +31,37 @@ bool nal_is_random_access(AVCodecID codec, const std::uint8_t* nal,
     return false;
 }
 
+/// NAL length size declared by an AVC/HEVC configuration record.
+///
+/// The offset is CODEC-SPECIFIC and must never be shared: `avcC` carries
+/// lengthSizeMinusOne in byte 4, `hvcC` in byte 21. Reading the AVC offset out
+/// of an HEVC record yielded a bogus length (1 instead of 4), which made every
+/// HEVC packet fail random-access certification and silently downgraded the
+/// whole HEVC packet-copy lane to a full re-encode.
+///
+/// Returns 0 when no configuration record valid for `codec` is present.
+std::size_t config_record_nal_length_size(
+    AVCodecID codec, const AVCodecParameters& params) noexcept {
+    if (!params.extradata || params.extradata_size <= 0) return 0;
+    const auto* extradata = params.extradata;
+    const int size = params.extradata_size;
+    if (codec == AV_CODEC_ID_H264) {
+        // avcC: configurationVersion(1) .. lengthSizeMinusOne at byte 4.
+        if (size < 7 || extradata[0] != 1) return 0;
+        return static_cast<std::size_t>((extradata[4] & 0x03U) + 1U);
+    }
+    if (codec == AV_CODEC_ID_HEVC) {
+        // hvcC: configurationVersion(1), profile/tier/level(11),
+        // min_spatial_segmentation(2), parallelismType(1), chromaFormat(1),
+        // bitDepthLuma(1), bitDepthChroma(1), avgFrameRate(2),
+        // constantFrameRate/numTemporalLayers/temporalIdNested/
+        // lengthSizeMinusOne(1) → byte 21.
+        if (size < 23 || extradata[0] != 1) return 0;
+        return static_cast<std::size_t>((extradata[21] & 0x03U) + 1U);
+    }
+    return 0;
+}
+
 bool packet_is_certified_random_access(
     const AVPacket& packet, const AVCodecParameters& params) noexcept {
     if ((packet.flags & AV_PKT_FLAG_KEY) == 0 || !packet.data || packet.size <= 0) {
@@ -41,6 +73,32 @@ bool packet_is_certified_random_access(
 
     const auto* data = packet.data;
     const std::size_t size = static_cast<std::size_t>(packet.size);
+
+    // A valid AVC/HEVC configuration record means the packets are
+    // length-prefixed (MP4/MKV). Parse them deterministically — `00 00 01`
+    // appears inside ordinary slice data, so inferring Annex B from the
+    // payload bytes misclassifies valid streams.
+    if (const std::size_t length_size =
+            config_record_nal_length_size(params.codec_id, params);
+        length_size > 0) {
+        std::size_t offset = 0;
+        while (offset + length_size <= size) {
+            std::uint32_t nal_size = 0;
+            for (std::size_t byte = 0; byte < length_size; ++byte) {
+                nal_size = (nal_size << 8U) | data[offset + byte];
+            }
+            offset += length_size;
+            if (nal_size == 0 || offset + nal_size > size) return false;
+            if (nal_is_random_access(params.codec_id, data + offset, nal_size)) {
+                return true;
+            }
+            offset += nal_size;
+        }
+        return offset == size;
+    }
+
+    // No configuration record: the packet is expected to carry in-band
+    // Annex B start codes.
     const auto has_annexb_start = [&]() {
         for (std::size_t i = 0; i + 3 < size; ++i) {
             if (data[i] == 0 && data[i + 1] == 0 &&
@@ -78,29 +136,10 @@ bool packet_is_certified_random_access(
         return false;
     }
 
-    // AVC/HEVC in MP4/MKV is normally length-prefixed. The NAL length size
-    // is carried in avcC/hvcC extradata; unknown lengths are rejected rather
-    // than guessed, preserving the fail-closed splice contract.
-    if (!params.extradata || params.extradata_size < 5 ||
-        params.extradata[0] != 1) {
-        return false;
-    }
-    const std::size_t length_size =
-        static_cast<std::size_t>((params.extradata[4] & 0x03) + 1);
-    std::size_t offset = 0;
-    while (offset + length_size <= size) {
-        std::uint32_t nal_size = 0;
-        for (std::size_t byte = 0; byte < length_size; ++byte) {
-            nal_size = (nal_size << 8U) | data[offset + byte];
-        }
-        offset += length_size;
-        if (nal_size == 0 || offset + nal_size > size) return false;
-        if (nal_is_random_access(params.codec_id, data + offset, nal_size)) {
-            return true;
-        }
-        offset += nal_size;
-    }
-    return offset == size;
+    // An Annex-B packet with no configuration record cannot be certified: the
+    // splice contract is fail-closed, so unknown syntax is rejected rather
+    // than guessed.
+    return false;
 }
 
 bool codec_matches(AVCodecID source, std::string_view requested) noexcept {
@@ -161,6 +200,161 @@ BitstreamCompatibility compare_bitstream_compatibility(
     return result;
 }
 #endif
+
+bool SourceMuxDeclaration::encoder_reproduces(
+    const BitstreamTargetContract& encoder_contract) const noexcept {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    (void)encoder_contract;
+    return false;
+#else
+    // Build the source side of the comparison from the facts captured while
+    // the container was declared. The comparison itself stays in the one
+    // authority (compare_bitstream_compatibility).
+    AVCodecParameters params{};
+    params.codec_id = static_cast<AVCodecID>(video_codec_id);
+    params.codec_type = AVMEDIA_TYPE_VIDEO;
+    params.profile = video_profile;
+    params.level = video_level;
+    params.format = video_pixel_format;
+    params.width = video_width;
+    params.height = video_height;
+    params.extradata = const_cast<std::uint8_t*>(video_extradata.data());
+    params.extradata_size = static_cast<int>(video_extradata.size());
+    params.color_range = color_range;
+    params.color_space = color_space;
+    params.color_primaries = color_primaries;
+    params.color_trc = color_trc;
+    return compare_bitstream_compatibility(params, encoder_contract, true)
+        .safe_to_splice();
+#endif
+}
+
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+std::optional<SourceMuxDeclaration> open_source_declared_mux(
+    const std::string& source_path, const std::string& output_path,
+    chronon3d::media::MuxSession& mux, bool include_audio) {
+    if (source_path.empty() || output_path.empty()) return std::nullopt;
+    AVFormatContext* format = nullptr;
+    if (avformat_open_input(&format, source_path.c_str(), nullptr, nullptr) < 0) {
+        return std::nullopt;
+    }
+    if (avformat_find_stream_info(format, nullptr) < 0) {
+        avformat_close_input(&format);
+        return std::nullopt;
+    }
+    int video_index = -1;
+    int audio_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        const auto type = format->streams[index]->codecpar->codec_type;
+        if (type == AVMEDIA_TYPE_VIDEO && video_index < 0) {
+            video_index = static_cast<int>(index);
+        } else if (type == AVMEDIA_TYPE_AUDIO && audio_index < 0) {
+            audio_index = static_cast<int>(index);
+        }
+    }
+    if (video_index < 0) {
+        avformat_close_input(&format);
+        return std::nullopt;
+    }
+
+    const auto* video_params = format->streams[video_index]->codecpar;
+    SourceMuxDeclaration declaration;
+    declaration.source_video_stream = video_index;
+    declaration.video_time_base = format->streams[video_index]->time_base;
+    declaration.video_codec_id = video_params->codec_id;
+    declaration.video_profile = video_params->profile;
+    declaration.video_level = video_params->level;
+    declaration.video_pixel_format = video_params->format;
+    declaration.video_width = video_params->width;
+    declaration.video_height = video_params->height;
+    declaration.color_range = video_params->color_range;
+    declaration.color_space = video_params->color_space;
+    declaration.color_primaries = video_params->color_primaries;
+    declaration.color_trc = video_params->color_trc;
+    if (video_params->extradata && video_params->extradata_size > 0) {
+        declaration.video_extradata.assign(
+            video_params->extradata,
+            video_params->extradata + video_params->extradata_size);
+    }
+
+    std::optional<chronon3d::media::AudioStreamConfig> audio_config;
+    if (include_audio && audio_index >= 0) {
+        audio_config = chronon3d::media::AudioStreamConfig{
+            .params = format->streams[audio_index]->codecpar,
+            .time_base = format->streams[audio_index]->time_base,
+            .target_sample_rate = 0};
+        declaration.source_audio_stream = audio_index;
+        declaration.audio_declared = true;
+    }
+
+    std::string reason;
+    const bool opened = mux.open(chronon3d::media::MuxOpenConfig{
+        // The container's video stream IS the source stream. A copied packet is
+        // therefore correct by construction; the encoder must prove it
+        // reproduces this declaration
+        // (SourceMuxDeclaration::encoder_reproduces).
+        .output_path = output_path,
+        .video_codec = nullptr,
+        .audio = audio_config,
+        .video_params = video_params,
+        .video_time_base = declaration.video_time_base}, reason);
+    avformat_close_input(&format);
+    if (!opened) {
+        spdlog::error("[gop-direct-mux] source-declared mux open failed: {}",
+                      reason);
+        return std::nullopt;
+    }
+    return declaration;
+}
+#endif
+
+std::optional<BitstreamTargetContract> make_remux_target_contract(
+    const std::string& source_path) {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    (void)source_path;
+    return std::nullopt;
+#else
+    if (source_path.empty()) return std::nullopt;
+    AVFormatContext* format = nullptr;
+    if (avformat_open_input(&format, source_path.c_str(), nullptr, nullptr) < 0) {
+        return std::nullopt;
+    }
+    if (avformat_find_stream_info(format, nullptr) < 0) {
+        avformat_close_input(&format);
+        return std::nullopt;
+    }
+    std::optional<BitstreamTargetContract> target;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        const auto* params = format->streams[index]->codecpar;
+        if (params->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+        BitstreamTargetContract contract;
+        // The output stream IS the source stream on this lane: a demuxer will
+        // report exactly these parameters. `producer = Remux` records that no
+        // encoder participates, and `encoder_materialized` stays false because
+        // no encoder produced them.
+        contract.producer = BitstreamTargetProducer::Remux;
+        contract.encoder_materialized = false;
+        contract.codec = params->codec_id;
+        contract.profile = params->profile;
+        contract.level = params->level;
+        contract.width = static_cast<std::uint32_t>(params->width);
+        contract.height = static_cast<std::uint32_t>(params->height);
+        contract.pixel_format = static_cast<BitstreamPixelFormat>(params->format);
+        if (params->extradata && params->extradata_size > 0) {
+            contract.parameter_sets.assign(
+                params->extradata, params->extradata + params->extradata_size);
+        }
+        contract.color_range = params->color_range;
+        contract.color_space = params->color_space;
+        contract.color_primaries = params->color_primaries;
+        contract.color_trc = params->color_trc;
+        target = std::move(contract);
+        break;
+    }
+    avformat_close_input(&format);
+    return target;
+#endif
+}
 
 std::optional<GopSourceAnalysis> inspect_gop_source(
     const std::string& path,
@@ -566,6 +760,176 @@ std::optional<GopCopyResult> copy_gop_source(
     if (!selected_video_started) return fail();
     if (!mux.finalize()) return fail();
     close_input();
+    return result;
+#endif
+}
+
+std::optional<GopCopyResult> submit_gop_source_packets(
+    const std::string& source_path, const chronon3d::media::GopWorkUnit& unit,
+    chronon3d::media::MuxSession& mux) {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    (void)source_path;
+    (void)unit;
+    (void)mux;
+    return std::nullopt;
+#else
+    if (source_path.empty()) return std::nullopt;
+    AVFormatContext* format = nullptr;
+    if (avformat_open_input(&format, source_path.c_str(), nullptr, nullptr) < 0) {
+        return std::nullopt;
+    }
+    const auto close_format = [&]() { avformat_close_input(&format); };
+    if (avformat_find_stream_info(format, nullptr) < 0) {
+        close_format();
+        return std::nullopt;
+    }
+    int video_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        if (format->streams[index]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video_index = static_cast<int>(index);
+            break;
+        }
+    }
+    if (video_index < 0) {
+        close_format();
+        return std::nullopt;
+    }
+    const auto time_base = format->streams[video_index]->time_base;
+
+    // The unit's packet envelope, in the SOURCE time base. DTS is the order the
+    // container stores and the muxer re-emits, so it is the selection key.
+    // Nothing here converts to seconds or frames: the schedule already speaks
+    // the source's own timestamps.
+    std::int64_t first = unit.source_packets.present ? unit.source_packets.first
+                                                     : unit.first_dts;
+    std::int64_t last = unit.source_packets.present ? unit.source_packets.last
+                                                    : unit.last_dts;
+    if (first > last) std::swap(first, last);
+
+    GopCopyResult result;
+    AVPacket* packet = av_packet_alloc();
+    if (!packet) {
+        close_format();
+        return std::nullopt;
+    }
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == video_index) {
+            const auto stamp =
+                packet->dts != AV_NOPTS_VALUE ? packet->dts : packet->pts;
+            if (stamp != AV_NOPTS_VALUE && stamp >= first && stamp <= last) {
+                // Verbatim: the mux owns the timestamp authority and rescales
+                // from the source time base. submit_video consumes the packet,
+                // so reuse of this AVPacket for the next read is safe.
+                if (!mux.submit_video(*packet, time_base)) {
+                    av_packet_unref(packet);
+                    av_packet_free(&packet);
+                    close_format();
+                    return std::nullopt;
+                }
+                ++result.video_packets;
+            }
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    close_format();
+    return result;
+#endif
+}
+
+std::optional<GopCopyResult> submit_source_audio(
+    const std::string& source_path, chronon3d::media::MuxSession& mux,
+    chronon3d::media::TimestampRange video_window) {
+#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    (void)source_path;
+    (void)mux;
+    (void)video_window;
+    return std::nullopt;
+#else
+    // Audio is not GOP-aligned: the whole track is submitted exactly once, by
+    // the caller, no matter how many work units ran.
+    if (!mux.has_audio()) return GopCopyResult{};
+    if (source_path.empty()) return std::nullopt;
+    AVFormatContext* format = nullptr;
+    if (avformat_open_input(&format, source_path.c_str(), nullptr, nullptr) < 0) {
+        return std::nullopt;
+    }
+    const auto close_format = [&]() { avformat_close_input(&format); };
+    if (avformat_find_stream_info(format, nullptr) < 0) {
+        close_format();
+        return std::nullopt;
+    }
+    int video_index = -1;
+    int audio_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        const auto type = format->streams[index]->codecpar->codec_type;
+        if (type == AVMEDIA_TYPE_VIDEO && video_index < 0) {
+            video_index = static_cast<int>(index);
+        } else if (type == AVMEDIA_TYPE_AUDIO && audio_index < 0) {
+            audio_index = static_cast<int>(index);
+        }
+    }
+    if (audio_index < 0) {
+        close_format();
+        return GopCopyResult{};
+    }
+    const auto time_base = format->streams[audio_index]->time_base;
+
+    // The scheduled window arrives in the SOURCE VIDEO time base — the
+    // authority the work units speak. This is the one and only conversion, and
+    // it is the container's own rescale: no seconds are reintroduced, so the
+    // schedule keeps a single interpretation. The window is half-open
+    // [first, last), matching how a GOP's right edge is defined (the next GOP's
+    // start), so a packet exactly on the boundary belongs to the next window.
+    std::int64_t audio_first = INT64_MIN;
+    std::int64_t audio_last = INT64_MAX;
+    if (video_window.present) {
+        const auto video_time_base = video_index >= 0
+            ? format->streams[video_index]->time_base : AVRational{0, 1};
+        if (video_index < 0 || video_time_base.num <= 0 ||
+            video_time_base.den <= 0) {
+            close_format();
+            return std::nullopt;
+        }
+        audio_first = av_rescale_q(video_window.first, video_time_base,
+                                   time_base);
+        audio_last = av_rescale_q(video_window.last, video_time_base,
+                                 time_base);
+        if (audio_first > audio_last) std::swap(audio_first, audio_last);
+    }
+
+    GopCopyResult result;
+    AVPacket* packet = av_packet_alloc();
+    if (!packet) {
+        close_format();
+        return std::nullopt;
+    }
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == audio_index) {
+            const auto stamp =
+                packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+            if (stamp != AV_NOPTS_VALUE &&
+                (stamp < audio_first || stamp >= audio_last)) {
+                av_packet_unref(packet);
+                continue;
+            }
+            auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            const bool submitted = owned &&
+                av_packet_ref(owned.get(), packet) >= 0 &&
+                mux.submit_audio(chronon3d::media::EncodedPacket{
+                    std::move(owned), time_base, false});
+            if (!submitted) {
+                av_packet_unref(packet);
+                av_packet_free(&packet);
+                close_format();
+                return std::nullopt;
+            }
+            ++result.audio_packets;
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    close_format();
     return result;
 #endif
 }

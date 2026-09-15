@@ -37,12 +37,6 @@ runtime::TransferFunction transfer_from_output_space(
     }
 }
 
-AVColorTransferCharacteristic av_transfer_from_output_space(
-    color::ColorSpace output) noexcept {
-    return transfer_from_output_space(output) == runtime::TransferFunction::Linear
-        ? AVCOL_TRC_LINEAR : AVCOL_TRC_BT709;
-}
-
 bool set_codec_option_checked(AVCodecContext* codec, const char* key,
                               const std::string& value) {
     const int rc = av_opt_set(codec, key, value.c_str(), AV_OPT_SEARCH_CHILDREN);
@@ -67,6 +61,30 @@ bool validate_encoder_options(const FfmpegPipeOptions& options) {
 NativeAvEncoder::NativeAvEncoder(
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime)
     : device_runtime_(std::move(device_runtime)) {}
+
+const BitstreamTargetContract& NativeAvEncoder::encoder_target_contract() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    // Refresh once, after the first encoded frame: encoders publish profile /
+    // level / SPS-PPS with their first packet, so a contract read before that
+    // is legitimately incomplete (and therefore fail-closed). The one-shot
+    // guard keeps the accessor free of per-frame decoder probes; an encoder
+    // that never publishes them simply stays unmaterialized.
+    if (!bitstream_contract_.encoder_materialized && !bitstream_contract_probed_ &&
+        frames_written_ >= 1 && codec_ && resolved_encoder_config_) {
+        bitstream_contract_probed_ = true;
+        bitstream_contract_ = encoder_bitstream_contract_from_codec(
+            *codec_, options_, *resolved_encoder_config_);
+        if (bitstream_contract_.encoder_materialized) {
+            spdlog::info(
+                "[native_av] encoder bitstream contract materialized: "
+                "profile={} level={} pix_fmt={} parameter_sets={}",
+                bitstream_contract_.profile, bitstream_contract_.level,
+                static_cast<int>(bitstream_contract_.pixel_format),
+                bitstream_contract_.parameter_sets.size());
+        }
+    }
+    return bitstream_contract_;
+}
 
 bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (mux_ || codec_) {
@@ -123,6 +141,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     requested_encoder_rate_control_.clear();
     requested_encoder_preset_.clear();
     resolved_encoder_config_.reset();
+    bitstream_contract_ = BitstreamTargetContract{};
+    bitstream_contract_probed_ = false;
+    borrows_mux_ = false;
+    mux_ = nullptr;
+    owned_mux_.reset();
 
     // ── C-1/C-2: resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup. NativeAvEncoder applies the resolved
@@ -271,10 +294,15 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         codec_->pix_fmt = AV_PIX_FMT_YUV420P;
     }
 
-    codec_->color_range = AVCOL_RANGE_MPEG;
-    codec_->colorspace = AVCOL_SPC_BT709;
-    codec_->color_trc = av_transfer_from_output_space(options_.color_transform.output);
-    codec_->color_primaries = AVCOL_PRI_BT709;
+    // One color-boundary authority (encoder_bitstream_contract): the encoder
+    // applies exactly the values the splice gate compares against.
+    {
+        const auto color = encoder_color_contract(options_.color_transform.output);
+        codec_->color_range = color.color_range;
+        codec_->colorspace = color.color_space;
+        codec_->color_trc = color.color_trc;
+        codec_->color_primaries = color.color_primaries;
+    }
     output_frame_format_ = runtime::FrameFormat{
         options_.direct_yuv_mode && options_.input_format == PipePixelFormat::P010
             ? runtime::PixelFormat::P010
@@ -396,6 +424,22 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     }
     open_nvenc_ms_ = elapsed_ms(nvenc_t0);
 
+    // P0-5A — probe the ENCODER-OWNED bitstream contract. The compressed
+    // source is never consulted here. Encoders publish their output facts
+    // (profile / level / SPS-PPS) with the first packet, so this first probe is
+    // usually still unmaterialized; encoder_target_contract() refreshes it on
+    // demand and the splice gate stays fail-closed until it is complete.
+    bitstream_contract_
+        = encoder_bitstream_contract_from_codec(*codec_, options_, resolved);
+    spdlog::info(
+        "[native_av] encoder bitstream contract: codec={} profile={} level={} "
+        "pix_fmt={} parameter_sets={} materialized={}",
+        static_cast<int>(bitstream_contract_.codec), bitstream_contract_.profile,
+        bitstream_contract_.level,
+        static_cast<int>(bitstream_contract_.pixel_format),
+        bitstream_contract_.parameter_sets.size(),
+        bitstream_contract_.encoder_materialized);
+
     std::optional<chronon3d::media::AudioStreamConfig> audio_config;
     if (!options_.audio_source_path.empty()) {
         if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),
@@ -416,14 +460,29 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
             .target_sample_rate = options_.audio_target_sample_rate};
     }
 
-    mux_ = std::make_unique<chronon3d::media::MuxSession>();
-    std::string mux_reason;
-    if (!mux_->open(chronon3d::media::MuxOpenConfig{
-            .output_path = filename,
-            .video_codec = codec_,
-            .audio = audio_config}, mux_reason)) {
-        spdlog::error("[native_av] mux session open failed: {}", mux_reason);
-        return false;
+    // ── Container ownership (P0-5C) ──────────────────────────────────────
+    // Borrowed: the caller owns the container (its video stream is already
+    // declared from the contract the splice gate certified) and owns audio and
+    // the trailer too, so nothing is opened or finalized here.
+    // Owned: this encoder opens the container and finalizes it in close().
+    if (options_.borrowed_mux) {
+        if (codec_ == nullptr) return false;
+        borrows_mux_ = true;
+        mux_ = options_.borrowed_mux;
+        spdlog::info(
+            "[native_av] borrowing the caller-owned mux session (close() will "
+            "only flush the encoder; the caller owns audio + trailer)");
+    } else {
+        owned_mux_ = std::make_unique<chronon3d::media::MuxSession>();
+        std::string mux_reason;
+        if (!owned_mux_->open(chronon3d::media::MuxOpenConfig{
+                .output_path = filename,
+                .video_codec = codec_,
+                .audio = audio_config}, mux_reason)) {
+            spdlog::error("[native_av] mux session open failed: {}", mux_reason);
+            return false;
+        }
+        mux_ = owned_mux_.get();
     }
 
     frame_ = av_frame_alloc();
