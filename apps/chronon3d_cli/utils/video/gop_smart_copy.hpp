@@ -306,6 +306,7 @@ struct SourceMuxDeclaration {
                                                     const std::uint8_t* data,
                                                     std::size_t size) noexcept;
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 /// Rewrite an Annex-B packet IN PLACE into the length-prefixed sample format a
 /// configuration-record container stores, preserving every NAL and the
 /// packet's timing, flags and side data. Returns false when the packet is
@@ -313,6 +314,7 @@ struct SourceMuxDeclaration {
 /// it as a no-op rather than a failure.
 [[nodiscard]] bool convert_annex_b_to_length_prefixed(
     AVPacket& packet, BitstreamCodecId codec) noexcept;
+#endif
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 /// Declare `mux`'s video stream (and, when `include_audio`, its audio stream)

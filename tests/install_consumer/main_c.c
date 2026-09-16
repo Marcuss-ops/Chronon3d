@@ -48,7 +48,7 @@ static const char kMissingAssetPlan[] =
     "{\"schema\":\"chronon.render-plan.v2\",\"version\":2,"
     "\"canvas\":{\"width\":320,\"height\":180,\"fps_num\":30,\"fps_den\":1,\"duration_frames\":1},"
     "\"layers\":[{\"id\":\"img\",\"type\":\"image\","
-    "\"asset\":\"cabi_missing_asset_never_exists.png\"}],"
+    "\"asset\":\"cabi_missing_asset_never_exists.png\",\"size\":[32,32]}],"
     "\"output\":{\"path\":\"out.png\"}}";
 
 static const int kExpectedWidth = 320;
@@ -80,7 +80,9 @@ static chronon_status make_engine(const char* assets_root,
 // surfaced through engine->last_error.  Video tests SKIP on that path.
 static int video_unavailable(const chronon_engine* engine) {
     const char* message = chronon_engine_last_error((chronon_engine*)engine);
-    return message && strstr(message, "CHRONON3D_ENABLE_VIDEO") != NULL;
+    return message &&
+           (strstr(message, "CHRONON3D_ENABLE_VIDEO") != NULL ||
+            strstr(message, "video sink unavailable") != NULL);
 }
 
 static int frame_is_nonzero(const uint8_t* pixels, uint64_t size) {

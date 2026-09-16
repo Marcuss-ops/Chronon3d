@@ -34,9 +34,9 @@ add_chronon_consumer(check_text main_text.cpp)
 add_chronon_consumer(check_camera main_camera.cpp)
 add_chronon_consumer(check_full main_full.cpp)
 
-# Focused authoring-assets boundary. This target proves that the installed SDK
-# ships the explicit authoring headers and supports the documented asset(path)
-# syntax for both images and fonts without any umbrella include.
+# Focused typed-assets boundary. This target proves that the installed SDK
+# ships the canonical typed asset references and builder headers without any
+# retired authoring facade or umbrella include.
 add_chronon_consumer(check_assets main_assets.cpp)
 
 # CABI_11 exercises the same-engine BUSY contract with real concurrent

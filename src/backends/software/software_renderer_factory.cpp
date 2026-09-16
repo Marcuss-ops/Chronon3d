@@ -35,6 +35,7 @@
 // inner-namespace `chronon3d::renderer::register_builtin_processors(...)`
 // which would resolve to the wrong function if pulled via this include.
 #include <chronon3d/backends/software/runtime_adapter.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
@@ -72,6 +73,12 @@ SoftwareRenderer::SoftwareRenderer(SoftwareExecutionContext context, Config conf
     m_execution_context.text.resources = m_text_render_resources.get();
     m_execution_context.settings = &m_settings;
     m_execution_context.counters = &m_counters;
+    // The session is the canonical owner of nested graph execution. Bind the
+    // runtime-owned stateless executor here so PrecompNode can borrow the same
+    // authority as the root graph instead of falling back to transparency.
+    if (m_execution_context.executor) {
+        m_session.common.bind_executor(*m_execution_context.executor);
+    }
     backends::software::register_builtin_processors(*m_software_registry);
 }
 

@@ -80,13 +80,17 @@ struct TestContext {
     GraphExecutor               local_executor;
     DefaultPrecompBuilder       precomp_builder_service;
     runtime::JobSession               session;
-    SceneProgramStore             store;
+    // Alias the canonical per-session store.  A separate store here would
+    // only observe zero activity because PrecompNode acquires through the
+    // JobSession owned authority.
+    SceneProgramStore&            store;
     ExecutionScheduler          scheduler;
     RenderGraphContext          ctx;
 
     TestContext(int w = 200, int h = 200)
         : backend(test::make_renderer())
         , pool(std::make_shared<FramebufferPool>(128))
+        , store(session.program_store())
         , scheduler(SchedulerMode::Sequential, 1, false)
     {
         // WP-0 PR 0.1 — wire the local GraphExecutor into the session so the

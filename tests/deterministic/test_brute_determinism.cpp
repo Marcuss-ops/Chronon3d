@@ -128,6 +128,7 @@ static std::optional<std::filesystem::path> discover_cli_binary() {
         "build/manual-test/chronon3d_cli",
         "build/chronon3d_cli",
         "build/chronon/linux-content-dev/chronon3d_cli",
+        "build/chronon/linux-ci/apps/chronon3d_cli/chronon3d_cli",
         "build/chronon/linux-fast-dev/chronon3d_cli",
         "build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli",
         "apps/chronon3d_cli/chronon3d_cli",

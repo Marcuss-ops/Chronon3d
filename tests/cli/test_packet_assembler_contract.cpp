@@ -390,6 +390,11 @@ TEST_CASE("PacketAssembler exposes a distinct copied-video submission path") {
     });
 }
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+// GopExecutionExecutor is owned by the native media authority together with
+// MuxSession. The policy/plan tests above remain valid without FFmpeg, but
+// this dispatch test must not make the no-native CLI test binary depend on
+// symbols from the deliberately absent native media library.
 TEST_CASE("GOP executor dispatches the verified schedule through one MuxSession") {
     using namespace chronon3d::media;
     MuxSession mux;
@@ -458,6 +463,7 @@ TEST_CASE("GOP executor dispatches the verified schedule through one MuxSession"
     CHECK(seen[0] == GopWorkKind::CopyPackets);
     CHECK(seen[1] == GopWorkKind::Reencode);
 }
+#endif
 
 TEST_CASE("GOP planner copies only a closed safe untouched GOP") {
     const std::array<chronon3d::cli::CompressedPacketInfo, 2> packets{{

@@ -143,10 +143,14 @@ BitstreamTargetContract make_encoder_bitstream_contract(
     BitstreamTargetContract target;
     target.producer = BitstreamTargetProducer::Encoder;
     target.encoder_materialized = false;
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    target.codec = bitstream_codec_for_encoder_name(resolved.encoder_name());
+    // Dimensions are declaration-time facts supplied by the render request;
+    // they are known even in a no-native build. Keep them visible to the
+    // contract so policy tests and diagnostics do not erase useful metadata
+    // merely because the native FFmpeg materialization lane is unavailable.
     target.width = static_cast<std::uint32_t>(std::max(options.width, 0));
     target.height = static_cast<std::uint32_t>(std::max(options.height, 0));
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    target.codec = bitstream_codec_for_encoder_name(resolved.encoder_name());
     const auto color = encoder_color_contract(options.color_transform.output);
     target.color_range = color.color_range;
     target.color_space = color.color_space;
@@ -160,7 +164,6 @@ BitstreamTargetContract make_encoder_bitstream_contract(
     target.pixel_format = static_cast<BitstreamPixelFormat>(-1);
     target.parameter_sets.clear();
 #else
-    (void)options;
     (void)resolved;
 #endif
     return target;
@@ -226,6 +229,7 @@ BitstreamTargetContract encoder_bitstream_contract_from_codec(
 }
 #endif
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 std::optional<BitstreamTargetContract> encoder_bitstream_contract_from_packet(
     const AVPacket& packet, const AVCodecContext& codec,
     const FfmpegPipeOptions& options,
@@ -299,6 +303,7 @@ std::optional<BitstreamTargetContract> encoder_bitstream_contract_from_packet(
     if (!target.encoder_materialized) return std::nullopt;
     return target;
 }
+#endif
 
 std::optional<BitstreamTargetContract> resolve_encoder_bitstream_contract(
     const FfmpegPipeOptions& options) noexcept {

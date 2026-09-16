@@ -217,11 +217,11 @@ inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
         },
         .execution = execution,
     };
-    if (execution) {
-        ctx.frame_parameters = &execution->parameters();
-    } else {
-        ctx.frame_parameters = frame_parameters;
-    }
+    // Typed routes pass the canonical block explicitly. Compatibility
+    // composition callbacks do not have typed layer parameters; exposing the
+    // empty execution payload would make every bound node fail closed as
+    // EarlyExit. Keep the two contracts separate at this boundary.
+    ctx.frame_parameters = frame_parameters;
     // Graph-only/debug callers do not pass through scene_context_setup().
     // Seed the context with the backend's immutable processor generation so
     // the compiler cannot compare a valid snapshot against the zero default.

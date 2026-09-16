@@ -19,7 +19,9 @@ namespace test_raw_sink {
 inline std::string temp_path(const char* suffix) {
     static std::atomic<int> counter{0};
     int id = counter.fetch_add(1);
-    return "/tmp/chronon3d_raw_sink_" + std::to_string(id) + "_" + suffix + ".raw";
+    const auto filename = "chronon3d_raw_sink_" + std::to_string(id) + "_" +
+                          std::string(suffix) + ".raw";
+    return (std::filesystem::temp_directory_path() / filename).string();
 }
 
 /// Build a minimal valid VideoSinkConfig for the given format/dimensions.

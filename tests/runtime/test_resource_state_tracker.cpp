@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -71,11 +72,41 @@ bool operator==(const OldKey& a, const NewKey& b) noexcept {
            a.before == b.before && a.after == b.after;
 }
 
+bool has_alias_predecessor(const ResourcePlan& resources,
+                           ResourceId resource) {
+    const auto* allocation = resources.allocation_for(resource);
+    if (!allocation ||
+        allocation->physical_slot == std::numeric_limits<std::size_t>::max()) {
+        return false;
+    }
+    const auto& current = resources.requests[resource];
+    for (std::size_t index = 0; index < resources.allocations.size(); ++index) {
+        if (index == resource ||
+            resources.allocations[index].physical_slot !=
+                allocation->physical_slot) {
+            continue;
+        }
+        if (resources.requests[index].last < current.first) return true;
+    }
+    return false;
+}
+
+std::optional<ResourceId> resource_for_surface(const ResourcePlan& resources,
+                                               std::uint32_t surface) {
+    for (std::size_t index = 0; index < resources.requests.size(); ++index) {
+        if (resources.requests[index].surface == surface) {
+            return static_cast<ResourceId>(index);
+        }
+    }
+    return std::nullopt;
+}
+
 /// Replicate the legacy planner's desired-state derivation for one pass
 /// (destination = write, other references = read, in-place = read+write)
 /// and feed the SAME states into the new tracker.
 std::vector<std::pair<ResourceUse, ResourceState>> uses_for_pass(
     const GpuPass& pass) {
+    ResourceStateResolver resolver;
     struct Desired {
         std::uint32_t id{0};
         ResourceState state{};
@@ -87,16 +118,20 @@ std::vector<std::pair<ResourceUse, ResourceState>> uses_for_pass(
     // helper is replaced by the writes flag.
     for (const auto& access : detail::desired_accesses(pass)) {
         if (access.surface == kInvalidRenderSurfaceHandle) continue;
-        ResourceState state = access.reads && access.writes
-            ? ResourceState::compute_read_write()
+        const auto intent = access.reads && access.writes
+            ? UsageIntent::StorageReadWrite
             : access.writes
-                ? ResourceState::compute_write()
-                : ResourceState::compute_read();
+                ? UsageIntent::StorageWrite
+                : UsageIntent::StorageRead;
+        const ResourceState state = resolver.resolve(intent, ResourceKind::Color);
         const auto id = static_cast<std::uint32_t>(access.surface);
         bool merged = false;
         for (auto& d : desired) {
             if (d.id == id) {
-                if (access.writes) d.state = ResourceState::compute_read_write();
+                if (access.writes) {
+                    d.state = resolver.resolve(
+                        UsageIntent::StorageReadWrite, ResourceKind::Color);
+                }
                 merged = true;
                 break;
             }
@@ -134,7 +169,17 @@ void assert_parallel_equivalence(
     ResourceStateTracker tracker;
     for (std::size_t i = 0; i < plan.passes.size(); ++i) {
         const auto uses = uses_for_pass(plan.passes.passes[i]);
-        for (const auto& [use, state] : uses) tracker.apply_use(i, use, state);
+        for (const auto& [use, state] : uses) {
+            const auto resource = resource_for_surface(plan.resources, use.resource);
+            REQUIRE(resource.has_value());
+            const auto& request = plan.resources.requests[*resource];
+            if (i == request.first &&
+                has_alias_predecessor(plan.resources, *resource)) {
+                tracker.apply_alias_boundary(i, use.resource, use.range, state);
+            } else {
+                tracker.apply_use(i, use, state);
+            }
+        }
     }
 
     // ── compare ───────────────────────────────────────────────────────

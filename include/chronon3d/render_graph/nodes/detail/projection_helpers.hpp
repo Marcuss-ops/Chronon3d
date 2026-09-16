@@ -135,7 +135,11 @@ inline std::optional<Mat4> project_to_camera_space(
         false,
         {static_cast<f32>(ctx.frame_input.width),
          static_cast<f32>(ctx.frame_input.height)},
-        chronon3d::BackfaceMode::Hidden);
+        // This helper is exclusively the 2D-projection path; projected
+        // compositor surfaces are double-sided.  Native 3D callers use the
+        // separate placement/bounds path where physical winding is owned by
+        // the 3D source processor.
+        chronon3d::BackfaceMode::DoubleSided);
     if (!proj.visible) {
         if (std::getenv("CHRONON3D_PROJ_DIAG")) {
             spdlog::warn(

@@ -119,6 +119,14 @@ TEST_CASE("materialize_prepared_text ≡ compile_text_layout (post-refactor iden
 
     auto params    = make_test_params("Identity Check", 32.0f);
     auto layout_sp = make_test_layout();
+    // Keep both paths equivalent: the canonical PreparedText path consumes
+    // TextFrame defaults, while the direct request below uses this spec.
+    params.frame.size = layout_sp.box;
+    params.frame.align = layout_sp.align;
+    params.frame.vertical_align = layout_sp.vertical_align;
+    params.frame.wrap = layout_sp.wrap;
+    params.frame.line_height = layout_sp.line_height;
+    params.frame.tracking = layout_sp.tracking;
 
     // ── Path A — through materialize_prepared_text (post-refactor) ──
     auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});

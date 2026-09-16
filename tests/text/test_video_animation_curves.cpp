@@ -268,7 +268,11 @@ TEST_CASE("VideoAnim.Position_Bounded_centroid_1920x1080") {
                     }, .color = Color::white()},
                     .frame = {
                         .size = {960.0f, 540.0f},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                        // The animated layer position owns the absolute
+                        // coordinates in this fixture. Keeping the text box
+                        // at the layer origin avoids adding the canvas center
+                        // a second time and pushing the f15 sample off-canvas.
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
                         .align = TextAlign::Center,
                         .vertical_align = VerticalAlign::Middle
                     }

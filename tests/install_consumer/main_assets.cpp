@@ -1,18 +1,17 @@
-// Standalone installed-SDK consumer for the focused authoring asset surface.
+// Standalone installed-SDK consumer for the focused typed asset surface.
 // Includes are explicit by design: no umbrella header is permitted.
 
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/authoring/asset.hpp>
-#include <chronon3d/authoring/composition.hpp>
-#include <chronon3d/authoring/layer.hpp>
-#include <chronon3d/authoring/scene.hpp>
-#include <chronon3d/authoring/text.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -73,28 +72,47 @@ Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
 }
 
 c3d::Composition make_composition() {
-    using c3d::authoring::asset;
+    const c3d::CompositionSpec spec{
+        .name = "installed_typed_assets",
+        .width = kWidth,
+        .height = kHeight,
+        .frame_rate = c3d::FrameRate{30, 1},
+        .duration = c3d::Frame{1},
+    };
 
-    return c3d::authoring::composition()
-        .name("installed_authoring_assets")
-        .width(kWidth)
-        .height(kHeight)
-        .duration(c3d::Frame{1})
-        .frame_rate(c3d::FrameRate{30, 1})
-        .scene([](c3d::authoring::Scene& scene,
-                  const c3d::FrameContext&) {
-            scene.layer("logo", [](c3d::authoring::Layer& layer) {
+    return c3d::composition(
+        spec,
+        [](const c3d::FrameContext& ctx) -> c3d::Scene {
+            c3d::SceneBuilder scene(ctx);
+            scene.layer("logo", [](c3d::LayerBuilder& layer) {
                 layer.kind(c3d::LayerKind::Shape);
-                (void)layer.image("logo", asset("images/logo.png"));
+                layer.image("logo", c3d::ImageParams{
+                    .source = c3d::assets::ImageRef{"images/logo.png"},
+                    .size = {64.0f, 64.0f},
+                });
             });
-            scene.layer("headline", [](c3d::authoring::Layer& layer) {
+            scene.layer("headline", [](c3d::LayerBuilder& layer) {
                 layer.kind(c3d::LayerKind::Text);
-                layer.text("HELLO")
-                    .font(asset("fonts/Inter-Bold.ttf"), 28.0f)
-                    .at(8.0f, 8.0f);
+                layer.text("headline", c3d::TextDefinition{
+                    .content = {.value = "HELLO"},
+                    .style = {
+                        .font = {.font_path = "fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 28.0f},
+                        .color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    },
+                    .frame = {
+                        .size = {kWidth, kHeight},
+                        .placement = c3d::TextPlacement{
+                            c3d::TextPlacementKind::Absolute, {8.0f, 8.0f}},
+                        .align = c3d::TextAlign::Left,
+                        .vertical_align = c3d::VerticalAlign::Top,
+                    },
+                });
             });
-        })
-        .build();
+            return scene.build();
+        });
 }
 
 c3d::sdk::RenderSettings make_settings() {
@@ -138,10 +156,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const c3d::assets::ImageRef logical_image =
-        c3d::authoring::asset("images/logo.png");
-    const c3d::assets::FontRef logical_font =
-        c3d::authoring::asset("fonts/Inter-Bold.ttf");
+    const c3d::assets::ImageRef logical_image{"images/logo.png"};
+    const c3d::assets::FontRef logical_font{"fonts/Inter-Bold.ttf"};
     c3d::assets::AssetResolver resolver_a;
     c3d::assets::AssetResolver resolver_b;
     resolver_a.mount(root_a);
@@ -206,7 +222,7 @@ int main(int argc, char** argv) {
     }
 
     std::printf(
-        "[ASSETS-OK] installed authoring headers compiled; logical image/font "
+        "[ASSETS-OK] installed typed asset headers compiled; logical image/font "
         "paths resolved per engine; CWD ignored; A=red B=green A2=red\n");
     return 0;
 }

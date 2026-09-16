@@ -491,7 +491,13 @@ struct EvaluatedSourcePlacement {
                 ? projected_surface_size
                 : Vec2{static_cast<f32>(ctx.frame_input.width),
                        static_cast<f32>(ctx.frame_input.height)},
-            BackfaceMode::Hidden);
+            // Back-face culling is meaningful for native 3D geometry, whose
+            // winding defines a physical front face.  A projected 2D layer
+            // (including GridBackground and text/image surfaces) is a
+            // compositor surface, not a single-sided solid.  Its authoring
+            // transform may legitimately reverse winding, so culling it here
+            // turns an otherwise valid camera render into an empty frame.
+            native_3d ? BackfaceMode::Hidden : BackfaceMode::DoubleSided);
         item.projected = true;
         item.visible = item.visible && projected.visible;
         if (!projected.visible) {

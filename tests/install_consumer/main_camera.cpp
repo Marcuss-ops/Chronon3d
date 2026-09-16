@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
         /* .width        */ 1920,
         /* .height       */ 1080,
         /* .frame_rate   */ c3d::FrameRate{30, 1},
-        /* .duration     */ 1,
+        /* .duration     */ 60,
     };
 
     // ── 3. Composition via the descriptor authoring surface ───────────
@@ -100,6 +100,8 @@ int main(int argc, char* argv[]) {
             // Background layer: GridBackground (built-in, no font needed)
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
+                l.enable_3d();
+                l.accepts_lights(false);
                 l.grid_background("grid_bg", c3d::GridBackgroundParams{
                     .size = {static_cast<c3d::f32>(ctx.width),
                              static_cast<c3d::f32>(ctx.height)},
@@ -117,6 +119,8 @@ int main(int argc, char* argv[]) {
             // Text layer — sanity for the perspective.
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
+                l.enable_3d();
+                l.accepts_lights(false);
                 l.text("title_text", c3d::TextDefinition{
     .content = {.value = "PERSPECTIVE OK"},
     .style = {

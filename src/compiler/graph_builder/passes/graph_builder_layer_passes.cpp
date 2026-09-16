@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstdint>
 #include <stdexcept>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::detail {
 

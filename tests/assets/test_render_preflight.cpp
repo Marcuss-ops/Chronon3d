@@ -153,7 +153,9 @@ TEST_CASE("RenderPreflight: require_output_path nonexistent deep directory") {
     RenderPreflight::instance().clear();
 
     // A deeply nested path that is extremely unlikely to exist
-    RenderPreflight::instance().require_output_path("/tmp/chronon3d_nonexistent_deep_path_xyz/subdir/output.mp4");
+    const auto output_path = fs::temp_directory_path() /
+        "chronon3d_nonexistent_deep_path_xyz/subdir/output.mp4";
+    RenderPreflight::instance().require_output_path(output_path.string());
     auto issues = RenderPreflight::instance().validate(assets, test_resolver());
 
     // We should get OUTPUT_DIR_MISSING warning (the dir doesn't exist yet)

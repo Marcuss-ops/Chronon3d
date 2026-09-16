@@ -677,8 +677,15 @@ class Runner:
         seen: set[Path] = set()
         for pattern in ("CMakeLists.txt", "*.cmake"):
             for path in pruned_rglob(self.root, pattern):
+                # `path.parts` is absolute.  Filtering it directly makes a
+                # fixture rooted below a directory named `.tmp`/`build` look
+                # like a build tree and silently drops every CMake file.  The
+                # static gate is also used by the self-test with temporary
+                # roots, so apply the exclusion policy relative to the scan
+                # root, as `iter_files()` already does.
+                relative = path.relative_to(self.root)
                 if any(part in EXCLUDED_DIRS or part.startswith("build-")
-                       for part in path.parts):
+                       for part in relative.parts[:-1]):
                     continue
                 if path not in seen:
                     seen.add(path)

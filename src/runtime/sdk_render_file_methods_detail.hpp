@@ -19,6 +19,15 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
         return error;
     };
 
+    // Cancellation is a valid preflight outcome. Honor an already-cancelled
+    // request before validating/opening the encoder so unsupported output
+    // backends cannot mask the caller's cancellation decision or create a
+    // temporary sibling.
+    if (callbacks.is_cancelled && callbacks.is_cancelled()) {
+        return reject(make_render_error(RenderErrorCode::Cancelled,
+            "render cancelled by callback"));
+    }
+
     if (!request.composition && !request.compiled_composition && !request.program) {
         return reject(make_render_error(RenderErrorCode::InvalidComposition,
             "RenderFileRequest requires a composition, compiled_composition, or program"));
