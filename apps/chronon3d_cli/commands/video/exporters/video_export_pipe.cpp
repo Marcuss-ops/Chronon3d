@@ -92,7 +92,8 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 #endif
         }
 #endif
-        if (opts.encoder.hardware_encoder == "nvenc" && !capabilities.nvenc) {
+        if (hardware_nvenc_requested(opts.encoder.hardware_encoder) &&
+            !capabilities.nvenc) {
             spdlog::error(
                 "[video] hardware encoder 'nvenc' requested but probed device capabilities lack nvenc support");
             return PipeExportResult{};

@@ -16,11 +16,14 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/video/video_frame.hpp>
+#include <cctype>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::media::video {
 
@@ -90,6 +93,59 @@ enum class VideoContainer : uint8_t {
     /// Raw file (no container — used with RawVideoSink).
     Raw = 3,
 };
+
+/// Classify a file extension as a supported OUTPUT container.
+///
+/// Case-insensitive, with or without the leading dot. AUDIT P1-3: this
+/// vocabulary existed as four different literal sets
+/// (`apps/.../utils/job/render_job.cpp`, `video_sink_adapter_config.cpp`,
+/// `src/assets/prepared_asset_manifest_support_detail.hpp`,
+/// `include/.../assets/asset_registry.hpp`) that disagreed about `.m4v` and
+/// `.webm` AND disagreed about case, so the answer depended on which layer
+/// asked. This is the output vocabulary — the containers the muxer can
+/// publish. Whether a *source* can be decoded is a different question, owned by
+/// the ingest table (`assets::asset_kind_accepts_extension`); that table is
+/// deliberately wider, and the relationship is pinned by a test.
+[[nodiscard]] inline std::optional<VideoContainer> classify_video_container(
+    std::string_view extension) noexcept {
+    if (!extension.empty() && extension.front() == '.') extension.remove_prefix(1);
+    const auto equals_ci = [extension](std::string_view token) noexcept {
+        if (extension.size() != token.size()) return false;
+        for (std::size_t index = 0; index < token.size(); ++index) {
+            const auto lhs = static_cast<unsigned char>(extension[index]);
+            const auto rhs = static_cast<unsigned char>(token[index]);
+            if (std::tolower(lhs) != std::tolower(rhs)) return false;
+        }
+        return true;
+    };
+    if (equals_ci("mp4")) return VideoContainer::Mp4;
+    if (equals_ci("mkv")) return VideoContainer::Mkv;
+    if (equals_ci("webm")) return VideoContainer::WebM;
+    return std::nullopt;
+}
+
+/// Tracked policy delimiter — this vocabulary intentionally exists in this
+/// header and each rule that reads it must be updated here, not copied.
+///
+/// True when the extension is a video output path the job layer accepts. The
+/// set is `classify_video_container` plus `.mov`, and the addition is declared
+/// rather than accidental: QuickTime shares the ISO-BMFF family the mp4 muxer
+/// writes, but `VideoContainer` has no `Mov` token, so the sink adapter cannot
+/// classify it. Before unification this asymmetry lived in two literal lists
+/// that nobody compared (audit P1-3).
+[[nodiscard]] inline bool is_supported_video_output_extension(
+    std::string_view extension) noexcept {
+    if (classify_video_container(extension).has_value()) return true;
+    // Delimited exception, not a second table.
+    if (!extension.empty() && extension.front() == '.') extension.remove_prefix(1);
+    if (extension.size() != 3) return false;
+    const auto lower = [](unsigned char c) noexcept {
+        return static_cast<char>(std::tolower(c));
+    };
+    return lower(static_cast<unsigned char>(extension[0])) == 'm' &&
+           lower(static_cast<unsigned char>(extension[1])) == 'o' &&
+           lower(static_cast<unsigned char>(extension[2])) == 'v';
+}
 
 enum class RateControlMode : uint8_t {
     Crf,

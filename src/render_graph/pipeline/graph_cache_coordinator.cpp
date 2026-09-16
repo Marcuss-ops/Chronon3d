@@ -134,13 +134,22 @@ private:
     return "node:" + std::string(to_string(node.kind()));
 }
 
+// AUDIT §4 — the scope string is built INSIDE, after the `diagnostics_enabled`
+// guard. It used to be an eager argument at the call sites
+// (`"graph:" + std::to_string(width) + "x" + std::to_string(height)`), which
+// paid 3 allocations on the cached-reuse path — the steady-state path of every
+// frame — even with diagnostics off, the production default.
 static void log_graph_cache_diagnostics(
     const CompiledFrameGraph& compiled,
     RenderGraphContext& ctx,
     std::string_view decision,
-    std::string_view graph_cache_key)
+    int width,
+    int height)
 {
     if (!ctx.policy.diagnostics_enabled) return;
+
+    const std::string graph_cache_key =
+        "graph:" + std::to_string(width) + "x" + std::to_string(height);
 
     spdlog::info(
         "[graph-cache-diagnostic] frame={} graph_cache_scope={} graph_instance_id={} "
@@ -352,9 +361,7 @@ static void log_graph_cache_diagnostics(
             compiled.graph.live_count());
     }
 
-    log_graph_cache_diagnostics(
-        compiled, ctx, "refresh_cached",
-        "graph:" + std::to_string(width) + "x" + std::to_string(height));
+    log_graph_cache_diagnostics(compiled, ctx, "refresh_cached", width, height);
     return lease.release();
 }
 
@@ -412,9 +419,7 @@ GraphBuildResult build_or_reuse_graph(
         result.compiled = build_fresh_graph(ctx, scene, resolved);
         result.graph_reused = false;
         result.skip_initial_clear = ctx.policy.skip_initial_clear;
-        log_graph_cache_diagnostics(
-            result.compiled, ctx, "build_fresh",
-            "graph:" + std::to_string(width) + "x" + std::to_string(height));
+        log_graph_cache_diagnostics(result.compiled, ctx, "build_fresh", width, height);
     }
 
     spdlog::info("[build_or_reuse_done] frame={} graph_reused={} compiled_nodes={} levels={}",

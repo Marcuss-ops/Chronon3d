@@ -3,6 +3,7 @@
 #include "../common/cli_utils.hpp"
 #include "../video/encoder_config_resolution.hpp"
 
+#include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <spdlog/spdlog.h>
@@ -18,10 +19,11 @@ namespace chronon3d::cli {
 namespace {
 
 bool is_video_output(const std::string& output) {
-    std::string ext = std::filesystem::path(output).extension().string();
-    std::transform(ext.begin(), ext.end(), ext.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return ext == ".mp4" || ext == ".mov" || ext == ".mkv" || ext == ".webm";
+    // AUDIT P1-3 — one vocabulary. This predicate used to carry its own literal
+    // list, which differed from the sink adapter's and from the asset ingest
+    // tables in both membership (`.m4v`, `.webm`, `.mov`) and case handling.
+    return media::video::is_supported_video_output_extension(
+        std::filesystem::path(output).extension().string());
 }
 
 void fill_execution_options(RenderExecutionOptions& execution,
@@ -105,7 +107,7 @@ std::optional<RenderRequest> make_render_request(
     request.frame_range_explicit = args.frames_explicit;
 
     const bool gpu_native =
-        (args.video_settings.hardware_encoder == "nvenc" &&
+        (hardware_nvenc_requested(args.video_settings.hardware_encoder) &&
          is_native_encoder_transport(args.video_settings.encoder_backend) &&
          args.backend != chronon3d::graph::BackendPreference::Software) ||
         args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;

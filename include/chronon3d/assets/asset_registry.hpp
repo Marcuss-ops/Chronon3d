@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/assets/asset_metadata.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>  // ingest vocabulary
 #include <chronon3d/core/types/types.hpp>
 #include <filesystem>
 #include <mutex>
@@ -69,16 +70,20 @@ public:
 
     /// Auto-detect type from extension and import (non-static, preferred).
     /// Returns std::nullopt for unrecognized extensions.
+    ///
+    /// AUDIT P1-3 — the local literal lists this used to carry were a fourth
+    /// answer to "is this a video/image/font/audio?": it reported `.webm` and
+    /// `.m4v` as unrecognized while the prepared-asset manifest accepted them.
+    /// The classification now comes from the single ingest table.
     std::optional<AssetId> import_by_extension(const std::filesystem::path& resolved) {
-        std::string ext = resolved.extension().string();
-        for (char& c : ext) c = static_cast<char>(std::tolower(c));
-        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp")
+        const std::string ext = resolved.extension().string();
+        if (assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Image, ext))
             return import_image(resolved);
-        if (ext == ".ttf" || ext == ".otf")
+        if (assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Font, ext))
             return import_font(resolved);
-        if (ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".mkv")
+        if (assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Video, ext))
             return import_video(resolved);
-        if (ext == ".wav" || ext == ".mp3" || ext == ".ogg")
+        if (assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Audio, ext))
             return import_audio(resolved);
         return std::nullopt;
     }

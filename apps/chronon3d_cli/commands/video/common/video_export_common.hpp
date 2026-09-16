@@ -102,7 +102,13 @@ struct FfmpegExportOptions {
     // Compiler-owned GOP schedule. The render/mux executor may consume this
     // verbatim; it must never reconstruct copy/reencode decisions from the
     // scene or from the source a second time.
-    std::optional<chronon3d::media::GopExecutionPlan> resolved_gop_plan;
+    // There is deliberately NO `resolved_gop_plan` field here. The GOP axis of
+    // the decision stays in `media::VideoExecutionDecision::gop_plan`, where it
+    // is asserted by tests; the CLI executor never consumed a copy of it — the
+    // hybrid lane derives its schedule with `build_gop_plan_from_analysis` from
+    // the analysis it just performed, which is the single producer of
+    // `GopWorkUnit`s. A second copy that nothing reads is how a declared plan
+    // and an executed plan drift apart (audit: dead state).
     // Structured resolver reason for the final plan (for example
     // "hybrid_gop_boundary_reencode"). Receipt surface: surfaced in logs
     // today and available for timing-sidecar/telemetry persistence.

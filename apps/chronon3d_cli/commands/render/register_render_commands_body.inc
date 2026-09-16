@@ -149,7 +149,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     static_cast<std::int64_t>(state->end_frame)};
             }
             request.requirements.gpu_required =
-                request.output.hardware_encoder == "nvenc";
+                hardware_nvenc_requested(request.output.hardware_encoder);
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
             video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(

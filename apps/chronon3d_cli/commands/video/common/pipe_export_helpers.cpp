@@ -16,6 +16,19 @@
 
 namespace chronon3d::cli {
 
+std::filesystem::path make_partial_output_path(
+    const std::filesystem::path& final_path) {
+    // One rule, both lanes: keep the final extension when there is one (so the
+    // demuxer keeps probing the real container) and default to `.mp4` when
+    // there is none (so the staged artifact is still a named video file).
+    const auto extension = final_path.extension().empty()
+        ? std::string{".mp4"} : final_path.extension().string();
+    auto partial_path = final_path;
+    partial_path.replace_filename(
+        final_path.stem().string() + ".partial" + extension);
+    return partial_path;
+}
+
 namespace {
 
 constexpr size_t align_up(size_t value, size_t alignment) {

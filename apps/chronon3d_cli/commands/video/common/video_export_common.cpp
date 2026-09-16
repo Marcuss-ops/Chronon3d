@@ -88,7 +88,7 @@ color::ColorSpace parse_color_output(const std::string& cs) {
 }
 
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder) {
-    if (hw_encoder == "nvenc") {
+    if (hw_encoder == chronon3d::media::kNvencHardwareEncoder) {
         if (codec == "h264" || codec == "auto" || codec == "libx264") return "h264_nvenc";
         if (codec == "hevc" || codec == "libx265") return "hevc_nvenc";
     }
