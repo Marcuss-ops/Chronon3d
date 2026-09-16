@@ -1,6 +1,6 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 
-#include <chronon3d/assets/sha256.hpp>
+#include "sha256.hpp"
 
 #include <algorithm>
 #include <array>

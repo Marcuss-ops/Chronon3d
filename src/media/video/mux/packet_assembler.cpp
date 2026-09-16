@@ -168,7 +168,7 @@ struct MuxAvioHashWriter {
         return true;
     }
 
-    static int write_packet(void* opaque, const std::uint8_t* buffer,
+    static int write_packet(void* opaque, std::uint8_t* buffer,
                             int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
