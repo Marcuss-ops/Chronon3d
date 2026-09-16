@@ -1,6 +1,8 @@
 # TICKET-TEXT-QUALITY-V2 — resa del testo: dove nasce davvero la perdita
 
-Stato: **OPEN** (verifiche di codice: PASS; diagnostico di attribuzione: NOT RUN)
+Stato: **OPEN — BLOCKED dal canary text-tile** (verifiche di codice: PASS;
+diagnostico di attribuzione P0-0: **ESEGUITO**, esito in §4.1; verità pre-encode
+P0-0b: **not yet**)
 Ambito: `text_tile_raster.comp` (FullGraph), `cuda_nv12_kernels.hpp` (DirectYUV),
 `mtsdf_generator.cpp` (payload glifo), contratto colore del text run, contratto encoder.
 
@@ -36,7 +38,11 @@ correzioni non sono intercambiabili e vanno separate.
 
 Conseguenza operativa: il fill binario (F3) **non** spiega gli overlay pubblicati;
 li spiegano F12 (encode), F6/F7 (shadow e derivazione del contorno), F4 (nearest),
-F9 (generatore) e F2 (colore). Vanno due campagne, non una.
+F9 (generatore) e F2 (colore). Vanno **due campagne separate, chiuse
+separatamente**: una FullGraph (RGBA32F) e una DirectYUV (NV12). Una fix che vale
+su una lane non è una fix per l'altra, e i 100 overlay di produzione sono tutti
+FullGraph; la lane DirectYUV è selezionabile da altri plan, quindi i suoi difetti
+restano reali ma **latenti** su questo host.
 
 ## 3. Prerequisito di certificazione (bloccante)
 
@@ -73,7 +79,7 @@ sporco → rasterizzatore. Shadow e stroke vanno ripetuti ON/OFF separatamente.
 | Lane usata dai job reali | PASS | **24/24 FullGraph, 0 DirectYUV** in 30 min; `require_direct_yuv` → `FAIL_CLOSED` (`requires_full_frame_rgba`) |
 | Peso dell'encode su overlay | PASS | produzione vs HQ (`qp18/p5`) = **53.30 dB**, `mean|d| 0.034/255`, 16 pixel oltre 64/255 su 2 073 600 |
 | Verità pre-encode (PNG still) | **FAIL** | il frame PNG è **uniforme** (`uniq=1`, luma 0.498): la via still **non compone il testo** → nessuna certificazione pixel-level possibile |
-| VRAM shape overlay | PASS | **592 / 593 MiB** delta per job attivo, due run indipendenti (la calibrazione 8.8 GB non copre questa shape) |
+| VRAM shape overlay | PASS | **592 / 593 MiB** delta per job attivo, due run indipendenti (la calibrazione 8.8 GB non copre questa shape). **Aggiornato 2026-09-16:** il probe è stato **promosso** da strumento one-off a harness riproducibile — `cmd/vram-probe -mode two-runtime-pool` + evidenza [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md) — con **due pool caldi posseduti** e fasi etichettate. Non è ancora un gate pass/fail: il passo successivo è la **telemetria interna degli allocator**, perché su host condiviso il contatore device-wide varia di oltre 3× a parità di attribuzione per processo |
 | Budget daemon | PASS (parziale) | 1 280 ms per job non attribuiti da nessun timer; receipt 284 ms + 253 ms (verifica doppia); `CHRONON_RENDER_JOB_SLOTS=2` è no-op |
 
 Conseguenze sul piano, in ordine:
@@ -100,11 +106,29 @@ Conseguenze sul piano, in ordine:
 | P0-2 | Contratto colore: linearizzare via `math/color.hpp` **oppure** dichiarare sRGB nel contratto del text run | golden re-pinnato + test sul grigio medio (`#808080`) |
 | P0-3 | Contratto encoder: rate control e preset espliciti per la lane overlay + bitrate minimo per contenuto grafico | artifact ≥ soglia, gate riproducibile |
 | P1-1 | DirectYUV: fill a rampa al posto della soglia (lo stroke ha già la rampa) | equivalence test contro il bug watermark che aveva motivato la soglia |
-| P1-2 | Sampling frazionario/bilineare delle letture atlas nei due lane | parità pixel + canary |
-| P1-3 | Shadow: blur separabile float sul bbox del run, source-over, senza clip per-glifo; il 3×3 resta come `FastShadow` | delta frame time misurato + golden |
+| P1-2 | Sampling frazionario/bilineare delle letture atlas nei due lane **+ larghezza di coverage screen-space**: il filtraggio da solo passa da nearest aliasato a bilineare un po' meno aliasato, non risolve la minificazione. Ogni sample va **clampato al rect del singolo glifo nell'atlas** con disciplina half-texel, altrimenti a bordo pagina si legge il glifo vicino | parità pixel + canary + test di bordo pagina |
+| P1-3 | Shadow canonica **sul run**, non sul singolo glifo: silhouettes dei glifi → **union mask del TextRun** → spread opzionale → gaussiana separabile → colore/opacità → source-over **lineare**. Risolve insieme clipping per-glifo, `alpha-max` sugli overlap e blur non fisicamente coerente. Il 3×3 attuale resta come modalità **`Fast`** (non va eliminato: è il percorso a throughput massimo) | delta frame time misurato + golden |
 | P2-1 | Generatore: `msdfgen` come **leaf**, mantenendo `MtsdfProfile`/cache/preparation authority; `generation_id` 1→2 | byte-parity della preparation + re-pin del payload |
-| P2-2 | Stroke con semantica miter = modalità vector separata (**ADR** obbligatorio) | ADR + parity gate |
-| P2-3 | Policy Fast/High/Ultra come **estensione** della tassonomia `GlyphRepresentation` esistente (**ADR** + scheda Demolition Debt sul path compatibilità) | ADR approvato, nessun secondo resolver |
+| P2-2 | Due semantiche di stroke **dichiarate**, non un SDF "aggiustato": `DistanceStroke` (veloce, join round/offset — l'attuale dilatazione del campo distanza) e `VectorStroke` (miter/bevel/round + miter limit + representation HQ). Non si cerca di far sembrare un miter un SDF: non lo diventerà (**ADR** obbligatorio) | ADR + parity gate |
+| P2-3 | Policy Fast/High/Ultra come **estensione** della tassonomia `GlyphRepresentation` esistente (`include/chronon3d/runtime/gpu_glyph_atlas.hpp`), che è il posto giusto per la decisione — **nessun secondo text renderer** (**ADR** + scheda Demolition Debt sul path compatibilità) | ADR approvato, nessun secondo resolver |
+
+### 5.1 Ordine di esecuzione (vincolante)
+
+1. **Diagnostico a 4 output** (P0-0, §4) — eseguito; il suo output **è il golden
+   corpus** di questa campagna (PNG/raw pre-encode, FullGraph, DirectYUV, H.264
+   HQ), non un esperimento una tantum;
+2. **Canary text-tile verde** (P0-1) — finché è rosso non esiste base affidabile
+   per dichiarare un miglioramento pixel-level;
+3. **Contratto colore** risolto **alla boundary di authoring/lowering**, non
+   dentro gli shader: se `#808080` significa CSS/sRGB, deve diventare linear **una
+   volta sola** prima di arrivare ai backend (niente `to_linear()` separato in
+   Vulkan e CUDA);
+4. **Contratto encoder** (P0-3): 535 kbps può mascherare qualunque progresso del
+   renderer;
+5. **Sampling frazionario + coverage screen-space** (P1-2);
+6. **Shadow canonica sul run/bbox** (P1-3);
+7. **msdfgen / representation HQ / miter** (P2-1..P2-3), dopo che il percorso base
+   è misurabile e stabile.
 
 ## 6. Vincoli di repo applicabili
 

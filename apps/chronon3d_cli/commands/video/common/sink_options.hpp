@@ -14,7 +14,11 @@
 /// a flat string field.
 // ---------------------------------------------------------------------------
 
+#include <optional>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -47,14 +51,52 @@ enum class VideoSinkType {
     return "unknown";
 }
 
-/// Parse a sink type from a CLI string value.
-/// Accepted values: "ffmpeg", "null-render", "null-convert", "raw".
-[[nodiscard]] inline VideoSinkType parse_video_sink_type(const std::string& value) {
+/// THE sink vocabulary. Every surface that must name the accepted set — the
+/// `--video-sink` option checker, the job validator, tests — reads this list,
+/// so an option can never advertise a name the parser rejects (the same
+/// single-authority rule the pipe pixel format vocabulary follows).
+[[nodiscard]] inline std::vector<std::string> video_sink_type_names() {
+    return {"ffmpeg", "raw", "null-render", "null-convert"};
+}
+
+/// Non-throwing parse. This is the ONE parser: `parse_video_sink_type()` and
+/// the job validator both go through it, so "is this name known?" cannot
+/// diverge between the CLI flag check and the execution boundary.
+[[nodiscard]] inline std::optional<VideoSinkType> try_parse_video_sink_type(
+    std::string_view value) noexcept {
     if (value == "ffmpeg")       return VideoSinkType::Ffmpeg;
     if (value == "null-render")  return VideoSinkType::NullRender;
     if (value == "null-convert") return VideoSinkType::NullConvert;
     if (value == "raw")          return VideoSinkType::RawFile;
-    throw std::runtime_error("Invalid --video-sink: " + value);
+    return std::nullopt;
+}
+
+/// Parse a sink type from a CLI string value.
+/// Accepted values: see video_sink_type_names().
+[[nodiscard]] inline VideoSinkType parse_video_sink_type(const std::string& value) {
+    const auto parsed = try_parse_video_sink_type(value);
+    if (!parsed) {
+        throw std::runtime_error("Invalid --video-sink: " + value +
+                                 " (accepted: ffmpeg, raw, null-render, null-convert)");
+    }
+    return *parsed;
+}
+
+/// True only for the sinks that are executable end to end today.
+///
+/// `Ffmpeg` encodes and muxes; `RawFile` is the PRE-ENCODE truth surface: it
+/// writes the rendered host frames (RGBA8 / the selected pipe format) with no
+/// encoder and no container, which is what pixel-level text-quality diagnosis
+/// must measure. The two null sinks exist for benchmarking only and are
+/// deliberately refused by the job validator rather than run as an export.
+[[nodiscard]] inline bool video_sink_type_is_executable(VideoSinkType type) noexcept {
+    return type == VideoSinkType::Ffmpeg || type == VideoSinkType::RawFile;
+}
+
+/// Whether this sink runs an encoder/mux stage. A pre-encode sink never
+/// requires an external ffmpeg, so capability checks must not demand one.
+[[nodiscard]] inline bool video_sink_type_encodes(VideoSinkType type) noexcept {
+    return type == VideoSinkType::Ffmpeg;
 }
 
 /// Sink-specific options.

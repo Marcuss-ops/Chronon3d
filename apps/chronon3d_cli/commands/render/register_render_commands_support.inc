@@ -191,6 +191,7 @@ void mark_video_option_explicitness(CLI::App& cmd, RenderArgs& args) {
     marked("--encode-preset", vs.encode_preset_explicit);
     marked("--preset", vs.encode_preset_explicit);
     marked("--tune", vs.tune_explicit);
+    marked("--video-sink", vs.sink_type_explicit);
 }
 
 void add_video_options(CLI::App& cmd, RenderArgs& args) {
@@ -232,6 +233,14 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
         },
         "Changed source interval: start:end[:content|trim] (repeatable)");
     video->add_option("--ffmpeg-mode", args.video_settings.ffmpeg_mode, "FFmpeg mode: pipe or png")->check(CLI::IsMember({"pipe", "png"}));
+    // The accepted names come from ONE vocabulary
+    // (video_sink_type_names(), sink_options.hpp), so this option can never
+    // advertise a value the sink parser rejects. `raw` is the pre-encode truth
+    // surface: rendered host frames are written verbatim with no encoder, which
+    // is what pixel-level quality diagnosis must measure.
+    video->add_option("--video-sink", args.video_settings.sink_type,
+                      "Output sink: ffmpeg (encode+mux) or raw (pre-encode frames, no encoder)")
+        ->check(CLI::IsMember(video_sink_type_names()));
     video->add_flag("--ffmpeg-verbose", args.video_settings.ffmpeg_verbose, "Show FFmpeg logs");
     // ONE vocabulary: the accepted names come from the canonical pipe
     // pixel-format authority (see pipe_pixfmt_vocabulary.hpp), so this option

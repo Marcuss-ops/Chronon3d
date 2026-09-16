@@ -54,6 +54,14 @@ struct OutputSpec {
     /// authority in <chronon3d/runtime/frame_format.hpp>; an unknown value is
     /// rejected by `normalize_render_job` with InvalidPipePixelFormat.
     std::string pipe_pixfmt;
+    /// Requested output sink: "ffmpeg" (render → encode → mux) or "raw"
+    /// (render → pre-encode host frames, no encoder). Empty means "not
+    /// requested", and normalization back-fills "ffmpeg" so a plan-file
+    /// request and a daemon/IPC request resolve the same sink. The accepted
+    /// vocabulary is owned by the CLI sink layer
+    /// (apps/chronon3d_cli/commands/video/common/sink_options.hpp); an unknown
+    /// name is refused by the CLI job validator before execution.
+    std::string sink_type;
 };
 
 struct RenderJobRequest {
