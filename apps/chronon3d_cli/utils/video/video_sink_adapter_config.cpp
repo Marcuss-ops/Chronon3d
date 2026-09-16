@@ -59,12 +59,19 @@ VideoSinkEncoderAdapter::map_output_pix_fmt(const std::string& fmt) {
 
 chronon3d::media::video::VideoContainer
 VideoSinkEncoderAdapter::detect_container(const std::string& path) {
-    using media::video::VideoContainer;
+    using chronon3d::media::video::VideoContainer;
     const auto ext = std::filesystem::path(path).extension().string();
-    if (ext == ".mp4" || ext == ".MP4") return VideoContainer::Mp4;
-    if (ext == ".mkv" || ext == ".MKV") return VideoContainer::Mkv;
-    if (ext == ".webm" || ext == ".WEBM") return VideoContainer::WebM;
+    // AUDIT P1-3 — one vocabulary. The local table here knew only
+    // `.mp4`/`.MP4`, `.mkv`/`.MKV`, `.webm`/`.WEBM`: the case handling was
+    // hand-rolled and inconsistent with the job validator and the asset ingest
+    // tables, so `.Mp4` classified differently depending on which layer asked.
+    if (const auto container = media::video::classify_video_container(ext)) {
+        return *container;
+    }
     if (ext == ".raw" || ext == ".yuv") return VideoContainer::Raw;
+    // Tracked silent default (audit §6): an unrecognized extension is treated as
+    // mp4 rather than reported. Left as-is because the call site has no
+    // failure channel, but named here so it is a decision and not an accident.
     return VideoContainer::Mp4;
 }
 

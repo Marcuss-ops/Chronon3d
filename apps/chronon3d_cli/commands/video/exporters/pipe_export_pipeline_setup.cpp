@@ -68,7 +68,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         // bespoke builder.  VRAM estimate is conservative (observed 8.8 GB at
         // 1080p FullGraph) so admission reflects physical reality.
         const bool native_nvenc =
-            opts.encoder.hardware_encoder == "nvenc" || direct_yuv_requested;
+            hardware_nvenc_requested(opts.encoder.hardware_encoder) ||
+            direct_yuv_requested;
         const std::string hot =
             opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv ? "require_direct_yuv" : "";
         auto requirements = resolve_device_requirements(
@@ -136,14 +137,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->opts = opts;
     session->original_output_path = opts.output.output;
     const auto final_output_path = std::filesystem::path(opts.output.output);
-    auto partial_output_path = final_output_path;
-    const auto extension = final_output_path.extension();
-    if (extension.empty()) {
-        partial_output_path += ".partial";
-    } else {
-        partial_output_path.replace_filename(
-            final_output_path.stem().string() + ".partial" + extension.string());
-    }
+    // AUDIT §5 — one staging-path authority (see make_partial_output_path).
+    const auto partial_output_path = make_partial_output_path(final_output_path);
     session->opts.output.output = partial_output_path.string();
     session->start_frame = start;
     session->end_frame = end;
@@ -411,7 +406,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         .require_native_gpu =
             opts.backend_preference == graph::BackendPreference::GPU &&
             is_native_encoder_transport(opts.encoder.encoder_backend) &&
-            opts.encoder.hardware_encoder == "nvenc",
+            hardware_nvenc_requested(opts.encoder.hardware_encoder),
         .frame_encoder_telemetry = session->frame_encoder_telemetry,
         .telemetry_anchor_ns = session->telemetry_anchor_ns,
         .trace_job_id = session->trace_job_id,

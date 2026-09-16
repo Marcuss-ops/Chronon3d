@@ -224,7 +224,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
             const bool gpu_native =
-                request.video_settings.hardware_encoder == "nvenc" &&
+                hardware_nvenc_requested(
+                    request.video_settings.hardware_encoder) &&
                 is_native_encoder_transport(
                     request.video_settings.encoder_backend) &&
                 normalized_job.backend == "vulkan";

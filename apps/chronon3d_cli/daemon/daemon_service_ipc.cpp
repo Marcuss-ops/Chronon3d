@@ -70,23 +70,52 @@ bool spec_or_root_bool(
     return fallback;
 }
 
-void extract_plan_dimensions(const std::filesystem::path& plan_path,
-                            std::uint32_t& width, std::uint32_t& height) {
-    if (width > 0 && height > 0) return;
-    if (plan_path.empty()) return;
+enum class PlanDimensions : std::uint8_t {
+    NotRequested,   // no plan path, or the caller already knows the canvas
+    Resolved,       // canvas (or width+height) read from the plan
+    NoCanvasField,  // plan parsed, but it carries no canvas: unknown, not invented
+    Unreadable,     // plan missing or corrupt: fail closed, never guess
+};
+
+/// Read the plan's canvas dimensions for the admission charge.
+///
+/// AUDIT §6 — this used to swallow every failure with `catch (...) {}` and then
+/// substitute hardcoded 1920x1080. Those dimensions are not cosmetic: they feed
+/// `resolve_device_requirements(...)` and therefore the VRAM admission charge,
+/// so an unreadable plan silently under- or over-charged the device with no log
+/// and no way for the caller to notice. A plan that cannot be read is now
+/// reported (`Unreadable`) and the caller refuses the job; a plan that simply
+/// has no canvas is reported as unknown (`NoCanvasField`) so the pre-compile
+/// floor stays the honest answer instead of a manufactured one.
+PlanDimensions extract_plan_dimensions(const std::filesystem::path& plan_path,
+                                      std::uint32_t& width, std::uint32_t& height) {
+    if (width > 0 && height > 0) return PlanDimensions::NotRequested;
+    if (plan_path.empty()) return PlanDimensions::NotRequested;
+    std::ifstream file(plan_path);
+    if (!file.is_open()) {
+        spdlog::error("[daemon] plan dimensions unavailable: cannot open '{}'",
+                      plan_path.string());
+        return PlanDimensions::Unreadable;
+    }
     try {
-        std::ifstream file(plan_path);
-        if (!file.is_open()) return;
         nlohmann::json plan_json;
         file >> plan_json;
         if (plan_json.contains("canvas") && plan_json["canvas"].is_object()) {
-            width = plan_json["canvas"].value("width", 1920U);
-            height = plan_json["canvas"].value("height", 1080U);
+            width = plan_json["canvas"].value("width", 0U);
+            height = plan_json["canvas"].value("height", 0U);
         } else if (plan_json.contains("width") && plan_json.contains("height")) {
-            width = plan_json.value("width", 1920U);
-            height = plan_json.value("height", 1080U);
+            width = plan_json.value("width", 0U);
+            height = plan_json.value("height", 0U);
         }
-    } catch (...) {}
+    } catch (const std::exception& exception) {
+        spdlog::error("[daemon] plan dimensions unavailable: '{}' is not a readable "
+                      "plan ({})", plan_path.string(), exception.what());
+        width = 0;
+        height = 0;
+        return PlanDimensions::Unreadable;
+    }
+    return (width > 0 && height > 0) ? PlanDimensions::Resolved
+                                     : PlanDimensions::NoCanvasField;
 }
 
 } // namespace
@@ -119,10 +148,17 @@ runtime::job::RenderJobRequest decode_render_job_payload(
 
     auto& out = job_request.output;
     out.codec = spec_or_root(request, "codec");
-    out.hardware_encoder = spec_or_root(request, "hardware_encoder");
+    // AUDIT P1-2 — this is the untrusted-input boundary for the field: the
+    // payload is spelled by the client, while every consumer downstream (the
+    // requirement builder, the encoder resolution, the timing sidecar) expects
+    // the canonical token. Normalize once, here, through the canonical
+    // vocabulary instead of comparing literals at ~10 call sites.
+    out.hardware_encoder = chronon3d::media::normalize_hardware_encoder_field(
+        spec_or_root(request, "hardware_encoder"));
     if (out.hardware_encoder.empty()) {
         // Legacy alias accepted by the pre-Phase-9 daemon payload.
-        out.hardware_encoder = request.value("hardware", "");
+        out.hardware_encoder = chronon3d::media::normalize_hardware_encoder_field(
+            request.value("hardware", ""));
     }
     out.encoder_backend = spec_or_root(request, "encoder_backend");
     out.ffmpeg_mode = spec_or_root(request, "ffmpeg_mode");
@@ -200,7 +236,8 @@ runtime::job::RenderJobRequest decode_render_job_payload(
         // Legacy payload without a semantic requirements block: derive the
         // GPU requirement from the encoder selection exactly like the
         // pre-Phase-9 daemon did.
-        exec_reqs.gpu_required = out.hardware_encoder == "nvenc";
+        exec_reqs.gpu_required =
+            chronon3d::media::hardware_encoder_requests_nvenc(out.hardware_encoder);
     }
     job_request.requirements = exec_reqs;
     job_request.backend = request.value("backend", job_request.backend);
@@ -291,7 +328,25 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
 
             std::uint32_t plan_width = 0;
             std::uint32_t plan_height = 0;
-            extract_plan_dimensions(resolved.plan_path, plan_width, plan_height);
+            switch (extract_plan_dimensions(resolved.plan_path, plan_width,
+                                           plan_height)) {
+                case PlanDimensions::Unreadable:
+                    // AUDIT §6 — fail closed instead of charging 1920x1080.
+                    return ipc::Reply{
+                        ipc::Status::Error,
+                        "RENDER_JOB rejected: plan file unreadable, canvas "
+                        "dimensions unknown, refusing to charge an invented "
+                        "VRAM footprint"};
+                case PlanDimensions::NoCanvasField:
+                    spdlog::warn(
+                        "[daemon] plan '{}' carries no canvas: admission uses the "
+                        "pre-compile floor until the compiled footprint exists",
+                        resolved.plan_path.string());
+                    break;
+                case PlanDimensions::NotRequested:
+                case PlanDimensions::Resolved:
+                    break;
+            }
             // P0-2/4: single policy authority — no second ad-hoc builder.
             auto requirements = resolve_device_requirements(
                 plan_width, plan_height, direct_yuv, native_nvenc, codec, hot_path);

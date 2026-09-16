@@ -467,17 +467,18 @@ hint = "Canonical render command registration missing."
 [[contract]]
 name = "native_decoder_cache_excludes_mutable_surfaces"
 description = "Native decoder cache must exclude mutable GPU surfaces"
-file = "src/media/video/native_video_frame_decoder.cpp"
-optional = true
+# P0-1: the decoder TU was split into _session/_decode/_helpers. The contract
+# pins the TU that owns the cache DECISION, not the retired monolith it used to
+# name — a rule that points at a file which no longer exists enforces nothing
+# while the gate still reports PASS.
+file = "src/media/video/native_video_frame_decoder_decode.cpp"
 required_patterns = [
-    'const bool native_surface = result->surface_handle\(\)',
-    'if \(!native_surface\) \{',
-    'session->cache\[target\]\s*=\s*result',
-    'native_backend->release_surface\(slot.surface\)',
-    'native_surface_registry->release\(slot.surface\)',
-    'is_native_surface_valid\(slot.surface\)',
+    'const bool native_surface = decoded->framebuffer &&',
+    'decoded->framebuffer->surface_handle\(\) != runtime::kInvalidRenderSurfaceHandle',
+    'if \(!native_surface && decoded->framebuffer && session->test_options\.enable_frame_cache\) \{',
+    'session->cache\.put\(target, decoded->framebuffer\);',
 ]
-hint = "Native decoder cache contract violation: mutable GPU surface wrappers must be excluded."
+hint = "Native decoder cache contract violation: a frame backed by a mutable GPU surface must never enter the session cache."
 
 [[contract]]
 name = "native_decoder_concurrency_locking"
@@ -487,9 +488,9 @@ required_patterns = ['std::mutex m_mutex;', 'std::mutex mutex;']
 
 [[contract]]
 name = "native_decoder_source_concurrency_lock"
-description = "Native decoder source must use std::lock_guard"
-file = "src/media/video/native_video_frame_decoder.cpp"
-optional = true
+description = "Native decoder source must serialize session access with std::lock_guard"
+# P0-1: same TU split as above — repointed to the file that holds the lock.
+file = "src/media/video/native_video_frame_decoder_decode.cpp"
 required_patterns = [
     'std::lock_guard<std::mutex>\s+lock\(m_mutex\);',
 ]
@@ -498,7 +499,6 @@ required_patterns = [
 name = "native_decoder_concurrent_test_coverage"
 description = "Native decoder test must exercise concurrent-source coverage"
 file = "tests/video/test_native_video_frame_decoder.cpp"
-optional = true
 required_patterns = [
     'std::async[ (]std::launch::async',
     'source_a',
@@ -509,7 +509,6 @@ required_patterns = [
 name = "native_decoder_retained_replay_coverage"
 description = "Native decoder test must pin the retained-frame replay contract"
 file = "tests/video/test_native_video_retained_replay.cpp"
-optional = true
 required_patterns = [
     'retained_replays',
     'decode_native_frame_at',

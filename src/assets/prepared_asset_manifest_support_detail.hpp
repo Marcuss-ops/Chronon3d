@@ -10,27 +10,13 @@ struct RequestedAsset {
     return extension;
 }
 
+/// AUDIT P1-3 — projection of the single ingest table, not a second copy of
+/// it. This used to be the fullest of four competing extension sets; the table
+/// now lives in the public header (`assets::asset_kind_accepts_extension`) so
+/// the manifest, the verifier and the asset registry cannot disagree.
 [[nodiscard]] bool known_extension_matches(PreparedAssetKind kind,
                                             const std::string& extension) {
-    const auto matches = [&](std::initializer_list<std::string_view> values) {
-        return std::find(values.begin(), values.end(), extension) != values.end();
-    };
-    switch (kind) {
-        case PreparedAssetKind::Font:
-            return matches({".ttf", ".otf", ".woff", ".woff2"});
-        case PreparedAssetKind::Image:
-            return matches({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif",
-                            ".tif", ".tiff", ".exr", ".svg"});
-        case PreparedAssetKind::Video:
-            return matches({".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"});
-        case PreparedAssetKind::Audio:
-            return matches({".wav", ".mp3", ".aac", ".m4a", ".flac", ".ogg"});
-        case PreparedAssetKind::Subtitle:
-            return matches({".ass", ".srt", ".vtt", ".json"});
-        case PreparedAssetKind::Data:
-            return true;
-    }
-    return true;
+    return asset_kind_accepts_extension(kind, extension);
 }
 
 [[nodiscard]] bool invalid_logical_path(std::string_view raw) {

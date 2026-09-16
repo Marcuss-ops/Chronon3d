@@ -23,6 +23,9 @@
 #include <apps/chronon3d_cli/utils/video/encoder_config_resolution.hpp>
 #include <apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp>
 
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/media/video/video_config.hpp>
+
 #include <optional>
 #include <string>
 
@@ -591,4 +594,95 @@ TEST_CASE("FfmpegPipeOptions default NVENC config resolves to driver default") {
     CHECK(resolved.backend() == EncoderBackend::Nvenc);
     CHECK(resolved.rate_control() == ResolvedEncoderRateControl::DriverDefault);
     CHECK(resolved.preset() == "medium");   // valid NVENC legacy preset
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hardware-encoder field vocabulary (AUDIT P1-2)
+//
+// The field is user input — a CLI flag or an IPC payload. It used to be
+// classified by a literal `hardware_encoder == "nvenc"` at ~10 sites while the
+// canonical parser matched case-insensitively, so a payload spelling `NVENC`
+// asked for hardware encoding and still reached the requirement builder with
+// `gpu_required = false`. These assertions pin the single classifier, the fact
+// that the CODEC axis must not decide it, and that the CLI function is a
+// projection of the media-layer vocabulary rather than a second implementation.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hardware_nvenc_requested: user input is classified case-insensitively") {
+    CHECK(hardware_nvenc_requested("nvenc"));
+    CHECK(hardware_nvenc_requested("NVENC"));
+    CHECK(hardware_nvenc_requested("Nvenc"));
+    CHECK(hardware_nvenc_requested("nVeNc"));
+
+    CHECK_FALSE(hardware_nvenc_requested("none"));
+    CHECK_FALSE(hardware_nvenc_requested("qsv"));
+    CHECK_FALSE(hardware_nvenc_requested("software"));
+    CHECK_FALSE(hardware_nvenc_requested(""));
+    // The codec axis is a different question: an nvenc *codec* name must not
+    // make the hardware FIELD look like an NVENC request.
+    CHECK_FALSE(hardware_nvenc_requested("h264_nvenc"));
+    CHECK_FALSE(hardware_nvenc_requested("hevc_nvenc"));
+}
+
+TEST_CASE("normalize_hardware_encoder_field: canonical token, unknown values untouched") {
+    CHECK(normalize_hardware_encoder_field("NVENC") == "nvenc");
+    CHECK(normalize_hardware_encoder_field("Nvenc") == "nvenc");
+    CHECK(normalize_hardware_encoder_field("nvenc") == "nvenc");
+    // Unrecognized backends keep their spelling so the encoder resolution
+    // still produces its own explicit error instead of a silent rewrite.
+    CHECK(normalize_hardware_encoder_field("qsv") == "qsv");
+    CHECK(normalize_hardware_encoder_field("none") == "none");
+    CHECK(normalize_hardware_encoder_field("") == "");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Extension vocabulary containment (AUDIT P1-3)
+//
+// Two vocabularies, two declared owners, one legal relationship: everything the
+// muxer can PUBLISH must also be INGESTIBLE as a source. Before unification four
+// literal tables answered this question differently (`.m4v` and `.webm` flipped
+// answer depending on which layer asked), so the containment was neither true
+// nor stated.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("every publishable container is also an ingestible video source") {
+    using chronon3d::assets::PreparedAssetKind;
+    for (const char* token : {".mp4", ".MP4", ".mkv", ".webm", "mp4", "WebM"}) {
+        const auto container = chronon3d::media::video::classify_video_container(token);
+        REQUIRE(container.has_value());
+        CHECK(chronon3d::assets::asset_kind_accepts_extension(
+            PreparedAssetKind::Video, token));
+    }
+    // The ingest side is deliberately wider: a source may be decodable even when
+    // the muxer cannot publish it.
+    CHECK_FALSE(chronon3d::media::video::classify_video_container(".mov").has_value());
+    CHECK(chronon3d::assets::asset_kind_accepts_extension(
+        PreparedAssetKind::Video, ".mov"));
+    CHECK(chronon3d::assets::asset_kind_accepts_extension(
+        PreparedAssetKind::Video, ".m4v"));
+    CHECK(chronon3d::assets::asset_kind_accepts_extension(
+        PreparedAssetKind::Video, ".M4V"));
+    CHECK_FALSE(chronon3d::assets::asset_kind_accepts_extension(
+        PreparedAssetKind::Video, ".png"));
+    CHECK_FALSE(chronon3d::media::video::classify_video_container(".png").has_value());
+}
+
+TEST_CASE("the job output-path vocabulary is the container vocabulary plus .mov") {
+    CHECK(chronon3d::media::video::is_supported_video_output_extension(".mp4"));
+    CHECK(chronon3d::media::video::is_supported_video_output_extension(".MOV"));
+    CHECK(chronon3d::media::video::is_supported_video_output_extension(".mkv"));
+    CHECK(chronon3d::media::video::is_supported_video_output_extension(".webm"));
+    CHECK_FALSE(chronon3d::media::video::is_supported_video_output_extension(".png"));
+    CHECK_FALSE(chronon3d::media::video::is_supported_video_output_extension(""));
+}
+
+TEST_CASE("the CLI classifier is a projection of the media-layer authority") {
+    for (const char* sample : {"nvenc", "NVENC", "Nvenc", "none", "qsv", ""}) {
+        CHECK(hardware_nvenc_requested(sample) ==
+              chronon3d::media::hardware_encoder_requests_nvenc(sample));
+        CHECK(normalize_hardware_encoder_field(sample) ==
+              chronon3d::media::normalize_hardware_encoder_field(sample));
+    }
+    // And the token itself has exactly one spelling.
+    CHECK(std::string{chronon3d::media::kNvencHardwareEncoder} == "nvenc");
 }

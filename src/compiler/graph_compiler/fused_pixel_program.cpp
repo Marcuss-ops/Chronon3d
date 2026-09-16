@@ -94,6 +94,31 @@ struct TripleCandidate {
     return out;
 }
 
+// AUDIT §4 — job-scoped resolution and scratch.
+//
+// The kernel set is a pure function of the CPU capabilities, and the
+// colour-matrix stage needs a 4·pixels float buffer. Both used to be built
+// inside `FusedPixelProgram::execute()`, i.e. once per fused program per frame:
+// a fresh 33 MB allocation per call at 4K plus a CPUID query every time, on a
+// per-pixel path.
+[[nodiscard]] const chronon3d::simd::PixelKernelSet& resolved_pixel_kernels() noexcept {
+    static const chronon3d::simd::PixelKernelSet kernels =
+        chronon3d::simd::resolve_pixel_kernels(
+            chronon3d::simd::detect_cpu_capabilities());
+    return kernels;
+}
+
+[[nodiscard]] float* transformed_scratch(std::size_t scalar_count) {
+    static thread_local std::vector<float> scratch;
+    if (scratch.size() < scalar_count) scratch.resize(scalar_count);
+    // Zeroed on purpose: the kernel below is a 3x4 transform and is not obliged
+    // to write every channel, so the buffer's initial state is part of the
+    // contract — the replaced `std::vector<float>(n)` value-initialized. This
+    // keeps that guarantee without the per-call allocator round-trip.
+    std::fill_n(scratch.data(), scalar_count, 0.0f);
+    return scratch.data();
+}
+
 } // namespace
 
 FusionStats fuse_color_opacity_blend(
@@ -188,17 +213,19 @@ bool FusedPixelProgram::execute(
     if (!color_matrix || !opacity || !blend || blend->blend_mode != 0) return false;
 
     const std::size_t scalar_count = pixels * 4;
-    std::vector<float> transformed(scalar_count);
-    const auto& kernels = simd::resolve_pixel_kernels(simd::detect_cpu_capabilities());
+    float* const transformed = transformed_scratch(scalar_count);
+    const auto& kernels = resolved_pixel_kernels();
     if (!kernels.color_matrix.apply) return false;
     kernels.color_matrix.apply(
-        transformed.data(), src_rgba, pixels, color_matrix->params.data());
+        transformed, src_rgba, pixels, color_matrix->params.data());
 
     const float alpha = opacity->params[0];
     if (!(alpha >= 0.0f && alpha <= 1.0f)) return false;
-    for (float& channel : transformed) channel *= alpha;
+    for (std::size_t index = 0; index < scalar_count; ++index) {
+        transformed[index] *= alpha;
+    }
 
-    resolved_kernel(dst_rgba, transformed.data(), pixels);
+    resolved_kernel(dst_rgba, transformed, pixels);
     return true;
 }
 

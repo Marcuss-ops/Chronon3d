@@ -302,6 +302,14 @@ class Runner:
         "guarding" a header that had already been deleted. Paths that are
         legitimately absent from a core checkout (external content packs) are
         listed in the registry's `[scan_path_policy] optional_globs`.
+
+        The same hazard applies to the FILE a rule pins (contract / loc_bound):
+        a rule that cannot find its file enforces nothing. Live example: the
+        native video decoder TU was split into `_session`/`_decode`/`_helpers`
+        and two contracts kept pointing at the retired monolith, so the decoder
+        cache and concurrency invariants were enforced by zero code while the
+        gate reported PASS (audit P0-1). Validation lives here — not per rule —
+        so it also holds under `--rule-prefix` and for every registry fragment.
         """
         policy = self.rules.get("scan_path_policy") or {}
         name = policy.get("name", "scan_path_existence")
@@ -320,8 +328,21 @@ class Runner:
                     if any(fnmatch.fnmatch(scan_path, glob) for glob in optional):
                         continue
                     missing.setdefault(scan_path, set()).add(rule.get("name", "?"))
+        for kind in ("contract", "loc_bound"):
+            for rule in self.rules.get(kind, []):
+                target = rule.get("file")
+                if not target or (self.root / target).exists():
+                    continue
+                # Declared absence is allowed, but only when it is declared:
+                # `optional` plus a human-readable reason. `optional` alone used
+                # to be silently green (audit P0-1).
+                if rule.get("optional") and str(rule.get("optional_reason", "")).strip():
+                    continue
+                if any(fnmatch.fnmatch(target, glob) for glob in optional):
+                    continue
+                missing.setdefault(target, set()).add(rule.get("name", "?"))
         if missing:
-            self.fail(name, f"{len(missing)} scan_path(s) do not exist")
+            self.fail(name, f"{len(missing)} declared path(s) do not resolve")
             for scan_path, owners in sorted(missing.items())[:12]:
                 print(f"         {scan_path}  <- {', '.join(sorted(owners))}")
         else:
@@ -375,6 +396,16 @@ class Runner:
             "header", "include/chronon3d/core/types/error.hpp")
         header = self.root / header_rel
         if not header.exists():
+            if not cfg:
+                # Not configured AND the inventory is absent from this tree: the
+                # registry under test (a fragment, or a selftest mirror tree)
+                # does not carry the error-inventory contract. Apart from the
+                # crash this was the reason the gate selftest could not observe
+                # its own cache-taxonomy assertions. The root manifest DOES
+                # declare this section, so on a real checkout the rule stays
+                # enforced — including the case where the config is present and
+                # someone deletes the header.
+                return
             self.fail(name, f"canonical error header missing: {header_rel}")
             return
         text = strip_comments(read_text(header))
@@ -533,10 +564,25 @@ class Runner:
             return
         path = self.root / rule["file"]
         if not path.exists():
-            if rule.get("optional", False):
-                self.ok(name, "optional file absent")
+            # A rule that targets a file nobody can find enforces NOTHING, so
+            # its absence must be *declared*, not inferred from `optional`. The
+            # old `optional = true` branch printed PASS with the detail
+            # "optional file absent", which is how the two native-decoder
+            # contracts went silent: the decoder TU was split and the rules kept
+            # reporting green (audit P0-1). Absence now requires an explicit
+            # `optional_reason`, and the reason is surfaced in the output so a
+            # stale target is visible instead of authoritative.
+            reason = str(rule.get("optional_reason", "")).strip()
+            if reason and rule.get("optional", False):
+                self.ok(name, f"target absent on purpose — {reason}")
             else:
-                self.fail(name, f"file missing: {rule['file']}")
+                self.fail(
+                    name,
+                    f"file missing: {rule['file']} — a contract that cannot "
+                    "find its file enforces nothing; repoint it at the TU that "
+                    "owns the invariant, or declare `optional = true` with an "
+                    "`optional_reason`",
+                )
             return
         text = read_text(path)
         required = rule.get("required_patterns", [])
@@ -774,7 +820,15 @@ class Runner:
             text = re.sub(r"#[^\n]*", "", read_text(cmake))
             declared.update(re.findall(
                 r"add_library\(\s*([A-Za-z_][A-Za-z0-9_]*)\s+(?:OBJECT|INTERFACE)\b", text))
-        registry = read_text(self.root / cfg["registry_file"])
+        registry_rel = cfg["registry_file"]
+        if not (self.root / registry_rel).exists():
+            # A crash would truncate the whole report: every rule after this one
+            # would go unverified while the process still exits non-zero. That
+            # is how the selftest's newest assertions (cache taxonomy) stopped
+            # observing anything without anyone noticing. Name the missing file.
+            self.fail(name, f"registry file missing: {registry_rel}")
+            return
+        registry = read_text(self.root / registry_rel)
         listed = set(self.parse_set_block(registry, "CHRONON3D_REGISTRY_OBJECT_LIBS"))
         listed.update(self.parse_set_block(registry, "CHRONON3D_REGISTRY_INTERFACE_LIBS"))
         missing = sorted(declared - listed)
@@ -886,7 +940,11 @@ class Runner:
             cmake = self.root / rel
             if cmake.exists():
                 packages.update(re.findall(r"find_package\(\s*([A-Za-z_][A-Za-z0-9_-]*)", read_text(cmake)))
-        manifest = json.loads(read_text(self.root / cfg["manifest"]))
+        manifest_rel = cfg["manifest"]
+        if not (self.root / manifest_rel).exists():
+            self.fail(name, f"manifest missing: {manifest_rel}")
+            return
+        manifest = json.loads(read_text(self.root / manifest_rel))
         deps: set[str] = set()
         def add_dep(entry: Any) -> None:
             if isinstance(entry, str):
@@ -920,9 +978,17 @@ class Runner:
         name = cfg.get("name", "sdk_public_deps")
         if not self.selected(name):
             return
-        registry = read_text(self.root / cfg["registry_file"])
+        registry_rel = cfg["registry_file"]
+        template_rel = cfg["template_file"]
+        if not (self.root / registry_rel).exists():
+            self.fail(name, f"registry file missing: {registry_rel}")
+            return
+        if not (self.root / template_rel).exists():
+            self.fail(name, f"template missing: {template_rel}")
+            return
+        registry = read_text(self.root / registry_rel)
         deps = self.parse_set_block(registry, "CHRONON3D_SDK_PUBLIC_DEPS")
-        template = read_text(self.root / cfg["template_file"])
+        template = read_text(self.root / template_rel)
         substitutions = template.count("@CHRONON3D_FIND_DEPENDENCY_LINES@")
         marker_finds = 0
         in_marker = False
@@ -1053,42 +1119,72 @@ class Runner:
         else:
             self.ok(name)
 
+    def guard(self, label: str, fn) -> None:
+        """Run one rule; an unexpected exception becomes a named FAIL.
+
+        A gate that aborts mid-run is worse than a red one: every rule after the
+        crash is silently unverified. A missing auxiliary file (registry,
+        manifest, template) used to raise out of `read_text` and truncate the
+        report — which is exactly how the selftest's cache-taxonomy assertions
+        stopped observing anything while the run still exited non-zero. The exit
+        code is unchanged (still a failure) but now it is attributed, and the
+        remaining rules keep running.
+        """
+        try:
+            fn()
+        except Exception as exc:  # noqa: BLE001 — the gate must not abort
+            self.fail(label, f"gate internal error: {type(exc).__name__}: {exc}")
+
     def run(self) -> int:
-        self.check_scan_path_existence()
-        self.check_error_adapter_inventory()
+        self.guard("scan_path_existence", self.check_scan_path_existence)
+        self.guard("error_adapter_inventory_coverage", self.check_error_adapter_inventory)
         for rule in self.rules.get("forbidden_path", []):
-            self.check_forbidden_path(rule)
+            name = f"forbidden_path:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_forbidden_path(rule))
         for rule in self.rules.get("required_path", []):
-            self.check_required_path(rule)
+            name = f"required_path:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_required_path(rule))
         for rule in self.rules.get("doc_tool_reference", []):
-            self.check_doc_tool_reference(rule)
+            name = f"doc_tool_reference:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_doc_tool_reference(rule))
         for key in ("forbidden_symbol", "forbidden_include", "boundary", "scan"):
             for rule in self.rules.get(key, []):
-                self.check_scan(rule)
+                name = f"{key}:{rule.get('name', '?')}"
+                self.guard(name, lambda rule=rule: self.check_scan(rule))
         for rule in self.rules.get("occurrence_cap", []):
-            self.check_occurrence_cap(rule)
+            name = f"occurrence_cap:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_occurrence_cap(rule))
         for rule in self.rules.get("unique_source_owner", []):
-            self.check_unique_owner(rule)
+            name = f"unique_source_owner:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_unique_owner(rule))
         for rule in self.rules.get("contract", []):
-            self.check_contract(rule)
+            name = f"contract:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_contract(rule))
         for rule in self.rules.get("presence", []):
-            self.check_presence(rule)
+            name = f"presence:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_presence(rule))
         for rule in self.rules.get("loc_bound", []):
-            self.check_loc_bound(rule)
-        self.check_effect_processor_coverage()
+            name = f"loc_bound:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_loc_bound(rule))
+        self.guard("effect_processor_coverage", self.check_effect_processor_coverage)
         for rule in self.rules.get("cmake_dag", []):
-            self.check_cmake_dag_rule(rule)
-        self.check_cmake_ownership()
-        self.check_test_registration()
-        self.check_cmake_registry()
+            name = f"cmake_dag:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_cmake_dag_rule(rule))
+        self.guard("cmake_ownership", self.check_cmake_ownership)
+        self.guard("test_registration", self.check_test_registration)
+        self.guard("cmake_registry", self.check_cmake_registry)
         if self.configured_build_dir is not None:
-            self.check_configured_cmake(self.configured_build_dir)
-        self.check_vcpkg_parity()
-        self.check_sdk_public_deps()
-        self.check_public_include_resolution()
+            self.guard(
+                "configured_cmake",
+                lambda: self.check_configured_cmake(self.configured_build_dir),
+            )
+        self.guard("vcpkg_parity", self.check_vcpkg_parity)
+        self.guard("sdk_public_deps_wiring", self.check_sdk_public_deps)
+        self.guard("public_include_resolution", self.check_public_include_resolution)
         for rule in self.rules.get("duplicate_basename", []):
-            self.check_duplicate_basenames(rule)
-        self.check_gitignored()
+            name = f"duplicate_basename:{rule.get('name', '?')}"
+            self.guard(name, lambda rule=rule: self.check_duplicate_basenames(rule))
+        self.guard("gitignored", self.check_gitignored)
         total = len(self.passes) + len(self.failures)
         if self.failures:
             print(f"GATE_FAIL: {len(self.failures)}/{total} architecture rule(s) FAILED")
