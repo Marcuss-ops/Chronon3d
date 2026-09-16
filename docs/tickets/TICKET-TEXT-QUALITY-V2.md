@@ -47,7 +47,7 @@ scrive nulla in quel canary. Finché è rosso, nessuna modifica di qualità del
 testo può essere certificata pixel-level: **si rende verde prima di toccare lo
 shader**.
 
-## 4. Diagnostico di attribuzione (P0-0, da eseguire prima di ogni riga)
+## 4. Diagnostico di attribuzione (P0-0) — eseguito 2026-09-16
 
 Flag già disponibili: `--frame`, `--rate-control {crf,qp,bitrate}`, `--crf`,
 `--encode-preset`, `--gpu-hot-path-mode {require_gpu_native,require_direct_yuv}`,
@@ -66,11 +66,36 @@ Letture: PSNR/SSIM decoded-vs-PNG (peso encode/chroma) e profilo del bordo
 encode/chroma; FullGraph pulito + DirectYUV no → compositing/color path; PNG
 sporco → rasterizzatore. Shadow e stroke vanno ripetuti ON/OFF separatamente.
 
+### 4.1 Esito (evidenza: [`docs/evidence/text-quality-attribution-2026-09-16.md`](../evidence/text-quality-attribution-2026-09-16.md))
+
+| Leg | Esito | Numero |
+|---|---|---|
+| Lane usata dai job reali | PASS | **24/24 FullGraph, 0 DirectYUV** in 30 min; `require_direct_yuv` → `FAIL_CLOSED` (`requires_full_frame_rgba`) |
+| Peso dell'encode su overlay | PASS | produzione vs HQ (`qp18/p5`) = **53.30 dB**, `mean|d| 0.034/255`, 16 pixel oltre 64/255 su 2 073 600 |
+| Verità pre-encode (PNG still) | **FAIL** | il frame PNG è **uniforme** (`uniq=1`, luma 0.498): la via still **non compone il testo** → nessuna certificazione pixel-level possibile |
+| VRAM shape overlay | PASS | **592 / 593 MiB** delta per job attivo, due run indipendenti (la calibrazione 8.8 GB non copre questa shape) |
+| Budget daemon | PASS (parziale) | 1 280 ms per job non attribuiti da nessun timer; receipt 284 ms + 253 ms (verifica doppia); `CHRONON_RENDER_JOB_SLOTS=2` è no-op |
+
+Conseguenze sul piano, in ordine:
+
+1. il primo blocco non è lo shader: è **la verità pre-encode** (leg C FAIL) — senza
+   di essa ogni fix di qualità è non certificabile, ed è coerente con il canary
+   text-tile rosso;
+2. i fix **DirectYUV** (fill binario, ombra 3×3, blend in Y) scendono di priorità:
+   su questo host sono **latenti** (0 job li usa); restano nella scheda come P1-DY
+   perché la lane esiste ed è selezionabile da altri plan;
+3. l'**encode non è la prima causa** su contenuto overlay: il contratto
+   (`driver-default`) va comunque dichiarato, ma non è il jackpot che sembrava;
+4. la classifica dei sospetti si sposta su **shadow per-glifo + alpha-max + clip al
+   box**, **sampling nearest**, **derivazione incoerente fill/stroke**,
+   **generatore MTSDF custom** e **colore non linearizzato**.
+
 ## 5. Piano ordinato
 
 | Priorità | Lavoro | Gate |
 |---|---|---|
-| P0-0 | Diagnostico §4, esiti PASS/FAIL per leg + numeri salvati come evidenza | evidenza in `docs/evidence/` |
+| ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
+| P0-0b | **Verità pre-encode**: far comporre il testo alla via still (`render -o x.png`) o produrre il PNG fedele via chunk | `flat_still.png` contiene il testo, non un frame uniforme |
 | P0-1 | Canary text tile verde (§3) | suite verde su GPU, 78/78 |
 | P0-2 | Contratto colore: linearizzare via `math/color.hpp` **oppure** dichiarare sRGB nel contratto del text run | golden re-pinnato + test sul grigio medio (`#808080`) |
 | P0-3 | Contratto encoder: rate control e preset espliciti per la lane overlay + bitrate minimo per contenuto grafico | artifact ≥ soglia, gate riproducibile |
