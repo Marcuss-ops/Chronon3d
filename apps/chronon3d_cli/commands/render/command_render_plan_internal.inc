@@ -25,6 +25,9 @@ struct RenderPlanState {
     std::string trace_output;
     std::string trace_level{"pipeline"};
     std::string gpu_hot_path_mode{"auto"};
+    // Explicit sink request for the `render-plan` compatibility alias. Empty
+    // means "not requested": normalization back-fills the canonical default.
+    std::string video_sink;
     std::string receipt_verify;
     std::shared_ptr<media::VideoJobExecutionContext> video_execution;
     std::optional<runtime::job::NormalizedRenderJob> normalized_request;
@@ -46,6 +49,9 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.encoder_backend = args.video.encoder_backend;
     request.output.ffmpeg_mode = args.video.ffmpeg_mode;
     request.output.gpu_hot_path_mode = args.gpu_hot_path_mode;
+    if (!args.video_sink.empty()) {
+        request.output.sink_type = args.video_sink;
+    }
     request.output.encode_preset = !args.video.encode_preset.empty()
         ? args.video.encode_preset : args.encode_preset;
     request.output.rate_control_mode = args.video.rate_control_mode;
@@ -196,6 +202,13 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
+        // Sink axis: the normalized job carries the canonical (back-filled)
+        // sink name, so the plan route and the direct route reach the executor
+        // through the same field with the same default.
+        if (!normalized_job.output.sink_type.empty()) {
+            request.video_settings.sink_type = normalized_job.output.sink_type;
+            request.video_settings.sink_type_explicit = true;
+        }
         if (!normalized_job.output.ffmpeg_mode.empty())
             request.video_settings.ffmpeg_mode = normalized_job.output.ffmpeg_mode;
         if (!normalized_job.output.rate_control_mode.empty()) {
@@ -239,7 +252,12 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         // keeps 0..0 as a real single-frame chunk (see RenderRequest docs).
         request.frame_range_explicit = normalized_job.frame_range.has_value();
 
-        if (video_output(output)) {
+        // The output lane is selected by OUTPUT INTENT: a container extension
+        // picks the encoder path as before, and an explicitly requested sink
+        // picks the video lane even when the output path carries no container
+        // extension (the pre-encode "raw" sink writes frames to a bare .raw).
+        if (video_output(output) ||
+            video_sink_name_selects_video_lane(normalized_job.output.sink_type)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};

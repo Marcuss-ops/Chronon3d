@@ -75,6 +75,15 @@ public:
         return last_telemetry_;
     }
 
+    /// Map PipePixelFormat → media::video::PixelFormat.
+    ///
+    /// Public because it is the ONE translation between the two public
+    /// vocabularies, and the artifact finalizer has to size a pre-encode
+    /// frame stream exactly as the sink wrote it. A second mapping (or a
+    /// guessed bytes-per-pixel) would let verification drift from the write.
+    [[nodiscard]] static chronon3d::media::video::PixelFormat map_pixel_format(
+        PipePixelFormat fmt);
+
     // ── Pipe telemetry (virtual overrides) ──────────────────────────────
 
     [[nodiscard]] double total_write_blocked_ms() const override {
@@ -95,10 +104,6 @@ private:
     /// Map codec string to VideoCodec enum.
     static chronon3d::media::video::VideoCodec map_codec(
         const std::string& codec);
-
-    /// Map PipePixelFormat → media::video::PixelFormat.
-    static chronon3d::media::video::PixelFormat map_pixel_format(
-        PipePixelFormat fmt);
 
     /// Map an encoder-output pix fmt string to media::video::PixelFormat.
     /// std::nullopt means "not a format the engine knows": the caller must

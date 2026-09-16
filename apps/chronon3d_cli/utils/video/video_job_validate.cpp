@@ -20,23 +20,42 @@ bool validate_video_job(const RenderJob& job) {
         spdlog::error("[video] No output path specified.");
         return false;
     }
-    if (job.video_settings.sink_type != "ffmpeg") {
-        spdlog::error(
-            "[video] Non-FFmpeg sink types are not supported. "
-            "Use 'bench' for benchmarking.");
+    // Sink axis. Parsed with the CLI's ONE vocabulary instead of a string
+    // comparison, so a new sink name cannot pass here and then be dropped by
+    // the options factory. Two sinks are executable: `ffmpeg` (render → encode
+    // → mux) and `raw` (render → pre-encode frames, no encoder). The null
+    // sinks exist for benchmarking only: running one as an export would report
+    // success while producing no artifact, so they stay refused here.
+    const auto sink = try_parse_video_sink_type(job.video_settings.sink_type);
+    if (!sink) {
+        spdlog::error("[video] Unknown sink '{}'. Accepted: {}",
+                      job.video_settings.sink_type, video_sink_names_joined());
         return false;
     }
-    if (encoder_backend_requires_ffmpeg(job.video_settings.encoder_backend) &&
-        !ffmpeg_in_path()) {
-        spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
+    if (!video_sink_type_is_executable(*sink)) {
+        spdlog::error(
+            "[video] Sink '{}' is benchmark-only and cannot be an export target. "
+            "Accepted: {}",
+            job.video_settings.sink_type, video_sink_names_joined());
         return false;
+    }
+    // A pre-encode sink writes the rendered host frames itself: no encoder, no
+    // muxer, and therefore no external ffmpeg requirement and no ffmpeg-mode
+    // constraint. Only the encoding sink owns those two preconditions.
+    if (video_sink_type_encodes(*sink)) {
+        if (encoder_backend_requires_ffmpeg(job.video_settings.encoder_backend) &&
+            !ffmpeg_in_path()) {
+            spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
+            return false;
+        }
     }
     if (job.last_frame < job.first_frame) {
         spdlog::error("[video] Empty frame range [{}, {}]",
                       job.first_frame, job.last_frame);
         return false;
     }
-    if (job.video_settings.ffmpeg_mode != "pipe") {
+    if (video_sink_type_encodes(*sink) &&
+        job.video_settings.ffmpeg_mode != "pipe") {
         spdlog::error(
             "[video] Unsupported ffmpeg mode '{}'. Only 'pipe' is available",
             job.video_settings.ffmpeg_mode);

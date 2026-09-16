@@ -2,6 +2,7 @@
 
 #include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
 #include <apps/chronon3d_cli/commands/video/common/pipe_pixfmt_vocabulary.hpp>
+#include <apps/chronon3d_cli/commands/video/common/sink_options.hpp>
 
 #include <string>
 #include <vector>
@@ -184,6 +185,70 @@ TEST_CASE("VideoSinkType: to_string and parse_video_sink_type round-trip") {
     CHECK(parse_video_sink_type("null-render") == VideoSinkType::NullRender);
     CHECK(parse_video_sink_type("null-convert") == VideoSinkType::NullConvert);
     CHECK(parse_video_sink_type("raw") == VideoSinkType::RawFile);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sink vocabulary: ONE list for the option checker, the validator and the
+// parser, so --video-sink can never advertise a name that is not parseable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("VideoSinkType: every advertised name parses and round-trips") {
+    const auto names = video_sink_type_names();
+    CHECK(names.size() == 4);
+    for (const auto& name : names) {
+        const auto parsed = try_parse_video_sink_type(name);
+        REQUIRE(parsed.has_value());
+        // to_string(parse(name)) == name is the round-trip contract the CLI
+        // option checker relies on.
+        CHECK(to_string(*parsed) == name);
+    }
+    // The joined list quoted in error messages is derived from the same list.
+    CHECK(video_sink_names_joined() == "ffmpeg, raw, null-render, null-convert");
+}
+
+TEST_CASE("VideoSinkType: try_parse is the non-throwing surface, parse throws") {
+    CHECK_FALSE(try_parse_video_sink_type("").has_value());
+    CHECK_FALSE(try_parse_video_sink_type("bench").has_value());
+    CHECK_FALSE(try_parse_video_sink_type("RAW").has_value());
+    CHECK_THROWS(parse_video_sink_type("bench"));
+}
+
+TEST_CASE("VideoSinkType: only the encoder and the pre-encode sink are executable") {
+    CHECK(video_sink_type_is_executable(VideoSinkType::Ffmpeg));
+    CHECK(video_sink_type_is_executable(VideoSinkType::RawFile));
+    // Benchmark-only sinks must never be an export target.
+    CHECK_FALSE(video_sink_type_is_executable(VideoSinkType::NullRender));
+    CHECK_FALSE(video_sink_type_is_executable(VideoSinkType::NullConvert));
+    // Only the encoding sink needs an encoder/mux stage (and therefore an
+    // external ffmpeg in the pipe transport).
+    CHECK(video_sink_type_encodes(VideoSinkType::Ffmpeg));
+    CHECK_FALSE(video_sink_type_encodes(VideoSinkType::RawFile));
+    CHECK_FALSE(video_sink_type_encodes(VideoSinkType::NullRender));
+    CHECK_FALSE(video_sink_type_encodes(VideoSinkType::NullConvert));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The canonical VideoSettings::sink_type reaches the export options: this is
+// the wiring that makes the pre-encode ("raw") truth surface reachable from
+// the CLI instead of being declared but dropped.
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("make_ffmpeg_export_options: canonical sink_type reaches SinkOptions") {
+    chronon3d::RenderJob job;
+    job.output = "/tmp/pre_encode.raw";
+
+    // Unset: the canonical default ("ffmpeg") keeps the encoder path.
+    CHECK(make_ffmpeg_export_options(job).sink.sink_type == VideoSinkType::Ffmpeg);
+
+    job.video_settings.sink_type = "raw";
+    CHECK(make_ffmpeg_export_options(job).sink.sink_type == VideoSinkType::RawFile);
+
+    job.video_settings.sink_type = "ffmpeg";
+    CHECK(make_ffmpeg_export_options(job).sink.sink_type == VideoSinkType::Ffmpeg);
+
+    // An unknown name must not be silently reinterpreted as the encoder path.
+    job.video_settings.sink_type = "bench";
+    CHECK(make_ffmpeg_export_options(job).sink.sink_type == VideoSinkType::Ffmpeg);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
