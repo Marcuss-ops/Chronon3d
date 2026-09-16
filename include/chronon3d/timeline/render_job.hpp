@@ -95,6 +95,11 @@ struct VideoSettings {
     std::string encoder_backend{std::string(media::kEncoderTransportPipe)};
 #endif
     std::string sink_type{"ffmpeg"};
+    // True only when the user/plan explicitly selected the output sink. The
+    // canonical `sink_type` default is "ffmpeg"; an unmarked value means "no
+    // sink was requested", which lets the request/normalizer treat CLI and IPC
+    // jobs identically instead of inventing a transport-specific default.
+    bool        sink_type_explicit{false};
     bool        dry_run{false};
 };
 

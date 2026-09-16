@@ -1,6 +1,8 @@
 # TICKET-DAEMON-JOB-LIFECYCLE — il renderer non è lento: lo è il ciclo di vita del job
 
-Stato: **OPEN** (misure PASS, fix NOT RUN)
+Stato: **OPEN** — leva 1 parzialmente chiusa (i 1 280 ms attribuiti e rimossi,
+come `SystemMetricsCollector` che join-ava un `sleep_for(1s)`), resta il ~1 s
+**intermittente** del percorso di produzione e restano le leve 2–5.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 Origine: misure 2026-09-16 sulla matrice overlay 10×10 e sul probe a due job.
 
@@ -52,18 +54,40 @@ La calibrazione globale (~8.8 GB per 1080p FullGraph) citata in
 dichiarato: con il mutex c'è un solo job residente, quindi la misura è il costo
 incrementale di **un** job attivo, non la prova che due convivano.
 
-### Harness a due runtime simultanei (eseguito 2026-09-16)
+### Harness a due runtime simultanei
 
-Due `chronon3d_cli render` FullGraph 1080p in parallelo (processi e runtime
-distinti, campionamento 50 ms, 84 campioni): idle 3 517 MiB → **peak 6 319 MiB**
-(delta 2 802 MiB su 16 376 MiB totali), `render_ms` 1 287/1 201 ms contro
-1 071 ms da solo (overlap reale), **artifact bit-identici** tra i due processi.
+**(a) CLI cold-start** (eseguito 2026-09-16, evidenza
+`vram_two_runtime_2026-09-16.json`): due `chronon3d_cli render` FullGraph 1080p in
+parallelo (processi e runtime distinti, campionamento 50 ms, 84 campioni): idle
+3 517 MiB → **peak 6 319 MiB** (delta 2 802 MiB), `render_ms` 1 287/1 201 ms
+contro 1 071 ms da solo, artifact bit-identici.
+
+**(b) due pool caldi posseduti** (eseguito 2026-09-16, evidenza
+[`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md),
+harnais ripetibile `cmd/vram-probe -mode two-runtime-pool`): due daemon propri su
+socket privati, un render FullGraph 1080p/120 concorrente ciascuno, campionamento
+20 ms, fasi etichettate idle/warm/rendering/resident-hold/shutdown:
+
+| fase | device `memory.used` | attribuito a `chronon3d_cli` |
+|---|---|---|
+| idle (1 daemon di sistema) | 332 MiB | 248 MiB |
+| warm pools (2 runtime in più, fermi) | 334 MiB | 248 MiB |
+| rendering (2 job in volo) | **1 945 MiB** | **1 814 MiB** |
+| resident hold (pool vivi) | 768 MiB | ~644 MiB |
+
+Artifact **byte-identici** (`02c25c77d965…`). Tre run consecutivi danno
+l'attribuzione per processo stabile (1 692–1 814 MiB per due render) mentre il
+contatore **device-wide** varia di oltre 3× (1 473 → 5 281 MiB di delta) perché
+l'host è condiviso: `memory.used` non è una misura di questa suite. Due correzioni
+al modello implicito: un pool caldo che non ha ancora ammesso un job **non tocca
+il device** (allocazione lazy → costo residente letto in `resident_hold`), e la
+calibrazione va fatta su attribuzione per processo / telemetria interna, non su
+`memory.used`.
 
 Conseguenza: la tesi "due exporter 1080p non entrano in 16 GB" è **falsificata**
-su questo host per questa shape. Non è ancora l'autorizzazione a rimuovere il
-mutex: quei due sono processi cold-start, il daemon tiene pool caldi e la sua
-admission carica la VRAM per plan. Serve la stessa misura su 3–5 shape con
-telemetria interna degli allocator (exit condition §5).
+su questo host per questa shape, sia con processi cold-start sia con due pool
+caldi. Non è ancora l'autorizzazione a rimuovere il mutex: mancano le 3–5 shape
+certificate e la telemetria interna degli allocator (exit condition §5).
 
 ## 4. Leve, in ordine di leva
 
@@ -80,6 +104,14 @@ telemetria interna degli allocator (exit condition §5).
    canvas pool, execution slot, atlas/cache e staging buffer tra output
    indipendenti. **Non** partire dall'encoder H.264 (DPB/RC/header implicano
    contaminazione temporale).
+   **Aggiornamento 2026-09-16 (misurato, non inferito):** sul percorso a due pool
+   caldi l'intera coda di vita è attribuita e vale ~174 ms per job
+   (`encoder_reset` 43–46 ms + `full_graph_reset` 127–132 ms + `sidecar_write`
+   11 ms; `slot_pool_close`/`surface_release`/`queue_close`/`writer_join`/
+   `decoder_reset` a 0). Quindi il ~1 s **intermittente** non è il teardown del
+   daemon su questa shape: va cercato nel percorso serializzato di produzione o
+   nella coda del **worker**, con i timer già esistenti — vedi
+   [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md) §4.2.
 4. **Batch daemon job**: `1 runtime + 1 pool + 1 preparation → N output
    indipendenti` con K lane bounded, invece di N × (setup + warm + teardown +
    receipt). Sulla stessa GPU è la leva più grande, prima di alzare K.
@@ -88,18 +120,39 @@ telemetria interna degli allocator (exit condition §5).
 
 ## 5. Exit condition della domanda "si può togliere il mutex?"
 
-Un harness di laboratorio che tiene **due runtime della stessa shape vivi
-contemporaneamente** (due daemon su socket distinti, o due render CLI in
-parallelo), misurando peak device memory con campionamento strumentato (non
-50 ms) e ripetendo su 3–5 shape: overlay-only, video-sorgente FullGraph,
-DirectYUV, 4K. Finché quel numero non esiste, la decisione di rimuovere
-`m_render_job_mutex` resta non presa — `derive_vram_working_set` va **alimentato**
-da quella calibrazione, non sostituito.
+L'harness di laboratorio che tiene **due runtime della stessa shape vivi
+contemporaneamente** (due daemon posseduti su socket distinti, campionamento
+20 ms, fasi etichettate) è ora **atterrato e riproducibile**:
+`cmd/vram-probe -mode two-runtime-pool` + `internal/vramprobe/pool.go`,
+evidenza in [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md).
+
+Resta aperto, e sono i criteri di accettazione della decisione:
+
+1. **3–5 shape** misurate con lo stesso harness: overlay-only (fatto, §3b),
+   video-sorgente FullGraph, DirectYUV, 4K, ed eventualmente 3D;
+2. **telemetria interna degli allocator** al posto di `nvidia-smi`: su host
+   condiviso il contatore device-wide non è stabile (§3b), quindi il numero che
+   alimenta `derive_vram_working_set` deve venire dal runtime;
+3. **ripetizione** (≥3 run per shape) con attribuzione per processo, perché un
+   singolo campione non è una calibrazione;
+4. solo allora la decisione su `m_render_job_mutex`, e `derive_vram_working_set`
+   va **alimentato** da quella calibrazione, non sostituito.
 
 ## 6. Ripro
 
-- probe VRAM + submit: `RenderingGen/multilingual_overlays_v1/scripts/vram_probe.py`
-  (evidenze: `.../evidence/vram_overlay_shape_2026-09-16.json`);
+- probe VRAM singolo (percorso queue, un job residente):
+  `cd RenderingGen && renderinggen/bin/vram-probe -mode single -source-manifest <manifest certificato> -out <report>`
+  (comando: `renderinggen/cmd/vram-probe`, logica: `renderinggen/internal/vramprobe/probe.go`;
+  evidenza: `RenderingGen/multilingual_overlays_v1/evidence/vram_overlay_shape_2026-09-16.json`);
+- harness a due runtime/pool caldi (fasi + campionamento 20 ms):
+  `renderinggen/bin/vram-probe -mode two-runtime-pool -plan <render-plan.json> -chronon-bin <chronon3d_cli> -assets-root <asset root assoluto> …`
+  (logica: `internal/vramprobe/pool.go`; evidenza: `.../vram_two_runtime_pool_2026-09-16.json` + `.samples.log`).
+  Nota: l'asset root passato a un daemon **deve** essere assoluto — l'`AssetResolver`
+  rifiuta un path relativo; l'harness ora lo risolve prima di avviare i pool.
 - budget serializzato: `journalctl -u chronon3d` con i delta tra
   `[pool-warm] Pre-allocated and pre-imported`, `Opened native encoder`,
   `[video] render_ms=`, `Wrote result.mp4`, `receipt:`.
+
+> Le vecchie istruzioni indicavano `RenderingGen/multilingual_overlays_v1/scripts/vram_probe.py`:
+> quel file non esiste in questo checkout (la directory `scripts/` non c'è). Gli entry
+> point reali sono quelli sopra.
