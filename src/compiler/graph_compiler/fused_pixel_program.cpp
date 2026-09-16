@@ -108,16 +108,42 @@ struct TripleCandidate {
     return kernels;
 }
 
-[[nodiscard]] float* transformed_scratch(std::size_t scalar_count) {
-    static thread_local std::vector<float> scratch;
-    if (scratch.size() < scalar_count) scratch.resize(scalar_count);
-    // Zeroed on purpose: the kernel below is a 3x4 transform and is not obliged
-    // to write every channel, so the buffer's initial state is part of the
-    // contract — the replaced `std::vector<float>(n)` value-initialized. This
-    // keeps that guarantee without the per-call allocator round-trip.
-    std::fill_n(scratch.data(), scalar_count, 0.0f);
-    return scratch.data();
-}
+/// Retained scratch is BOUNDED. The software renderer runs tiles on a pool of
+/// `hardware_concurrency()` workers (execution_scheduler.cpp), and each worker
+/// hits this on every fused program, so a per-thread buffer that grows to the
+/// canvas size and never shrinks keeps 4·pixels floats resident PER THREAD —
+/// 132 MiB at 4K, ~3 GiB across 24 workers, for a buffer that is live for one
+/// call. Above this budget the buffer is owned by the call and released with
+/// it, which keeps the steady-state win (no allocator round-trip on the common
+/// path) without paying residency for frames nobody will reuse the buffer for.
+inline constexpr std::size_t kMaxRetainedScratchBytes = 8u * 1024u * 1024u;
+
+/// The colour-matrix stage's working buffer, zeroed.
+///
+/// Zeroed on purpose: the kernel below is a 3x4 transform and is not obliged to
+/// write every channel, so the buffer's initial state is part of the contract —
+/// the replaced `std::vector<float>(n)` value-initialized. This keeps that
+/// guarantee with or without the retained buffer.
+class TransformedScratch {
+public:
+    explicit TransformedScratch(std::size_t scalar_count) {
+        if (scalar_count * sizeof(float) <= kMaxRetainedScratchBytes) {
+            static thread_local std::vector<float> retained;
+            if (retained.size() < scalar_count) retained.resize(scalar_count);
+            std::fill_n(retained.data(), scalar_count, 0.0f);
+            data_ = retained.data();
+            return;
+        }
+        owned_.assign(scalar_count, 0.0f);
+        data_ = owned_.data();
+    }
+
+    [[nodiscard]] float* data() const noexcept { return data_; }
+
+private:
+    std::vector<float> owned_;  // empty when the retained buffer was borrowed
+    float* data_{nullptr};
+};
 
 } // namespace
 
@@ -213,7 +239,8 @@ bool FusedPixelProgram::execute(
     if (!color_matrix || !opacity || !blend || blend->blend_mode != 0) return false;
 
     const std::size_t scalar_count = pixels * 4;
-    float* const transformed = transformed_scratch(scalar_count);
+    const TransformedScratch scratch_buffer(scalar_count);
+    float* const transformed = scratch_buffer.data();
     const auto& kernels = resolved_pixel_kernels();
     if (!kernels.color_matrix.apply) return false;
     kernels.color_matrix.apply(

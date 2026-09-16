@@ -13,12 +13,15 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include <cstddef>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -118,6 +121,138 @@ PlanDimensions extract_plan_dimensions(const std::filesystem::path& plan_path,
                                      : PlanDimensions::NoCanvasField;
 }
 
+// ── The RENDER_JOB payload vocabulary (closed) ──────────────────────────────
+//
+// Union of what the RenderingGen client actually sends
+// (renderinggen/internal/chronon/client.go: renderJobPayload, OutputSpec,
+// ExecutionRequirements) and the legacy CLI-parity keys this decoder still
+// accepts (see daemon_render_job_payload.hpp). Kept here, next to the decoder,
+// so the vocabulary and the code that reads it cannot drift.
+//
+// A key outside this set is a CONTRACT VIOLATION, not a harmless extra. The
+// plan-file ingress is validated against a schema with
+// `additionalProperties: false`; the IPC payload was not, so the exact same
+// typo was refused in one ingress path and silently ignored in the other — the
+// job then ran with the built-in default for a field the caller believed it had
+// set ("hardware_encder", "gop_copyonly", a mistyped output_spec). One
+// vocabulary, one answer, both boundaries.
+constexpr std::string_view kRenderJobRootKeys[] = {
+    "plan_path", "prepared_package_path", "output", "assets_root", "report",
+    "trace_output", "trace_level", "receipt_verify",
+    "range_enabled", "first_frame", "last_frame",
+    "codec", "hardware_encoder", "hardware", "encoder_backend",
+    "ffmpeg_mode", "gpu_hot_path_mode", "encode_preset", "rate_control_mode",
+    "crf", "qp", "bitrate", "audio_source_path",
+    "audio_target_sample_rate", "gop_copy_only", "changed_intervals",
+    "pipe_pixfmt", "fps_num", "fps_den", "backend",
+    "execution_requirements", "output_spec",
+};
+
+constexpr std::string_view kRenderJobOutputSpecKeys[] = {
+    "codec", "width", "height", "fps_num", "fps_den", "pipe_pixfmt",
+    "hardware_encoder", "encoder_backend", "gpu_hot_path_mode",
+    "encode_preset", "rate_control_mode", "crf", "qp", "bitrate",
+    "audio_target_sample_rate", "changed_intervals", "ffmpeg_mode",
+};
+
+constexpr std::string_view kRenderJobRequirementKeys[] = {
+    "backend", "gpu_required", "cpu_fallback_allowed",
+    "composition_required", "video_source_required", "packet_copy_allowed",
+};
+
+constexpr std::string_view kChangedIntervalKeys[] = {
+    "start_seconds", "end_seconds", "kind",
+};
+
+template <std::size_t N>
+[[nodiscard]] bool payload_key_known(std::string_view key,
+                                     const std::string_view (&keys)[N]) noexcept {
+    for (const auto candidate : keys) {
+        if (key == candidate) return true;
+    }
+    return false;
+}
+
+void refuse_unknown_key(std::vector<std::string>& unknown, std::string_view scope,
+                        std::string_view key) {
+    unknown.push_back(std::string{scope} + "." + std::string{key});
+}
+
+/// Refuse any key the payload vocabulary does not contain. Also refuses a
+/// present-but-mistyped `output_spec`/`execution_requirements`: both are read
+/// with an `is_object()` guard, so a string there used to mean "no output
+/// spec at all" rather than an error.
+void reject_unknown_render_job_keys(const nlohmann::json& request) {
+    if (!request.is_object()) {
+        throw std::runtime_error("RENDER_JOB payload must be a JSON object");
+    }
+    std::vector<std::string> unknown;
+    for (const auto& item : request.items()) {
+        if (!payload_key_known(item.key(), kRenderJobRootKeys)) {
+            refuse_unknown_key(unknown, "payload", item.key());
+        }
+    }
+    if (const auto spec = request.find("output_spec"); spec != request.end()) {
+        if (!spec->is_object()) {
+            throw std::runtime_error(
+                "RENDER_JOB output_spec must be a JSON object");
+        }
+        for (const auto& item : spec->items()) {
+            if (!payload_key_known(item.key(), kRenderJobOutputSpecKeys)) {
+                refuse_unknown_key(unknown, "output_spec", item.key());
+            }
+        }
+    }
+    if (const auto reqs = request.find("execution_requirements");
+        reqs != request.end()) {
+        if (!reqs->is_object()) {
+            throw std::runtime_error(
+                "RENDER_JOB execution_requirements must be a JSON object");
+        }
+        for (const auto& item : reqs->items()) {
+            if (!payload_key_known(item.key(), kRenderJobRequirementKeys)) {
+                refuse_unknown_key(unknown, "execution_requirements", item.key());
+            }
+        }
+    }
+    // `changed_intervals` is read from BOTH scopes (root and `output_spec`), so
+    // the closed vocabulary must cover both, entry keys included: a mistyped
+    // `start_secnds` inside a nested array is the exact silent-default typo
+    // this gate exists to refuse. Validating only the root array left the
+    // nested one unchecked.
+    const auto reject_interval_entry_keys =
+        [&unknown](const nlohmann::json& container, std::string_view scope) {
+            const auto intervals = container.find("changed_intervals");
+            if (intervals == container.end() || !intervals->is_array()) return;
+            for (const auto& entry : *intervals) {
+                if (!entry.is_object()) continue;  // type error reported below
+                for (const auto& item : entry.items()) {
+                    if (!payload_key_known(item.key(), kChangedIntervalKeys)) {
+                        refuse_unknown_key(unknown, scope, item.key());
+                    }
+                }
+            }
+        };
+    reject_interval_entry_keys(request, "changed_intervals[]");
+    if (const auto spec = request.find("output_spec");
+        spec != request.end() && spec->is_object()) {
+        reject_interval_entry_keys(*spec, "output_spec.changed_intervals[]");
+    }
+    if (unknown.empty()) return;
+
+    std::string message = "RENDER_JOB payload contains unknown key(s): ";
+    for (std::size_t index = 0; index < unknown.size(); ++index) {
+        if (index != 0) message += ", ";
+        message += unknown[index];
+    }
+    message +=
+        ". The payload vocabulary is closed (daemon_render_job_payload.hpp): a "
+        "key that is not in it would have been ignored silently, so the job "
+        "would have run with a default the caller did not ask for. Remove the "
+        "key or spell it as the contract does.";
+    throw std::runtime_error(message);
+}
+
 } // namespace
 
 RenderJobDispatcher& render_job_dispatcher() {
@@ -128,6 +263,9 @@ RenderJobDispatcher& render_job_dispatcher() {
 runtime::job::RenderJobRequest decode_render_job_payload(
     const std::string& payload) {
     const auto request = nlohmann::json::parse(payload);
+    // Untrusted-input boundary: the vocabulary is closed, exactly like the
+    // plan-file ingress (additionalProperties: false).
+    reject_unknown_render_job_keys(request);
 
     runtime::job::RenderJobRequest job_request;
     job_request.plan_path = request.value("plan_path", "");

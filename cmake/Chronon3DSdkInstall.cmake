@@ -86,8 +86,15 @@ if(TARGET chronon3d_cli)
     set_target_properties(chronon3d_cli PROPERTIES
         INSTALL_RPATH "$ORIGIN/../lib"
     )
+    # OPTIONAL: the target exists in every lane that configures the CLI, but a
+    # consumer/SDK-only build (`cmake --build ... --target chronon3d_sdk_impl
+    # chronon3d_c`, which is exactly what CI Gate 4 / install-consumer-check
+    # does) never produces its binary. Without OPTIONAL the whole `cmake
+    # --install` aborts on the missing executable *before* writing
+    # Chronon3DConfig.cmake, so the gate could not install a usable SDK at all.
     install(TARGETS chronon3d_cli
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        OPTIONAL
     )
 endif()
 
@@ -118,8 +125,13 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
 )
 
+# The schemas moved under `schemas/json/`; the stale flat path made every
+# `cmake --install` abort here (file INSTALL cannot find ...), which is why the
+# install-consumer gate could not produce a prefix at all.
 install(FILES
-    "${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v2.schema.json"
+    "${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v2.schema.json"
+    "${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-settings.v1.schema.json"
+    "${CMAKE_SOURCE_DIR}/schemas/json/chronon.composition.v1.schema.json"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/chronon3d/schemas
 )
 

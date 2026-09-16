@@ -14,7 +14,7 @@
 | Release tag | `v0.1` |
 | Historical green baseline | `main@7eb5c2ba` 11/11 PASS (2026-07-06) — historical evidence, NOT same-SHA certification of current main |
 | Performance baseline | v1 exists and is locked for the software/CPU corpus; GPU-side certification still requires the appropriate build host |
-| GPU-native video | zero readback/fallback demonstrated in focused runs; full zero-copy Vulkan/CUDA/NVENC remains unfinished |
+| GPU-native video | full zero-copy Vulkan/CUDA/NVENC measured **PASS** on the FullGraph lane (2026-09-16: `ZERO_COPY_PASS` 16/16, zero staging copy, zero D2D blit, zero readback); the DirectYUV conversion-zero certificate still needs a video-source plan |
 | Current main | must not be called green until same-SHA CI/build/test evidence exists |
 
 ## Area authority census
@@ -56,7 +56,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
-| Video pipeline | PASS (focused); zero-copy partial — Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar • `synchronize_native_output` policy `is_gpu_native_required()` fix landed (ZERO-COPY-ZWAVES), GPU certification pending |
+| Video pipeline | PASS (focused); zero-copy **certified on host GPU** for the FullGraph/NVENC lane (`tools/verify_zero_copy_end_to_end.sh` → `ZERO_COPY_PASS`, 16 PASS / 0 FAIL, 2026-09-16, counters in [`ZERO_COPY_GATES.md`](ZERO_COPY_GATES.md)); the same tool with `--direct-yuv` on the builtin procedural scene downgrades in a declared, counted way (`direct_yuv_capability_rejected`) because it needs a video source, so the conversion-zero certificate is still open. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) |
 | CI infrastructure | NOT CERTIFIED on current SHA until workflows complete |
 | Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
 | Packaging | PASS (historical/local evidence) |
@@ -71,6 +71,7 @@ evidence documents.
 - 2026-09-11 — Phase 4/5 evidence: Vulkan independent jobs PASS, framebuffer contention PASS (preserve), concurrent determinism PASS, steady-state allocation budget PASS at `0.0`. See [`evidence/phase4-determinism.md`](evidence/phase4-determinism.md) and [`evidence/phase5-allocation-budget.md`](evidence/phase5-allocation-budget.md).
 - 2026-09-11 — certification harness: B00 native smoke on RTX A4000/NVENC, 120/120 native frames, zero CPU readback; official corpus blocked on a content-pack build (`CHRONON3D_BUILD_CONTENT=OFF`). See [`evidence/gpu-b00-native-smoke-a16c86de2.md`](evidence/gpu-b00-native-smoke-a16c86de2.md).
 - 2026-09-11 — FrameDelta compiler: integrated production path for dirty collection, tile policy and scene-tile execution; `chronon3d_render_graph_tests` 1/1 on the current main SHA. See [`tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md`](tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md).
+- 2026-09-16 — zero-copy certification on the host GPU (`ZERO_COPY_PASS`, FullGraph/NVENC lane); the closed-vocabulary fix that extended the `changed_intervals` entry check to the `output_spec` scope (`chronon3d_render_job_contract_tests` 15/15); the registry suite closed at **59/59** by wiring a hand-built `RenderGraphContext` the way the production authority does; and three fixes to the public-header gate so CI Gate 3 can actually run (stale `--headers-list` invocation, relative generated-TU path handed to a compiler running in the build tree, flag template taken from a generator TU without `-I<repo>/include`). The video-lane tests tree was re-created at `build/chronon/linux-video-test`; the build-time defect that made every `ninja` invocation re-run all edges and the `-j12` resource budget are documented in [`CCACHE-AUDIT-2026-09-10.md`](CCACHE-AUDIT-2026-09-10.md).
 
 ## Operating rule
 

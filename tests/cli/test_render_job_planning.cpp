@@ -602,6 +602,129 @@ TEST_CASE("decode_render_job_payload maps changed intervals") {
           c3d::media::ChangedIntervalKind::Trim);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Closed payload vocabulary (RENDER_JOB ingress).
+//
+// The plan-file ingress is validated against a schema with
+// `additionalProperties: false`; the IPC payload used to be the tolerant one,
+// so a typo was refused in one boundary and silently defaulted in the other —
+// the job then ran with a value the caller never asked for. These two cases pin
+// both halves: the whole documented vocabulary still decodes, and a key outside
+// it is refused by name at every scope.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("decode_render_job_payload accepts the whole documented vocabulary") {
+    const auto request = cli::decode_render_job_payload(R"({
+        "plan_path":"plan.json",
+        "prepared_package_path":"package.json",
+        "output":"hero.mp4",
+        "assets_root":"/assets",
+        "report":true,
+        "trace_output":"hero.pftrace",
+        "trace_level":"pipeline",
+        "receipt_verify":"strict",
+        "range_enabled":true,
+        "first_frame":0,
+        "last_frame":0,
+        "codec":"h264",
+        "hardware_encoder":"nvenc",
+        "hardware":"nvenc",
+        "encoder_backend":"native",
+        "ffmpeg_mode":"pipe",
+        "gpu_hot_path_mode":"auto",
+        "encode_preset":"p4",
+        "rate_control_mode":"crf",
+        "crf":20,
+        "qp":20,
+        "bitrate":8000000,
+        "audio_source_path":"hero.m4a",
+        "audio_target_sample_rate":48000,
+        "gop_copy_only":false,
+        "changed_intervals":[
+            {"start_seconds":1.0,"end_seconds":2.0,"kind":"content"}
+        ],
+        "pipe_pixfmt":"nv12",
+        "fps_num":24,
+        "fps_den":1,
+        "backend":"vulkan",
+        "execution_requirements":{
+            "backend":"vulkan",
+            "gpu_required":true,
+            "cpu_fallback_allowed":false,
+            "composition_required":true,
+            "video_source_required":true,
+            "packet_copy_allowed":true
+        },
+        "output_spec":{
+            "codec":"h264",
+            "width":1920,
+            "height":1080,
+            "fps_num":24,
+            "fps_den":1,
+            "pipe_pixfmt":"nv12",
+            "hardware_encoder":"nvenc",
+            "encoder_backend":"native",
+            "gpu_hot_path_mode":"auto",
+            "encode_preset":"p4",
+            "rate_control_mode":"crf",
+            "crf":20,
+            "qp":0,
+            "bitrate":8000000,
+            "audio_target_sample_rate":48000,
+            "ffmpeg_mode":"pipe",
+            "changed_intervals":[
+                {"start_seconds":1.0,"end_seconds":2.0,"kind":"content"}
+            ]
+        }
+    })");
+
+    CHECK(request.plan_path == "plan.json");
+    CHECK(request.output_path == "hero.mp4");
+    CHECK(request.output.hardware_encoder == "nvenc");
+    CHECK(request.output.gop_copy_only == false);
+    REQUIRE(request.output.changed_intervals.size() == 1);
+    CHECK(request.requirements.gpu_required);
+    CHECK_FALSE(request.requirements.cpu_fallback_allowed);
+}
+
+TEST_CASE("decode_render_job_payload refuses a key outside the closed vocabulary") {
+    // Root scope: the classic silent typo. Before this check the key was
+    // ignored and the daemon resolved its own default for the field.
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","hardware_encder":"nvenc"})"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","gop_copyonly":true})"),
+        std::exception);
+
+    // Nested scopes carry the same contract.
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","output_spec":{"codek":"h264"}})"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","execution_requirements":{"gpu_requred":true}})"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","output_spec":{"changed_intervals":[{"start_secnds":1.0}]}})"),
+        std::exception);
+
+    // A present-but-mistyped container is an error, not "no output spec":
+    // `is_object()` used to swallow it and the job ran on defaults.
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","output_spec":"nope"})"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"plan_path":"plan.json","execution_requirements":"nope"})"),
+        std::exception);
+}
+
 TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {
     CHECK_THROWS_AS(cli::decode_render_job_payload("{not json"),
                     std::exception);

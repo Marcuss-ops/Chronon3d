@@ -98,6 +98,14 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
     "TBB::tbb|TBB"
     "magic_enum::magic_enum|magic_enum"
     "nlohmann_json::nlohmann_json|nlohmann_json"
+    # `chronon3d_render_plan`, `chronon3d_ipc` and `chronon3d_text_core` carry
+    # `nlohmann_json_schema_validator::validator` in their INTERFACE link
+    # libraries, so an external consumer's `find_package(Chronon3D)` failed at
+    # configure time with "The link interface of target ... contains
+    # nlohmann_json_schema_validator::validator but the target was not found".
+    # Declaring it here emits the matching find_dependency() in the generated
+    # block of cmake/Chronon3DConfig.cmake.in.
+    "nlohmann_json_schema_validator::validator|nlohmann_json_schema_validator"
     "xxHash::xxhash|xxHash"
     "zstd::libzstd|zstd"
 )

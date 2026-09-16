@@ -120,25 +120,63 @@ Questi gate supportano le fasi del `docs/CHRONON_PLAN.md`:
 
 | Fase | Gate associato | Stato |
 |---|---|---|
-| Fase 0 | Tutti (certificazione baseline) | Da eseguire |
-| Fase 4 | nv12_to_rgba_frames, rgba_to_nv12_frames | Da implementare |
-| Fase 5 | host_upload_bytes, host_readback_bytes, gpu_surface_copy_frames | Da implementare |
-| Fase 6 | encoder_staging_copy_bytes, gpu_native_encode_frames | Da implementare |
+| Fase 0 | Tutti (certificazione baseline) | Eseguita 2026-09-16 su host GPU: `ZERO_COPY_PASS` (lane FullGraph) |
+| Fase 4 | nv12_to_rgba_frames, rgba_to_nv12_frames | Strumentati e misurati: `0` / `30` (GPU, FullGraph) |
+| Fase 5 | host_upload_bytes, host_readback_bytes, gpu_surface_copy_frames | Misurati: `0` / `0` / `0` |
+| Fase 6 | encoder_staging_copy_bytes, gpu_native_encode_frames | Misurati: `0` / `30` (> 0) |
 
-## Metriche Attuali (da CURRENT_STATUS.md)
+La lane DirectYUV a conversione zero resta da certificare end-to-end e richiede
+un piano con sorgente video (vedi §Metriche Attuali).
+
+## Metriche Attuali (misurate 2026-09-16, RTX A4000 16 GB, driver 595.91.07)
+
+Certificazione del 2026-09-16 (`bash tools/verify_zero_copy_end_to_end.sh --frames 30`,
+scena builtin `DarkGridBackground`, `--backend vulkan --hardware nvenc
+--encoder-backend native --gpu-hot-path-mode require_gpu_native`, warmup 10):
 
 ```
-GPU-native 1920x1080 960f watermark+subtitle:
-  gpu_readback_bytes = 0        ✅
-  fallback = 0                  ✅
-  effective_backend = vulkan    ✅
-  encoder_staging_copy_bytes ≠ 0  ❌ (residuo D2D Vulkan→CUDA→NVENC)
-  gpu_surface_copy_frames ≠ 0    ❌ (residuo D2D Vulkan→CUDA→NVENC)
+GPU-native 1920x1080 30f (lane FullGraph, device nativo):
+  host_upload_bytes             = 0   ✅
+  host_readback_bytes           = 0   ✅
+  nv12_to_rgba_frames           = 0   ✅
+  rgba_to_nv12_frames           = 30  ✅ (conversione colore GPU, ammessa nel FullGraph)
+  software_color_convert_frames = 0   ✅
+  cpu_pixel_conversion_ms       = 0   ✅
+  encoder_staging_copy_bytes    = 0   ✅ (nessuna copia di staging encoder)
+  gpu_surface_copy_frames       = 0   ✅ (nessuna blit D2D Vulkan→CUDA)
+  cpu_pixel_readback_bytes      = 0   ✅
+  video_surface_upload_bytes    = 0   ✅
+  effective_backend             = vulkan   ✅
+  encoder_backend               = nvenc    ✅
+  surface_handoff_path          = direct   ✅
+  gpu_native_surface_frames     = 30  (> 0) ✅
+  gpu_native_encode_frames      = 30  (> 0) ✅
+  cuda_host_upload_bytes        = 0        (finestra steady-state)
+  verdict: ZERO_COPY_PASS (16 PASS / 0 FAIL / 0 BLOCKED)
 ```
 
-**Stato**: Zero-copy parzialmente raggiunto. I gate 1-2 passano, i gate 5-6 falliscono.
-Il residuo è il percorso D2D Vulkan→CUDA→NVENC che deve essere eliminato
-dalla Fase 5 (Zero-Copy Async Video Ring).
+**Stato**: la lane di produzione FullGraph/NVENC nativa è **certificata
+zero-copy** sul host GPU: nessuna copia di staging, nessuna blit D2D, nessun
+readback e nessuna conversione software. Il residuo storico
+(`encoder_staging_copy_bytes`/`gpu_surface_copy_frames ≠ 0` del percorso D2D
+Vulkan→CUDA→NVENC) **non è più osservato**: non aggiornare questo documento con
+quei numeri senza ri-misurarli.
+
+### Cosa resta sul zero-copy
+
+- `rgba_to_nv12_frames = 30` è la conversione colore GPU necessaria del
+  FullGraph; la lane a **conversione zero** è DirectYUV, e il suo certificato
+  (`--direct-yuv`) richiede un piano con **sorgente video** (NVDEC). La scena
+  builtin è procedurale (`video_source_requested_frames = 0`), quindi il
+  resolver rifiuta la richiesta in modo dichiarato e contato:
+  `job.execution_path = full_graph_native`,
+  `job.execution_reason = direct_yuv_capability_rejected`,
+  `job.execution_downgrade_count = 1`, `job.gpu.decoder_backend = software` —
+  e il gate `--direct-yuv` riporta correttamente `ZERO_COPY_FAIL` (3 gate).
+  Certificare DirectYUV end-to-end richiede un `--plan` con sorgente video
+  (fixture NVDEC), non un cambio di codice.
+- Il residuo `copy_gop_source`/oracle e la decisione sulla lane di superficie
+  restano tracciati in `docs/FOLLOWUP_TICKETS.md`.
 
 ## Strumentazione dei gate (2026-08-28)
 

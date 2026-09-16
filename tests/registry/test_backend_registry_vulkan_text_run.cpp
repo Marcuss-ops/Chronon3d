@@ -116,6 +116,13 @@ TEST_CASE("cached text-run builds glyphs on both styled cache miss and hit via V
     REQUIRE(runtime_result.has_value());
     auto runtime = std::move(runtime_result.value());
     ctx.runtime = runtime.get();
+    // Mirror the ONE production wiring authority for runtime-owned caches
+    // (`src/render_graph/pipeline/scene_context_setup.cpp`): the styled glyph
+    // cache is owned by the runtime context and published into the render
+    // context by that setup. A hand-built context must not leave it null, or
+    // the miss/hit contract this case pins is silently bypassed (the styled
+    // bitmap is rebuilt forever and the cache counters never register a hit).
+    ctx.gpu_styled_glyph_cache = &runtime->gpu_styled_glyph_cache();
 
     // Pre-populate glyph atlas with an unstyled glyph entry
     auto glyph_img = std::make_shared<BLImage>(4, 4, BL_FORMAT_PRGB32);

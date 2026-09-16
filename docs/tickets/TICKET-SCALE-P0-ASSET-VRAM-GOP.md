@@ -765,3 +765,92 @@ gates
 
 Nota: il build video è una verifica di **compilazione**; nessun job video è stato
 eseguito su GPU in questa sessione.
+
+## Verifica (2026-09-16) — lane ricreata, suite eseguite, zero-copy certificato
+
+Host: RTX A4000 16 GB, driver 595.91.07, 24 core, ccache 4.5.1, `mold` (auto-rilevato
+in `CMakeLists.txt`), `ninja 1.13.0.git.kitware`. Build sempre con
+`ninja -C build/chronon/<lane> -j12` (mai oltre `-j12`: 29 GiB di RAM condivisi con
+altri servizi, il `-j18` ha prodotto swap thrash) e `CCACHE_DIR=$PWD/.ccache`.
+
+### Lane e stato di build
+
+```text
+build/chronon/linux-video-release   (Release, Vulkan+CUDA+FFmpeg+text+video)
+  ninja -j18 chronon3d_cli                        EXIT 0
+build/chronon/linux-video-test      (ri-creata: .tmp/chronon-builds/linux-video-test)
+  chronon3d_tests_video + chronon3d_cli_tests + 10 target di test   EXIT 0
+```
+
+Due difetti di **build** (non di codice) sono stati rimossi perché rendevano
+impossibile ogni verifica incrementale:
+
+1. `.ninja_deps` corrotto in ogni albero: ogni invocazione di `ninja` ri-eseguiva
+   tutte le edge (`premature end of file; recovering` + `stored deps info out of
+   date`). Rimedio e misure in
+   [`../CCACHE-AUDIT-2026-09-10.md`](../CCACHE-AUDIT-2026-09-10.md).
+2. Symlink pendente `build/chronon/linux-video-fast-dev` (albero liberato): i tool
+   GPU lo cercano come candidato CLI. Rimosso; `linux-video-test` è ora il primo
+   candidato della discovery e i tool accettano `CHRONON3D_CLI=<path>`.
+
+### Suite eseguite dalla **radice del repo** (lane `linux-video-test`)
+
+```text
+chronon3d_render_graph_tests                378/378  PASS
+chronon3d_cache_tests                       158/158  PASS (997596 assertion)
+chronon3d_compositor_tests                   69/69   PASS
+chronon3d_media_video_tests                 137/137  PASS
+chronon3d_daemon_render_concurrency_tests    18/18   PASS
+chronon3d_render_job_contract_tests          15/15   PASS (dopo il fix sotto)
+chronon3d_mtsdf_generator_tests               7/7    PASS
+chronon3d_mtsdf_font_identity_tests           5/5    PASS
+chronon3d_native_video_sink_factory_tests     8/8    PASS
+chronon3d_backend_registry_tests             59/59   PASS (era 50/59, vedi sotto)
+chronon3d_cli_tests                         197/197  PASS (3690/3690 assertion,
+   inclusi i casi GOP P0-5A/5B/5C/5D/5E/5F e il nuovo test_copy_lane_coverage)
+chronon3d_native_decoder_tests                3/4     (1 rosso: heap corruption, sotto)
+chronon3d_text_tile_raster_canary_tests      65/78    (13 assertion di pixel, sotto)
+```
+
+### Due fix atterrati in questa sessione
+
+1. **Vocabolario chiuso anche nello scope annidato** (`apps/chronon3d_cli/daemon/
+daemon_service_ipc.cpp`). `reject_unknown_render_job_keys` validava le chiavi
+   delle entry di `changed_intervals` **solo** sulla radice del payload, mentre il
+   decoder legge l'array **anche** da `output_spec.changed_intervals`: un typo
+   annidato (`start_secnds`) restava un default silenzioso, cioè esattamente il
+   difetto che il gate esiste per rifiutare. Ora la validazione è una sola
+   lambda applicata a entrambi gli scope. `chronon3d_render_job_contract_tests`:
+   `decode_render_job_payload refuses a key outside the closed vocabulary` ROSSO →
+   VERDE (15/15, 394/394 assertion).
+2. **Harness del canary registry** (`tests/registry/test_backend_registry_vulkan_text_run.cpp`).
+   Il caso `cached text-run builds glyphs on both styled cache miss and hit via
+   Vulkan` costruiva il `RenderGraphContext` a mano senza cablare
+   `ctx.gpu_styled_glyph_cache`: in produzione lo fa l'unica autorità di wiring
+   (`src/render_graph/pipeline/scene_context_setup.cpp`), quindi la cache styled
+   restava nulla, ogni frame risultava MISS e l'hit non poteva esistere
+   (2 miss / 0 hit). Cablata dal `runtime`, come la produzione. Suite registry:
+   **50/59 → 59/59** (847/847 assertion).
+
+### Zero-copy certificato (host GPU reale)
+
+`bash tools/verify_zero_copy_end_to_end.sh --frames 30` con la CLI della lane
+release → **`ZERO_COPY_PASS` 16 PASS / 0 FAIL / 0 BLOCKED**:
+`encoder_staging_copy_bytes=0`, `gpu_surface_copy_frames=0`,
+`surface_handoff_path=direct`, `effective_backend=vulkan`,
+`encoder_backend=nvenc`, `gpu_native_surface_frames=30`,
+`gpu_native_encode_frames=30`. La richiesta `--direct-yuv` sulla scena builtin
+procede invece con un downgrade **dichiarato e contato**
+(`execution_reason=direct_yuv_capability_rejected`, `downgrade_count=1`,
+`video_source_requested_frames=0`), quindi il certificato a conversione zero
+richiede un piano con sorgente video. Numeri in
+[`../ZERO_COPY_GATES.md`](../ZERO_COPY_GATES.md).
+
+### Aperti emersi/nominati (non chiusi qui)
+
+| Item | Stato | Causa / prossimo passo |
+|---|---|---|
+| `chronon3d_native_decoder_tests`: `NativeVideoFrameDecoder decodes independent sources concurrently` | **ROSSO — heap corruption** | Backtrace: `corrupted size vs. prev_size while consolidating` dentro `avformat_close_input` chiamato da `NativeVideoFrameDecoder::Session::~Session` (`native_video_frame_decoder_session.cpp:67`); la corruzione è precedente e glibc la rileva al primo `free`. Il trace sessione (`CHRONON_DECODE_TRACE=1`) mostra le sessioni `a.y4m`, `b.y4m` (concorrenti) e `multi.y4m` (sequenziale, 2 campioni) aperte prima dell'abort. Serve una lane ASAN (o valgrind) su questo singolo target: glibc non dice *dove* è avvenuta la scrittura. Ipotesi da provare per prime: (a) fixture 2×2 + `enable_swscale=true` (caso limite di stride/align), (b) concorrenza sullo stato di sessione |
+| `chronon3d_native_decoder_tests`: `CUDA-interop decode surface is Rgba32Float…` | **FIXED (harness)** | L'assertion si aspettava `LifetimeClass::FrameTransient`, ma l'unico consumatore di produzione di quel desc (`vulkan_cuda_frame_importer.cpp`) tiene un **ring di slot** di surface importate riusate tra frame e le rilascia solo invalidando lo slot → `JobPersistent`. Assertion allineata al contratto con la motivazione nel test |
+| `chronon3d_text_tile_raster_canary_tests` | **ROSSO — riprodotto identico** | 13 assertion (full/half/mtsdf + `counts[*] >= 1`): il dispatch compute non scrive. Il canary non usa `VulkanBackend`/surface authority (SPIR-V raw), coerente con la diagnosi già a ticket: da diagnosticare su driver/GPU, non correlato a questo change set |
+| Gate `steady_state_allocations` revision | **mismatch dichiarato** | `steady_state_allocations_per_frame=0.0` PASS, ma il report è pinnato a `revision=8bdf0f807` e `revision_state=mismatch` sull'albero corrente: il baseline va ri-pinnato alla revisione corrente quando la campagna Stage 1-5 chiude |

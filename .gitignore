@@ -20,6 +20,9 @@ build-*/
 cmake-build-*/
 out/
 dist/
+# `cmake --install ... --prefix sdk-dist` (CI Gate 4 / install-consumer) writes a
+# multi-GB SDK prefix here; it is a build artifact, never a source tree.
+sdk-dist/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake

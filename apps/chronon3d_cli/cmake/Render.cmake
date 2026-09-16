@@ -22,6 +22,10 @@ add_library(chronon3d_cli_render STATIC
     utils/job/render_job_write_frame.cpp
     utils/job/cli_render_utils.cpp
     utils/job/report/render_job_report.cpp
+    # Copy-lane trust boundary: the render-plan executor is its only caller, so
+    # it lives in this target (not in cli_video_export, which this target does
+    # not link). See the header for why the refusal belongs here.
+    utils/video/copy_lane_coverage.cpp
     utils/semantic/semantic_script.cpp
 )
 

@@ -393,9 +393,16 @@ GraphBuildResult build_or_reuse_graph(
         graph_cache != nullptr &&
         graph_cache->has(width, height);
 
-    spdlog::info("[build_or_reuse] frame={} can_reuse={} scene_structure_unchanged={} has_cache={}",
-                 static_cast<int>(ctx.frame_input.frame), result.can_reuse,
-                 scene_structure_unchanged, (graph_cache && graph_cache->has(width, height)));
+    // Per-frame diagnostics stay behind the diagnostics gate: these two lines
+    // are formatted once per frame for the whole export (spdlog's default level
+    // is info and the CLI never lowers it), which is ~29k formatted lines for a
+    // 10-minute 24 fps job — a tax on every frame that only a debugging run
+    // reads. Same gate as log_graph_cache_diagnostics below.
+    if (diagnostics_enabled) {
+        spdlog::info("[build_or_reuse] frame={} can_reuse={} scene_structure_unchanged={} has_cache={}",
+                     static_cast<int>(ctx.frame_input.frame), result.can_reuse,
+                     scene_structure_unchanged, (graph_cache && graph_cache->has(width, height)));
+    }
 
     const auto t_graph0 = profiling::now();
 
@@ -422,9 +429,11 @@ GraphBuildResult build_or_reuse_graph(
         log_graph_cache_diagnostics(result.compiled, ctx, "build_fresh", width, height);
     }
 
-    spdlog::info("[build_or_reuse_done] frame={} graph_reused={} compiled_nodes={} levels={}",
-                 static_cast<int>(ctx.frame_input.frame), result.graph_reused,
-                 result.compiled.graph.size(), result.compiled.levels.size());
+    if (diagnostics_enabled) {
+        spdlog::info("[build_or_reuse_done] frame={} graph_reused={} compiled_nodes={} levels={}",
+                     static_cast<int>(ctx.frame_input.frame), result.graph_reused,
+                     result.compiled.graph.size(), result.compiled.levels.size());
+    }
 
     // Count only the final decision on the checked-out candidate. A
     // topology-rejected candidate is a rebuild/miss, not a cache hit.

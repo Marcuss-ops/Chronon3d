@@ -126,39 +126,10 @@ const char* to_string(EncoderTransport transport) noexcept {
     return "unknown";
 }
 
-// AUDIT F4 — one list, one order, consumed by the CLI's CLI::IsMember() option
-// gate, so the accepted vocabulary and its help text cannot drift from the
-// parser below.
-std::span<const std::string_view> encoder_transport_names() noexcept {
-    static constexpr std::array<std::string_view, 2> kNames{
-        kEncoderTransportNative, kEncoderTransportPipe};
-    return kNames;
-}
-
-std::vector<std::string> available_encoder_transport_names() {
-    std::vector<std::string> names;
-    names.reserve(2);
-    for (const auto name : encoder_transport_names()) {
-        EncoderTransport transport{};
-        if (!parse_encoder_transport(name, transport)) continue;
-        if (!encoder_transport_available(transport)) continue;
-        names.emplace_back(name);
-    }
-    return names;
-}
-
-bool parse_encoder_transport(std::string_view value,
-                             EncoderTransport& out) noexcept {
-    if (value == kEncoderTransportNative) {
-        out = EncoderTransport::Native;
-        return true;
-    }
-    if (value == kEncoderTransportPipe) {
-        out = EncoderTransport::Pipe;
-        return true;
-    }
-    return false;
-}
+// AUDIT F4 — the transport vocabulary accessors
+// (`encoder_transport_names`, `available_encoder_transport_names`,
+// `parse_encoder_transport`) are inline in the header: their callers include
+// the RENDER command, which does not link this library. See the header.
 
 const char* to_string(EncoderRateControlRequest rc) noexcept {
     switch (rc) {
@@ -272,16 +243,9 @@ std::string resolve_ffmpeg_encoder_name(
 }
 
 // ── Public classification of the hardware-encoder field ─────────────────────
-
-bool hardware_nvenc_requested(std::string_view hardware_encoder) noexcept {
-    // Delegates to the media-layer vocabulary: the daemon admission path and
-    // this CLI path must classify the same payload identically.
-    return chronon3d::media::hardware_encoder_requests_nvenc(hardware_encoder);
-}
-
-std::string normalize_hardware_encoder_field(std::string_view value) {
-    return chronon3d::media::normalize_hardware_encoder_field(value);
-}
+//
+// The two predicates are inline in the header: their callers include the render
+// command and the job planner, which do not link this library (see the header).
 
 // ── Immutable resolved configuration ────────────────────────────────────────
 

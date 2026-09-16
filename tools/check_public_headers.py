@@ -145,6 +145,39 @@ def _gate_no_test_paths(public_root: str = "include/chronon3d") -> int:
 _INCL_RE = re.compile(r'#\s*include\s*[<"]([^>"]+)[>"]')
 
 
+def _pick_flag_template(db: list[dict]) -> tuple[dict | None, str | None]:
+    """Pick the compile entry that actually carries the repository public
+    `include/` directory, and report that root.
+
+    `compile_commands.json[0]` is NOT stable across trees: in the video lanes
+    it is `spirv_abi_gen.cpp` — a generator TU configured without
+    `-I<repo>/include` — so using it as the Gate C flag template made every
+    public header fail with `fatal error: chronon3d/...: No such file or
+    directory`, a failure with nothing to do with the headers. The heaviest
+    engine TU is the one whose `-I`/`-isystem` list resolves a directory that
+    contains `chronon3d/`.
+    """
+    for entry in db:
+        raw = entry.get("command")
+        tokens = (shlex.split(raw) if isinstance(raw, str)
+                  else list(entry.get("arguments") or []))
+        for index, token in enumerate(tokens):
+            candidate = None
+            if token in ("-I", "-isystem"):
+                if index + 1 < len(tokens):
+                    candidate = tokens[index + 1]
+            elif token.startswith("-isystem"):
+                candidate = token[len("-isystem"):]
+            elif token.startswith("-I"):
+                candidate = token[2:]
+            if not candidate:
+                continue
+            candidate = os.path.normpath(candidate)
+            if os.path.isdir(os.path.join(candidate, "chronon3d")):
+                return entry, candidate
+    return (db[0] if db else None), None
+
+
 def _gate_off_manifest_includes(manifest_paths: list[str]) -> int:
     """Gate B — emit `WARN: ...` lines for any OPP-public (`chronon3d/...`)
     `#include` that is not part of the manifest.  Third-party includes
@@ -198,7 +231,12 @@ def _gate_standalone_compile(
         print("  WARN (Gate C): compile_commands.json is empty; skipping standalone check",
               file=sys.stderr)
         return 0
-    entry = compile_commands_db[0]
+    entry, include_root = _pick_flag_template(compile_commands_db)
+    if include_root:
+        print(f"  Gate C flag template: public include root {include_root}")
+    else:
+        print("  WARN (Gate C): no compile entry exposes a public include root; "
+              "falling back to the first entry", file=sys.stderr)
     cwd = entry.get("directory", ".")
     raw_command = entry.get("command")
     cmd = shlex.split(raw_command) if isinstance(raw_command, str) else list(raw_command or [])
@@ -240,7 +278,12 @@ def _gate_standalone_compile(
         angle = hdr
         if angle.startswith("include/"):
             angle = angle[len("include/"):]
-        tu = os.path.join(out_dir, f"check_{i}.cpp")
+        # The compiler runs with `cwd=<compile_commands directory>` (the build
+        # tree), so a relative TU path resolved against the repo root is not
+        # found by the compiler ("fatal error: out/check_N.cpp: No such file or
+        # directory") and every header fails for a reason that has nothing to
+        # do with the header. Hand the compiler an absolute path.
+        tu = os.path.abspath(os.path.join(out_dir, f"check_{i}.cpp"))
         with open(tu, "w") as f:
             f.write(f"#include <{angle}>\nint main() {{}}\n")
         log_path = os.path.join(out_dir, f"check_{i}.log")
