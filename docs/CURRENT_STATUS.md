@@ -4,8 +4,9 @@
 >
 > **Observed state only.** Per AGENTS.md, extended chronicle lives in tickets: this file
 > carries at most one synthetic line per closed checkpoint. The dated closeout narrative
-> that had accumulated here (2026-09-04, 2026-09-08, 2026-09-11 ×2) was moved verbatim to
-> [`tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md`](tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md).
+> that had accumulated here (2026-09-04, 2026-09-08, 2026-09-11 ×2) is deliberately not
+> kept in any document: closed checkpoints live in the git history (`git log --follow`),
+> which is the only archive.
 
 ## Release / certification state
 
@@ -63,14 +64,14 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 
 ## Closed checkpoints (chronicle index)
 
-One synthetic line per closed checkpoint; detail in the archive ticket and the named
-evidence documents.
+One synthetic line per closed checkpoint; detail lives in the named evidence
+documents and the git history.
 
-- 2026-09-04 — main truth checkpoint: no narrative recorded. See [`tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md`](tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md).
-- 2026-09-08 — migration closeout: Wave 4 compiler caller census CLOSED; native encoder contract fail-closed; migration not globally CLOSED (Wave 3 typed execution, zero-copy GPU evidence, same-SHA certification open). See [`tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md`](tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md).
+- 2026-09-04 — main truth checkpoint: no narrative recorded.
+- 2026-09-08 — migration closeout: Wave 4 compiler caller census CLOSED; native encoder contract fail-closed; migration not globally CLOSED (Wave 3 typed execution, zero-copy GPU evidence, same-SHA certification open).
 - 2026-09-11 — Phase 4/5 evidence: Vulkan independent jobs PASS, framebuffer contention PASS (preserve), concurrent determinism PASS, steady-state allocation budget PASS at `0.0`. See [`evidence/phase4-determinism.md`](evidence/phase4-determinism.md) and [`evidence/phase5-allocation-budget.md`](evidence/phase5-allocation-budget.md).
 - 2026-09-11 — certification harness: B00 native smoke on RTX A4000/NVENC, 120/120 native frames, zero CPU readback; official corpus blocked on a content-pack build (`CHRONON3D_BUILD_CONTENT=OFF`). See [`evidence/gpu-b00-native-smoke-a16c86de2.md`](evidence/gpu-b00-native-smoke-a16c86de2.md).
-- 2026-09-11 — FrameDelta compiler: integrated production path for dirty collection, tile policy and scene-tile execution; `chronon3d_render_graph_tests` 1/1 on the current main SHA. See [`tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md`](tickets/TICKET-STATUS-CHRONICLE-ARCHIVE.md).
+- 2026-09-11 — FrameDelta compiler: integrated production path for dirty collection, tile policy and scene-tile execution; `chronon3d_render_graph_tests` 1/1 on the current main SHA.
 - 2026-09-16 — zero-copy certification on the host GPU (`ZERO_COPY_PASS`, FullGraph/NVENC lane); the closed-vocabulary fix that extended the `changed_intervals` entry check to the `output_spec` scope (`chronon3d_render_job_contract_tests` 15/15); the registry suite closed at **59/59** by wiring a hand-built `RenderGraphContext` the way the production authority does; and three fixes to the public-header gate so CI Gate 3 can actually run (stale `--headers-list` invocation, relative generated-TU path handed to a compiler running in the build tree, flag template taken from a generator TU without `-I<repo>/include`). The video-lane tests tree was re-created at `build/chronon/linux-video-test`; the build-time defect that made every `ninja` invocation re-run all edges and the `-j12` resource budget are documented in [`CCACHE-AUDIT-2026-09-10.md`](CCACHE-AUDIT-2026-09-10.md).
 
 ## Operating rule
