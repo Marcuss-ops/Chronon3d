@@ -18,7 +18,15 @@ bool CompositionSession::contains(std::string_view id) const noexcept {
 
 void CompositionSession::remove(std::string_view id) {
     std::lock_guard lock(m_mutex);
-    m_compositions.erase(id);
+    // Heterogeneous erase. `std::map::erase` has no transparent overload (only
+    // `const key_type&` and iterators), and `std::string`'s string_view
+    // constructor is `explicit`, so `erase(id)` does not compile on a map with
+    // `std::less<void>`: the throwaway `std::string` key would be required.
+    // Find through the transparent comparator, then erase the iterator — the
+    // same allocation-free lookup `contains()` above uses.
+    if (const auto it = m_compositions.find(id); it != m_compositions.end()) {
+        m_compositions.erase(it);
+    }
 }
 
 void CompositionSession::clear() noexcept {

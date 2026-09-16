@@ -84,6 +84,14 @@ if(@CHRONON3D_ENABLE_TEXT@)
     # ensures the vcpkg config creates proper targets before freetype sees them.
     find_dependency(harfbuzz CONFIG)
     find_dependency(freetype CONFIG)
+    # ICU is consumed in MODULE mode with explicit components (the root
+    # CMakeLists calls `find_package(ICU REQUIRED COMPONENTS data uc i18n)`),
+    # and the generated AUTO-GENERATED block below always emits `CONFIG`, so
+    # this one is hand-written like ZLIB above.  The exported interface of
+    # `chronon3d_text_core` carries `ICU::data`; without this line an external
+    # consumer's configure fails with "The link interface of target
+    # chronon3d_text_core contains ICU::data but the target was not found".
+    find_dependency(ICU COMPONENTS data uc i18n)
 endif()
 if(@CHRONON3D_ENABLE_TEXT@ AND @CHRONON3D_USE_BLEND2D@)
     # FriBidi is found via pkg-config; resolve it for the consumer so

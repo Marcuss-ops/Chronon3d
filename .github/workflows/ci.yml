@@ -152,12 +152,16 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-lean-gate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline
-      - run: find include/chronon3d -maxdepth 3 -name '*.hpp' | sort > headers.txt && wc -l headers.txt
       - name: Compile each header standalone
         run: |
+          # Canonical interface of the gate (tools/check_public_headers.py
+          # header, lines 9-10): the manifest is the source of truth for the
+          # public header set and the script derives Gates A/B/C from it. The
+          # old `--headers-list headers.txt` form is a stale interface the
+          # script no longer accepts, so this step could never run the check.
           python3 tools/check_public_headers.py \
             --compile-commands build/chronon/linux-ci-lean-gate/compile_commands.json \
-            --headers-list headers.txt --out out
+            --manifest cmake/Chronon3DPublicHeaders.cmake --out out
           if [ -s out/failures.txt ]; then
             echo "::error::Public headers that fail to compile standalone:"
             cat out/failures.txt
@@ -200,8 +204,13 @@ jobs:
           printf 'find_package(Chronon3D CONFIG REQUIRED)\n' >> consumer/CMakeLists.txt
           printf 'add_executable(chronon_consumer main.cpp)\n' >> consumer/CMakeLists.txt
           printf 'target_link_libraries(chronon_consumer PRIVATE Chronon3D::SDK)\n' >> consumer/CMakeLists.txt
+          # The smoke source must use a type the included header actually
+          # declares: `chronon3d/sdk/render_settings.hpp` exposes
+          # `chronon3d::sdk::RenderSettings`. The old `chronon3d::Color` (which
+          # lives in chronon3d/math/color.hpp) made this step fail to compile
+          # with "'Color' is not a member of 'chronon3d'".
           printf '#include <chronon3d/sdk/render_settings.hpp>\n' > consumer/main.cpp
-          printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
+          printf 'int main() { chronon3d::sdk::RenderSettings s{}; (void)s; return 0; }\n' >> consumer/main.cpp
           cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/sdk-dist
           cmake --build consumer/build
 

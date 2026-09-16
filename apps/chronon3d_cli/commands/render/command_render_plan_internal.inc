@@ -116,6 +116,26 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         }
 
         auto context = std::move(preparation).value();
+
+        // COPY-LANE TRUST BOUNDARY (see utils/video/copy_lane_coverage.hpp).
+        // The GOP copy lane publishes the compressed source's packets verbatim
+        // for every interval the caller did NOT declare as changed, so the
+        // declaration has to be able to carry the plan's rendered content. The
+        // two cases refused here — an overlay window the caller never declared,
+        // and gop_copy_only over a plan that draws layers — both used to publish
+        // unlocalized frames and exit 0. This is the one place where the decoded
+        // plan and the normalized job are both in hand, and it is on the single
+        // path the CLI and the daemon share.
+        {
+            const auto coverage = validate_copy_lane_coverage(
+                context.decoded, normalized_job.output.gop_copy_only,
+                normalized_job.output.changed_intervals);
+            if (!coverage.ok) {
+                spdlog::error("[video] refusing copy-lane job: {}", coverage.message);
+                return 1;
+            }
+        }
+
         const auto& meta = context.program->metadata();
         const auto& fp = context.program->fingerprint_data();
         const auto& effective_assets_root = context.effective_assets_root;
