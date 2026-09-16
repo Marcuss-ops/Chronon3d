@@ -10,6 +10,8 @@
 #include "command_render_plan.hpp"
 #include "render_plan_preparation.hpp"
 #include "../video/common/pipe_pixfmt_vocabulary.hpp"
+// ONE sink vocabulary for the --video-sink option checker (sink_options.hpp).
+#include "../video/common/sink_options.hpp"
 #include "../../utils/video/encoder_config_resolution.hpp"
 
 #include <CLI/CLI.hpp>

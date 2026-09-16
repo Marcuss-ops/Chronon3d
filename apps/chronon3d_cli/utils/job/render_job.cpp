@@ -2,6 +2,9 @@
 
 #include "../common/cli_utils.hpp"
 #include "../video/encoder_config_resolution.hpp"
+// ONE sink vocabulary: the output lane is selected from the sink intent, so
+// this translation unit asks the same authority the --video-sink checker uses.
+#include "../../commands/video/common/sink_options.hpp"
 
 #include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -63,7 +66,21 @@ void finalize_video_settings(RenderJob& job) {
     }
 
 #if defined(__linux__)
-    if (job.video_settings.pipe_pixfmt.empty() &&
+    // The yuv420p default belongs to the ENCODER path: it is the cheapest
+    // surface the encoder accepts. A pre-encode sink must NOT inherit it — its
+    // artifact IS the diagnostic truth surface, and a chroma-subsampled,
+    // color-converted YUV stream would make every pixel-level measurement
+    // report the converter instead of the renderer. Those sinks keep the host
+    // frame format (rgba) unless the user names one explicitly.
+    const auto requested_sink = try_parse_video_sink_type(job.video_settings.sink_type);
+    const bool encodes = !requested_sink || video_sink_type_encodes(*requested_sink);
+    if (!encodes && job.video_settings.pipe_pixfmt.empty()) {
+        job.video_settings.pipe_pixfmt = "rgba";
+        spdlog::info(
+            "[video] Pre-encode sink: keeping the host frame format (rgba) "
+            "instead of the encoder's yuv420p default");
+    }
+    if (encodes && job.video_settings.pipe_pixfmt.empty() &&
         job.metadata.width % 2 == 0 && job.metadata.height % 2 == 0 &&
         job.video_settings.codec != "libx264rgb") {
         job.video_settings.pipe_pixfmt = "yuv420p";
@@ -112,7 +129,16 @@ std::optional<RenderRequest> make_render_request(
          args.backend != chronon3d::graph::BackendPreference::Software) ||
         args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative;
 
-    if (is_video_output(args.output)) {
+    // Output intent decides the lane: a container extension selects the video
+    // lane as before, and an EXPLICIT sink request does too even when the
+    // output path has no container extension (the pre-encode "raw" sink writes
+    // frames to a bare .raw and must never be routed to the image writer).
+    const bool video_lane_requested =
+        is_video_output(args.output) ||
+        (args.video_settings.sink_type_explicit &&
+         video_sink_name_selects_video_lane(args.video_settings.sink_type));
+
+    if (video_lane_requested) {
         request.mode = RenderMode::Video;
         request.first_frame = Frame{range.start};
         request.last_frame = Frame{range.end};
