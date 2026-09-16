@@ -79,6 +79,10 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--gpu-hot-path-mode", state->gpu_hot_path_mode,
                         "GPU hot-path mode: auto, require_gpu_native, or require_direct_yuv")
         ->check(CLI::IsMember({"auto", "require_gpu_native", "require_direct_yuv"}));
+    // Same single sink vocabulary as `render --video-sink`.
+    command->add_option("--video-sink", state->video_sink,
+                        "Output sink: ffmpeg (encode+mux) or raw (pre-encode frames, no encoder)")
+        ->check(CLI::IsMember(video_sink_type_names()));
     command->callback([state, &ctx, start_frame_opt, end_frame_opt] {
         if (!state->video_execution) {
             state->video_execution = std::make_shared<media::VideoJobExecutionContext>();

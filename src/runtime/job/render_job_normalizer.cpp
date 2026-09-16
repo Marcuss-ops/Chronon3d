@@ -130,14 +130,12 @@ normalize_render_job(
     if (resolved.output.gpu_hot_path_mode.empty()) {
         resolved.output.gpu_hot_path_mode = resolved.execution.gpu_hot_path_mode;
     }
-    // Sink default. Back-filled here (not at each transport) so a request that
-    // never mentioned the sink and one that spelled the canonical default
-    // resolve to the SAME normalized job — the CLI↔IPC parity gate compares
-    // fingerprints, and a transport-specific default would be exactly the
-    // silent divergence that gate exists to catch.
-    if (resolved.output.sink_type.empty()) {
-        resolved.output.sink_type = "ffmpeg";
-    }
+    // NOTE: `output.sink_type` is deliberately NOT back-filled here. It is a
+    // REQUEST, not a resolved parameter: empty means "the sink was never
+    // named", and the execution layer selects the video lane only when a sink
+    // was explicitly requested (a `.png` output must stay an image job even
+    // though the canonical VideoSettings default is "ffmpeg"). Leaving it
+    // empty keeps CLI and IPC requests fingerprint-identical.
     return resolved;
 }
 

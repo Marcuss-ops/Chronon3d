@@ -143,6 +143,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             request.output.changed_intervals = render_args.video_settings.changed_intervals;
             if (render_args.pipe_pixfmt_explicit)
                 request.output.pipe_pixfmt = render_args.video_settings.pipe_pixfmt;
+            // Only an explicit request travels; an unmentioned sink stays empty
+            // so normalization back-fills the canonical default and a plan-file
+            // job fingerprints identically to a daemon/IPC job.
+            if (render_args.video_settings.sink_type_explicit)
+                request.output.sink_type = render_args.video_settings.sink_type;
             if (end_frame_opt->count() > 0) {
                 request.frame_range = runtime::job::FrameRange{
                     static_cast<std::int64_t>(state->start_frame),

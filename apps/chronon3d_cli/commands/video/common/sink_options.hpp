@@ -59,6 +59,17 @@ enum class VideoSinkType {
     return {"ffmpeg", "raw", "null-render", "null-convert"};
 }
 
+/// The accepted names as one comma-separated string. Error messages quote
+/// this instead of re-typing a list that could drift from the vocabulary.
+[[nodiscard]] inline std::string video_sink_names_joined() {
+    std::string joined;
+    for (const auto& name : video_sink_type_names()) {
+        if (!joined.empty()) joined += ", ";
+        joined += name;
+    }
+    return joined;
+}
+
 /// Non-throwing parse. This is the ONE parser: `parse_video_sink_type()` and
 /// the job validator both go through it, so "is this name known?" cannot
 /// diverge between the CLI flag check and the execution boundary.
@@ -97,6 +108,19 @@ enum class VideoSinkType {
 /// requires an external ffmpeg, so capability checks must not demand one.
 [[nodiscard]] inline bool video_sink_type_encodes(VideoSinkType type) noexcept {
     return type == VideoSinkType::Ffmpeg;
+}
+
+/// True when an EXPLICITLY REQUESTED sink name selects the video (frame)
+/// output lane.
+///
+/// The sink is an output intention, so it — not the output file extension —
+/// decides the lane: a pre-encode sink writes frames to a path that carries no
+/// container meaning (`frames.raw`), and refusing it for "not being a video
+/// output" would send it down the still/sequence image writer instead. An
+/// empty name is not a request and leaves the extension in charge.
+[[nodiscard]] inline bool video_sink_name_selects_video_lane(
+    std::string_view name) noexcept {
+    return !name.empty() && try_parse_video_sink_type(name).has_value();
 }
 
 /// Sink-specific options.

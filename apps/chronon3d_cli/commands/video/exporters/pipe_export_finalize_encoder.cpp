@@ -4,6 +4,15 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/output_contract.hpp>
+// frame_buffer_size(PixelFormat, w, h): the ONE frame-size authority the raw
+// sink itself uses to size its stream, so the verification below cannot drift
+// from what was written.
+#include <chronon3d/media/video/video_frame.hpp>
+#include "../common/video_export_common.hpp"
+// The canonical content digest for a published artifact (same authority the
+// container contract uses).
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include "../../../utils/video/video_sink_adapter.hpp"
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
@@ -130,6 +139,64 @@ PipeExportResult make_pipe_export_result(
                 spdlog::warn("[video] Failed to remove partial output {}: {}",
                              partial_path.string(), ec.message());
             }
+        }
+    } else if (session.opts.sink.sink_type != VideoSinkType::Ffmpeg) {
+        // ── Pre-encode sink: there is no container to probe ────────────────
+        // The raw sink writes the rendered host frames verbatim (no encoder,
+        // no container, no metadata). Asking ffprobe for the video stream of
+        // such a file returns "0 video streams" — the correct answer for a
+        // headerless frame stream, but the container contract would read it as
+        // a failure and DELETE the artifact. The contract that can be checked
+        // exactly here is arithmetic, and it is the strongest one available:
+        //   file size == frames_written × frame_buffer_size(format, w, h)
+        // Both factors come from the same authorities the sink used.
+        const auto raw_format = try_parse_pipe_pixfmt(session.opts.pipe.pipe_pixfmt);
+        const auto frame_bytes = raw_format
+            ? chronon3d::media::video::frame_buffer_size(
+                  VideoSinkEncoderAdapter::map_pixel_format(*raw_format),
+                  session.canvas_width, session.canvas_height)
+            : 0ULL;
+        const auto frames_written = status.frames_rendered;
+        const auto expected_bytes =
+            frame_bytes * static_cast<std::uint64_t>(frames_written);
+        std::error_code size_ec;
+        const auto written_bytes =
+            std::filesystem::file_size(partial_path, size_ec);
+        if (!raw_format || frame_bytes == 0 || size_ec ||
+            written_bytes != expected_bytes) {
+            spdlog::error(
+                "[video] pre-encode artifact verification failed — "
+                "frames={} frame_bytes={} expected={} actual={} ({})",
+                frames_written, frame_bytes, expected_bytes,
+                size_ec ? 0ULL : written_bytes,
+                size_ec ? size_ec.message() : "size mismatch");
+            result.success = false;
+            result.return_code = 1;
+            std::error_code remove_ec;
+            std::filesystem::remove(partial_path, remove_ec);
+            return result;
+        }
+        if (const auto digest = chronon3d::assets::sha256_file(partial_path)) {
+            result.sha256 = digest->hex();
+        }
+        spdlog::info(
+            "[video] pre-encode artifact verified: {} frames × {} bytes = {} bytes "
+            "(format {}), sha256={}",
+            frames_written, frame_bytes, written_bytes,
+            session.opts.pipe.pipe_pixfmt, result.sha256);
+        const auto raw_output_t0 = profiling::now();
+        std::error_code raw_ec;
+        std::filesystem::rename(partial_path, final_path, raw_ec);
+        result.output_finalize_ms =
+            profiling::duration_ms(raw_output_t0, profiling::now());
+        if (raw_ec) {
+            spdlog::error("[video] Failed to rename {} → {}: {}",
+                          partial_path.string(), final_path.string(), raw_ec.message());
+            result.success = false;
+            result.return_code = 1;
+            std::filesystem::remove(partial_path, raw_ec);
+        } else {
+            result.output_published = true;
         }
     } else {
         const auto validation_t0 = profiling::now();

@@ -43,7 +43,11 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     warmup.warmup_dummy_frame = job.execution.warmup_dummy_frame;
 
     SinkOptions sink;
-    sink.sink_type = VideoSinkType::Ffmpeg;
+    // The canonical field is the authority; the CLI job validator has already
+    // fail-closed on an unknown name, so an unparsable value here cannot be
+    // silently reinterpreted as the encoder path.
+    sink.sink_type = try_parse_video_sink_type(job.video_settings.sink_type)
+                         .value_or(VideoSinkType::Ffmpeg);
     sink.ffmpeg_mode = job.video_settings.ffmpeg_mode;
     sink.keep_frames = job.video_settings.keep_frames;
     sink.chunks = job.video_settings.chunks;
