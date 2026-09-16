@@ -137,7 +137,9 @@ ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
       mancanti sono stati separati per esecuzione incrementale a binario
       singolo, così da non richiedere 30+ GB simultanei. La suite animation
       incrementale è ora PASS dopo il fix di gating (1/1).
-- [ ] Eseguire i gate developer registrati in `tools/gates/manifest.sh`.
+- [x] Eseguire i gate developer registrati in `tools/gates/manifest.sh`: 10/10
+      PASS con `TMPDIR=.tmp` scrivibile; il gate steady-state segnala solo
+      evidenza storica su una revisione precedente.
 
 ## 4. Acceptance e certificazione raggiungibile
 
