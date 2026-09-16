@@ -68,8 +68,14 @@ struct FullGraphSession {
         : execution_slots(configured_gpu_encode_slot_capacity()) {}
 
     ~FullGraphSession() {
+        // Teardown is the largest un-logged phase of a serialized daemon job
+        // (docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md): it runs after the
+        // timing sidecar, so every existing timer misses it. Split so the cost
+        // is attributable to the slot pool or to surface reclamation.
+        const auto teardown_t0 = std::chrono::steady_clock::now();
         execution_slots.close();
-        if (!surface_backend || !surface_registry) return;
+        const auto teardown_t1 = std::chrono::steady_clock::now();
+        if (surface_backend && surface_registry) {
         for (std::size_t i = 0; i < execution_slots.capacity(); ++i) {
             auto& slot = execution_slots.slot(i);
             const auto native = slot.native_surface;
@@ -85,6 +91,12 @@ struct FullGraphSession {
             slot.native_surface = runtime::kInvalidRenderSurfaceHandle;
             slot.source_surface = runtime::kInvalidRenderSurfaceHandle;
         }
+        }
+        const auto teardown_t2 = std::chrono::steady_clock::now();
+        spdlog::info(
+            "[INFO] job-lifecycle: slot_pool_close_ms={:.1f} surface_release_ms={:.1f}",
+            std::chrono::duration<double, std::milli>(teardown_t1 - teardown_t0).count(),
+            std::chrono::duration<double, std::milli>(teardown_t2 - teardown_t1).count());
     }
 };
 
@@ -194,13 +206,27 @@ struct PipeExportSession {
     }
 
     ~PipeExportSession() {
+        const auto teardown_t0 = std::chrono::steady_clock::now();
         queue.close();
+        const auto teardown_t1 = std::chrono::steady_clock::now();
         if (writer_thread.joinable()) {
             writer_thread.join();
         }
+        const auto teardown_t2 = std::chrono::steady_clock::now();
         encoder.reset();
+        const auto teardown_t3 = std::chrono::steady_clock::now();
         native_decoder.reset();
+        const auto teardown_t4 = std::chrono::steady_clock::now();
         full_graph_session.reset();
+        const auto teardown_t5 = std::chrono::steady_clock::now();
+        using ms = std::chrono::duration<double, std::milli>;
+        spdlog::info(
+            "[INFO] job-lifecycle: queue_close_ms={:.1f} writer_join_ms={:.1f} "
+            "encoder_reset_ms={:.1f} decoder_reset_ms={:.1f} "
+            "full_graph_reset_ms={:.1f}",
+            ms(teardown_t1 - teardown_t0).count(), ms(teardown_t2 - teardown_t1).count(),
+            ms(teardown_t3 - teardown_t2).count(), ms(teardown_t4 - teardown_t3).count(),
+            ms(teardown_t5 - teardown_t4).count());
     }
 };
 

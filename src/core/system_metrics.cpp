@@ -82,12 +82,18 @@ SystemMetricsCollector::SystemMetricsCollector() {
 }
 
 SystemMetricsCollector::~SystemMetricsCollector() {
-    // TICKET-122 -- graceful worker shutdown.  Setting the stop flag tells
-    // the worker to exit its sleep loop on the next iteration; join()
-    // blocks until that completes (max ~1s by design).  Release-store
-    // pairs with the worker's acquire-load so the worker sees the flag
-    // by its next iteration check.
+    // TICKET-122 -- graceful worker shutdown.  The stop flag plus a condvar
+    // notification wake the worker out of its 1 Hz wait immediately, so
+    // shutdown no longer costs up to one full tick of blocked join (measured
+    // as ~0.9 s of dead time per serialized daemon job; it was the largest
+    // single un-attributed phase of the job lifecycle).  Release-store pairs
+    // with the worker's acquire-load so the worker sees the flag by its next
+    // iteration check.
     m_stop.store(true, std::memory_order_release);
+    {
+        std::lock_guard lock(m_stop_mutex);
+    }
+    m_stop_cv.notify_all();
     if (m_worker.joinable()) {
         m_worker.join();
     }
@@ -247,12 +253,18 @@ void SystemMetricsCollector::tick_worker() {
     // process_metrics()/system_memory()/etc. observes non-zero values
     // (modulo Linux kernel reporting).
     update_caches();
-    // TICKET-122 -- acquire-load the stop flag so any prior
-    // release-store from ~SystemMetricsCollector is visible to the
-    // worker thread (shutdown is bounded to <1s in the worst case).
+    // TICKET-122 -- the wait is a 1 Hz cadence, not a 1 s sleep: the tick is
+    // skipped as soon as the stop flag is set and the destructor notifies, so
+    // joining the worker never blocks for the remainder of the tick.
+    std::unique_lock lock(m_stop_mutex);
     while (!m_stop.load(std::memory_order_acquire)) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (m_stop_cv.wait_for(lock, std::chrono::seconds(1),
+                               [this] { return m_stop.load(std::memory_order_acquire); })) {
+            break;
+        }
+        lock.unlock();
         update_caches();
+        lock.lock();
     }
 }
 

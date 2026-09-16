@@ -803,11 +803,26 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                         close_result.direct_yuv_cuda_wait_ms;
     timings.internal_encoder = enc_p;
 
+    // Job-lifecycle attribution. The timing sidecar and the telemetry summary
+    // are the last *logged* phases of a job, yet the daemon spends a
+    // measurable constant after them and before the receipt. That constant is
+    // the destruction of the session (encoder close, mux trailer, canvas pool,
+    // execution slots, device runtime) which no timer covered: measured here
+    // explicitly so it stops being an unaccounted stall
+    // (see docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).
+    const auto sidecar_t0 = profiling::now();
     write_frame_timing_sidecar(session->original_output_path,
                                loop_output.telemetry_frames,
                                session->frame_encoder_telemetry,
                                wall_time_ms, loop_output.render_ms, encode_ms,
                                timings, is_native);
+    const auto sidecar_t1 = profiling::now();
+    session.reset();
+    const auto session_teardown_t1 = profiling::now();
+    spdlog::info(
+        "[INFO] job-lifecycle: sidecar_write_ms={:.1f} session_teardown_ms={:.1f}",
+        profiling::duration_ms(sidecar_t0, sidecar_t1),
+        profiling::duration_ms(sidecar_t1, session_teardown_t1));
 
     return result;
 }
