@@ -1,13 +1,20 @@
 # Consolidated animation and timeline test registration.
 
 if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
+    set(_animation_test_sources
+        text/test_video_animation_curves.cpp
+    )
+    if(CHRONON3D_BUILD_CONTENT)
+        list(APPEND _animation_test_sources
+            animation/test_background_compositions.cpp
+        )
+    endif()
+
     chronon3d_add_test_suite(
         NAME chronon3d_animation_tests
         TIER UNIT
         LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
-        SOURCES
-            animation/test_background_compositions.cpp
-            text/test_video_animation_curves.cpp
+        SOURCES ${_animation_test_sources}
     )
     if(CHRONON3D_BUILD_CONTENT)
         target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_content)
@@ -35,4 +42,3 @@ chronon3d_add_test_suite(
         timeline/test_registry_resolve.cpp
         timeline/test_compile_evaluate_dynamic.cpp
 )
-

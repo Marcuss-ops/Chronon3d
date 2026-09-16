@@ -30,6 +30,11 @@ endif()
 # Required third-party dependencies that propagate through the SDK link
 # graph.  find_dependency() resolves them at config-time so consumers
 # don't have to call find_package() for each one themselves.
+# The asset digest implementation may expose OpenSSL::Crypto through the
+# pipeline's exported interface when the build host used EVP. Resolve it
+# opportunistically here: fallback builds export a concrete crypto library
+# path instead, so OpenSSL must not become a hard dependency of those builds.
+find_dependency(OpenSSL QUIET COMPONENTS Crypto)
 #
 # The block between the AUTO-GENERATED markers is regenerated from
 # CHRONON3D_SDK_PUBLIC_DEPS (single source of truth in

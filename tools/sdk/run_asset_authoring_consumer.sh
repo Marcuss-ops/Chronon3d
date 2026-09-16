@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installed-SDK gate for explicit authoring headers + per-engine asset roots.
+# Installed-SDK gate for explicit typed asset headers + per-engine asset roots.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -12,20 +12,21 @@ source "$HERE/common.sh"
 SOURCE="$REPO_ROOT/tests/install_consumer/main_assets.cpp"
 [[ -f "$SOURCE" ]] || fail "asset authoring consumer missing: $SOURCE"
 
-# Compile-contract probes: exact explicit includes and authoring syntax.
+# Compile-contract probes: exact explicit includes and typed asset syntax.
 for include in \
-    chronon3d/authoring/asset.hpp \
-    chronon3d/authoring/layer.hpp \
-    chronon3d/authoring/text.hpp \
+    chronon3d/assets/asset_ref.hpp \
+    chronon3d/scene/builders/layer_builder.hpp \
+    chronon3d/scene/builders/scene_builder.hpp \
+    chronon3d/text/text_definition.hpp \
     chronon3d/sdk/render_engine.hpp; do
     grep -Fq "#include <$include>" "$SOURCE" \
         || fail "asset consumer missing explicit include <$include>"
 done
 
-grep -Fq 'layer.image("logo", asset("images/logo.png"))' "$SOURCE" \
-    || fail "asset consumer missing canonical layer.image(..., asset(...)) syntax"
-grep -Fq '.font(asset("fonts/Inter-Bold.ttf"), 28.0f)' "$SOURCE" \
-    || fail "asset consumer missing canonical text.font(asset(...), size) syntax"
+grep -Fq 'assets::ImageRef{"images/logo.png"}' "$SOURCE" \
+    || fail "asset consumer missing canonical typed image reference syntax"
+grep -Fq 'font_path = "fonts/Inter-Bold.ttf"' "$SOURCE" \
+    || fail "asset consumer missing canonical typed font reference syntax"
 
 if grep -Eq '#include[[:space:]]*<chronon3d/(chronon3d|authoring|render|advanced)\.hpp>' "$SOURCE"; then
     fail "asset consumer uses a retired umbrella header"

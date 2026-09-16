@@ -284,6 +284,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         double lifecycle_receipt_build_ms = 0.0;
         double lifecycle_receipt_write_ms = 0.0;
         if (normalized_job.report) {
+#ifdef CHRONON3D_ENABLE_VERIFICATION
             try {
                 verification::RenderReceiptInput receipt_input;
                 receipt_input.job_id = meta.job_id;
@@ -333,6 +334,11 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             } catch (const std::exception& error) {
                 spdlog::warn("receipt generation failed: {}", error.what());
             }
+#else
+            spdlog::info(
+                "render report requested but verification/receipts are disabled "
+                "in this build");
+#endif
         }
         spdlog::info(
             "[INFO] job-lifecycle: execute_ms={:.1f} receipt_build_ms={:.1f} "

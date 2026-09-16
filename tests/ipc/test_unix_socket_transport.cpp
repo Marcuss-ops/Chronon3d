@@ -13,6 +13,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <thread>
 
@@ -21,8 +23,9 @@ using namespace chronon3d::ipc;
 namespace {
 
 std::string socket_path(const char* tag) {
-    return "/tmp/chronon3d-ipc-test-" + std::string(tag) + "-" +
-           std::to_string(static_cast<long>(::getpid()));
+    return (std::filesystem::temp_directory_path() /
+            ("chronon3d-ipc-test-" + std::string(tag) + "-" +
+             std::to_string(static_cast<long>(::getpid())))).string();
 }
 
 // Reverses every frame; a single-frame request {'S'} is the Shutdown signal.

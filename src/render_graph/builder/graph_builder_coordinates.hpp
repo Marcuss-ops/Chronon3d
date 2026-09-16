@@ -144,10 +144,11 @@ inline bool layer_needs_render_transform(const LayerGraphItem& item, const Rende
     if (!item.layer) return false;
 
     // The legacy/non-modular path already resolves the complete world matrix
-    // into the source node. Adding a TransformNode there applies the parent
-    // placement a second time. TransformNode is owned by the modular path;
-    // keep the legacy path source-space only.
-    if (!ctx.policy.modular_coordinates) return false;
+    // into the source node for ordinary 2D layers. A projected 2.5D layer is
+    // different: its source is deliberately deferred and the evaluated
+    // camera homography must be consumed by TransformNode. Keep that stage
+    // present even when the caller uses the non-modular SDK policy.
+    if (!ctx.policy.modular_coordinates && !item.projected) return false;
     // Native 3D layers apply the camera in their source processor path;
     // adding a TransformNode would re-sample the already projected surface.
     if (item.native_3d) return false;
@@ -307,7 +308,11 @@ inline TextRunPlacement resolve_text_run_placement(
     // Keep opacity explicit on this path as well. The source-pass initializes
     // its out parameter defensively to zero; leaving it untouched silently
     // turns every otherwise valid text run into a transparent draw.
-    out_opacity = node.world_transform.opacity;
+    // Canvas text is the layer's complete source. Preserve the evaluated
+    // layer opacity here; using only the node-local opacity silently turns
+    // animated LayerBuilder::opacity_anim() curves into an opaque draw.
+    out_opacity = (item.layer ? item.layer->transform.opacity : 1.0f) *
+                  node.world_transform.opacity;
     return TextRunPlacement{
         item.world_matrix * node.world_transform.to_mat4()};
 }

@@ -161,11 +161,15 @@ chronon3d::compiler::CompiledProgram compile_plan(
     compile_options.fingerprint = fingerprint_options;
     auto compiled = chronon3d::compiler::compile(
         decoded.value(), resolver, compile_options);
-    if (!compiled)
+    if (!compiled) {
+        const auto& error = compiled.error();
+        const bool missing_asset =
+            std::string_view(error.path).starts_with("assets.");
         throw PlanCompileError(compiled.error().path,
                                compiled.error().message,
-                               "compile_error",
+                               missing_asset ? "MissingAsset" : "compile_error",
                                compiled.error().component);
+    }
     return std::move(compiled).value();
 }
 

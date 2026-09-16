@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
         /* .width        */ 1920,
         /* .height       */ 1080,
         /* .frame_rate   */ c3d::FrameRate{30, 1},
-        /* .duration     */ 1,
+        /* .duration     */ 60,
     };
 
     // ── 3. Composition with all 6 surface areas wired up ─────────────
@@ -89,6 +89,8 @@ int main(int argc, char* argv[]) {
             // the shape/grid surface via LayerBuilder).
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
+                l.enable_3d();
+                l.accepts_lights(false);
                 l.grid_background("grid_bg", c3d::GridBackgroundParams{
                     .size = {static_cast<c3d::f32>(ctx.width),
                              static_cast<c3d::f32>(ctx.height)},
@@ -116,6 +118,8 @@ int main(int argc, char* argv[]) {
             // `l.image(` (not just `l.rect(`) to close it.
             s.layer("test_image", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
+                l.enable_3d();
+                l.accepts_lights(false);
                 l.image("test_image", c3d::ImageParams{
                     .asset_path = "test_image.png",
                     .size  = {600.0f, 400.0f},
@@ -128,6 +132,8 @@ int main(int argc, char* argv[]) {
             // SURFACE: text (TextRun via LayerBuilder::text + TextDefinition).
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
+                l.enable_3d();
+                l.accepts_lights(false);
                 l.text("title_text", c3d::TextDefinition{
     .content = {.value = "SDK CONSUMER FULL COVERAGE"},
     .style = {

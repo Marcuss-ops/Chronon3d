@@ -29,11 +29,12 @@ facades must not return); CLI V3 / `PreparedRenderPlan -> CompiledComposition` i
 canonical typed route; telemetry is events-only with `NullTelemetryStore` as default and no
 sqlite3 dependency in `src`/`include`/`apps`.
 
-Open authority migration: the FFmpeg CLI pipe *encoder* fallback
-(`VideoSinkEncoderAdapter(Ffmpeg)` plus the native→pipe downgrade path) is active
-**demolition debt** — delete only after all exit conditions are certified, tracked in
-[`TICKET-FFMPEG-PIPE-SINK-DEMOLITION`](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md). The
-legacy `SoftwareRenderer` runtime compatibility surface still has callers and
+Open authority migration: the explicit FFmpeg CLI pipe *encoder* path
+(`VideoSinkEncoderAdapter(Ffmpeg)`) remains **demolition debt**. A native request
+without native FFmpeg now fails closed; it must never silently downgrade to pipe.
+Delete the explicit diagnostic path only after all exit conditions are certified,
+tracked in [`TICKET-FFMPEG-PIPE-SINK-DEMOLITION`](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md).
+The legacy `SoftwareRenderer` runtime compatibility surface still has callers and
 `SoftwareExecutionContext` is therefore PARTIAL, not a zero-back-pointer closeout.
 
 ## Active blockers

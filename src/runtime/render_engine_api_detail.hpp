@@ -106,6 +106,21 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
 std::shared_ptr<Framebuffer> RenderEngine::render_program(
     const compiler::CompiledProgram& program, Frame frame)
 {
+    // CompiledProgram carries the immutable preflight manifest just like the
+    // prepared-composition path. Verify it at the execution boundary before
+    // decoders reopen source files, closing the same TOCTOU window for the
+    // canonical compiler path used by the C ABI.
+    if (!program.metadata().asset_manifest.assets().empty()) {
+        const auto integrity = assets::verify_asset_manifest(
+            program.metadata().asset_manifest,
+            m_impl->m_runtime->resolver());
+        if (!integrity) {
+            throw std::runtime_error(
+                "Prepared asset integrity check failed for '" +
+                integrity.error().logical_path + "': " +
+                integrity.error().message);
+        }
+    }
     // Mirror render_compiled()'s per-frame configuration so both
     auto settings = m_impl->m_renderer->render_settings();
     const auto& b = program.metadata().render_budget;

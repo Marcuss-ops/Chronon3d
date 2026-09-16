@@ -302,18 +302,27 @@ public:
             erase_overlaps(use.resource, use.range);
         }
 
-        TrackedState* previous = nullptr;
-        if (!use.discard_previous_contents) {
-            previous = unique_overlap(use.resource, use.range);
-        }
+        const bool resource_was_tracked = states_.contains(use.resource);
+        const auto previous = (!use.discard_previous_contents)
+            ? overlapping_state(use.resource, use.range)
+            : std::nullopt;
 
         ResourceState before = previous
             ? previous->state : ResourceState::undefined_state();
         const std::size_t producer = previous ? previous->producer_pass : pass;
+        const bool needs_explicit_initial_transition =
+            desired.writes() &&
+            (!resource_was_tracked ||
+             has_distinct_media_plane_state(use.resource, use.range));
 
         TransitionResult result;
         if (before.undefined()) {
-            if (desired.writes()) {
+            // A first use of a completely unseen resource needs an explicit
+            // undefined→write transition. A disjoint subresource of an
+            // already tracked resource does not: its contents have no prior
+            // overlapping owner to order, which is the zero-barrier contract
+            // for sparse image/buffer ranges.
+            if (needs_explicit_initial_transition) {
                 result = emit(pass, producer, use, before, desired, false);
             }
             set_state(use.resource, use.range, desired, pass);
@@ -385,20 +394,61 @@ private:
         return state.reads() && !state.writes();
     }
 
-    TrackedState* unique_overlap(ResourceId resource,
-                                 const ResourceRange& range) {
-        const auto it = states_.find(resource);
-        if (it == states_.end()) return nullptr;
+    [[nodiscard]] bool has_distinct_media_plane_state(
+        ResourceId resource, const ResourceRange& range) const noexcept {
+        const auto* requested = std::get_if<SubresourceRange>(&range);
+        if (!requested ||
+            !any(requested->aspects,
+                ResourceAspect::Plane0 | ResourceAspect::Plane1 |
+                    ResourceAspect::Plane2)) {
+            return false;
+        }
 
-        TrackedState* match = nullptr;
-        for (auto& tracked : it->second) {
-            if (!ranges_overlap(tracked.range, range)) continue;
-            if (match != nullptr) {
-                throw std::logic_error(
-                    "ResourceStateTracker: one use overlaps multiple tracked "
-                    "subresources; split it into canonical ranges");
+        const auto it = states_.find(resource);
+        if (it == states_.end()) return false;
+        const auto media_planes = ResourceAspect::Plane0 |
+                                  ResourceAspect::Plane1 |
+                                  ResourceAspect::Plane2;
+        for (const auto& tracked : it->second) {
+            const auto* existing =
+                std::get_if<SubresourceRange>(&tracked.range);
+            if (!existing || ranges_overlap(*existing, *requested)) continue;
+            if (!any(existing->aspects, media_planes)) continue;
+            if (static_cast<std::uint8_t>(existing->aspects &
+                                           requested->aspects) == 0u) {
+                return true;
             }
-            match = &tracked;
+        }
+        return false;
+    }
+
+    [[nodiscard]] std::optional<TrackedState> overlapping_state(
+        ResourceId resource, const ResourceRange& range) const {
+        const auto it = states_.find(resource);
+        if (it == states_.end()) return std::nullopt;
+
+        std::optional<TrackedState> match;
+        for (const auto& tracked : it->second) {
+            if (!ranges_overlap(tracked.range, range)) continue;
+            if (!match) {
+                match = tracked;
+                continue;
+            }
+            // A whole-resource use can legitimately cover multiple tracked
+            // ranges. Fold equal-layout/queue states into one dependency;
+            // the caller replaces all covered ranges with the new state.
+            // Mixing layouts or queue domains cannot be represented by one
+            // backend-neutral transition and remains a programmer error.
+            if (match->state.layout != tracked.state.layout ||
+                match->state.queue != tracked.state.queue) {
+                throw std::logic_error(
+                    "ResourceStateTracker: overlapping ranges use different "
+                    "layouts or queues; split the use into canonical ranges");
+            }
+            match->state.stages = match->state.stages | tracked.state.stages;
+            match->state.access = match->state.access | tracked.state.access;
+            match->producer_pass = std::min(match->producer_pass,
+                                            tracked.producer_pass);
         }
         return match;
     }
