@@ -22,7 +22,6 @@
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 | Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
-| CLI/IPC hot-path parity (video build) | P1 | RESOLVED | [CLI-IPC-HOTPATH-PARITY](tickets/TICKET-CLI-IPC-HOTPATH-PARITY.md) — opzione A atterrata in `0db926a47` (`test(cli): pin wire fidelity for resolved encoder selection`): il sottocaso `pure-video GPU job carries its resolved hot path to DirectYUV` autora `gpu_hot_path_mode` dentro `output_spec`, quindi entrambi i transport portano la selezione risolta e i fingerprint coincidono. La riga era rimasta OPEN per mancato aggiornamento dell'indice |
 
 ## Deferred by certification precondition
 
@@ -35,22 +34,12 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| Fingerprint duplicato (FP-1) | P0 | REMOVED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — `render_settings_fingerprint`/`material()`/`ProgramDigests` duplicati fra `compiler::stages` e `render_plan`; ora una sola authority (`render_plan::compute_render_job_fingerprint`), uguaglianza dei due entry point dimostrata da test |
-| Cache taxonomy enforcement | P1 | LANDED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) — AGENTS dichiarava `cache_taxonomy.hpp` + `architecture_rules.toml` come enforcement, ora lo è: 3 regole + 4 casi nel gate selftest (gate 188/188, selftest 15/15) |
-| Artefatti GPU fuori da ProgramCache (CUDA/NV12) | P2 | REMOVED | [PRE-SLANG-FOUNDATION](tickets/TICKET-PRE-SLANG-FOUNDATION.md) DD-3 — PTX NV12 ora usa `CompiledArtifactCache::save/load_program_artifact()` con chiave canonica; il CUmodule è una lease locale al compositor, senza `cached_ptx`, `s_modules` o `s_module_mutex` |
-
-| Area | Pri | Stato | Scheda |
-|---|---|---|---|
 | FFmpeg subprocess video sink | P1 | OPEN | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete solo dopo native release/SDK/codec/zero-caller certification; Wave 0 closeout classifies this debt but does not bypass its exit conditions |
-| SQLite telemetry (store + emitters + CLI readers) | P1 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — Wave 1D: runtime events-only (NullTelemetryStore default), zero dipendenza sqlite3 in src/include/apps; persistenza/aggregazione engine-external |
-| RenderProfiler legacy subsystem | P2 | REMOVED | [TELEMETRY-SQLITE-NORMALIZATION](tickets/TICKET-TELEMETRY-SQLITE-NORMALIZATION.md) — demolito: rimosso graph_profiler.hpp/.cpp e riferimenti da RenderGraphContext |
-| PersistentFramebufferStore (CFB4 disk codec) | P2 | REMOVED | codec, env vars, membri RenderRuntime/Config e test rimossi; exit condition: zero produttori/consumatori in produzione (gia verificato); record: ADR-024 + git history |
 | Legacy composition adapter | P1 | ACTIVE | [WAVE-CLOSEOUT-DEMOLITION-DEBT](tickets/TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT.md) — `Composition::SceneFunction` compatibility route remains until typed Composition lowering has corpus equivalence |
 | MTSDF FreeType guard granularity | P1 | READY_TO_REMOVE | [HOTPATH-TEXT-MTSDF-CONTENTION](tickets/TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md) — guardia **per-face** atterrata: `MtsdfFaceGuard` + `FreeTypeFaceLease`/`get_face_lease`, `static std::mutex` rimossa; byte-parity e parità concorrente 8-worker verdi in `chronon3d_mtsdf_generator_tests` (6 case / 114 assertions). Resta solo la conferma numerica `mtsdf_lock_wait_us` su corpus multi-font (host esterno) |
 | Hybrid GOP segment-file executor | P1 | **DEMOLITO (5A→5F chiusi; resta 5H same-SHA GPU)** | [SCALE-P0-ASSET-VRAM-GOP](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — un solo executor: `execute_direct_mux_gop_plan` scrive copie **e** re-encode nella **stessa** `MuxSession` caller-owned, audio una volta, trailer una volta, pubblicazione atomica. Landati: **5A** target di splice encoder-owned (`encoder_bitstream_contract`, l'encoder dichiara il proprio stream a `open()` via `AV_CODEC_FLAG_GLOBAL_HEADER`, la sorgente è solo il lato destro del confronto); **hvcC fix**; **avcC fix** (le lunghezze dei parameter set erano lette con la larghezza dei *sample* invece che a 16 bit come vuole l'`AVCDecoderConfigurationRecord` → ogni sorgente mp4 produceva zero NAL e il gate non poteva certificare nulla); **formato del container prestato** (il container dichiarato dalla sorgente porta già il suo configuration record, quindi libavformat NON inserisce la conversione automatica Annex-B → length-prefixed: il producer ora emette il formato che il container dichiara); **duration dell'ultimo packet** al confine del mux (l'ultimo sample di un GOP re-encodato finale spariva dalla durata/edit list); **5B** comparatore oracle + corpus congelato (`tests/cli/test_gop_direct_mux_parity.cpp`) verde su **tutte e cinque** le forme; **5C** seam `MuxSession` caller-owned; **5D** `open_source_declared_mux` + `encoder_reproduces` + `submit_gop_source_packets` + `submit_source_audio` (finestra in tick interi, origine per video **e** audio); **5E/5F** child render nel mux del chiamante con certificazione dello stream a `close()` (fail-closed); **5G** demolizione (`execute_hybrid_gop_plan`, workspace per segmento, remux: zero residui). Resta **5H**: evidenza same-SHA sulla lane GPU reale |
 | CPU per-glyph text selector compat | P1 | ACTIVE | [GPU-TEXT-CPU-SELECTOR-COMPAT](tickets/TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT.md) — counters landed (`gpu_text_cpu_selector_compat_*`); delete only after the official corpus proves 0 hits |
 | Fused storage-image batch (ritirato) | P1 | ACTIVE | [SCALE-P0](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — le immagini eseguono su `SourceNode` native path: restano il ramo immagine di `lower_layer_batches`, `node_runner_fused_batch` e le `CompiledLayerInstance` immagine senza più un produttore nel compiler. Exit: native image path certificato (parità pixel + zero layer persi sul corpus overlay) → delete del ramo immagine e delle istanze immagine |
-| Vulkan surface/submission domain coupling | P1 | REMOVED (recording path) | [HOTPATH-AUDIT-N1-N8](tickets/TICKET-HOTPATH-AUDIT-N1-N8.md) — `SurfaceLease` + per-slot generation token decouple the recording ops: lease sotto lock, rilascio, solo `submission_ring.mutex`, revalidation al hand-off; 4 casi CPU-only + suite minima Vulkan-ON verdi. Resta il doppio lock dove serve davvero (per-op legacy che possiede il batch, `download_surface`) |
 
 ## Hot-path closeout (2026-09-12 working session)
 
@@ -70,7 +59,6 @@
 | Zero-copy Z-waves | P2 | ACTIVE | [ZERO-COPY-ZWAVES](tickets/TICKET-ZERO-COPY-ZWAVES.md) — Z0 census done; Z1 typed encoder feed capability + Z4 capability matrix + Z6 depth telemetry + Z7 CUDA-lane gate-1 counter landed; Z3/Z4-corpus/Z5 GPU-driven follow-up and depth sweep remain open |
 | Video codec boundary | P2 | PROTOTYPE LANDED | [VIDEO-CODEC-BOUNDARY](tickets/TICKET-VIDEO-CODEC-BOUNDARY.md) — `VideoExecutionPath` (4 stati) + tabella pura + `ChangedInterval` CLI/IPC + ponte GOP-analysis fail-closed; `TrimPackets` ora ha preflight ed executor packet-copy ai confini GOP, mentre l'esecuzione `BoundaryReencode` e la decisione per-layer restano aperte (§5 di `AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY`) |
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
-| Telemetry granular emitter | P2 | SUPERSEDED (Wave 1D) | [TELEMETRY-GRANULAR-CONSUMER](tickets/TICKET-TELEMETRY-GRANULAR-CONSUMER.md) — emettitori granulari gated su SQLite rimossi; resta l'API eventi in-memory (`record_*`) per store host |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
 
 ## Audit roadmap waves 1-6 (working session)
@@ -79,8 +67,19 @@
 |---|---|---|---|
 | Video execution authority + easy cleanup + surface tests + telemetry gate | P1 | CODE DONE (build/CI pending) | [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) — Waves 1/2/3/5/6 code landed; Wave 4 NV12 unified in Wave 1D into `media::video::CudaNv12Compositor` (contract matrix registered, determinism evidence pending GPU-host run); downgrade reason/count receipt is now emitted by the final resolver decision |
 
-## Recently Closed (ultimi 3)
+## Recently Closed (ultimi 4)
 
+- **2026-09-16 — schede a chiusura terminale rimosse** (12 ticket + l'audit datato del
+  2026-09-09): `AUDIT-2026-09-09-REMEDIATION` (CLOSED),
+  `CLI-IPC-HOTPATH-PARITY` (RESOLVED), `ERROR-MODEL-CANONICAL` (COMPLETE),
+  `GOAL3-NATIVE-COMPOSITE-COLLISION` (CLOSED),
+  `NATIVE-SOFTWARE-SWS-MULTIFRAME-CORRUPTION` (CLOSED),
+  `TELEMETRY-SQLITE-NORMALIZATION` (CLOSED), `TELEMETRY-GRANULAR-CONSUMER` (SUPERSEDED),
+  `DOD-RUNTIME-CPU-PASS` (verified), `STAGE-CLOSING-ARCH-WAVES-9-13` (IMPLEMENTED),
+  `PRE-SLANG-FOUNDATION` (CODE+BUILD+GATE PASS), `HOTPATH-AUDIT-N1-N8` (CODE+BUILD PASS),
+  `STATUS-CHRONICLE-ARCHIVE` (record only). Le righe a stato terminale sono state tolte
+  da questo indice, che ora contiene solo blocchi aperti, residui deferiti e debt con
+  exit condition. Nessuna informazione è persa: la git history è l'unico archivio.
 - `PERF-BASELINE-V1` — DONE; baseline software/CPU lockata e blur_band riabilitato in BENCH-3; evidenza archiviata in `docs/baselines/`, gate vivo come `tools/check_common_performance_gate.py`
 - `NODE-CACHE-KEY-COLLAPSE-ROT` — DONE 2026-09-04 after re-census: `run_node`, `emit_node_records` and `cache_evaluator` all carry the canonical `NodeCacheKey`; historical forward-points already landed
 - IPC heap-buffer-overflow in `decode_reply` — fuzzer (libFuzzer) → fix (Verifier) in `eabb6713a` (git history)

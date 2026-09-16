@@ -151,8 +151,8 @@ recording path no longer acquires the two domains together:
 The remaining dual acquisitions are the ones that genuinely need both domains:
 the legacy per-op path, which owns the batch and drives
 begin→record→submit→drain, and `download_surface()`, whose correct lock for
-`resolve_image()` is the store. Detail and evidence:
-[TICKET-HOTPATH-AUDIT-N1-N8](TICKET-HOTPATH-AUDIT-N1-N8.md), DD-2.
+`resolve_image()` is the store. Detail and evidence: audit DD-2 (the N1-N8
+remediation ticket is closed — its record lives in git history).
 
 ## Verification
 

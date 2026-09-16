@@ -49,7 +49,7 @@ ctest --test-dir build/fast --output-on-failure -R "resource_preparation|runtime
 | S-04 Topology double-checked | **LANDED** | `src/runtime/render_pipeline.cpp:97` — `materialize_scene` alloc moved outside `m_topology_mutex`; double-checked insert |
 | Digest helper | **LANDED** | `include/chronon3d/assets/prepared_asset_manifest.hpp` + `src/assets/prepared_asset_digest.cpp` — `digest_from_u64(uint64_t)` (splitmix64→32B) for page/large-glyph identity |
 
-**Deferred / documented as deliberate non-blockers (see audit remediation gates — `docs/tickets/TICKET-AUDIT-2026-09-09-REMEDIATION.md`):**
+**Deferred / documented as deliberate non-blockers (the 2026-09-09 remediation log is closed; its record lives in git history):**
 
 | Area | Decision | Rationale |
 |---|---|---|
@@ -62,4 +62,4 @@ ctest --test-dir build/fast --output-on-failure -R "resource_preparation|runtime
 | F4.1 FramebufferPool vs LruCache | **DOCUMENTED** | `LruCache` (ContentCache family) vs `FramebufferPool` (ResidencyCache family) are distinct taxonomy families (`AGENTS.md`). Unifying them would violate cache taxonomy. Documented as "valutato, non unificato". |
 | H-06 / F4.2 dash cache (PreparedStrokeContour) | **PARTIALLY LANDED** | `prepare_stroke_contours` already precomputes trim+dash once per `draw_path` (PR1). Full dash-array hash cache (Array hash → `vector<VisibleSubPath>`) deferred — needs `dash_array` content hash + LRU eviction. Current cost is bounded at 1× per shape/frame. |
 
-See `docs/AUDIT-2026-09-09.md` for current audit state and `docs/tickets/TICKET-AUDIT-2026-09-09-REMEDIATION.md` for the remediation log and phased plan.
+See `docs/CURRENT_STATUS.md` for observed state and `docs/FOLLOWUP_TICKETS.md` for the open blockers and deferred residues; the 2026-09-09 audit and its remediation log are closed and exist only in git history.
