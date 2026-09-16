@@ -47,7 +47,7 @@ void warmup_pipe_slots(PipeExportSession& session) {
     }
     const bool is_native_nvenc =
         is_native_encoder_transport(session.opts.encoder.encoder_backend) &&
-        session.opts.encoder.hardware_encoder == "nvenc";
+        hardware_nvenc_requested(session.opts.encoder.hardware_encoder);
     if (!is_native_nvenc) return;
 
     auto& slots = session.full_graph_session->execution_slots;

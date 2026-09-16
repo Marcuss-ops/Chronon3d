@@ -3,7 +3,10 @@
 #include <chronon3d/core/types/result.hpp>
 
 #include <array>
+#include <cctype>
 #include <cstddef>
+#include <initializer_list>
+#include <string_view>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -71,6 +74,55 @@ enum class PreparedAssetKind : std::uint8_t {
     Subtitle,
     Data
 };
+
+/// True when `extension` (any case, leading dot optional) belongs to `kind`.
+///
+/// AUDIT P1-3 — this is the INGEST vocabulary: which sources Chronon can read
+/// for a given asset kind. It used to exist as four different literal sets
+/// (`asset_registry.hpp` knew `.mp4/.mov/.avi/.mkv` and no `.webm`/`.m4v`; the
+/// manifest knew `.mp4/.mov/.mkv/.webm/.avi/.m4v`; the CLI job validator and
+/// the video sink adapter each had a third and fourth answer), so whether a
+/// file was a video depended on which layer asked. One table, one answer.
+///
+/// This table is deliberately WIDER than the muxer output vocabulary
+/// (`media::video::classify_video_container`): a source may be decodable even
+/// when it cannot be published. That containment is the only legal difference
+/// between the two, and it is pinned by a test.
+[[nodiscard]] inline bool asset_kind_accepts_extension(
+    PreparedAssetKind kind, std::string_view extension) noexcept {
+    if (!extension.empty() && extension.front() == '.') extension.remove_prefix(1);
+    const auto equals_ci = [extension](std::string_view token) noexcept {
+        if (extension.size() != token.size()) return false;
+        for (std::size_t index = 0; index < token.size(); ++index) {
+            const auto lhs = static_cast<unsigned char>(extension[index]);
+            const auto rhs = static_cast<unsigned char>(token[index]);
+            if (std::tolower(lhs) != std::tolower(rhs)) return false;
+        }
+        return true;
+    };
+    const auto accepts = [&equals_ci](std::initializer_list<std::string_view> tokens) {
+        for (const auto token : tokens) {
+            if (equals_ci(token)) return true;
+        }
+        return false;
+    };
+    switch (kind) {
+        case PreparedAssetKind::Font:
+            return accepts({"ttf", "otf", "woff", "woff2"});
+        case PreparedAssetKind::Image:
+            return accepts({"png", "jpg", "jpeg", "webp", "bmp", "gif",
+                            "tif", "tiff", "exr", "svg"});
+        case PreparedAssetKind::Video:
+            return accepts({"mp4", "mov", "mkv", "webm", "avi", "m4v"});
+        case PreparedAssetKind::Audio:
+            return accepts({"wav", "mp3", "aac", "m4a", "flac", "ogg"});
+        case PreparedAssetKind::Subtitle:
+            return accepts({"ass", "srt", "vtt", "json"});
+        case PreparedAssetKind::Data:
+            return true;
+    }
+    return true;
+}
 
 struct PreparedAsset {
     std::string logical_path;

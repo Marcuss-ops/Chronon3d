@@ -338,11 +338,7 @@ bool execute_direct_mux_gop_plan(
     const std::int64_t schedule_origin = request_start_pts;
 
     const auto final_path = std::filesystem::path(opts.output.output);
-    auto partial_path = final_path;
-    const auto extension = final_path.extension().empty()
-        ? std::string{".mp4"} : final_path.extension().string();
-    partial_path.replace_filename(
-        final_path.stem().string() + ".partial" + extension);
+    const auto partial_path = make_partial_output_path(final_path);
     if (const auto parent = final_path.parent_path(); !parent.empty()) {
         std::error_code ec;
         std::filesystem::create_directories(parent, ec);
@@ -443,7 +439,6 @@ bool execute_direct_mux_gop_plan(
             child.output.output = opts.output.output;
             child.gop_copy_only = false;
             child.changed_intervals.clear();
-            child.resolved_gop_plan.reset();
             child.variants.clear();
             child.resolved_execution_reason = "direct_mux_work_unit";
             child.resolved_execution_valid = true;
@@ -574,7 +569,7 @@ media::VideoCapabilities cli_effective_capabilities(
     const FfmpegExportOptions& opts) {
     const bool native_nvenc =
         is_native_encoder_transport(opts.encoder.encoder_backend) &&
-        opts.encoder.hardware_encoder == "nvenc";
+        hardware_nvenc_requested(opts.encoder.hardware_encoder);
     return media::VideoCapabilities{
         .nvdec = native_nvenc,
         .nvenc = native_nvenc,
@@ -686,7 +681,6 @@ int render_and_encode_ffmpeg(
             cli_effective_capabilities(opts));
         decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
-        render_opts.resolved_gop_plan = decision.gop_plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
@@ -717,7 +711,6 @@ int render_and_encode_ffmpeg(
             summary);
         decision = finalize_composition_execution(compiled, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
-        render_opts.resolved_gop_plan = decision.gop_plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
         render_opts.resolved_execution_downgrade_count = decision.downgrade_count;
@@ -784,12 +777,9 @@ int render_and_encode_ffmpeg(
             }
         }
 
-        auto final_path = std::filesystem::path(opts.output.output);
-        auto partial_path = final_path;
-        const auto ext = final_path.extension();
-        if (ext.empty()) partial_path += ".partial";
-        else partial_path.replace_filename(
-            final_path.stem().string() + ".partial" + ext.string());
+        const auto final_path = std::filesystem::path(opts.output.output);
+        // AUDIT §5 — the same staging path rule as the direct-mux lane.
+        const auto partial_path = make_partial_output_path(final_path);
 
         auto copy_result = copy_gop_source(
             opts.gop_source, partial_path.string(), start_sec, end_sec);

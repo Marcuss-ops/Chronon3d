@@ -27,7 +27,13 @@ includes = [
 # -----------------------------------------------------------------------------
 [scan_path_policy]
 name = "scan_path_existence"
-description = "Every declared scan_path must resolve, or be listed in optional_globs."
+description = "Every declared scan_path (and every contract/loc_bound file target) must resolve, or be listed in optional_globs."
+# Paths legitimately absent from a core checkout. `content` and `examples` are
+# shipped by the external content pack, so every rule that scans them is a
+# no-op here BY DECLARATION — its green is not evidence until the lane that
+# materializes them runs (AUDIT P2-5). The lane is:
+#   `CHRONON3D_BUILD_CONTENT=ON` + the content pack (see docs/evidence/ and
+#   TICKET-MAIN-TRUTH-STAGE-1-2 for the corpus precondition).
 optional_globs = [
   "content",
   "examples",

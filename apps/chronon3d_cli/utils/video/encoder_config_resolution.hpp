@@ -330,6 +330,25 @@ private:
 [[nodiscard]] std::string resolve_ffmpeg_encoder_name(
     const std::string& codec, const std::string& hardware_encoder);
 
+/// True when the *hardware encoder* field asks for NVENC.
+///
+/// The field is user input — a CLI flag or an IPC payload — so it must be
+/// classified by the canonical resolver and never by a literal comparison.
+/// `resolve_encoder_backend` accepts "NVENC"; a literal `== "nvenc"` silently
+/// answers no, which is how a payload that did ask for hardware encoding
+/// reached the execution-requirement builder with `gpu_required = false`
+/// (audit P1-2). One predicate, one vocabulary.
+[[nodiscard]] bool hardware_nvenc_requested(std::string_view hardware_encoder) noexcept;
+
+/// Canonical spelling of the hardware-encoder field.
+///
+/// A recognized backend is written back in its canonical lowercase token so the
+/// value that reaches the encoder, the negotiated capabilities and the timing
+/// sidecar is the same string; anything unrecognized is returned unchanged, so
+/// the encoder resolution keeps producing its own explicit error instead of a
+/// silent rewrite.
+[[nodiscard]] std::string normalize_hardware_encoder_field(std::string_view value);
+
 /// Build an EncoderConfigRequest from the CLI pipe options, preserving the
 /// caller's explicitness markers.
 [[nodiscard]] EncoderConfigRequest make_encoder_config_request(

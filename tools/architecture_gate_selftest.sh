@@ -342,6 +342,85 @@ class CacheEngine {};
 EOF
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# Cases 13/14 — a rule that cannot find its FILE must FAIL, and a declared
+# absence must PASS *with its reason surfaced* (audit P0-1).
+#
+# The native video decoder TU was split into `_session`/`_decode`/`_helpers`
+# while two `[[contract]]` entries kept pointing at the retired monolith, so the
+# decoder cache and source-concurrency invariants were enforced by zero code
+# and the gate still printed PASS (`optional = true` → "optional file absent").
+# These two cases pin the fix: silence is no longer a legal absence, and the
+# invariant is enforced by `scan_path_existence` — an existing rule — so it also
+# holds for every registry fragment and under `--rule-prefix`.
+# ─────────────────────────────────────────────────────────────────────────
+case13_contract_stale_target() {
+    write_file "$1" "rules.toml" <<'EOF'
+[[contract]]
+name = "selftest_contract_stale_target"
+file = "src/media/video/native_video_frame_decoder.cpp"
+required_patterns = ['std::lock_guard<std::mutex>\s+lock\(m_mutex\);']
+EOF
+}
+
+case14_contract_declared_absence() {
+    write_file "$1" "rules.toml" <<'EOF'
+[[contract]]
+name = "selftest_contract_declared_absence"
+file = "src/media/video/retired_tu.cpp"
+optional = true
+optional_reason = "P0-1: split into _session/_decode/_helpers; contract repointed at the real TU"
+required_patterns = ['unused-by-this-fixture']
+EOF
+}
+
+# expect_rule_in <case> <rule> <PASS|FAIL> <builder> — the verdict of ONE rule in
+# a fixture registry: a mirror tree may fail unrelated rules, so only the named
+# rule is evidence.
+expect_rule_in() {
+    local name="$1" rule="$2" want="$3" builder="$4"
+    local dir="$WORK/$name"
+    mkdir -p "$dir"
+    "$builder" "$dir"
+    run_check "$dir" "$dir/rules.toml" >/dev/null
+    if grep -q "\[${want}\] ${rule}" "$dir/out.log" 2>/dev/null; then
+        PASS=$((PASS + 1))
+        echo "  [PASS] $name -> $rule=$want as expected"
+    else
+        FAIL=$((FAIL + 1))
+        echo "  [FAIL] $name -> expected $rule=$want"
+        sed -n '1,12p' "$dir/out.log" 2>/dev/null | sed 's/^/         /'
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# Fragment self-check (audit P2-4): a fragment that is not reachable from the
+# root registry, or that declares no rule, is knowledge no gate reads. The
+# FILE-target invariant of every fragment is carried by the aggregate
+# `scan_path_existence` rule (the root merges all fragments before evaluating
+# it), whose teeth are pinned by cases 13/14.
+# ─────────────────────────────────────────────────────────────────────────
+fragment_selfcheck() {
+    local reg="$TOOLS/architecture_rules.toml"
+    local frag base count
+    for frag in "$TOOLS"/architecture_rules_*.toml; do
+        base="$(basename "$frag")"
+        if ! grep -q "\"$base\"" "$reg"; then
+            FAIL=$((FAIL + 1))
+            echo "  [FAIL] $base — not registered in architecture_rules.toml (no gate reads it)"
+            continue
+        fi
+        count="$("$PYTHON" "$TOOLS/check_architecture.py" --rules "$frag" --list 2>/dev/null | wc -l)"
+        if [[ "$count" -lt 1 ]]; then
+            FAIL=$((FAIL + 1))
+            echo "  [FAIL] $base — registered but declares no rule (vacuous fragment)"
+            continue
+        fi
+        PASS=$((PASS + 1))
+        echo "  [PASS] $base — registered, $count rule(s)"
+    done
+}
+
 # run_rule <case-dir> <rule-name> <PASS|FAIL> — the named rule's own verdict.
 expect_rule() {
     local name="$1" rule="$2" want="$3" builder="$4"
@@ -382,6 +461,14 @@ expect_rule cache_taxonomy_mirror no_gpu_binary_cache_family PASS cache_taxonomy
 expect_rule cache_taxonomy_mirror_engine single_cache_primitive PASS cache_taxonomy_mirror
 expect_rule case11_gpu_binary_cache_family no_gpu_binary_cache_family FAIL case11_gpu_binary_cache_family
 expect_rule case12_second_cache_engine single_cache_primitive FAIL case12_second_cache_engine
+
+# Stale-rule-target invariant (audit P0-1 / P2-4): a contract whose file is gone
+# must fail BOTH its own rule and the aggregate path invariant; a declared
+# absence must pass with its reason.
+expect_rule_in case13_contract_stale_target selftest_contract_stale_target FAIL case13_contract_stale_target
+expect_rule_in case13b_stale_target_invariant scan_path_existence FAIL case13_contract_stale_target
+expect_rule_in case14_contract_declared_absence selftest_contract_declared_absence PASS case14_contract_declared_absence
+fragment_selfcheck
 
 echo
 if [[ "$FAIL" == "0" ]]; then

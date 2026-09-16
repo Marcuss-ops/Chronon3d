@@ -26,6 +26,12 @@
 
 #include "ffmpeg_pipe_encoder.hpp"
 
+// The hardware-encoder field vocabulary is owned by the media layer (src/ may
+// not depend on apps/, so the tokens live with the resolver — see AUDIT F4 and
+// AUDIT P1-2). These two CLI functions are projections of it, not a second
+// implementation: keep the classification in one place.
+#include <chronon3d/media/video/video_execution_resolver.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -245,7 +251,8 @@ std::string resolve_ffmpeg_encoder_name(
     const std::string& codec, const std::string& hardware_encoder) {
     const std::string normalized_codec = ascii_lower(codec);
     const std::string normalized_hw = ascii_lower(hardware_encoder);
-    const bool nvenc = normalized_hw == "nvenc" ||
+    const bool nvenc =
+        normalized_hw == chronon3d::media::kNvencHardwareEncoder ||
                        normalized_codec == "h264_nvenc" ||
                        normalized_codec == "hevc_nvenc" ||
                        normalized_codec == "av1_nvenc";
@@ -262,6 +269,18 @@ std::string resolve_ffmpeg_encoder_name(
     // preset and tune.
     if (normalized_codec == "libx264rgb") return "libx264rgb";
     return "libx264";
+}
+
+// ── Public classification of the hardware-encoder field ─────────────────────
+
+bool hardware_nvenc_requested(std::string_view hardware_encoder) noexcept {
+    // Delegates to the media-layer vocabulary: the daemon admission path and
+    // this CLI path must classify the same payload identically.
+    return chronon3d::media::hardware_encoder_requests_nvenc(hardware_encoder);
+}
+
+std::string normalize_hardware_encoder_field(std::string_view value) {
+    return chronon3d::media::normalize_hardware_encoder_field(value);
 }
 
 // ── Immutable resolved configuration ────────────────────────────────────────

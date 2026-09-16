@@ -35,7 +35,7 @@ NativeSurfacePrep prepare_frame(
                ctx.execution_plan->encode == media::EncodePath::Nvenc &&
                ctx.execution_plan->interop == media::InteropPath::VulkanCuda)
             : (is_native_encoder_transport(ctx.opts.encoder.encoder_backend) &&
-               ctx.opts.encoder.hardware_encoder == "nvenc"));
+               hardware_nvenc_requested(ctx.opts.encoder.hardware_encoder)));
     frame_settings.retain_native_surface_for_video =
         plan_requests_native_graph && ctx.backend.supports_native_video_surface();
     frame_settings.require_native_gpu =

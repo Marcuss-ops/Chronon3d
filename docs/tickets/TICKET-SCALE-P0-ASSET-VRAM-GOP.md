@@ -141,6 +141,14 @@ valida viene rifiutata dalla authority invece che accettata dalla
 ricostruzione locale. La demolizione dell'I/O su filesystem resta debito
 tracciato qui sotto.
 
+> **Stato aggiornato (5G, chiusa):** lo snapshot sopra descrive la fase in cui il
+> secondo executor era ancora vivo. Oggi `execute_hybrid_gop_plan`,
+> `HybridSegment[]` e il workspace per segmento **non esistono più**: un solo
+> executor, `execute_direct_mux_gop_plan`, scrive copie e re-encode nella stessa
+> `MuxSession` caller-owned. La tabella *Demolition Debt* sotto riporta `DONE`.
+> Le due voci residue della tabella *Non eseguito / residuo* sono state
+> riconciliate (erano ferme allo snapshot di `e9615d889`).
+
 Evidenza: la validazione è nel percorso di produzione
 (`apps/chronon3d_cli/utils/video/video_job_execute_dispatch.cpp`) e compila nel
 build video; l'equivalenza byte-per-byte è l'exit condition del debito.
@@ -320,11 +328,19 @@ SHA-256 dell'INTERO FILE: 6889c1a92591aecaddc8922528cdf1841c2b1b9203ded04b3d97b2
         oracle ≡ direct  (byte-identico, riportato a parte, mai unico criterio)
 ```
 
-Il residuo è di **wiring**, non di primitive: `execute_hybrid_gop_plan` continua
-a scrivere un MP4 per segmento. 5E/5F significano far scrivere il child render
-dentro la stessa `MuxSession` presa in prestito (`FfmpegExportOptions` →
-`make_pipe_options` → `FfmpegPipeOptions::borrowed_mux`, già esistente) e
-lasciare audio+trailer al chiamante. 5G segue quella parità, non questa.
+Il residuo **era** di wiring, non di primitive: in questo snapshot
+`execute_hybrid_gop_plan` scriveva ancora un MP4 per segmento, e 5E/5F
+significavano far scrivere il child render dentro la stessa `MuxSession` presa in
+prestito (`FfmpegExportOptions` → `make_pipe_options` →
+`FfmpegPipeOptions::borrowed_mux`) lasciando audio+trailer al chiamante, con 5G
+legata a quella parità.
+
+> **Chiuso.** 5E/5F/5G sono atterrate in `715c1220f`: il child scrive nel mux del
+> chiamante, audio e trailer sono emessi una sola volta dal proprietario, la
+> pubblicazione è il rename atomico di `.partial`, e `execute_hybrid_gop_plan`
+> ha zero caller (zero occorrenze in `src/`, `apps/`, `include/`). Il percorso
+> `encode → write → close → open → demux → timestamp-normalize → remux → delete`
+> non esiste più. Resta solo **5H** (evidenza same-SHA su GPU reale).
 
 ---
 
@@ -631,9 +647,9 @@ fallisce in 7/7 e 1/5 case) che non hanno nulla a che vedere col codice.
 | P0-5B parity comparator | **LANDED** | Corpus congelato + comparatore oracle (`tests/cli/test_gop_direct_mux_parity.cpp`): un container identico ha zero differenze e ogni classe di differenza (trim, re-encode, audio rimosso) è rilevata |
 | P0-5C seam `MuxSession` caller-owned | **LANDED** | `FfmpegPipeOptions::borrowed_mux` + `owned_mux_`/`mux_`/`borrows_mux_`: in prestito `close()` fa solo flush del codec (niente audio, niente trailer) e la telemetria del container resta al proprietario. Test dedicato con 16 assertion |
 | P0-5D copy-to-mux + parità end-to-end | **LANDED** | `open_source_declared_mux` + `encoder_reproduces` + `submit_gop_source_packets` + `submit_source_audio`: i packet copiati entrano nella `MuxSession` condivisa dalla time base della sorgente e il gate oracle passa — **SHA-256 dell'intero file byte-identico** fra i due percorsi, oltre a identità payload/PTS/DTS/flags, frame decodificati, durata e audio |
-| P0-5E/5F (reencode nella stessa sessione, audio/finalize una volta) | **OPEN — wiring** | Le primitive ci sono; manca solo il collegamento di `FfmpegExportOptions` → `make_pipe_options` → `FfmpegPipeOptions::borrowed_mux` così che il child render scriva nel mux del chiamante, che resta l'unico owner di audio e trailer |
+| P0-5E/5F (reencode nella stessa sessione, audio/finalize una volta) | **LANDED (`715c1220f`)** | Il collegamento è completo: `FfmpegExportOptions::borrowed_mux` → `make_pipe_options` (`pipe_export_helpers.cpp:139-141`) → `FfmpegPipeOptions::borrowed_mux`; in prestito `NativeAvEncoder::close()` fa solo flush del codec e certifica la riproduzione dello stream, mentre audio (`submit_source_audio`) e trailer (`mux.finalize()`) sono emessi **una volta** dal chiamante in `execute_direct_mux_gop_plan`. Verificato ora sul parity gate: `P0-5E/5F: the direct hybrid mux matches the segment-file oracle` PASS |
 | P0-5I picco VRAM DirectYUV | **PASS (720p + 1080p + 2 job) / 4K NOT RUN** | 279–281 MiB @720p, 400 MiB @1080p (`hevc_nvenc`, 3 repliche ciascuno, campionamento per-PID), e **400 MiB per job** con due job realmente sovrapposti. Il floor di 1 GB ha ~2.5× margine a 1080p; la rimozione di `m_render_job_mutex` resta una decisione sul modello, non sul picco |
-| P0-3 fasi 2/3 (mux diretto, cancellazione segmenti) | **OPEN — metà copy certificata (5D)** | Fase 2 significa cambiare la proprietà di encoder/mux: `render_and_encode_ffmpeg_pipe` oggi possiede encoder e output path e deve invece ricevere una `MuxSession` caller-owned in cui finiscano sia i packet copiati sia quelli NVENC. Superficie del cambio: `FfmpegExportOptions` → `make_pipe_options` → `FfmpegPipeOptions::borrowed_mux` (esiste), `setup_pipe_export_session`, il sink nativo, `PacketAssembler` + continuità dei timestamp. Il lato **copy** è certificato: i packet copiati entrano nella sessione condivisa e producono un file **byte-identico** all'oracle. Manca il lato **reencode** nel mux del chiamante: finché non c'è, l'exit condition (parità sull'intero corpus hybrid) non è raggiunta e la demolizione 5G non è legale |
+| P0-3 fasi 2/3 (mux diretto, cancellazione segmenti) | **LANDED (`715c1220f`)** | `render_and_encode_ffmpeg_pipe` **riceve** la `MuxSession` caller-owned via `borrowed_mux` e scrive lì sia i packet copiati sia quelli NVENC; il lato reencode è certificato a `close()` contro lo stream dichiarato (fail-closed). Exit condition raggiunta: parità sul corpus ibrido (5 forme su 5) e `execute_hybrid_gop_plan` a zero caller. Residuo dichiarato: `copy_gop_source()` resta come lane whole-clip **e** come oracle del gate (il suo scope di rimozione non la elencava), candidata a cadere quando anche la lane copy passerà dalle primitive |
 | Certificazione same-SHA main + Vulkan planned/unplanned | **NOT RUN** | `CURRENT_STATUS` resta valido: main non è "green" senza evidenza same-SHA |
 | `compatibility_composition` / C22→C23 | **OPEN** | invariato da questo ticket |
 | `chronon3d_render_graph_tests` | **RESOLVED — 378/378 PASS** | Non causato dal change set P0. Il `REQUIRE` aggiunto ha sbloccato la run (378 casi invece di 31, la `CHECK` indicizzava un vettore vuoto) ed è emerso un terzo rosso latente. Entrambe le cause diagnosticate con esperimenti e chiuse secondo la decisione presa: vedi §Diagnosi layer-batch |

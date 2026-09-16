@@ -12,7 +12,7 @@ media::VideoExecutionPlan render_graph_fallback_plan(const FfmpegExportOptions& 
     const bool native_gpu_graph =
         opts.backend_preference == graph::BackendPreference::GPU &&
         is_native_encoder_transport(opts.encoder.encoder_backend) &&
-        opts.encoder.hardware_encoder == "nvenc";
+        hardware_nvenc_requested(opts.encoder.hardware_encoder);
     if (native_gpu_graph) {
         return {
             media::DecodePath::Nvdec,

@@ -1,7 +1,22 @@
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 
+#include <cctype>
+
 namespace chronon3d::media {
 namespace {
+
+/// AUDIT P1-2 — one case-insensitive comparison for the hardware-encoder field,
+/// so the resolver, the daemon admission and the CLI classification cannot
+/// disagree about the same payload.
+[[nodiscard]] bool ascii_iequals(std::string_view a, std::string_view b) noexcept {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        const auto lhs = static_cast<unsigned char>(a[i]);
+        const auto rhs = static_cast<unsigned char>(b[i]);
+        if (std::tolower(lhs) != std::tolower(rhs)) return false;
+    }
+    return true;
+}
 
 bool valid_output_spec(const OutputSpec& output) noexcept {
     // Zero is the sentinel for dimensions/frame rate supplied by the
@@ -442,8 +457,14 @@ VideoExecutionDecision resolve_video_execution_with_gop_analysis(
             // would corrupt the decoder: the whole clip must re-encode.
             decision.reason = "gop_splice_unsafe";
         } else if (analysis.hybrid) {
-            // The schedule is splice-safe and is consumed by the concrete
-            // BoundaryReencode executor before the ordinary full-clip path.
+            // The schedule is splice-safe. The CONCRETE BoundaryReencode
+            // executor does not consume this copy of it: it re-derives the
+            // schedule from the same analysis through
+            // `build_gop_plan_from_analysis` (the single producer of
+            // `GopWorkUnit`s), because declaring the container from the source
+            // makes the copied units certified by construction. The decision
+            // keeps the plan because tests assert it and because the downgrade
+            // is a decision, not a schedule.
             decision.valid = true;
             decision.reason = "hybrid_gop_boundary_reencode";
             decision.codec_path = VideoExecutionPath::BoundaryReencode;
@@ -513,7 +534,8 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
         const bool strict_gpu_native = !requirements.cpu_fallback_allowed;
         const bool pipe_composition = requirements.composition_required &&
             !requirements.video_source_required && !strict_gpu_native;
-        params.hardware_encoder = pipe_composition ? "none" : "nvenc";
+        params.hardware_encoder = pipe_composition
+            ? std::string{"none"} : std::string{kNvencHardwareEncoder};
         // Phase 9 CLI/IPC parity: a composition with no source video is a
         // GPU-composited host-frame job, not a native NVENC surface job.
         // This is a native-surface job; the compiled-program classifier may
@@ -554,6 +576,19 @@ ResolvedExecutionParameters resolve_canonical_execution_parameters(
             ? std::string{kAutoCodec} : std::string{requested_codec};
     }
     return params;
+}
+
+// ── Hardware-encoder field vocabulary (AUDIT P1-2) ──────────────────────────
+
+bool hardware_encoder_requests_nvenc(std::string_view field) noexcept {
+    return ascii_iequals(field, kNvencHardwareEncoder);
+}
+
+std::string normalize_hardware_encoder_field(std::string_view field) {
+    if (hardware_encoder_requests_nvenc(field)) {
+        return std::string{kNvencHardwareEncoder};
+    }
+    return std::string{field};
 }
 
 } // namespace chronon3d::media

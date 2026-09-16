@@ -61,6 +61,26 @@ inline constexpr std::string_view kDefaultGpuBackend{"vulkan"};
 inline constexpr std::string_view kEncoderTransportNative{"native"};
 inline constexpr std::string_view kEncoderTransportPipe{"pipe"};
 
+// The `hardware_encoder` field vocabulary: which hardware encoder the job asks
+// for. It lives here for the same reason as the transport tokens above — the
+// daemon admission, this resolver and the CLI classification must agree on it,
+// and src/ may not depend on apps/. AUDIT P1-2: the field was classified by a
+// literal `== "nvenc"` at ~10 CLI/IPC sites while the canonical parser matched
+// case-insensitively, so a payload spelling `NVENC` asked for hardware encoding
+// and still reached the requirement builder with `gpu_required = false`.
+// Use hardware_encoder_requests_nvenc(); do not respell the literal.
+//   kNvencHardwareEncoder — "nvenc": the canonical spelling of the field.
+inline constexpr std::string_view kNvencHardwareEncoder{"nvenc"};
+
+/// True when the hardware-encoder field requests NVENC (case-insensitive).
+[[nodiscard]] bool hardware_encoder_requests_nvenc(std::string_view field) noexcept;
+
+/// Canonical spelling of the hardware-encoder field: a recognized backend is
+/// written back in its canonical token, anything else is returned unchanged so
+/// the encoder resolution keeps producing its own explicit error instead of a
+/// silent rewrite of an unknown value.
+[[nodiscard]] std::string normalize_hardware_encoder_field(std::string_view field);
+
 // These dimensions are independent.  A composition can therefore select a
 // Vulkan graph while the encoder remains NVENC, without overloading one enum
 // with the meaning of all four decisions.
