@@ -31,6 +31,7 @@
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -81,15 +82,22 @@ inline constexpr std::string_view kEncoderTransportPipe =
 
 [[nodiscard]] const char* to_string(EncoderTransport transport) noexcept;
 
+// The three vocabulary accessors below are DECLARED here and DEFINED inline
+// after `encoder_transport_available`, the capability predicate they read.
+// They are inline because a caller is the RENDER command
+// (`register_render_commands_support.inc`), which lives in
+// `chronon3d_cli_render` — a target that deliberately does not link the
+// video-export library this header's out-of-line definitions used to live in —
+// so an out-of-line definition left the video-off CLI unlinkable on
+// `available_encoder_transport_names`. Their bodies are pure string work, so
+// there is nothing to hide behind a translation-unit boundary.
+
 /// The accepted selector set (help-text order), for CLI11::IsMember and JSON
 /// schema validation.
 [[nodiscard]] std::span<const std::string_view> encoder_transport_names() noexcept;
 
 /// Available transports for this build as owning strings, for CLI11::IsMember
-/// (which needs a container of std::string). Generated from the same capability
-/// predicate the runtime uses, so the option gate can never advertise a
-/// transport this build cannot execute, and adding a transport updates the CLI
-/// without editing it.
+/// (which needs a container of std::string).
 [[nodiscard]] std::vector<std::string> available_encoder_transport_names();
 
 /// Parse a selector string. Empty means "unset" and is deliberately NOT
@@ -321,6 +329,47 @@ private:
 #endif
 }
 
+// ── Transport vocabulary: definitions (declared in the vocabulary section) ───
+
+// AUDIT F4 — one list, one order, consumed by the CLI's CLI::IsMember() option
+// gate, so the accepted vocabulary and its help text cannot drift from the
+// parser below.
+[[nodiscard]] inline std::span<const std::string_view>
+encoder_transport_names() noexcept {
+    static constexpr std::array<std::string_view, 2> kNames{
+        kEncoderTransportNative, kEncoderTransportPipe};
+    return kNames;
+}
+
+/// Generated from the same capability predicate the runtime uses, so the option
+/// gate can never advertise a transport this build cannot execute, and adding a
+/// transport updates the CLI without editing it.
+[[nodiscard]] inline std::vector<std::string>
+available_encoder_transport_names() {
+    std::vector<std::string> names;
+    names.reserve(2);
+    for (const auto name : encoder_transport_names()) {
+        EncoderTransport transport{};
+        if (!parse_encoder_transport(name, transport)) continue;
+        if (!encoder_transport_available(transport)) continue;
+        names.emplace_back(name);
+    }
+    return names;
+}
+
+[[nodiscard]] inline bool parse_encoder_transport(std::string_view value,
+                                                  EncoderTransport& out) noexcept {
+    if (value == kEncoderTransportNative) {
+        out = EncoderTransport::Native;
+        return true;
+    }
+    if (value == kEncoderTransportPipe) {
+        out = EncoderTransport::Pipe;
+        return true;
+    }
+    return false;
+}
+
 /// Resolve the encoder backend from codec + hardware_encoder strings.
 [[nodiscard]] EncoderBackend resolve_encoder_backend(
     const std::string& codec, const std::string& hardware_encoder) noexcept;
@@ -338,7 +387,17 @@ private:
 /// answers no, which is how a payload that did ask for hardware encoding
 /// reached the execution-requirement builder with `gpu_required = false`
 /// (audit P1-2). One predicate, one vocabulary.
-[[nodiscard]] bool hardware_nvenc_requested(std::string_view hardware_encoder) noexcept;
+///
+/// Defined inline: the callers are the RENDER command and the job planner
+/// (`chronon3d_cli_render`), which does not link the video-export library this
+/// header lives in, and the whole definition is a delegation to
+/// `chronon3d::media` — the authority actually used by the daemon and the
+/// encoder configuration. An out-of-line definition here made the video-off CLI
+/// and test link fail on an undefined `cli::hardware_nvenc_requested`.
+[[nodiscard]] inline bool hardware_nvenc_requested(
+    std::string_view hardware_encoder) noexcept {
+    return chronon3d::media::hardware_encoder_requests_nvenc(hardware_encoder);
+}
 
 /// Canonical spelling of the hardware-encoder field.
 ///
@@ -346,8 +405,11 @@ private:
 /// value that reaches the encoder, the negotiated capabilities and the timing
 /// sidecar is the same string; anything unrecognized is returned unchanged, so
 /// the encoder resolution keeps producing its own explicit error instead of a
-/// silent rewrite.
-[[nodiscard]] std::string normalize_hardware_encoder_field(std::string_view value);
+/// silent rewrite. Inline for the same reason as above.
+[[nodiscard]] inline std::string normalize_hardware_encoder_field(
+    std::string_view value) {
+    return chronon3d::media::normalize_hardware_encoder_field(value);
+}
 
 /// Build an EncoderConfigRequest from the CLI pipe options, preserving the
 /// caller's explicitness markers.

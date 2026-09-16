@@ -21,6 +21,14 @@
 // ffmpeg_mode, gpu_hot_path_mode, rate_control_mode, crf, qp, bitrate,
 // trace_output, trace_level, gop_copy_only, report, backend, fps_num,
 // fps_den) remain accepted so pre-existing clients keep working.
+//
+// The vocabulary above is CLOSED and enforced by the decoder (the same
+// authority as this comment): a key outside it is refused with a
+// BadRequest diagnostic naming the key. Until that check existed this ingress
+// was the tolerant one — the plan-file path is validated against a schema with
+// `additionalProperties: false` — so the same typo was refused in one boundary
+// and silently defaulted in the other. Adding a key to the payload therefore
+// means adding it to the decoder's vocabulary as well.
 // ───────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/runtime/job/render_job_request.hpp>
