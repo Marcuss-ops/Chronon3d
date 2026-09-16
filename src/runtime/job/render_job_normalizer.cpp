@@ -130,6 +130,14 @@ normalize_render_job(
     if (resolved.output.gpu_hot_path_mode.empty()) {
         resolved.output.gpu_hot_path_mode = resolved.execution.gpu_hot_path_mode;
     }
+    // Sink default. Back-filled here (not at each transport) so a request that
+    // never mentioned the sink and one that spelled the canonical default
+    // resolve to the SAME normalized job — the CLI↔IPC parity gate compares
+    // fingerprints, and a transport-specific default would be exactly the
+    // silent divergence that gate exists to catch.
+    if (resolved.output.sink_type.empty()) {
+        resolved.output.sink_type = "ffmpeg";
+    }
     return resolved;
 }
 
@@ -184,6 +192,10 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_int(fp, "out_fps_num", out.fps_num);
     append_int(fp, "out_fps_den", out.fps_den);
     append_field(fp, "out_pipe_pixfmt", out.pipe_pixfmt);
+    // Pre-encode ("raw") and encoded ("ffmpeg") jobs produce different
+    // artifacts from the same render, so the sink is part of the output
+    // contract and belongs in the equality key.
+    append_field(fp, "out_sink", out.sink_type);
     append_field(fp, "trace_output", job.trace.output.string());
     append_field(fp, "trace_level", job.trace.level);
     append_field(fp, "receipt_verify", job.receipt_verification);
