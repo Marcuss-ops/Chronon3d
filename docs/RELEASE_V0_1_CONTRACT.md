@@ -28,7 +28,8 @@ All results must be produced from the exact release SHA above:
 
 1. clean configure and clean build;
 2. CTest with no missing required executable;
-3. the repository's 11 canonical release gates;
+3. every canonical release gate registered by `tools/gates/manifest.sh` for the
+   candidate profile;
 4. determinism corpus;
 5. BENCH-1..5 performance baseline;
 6. toolchain and host fingerprint;
@@ -37,6 +38,13 @@ All results must be produced from the exact release SHA above:
 A missing toolchain, timeout before executable generation, or stale baseline is
 `BLOCKED`, never `PASS`. The tag is immutable; a corrected certification is a
 new release/tag, not a rewritten v0.1 tag.
+
+`tools/gates/manifest.sh` is the sole gate authority. The certification report
+must record the manifest revision and the expanded gate list used for the
+candidate; counts in historical baselines (including the former 11-gate
+baseline) are historical evidence only. A report whose `source_revision` does
+not match the candidate SHA is likewise historical evidence and does not satisfy
+same-SHA certification.
 
 ## Authority map
 

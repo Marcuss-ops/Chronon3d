@@ -120,14 +120,15 @@ Gli orchestratori prodotto `tools/verify_*_linux.sh` (15 sub-gate, verdict aggre
 CI/manifest il 2026-09-03 (`722aec744`). I gate eseguibili correnti sono:
 
 - developer gate chain: `tools/gates/manifest.sh`, eseguita da `tools/run_developer_gates.sh` e dal pre-push hook;
-- CI Gate 1–8 in `.github/workflows/ci.yml` (core-build, sdk-build, public-header-check, install-consumer, architecture-check, sdk-product-certification, trace-gates);
+- CI gate set: `CI_GATES` from `tools/gates/manifest.sh`, with workflow jobs in `.github/workflows/ci.yml`;
 - certificazione SDK installata: `tools/install_consumer_test.sh` + `tools/verify_sdk_product.sh`;
 - certificazione zero-copy: `tools/verify_zero_copy_end_to_end.sh` ([`docs/ZERO_COPY_GATES.md`](ZERO_COPY_GATES.md)).
 
 La baseline storica della vecchia orchestrazione (verdict aggregato
 `CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`: 14/14 PASS + 1 forward-pointed) resta come
 evidenza in [`docs/baselines/main-ef9c83f1-baseline.md`](baselines/main-ef9c83f1-baseline.md);
-la reference verde storica `main@7eb5c2ba` (11/11) resta in
+la reference verde storica `main@7eb5c2ba` (11/11, conteggio della vecchia
+orchestrazione) resta in
 [`docs/baselines/main-7eb5c2ba-baseline.md`](baselines/main-7eb5c2ba-baseline.md).
 
 **Il release SHA v0.1 è BLOCKED / NOT CERTIFIED** finché la stessa SHA non supera
