@@ -265,12 +265,24 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
         }
+        // Job-lifecycle attribution. The timing sidecar accounts for every
+        // phase up to the export's own wall_t1, so two costs are invisible to
+        // all existing timers: (a) RETURNING from the export, i.e. the
+        // exporter/session teardown that runs when the result objects are
+        // destroyed, and (b) the receipt path. Both sit on the serialized
+        // daemon service (see docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md),
+        // where they were measured as a ~1.3 s constant per job. Recorded here
+        // as a phase line instead of being buried in the job wall.
+        const auto lifecycle_execute_t0 = std::chrono::steady_clock::now();
         auto result = execute_render_job(
             *job, std::move(args.warm_renderer), std::move(args.video_execution));
+        const auto lifecycle_execute_t1 = std::chrono::steady_clock::now();
         if (!result) {
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
+        double lifecycle_receipt_build_ms = 0.0;
+        double lifecycle_receipt_write_ms = 0.0;
         if (normalized_job.report) {
             try {
                 verification::RenderReceiptInput receipt_input;
@@ -297,10 +309,17 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 // the CLI subprocess contract.
                 receipt_input.receipt_verify_policy = normalized_job.receipt_verification;
 
+                const auto receipt_build_t0 = std::chrono::steady_clock::now();
                 const auto receipt = verification::build_render_receipt(
                     receipt_input, output, video_output(output));
+                const auto receipt_build_t1 = std::chrono::steady_clock::now();
                 const auto receipt_path =
                     verification::write_render_receipt(receipt, output);
+                const auto receipt_write_t1 = std::chrono::steady_clock::now();
+                lifecycle_receipt_build_ms = std::chrono::duration<double, std::milli>(
+                    receipt_build_t1 - receipt_build_t0).count();
+                lifecycle_receipt_write_ms = std::chrono::duration<double, std::milli>(
+                    receipt_write_t1 - receipt_build_t1).count();
                 spdlog::info("receipt: {}", receipt_path.string());
                 spdlog::info(
                     "[video] receipt verification policy={} total_ms={:.1f} "
@@ -315,6 +334,14 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 spdlog::warn("receipt generation failed: {}", error.what());
             }
         }
+        spdlog::info(
+            "[INFO] job-lifecycle: execute_ms={:.1f} receipt_build_ms={:.1f} "
+            "receipt_write_ms={:.1f} caller_tail_ms={:.1f}",
+            std::chrono::duration<double, std::milli>(
+                lifecycle_execute_t1 - lifecycle_execute_t0).count(),
+            lifecycle_receipt_build_ms, lifecycle_receipt_write_ms,
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - lifecycle_execute_t1).count());
         return 0;
     } catch (const std::exception& error) {
         spdlog::error("Render plan error: {}", error.what());

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -180,6 +182,14 @@ private:
     // ── TICKET-122 async /proc read cache ────────────────────────────────
     // std::atomic<bool> stop flag for graceful worker shutdown.
     std::atomic<bool>     m_stop{false};
+    // Shutdown wake-up.  The worker sleeps a full 1 Hz tick between /proc
+    // sweeps; without a notifier a destructor had to BLOCK for the remainder
+    // of that sleep (up to 1 s of dead time per job, measured on the
+    // serialized daemon service -- see
+    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).  The condvar makes the
+    // wait interruptible while keeping the 1 Hz cadence unchanged.
+    std::mutex            m_stop_mutex;
+    std::condition_variable m_stop_cv;
     // Background ~1 Hz worker thread that performs all /proc/self/* reads
     // and populates the atomic caches below.
     std::thread           m_worker;
