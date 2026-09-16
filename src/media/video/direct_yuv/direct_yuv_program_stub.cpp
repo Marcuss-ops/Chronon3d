@@ -2,6 +2,13 @@
 
 namespace chronon3d::media::video {
 
+DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
+    const CompiledComposition&, DirectYuvPolicy) {
+    CapabilityReport report;
+    report.reason = "DirectYUV requires native FFmpeg support";
+    return report;
+}
+
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition&,
     ImageCache&,

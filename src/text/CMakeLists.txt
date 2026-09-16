@@ -102,4 +102,7 @@ target_link_libraries(chronon3d_text_core
 
 target_include_directories(chronon3d_text_core PRIVATE ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(chronon3d_text_core PRIVATE ICU::data ICU::uc ICU::i18n)
+# Keep the static ICU dependency chain in consumer link order: i18n -> uc ->
+# data. Listing data first works with shared ICU but leaves icudt78_dat
+# unresolved for installed static consumers.
+target_link_libraries(chronon3d_text_core PRIVATE ICU::i18n ICU::uc ICU::data)

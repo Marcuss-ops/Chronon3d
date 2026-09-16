@@ -12,7 +12,9 @@
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#ifdef CHRONON3D_ENABLE_VERIFICATION
 #include <chronon3d/verification/render_receipt.hpp>
+#endif
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 
 #include <CLI/CLI.hpp>

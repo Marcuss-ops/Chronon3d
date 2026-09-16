@@ -18,7 +18,10 @@ using namespace chronon3d::test;
 
 namespace {
 
-const std::string IMAGE_PATH = "assets/images/minimalist_landscape.png";
+// Keep the runtime worker test self-contained in the tracked fixture set. The
+// old landscape path was never part of this checkout, so it made the test
+// fail before exercising TBB rather than testing parallel execution.
+const std::string IMAGE_PATH = "assets/images/checker.png";
 const Vec2 IMAGE_SIZE = {800.0f, 450.0f};
 
 void add_common_background(SceneBuilder& s) {

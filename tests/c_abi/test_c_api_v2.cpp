@@ -179,7 +179,7 @@ TEST_CASE("C ABI v2 rejects a prepared asset changed before render") {
          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(temp_root / "assets");
     std::filesystem::copy_file(
-        source_root / "assets/test_image.png",
+        source_root / "tests/install_consumer/assets/test_image.png",
         temp_root / "assets/test_image.png",
         std::filesystem::copy_options::overwrite_existing);
 

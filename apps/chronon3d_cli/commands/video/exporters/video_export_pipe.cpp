@@ -54,12 +54,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     runtime::DeviceScheduler local_scheduler;
     if (!device_scheduler) {
         runtime::DeviceCapabilities capabilities;
+        std::uint64_t device_vram_bytes = 0;
         capabilities.id = 0;
         capabilities.name = "cli-device-0";
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
         bool has_cuda = (cuInit(0) == CUDA_SUCCESS);
         int cuda_count = 0;
-        std::uint64_t device_vram_bytes = 0;
         if (has_cuda && cuDeviceGetCount(&cuda_count) == CUDA_SUCCESS && cuda_count > 0) {
             capabilities.cuda = true;
             // P0-2/P0-4: the local admission table must describe the physical

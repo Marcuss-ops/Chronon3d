@@ -439,10 +439,12 @@ TEST_CASE("ResourcePreparation — manifest authority across scene variants") {
     }
 
     SUBCASE("image only: prepares image without preparing layout unless Layout is in manifest") {
+        const auto image_path = write_media_fixture(
+            ".png", {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'}});
         chronon3d::assets::AssetManifest manifest;
-        manifest.add_image("present/image.png", "bg/image");
+        manifest.add_image(image_path.string(), "bg/image");
 
-        MockResolver resolver(std::unordered_set<std::string>{"present/image.png"});
+        MockResolver resolver(std::unordered_set<std::string>{image_path.string()});
         auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
         REQUIRE(result.has_value());
         CHECK(result.value().fonts.empty());
@@ -450,6 +452,8 @@ TEST_CASE("ResourcePreparation — manifest authority across scene variants") {
         // Correctness invariant: images no longer trigger layout preparation
         CHECK(result.value().layouts.empty());
         CHECK(result.value().diagnostics.layouts_prepared == 0);
+        std::error_code ignored;
+        std::filesystem::remove(image_path, ignored);
     }
 
     SUBCASE("video + subtitles: prepares font, no layout dependencies") {
@@ -466,27 +470,35 @@ TEST_CASE("ResourcePreparation — manifest authority across scene variants") {
     }
 
     SUBCASE("image + text: prepares both image and font, zero layouts") {
+        const auto image_path = write_media_fixture(
+            ".png", {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'}});
         chronon3d::assets::AssetManifest manifest;
-        manifest.add_image("present/image.png", "bg/image");
+        manifest.add_image(image_path.string(), "bg/image");
         manifest.add_font("present/font.ttf", "title/text");
 
-        MockResolver resolver(std::unordered_set<std::string>{"present/image.png", "present/font.ttf"});
+        MockResolver resolver(std::unordered_set<std::string>{image_path.string(), "present/font.ttf"});
         auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
         REQUIRE(result.has_value());
         CHECK(result.value().images.count("bg/image") == 1);
         CHECK(result.value().fonts.count("title/text") == 1);
         CHECK(result.value().layouts.empty());
+        std::error_code ignored;
+        std::filesystem::remove(image_path, ignored);
     }
 
     SUBCASE("no text: zero fonts loaded") {
+        const auto image_path = write_media_fixture(
+            ".png", {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'}});
         chronon3d::assets::AssetManifest manifest;
-        manifest.add_image("present/image.png", "bg/image");
+        manifest.add_image(image_path.string(), "bg/image");
 
-        MockResolver resolver(std::unordered_set<std::string>{"present/image.png"});
+        MockResolver resolver(std::unordered_set<std::string>{image_path.string()});
         auto result = chronon3d::runtime::ResourcePreparation::prepare(manifest, resolver, options);
         REQUIRE(result.has_value());
         CHECK(result.value().fonts.empty());
         CHECK(result.value().diagnostics.fonts_loaded == 0);
+        std::error_code ignored;
+        std::filesystem::remove(image_path, ignored);
     }
 
     SUBCASE("layout explicit: prepares layout when AssetKind::Layout is in manifest") {
