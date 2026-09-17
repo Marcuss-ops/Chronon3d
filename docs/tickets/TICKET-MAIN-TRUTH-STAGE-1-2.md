@@ -60,7 +60,14 @@ Observed on `main`:
 - [ ] `Chronon CI` green sullo SHA risultante di `main`.
 - [ ] Post-push main-tip verification registrata dopo il commit.
 
-## Same-SHA CI diagnostic — `a16c86de2`
+## Same-SHA CI diagnostic — `cbc7b4350` (2026-09-17)
+
+The exact current `main` SHA `cbc7b4350b1ef17ac2077f01212d992eb500c84b`
+was rerun in GitHub Actions run `35203772918`. The rerun failed before runner
+execution: every job has `steps=[]`, and all jobs terminate within seconds.
+Evidence: [`ci-preexecution-cbc7b4350-2026-09-17`](../evidence/ci-preexecution-cbc7b4350-2026-09-17.md).
+
+The earlier pre-execution diagnostic for `a16c86de2` remains historical:
 
 The GitHub runs for this SHA are currently blocked before runner acquisition:
 all jobs have `runner_id=0`, `runner_group_id=0` and `steps=[]`, including

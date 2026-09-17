@@ -2,7 +2,7 @@
 
 // ═══════════════════════════════════════════════════════════════════════════
 // node_runner_fused_batch_detail.hpp — private executor interface for the
-// fused layer-batch fast path (text batches + image batches).
+// fused layer-batch fast path (text batches only).
 //
 // P1.5: the implementation previously lived INLINE in this header inside an
 // anonymous namespace, dragging TextRunNode/TransformNode/SourceNode and the
@@ -17,12 +17,9 @@
 
 namespace chronon3d::graph::detail {
 
-/// Execute a compiled layer batch as one fused GPU dispatch.  Text batches
-/// go through draw_text_batch (CHRONON3D_ENABLE_TEXT builds only); image
-/// batches are materialized into runtime::GpuLayerBatch instances and
-/// dispatched via execute_layer_batch.  Fail-closed: any unmaterializable
-/// input is published through the frame error channel rather than degrading
-/// to a CPU path or unwinding the scheduler callback.
+/// Execute a compiled text layer batch as one fused GPU dispatch. Image/video
+/// sources use their native paths and are rejected here if an invalid/stale
+/// compiled program attempts to route them through the retired batch.
 void execute_fused_batch(
     ExecutionState& state,
     RenderGraph& graph,
