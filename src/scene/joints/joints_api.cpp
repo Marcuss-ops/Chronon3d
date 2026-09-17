@@ -115,15 +115,20 @@ JointApplyResult apply_joints(Scene& scene, const JointRegistry& reg) {
     //         a child of another joint depends on that joint being
     //         processed first — and if the dependency chain closes back,
     //         the in_degree never reaches 0.
+    // Index both dependency directions once.  The previous nested scans made
+    // this setup O(J²), even though every joint has exactly one parent and one
+    // child.  A scene with many joints is still deterministic, but now scales
+    // linearly with the number of layers and joints.
+    std::vector<std::vector<size_t>> joints_by_child(layers.size());
+    std::vector<std::vector<size_t>> dependents_by_parent(layers.size());
+    for (size_t i = 0; i < valid.size(); ++i) {
+        joints_by_child[valid[i].child_lidx].push_back(i);
+        dependents_by_parent[valid[i].parent_lidx].push_back(i);
+    }
+
     std::vector<int> in_degree(valid.size(), 0);
-    for (size_t a = 0; a < valid.size(); ++a) {
-        const size_t parent_of_a = valid[a].parent_lidx;
-        for (size_t b = 0; b < valid.size(); ++b) {
-            if (a == b) continue;
-            if (valid[b].child_lidx == parent_of_a) {
-                ++in_degree[a];
-            }
-        }
+    for (size_t i = 0; i < valid.size(); ++i) {
+        in_degree[i] = static_cast<int>(joints_by_child[valid[i].parent_lidx].size());
     }
 
     // ── (4) Topological order: process joints with in_degree 0 first;
@@ -140,11 +145,8 @@ JointApplyResult apply_joints(Scene& scene, const JointRegistry& reg) {
         ready.pop();
         ordered.push_back(ji);
         const size_t applied_child_lidx = valid[ji].child_lidx;
-        for (size_t k = 0; k < valid.size(); ++k) {
-            if (k == ji) continue;
-            if (valid[k].parent_lidx == applied_child_lidx) {
-                if (--in_degree[k] == 0) ready.push(k);
-            }
+        for (const size_t dependent : dependents_by_parent[applied_child_lidx]) {
+            if (--in_degree[dependent] == 0) ready.push(dependent);
         }
     }
 
