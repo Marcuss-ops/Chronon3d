@@ -237,11 +237,12 @@ TEST_CASE("text_tile_raster shader ABI") {
     CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
     CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    // bindings 2-5 are storage buffers
+    // bindings 2-6 are storage buffers (glyph, run, tiles, per-frame glyph)
     REQUIRE(find_binding(abi, 0, 2) != nullptr);
     REQUIRE(find_binding(abi, 0, 3) != nullptr);
     REQUIRE(find_binding(abi, 0, 4) != nullptr);
     REQUIRE(find_binding(abi, 0, 5) != nullptr);
+    REQUIRE(find_binding(abi, 0, 6) != nullptr);
 }
 
 // ── Generated ABI headers vs runtime reflection ─────────────────────────

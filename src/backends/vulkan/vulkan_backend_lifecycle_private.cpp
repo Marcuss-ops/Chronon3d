@@ -126,10 +126,11 @@ namespace chronon3d::backends::vulkan {
             {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
             {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-            {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+            {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+            {6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
         const VkDescriptorSetLayoutCreateInfo tile_raster_layout_info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0,
-            6, tile_raster_bindings};
+            7, tile_raster_bindings};
         check(vkCreateDescriptorSetLayout(device, &tile_raster_layout_info, nullptr,
                                           &text_tile_raster_descriptor_layout),
               "vkCreateDescriptorSetLayout(text tile raster)");
@@ -475,7 +476,7 @@ namespace chronon3d::backends::vulkan {
             allocator.create(device, text_tile_bin_descriptor_layout, 0, 4);
         }
         for (auto& allocator : descriptor_arena.text_tile_raster) {
-            allocator.create(device, text_tile_raster_descriptor_layout, 2, 4);
+            allocator.create(device, text_tile_raster_descriptor_layout, 2, 5);
         }
         check(vkCreateFence(device, &fence_info, nullptr, &fence), "vkCreateFence");
         if (debug_context) debug_context->set_fence_name(fence, "Chronon3D.Fence.Main");
@@ -549,6 +550,9 @@ VulkanBackend::Impl::~Impl() {
             }
             if (text_run_dynamic_buffers[i].buffer != VK_NULL_HANDLE) {
                 memory_manager.destroy_buffer(text_run_dynamic_buffers[i]);
+            }
+            if (text_glyph_dynamic_buffers[i].buffer != VK_NULL_HANDLE) {
+                memory_manager.destroy_buffer(text_glyph_dynamic_buffers[i]);
             }
             if (text_tile_count_buffers[i].buffer != VK_NULL_HANDLE) {
                 memory_manager.destroy_buffer(text_tile_count_buffers[i]);

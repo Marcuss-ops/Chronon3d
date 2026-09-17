@@ -85,6 +85,16 @@ struct alignas(16) VulkanGpuGlyphStatic {
 static_assert(sizeof(VulkanGpuGlyphStatic) == 48,
               "VulkanGpuGlyphStatic must match the tiled text std430 ABI");
 
+// Selector and tracking values are derived from the animated run each frame.
+// Keep them out of the static glyph record so the static cache remains valid
+// across frame samples.
+struct VulkanGpuGlyphDynamic {
+    float tracking_prefix{0.0f};
+    float selector_weight{1.0f};
+};
+static_assert(sizeof(VulkanGpuGlyphDynamic) == 8,
+              "VulkanGpuGlyphDynamic must match the tiled text std430 ABI");
+
 struct VulkanBackend::Impl {
     // Device lifetime remains owned by Impl. Surface state and submission
     // state have their own locks in VulkanSurfaceAuthority and
@@ -177,6 +187,7 @@ struct VulkanBackend::Impl {
     // High-water-mark scratch. Large text batches may grow these once, but
     // never allocate a temporary spill vector on every draw call.
     std::vector<VulkanGpuGlyphStatic> text_glyph_scratch{};
+    std::vector<VulkanGpuGlyphDynamic> text_glyph_dynamic_scratch{};
     std::vector<runtime::TextRunDynamic> text_run_scratch{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> glyph_instance_sizes{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> layer_instance_buffers{};
@@ -185,6 +196,9 @@ struct VulkanBackend::Impl {
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
+    std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_glyph_dynamic_buffers{};
+    std::array<std::uint64_t, kGlyphInstanceRingSize> text_glyph_dynamic_hashes{};
+    std::array<VkDeviceSize, kGlyphInstanceRingSize> text_glyph_dynamic_sizes{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_count_buffers{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_tile_index_buffers{};
 
@@ -562,7 +576,7 @@ struct VulkanBackend::Impl {
         VkBuffer tile_counts, VkBuffer tile_indices);
     void write_text_tile_raster_descriptors(
         VkDescriptorSet set, const Image& destination, const Image& atlas,
-        VkBuffer glyph_buffer, VkBuffer run_buffer,
+        VkBuffer glyph_buffer, VkBuffer glyph_dynamic_buffer, VkBuffer run_buffer,
         VkBuffer tile_counts, VkBuffer tile_indices);
 
     // Single Vulkan synchronization boundary. Image transitions always arrive
@@ -792,6 +806,7 @@ struct VulkanBackend::Impl {
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_text_run_dynamic_buffer(VkDeviceSize bytes, std::size_t index);
+    void ensure_text_glyph_dynamic_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,
                                  bool indices);
     void begin_command_buffer();

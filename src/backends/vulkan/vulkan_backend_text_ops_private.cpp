@@ -2,6 +2,7 @@
 // (text_run_surface, tiled text batch upload and dispatch).
 
 #include "vulkan_backend_impl.hpp"
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 
@@ -76,6 +77,35 @@ namespace {
 using GpuTextRunDynamic = runtime::TextRunDynamic;
 static_assert(sizeof(GpuTextRunDynamic) == 112,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
+
+float selector_weight_cpu(const GpuTextRunDynamic& run,
+                          std::uint32_t glyph_index) {
+    if ((run.flags & 2u) == 0u) return 1.0f;
+    const float total = std::max(static_cast<float>(run.selector_unit_count), 1.0f);
+    float position = (static_cast<float>(glyph_index) + 0.5f) / total;
+    float start = std::clamp(run.selector_start * 0.01f, 0.0f, 1.0f);
+    float end = std::clamp(run.selector_end * 0.01f, 0.0f, 1.0f);
+    if (start > end) {
+        std::swap(start, end);
+        position = 1.0f - position;
+    }
+    if (position <= start || position >= end) return 0.0f;
+    const float range = end - start;
+    const float t = range > 0.0000001f ? (position - start) / range : 0.5f;
+    float weight = 1.0f;
+    if ((run.flags & 4u) != 0u) {
+        if (t <= 0.5f) {
+            const float u = 2.0f * t;
+            const float one_minus_u = 1.0f - u;
+            weight = 1.0f - one_minus_u * one_minus_u * one_minus_u;
+        } else {
+            const float u = 2.0f * (1.0f - t);
+            const float one_minus_u = 1.0f - u;
+            weight = 1.0f - one_minus_u * one_minus_u * one_minus_u;
+        }
+    }
+    return std::clamp(weight * run.selector_amount * 0.01f, 0.0f, 1.0f);
+}
 
 } // namespace
 
@@ -155,6 +185,32 @@ void VulkanBackend::Impl::draw_text_batch(
         gr.sy = (run.sy != 0.0f) ? run.sy : 1.0f;
     }
 
+    std::array<VulkanGpuGlyphDynamic, 1024> local_glyph_dynamic;
+    VulkanGpuGlyphDynamic* gpu_glyph_dynamic = local_glyph_dynamic.data();
+    if (glyphs.size() > local_glyph_dynamic.size()) {
+        if (text_glyph_dynamic_scratch.size() < glyphs.size()) {
+            text_glyph_dynamic_scratch.resize(glyphs.size());
+        }
+        gpu_glyph_dynamic = text_glyph_dynamic_scratch.data();
+    }
+    std::vector<std::uint32_t> max_glyph_index(runs.size(), 0);
+    for (const auto& glyph : glyphs) {
+        if (glyph.run_index < max_glyph_index.size()) {
+            max_glyph_index[glyph.run_index] =
+                std::max(max_glyph_index[glyph.run_index], glyph.pad0);
+        }
+    }
+    std::vector<std::vector<float>> tracking_prefixes(runs.size());
+    for (std::size_t r = 0; r < runs.size(); ++r) {
+        const std::size_t count = static_cast<std::size_t>(max_glyph_index[r]) + 1;
+        auto& prefix = tracking_prefixes[r];
+        prefix.resize(count + 1, 0.0f);
+        for (std::size_t i = 0; i < count; ++i) {
+            prefix[i + 1] = prefix[i] + gpu_runs[r].animator_tracking *
+                selector_weight_cpu(gpu_runs[r], static_cast<std::uint32_t>(i));
+        }
+    }
+
     std::int32_t dispatch_x0 = static_cast<std::int32_t>(dst_image.width);
     std::int32_t dispatch_y0 = static_cast<std::int32_t>(dst_image.height);
     std::int32_t dispatch_x1 = 0;
@@ -183,6 +239,11 @@ void VulkanBackend::Impl::draw_text_batch(
         gg.pad2 = gs.pad2;
 
         const auto& run = gpu_runs[gg.run_index];
+        auto& dynamic = gpu_glyph_dynamic[i];
+        dynamic.selector_weight = selector_weight_cpu(run, gg.pad0);
+        const auto& prefix = tracking_prefixes[gg.run_index];
+        dynamic.tracking_prefix = prefix[std::min<std::size_t>(gg.pad0,
+                                                                prefix.size() - 1)];
         const float gx0 = run.tx + gg.plane_left * run.sx;
         const float gy0 = run.ty + gg.plane_top * run.sy;
         const float gx1 = run.tx + gg.plane_right * run.sx;
@@ -207,8 +268,11 @@ void VulkanBackend::Impl::draw_text_batch(
         glyphs.size() * sizeof(VulkanGpuGlyphStatic));
     const VkDeviceSize run_bytes = static_cast<VkDeviceSize>(
         runs.size() * sizeof(GpuTextRunDynamic));
+    const VkDeviceSize glyph_dynamic_bytes = static_cast<VkDeviceSize>(
+        glyphs.size() * sizeof(VulkanGpuGlyphDynamic));
     constexpr VkDeviceSize kMaxCmdUpdateBytes = 65536;
-    if (glyph_bytes > kMaxCmdUpdateBytes || run_bytes > kMaxCmdUpdateBytes) {
+    if (glyph_bytes > kMaxCmdUpdateBytes || run_bytes > kMaxCmdUpdateBytes ||
+        glyph_dynamic_bytes > kMaxCmdUpdateBytes) {
         throw std::logic_error(
             "Vulkan text metadata exceeds vkCmdUpdateBuffer limit");
     }
@@ -224,8 +288,10 @@ void VulkanBackend::Impl::draw_text_batch(
         : 0;
     ensure_glyph_instance_buffer(glyph_bytes, pass_slot);
     ensure_text_run_dynamic_buffer(run_bytes, pass_slot);
+    ensure_text_glyph_dynamic_buffer(glyph_dynamic_bytes, pass_slot);
     const VkBuffer glyph_buffer = glyph_instance_buffers[pass_slot].buffer;
     const VkBuffer run_buffer = text_run_dynamic_buffers[pass_slot].buffer;
+    const VkBuffer glyph_dynamic_buffer = text_glyph_dynamic_buffers[pass_slot].buffer;
 
     std::uint64_t glyph_hash = 1469598103934665603ull;
     const auto* glyph_ptr = reinterpret_cast<const std::uint8_t*>(gpu_glyphs);
@@ -246,6 +312,17 @@ void VulkanBackend::Impl::draw_text_batch(
     const bool run_updated =
         text_run_dynamic_sizes[pass_slot] != run_bytes ||
         text_run_dynamic_hashes[pass_slot] != run_hash;
+
+    std::uint64_t glyph_dynamic_hash = 1469598103934665603ull;
+    const auto* glyph_dynamic_ptr =
+        reinterpret_cast<const std::uint8_t*>(gpu_glyph_dynamic);
+    for (std::size_t b = 0; b < glyph_dynamic_bytes; ++b) {
+        glyph_dynamic_hash ^= glyph_dynamic_ptr[b];
+        glyph_dynamic_hash *= 1099511628211ull;
+    }
+    const bool glyph_dynamic_updated =
+        text_glyph_dynamic_sizes[pass_slot] != glyph_dynamic_bytes ||
+        text_glyph_dynamic_hashes[pass_slot] != glyph_dynamic_hash;
 
     const bool atlas_is_mtsdf =
         atlas_image.text_atlas_encoding == runtime::TextAtlasEncoding::MTSDF;
@@ -274,7 +351,7 @@ void VulkanBackend::Impl::draw_text_batch(
         write_text_tile_bin_descriptors(bin_descriptors, glyph_buffer, run_buffer,
                                         count_buffer, index_buffer);
         write_text_tile_raster_descriptors(raster_descriptors, dst_image, atlas_image,
-                                           glyph_buffer, run_buffer,
+                                           glyph_buffer, glyph_dynamic_buffer, run_buffer,
                                            count_buffer, index_buffer);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &atlas_image});
@@ -288,9 +365,15 @@ void VulkanBackend::Impl::draw_text_batch(
             text_run_dynamic_hashes[pass_slot] = run_hash;
             text_run_dynamic_sizes[pass_slot] = run_bytes;
         }
+        if (glyph_dynamic_updated) {
+            vkCmdUpdateBuffer(cmd, glyph_dynamic_buffer, 0, glyph_dynamic_bytes,
+                              gpu_glyph_dynamic);
+            text_glyph_dynamic_hashes[pass_slot] = glyph_dynamic_hash;
+            text_glyph_dynamic_sizes[pass_slot] = glyph_dynamic_bytes;
+        }
         vkCmdFillBuffer(cmd, count_buffer, 0, tile_count_bytes, 0);
 
-        std::array<VkBufferMemoryBarrier2KHR, 3> upload_barriers{};
+        std::array<VkBufferMemoryBarrier2KHR, 4> upload_barriers{};
         std::size_t upload_barrier_count = 0;
         const auto add_upload_barrier = [&](VkBuffer buffer,
                                             VkAccessFlags2KHR dst_access) {
@@ -312,6 +395,9 @@ void VulkanBackend::Impl::draw_text_batch(
         }
         if (run_updated) {
             add_upload_barrier(run_buffer, VK_ACCESS_2_SHADER_READ_BIT_KHR);
+        }
+        if (glyph_dynamic_updated) {
+            add_upload_barrier(glyph_dynamic_buffer, VK_ACCESS_2_SHADER_READ_BIT_KHR);
         }
         add_upload_barrier(count_buffer,
                            VK_ACCESS_2_SHADER_READ_BIT_KHR |

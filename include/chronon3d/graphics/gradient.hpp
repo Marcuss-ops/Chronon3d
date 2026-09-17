@@ -140,6 +140,48 @@ struct GradientDefinition {
     }
 };
 
+/// Render-time lowering of GradientDefinition.
+///
+/// Authoring remains sRGB by contract, while this record owns linear stops
+/// suitable for repeated sampling.  The conversion is therefore performed
+/// once at the compiler/render-boundary instead of once per pixel.
+struct CompiledGradientStop {
+    f32 position{0.0f};
+    Color linear_color{1.0f, 1.0f, 1.0f, 1.0f};
+};
+
+struct CompiledGradient {
+    GradientType type{GradientType::Linear};
+    std::vector<CompiledGradientStop> color_stops;
+    std::vector<OpacityStop> opacity_stops;
+    Vec2 start{0.0f, 0.0f};
+    Vec2 end{1.0f, 0.0f};
+    Vec2 center{0.5f, 0.5f};
+    f32 radius{0.5f};
+    f32 angle{0.0f};
+    GradientSpread spread{GradientSpread::Pad};
+};
+
+[[nodiscard]] inline CompiledGradient compile_gradient(
+    const GradientDefinition& definition)
+{
+    CompiledGradient compiled;
+    compiled.type = definition.type;
+    compiled.opacity_stops = definition.opacity_stops;
+    compiled.start = definition.start;
+    compiled.end = definition.end;
+    compiled.center = definition.center;
+    compiled.radius = definition.radius;
+    compiled.angle = definition.angle;
+    compiled.spread = definition.spread;
+    compiled.color_stops.reserve(definition.color_stops.size());
+    for (const auto& stop : definition.color_stops) {
+        compiled.color_stops.push_back(
+            {stop.position, stop.color.to_linear()});
+    }
+    return compiled;
+}
+
 // ── Sampling helpers (header-only for inlining) ────────────────────────
 
 namespace detail {
@@ -209,6 +251,35 @@ namespace detail {
     };
 }
 
+/// Interpolate already-linearized stops.  This is the hot sampling path for
+/// compiled gradients and intentionally contains no color-space conversion.
+[[nodiscard]] inline Color sample_compiled_color_stops(
+    const std::vector<CompiledGradientStop>& stops, f32 t)
+{
+    if (stops.empty()) return Color{1.0f, 1.0f, 1.0f, 1.0f};
+    if (stops.size() == 1) return stops[0].linear_color;
+
+    t = std::clamp(t, 0.0f, 1.0f);
+    auto it = std::lower_bound(
+        stops.begin(), stops.end(), t,
+        [](const CompiledGradientStop& s, f32 val) {
+            return s.position < val;
+        });
+    if (it == stops.begin()) return stops.front().linear_color;
+    if (it == stops.end()) return stops.back().linear_color;
+
+    const auto& b = *it;
+    const auto& a = *(it - 1);
+    const f32 range = b.position - a.position;
+    const f32 local = (range > 1e-6f) ? (t - a.position) / range : 0.0f;
+    return {
+        a.linear_color.r + (b.linear_color.r - a.linear_color.r) * local,
+        a.linear_color.g + (b.linear_color.g - a.linear_color.g) * local,
+        a.linear_color.b + (b.linear_color.b - a.linear_color.b) * local,
+        a.linear_color.a + (b.linear_color.a - a.linear_color.a) * local,
+    };
+}
+
 /// Interpolate opacity stops at normalised t ∈ [0, 1].
 /// Stops must be sorted by ascending position.
 [[nodiscard]] inline f32 sample_opacity_stops(
@@ -236,6 +307,28 @@ namespace detail {
 }
 
 } // namespace detail
+
+[[nodiscard]] inline Color sample_compiled_gradient(
+    const CompiledGradient& gradient, f32 t)
+{
+    const f32 wrapped = detail::apply_spread(t, gradient.spread);
+    Color result = detail::sample_compiled_color_stops(
+        gradient.color_stops, wrapped);
+    if (!gradient.opacity_stops.empty()) {
+        result.a *= detail::sample_opacity_stops(
+            gradient.opacity_stops, wrapped);
+    }
+    return result;
+}
+
+[[nodiscard]] inline Color sample_compiled_gradient_radial(
+    const CompiledGradient& gradient, const Vec2& point)
+{
+    const Vec2 delta = point - gradient.center;
+    const f32 dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    const f32 t = (gradient.radius > 1e-6f) ? dist / gradient.radius : 0.0f;
+    return sample_compiled_gradient(gradient, t);
+}
 
 /// Sample a gradient definition at normalised linear progress t ∈ [0, 1].
 /// Intended for Linear gradients.  For Radial gradients, use

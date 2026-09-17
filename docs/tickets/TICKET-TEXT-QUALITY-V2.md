@@ -7,7 +7,9 @@ in §4.1. **P0-0b (verità pre-encode): SBLOCCATA 2026-09-17** — il PNG fedele
 una proiezione del raw sink (`tools/raw_frame_to_png.py`, evidenza
 [`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md));
 resta da eseguirla su un artifact di un job reale prima di dichiarare qualunque
-guadagno pixel-level. Prossimo lavoro reale: **P0-2 contratto colore**.
+guadagno pixel-level. **P0-2 contratto colore CHIUSO 2026-09-17**; il prossimo
+passo misurabile è il framehash sui raw artifact reali, poi sampling/coverage e
+shadow canonica.
 Ambito: `text_tile_raster.comp` (FullGraph), `cuda_nv12_kernels.hpp` (DirectYUV),
 `mtsdf_generator.cpp` (payload glifo), contratto colore del text run, contratto encoder.
 
@@ -120,8 +122,8 @@ Conseguenze sul piano, in ordine:
 | ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
 | P0-0b | **Verità pre-encode** — **SBLOCCATA 2026-09-17**: la via immagine è dichiarata non-canonica ([IMAGE-PATH-PIXEL-TRUTH](TICKET-IMAGE-PATH-PIXEL-TRUTH.md), exit condition 2) e il PNG fedele esiste come proiezione del raw sink (`tools/raw_frame_to_png.py`, [evidenza](../evidence/pre-encode-pixel-truth-2026-09-17.md)) | il tool **rifiuta** un frame uniforme (`content_fraction=0` ⇒ exit 1) e produce il PNG verbatim; resta da eseguirlo su un artifact di un job reale |
 | ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
-| P0-2 | Contratto colore: linearizzare via `math/color.hpp` **oppure** dichiarare sRGB nel contratto del text run | golden re-pinnato + test sul grigio medio (`#808080`) |
-| P0-3 | Contratto encoder: rate control e preset espliciti per la lane overlay + bitrate minimo per contenuto grafico | artifact ≥ soglia, gate riproducibile |
+| P0-2 | **CHIUSO 2026-09-17** — `parse_hex_color()` converte CSS/sRGB in linear una sola volta al lowering, prima dei backend | test `Color contract: CSS hex is lowered to canonical linear space`, `#808080` → ≈0.21586; evidenza [`color-contract-framehash-2026-09-17.md`](../evidence/color-contract-framehash-2026-09-17.md) |
+| P0-3 | **CONTRATTO GIÀ ATTERRATO** — resolver NVENC fail-closed per rate control/preset e `validate_for_benchmark()` rifiuta `driver-default`; doctor osserva le capability FFmpeg | `tests/cli/test_encoder_config_resolution.cpp`, `docs/RELEASE_GATE.md`; nessun nuovo resolver |
 | P1-1 | DirectYUV: fill a rampa al posto della soglia (lo stroke ha già la rampa) | equivalence test contro il bug watermark che aveva motivato la soglia |
 | P1-2 | Sampling frazionario/bilineare delle letture atlas nei due lane **+ larghezza di coverage screen-space**: il filtraggio da solo passa da nearest aliasato a bilineare un po' meno aliasato, non risolve la minificazione. Ogni sample va **clampato al rect del singolo glifo nell'atlas** con disciplina half-texel, altrimenti a bordo pagina si legge il glifo vicino | parità pixel + canary + test di bordo pagina |
 | P1-3 | Shadow canonica **sul run**, non sul singolo glifo: silhouettes dei glifi → **union mask del TextRun** → spread opzionale → gaussiana separabile → colore/opacità → source-over **lineare**. Risolve insieme clipping per-glifo, `alpha-max` sugli overlap e blur non fisicamente coerente. Il 3×3 attuale resta come modalità **`Fast`** (non va eliminato: è il percorso a throughput massimo) | delta frame time misurato + golden |
@@ -140,9 +142,9 @@ Conseguenze sul piano, in ordine:
    tool canonico. Il passo successivo della catena è il **contratto colore** (3),
    che può ora essere misurato su quel campione:
 3. **Contratto colore** risolto **alla boundary di authoring/lowering**, non
-   dentro gli shader: se `#808080` significa CSS/sRGB, deve diventare linear **una
-   volta sola** prima di arrivare ai backend (niente `to_linear()` separato in
-   Vulkan e CUDA);
+   dentro gli shader: `parse_hex_color()` interpreta `#RRGGBB` come CSS/sRGB e
+   lo converte una volta sola nel dominio linear canonico, prima di Vulkan,
+   CUDA e software (niente `to_linear()` separato per backend);
 4. **Contratto encoder** (P0-3): 535 kbps può mascherare qualunque progresso del
    renderer;
 5. **Sampling frazionario + coverage screen-space** (P1-2);

@@ -5,6 +5,9 @@
 # falling back to the pinned GitHub snapshot. Media patterns below must not
 # re-expose them, hence assets/ is ignored wholesale and never negated.
 assets/
+# Source helpers under src/assets/ are code, not test fixtures.
+!src/assets/
+!src/assets/sha256.hpp
 
 # ── IDE / Editor ───────────────────────────────────────────────────────────────
 .idea/
