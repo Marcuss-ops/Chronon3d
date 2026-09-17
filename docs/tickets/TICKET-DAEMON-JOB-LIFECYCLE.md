@@ -96,10 +96,18 @@ certificate e la telemetria interna degli allocator (exit condition §5).
    del mux, `vkDeviceWaitIdle`/fence wait, sync CUDA, distruzione di execution
    slot/pool, hash + rename atomico + sidecar. Un solo `waitIdle` o un poll con
    backoff in quel tratto spiegherebbe il costo.
-2. **Una sola verifica dell'artifact**: il daemon produce già il receipt
-   canonico; il worker lo ri-verifica con un secondo `ffprobe` (253 ms). La
-   forma corretta è un'unica authority `ArtifactReceipt` consumata dal worker,
-   con il secondo probe come modalità audit.
+2. **Una sola verifica dell'artifact** — **ATTERRATA** (verificata nel codice,
+   2026-09-17). Il daemon produce il receipt canonico; il worker
+   (`RenderingGen/renderinggen/internal/processor/finalize_job.go`) lo consuma:
+   `probeFactsForFinalize` mappa il receipt in `media.ProbeResult`
+   (`probeResultFromReceipt`) e invoca `media.ProbeFile` **solo** quando il
+   receipt non è canonico/leggibile — con un log esplicito quando succede, così
+   il fallback non è mai silenzioso. `verifyArtifactReceipt` applica poi la
+   policy e l'identità byte del receipt, e il worker non ri-decodifica l'output
+   una seconda volta (`finalize_job.go`: "it never re-decodes the output a
+   second time"). Il secondo probe resta quindi fallback/audit, non percorso
+   normale: la voce `worker duplicate verification ~250 ms` del §7 non descrive
+   più il percorso caldo.
 3. **Smontare il costo per-job**: riusare device/runtime, contesto Vulkan/CUDA,
    canvas pool, execution slot, atlas/cache e staging buffer tra output
    indipendenti. **Non** partire dall'encoder H.264 (DPB/RC/header implicano
