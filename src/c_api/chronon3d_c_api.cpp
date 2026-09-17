@@ -1,4 +1,4 @@
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>

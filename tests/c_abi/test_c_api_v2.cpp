@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 
 #include <algorithm>
 #include <atomic>

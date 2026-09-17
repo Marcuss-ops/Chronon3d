@@ -9,7 +9,7 @@ package main
 
 /*
 #cgo pkg-config: chronon3d
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 #include <stdlib.h>
 */
 import "C"

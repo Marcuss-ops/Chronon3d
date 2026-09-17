@@ -22,7 +22,7 @@
 // Each test returns 0 (PASS), 1 (FAIL), or 2 (SKIP).  The driver prints the
 // final marker C_ABI_CONSUMER_PASS only when every non-skipped test passed.
 
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 
 #include <pthread.h>
 #include <stdatomic.h>

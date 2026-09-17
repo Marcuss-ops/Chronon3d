@@ -7,4 +7,7 @@ PREFIX="${SDK_PREFIX:-${CHRONON3D_PREFIX:-/usr/local}}"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export CGO_ENABLED=1
+# This consumer is intentionally an installed-package module outside the
+# repository's root Go workspace; do not let a parent go.work hijack it.
+export GOWORK=off
 go run .
