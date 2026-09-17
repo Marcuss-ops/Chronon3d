@@ -10,6 +10,7 @@
 # CMake FILE_SET requires every textual include to be present in the package.
 set(CHRONON3D_SDK_API_HEADERS
     # ── canonical sdk::* surface (V0.1 MVP) ──────────────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon/abi.h"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_engine.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_file_request.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/c_api/chronon3d.h"

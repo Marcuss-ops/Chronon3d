@@ -4,7 +4,7 @@
 #include <chronon3d/render_graph/backend_registry.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #ifdef CHRONON3D_HAS_C_API
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 #endif
 
 #include <spdlog/spdlog.h>

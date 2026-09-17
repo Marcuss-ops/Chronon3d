@@ -2,7 +2,7 @@
 
 Minimal C ABI consumer. Links only `libchronon3d_c.so` (via pkg-config, with a
 plain prefix fallback) and includes the single public C header
-`<chronon3d/c_api/chronon3d.h>`.
+`<chronon/abi.h>`.
 
 ```bash
 export SDK_PREFIX=/opt/chronon    # install prefix

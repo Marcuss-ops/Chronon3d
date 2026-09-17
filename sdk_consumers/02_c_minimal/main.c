@@ -4,7 +4,7 @@
 // single public C surface).  Compiles the canonical RenderPlan JSON, renders
 // one frame into a caller-owned buffer, and asserts a non-empty frame.
 
-#include <chronon3d/c_api/chronon3d.h>
+#include <chronon/abi.h>
 
 #include <stdint.h>
 #include <stdio.h>
