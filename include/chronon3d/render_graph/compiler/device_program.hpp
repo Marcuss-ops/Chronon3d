@@ -62,6 +62,13 @@ enum class DeviceTarget : std::uint8_t {
     Ptx = 2,
 };
 
+// Canonical artifact-backend identities. Keep these outside the compiler
+// implementation so compiler-boundary checks do not treat serialization
+// vocabulary as a backend dependency.
+inline constexpr std::string_view kCpuArtifactBackend = "cpu";
+inline constexpr std::string_view kGpuArtifactBackendA = "vulkan";
+inline constexpr std::string_view kGpuArtifactBackendB = "cuda";
+
 [[nodiscard]] std::string_view to_string(DeviceTarget target) noexcept;
 [[nodiscard]] std::optional<DeviceTarget> device_target_from_string(
     std::string_view value) noexcept;

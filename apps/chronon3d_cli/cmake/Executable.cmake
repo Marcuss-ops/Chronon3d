@@ -2,6 +2,7 @@ add_executable(chronon3d_cli
     main.cpp
     register_runtime_compositions.cpp
     register_content_compositions.cpp
+    register_canary_compositions.cpp
     register_dev_compositions.cpp
 )
 

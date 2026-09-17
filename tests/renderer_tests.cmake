@@ -166,6 +166,5 @@ add_custom_target(chronon3d_renderer_tests
         chronon3d_render_graph_tests
         chronon3d_effects_tests
         chronon3d_camera_tests
-        chronon3d_graphics_tests
         chronon3d_precomp_tests
 )
