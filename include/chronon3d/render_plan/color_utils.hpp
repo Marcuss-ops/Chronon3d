@@ -18,10 +18,12 @@
 
 namespace chronon3d::render_plan {
 
-/// Parse "#RRGGBB" (exactly 7 chars) into a Color at the given alpha.
-/// Returns std::nullopt for any other shape — the caller keeps its own
-/// default color. Mirrors the CSS-style hex contract of the layer `style`
-/// block (LayerStylePlan::fill / ShadowStyle::color).
+/// Parse a CSS/sRGB "#RRGGBB" (exactly 7 chars) into Chronon's canonical
+/// linear working-domain Color at the given alpha. The conversion happens at
+/// the authoring/lowering boundary, once, before the value reaches Vulkan,
+/// CUDA or the software renderer. Returns std::nullopt for any other shape —
+/// the caller keeps its own default color. Mirrors the CSS-style hex contract
+/// of the layer `style` block (LayerStylePlan::fill / ShadowStyle::color).
 inline std::optional<chronon3d::Color> parse_hex_color(
     std::string_view value, float alpha = 1.0f) {
     if (value.size() != 7 || value.front() != '#') return std::nullopt;
@@ -40,7 +42,7 @@ inline std::optional<chronon3d::Color> parse_hex_color(
         static_cast<float>(r1 * 16 + r2) / 255.0f,
         static_cast<float>(g1 * 16 + g2) / 255.0f,
         static_cast<float>(b1 * 16 + b2) / 255.0f,
-        std::clamp(alpha, 0.0f, 1.0f)};
+        std::clamp(alpha, 0.0f, 1.0f)}.to_linear();
 }
 
 } // namespace chronon3d::render_plan

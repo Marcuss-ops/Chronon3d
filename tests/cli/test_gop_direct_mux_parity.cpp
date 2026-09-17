@@ -310,7 +310,7 @@ ContainerFacts probe_container(const std::string& path) {
         facts.audio.present = true;
         facts.audio.codec_id = params->codec_id;
         facts.audio.sample_rate = params->sample_rate;
-        facts.audio.channels = params->channels;
+        facts.audio.channels = params->ch_layout.nb_channels;
         facts.audio.time_base_num = format->streams[audio_index]->time_base.num;
         facts.audio.time_base_den = format->streams[audio_index]->time_base.den;
     }

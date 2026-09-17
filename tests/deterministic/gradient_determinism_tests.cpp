@@ -494,6 +494,26 @@ TEST_CASE("Gradient determinism: GradientDefinition sampler — repeatable outpu
     }
 }
 
+TEST_CASE("Gradient compilation: sRGB stops are lowered once") {
+    auto def = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color::from_hex("#808080")},
+         {1.0f, Color::from_hex("#ffffff")}});
+    const auto compiled = graphics::compile_gradient(def);
+
+    REQUIRE(compiled.color_stops.size() == 2);
+    CHECK(approx(compiled.color_stops[0].linear_color.r, 0.2158605f));
+    CHECK(approx(compiled.color_stops[0].linear_color.g, 0.2158605f));
+    CHECK(approx(compiled.color_stops[0].linear_color.b, 0.2158605f));
+
+    const auto expected = graphics::sample_gradient(def, 0.5f);
+    const auto actual = graphics::sample_compiled_gradient(compiled, 0.5f);
+    CHECK(approx(actual.r, expected.r));
+    CHECK(approx(actual.g, expected.g));
+    CHECK(approx(actual.b, expected.b));
+    CHECK(approx(actual.a, expected.a));
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  DoD Determinism Test 7: Bounding box and centroid detection
 //  on gradient-filled shapes

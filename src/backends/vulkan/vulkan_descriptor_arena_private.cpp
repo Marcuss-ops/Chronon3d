@@ -167,13 +167,14 @@ void VulkanBackend::Impl::write_text_tile_bin_descriptors(
 
 void VulkanBackend::Impl::write_text_tile_raster_descriptors(
     VkDescriptorSet set, const Image& destination, const Image& atlas,
-    VkBuffer glyph_buffer, VkBuffer run_buffer,
+    VkBuffer glyph_buffer, VkBuffer glyph_dynamic_buffer, VkBuffer run_buffer,
     VkBuffer tile_counts, VkBuffer tile_indices) {
     const VkDescriptorImageInfo dst{
         VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo atlas_info{
         VK_NULL_HANDLE, atlas.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorBufferInfo glyph{glyph_buffer, 0, VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo glyph_dynamic{glyph_dynamic_buffer, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo runs{run_buffer, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo counts{tile_counts, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo indices{tile_indices, 0, VK_WHOLE_SIZE};
@@ -189,8 +190,10 @@ void VulkanBackend::Impl::write_text_tile_raster_descriptors(
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &counts, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 5, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr}};
-    vkUpdateDescriptorSets(device, 6, writes, 0, nullptr);
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &indices, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 6, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &glyph_dynamic, nullptr}};
+    vkUpdateDescriptorSets(device, 7, writes, 0, nullptr);
 }
 
 } // namespace chronon3d::backends::vulkan

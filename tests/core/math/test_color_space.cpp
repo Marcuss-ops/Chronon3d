@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
 #include <optional>
 #include <algorithm>
 using namespace chronon3d;
@@ -25,6 +26,15 @@ TEST_CASE("Color: safe hex parsing") {
         CHECK_FALSE(Color::try_from_hex("#ff").has_value());
         CHECK_FALSE(Color::try_from_hex("#GGGGGG").has_value());
     }
+}
+
+TEST_CASE("Color contract: CSS hex is lowered to canonical linear space") {
+    const auto parsed = chronon3d::render_plan::parse_hex_color("#808080", 0.5f);
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->r == doctest::Approx(0.2158605f).epsilon(0.0001f));
+    CHECK(parsed->g == doctest::Approx(0.2158605f).epsilon(0.0001f));
+    CHECK(parsed->b == doctest::Approx(0.2158605f).epsilon(0.0001f));
+    CHECK(parsed->a == doctest::Approx(0.5f));
 }
 
 // Helper to extract a single sRGB value from a float (construct Color, convert)

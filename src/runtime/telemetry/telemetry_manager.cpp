@@ -18,61 +18,23 @@ namespace chronon3d::telemetry {
 
 namespace {
 
-struct PeakMemoryCache {
-    std::atomic<bool> stop{false};
-    std::atomic<uint64_t> max_vmhwm_bytes{0};
-    std::thread worker;
-
-    static uint64_t parse_vmhwm_internal() {
-        std::ifstream status("/proc/self/status");
-        std::string line;
-        while (std::getline(status, line)) {
-            if (line.rfind("VmHWM:", 0) == 0) {
-                std::istringstream iss(line.substr(6));
-                uint64_t kb = 0;
-                iss >> kb;
-                if (kb > 0) return kb * 1024ULL;
-                break;
-            }
-        }
-        struct rusage usage {};
-        if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
-            return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
-        }
-        return 0;
-    }
-
-    void prime_once_internal() {
-        uint64_t current = parse_vmhwm_internal();
-        uint64_t prev = max_vmhwm_bytes.load(std::memory_order_acquire);
-        while (current > prev) {
-            if (max_vmhwm_bytes.compare_exchange_weak(prev, current,
-                                                      std::memory_order_release,
-                                                      std::memory_order_relaxed)) {
-                break;
-            }
+uint64_t read_peak_memory_internal() {
+    std::ifstream status("/proc/self/status");
+    std::string line;
+    while (std::getline(status, line)) {
+        if (line.rfind("VmHWM:", 0) == 0) {
+            std::istringstream iss(line.substr(6));
+            uint64_t kb = 0;
+            iss >> kb;
+            if (kb > 0) return kb * 1024ULL;
+            break;
         }
     }
-
-    PeakMemoryCache() {
-        prime_once_internal();
-        worker = std::thread([this]() {
-            while (!stop.load(std::memory_order_acquire)) {
-                prime_once_internal();
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-        });
+    struct rusage usage {};
+    if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
+        return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
     }
-
-    ~PeakMemoryCache() {
-        stop.store(true, std::memory_order_release);
-        if (worker.joinable()) worker.join();
-    }
-};
-
-PeakMemoryCache& peak_memory_cache() {
-    static PeakMemoryCache inst;
-    return inst;
+    return 0;
 }
 
 } // namespace
@@ -323,7 +285,11 @@ std::string TelemetryManager::generate_uuid() {
 }
 
 uint64_t TelemetryManager::get_peak_memory_usage() {
-    return peak_memory_cache().max_vmhwm_bytes.load(std::memory_order_acquire);
+    // Linux maintains VmHWM as the process high-water mark. Read it on demand
+    // at telemetry snapshot boundaries instead of sampling it from a
+    // background thread. The old sampler added a periodic wakeup and could
+    // make destruction wait behind sleep_for(1s) for no additional accuracy.
+    return read_peak_memory_internal();
 }
 
 } // namespace chronon3d::telemetry
