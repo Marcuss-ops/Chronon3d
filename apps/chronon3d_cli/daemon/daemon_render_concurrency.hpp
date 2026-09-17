@@ -37,12 +37,168 @@
 
 namespace chronon3d::cli {
 
-/// Does the IPC RENDER_JOB path hold an execution-domain mutex for the whole
-/// job? Keep this in lockstep with `DaemonService::m_render_job_mutex`.
-inline constexpr bool kRenderJobExecutionSerialized = true;
-
 /// Slots the serialized execution domain actually admits.
 inline constexpr std::uint32_t kSerializedRenderJobSlots = 1;
+
+/// Peak device memory observed for ONE 1080p FullGraph video job (8.8 GiB). It
+/// is the calibration floor of `estimate_peak_vram_bytes` and the per-job peak
+/// the concurrency policy charges. Single declaration, because two numbers for
+/// one measurement is how admission and the serialization decision drift.
+inline constexpr std::uint64_t kMeasuredFullGraphPeakBytes =
+    8800ULL * 1024ULL * 1024ULL;
+
+// ── Concurrency POLICY — one decision, three classes, named reasons ─────────
+//
+// "Serialized" used to be a bare `true`, with the justification in a comment
+// and the consequences spread across a mutex, a resolution function and a
+// static_assert. That is a decision without an owner: nothing could answer
+// "would a chunked render be allowed to overlap?" or "under what measurement
+// would that change?", and the only way to revisit it was to re-read the
+// comment.
+//
+// The policy below makes the decision DATA. It is defined on the axis that
+// actually matters — WHICH KIND of job is asking — and gated on the measured
+// device headroom, so the verdict changes when the numbers change instead of
+// when someone remembers to flip a bool.
+
+/// The kind of render job asking to run. It is the axis the policy is defined
+/// on: these three cases do not share the same safety argument.
+enum class RenderJobClass : std::uint8_t {
+    /// The whole timeline of one plan in one job. Two of these are the same
+    /// work over the same plan-derived caches and the same frame ring, so they
+    /// are ONE execution domain regardless of available memory.
+    MonolithicSamePlan,
+    /// One deterministic window (start/end frame) of a plan whose other
+    /// windows are run by other jobs. Disjoint windows touch disjoint frames,
+    /// which is what makes overlap meaningful at all — this is the class the
+    /// temporal chunking (I1) produces.
+    ChunkedDisjointSamePlan,
+    /// A different plan: independent timeline, independent caches.
+    DifferentPlan,
+};
+
+/// Whether a job may overlap other jobs in the execution domain.
+enum class RenderAdmission : std::uint8_t {
+    /// Hold the domain exclusively: no other render job may run alongside.
+    Serial,
+    /// May hold the domain on the shared side: overlap is permitted with other
+    /// jobs whose own verdict is also ParallelDisjoint.
+    ParallelDisjoint,
+};
+
+/// The facts the policy decides on. Every field is measured or passed in;
+/// there is deliberately no "typical render" default.
+struct RenderPolicyInput {
+    RenderJobClass job_class{RenderJobClass::MonolithicSamePlan};
+    /// Peak device memory of ONE job of this class (the same estimate
+    /// admission charges: `derive_vram_working_set` / the calibration floor).
+    std::uint64_t job_peak_vram_bytes{0};
+    /// Total device memory.
+    std::uint64_t device_total_vram_bytes{0};
+    /// Device memory free right now.
+    std::uint64_t device_free_vram_bytes{0};
+};
+
+/// The verdict plus the reason it was reached. The reason is part of the
+/// contract: a serialized job must be able to say WHY it is serialized.
+struct RenderPolicyDecision {
+    RenderAdmission admission{RenderAdmission::Serial};
+    /// Slots this verdict implies (Serial ⇒ 1).
+    std::uint32_t admitted_slots{kSerializedRenderJobSlots};
+    /// True when the job asked for something other than an exclusive domain.
+    bool overlap_requested{false};
+    /// How many of this class's peak footprints fit in the device (0 = not even
+    /// one). It is the number the verdict was made on, not a restatement of it.
+    std::uint32_t peak_footprints_that_fit{0};
+    /// Static, human-readable cause. Never a formatted allocation.
+    const char* reason{""};
+};
+
+/// The class the daemon charges a job as, when the producer does not declare
+/// one. No producer declares chunk membership today (RenderingGen submits whole
+/// clips on the clip lane and whole plans on the overlay lane), so every job is
+/// monolithic — and a monolithic render is Serial by construction, which is why
+/// the verdict guard in the RENDER_JOB path never fires in production. It is a
+/// named constant rather than an inline literal because it is the ONE place a
+/// future chunk producer must change together with the overlap mechanism.
+inline constexpr RenderJobClass kDefaultRenderJobClass =
+    RenderJobClass::MonolithicSamePlan;
+
+/// The reference deployment the serialization decision was taken on:
+/// one 1080p FullGraph render on a 16 GB device (see
+/// `estimate_peak_vram_bytes`). A different card re-decides by data.
+inline constexpr std::uint64_t kReferenceDeviceVramBytes =
+    16ULL * 1024ULL * 1024ULL * 1024ULL;
+
+/// Decide whether a job may overlap. Pure and `constexpr`, so the default
+/// decision below is DERIVED from it rather than restated next to it.
+///
+/// The rules, in order:
+///  1. a monolithic same-plan render is one execution domain by construction;
+///  2. any other class may overlap only while a second full peak footprint
+///     fits on the device AND one peak still fits in the free memory the
+///     caller measured (a job that does not fit even alone would fail the
+///     render, not the policy);
+///  3. otherwise it is serialized, with the arithmetic in `reason`.
+[[nodiscard]] constexpr RenderPolicyDecision decide_render_admission(
+    const RenderPolicyInput& input) {
+    RenderPolicyDecision decision;
+    decision.overlap_requested =
+        input.job_class != RenderJobClass::MonolithicSamePlan;
+
+    if (input.job_peak_vram_bytes > 0 && input.device_total_vram_bytes > 0) {
+        decision.peak_footprints_that_fit = static_cast<std::uint32_t>(
+            input.device_total_vram_bytes / input.job_peak_vram_bytes);
+    }
+
+    if (input.job_class == RenderJobClass::MonolithicSamePlan) {
+        decision.reason =
+            "monolithic same-plan render: the whole timeline is one execution domain";
+        return decision;
+    }
+    if (input.job_peak_vram_bytes == 0) {
+        decision.reason =
+            "no per-job peak was supplied: overlap cannot be charged, so it is refused";
+        return decision;
+    }
+    if (decision.peak_footprints_that_fit < 2U) {
+        decision.reason =
+            "two peak footprints do not fit on the device: overlap would exhaust VRAM";
+        return decision;
+    }
+    if (input.device_free_vram_bytes < input.job_peak_vram_bytes) {
+        decision.reason =
+            "one peak footprint does not fit in the free device memory right now";
+        return decision;
+    }
+    decision.admission = RenderAdmission::ParallelDisjoint;
+    decision.admitted_slots = decision.peak_footprints_that_fit;
+    decision.reason =
+        "disjoint work units with room for a second peak footprint on the device";
+    return decision;
+}
+
+/// The policy input of the reference deployment: the most favourable class (a
+/// disjoint chunk of a plan) charged with the MEASURED 1080p FullGraph peak on
+/// the reference 16 GB device, with the device otherwise free. Charging the
+/// most favourable class means a Serial verdict here is Serial for every
+/// class, which is what makes the derived default below conservative by
+/// construction.
+[[nodiscard]] constexpr RenderPolicyInput reference_device_policy_input() {
+    RenderPolicyInput input;
+    input.job_class = RenderJobClass::ChunkedDisjointSamePlan;
+    input.job_peak_vram_bytes = kMeasuredFullGraphPeakBytes;
+    input.device_total_vram_bytes = kReferenceDeviceVramBytes;
+    input.device_free_vram_bytes = kReferenceDeviceVramBytes;
+    return input;
+}
+
+/// Does the execution domain admit more than one render job on the reference
+/// device? DERIVED from the policy, never restated: `resolve_render_job_slots`
+/// clamps to this and the daemon chooses the lock side from the same verdict.
+inline constexpr bool kRenderJobExecutionSerialized =
+    decide_render_admission(reference_device_policy_input()).admission ==
+    RenderAdmission::Serial;
 
 /// Production target once per-job VRAM pressure allows a second exporter.
 inline constexpr std::uint32_t kTargetConcurrentRenderJobs = 2;
@@ -50,9 +206,15 @@ inline constexpr std::uint32_t kTargetConcurrentRenderJobs = 2;
 /// Upper bound accepted from the environment (mirrors the historical clamp).
 inline constexpr std::uint32_t kMaxConfigurableRenderJobSlots = 8;
 
-/// Escape hatch that lifts the serialization at run time. It exists so the
-/// VRAM decision can be A/B measured on a host with headroom without shipping a
-/// new contract; it is NOT a substitute for the measurement.
+/// Name of the REQUESTED render-job capacity, NOT a lever: it says how many
+/// jobs the operator would like to run, and the resolution below clamps it to
+/// what the execution domain admits (`kSerializedRenderJobSlots`). While
+/// `kRenderJobExecutionSerialized` is true there is no value of this variable
+/// that produces `slots == 2`; the daemon reports the clamp once (see
+/// `advertised_render_job_slots`) and carries on with ONE slot. The VRAM A/B is
+/// measured with `renderinggen/bin/vram-probe -mode two-runtime-pool`, which
+/// owns its daemons and never goes through this mutex — not by exporting this
+/// variable. Lifting the serialization is the code change described above.
 inline constexpr const char* kRenderJobSlotsEnvVar = "CHRONON_RENDER_JOB_SLOTS";
 
 /// Outcome of resolving the requested/effective render-job slots.
@@ -113,6 +275,10 @@ struct RenderConcurrencyResolution {
 //  scales from that observed point; DirectYUV keeps a smaller but still
 //  conservative 1 GB floor.
 //
+//  The observed point is a named constant (`kMeasuredFullGraphPeakBytes`) so
+//  the concurrency policy and this estimator cannot quote two different
+//  numbers for the same measurement.
+//
 //  This is the CALIBRATION FLOOR, not the estimate.  The estimate is
 //  `derive_vram_working_set()` below, which scales the job's own compiled
 //  footprint and takes this calibration as a floor it can never fall under.
@@ -132,7 +298,7 @@ struct RenderConcurrencyResolution {
     // count, clamp to 2 GB minimum so 720p still reserves meaningfully.
     // When a compiled plan is available this path is superseded by the
     // CompiledResourceTable-derived estimate in the media layer.
-    constexpr std::uint64_t kObserved1080pPeak = 8800ULL * 1024ULL * 1024ULL;
+    const std::uint64_t kObserved1080pPeak = kMeasuredFullGraphPeakBytes;
     constexpr std::uint64_t kRefPixels = 1920ULL * 1080ULL;
     const std::uint64_t pixels = static_cast<std::uint64_t>(width) * height;
     const std::uint64_t scaled =

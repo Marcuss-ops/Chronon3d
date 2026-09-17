@@ -145,7 +145,12 @@ struct MuxAvioHashWriter {
     AVHashContext* hash{nullptr};
     std::int64_t position{0};
     std::int64_t append_end{0};
-    bool incremental_valid{true};
+    /// True only while an incremental digest is both REQUESTED and still
+    /// valid. A disabled digest is not "valid but unused": nothing is hashed
+    /// and no invalidation is counted, because a counter that moves for work
+    /// nobody asked for is a lie in the timing sidecar.
+    bool incremental_valid{false};
+    bool checksum_requested{false};
     MuxHashMetrics metrics{};
 
     MuxAvioHashWriter() = default;
@@ -157,18 +162,24 @@ struct MuxAvioHashWriter {
         if (hash) av_hash_freep(&hash);
     }
 
-    [[nodiscard]] bool open(const std::string& path) noexcept {
-        if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
-        av_hash_init(hash);
+    /// `request_checksum` selects whether this writer owns a digest of the
+    /// final file. Off (the exporter lane) the writer is a pure sink: no hash
+    /// context, no invalidation bookkeeping, and no re-read at close.
+    [[nodiscard]] bool open(const std::string& path, bool request_checksum) noexcept {
+        checksum_requested = request_checksum;
+        if (checksum_requested) {
+            if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
+            av_hash_init(hash);
+        }
         if (avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE) < 0 || !sink) return false;
         const auto initial = avio_tell(sink);
         position = initial >= 0 ? initial : 0;
         append_end = position;
-        incremental_valid = true;
+        incremental_valid = checksum_requested;
         return true;
     }
 
-    static int write_packet(void* opaque, const std::uint8_t* buffer,
+    static int write_packet(void* opaque, std::uint8_t* buffer,
                             int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
@@ -217,16 +228,28 @@ struct MuxAvioHashWriter {
                                           std::string& checksum,
                                           bool& used_reread) noexcept {
         try {
-            if (!sink || !hash) return false;
+            if (!sink) return false;
             avio_flush(sink);
             if (sink->error < 0) return false;
 
-            const bool needs_reread = !incremental_valid;
+            const bool needs_reread = checksum_requested && !incremental_valid;
             std::string streaming_checksum;
-            if (!needs_reread && !finish_sha256_hex(hash, streaming_checksum)) return false;
+            if (checksum_requested && !needs_reread &&
+                !finish_sha256_hex(hash, streaming_checksum)) {
+                return false;
+            }
 
             const int close_result = avio_closep(&sink);
             if (close_result < 0) return false;
+
+            if (!checksum_requested) {
+                // No digest was asked for: the file is closed and nothing else
+                // is read. The artifact's digest/verification belongs to the
+                // caller that publishes it (see MuxOpenConfig::checksum).
+                checksum.clear();
+                used_reread = false;
+                return true;
+            }
 
             used_reread = needs_reread;
             if (needs_reread) {
@@ -336,7 +359,16 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         !parent.empty()) std::filesystem::create_directories(parent, ec);
 
     MuxSession mux;
-    if (!mux.open(MuxOpenConfig{request.output_path, video_codec, audio_config}, result.reason)) return result;
+    // This is the caller whose ONLY digest is the mux's: SegmentAssemblyResult
+    // publishes output_checksum as the concatenated artifact's content address,
+    // so it requests the checksum (the exporter lane deliberately does not —
+    // see MuxOpenConfig::checksum).
+    if (!mux.open(MuxOpenConfig{request.output_path, video_codec, audio_config,
+                               /*video_params=*/nullptr, /*video_time_base=*/AVRational{0, 1},
+                               /*checksum=*/true},
+                  result.reason)) {
+        return result;
+    }
 
     std::int64_t video_offset = 0;
     std::int64_t audio_offset = 0;
@@ -480,6 +512,7 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     }
     output_path_ = config.output_path;
     output_checksum_.clear();
+    checksum_enabled_ = config.checksum;
     checksum_used_reread_ = false;
     finalize_attempted_ = false;
     finalized_ = false;
@@ -560,8 +593,8 @@ bool MuxSession::write_header(const std::string& output_path,
     if (!(format_->oformat->flags & AVFMT_NOFILE)) {
         writer_ = std::unique_ptr<MuxAvioHashWriter, void(*)(MuxAvioHashWriter*)>(
             new MuxAvioHashWriter(), delete_writer);
-        if (!writer_->open(output_path)) {
-            reason = "failed to open checksum-aware output";
+        if (!writer_->open(output_path, checksum_enabled_)) {
+            reason = "failed to open output sink";
             writer_.reset();
             return false;
         }

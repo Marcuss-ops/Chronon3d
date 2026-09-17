@@ -113,6 +113,24 @@ struct MuxOpenConfig {
     std::optional<AudioStreamConfig> audio{};
     const AVCodecParameters* video_params{nullptr}; ///< borrowed, not owned
     AVRational video_time_base{0, 1};
+    /// Request the SHA-256 of the final file bytes.
+    ///
+    /// DEFAULT OFF, because it is a cost the caller must be able to justify:
+    /// a seekable container backpatches metadata (MP4 patches the `mdat` size
+    /// near the START of the file after the payload is written), so the
+    /// append-only hash is invalidated and the checksum can only be produced by
+    /// re-reading the whole file — an extra O(file) pass per artifact.
+    ///
+    /// Who may justify it: a caller whose ONLY digest is this one
+    /// (`assemble_segments`, whose result carries the concatenated artifact's
+    /// checksum). Who must NOT: the exporter/container lane, whose published
+    /// artifact digest is produced by the output-contract verification
+    /// (`media::video::verify_output_contract` -> PipeExportResult::sha256), a
+    /// mandatory pass over the same file. That lane used to pay for a digest
+    /// nothing read and then pay twice more: measured on a real render,
+    /// `full_file_reread_count=1` and `final_reread_bytes` equal to the whole
+    /// artifact size. One owner per digest.
+    bool checksum{false};
 };
 
 struct SegmentAssemblyRequest {
@@ -210,7 +228,12 @@ public:
     [[nodiscard]] double audio_write_ms() const noexcept { return audio_write_ms_; }
     [[nodiscard]] double trailer_ms() const noexcept { return trailer_ms_; }
     [[nodiscard]] bool has_audio() const noexcept { return audio_stream_ != nullptr; }
+    /// Empty unless MuxOpenConfig::checksum was requested: there is no digest
+    /// to publish when the caller did not ask for one (the exporter lane's
+    /// digest is owned by the output-contract verification).
     [[nodiscard]] std::string_view output_checksum() const noexcept { return output_checksum_; }
+    /// True only when a requested checksum had to re-read the final file.
+    [[nodiscard]] bool checksum_requested() const noexcept { return checksum_enabled_; }
     [[nodiscard]] bool checksum_used_reread() const noexcept { return checksum_used_reread_; }
     [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept;
 
@@ -239,6 +262,7 @@ private:
     std::string output_checksum_;
     /// P0-5E — container tick a BORROWED producer's output starts at.
     std::int64_t video_origin_{0};
+    bool checksum_enabled_{false};
     bool checksum_used_reread_{false};
     bool finalize_attempted_{false};
     bool finalized_{false};

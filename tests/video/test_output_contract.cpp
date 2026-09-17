@@ -119,17 +119,23 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
     }
     REQUIRE(mux.finalize());
 
+    // The mux digest is OPT-IN (MuxOpenConfig::checksum) and this session did
+    // not ask for it, so no digest was produced and nothing was read back.
+    // That is the contract of the exporter/container lane: its published
+    // artifact digest belongs to the output-contract verification
+    // (verify_output_contract -> sha256), which is a mandatory pass over the
+    // same file. Paying for a second, unread digest cost a full re-read of
+    // every artifact on a seekable container — measured live as
+    // full_file_reread_count=1 with final_reread_bytes equal to the whole file.
     const auto hash_metrics = mux.hash_metrics();
     CHECK(hash_metrics.output_write_bytes > 0);
     CHECK(hash_metrics.output_seek_count > 0);
     CHECK(hash_metrics.output_overwrite_bytes > 0);
-    CHECK(hash_metrics.incremental_hash_invalidations == 1);
-    if (mux.checksum_used_reread()) {
-        CHECK(hash_metrics.final_reread_bytes ==
-              static_cast<std::uint64_t>(std::filesystem::file_size(artifact)));
-    } else {
-        CHECK(hash_metrics.final_reread_bytes == 0);
-    }
+    CHECK_FALSE(mux.checksum_requested());
+    CHECK(mux.output_checksum().empty());
+    CHECK_FALSE(mux.checksum_used_reread());
+    CHECK(hash_metrics.incremental_hash_invalidations == 0);
+    CHECK(hash_metrics.final_reread_bytes == 0);
 
     AVFormatContext* input = nullptr;
     REQUIRE(avformat_open_input(&input, artifact.c_str(), nullptr, nullptr) >= 0);
@@ -171,6 +177,58 @@ TEST_CASE("MuxSession A/V smoke test keeps streams and timestamps coherent") {
 
     CHECK(last_video >= 0);
     CHECK(last_audio >= 0);
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+// The opt-in side of the same contract, so the two cannot drift apart: a
+// caller that ASKS for the digest gets the digest of the final bytes, and pays
+// the documented seek/backpatch reread for them (MP4 patches the mdat size near
+// the start of the file after the payload, which an append-only hash cannot
+// survive). `assemble_segments` is that caller.
+TEST_CASE("MuxSession checksum is opt-in and authoritative when requested") {
+    const auto artifact = temp_path("checksum_optin.mp4");
+    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
+    REQUIRE(video_codec != nullptr);
+    video_codec->codec_type = AVMEDIA_TYPE_VIDEO;
+    video_codec->codec_id = AV_CODEC_ID_MPEG4;
+    video_codec->width = 32;
+    video_codec->height = 32;
+    video_codec->pix_fmt = AV_PIX_FMT_YUV420P;
+    video_codec->time_base = AVRational{1, 10};
+
+    chronon3d::media::MuxSession mux;
+    std::string reason;
+    REQUIRE(mux.open(chronon3d::media::MuxOpenConfig{
+        .output_path = artifact,
+        .video_codec = video_codec,
+        .checksum = true}, reason));
+
+    for (int64_t pts = 0; pts < 10; ++pts) {
+        auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+        REQUIRE(owned != nullptr);
+        REQUIRE(av_new_packet(owned.get(), 4) >= 0);
+        owned->pts = pts;
+        owned->dts = pts;
+        owned->duration = 1;
+        REQUIRE(mux.submit_video(chronon3d::media::EncodedPacket{
+            std::move(owned), AVRational{1, 10}, pts == 0}));
+    }
+    REQUIRE(mux.finalize());
+
+    CHECK(mux.checksum_requested());
+    const auto hash_metrics = mux.hash_metrics();
+    // The requested digest must be the digest of the bytes on disk: that is the
+    // whole point of the fallback, and it is why the caller must justify it.
+    const auto expected = chronon3d::assets::sha256_file(artifact);
+    REQUIRE(expected.has_value());
+    CHECK(mux.output_checksum() == expected->hex());
+    CHECK(mux.checksum_used_reread());
+    CHECK(hash_metrics.incremental_hash_invalidations == 1);
+    CHECK(hash_metrics.final_reread_bytes ==
+          static_cast<std::uint64_t>(std::filesystem::file_size(artifact)));
+
+    avcodec_free_context(&video_codec);
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
 }
