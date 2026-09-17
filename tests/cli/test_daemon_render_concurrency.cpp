@@ -25,8 +25,17 @@ using chronon3d::cli::estimate_peak_vram_bytes;
 using chronon3d::cli::kDefaultFrameRingDepth;
 using chronon3d::cli::reconcile_vram_working_set;
 using chronon3d::cli::VramReconciliation;
+using chronon3d::cli::decide_render_admission;
+using chronon3d::cli::kDefaultRenderJobClass;
 using chronon3d::cli::kMaxConfigurableRenderJobSlots;
+using chronon3d::cli::kMeasuredFullGraphPeakBytes;
+using chronon3d::cli::kReferenceDeviceVramBytes;
 using chronon3d::cli::kRenderJobExecutionSerialized;
+using chronon3d::cli::reference_device_policy_input;
+using chronon3d::cli::RenderAdmission;
+using chronon3d::cli::RenderJobClass;
+using chronon3d::cli::RenderPolicyInput;
+using chronon3d::cli::RenderPolicyDecision;
 using chronon3d::cli::kSerializedRenderJobSlots;
 using chronon3d::cli::kTargetConcurrentRenderJobs;
 using chronon3d::cli::resolve_device_requirements;
@@ -35,6 +44,18 @@ using chronon3d::cli::resolve_render_job_slots;
 // The mutex is held for the whole job: one holder means one slot.
 static_assert(kSerializedRenderJobSlots == 1U,
               "a single execution-domain mutex admits exactly one render job");
+
+namespace {
+
+constexpr std::uint64_t kGiB = 1024ULL * 1024ULL * 1024ULL;
+// The RECORDED measurement, kept as an independent witness: the header declares
+// the peak once (shared by the VRAM estimator and the concurrency policy) and
+// the case below pins that declaration to this number, so a silent edit to the
+// constant cannot quietly redefine what was measured.
+constexpr std::uint64_t kObserved1080pPeak = 8800ULL * 1024ULL * 1024ULL;
+constexpr std::uint64_t kDevice16GiB = 16ULL * kGiB;
+
+} // namespace
 
 TEST_CASE("render concurrency: an unset override advertises the serialized limit") {
     for (const char* env : std::array<const char*, 2>{nullptr, ""}) {
@@ -84,6 +105,123 @@ TEST_CASE("render concurrency: the advertised capacity is bounded by the executi
 }
 
 // ---------------------------------------------------------------------------
+// Concurrency POLICY (S4).
+//
+// "Serialized" is not a bool with a comment any more, it is the verdict of
+// decide_render_admission() over a measured device. These cases pin three
+// things: which class may NEVER overlap (whatever the card), that the reference
+// 16 GB device refuses overlap for EVERY class with the arithmetic as the
+// reason, and that the refusal is a consequence of the numbers rather than a
+// hardcoded answer — a device with room flips the verdict.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("concurrency policy: a monolithic render is one execution domain on every device") {
+    const std::array<std::uint64_t, 4> devices{
+        8ULL * kGiB, kDevice16GiB, 48ULL * kGiB, 80ULL * kGiB};
+    for (const auto total : devices) {
+        const auto decision = decide_render_admission(RenderPolicyInput{
+            .job_class = RenderJobClass::MonolithicSamePlan,
+            .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+            .device_total_vram_bytes = total,
+            .device_free_vram_bytes = total,
+        });
+        CHECK(decision.admission == RenderAdmission::Serial);
+        CHECK(decision.admitted_slots == kSerializedRenderJobSlots);
+        CHECK_FALSE(decision.overlap_requested);
+        CHECK(std::string(decision.reason).find("monolithic") != std::string::npos);
+    }
+}
+
+TEST_CASE("concurrency policy: the reference device refuses overlap for every class, with the reason") {
+    for (const auto job_class : {RenderJobClass::MonolithicSamePlan,
+                                 RenderJobClass::ChunkedDisjointSamePlan,
+                                 RenderJobClass::DifferentPlan}) {
+        const auto decision = decide_render_admission(RenderPolicyInput{
+            .job_class = job_class,
+            .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+            .device_total_vram_bytes = kReferenceDeviceVramBytes,
+            .device_free_vram_bytes = kReferenceDeviceVramBytes,
+        });
+        CHECK(decision.admission == RenderAdmission::Serial);
+        CHECK(decision.peak_footprints_that_fit == 1U);
+        // Every refusal names its cause; the classes that were REFUSED ON
+        // MEMORY must name the memory, while a monolithic render is refused
+        // for a reason no card can change.
+        CHECK_FALSE(std::string(decision.reason).empty());
+        if (job_class != RenderJobClass::MonolithicSamePlan) {
+            CHECK(std::string(decision.reason).find("VRAM") != std::string::npos);
+        } else {
+            CHECK(std::string(decision.reason).find("execution domain") != std::string::npos);
+        }
+    }
+}
+
+TEST_CASE("concurrency policy: a device with room flips the verdict for disjoint work only") {
+    const std::uint64_t big_device = 8ULL * kMeasuredFullGraphPeakBytes;
+    const auto chunked = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::ChunkedDisjointSamePlan,
+        .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+        .device_total_vram_bytes = big_device,
+        .device_free_vram_bytes = big_device,
+    });
+    CHECK(chunked.admission == RenderAdmission::ParallelDisjoint);
+    CHECK(chunked.admitted_slots >= 2U);
+    CHECK(chunked.overlap_requested);
+
+    const auto different = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::DifferentPlan,
+        .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+        .device_total_vram_bytes = big_device,
+        .device_free_vram_bytes = big_device,
+    });
+    CHECK(different.admission == RenderAdmission::ParallelDisjoint);
+
+    // ... and a monolithic render on the SAME device stays exclusive: the
+    // card is not what makes a whole timeline splittable.
+    const auto monolithic = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::MonolithicSamePlan,
+        .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+        .device_total_vram_bytes = big_device,
+        .device_free_vram_bytes = big_device,
+    });
+    CHECK(monolithic.admission == RenderAdmission::Serial);
+}
+
+TEST_CASE("concurrency policy: overlap is refused when the free memory cannot hold one job") {
+    // Fitting twice on paper is not enough: the free memory the caller measured
+    // must hold one full peak right now.
+    const auto decision = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::ChunkedDisjointSamePlan,
+        .job_peak_vram_bytes = kMeasuredFullGraphPeakBytes,
+        .device_total_vram_bytes = 4ULL * kMeasuredFullGraphPeakBytes,
+        .device_free_vram_bytes = kMeasuredFullGraphPeakBytes / 2ULL,
+    });
+    CHECK(decision.admission == RenderAdmission::Serial);
+    CHECK(std::string(decision.reason).find("free device memory") != std::string::npos);
+}
+
+TEST_CASE("concurrency policy: an unknown peak is refused, never assumed small") {
+    const auto decision = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::ChunkedDisjointSamePlan,
+        .job_peak_vram_bytes = 0,
+        .device_total_vram_bytes = kReferenceDeviceVramBytes,
+        .device_free_vram_bytes = kReferenceDeviceVramBytes,
+    });
+    CHECK(decision.admission == RenderAdmission::Serial);
+    CHECK(decision.peak_footprints_that_fit == 0U);
+}
+
+TEST_CASE("concurrency policy: the derived execution-domain flag agrees with the policy") {
+    // One authority: the flag the slot resolution clamps with is the verdict of
+    // the policy over the reference device, so a change to one is a change to
+    // the other.
+    const bool policy_serial = decide_render_admission(reference_device_policy_input()).admission ==
+                               RenderAdmission::Serial;
+    CHECK(kRenderJobExecutionSerialized == policy_serial);
+    CHECK(kDefaultRenderJobClass == RenderJobClass::MonolithicSamePlan);
+}
+
+// ---------------------------------------------------------------------------
 // VRAM admission truth (P0-2).
 //
 // The admission estimator used to return ~1 GB for a 1080p FullGraph while the
@@ -95,13 +233,11 @@ TEST_CASE("render concurrency: the advertised capacity is bounded by the executi
 
 namespace {
 
-constexpr std::uint64_t kGiB = 1024ULL * 1024ULL * 1024ULL;
-constexpr std::uint64_t kObserved1080pPeak = 8800ULL * 1024ULL * 1024ULL;
-constexpr std::uint64_t kDevice16GiB = 16ULL * kGiB;
-
 } // namespace
 
 TEST_CASE("vram estimate: 1080p FullGraph reflects the observed peak, not the rejected 1 GB model") {
+    // The single declared peak must still be the measured one.
+    CHECK(kMeasuredFullGraphPeakBytes == kObserved1080pPeak);
     const auto vram = estimate_peak_vram_bytes(1920, 1080, false, true);
     CHECK(vram >= kObserved1080pPeak);
     // The rejected model clamped to 1 GB; anything near it means admission is

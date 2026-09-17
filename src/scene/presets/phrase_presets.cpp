@@ -44,7 +44,9 @@ MotionObject make_phrase(PhrasePreset preset, PhraseParams p) {
 
     case PhrasePreset::TypewriterCaption: {
         auto title = detail::make_title_text("title", p, MotionPreset::None, {0.0f, -10.0f, 2.0f}, p.title_size);
-        motion::perspective_sweep_text_reveal(title);
+        // This preset is a true character reveal; the perspective reveal is
+        // intentionally reserved for the dedicated cinematic motion preset.
+        title.preset(MotionPreset::TypewriterReveal);
         return b.panel("bg", MotionPreset::FadeIn)
                 .add(std::move(title))
                 .subtitle("subtitle", MotionPreset::FadeIn, {0.0f, 74.0f, 2.0f}, p.subtitle_size)

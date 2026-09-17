@@ -165,9 +165,19 @@ private:
     // A daemon owns one Vulkan/CUDA device context. Video RENDER_JOB creates
     // a job-scoped exporter/backend, so admitting multiple jobs concurrently
     // multiplies full-frame native surfaces until the device memory budget is
-    // exhausted. Keep ingress concurrent for STATUS/PREFETCH, but serialize
-    // the actual GPU job domain at this owner boundary. This is the same
+    // exhausted. Keep ingress concurrent for STATUS/PREFETCH, but gate the
+    // actual GPU job domain at this owner boundary. This is the same
     // single-lane contract exposed by RenderingGen's gpu_lanes=1 setting.
+    //
+    // This mutex IS the execution domain, and the concurrency policy
+    // (daemon_render_concurrency.hpp `decide_render_admission`) is what says so:
+    // every job the daemon admits must carry a SERIAL verdict, and the job path
+    // refuses to run one that does not (the one-job domain cannot honour an
+    // overlap verdict). The verdict is data — it names the job class, charges
+    // the measured per-job peak against the device, and reports the reason — so
+    // the day a producer submits a disjoint chunk class, that refusal is the
+    // signal that this boundary must change with it, instead of a silent
+    // serialization nobody can explain.
     mutable std::mutex m_render_job_mutex;
     // Dynamic VRAM-credit admission domain for RENDER_JOB.
     // Concurrency is governed dynamically by DeviceScheduler based on

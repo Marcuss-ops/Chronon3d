@@ -8,6 +8,7 @@
 
 #include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content declarations
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/text_unicode_utils.hpp>
 
 #include <utility>
 #include <vector>
@@ -54,6 +55,23 @@ static std::vector<size_t> reference_overlapping_clusters(
 }
 
 // ── Test: LTR one-to-one mapping ──────────────────────────────────────────
+TEST_CASE("typewriter reveal boundaries never split UTF-8 grapheme clusters") {
+    using chronon3d::detail::grapheme_byte_offset_at;
+    using chronon3d::detail::grapheme_cluster_count;
+
+    const std::string text = "Aé e\u0301 👨‍👩‍👧‍👦 🇮🇹";
+    REQUIRE(grapheme_cluster_count(text) == 8);
+
+    size_t previous = 0;
+    for (size_t cluster = 1; cluster <= grapheme_cluster_count(text); ++cluster) {
+        const size_t boundary = grapheme_byte_offset_at(text, cluster);
+        CHECK(boundary > previous);
+        CHECK(boundary <= text.size());
+        previous = boundary;
+    }
+    CHECK(previous == text.size());
+}
+
 TEST_CASE("typewriter cluster window: LTR one-to-one") {
     auto clusters = make_clusters({{0, 1}, {1, 1}, {2, 1}, {3, 1}});
     size_t first_cl = 0;

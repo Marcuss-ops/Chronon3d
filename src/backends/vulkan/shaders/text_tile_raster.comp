@@ -98,6 +98,30 @@ float median3(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
 }
 
+// Fractional (bilinear) atlas tap for the prepared-glyph path.
+//
+// The sample coordinate `texel` is in texel-centre space (integer == the
+// centre of that texel), derived from the glyph-local uv.  The tap is clamped
+// to the glyph's OWN atlas rect with half-texel discipline: the second tap is
+// pinned to the last in-rect texel and the coordinate itself is clamped to
+// [0, size-1], so a filter kernel can never read the neighbouring glyph that
+// shares the page, and never samples outside the rect's first/last centre.
+// The atlas holds an MTSDF (or premultiplied RGBA) payload whose padding
+// already covers the rect interior; the clamp is what makes the fractional
+// read safe, not an assumption about the neighbour.
+vec4 atlas_tap_bilinear(ivec2 rect_origin, int rect_w, int rect_h, vec2 texel) {
+    const vec2 max_texel = vec2(float(rect_w) - 1.0, float(rect_h) - 1.0);
+    texel = clamp(texel, vec2(0.0), max_texel);
+    const ivec2 i0 = ivec2(floor(texel));
+    const ivec2 i1 = min(i0 + ivec2(1), ivec2(rect_w - 1, rect_h - 1));
+    const vec2 f = texel - vec2(i0);
+    const vec4 c00 = imageLoad(atlas_image, rect_origin + ivec2(i0.x, i0.y));
+    const vec4 c10 = imageLoad(atlas_image, rect_origin + ivec2(i1.x, i0.y));
+    const vec4 c01 = imageLoad(atlas_image, rect_origin + ivec2(i0.x, i1.y));
+    const vec4 c11 = imageLoad(atlas_image, rect_origin + ivec2(i1.x, i1.y));
+    return mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+}
+
 vec4 unpack_color(uint c) {
     float a = float((c >> 24) & 0xFFu) / 255.0;
     float b = float((c >> 16) & 0xFFu) / 255.0;
@@ -183,14 +207,40 @@ void main() {
 
         uint flags = (glyph.atlas_page_and_flags >> 16u) & 0xFFFFu;
         bool mtsdf = (flags & 1u) != 0u;
+        // Plane placement is the prepared-run path (MTSDF payload, or a
+        // coverage payload driven through the prepared plane).  It is the only
+        // path that carries the full glyph rect, and therefore the only path
+        // that can be sampled fractionally under a half-texel clamp.
+        bool plane_placement = mtsdf || (run.flags & 1u) != 0u;
         bool inside = false;
         ivec2 sample_offset = ivec2(0);
         vec2 glyph_uv = vec2(0.0);
+        // Fractional texel-centre coordinate inside the glyph's atlas rect.
+        vec2 glyph_texel = vec2(0.0);
+        // Screen-space coverage factors, both derived from the SAME plane
+        // geometry so they cannot drift apart:
+        //   texel_to_screen — destination pixels covered by one em-texel.  The
+        //     plane spans `plane_w` layout units for `atlas_w` texels (their
+        //     ratio IS the layout scale, font size / em_px), which the run's
+        //     model matrix maps to destination pixels by |sx|.  This is the
+        //     factor the distance field must be scaled by: it makes the
+        //     analytic anti-aliasing ramp exactly one destination pixel wide
+        //     at any font size (magnified or minified) instead of only at the
+        //     canonical 64 px em.
+        //   local_to_screen — destination pixels covered by one layout unit.
+        //     Authored paint-space quantities (blur, stroke width) live here,
+        //     not in texels.
+        float texel_to_screen = 1.0;
+        float local_to_screen = 1.0;
 
-        if (mtsdf || (run.flags & 1u) != 0u) {
+        if (plane_placement) {
             float plane_w = glyph.plane_right - glyph.plane_left;
             float plane_h = glyph.plane_bottom - glyph.plane_top;
             if (plane_w <= 0.0 || plane_h <= 0.0) continue;
+            local_to_screen = 0.5 * (abs(run.sx) + abs(run.sy));
+            texel_to_screen = 0.5 *
+                (abs(run.sx) * plane_w / float(atlas_w) +
+                 abs(run.sy) * plane_h / float(atlas_h));
 
             vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
             float tracking = glyph_dynamic[gid].tracking_prefix;
@@ -207,6 +257,11 @@ void main() {
             if (inside) {
                 glyph_uv = (local - vec2(glyph.plane_left, glyph.plane_top)) /
                            vec2(plane_w, plane_h);
+                // Texel-centre space: texel i owns uv in [i, i+1)/size and is
+                // centred at (i+0.5)/size, so the continuous index is
+                // uv*size - 0.5.
+                glyph_texel = glyph_uv * vec2(float(atlas_w), float(atlas_h)) -
+                              vec2(0.5);
                 sample_offset = ivec2(floor(glyph_uv *
                                              vec2(float(atlas_w), float(atlas_h))));
             }
@@ -224,23 +279,26 @@ void main() {
         }
 
         if (!inside) continue;
-        sample_offset = clamp(sample_offset, ivec2(0),
-                              ivec2(int(atlas_w) - 1, int(atlas_h) - 1));
-        ivec2 atlas_coord = ivec2(int(atlas_x), int(atlas_y)) + sample_offset;
-        vec4 sample_value = imageLoad(atlas_image, atlas_coord);
+        const ivec2 atlas_origin = ivec2(int(atlas_x), int(atlas_y));
+        // The prepared path reads FRACTIONALLY; the compatibility
+        // bitmap-origin path keeps its nearest read and its own clamp.
+        vec4 sample_value = plane_placement
+            ? atlas_tap_bilinear(atlas_origin, int(atlas_w), int(atlas_h), glyph_texel)
+            : imageLoad(atlas_image, atlas_origin +
+                        clamp(sample_offset, ivec2(0),
+                              ivec2(int(atlas_w) - 1, int(atlas_h) - 1)));
 
         vec4 src;
         if (mtsdf) {
             float msd = median3(sample_value.r, sample_value.g, sample_value.b);
             float distance_range = uintBitsToFloat(run.distance_range_bits);
             if (!(distance_range > 0.0)) distance_range = 8.0;
-            float screen_scale = 0.5 * (abs(run.sx) + abs(run.sy));
             float glyph_blur = max(run.animator_blur * reveal_weight, 0.0);
-            float fill_alpha = clamp((msd - 0.5) * distance_range * screen_scale +
+            float fill_alpha = clamp((msd - 0.5) * distance_range * texel_to_screen +
                                      0.5, 0.0, 1.0);
             if (glyph_blur > 0.0) {
-                float softness = max(glyph_blur * screen_scale, 1.0);
-                fill_alpha = clamp(0.5 + ((msd - 0.5) * distance_range * screen_scale) /
+                float softness = max(glyph_blur * local_to_screen, 1.0);
+                fill_alpha = clamp(0.5 + ((msd - 0.5) * distance_range * texel_to_screen) /
                                    softness, 0.0, 1.0);
             }
             src = vec4(0.0);
@@ -251,13 +309,10 @@ void main() {
                          run.shadow_dy / (glyph.plane_bottom - glyph.plane_top));
                 if (all(greaterThanEqual(shadow_uv, vec2(0.0))) &&
                     all(lessThan(shadow_uv, vec2(1.0)))) {
-                    ivec2 shadow_offset = ivec2(floor(
-                        shadow_uv * vec2(float(atlas_w), float(atlas_h))));
-                    shadow_offset = clamp(shadow_offset, ivec2(0),
-                                          ivec2(int(atlas_w) - 1,
-                                               int(atlas_h) - 1));
-                    vec4 shadow_sample = imageLoad(
-                        atlas_image, ivec2(int(atlas_x), int(atlas_y)) + shadow_offset);
+                    vec2 shadow_texel =
+                        shadow_uv * vec2(float(atlas_w), float(atlas_h)) - vec2(0.5);
+                    vec4 shadow_sample = atlas_tap_bilinear(
+                        atlas_origin, int(atlas_w), int(atlas_h), shadow_texel);
                     // Use the same median signed-distance coverage as the
                     // fill.  The alpha lane is a useful true-distance
                     // diagnostic, but using it for the effect path makes the
@@ -273,10 +328,13 @@ void main() {
                     float shadow_msd = median3(
                         shadow_sample.r, shadow_sample.g, shadow_sample.b);
                     float shadow_distance_px =
-                        (shadow_msd - 0.5) * distance_range * screen_scale;
+                        (shadow_msd - 0.5) * distance_range * texel_to_screen;
+                    // The authored blur is a paint-space width, while the cap
+                    // is the field's own representable softness: fewer than
+                    // 0.75 of the encoded range, expressed in screen pixels.
                     float shadow_softness_px = clamp(
-                        run.shadow_blur * screen_scale,
-                        0.0, max(distance_range * 0.75, 0.0));
+                        run.shadow_blur * local_to_screen,
+                        0.0, max(distance_range * 0.75 * texel_to_screen, 0.0));
                     // MTSDF encodes distances beyond its range at the
                     // 0.0 endpoint.  Treating that endpoint as a blurred
                     // edge makes the entire padded atlas rectangle opaque
@@ -295,9 +353,13 @@ void main() {
                 }
             }
             if ((run.effect_flags & 1u) != 0u) {
+                // Field distance and authored stroke width are converted from
+                // their own spaces into destination pixels before they are
+                // compared, instead of scaling both by one factor that can
+                // only be right for one of them.
                 float stroke_alpha = clamp(
-                    ((sample_value.a - 0.5) * distance_range + run.stroke_width) *
-                    screen_scale + 0.5, 0.0, 1.0);
+                    (sample_value.a - 0.5) * distance_range * texel_to_screen +
+                    run.stroke_width * local_to_screen + 0.5, 0.0, 1.0);
                 vec4 stroke = unpack_color(run.stroke_color) * stroke_alpha;
                 stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);

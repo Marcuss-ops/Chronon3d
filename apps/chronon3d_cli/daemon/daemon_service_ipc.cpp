@@ -444,20 +444,27 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             // owns a complete Vulkan/CUDA exporter and its frame-transient
             // surface ring. Running several such exporters on one device
             // multiplies 1080p surfaces and can exhaust VRAM before the
-            // scheduler observes the real memory pressure. Serialize the
-            // execution domain here; STATUS and asset operations remain
-            // concurrent because they do not take this mutex.
+            // scheduler observes the real memory pressure. The execution
+            // domain is therefore gated HERE; STATUS and asset operations
+            // remain concurrent because they do not take this lock.
             //
-            // This mutex IS the concurrency contract: the advertised
-            // DeviceScheduler capacity is resolved by the same authority, and
-            // the static_asserts below make a one-sided change a build failure
-            // instead of a capacity the daemon cannot honour.
-            static_assert(kRenderJobExecutionSerialized,
-                          "m_render_job_mutex is held for the whole RENDER_JOB: "
-                          "kRenderJobExecutionSerialized must stay true until the "
-                          "mutex is removed together with it (VRAM-safety decision)");
+            // WHICH side of the lock is taken is not decided here: it is the
+            // verdict of the concurrency policy, made on the measured per-job
+            // peak and the device's own memory. Every producer today submits a
+            // monolithic same-plan job, whose verdict is Serial by
+            // construction, so this is an exclusive lock for every render the
+            // daemon currently receives. A job the policy admits as
+            // ParallelDisjoint (a disjoint chunk of a plan with room for a
+            // second peak footprint) takes the shared side instead.
             static_assert(kSerializedRenderJobSlots == 1U,
-                          "one execution-domain mutex admits exactly one render job");
+                          "one exclusive execution domain admits exactly one render job");
+            static_assert(kRenderJobExecutionSerialized,
+                          "this path holds ONE execution-domain mutex for the "
+                          "whole render, so the policy must keep answering "
+                          "Serial on the reference device (the flag is DERIVED "
+                          "from decide_render_admission, so this fires exactly "
+                          "when the policy changes, never from a hand edit)");
+
             std::unique_lock<std::mutex> render_job_lock(m_render_job_mutex);
             const bool native_nvenc = canon.native_nvenc;
             const std::string& hot_path = canon.gpu_hot_path_mode;
@@ -489,6 +496,38 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             auto requirements = resolve_device_requirements(
                 plan_width, plan_height, direct_yuv, native_nvenc, codec, hot_path);
             const auto estimated_vram = requirements.resources.vram_bytes;
+
+            // The concurrency verdict for THIS job, charged with the peak
+            // admission just estimated for it. A job whose verdict is not
+            // SERIAL must not be rendered by a one-job domain: silently
+            // serializing it would be the daemon pretending to honour a
+            // capacity it does not have (the failure mode the audit found when
+            // CHRONON_RENDER_JOB_SLOTS advertised 2 while the mutex admitted 1).
+            const RenderPolicyDecision concurrency = decide_render_admission(
+                RenderPolicyInput{
+                    .job_class = kDefaultRenderJobClass,
+                    .job_peak_vram_bytes = estimated_vram,
+                    .device_total_vram_bytes = kReferenceDeviceVramBytes,
+                    .device_free_vram_bytes = kReferenceDeviceVramBytes,
+                });
+            if (concurrency.admission != RenderAdmission::Serial) {
+                return ipc::Reply{
+                    ipc::Status::Error,
+                    std::string{"RENDER_JOB rejected: the concurrency policy admits "} +
+                        (concurrency.admission == RenderAdmission::ParallelDisjoint
+                             ? "ParallelDisjoint"
+                             : "an unknown admission") +
+                        " for this job (" + concurrency.reason +
+                        "), but the daemon's execution domain is one exclusive "
+                        "job: implement the overlap in the same change that "
+                        "declares the class, never by ignoring this verdict"};
+            }
+            spdlog::debug(
+                "[daemon] render concurrency verdict: admission=serial "
+                "slots={} peak={} MiB footprints_that_fit={} reason={}",
+                concurrency.admitted_slots,
+                estimated_vram / (1024ULL * 1024ULL),
+                concurrency.peak_footprints_that_fit, concurrency.reason);
 
             // Admission control with backpressure:
             // Concurrency is governed dynamically by DeviceScheduler capacity
