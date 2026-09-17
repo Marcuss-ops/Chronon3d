@@ -809,7 +809,8 @@ chronon3d_backend_registry_tests             59/59   PASS (era 50/59, vedi sotto
 chronon3d_cli_tests                         197/197  PASS (3690/3690 assertion,
    inclusi i casi GOP P0-5A/5B/5C/5D/5E/5F e il nuovo test_copy_lane_coverage)
 chronon3d_native_decoder_tests                3/4     (1 rosso: heap corruption, sotto)
-chronon3d_text_tile_raster_canary_tests      65/78    (13 assertion di pixel, sotto)
+chronon3d_text_tile_raster_canary_tests      78/78   PASS (era 65/78: binario stantio,
+   non un difetto GPU — vedi docs/evidence/text-tile-canary-2026-09-16.md)
 ```
 
 ### Due fix atterrati in questa sessione
@@ -852,5 +853,5 @@ richiede un piano con sorgente video. Numeri in
 |---|---|---|
 | `chronon3d_native_decoder_tests`: `NativeVideoFrameDecoder decodes independent sources concurrently` | **ROSSO — heap corruption** | Backtrace: `corrupted size vs. prev_size while consolidating` dentro `avformat_close_input` chiamato da `NativeVideoFrameDecoder::Session::~Session` (`native_video_frame_decoder_session.cpp:67`); la corruzione è precedente e glibc la rileva al primo `free`. Il trace sessione (`CHRONON_DECODE_TRACE=1`) mostra le sessioni `a.y4m`, `b.y4m` (concorrenti) e `multi.y4m` (sequenziale, 2 campioni) aperte prima dell'abort. Serve una lane ASAN (o valgrind) su questo singolo target: glibc non dice *dove* è avvenuta la scrittura. Ipotesi da provare per prime: (a) fixture 2×2 + `enable_swscale=true` (caso limite di stride/align), (b) concorrenza sullo stato di sessione |
 | `chronon3d_native_decoder_tests`: `CUDA-interop decode surface is Rgba32Float…` | **FIXED (harness)** | L'assertion si aspettava `LifetimeClass::FrameTransient`, ma l'unico consumatore di produzione di quel desc (`vulkan_cuda_frame_importer.cpp`) tiene un **ring di slot** di surface importate riusate tra frame e le rilascia solo invalidando lo slot → `JobPersistent`. Assertion allineata al contratto con la motivazione nel test |
-| `chronon3d_text_tile_raster_canary_tests` | **ROSSO — riprodotto identico** | 13 assertion (full/half/mtsdf + `counts[*] >= 1`): il dispatch compute non scrive. Il canary non usa `VulkanBackend`/surface authority (SPIR-V raw), coerente con la diagnosi già a ticket: da diagnosticare su driver/GPU, non correlato a questo change set |
+| `chronon3d_text_tile_raster_canary_tests` | **FIXED 2026-09-16 — 78/78** | Il rosso era un **binario stantio**, non un contratto rotto: il `.ninja_log` della lane data l'ultima build del target alle 07:00 UTC, mentre l'ABI fix `5b59cfd48` atterra alle 16:33 UTC, e il target era escluso da ogni gate (quindi non ricostruito). Ricostruito dallo stesso albero: 78/78, 0 failed, 0 skipped su 3 run. Evidenza [`../evidence/text-tile-canary-2026-09-16.md`](../evidence/text-tile-canary-2026-09-16.md); gate GPU/WBH `tools/verify_text_tile_gpu_canary.sh` |
 | Gate `steady_state_allocations` revision | **mismatch dichiarato** | `steady_state_allocations_per_frame=0.0` PASS, ma il report è pinnato a `revision=8bdf0f807` e `revision_state=mismatch` sull'albero corrente: il baseline va ri-pinnato alla revisione corrente quando la campagna Stage 1-5 chiude |

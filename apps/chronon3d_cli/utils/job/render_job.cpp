@@ -5,6 +5,9 @@
 // ONE sink vocabulary: the output lane is selected from the sink intent, so
 // this translation unit asks the same authority the --video-sink checker uses.
 #include "../../commands/video/common/sink_options.hpp"
+// ONE pixel-truth authority: the lane selected below is announced through the
+// same header the `render --plan` route uses (TICKET-IMAGE-PATH-PIXEL-TRUTH).
+#include "output_lane_pixel_truth.hpp"
 
 #include <chronon3d/media/video/video_config.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -152,6 +155,9 @@ std::optional<RenderRequest> make_render_request(
         request.first_frame = Frame{range.start};
         request.last_frame = Frame{range.end};
     }
+    // The image lane is declared, not silently accepted: a still/sequence
+    // render cannot certify what the renderer composed.
+    pixel_truth::announce_lane(request.mode);
 
     request.execution.log_level = args.log_level;
     request.execution.benchmark_all = args.benchmark_all;

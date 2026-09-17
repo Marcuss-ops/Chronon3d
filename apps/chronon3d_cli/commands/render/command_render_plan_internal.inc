@@ -277,6 +277,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
         }
+        // Same pixel-truth authority as the direct `render` route: the plan
+        // route announces the lane it just chose (TICKET-IMAGE-PATH-PIXEL-TRUTH).
+        pixel_truth::announce_lane(request.mode);
 
         auto job = resolve_render_request(registry, std::move(request));
         if (!job) {
