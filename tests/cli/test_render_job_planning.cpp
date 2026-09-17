@@ -2,6 +2,7 @@
 
 #include "commands.hpp"
 #include "daemon/daemon_render_job_payload.hpp"
+#include "utils/job/output_lane_pixel_truth.hpp"
 #include "utils/job/render_job.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -15,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace c3d = chronon3d;
 namespace cli = chronon3d::cli;
@@ -228,6 +230,56 @@ TEST_CASE("RenderJob planner keeps non-video uppercase extensions on image modes
     REQUIRE(job.has_value());
     CHECK(job->mode == c3d::RenderMode::Still);
     CHECK(job->still_frame == c3d::Frame{8});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The image lane declares itself non-canonical for pixel truth.
+//
+// TICKET-IMAGE-PATH-PIXEL-TRUTH: `render -o x.png` is not a measurement of what
+// the renderer composed, and the pre-write sanity scan cannot detect that (its
+// contract is NaN/Inf only, pinned by test_render_job_write_frame_sanity.cpp).
+// The CLI therefore has to SAY SO at the lane decision instead of reporting a
+// silent success. These cases pin the rule (one lane is a truth surface) and
+// the text (it names the replacement and the ticket) — not the free-form
+// wording a log reader happens to see.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("the video lane is the only pixel-truth output lane") {
+    CHECK(cli::pixel_truth::lane_is_pixel_truth_surface(c3d::RenderMode::Video));
+    CHECK_FALSE(cli::pixel_truth::lane_is_pixel_truth_surface(c3d::RenderMode::Still));
+    CHECK_FALSE(cli::pixel_truth::lane_is_pixel_truth_surface(c3d::RenderMode::Sequence));
+}
+
+TEST_CASE("the image lane notice names the replacement surface and the ticket") {
+    CHECK(cli::pixel_truth::lane_notice(c3d::RenderMode::Video).empty());
+
+    const auto still = cli::pixel_truth::lane_notice(c3d::RenderMode::Still);
+    const auto sequence = cli::pixel_truth::lane_notice(c3d::RenderMode::Sequence);
+    // One notice for the whole image lane: a still and a PNG sequence are the
+    // same surface, so the two cannot drift apart.
+    CHECK(still == sequence);
+    CHECK_FALSE(still.empty());
+    CHECK(still.find("--video-sink raw") != std::string_view::npos);
+    CHECK(still.find("TICKET-IMAGE-PATH-PIXEL-TRUTH") != std::string_view::npos);
+}
+
+TEST_CASE("the planner's own lane choice is what the notice is keyed on") {
+    auto registry = make_registry();
+
+    auto still = cli::make_render_job(registry, args_for("8", "hero.PNG"));
+    REQUIRE(still.has_value());
+    CHECK_FALSE(
+        cli::pixel_truth::lane_notice(still->mode).empty());
+
+    auto sequence = cli::make_render_job(
+        registry, args_for("0-90x5", "frame_####.png"));
+    REQUIRE(sequence.has_value());
+    CHECK_FALSE(
+        cli::pixel_truth::lane_notice(sequence->mode).empty());
+
+    auto video = cli::make_render_job(registry, args_for("0-90", "hero.mp4"));
+    REQUIRE(video.has_value());
+    CHECK(cli::pixel_truth::lane_notice(video->mode).empty());
 }
 
 TEST_CASE("RenderJob planner fails cleanly for an unknown composition") {
