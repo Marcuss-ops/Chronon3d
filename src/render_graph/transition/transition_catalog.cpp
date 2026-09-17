@@ -452,7 +452,9 @@ void LayerTransitionCatalog::register_transition(std::string id, Factory factory
 }
 
 bool LayerTransitionCatalog::contains(std::string_view id) const {
-    return m_factories.find(std::string(id)) != m_factories.end();
+    // std::less<> enables heterogeneous lookup; avoid allocating a temporary
+    // std::string for every capability/preflight probe.
+    return m_factories.find(id) != m_factories.end();
 }
 
 LayerTransitionCatalog::BackendCapability
