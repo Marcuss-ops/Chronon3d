@@ -42,6 +42,14 @@ void register_runtime_compositions(CompositionRegistry& registry);
 /// or diagnostics is built).  Calls chronon3d::register_content_modules().
 void register_content_compositions(CompositionRegistry& registry);
 
+/// Register the Motion3D canary pack (always called).
+/// Registers: Motion3DGlowOrbit, Motion3DSentenceOrbit,
+/// Motion3DTextParentCamera, Motion3DSameMotionText, Motion3DSameMotionImage.
+/// These are the compositions the Motion3D canary harness renders raw, hashes
+/// and re-renders out of order; see register_canary_compositions.cpp for why
+/// each one exists and what it is evidence of.
+void register_canary_compositions(CompositionRegistry& registry);
+
 #ifdef CHRONON3D_BUILD_CLI_DEV
 /// Register DEV/test compositions (only when CHRONON3D_BUILD_CLI_DEV=ON).
 /// Per user spec: the DEV CLI is the only consumer of tests/visual/ factory

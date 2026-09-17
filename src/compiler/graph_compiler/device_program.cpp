@@ -43,9 +43,9 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
 
 [[nodiscard]] std::string_view target_backend(DeviceTarget target) noexcept {
     switch (target) {
-    case DeviceTarget::CpuSimd: return "cpu";
-    case DeviceTarget::SpirV: return "vulkan";
-    case DeviceTarget::Ptx: return "cuda";
+    case DeviceTarget::CpuSimd: return kCpuArtifactBackend;
+    case DeviceTarget::SpirV: return kGpuArtifactBackendA;
+    case DeviceTarget::Ptx: return kGpuArtifactBackendB;
     }
     return "unknown";
 }
