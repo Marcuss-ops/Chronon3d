@@ -24,6 +24,7 @@ CI_PHASES=(
 WBH_ONLY_GATES=(
     verify_cli_render_surface_linux.sh
     verify_sdk_consumer_functional_linux.sh
+    verify_text_tile_gpu_canary.sh
     check_determinism.sh
     check_determinism_matrix.sh
 )

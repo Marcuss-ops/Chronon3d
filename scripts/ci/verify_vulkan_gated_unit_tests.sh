@@ -18,12 +18,15 @@
 # GPU device to be present): the surface authority uses a fake materializer,
 # and the shader ABI check only reads the embedded SPIR-V.
 #
-# `chronon3d_text_tile_raster_canary_tests` is EXCLUDED on purpose: it is a
-# real-GPU compute dispatch whose pixel readback is red on at least one host
-# configuration for reasons unrelated to the backend unit contracts (verified
-# by neutralising this change set's retirement path and reproducing the same
-# 13 failures). It is tracked separately; do not add it here until it is
-# green, or this lane loses its signal.
+# `chronon3d_text_tile_raster_canary_tests` is EXCLUDED on purpose — but NOT
+# because it is red. It is GREEN (78/78, 2026-09-16, evidence
+# docs/evidence/text-tile-canary-2026-09-16.md); the recorded 65/78 came from a
+# binary built hours before the ABI fix `5b59cfd48`, in a target no gate ever
+# rebuilt. It stays out of THIS lane because it needs a real Vulkan device
+# (pixel readback), while this lane runs headless on ubuntu-latest → adding it
+# here would yield a silent skip, not a signal. Its gate is the GPU/WBH one:
+# `tools/verify_text_tile_gpu_canary.sh` (registered in
+# tools/gates/manifest.sh WBH_ONLY_GATES).
 #
 # Usage:
 #   bash scripts/ci/verify_vulkan_gated_unit_tests.sh [build-dir]

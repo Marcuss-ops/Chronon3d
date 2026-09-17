@@ -1,8 +1,9 @@
 # TICKET-TEXT-QUALITY-V2 — resa del testo: dove nasce davvero la perdita
 
-Stato: **OPEN — BLOCKED dal canary text-tile** (verifiche di codice: PASS;
-diagnostico di attribuzione P0-0: **ESEGUITO**, esito in §4.1; verità pre-encode
-P0-0b: **not yet**)
+Stato: **OPEN — canary text-tile CHIUSO** (78/78, 2026-09-16: era un binario
+stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
+Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
+in §4.1. **Resta bloccante solo P0-0b**, la verità pre-encode: `not yet`.
 Ambito: `text_tile_raster.comp` (FullGraph), `cuda_nv12_kernels.hpp` (DirectYUV),
 `mtsdf_generator.cpp` (payload glifo), contratto colore del text run, contratto encoder.
 
@@ -44,14 +45,26 @@ su una lane non è una fix per l'altra, e i 100 overlay di produzione sono tutti
 FullGraph; la lane DirectYUV è selezionabile da altri plan, quindi i suoi difetti
 restano reali ma **latenti** su questo host.
 
-## 3. Prerequisito di certificazione (bloccante)
+## 3. Prerequisito di certificazione — **CHIUSO (verde 78/78)**
 
-`docs/FOLLOWUP_TICKETS.md:16` — **text tile raster canary OPEN (GPU)**:
-`chronon3d_text_tile_raster_canary_tests` con 13 assertion di pixel
-(`full.*`, `half.*`, `mtsdf.*`, `counts[*] >= 1`) a 0: il dispatch compute non
-scrive nulla in quel canary. Finché è rosso, nessuna modifica di qualità del
-testo può essere certificata pixel-level: **si rende verde prima di toccare lo
-shader**.
+`chronon3d_text_tile_raster_canary_tests` era registrato rosso a 13 assertion di
+pixel (`full.*`, `half.*`, `mtsdf.*`, `counts[*] >= 1` a 0) e attribuito a "il
+dispatch compute non scrive". **Il difetto non esiste nell'albero: era un
+binario stantio.** Il `.ninja_log` della lane `linux-video-test` data l'ultima
+build del target alle 07:00 UTC, mentre l'ABI fix `5b59cfd48` ("restore text tile
+canary ABI contract") atterra alle 16:33 UTC; il target era escluso da ogni
+gate, quindi nessuno lo ricostruiva dopo il fix. Ricostruito dallo stesso albero:
+**78/78, 0 failed, 0 skipped, tre run identici**. Evidenza:
+[`docs/evidence/text-tile-canary-2026-09-16.md`](../evidence/text-tile-canary-2026-09-16.md);
+gate GPU/WBH: `tools/verify_text_tile_gpu_canary.sh`.
+
+La suite resta **fuori** dalla lane headless `vulkan-gated-unit`: quella gira su
+`ubuntu-latest` senza device, e il canary fa dispatch + readback su GPU reale, lì
+darebbe uno skip silenzioso. La home corretta è il profilo WBH (host con GPU).
+
+Conseguenza: **la certificazione pixel-level non è più bloccata dal canary**;
+resta bloccata da **P0-0b** (la via still non compone il testo), che è un difetto
+distinto e non dipende dallo shader.
 
 ## 4. Diagnostico di attribuzione (P0-0) — eseguito 2026-09-16
 
@@ -101,8 +114,8 @@ Conseguenze sul piano, in ordine:
 | Priorità | Lavoro | Gate |
 |---|---|---|
 | ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
-| P0-0b | **Verità pre-encode**: far comporre il testo alla via still (`render -o x.png`) o produrre il PNG fedele via chunk | `flat_still.png` contiene il testo, non un frame uniforme |
-| P0-1 | Canary text tile verde (§3) | suite verde su GPU, 78/78 |
+| P0-0b | **Verità pre-encode**: far comporre il testo alla via still (`render -o x.png`) o produrre il PNG fedele via chunk | `flat_still.png` contiene il testo, non un frame uniforme — **rimane il blocco corrente** |
+| ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
 | P0-2 | Contratto colore: linearizzare via `math/color.hpp` **oppure** dichiarare sRGB nel contratto del text run | golden re-pinnato + test sul grigio medio (`#808080`) |
 | P0-3 | Contratto encoder: rate control e preset espliciti per la lane overlay + bitrate minimo per contenuto grafico | artifact ≥ soglia, gate riproducibile |
 | P1-1 | DirectYUV: fill a rampa al posto della soglia (lo stroke ha già la rampa) | equivalence test contro il bug watermark che aveva motivato la soglia |
@@ -117,8 +130,8 @@ Conseguenze sul piano, in ordine:
 1. **Diagnostico a 4 output** (P0-0, §4) — eseguito; il suo output **è il golden
    corpus** di questa campagna (PNG/raw pre-encode, FullGraph, DirectYUV, H.264
    HQ), non un esperimento una tantum;
-2. **Canary text-tile verde** (P0-1) — finché è rosso non esiste base affidabile
-   per dichiarare un miglioramento pixel-level;
+2. ~~**Canary text-tile verde** (P0-1)~~ — **CHIUSO 2026-09-16 (78/78)**; il
+   blocco reale è a questo punto **P0-0b** (verità pre-encode), non lo shader:
 3. **Contratto colore** risolto **alla boundary di authoring/lowering**, non
    dentro gli shader: se `#808080` significa CSS/sRGB, deve diventare linear **una
    volta sola** prima di arrivare ai backend (niente `to_linear()` separato in
