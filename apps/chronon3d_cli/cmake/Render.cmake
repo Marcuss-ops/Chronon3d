@@ -56,3 +56,24 @@ target_compile_definitions(chronon3d_cli_core PRIVATE
 target_compile_definitions(chronon3d_cli_render PRIVATE
     CHRONON3D_CLI_PROJECT_VERSION="${PROJECT_VERSION}"
 )
+
+# The receipt/report block in commands/render/command_render_plan_internal.inc
+# and the receipt include in command_render_plan.cpp are guarded by
+# `#ifdef CHRONON3D_ENABLE_VERIFICATION` — a PREPROCESSOR macro, not the CMake
+# variable of the same name. Nothing ever defined the macro, so a build with
+# -DCHRONON3D_ENABLE_VERIFICATION=ON still compiled its only consumer out: the
+# command asked for a render report, Chronon logged "verification/receipts are
+# disabled in this build", no `<output>.receipt.json` was written, and
+# RenderingGen's strict native gate (strict_native_backend + source video)
+# rejected EVERY clip job with "missing Chronon media receipt".
+#
+# The definition belongs to the target that owns the guarded translation units,
+# like the other CLI feature macros (CHRONON3D_HAS_CLI_RENDER, ...): the flag
+# and the code it enables must be decided together, in one place. It is
+# conditional on the verification library actually existing so a lean build
+# (option OFF) keeps compiling the same code out, unchanged.
+if(CHRONON3D_ENABLE_VERIFICATION AND TARGET chronon3d_verification)
+    target_compile_definitions(chronon3d_cli_render PRIVATE
+        CHRONON3D_ENABLE_VERIFICATION
+    )
+endif()

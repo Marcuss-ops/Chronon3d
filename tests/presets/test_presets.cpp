@@ -1,4 +1,6 @@
 #include <doctest/doctest.h>
+
+#include <algorithm>
 #include <chronon3d/presets/phrase/phrase_group_builder.hpp>
 #include <chronon3d/presets/style_kit.hpp>
 #include <chronon3d/presets/motion_preset_catalog.hpp>
@@ -54,6 +56,24 @@ TEST_CASE("PhraseParams apply_theme") {
     CHECK(p.accent_color == warning_theme.accent);
     CHECK(p.text_color == warning_theme.title);
     CHECK(p.subtitle_color == warning_theme.subtitle);
+}
+
+TEST_CASE("Phrase presets expose the intended text reveal motion") {
+    PhraseParams params;
+    params.id = "typewriter";
+    params.text = "Caffè 👨‍👩‍👧‍👦";
+    params.subtitle = "Unicode-safe";
+
+    const auto phrase = make_phrase(PhrasePreset::TypewriterCaption, params);
+    REQUIRE(phrase.type == MotionObjectType::Group);
+    REQUIRE(phrase.children.size() == 3);
+
+    const auto title_it = std::find_if(
+        phrase.children.begin(), phrase.children.end(),
+        [](const MotionObject& child) { return child.id == "title"; });
+    REQUIRE(title_it != phrase.children.end());
+    CHECK(title_it->type == MotionObjectType::Text);
+    CHECK(title_it->preset_value == MotionPreset::TypewriterReveal);
 }
 
 TEST_CASE("PhraseGroupBuilder Subtitle Omission and Ordering") {
@@ -147,6 +167,17 @@ TEST_CASE("MotionPresetCatalog builtins are deterministic and immutable") {
     CHECK(first.position == second.position);
 }
 
+TEST_CASE("MotionObject preserves canonical glyph-level text animators") {
+    TextAnimatorSpec animator;
+    animator.id = "test_animator";
+
+    auto object = MotionObject::text("text", "Hello")
+        .text_animator(animator);
+
+    REQUIRE(object.get_text_animators().size() == 1);
+    CHECK(object.get_text_animators().front().id == "test_animator");
+}
+
 TEST_CASE("MotionStyle and unified effects resolving") {
     GlowParams glow_p{.radius = 45.0f, .intensity = 0.9f};
     DropShadowParams shadow_p{.offset = {0, 18}, .radius = 24.0f};
@@ -179,6 +210,28 @@ TEST_CASE("MotionStyle and unified effects resolving") {
     CHECK(state.effects.shadow.radius == doctest::Approx(24.0f));
     CHECK(state.effects.bloom_enabled == true);
     CHECK(state.effects.bloom.threshold == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Image and text share motion timing boundaries") {
+    auto image = MotionObject::image("image", "assets/test.png")
+        .preset(MotionPreset::FadeIn)
+        .time(Frame{10}, Frame{20});
+    auto text = MotionObject::text("text", "Timed")
+        .preset(MotionPreset::FadeIn)
+        .time(Frame{10}, Frame{20});
+
+    FrameContext before;
+    before = before.with_frame(9);
+    FrameContext start;
+    start = start.with_frame(10);
+    FrameContext end;
+    end = end.with_frame(20);
+
+    CHECK_FALSE(resolve_motion_state(before, image).visible);
+    CHECK(resolve_motion_state(start, image).visible);
+    CHECK(resolve_motion_state(end, image).visible);
+    CHECK(resolve_motion_state(start, image).opacity ==
+          doctest::Approx(resolve_motion_state(start, text).opacity));
 }
 
 TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {

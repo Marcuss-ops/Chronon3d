@@ -22,6 +22,21 @@
 //   3. MTSDF ENCODING — glyphs flagged MTSDF take the screen-distance path
 //      with tint premultiplication (rgb *= alpha).
 //
+//   4. FRACTIONAL ATLAS SAMPLING — the prepared path reads the atlas with a
+//      bilinear tap in texel-centre space.  A glyph whose signed distance
+//      ramps across its rect, translated by a half texel so that no
+//      destination pixel centre coincides with a texel centre, must show the
+//      interpolated distance at every pixel.  A nearest read produces a
+//      staircase instead (the assertion pins the exact interpolated value at
+//      the half-way pixel, which a nearest read cannot produce).
+//
+//   5. ATLAS RECT IS A FILTER BOUNDARY — the bilinear tap is clamped to the
+//      glyph's own rect, so the two taps of an edge pixel both stay inside
+//      the rect even when the second tap's natural index is one past the
+//      last texel.  The fixture places an extreme-valued glyph immediately
+//      right of and below the probe glyph: a tap that escaped the rect would
+//      visibly lift the probe's coverage.
+//
 // Skips silently when no Vulkan device (or no storage-image format support)
 // is available, matching the descriptor-arena test convention.
 // ---------------------------------------------------------------------------
@@ -41,6 +56,7 @@
 namespace shaders = chronon3d::backends::vulkan::shaders;
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -319,6 +335,17 @@ void record_image_barrier(VkCommandBuffer cmd, const Image& img,
 //     left 4 columns:  premultiplied white, alpha 1.0
 //     right 4 columns: premultiplied white, alpha 0.5 (rgb = 0.5)
 //   glyph B (MTSDF) at (8,0) 8x8: rgb = 1.0 (inside, dist +0.5), a = 255.
+//   glyph C (MTSDF) at (24,0) 8x8: rgb ramps (i + 0.5) / 8 across x, a = 255.
+//     Its run is translated by half a texel so pixel centres fall BETWEEN
+//     texel centres and the bilinear tap has to interpolate.
+//   glyph C's right neighbour at (32,0) 8x8: rgb = 1.0 (bleed detector).
+//   glyph E (MTSDF) at (40,0) 8x8: rgb = 0.25 flat, a = 255.
+//     Its right neighbour (48,0) and its neighbour below (40,8) are rgb = 1.0,
+//     so any tap escaping glyph E's rect would raise its coverage.
+// Both MTSDF probes carry distance_range = 1, which makes the shader's fill
+// coverage a direct linear readout of the sampled field (alpha == median).
+// That is a synthetic probe value, not the canonical 16 px profile: its only
+// job is that the asserted pixel value IS the sampled texel value.
 constexpr std::uint32_t kAtlasSize = 64;
 constexpr std::uint32_t kDstSize = 64;
 constexpr std::uint32_t kTilesX = kDstSize / 16;
@@ -351,7 +378,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
                                     kAtlasSize, VK_FORMAT_R8G8B8A8_UNORM);
 
     // Glyph / run / tile-index buffers.
-    std::array<GpuGlyphStatic, 2> glyphs{};
+    std::array<GpuGlyphStatic, 4> glyphs{};
     // Glyph A: coverage/premultiplied, plane [4,8)x[4,8), run transform
     // (10,12) → screen rect x∈[14,18), y∈[16,20).  Spans tiles (0,1),(1,1).
     glyphs[0].run_index = 0;
@@ -373,8 +400,31 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     glyphs[1].plane_right = 8.0f;
     glyphs[1].plane_bottom = 8.0f;
     glyphs[1].draw_order = 1;
+    // Glyph C: MTSDF ramp, plane [0,8)x[0,8), run (0.5,40) → the half-texel
+    // translate puts destination pixel centres on texel BOUNDARIES.
+    glyphs[2].run_index = 2;
+    glyphs[2].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[2].atlas_pos = 24u | (0u << 16);
+    glyphs[2].atlas_size = 8u | (8u << 16);
+    glyphs[2].plane_left = 0.0f;
+    glyphs[2].plane_top = 0.0f;
+    glyphs[2].plane_right = 8.0f;
+    glyphs[2].plane_bottom = 8.0f;
+    glyphs[2].draw_order = 2;
+    // Glyph E: flat MTSDF bleed probe, plane [0,8)x[0,8), run (-0.25,47.75)
+    // → pixel (x=7) samples texel 7.25 and pixel (y=55) samples texel 7.25,
+    // i.e. the second tap's natural index is 8 (one past the rect).
+    glyphs[3].run_index = 3;
+    glyphs[3].atlas_page_and_flags = 1u << 16; // MTSDF
+    glyphs[3].atlas_pos = 40u | (0u << 16);
+    glyphs[3].atlas_size = 8u | (8u << 16);
+    glyphs[3].plane_left = 0.0f;
+    glyphs[3].plane_top = 0.0f;
+    glyphs[3].plane_right = 8.0f;
+    glyphs[3].plane_bottom = 8.0f;
+    glyphs[3].draw_order = 3;
 
-    std::array<GpuTextRunDynamic, 2> runs{};
+    std::array<GpuTextRunDynamic, 4> runs{};
     runs[0].tx = 10.0f; runs[0].ty = 12.0f;
     runs[0].sx = 1.0f; runs[0].sy = 1.0f;
     runs[0].opacity = 1.0f;
@@ -383,10 +433,16 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     runs[1].sx = 1.0f; runs[1].sy = 1.0f;
     runs[1].opacity = 1.0f;
     runs[1].color = 0xFF0000FFu; // unpack_color → r=1,g=0,b=0,a=1 (red)
+    runs[2].tx = 0.5f; runs[2].ty = 40.0f;
+    runs[2].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
+    runs[3].tx = -0.25f; runs[3].ty = 47.75f;
+    runs[3].distance_range_bits = std::bit_cast<std::uint32_t>(1.0f);
 
-    std::array<GpuGlyphDynamic, 2> glyph_dynamic{};
+    std::array<GpuGlyphDynamic, 4> glyph_dynamic{};
     glyph_dynamic[0].selector_weight = 1.0f;
     glyph_dynamic[1].selector_weight = 1.0f;
+    glyph_dynamic[2].selector_weight = 1.0f;
+    glyph_dynamic[3].selector_weight = 1.0f;
 
     const VkDeviceSize count_bytes = kTilesX * kTilesY * sizeof(std::uint32_t);
     const VkDeviceSize index_bytes = count_bytes * kMaxGlyphsPerTile;
@@ -424,6 +480,39 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
             const auto idx = (y * kAtlasSize + x) * 4;
             atlas_pixels[idx] = 255; atlas_pixels[idx + 1] = 255;
             atlas_pixels[idx + 2] = 255; atlas_pixels[idx + 3] = 255;
+        }
+    }
+    // Glyph C: signed-distance ramp across x, one texel = (i + 0.5) / 8.
+    for (std::uint32_t y = 0; y < 8; ++y) {
+        for (std::uint32_t xx = 24; xx < 32; ++xx) {
+            const auto value = static_cast<std::uint8_t>(std::lround(
+                ((static_cast<double>(xx - 24) + 0.5) / 8.0) * 255.0));
+            const auto idx = (y * kAtlasSize + xx) * 4;
+            atlas_pixels[idx] = value; atlas_pixels[idx + 1] = value;
+            atlas_pixels[idx + 2] = value; atlas_pixels[idx + 3] = 255;
+        }
+    }
+    // Glyph C's right neighbour and glyph E's right/below neighbours: extreme
+    // value, immediately adjacent, so a tap that escaped a rect is visible.
+    const auto fill_rect_255 = [&](std::uint32_t x0, std::uint32_t x1,
+                                   std::uint32_t y0, std::uint32_t y1) {
+        for (std::uint32_t y = y0; y < y1; ++y) {
+            for (std::uint32_t xx = x0; xx < x1; ++xx) {
+                const auto idx = (y * kAtlasSize + xx) * 4;
+                atlas_pixels[idx] = 255; atlas_pixels[idx + 1] = 255;
+                atlas_pixels[idx + 2] = 255; atlas_pixels[idx + 3] = 255;
+            }
+        }
+    };
+    fill_rect_255(32, 40, 0, 8);
+    fill_rect_255(48, 56, 0, 8);
+    fill_rect_255(40, 48, 8, 16);
+    // Glyph E: flat 0.25 field (rgb = 0.25 → alpha = 0.25 with range 1).
+    for (std::uint32_t y = 0; y < 8; ++y) {
+        for (std::uint32_t xx = 40; xx < 48; ++xx) {
+            const auto idx = (y * kAtlasSize + xx) * 4;
+            atlas_pixels[idx] = 64; atlas_pixels[idx + 1] = 64;
+            atlas_pixels[idx + 2] = 64; atlas_pixels[idx + 3] = 255;
         }
     }
     std::memcpy(staging.mapped, atlas_pixels.data(), atlas_pixels.size());
@@ -590,7 +679,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
     // Bin.
-    const BinPush bin_push_data{kTilesX * kTilesY > 0 ? 2u : 0u, kTilesX, kTilesY,
+    const BinPush bin_push_data{4u, kTilesX, kTilesY,
                                 kMaxGlyphsPerTile, kDstSize, kDstSize};
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bin_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, bin_pipeline_layout,
@@ -688,6 +777,52 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     CHECK(near(just_outside.g, expected_bg.g));
     CHECK(near(just_outside.b, expected_bg.b));
     CHECK(near(just_outside.a, expected_bg.a));
+
+    // ── Contract 4: fractional (bilinear) atlas sampling ─────────────────
+    // Glyph C ramps (i + 0.5) / 8 across its rect and its run is translated
+    // by half a texel, so destination pixel x samples texel x - 0.5, i.e.
+    // exactly halfway between two texel centres.  With range 1 the fill
+    // coverage equals the sampled median distance, so the expected value at
+    // any pixel is the exact bilinear mix of the two neighbours.
+    //
+    //   x=4 → mix(texel3=112/255, texel4=143/255) = 0.5      → 0.25 + 0.75*0.5
+    //   x=3 → mix(texel2= 80/255, texel3=112/255) = 0.37647  → 0.53235
+    //   x=7 → mix(texel6=207/255, texel7=239/255) = 0.87451  → 0.90588
+    //
+    // A nearest read would instead produce 0.43922 / 0.31373 / 0.81176, so
+    // the half-way pixel is what distinguishes fractional from nearest.
+    // Composite over the fixture background (0.25, 0.5, 0.75, 1): the fill is
+    // premultiplied white at coverage 0.5, so dst = 0.5 + bg * 0.5.
+    const Pixel fractional = at(4, 44);
+    CHECK(near(fractional.r, 0.625f));
+    CHECK(near(fractional.g, 0.75f));
+    CHECK(near(fractional.b, 0.875f));
+    CHECK(near(fractional.a, 1.0f));
+    CHECK(near(at(3, 44).r, 0.53235f));
+    CHECK(near(at(7, 44).r, 0.90588f));
+    // Monotone profile: no duplicated adjacent value, which is what a
+    // nearest read of a per-texel ramp would give.
+    for (std::uint32_t x = 1; x < 8; ++x) {
+        CHECK(at(x, 44).r > at(x - 1, 44).r);
+    }
+
+    // ── Contract 5: the atlas rect is a filter boundary ──────────────────
+    // Glyph E is flat 0.25 and sits immediately left of (48,0) and above
+    // (40,8), both filled with 1.0.  Pixel (7,48) samples texel x = 7.25 and
+    // pixel (0,55) samples texel y = 7.25: the second tap's natural index is
+    // one past the rect.  Clamped, both pixels read 0.25 (dst.r = 0.4375);
+    // if the tap escaped the rect they would read 0.4375 instead, i.e.
+    // dst.r ≈ 0.578.
+    const Pixel right_edge = at(7, 48);
+    CHECK(near(right_edge.r, 0.4375f));
+    CHECK(near(right_edge.g, 0.625f));
+    CHECK(near(right_edge.b, 0.8125f));
+    CHECK(near(right_edge.a, 1.0f));
+    const Pixel bottom_edge = at(0, 55);
+    CHECK(near(bottom_edge.r, 0.4375f));
+    CHECK(near(bottom_edge.g, 0.625f));
+    CHECK(near(bottom_edge.b, 0.8125f));
+    CHECK(near(bottom_edge.a, 1.0f));
 
     // Tile binning sanity: the glyph A tiles must have received indices.
     const auto* counts = static_cast<const std::uint32_t*>(count_buf.mapped);

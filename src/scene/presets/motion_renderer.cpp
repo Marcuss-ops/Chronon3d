@@ -1,5 +1,6 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
+#include <chronon3d/backends/text/text_unicode_utils.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>  // P1 — PreparedText (PreparedText alias) for the migrated shape_ids::TextRun call site.
 #include <chronon3d/math/camera_pose.hpp>
@@ -19,8 +20,15 @@ std::string apply_text_reveal(const std::string& text, f32 reveal) {
     }
 
     const f32 clamped = std::clamp(reveal, 0.0f, 1.0f);
-    const size_t count = static_cast<size_t>(std::ceil(static_cast<f32>(text.size()) * clamped));
-    return text.substr(0, std::min(count, text.size()));
+    const size_t cluster_count = chronon3d::detail::grapheme_cluster_count(text);
+    if (cluster_count == 0) {
+        return {};
+    }
+
+    const size_t visible_clusters = static_cast<size_t>(std::ceil(
+        static_cast<f32>(cluster_count) * clamped));
+    const size_t byte_end = chronon3d::detail::grapheme_byte_offset_at(text, visible_clusters);
+    return text.substr(0, std::min(byte_end, text.size()));
 }
 
 MotionState compose_state(const MotionState& parent, const MotionState& child) {
@@ -140,6 +148,7 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
         definition.frame.line_height = obj.text_style.line_height;
         definition.frame.tracking = obj.text_style.tracking;
         definition.style.color = obj.color_value;
+        definition.animation.animators = obj.get_text_animators();
         chronon3d::PreparedText run_params = chronon3d::prepare_text(definition);
         l.shape(chronon3d::registry::shape_ids::TextRun, layer_name + "_text", run_params);
         break;

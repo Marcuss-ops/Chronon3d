@@ -5,6 +5,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
+#include <chronon3d/text/animation/text_animator_spec.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -181,6 +182,7 @@ struct MotionObject {
     f32 line_thickness_value{1.0f};
 
     std::vector<MotionObject> children;
+    std::vector<TextAnimatorSpec> text_animators;
 
     static MotionObject text(std::string id, std::string value) {
         MotionObject o;
@@ -481,6 +483,24 @@ struct MotionObject {
             m_animations.push_back(std::move(a));
         }
         return *this;
+    }
+
+    /// Attach canonical glyph-level text animators to this text object.
+    /// Non-text objects retain the data harmlessly and the renderer ignores it.
+    MotionObject& text_animator(TextAnimatorSpec animator) {
+        text_animators.push_back(std::move(animator));
+        return *this;
+    }
+
+    MotionObject& text_animators_append(std::vector<TextAnimatorSpec> animators) {
+        for (auto& animator : animators) {
+            text_animators.push_back(std::move(animator));
+        }
+        return *this;
+    }
+
+    [[nodiscard]] const std::vector<TextAnimatorSpec>& get_text_animators() const {
+        return text_animators;
     }
 
     [[nodiscard]] const std::vector<MotionAnimation>& get_animations() const {
