@@ -738,7 +738,31 @@ contro 31 casi eseguiti / 2 rossi prima.
 | **Exit condition** | native image path certificato: parità pixel e zero layer persi sul corpus overlay (incluso lo scenario `background + foreground + watermark` che ha motivato i due band-aid), più una run video reale. |
 | **Equivalence test/gate** | confronto pixel native-path vs baseline certificata sul corpus overlay; `chronon3d_compositor_tests` + `chronon3d_render_graph_tests` verdi. |
 | **Removal scope** | ramo immagine di `lower_layer_batches`, percorsi immagine di `node_runner_fused_batch.cpp`, istanze immagine in `CompiledLayerInstance`, `lowered_into_batch` per nodi Source, e i residui di `batch_is_sound` che esistono solo per i batch immagine. |
-| **Status** | `ACTIVE` |
+| **Status** | `PARTIAL — executor/compiler branch demolished 2026-09-17; native-image certification exit remains open` |
+
+### Demolition implementation — 2026-09-17
+
+The retired image branch is now physically absent from the fused path:
+
+- `is_fusible_layer_node()` admits only `TextRun` sources plus their transform/composite island;
+- `lower_layer_batches()` creates instances only for `TextRun`;
+- `node_runner_fused_batch.cpp` contains no image materializer, image-cache lookup,
+  GPU asset acquisition, media placement or fused `execute_layer_batch` dispatch;
+- a stale/non-conforming compiled batch fails closed instead of reviving the
+  storage-image route;
+- the independent native `LayerBatchPass` API remains intact because it is used
+  by the canonical native image path, not by the retired compiler batch.
+
+Verification on `linux-video-test`:
+
+```text
+chronon3d_render_graph_tests  378/378 cases, 18653/18653 assertions PASS
+chronon3d_compositor_tests     69/69 cases, 613890/613890 assertions PASS
+```
+
+The required GPU/native-image overlay parity and real-video run were not
+available in this session, so the ticket stays `PARTIAL` and the final
+certification exit condition is not claimed.
 
 ## Evidenza di build
 

@@ -10,25 +10,15 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/media/media_placement.hpp>
-#include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
-#include <chronon3d/compiler/frame_parameters.hpp>
-#include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
-#include <chronon3d/runtime/gpu_layer_batch.hpp>
-#include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 
 #include <cmath>
 #include <bit>
 #include <limits>
-#include <optional>
 #include <string>
-#include <array>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -50,8 +40,8 @@ namespace {
 // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — fused-batch scratch.
 // execute_fused_batch_impl runs once per fused batch per frame and previously
 // rebuilt std::vector<GlyphStatic> + std::vector<TextRunDynamic> +
-// std::vector<RenderSurfaceHandle> + std::unordered_map (text path) and an
-// unordered_map (image path) from scratch every call. The containers are
+// std::vector<RenderSurfaceHandle> + std::unordered_map from scratch every
+// call. The containers are
 // thread_local so parallel level execution never shares state (same pattern
 // as the plan dispatcher's thread-local instance storage); clear() keeps
 // steady-state frames pay zero allocations.
@@ -67,49 +57,19 @@ struct FusedWorkerScratch {
 #if defined(CHRONON3D_ENABLE_TEXT)
     TextRunFrameState text_frame;
 #endif
-    std::vector<runtime::RenderSurfaceHandle> resources;
-    std::vector<Vec2> resource_sizes;
-    std::vector<runtime::LayerInstance> layer_instances;
-    // Dense resource ids are bounded by the compiled batch's node domain.
-    // Generation tags avoid clearing a potentially large table per batch.
-    std::vector<std::uint32_t> resource_slots;
-    std::vector<std::uint32_t> resource_generation;
     std::unordered_map<const CompiledLayerBatch*, PreparedTextBatch>
         prepared_text_batches;
     GraphInstanceId prepared_graph_owner{kInvalidGraphInstanceId};
-    std::uint32_t generation{0};
 
-    void begin_batch(std::size_t max_resource_id,
-                     GraphInstanceId graph_owner = kInvalidGraphInstanceId) {
-        // AUDIT-18: max_resource_id is a capacity hint, not a trusted bound.
-        // The compiler enforces dense resource_index < instances.size(), but
-        // the executor must fail closed on a sparse/pathological id instead
-        // of indexing past the table (unbounded pinned growth per worker).
-        if (max_resource_id > kMaxResourceId)
-            max_resource_id = kMaxResourceId;
+    void begin_batch(GraphInstanceId graph_owner = kInvalidGraphInstanceId) {
         if (prepared_graph_owner != graph_owner) {
             prepared_text_batches.clear();
             prepared_graph_owner = graph_owner;
         }
-        ++generation;
-        if (generation == 0) {
-            std::fill(resource_generation.begin(), resource_generation.end(), 0);
-            generation = 1;
-        }
-        if (resource_slots.size() < max_resource_id) resource_slots.resize(max_resource_id);
-        if (resource_generation.size() < max_resource_id) resource_generation.resize(max_resource_id, 0);
         glyphs.clear();
         runs.clear();
         atlas_pages.clear();
-        resources.clear();
-        resource_sizes.clear();
-        layer_instances.clear();
     }
-
-    /// AUDIT-18: hard ceiling on the scratch resource table. A compiled id
-    /// at or beyond this value is rejected by the caller (fail closed), not
-    /// silently served from an ever-growing thread-local allocation.
-    static constexpr std::size_t kMaxResourceId = 1u << 20;
 };
 
 thread_local FusedWorkerScratch tls_fused_scratch;
@@ -262,7 +222,7 @@ void execute_fused_batch_impl(
         auto& all_glyphs = scratch.glyphs;
         auto& all_runs = scratch.runs;
         auto& atlas_pages = scratch.atlas_pages;
-        scratch.begin_batch(batch.instances.size(), compiled.graph_instance_id);
+        scratch.begin_batch(compiled.graph_instance_id);
         all_glyphs.clear();
         all_runs.clear();
         atlas_pages.clear();
@@ -649,260 +609,19 @@ void execute_fused_batch_impl(
         } else if (parent_counters) {
             parent_counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
         }
+#else
+        report_fused_batch_error(
+            ctx, RenderBackendErrorCode::UnsupportedCapability,
+            "fused text batch requires CHRONON3D_ENABLE_TEXT");
 #endif
         return;
     }
 
-    auto& scratch = tls_fused_scratch;
-    scratch.begin_batch(batch.instances.size(), compiled.graph_instance_id);
-    runtime::GpuLayerBatch gpu_batch;
-    gpu_batch.output_physical_slot = batch.output_physical_slot;
-    gpu_batch.is_gpu_fused = batch.is_gpu_fused;
-    auto& instances = scratch.layer_instances;
-    auto& resources = scratch.resources;
-    // Use the compiler-provided resource index as the dense key. The fused
-    // materializer only deduplicates resolved handles, never hashes them.
-    std::optional<raster::BBox> image_bbox;
-
-    for (const auto& inst : batch.instances) {
-        if (inst.node >= graph.size() || !graph.has_node(inst.node)) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch references an invalid graph node");
-            return;
-        }
-        const auto& node = graph.node(inst.node);
-        if (node.kind() != RenderGraphNodeKind::Source) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch contains a non-source node");
-            return;
-        }
-        const auto& src_node = static_cast<const SourceNode&>(node);
-        if (src_node.render_node().shape.type() != ShapeType::Image) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch contains a non-image source");
-            return;
-        }
-        const auto& img = src_node.render_node().shape.image();
-        if (img.path.empty()) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch source has an empty asset path");
-            return;
-        }
-        if (!ctx.image_cache || !ctx.gpu_asset_cache) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch requires explicit image cache dependencies");
-            return;
-        }
-
-        const auto compiled_resource_id = inst.resource_index;
-        // AUDIT-18: the compiled id indexes a worker-local scratch table.
-        // A sparse/pathological id must fail closed here rather than resize
-        // the thread-local table to it (GB of pinned memory per worker).
-        if (compiled_resource_id >= FusedWorkerScratch::kMaxResourceId) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch compiled resource id exceeds the fused scratch bound");
-            return;
-        }
-        if (compiled_resource_id >= scratch.resource_slots.size()) {
-            report_fused_batch_error(
-                ctx, RenderBackendErrorCode::InvalidInput,
-                "image batch compiled resource index is out of range");
-            return;
-        }
-        std::uint32_t res_idx = 0;
-        Vec2 original_source_size{0.0f, 0.0f};
-        if (scratch.resource_generation[compiled_resource_id] == scratch.generation) {
-            res_idx = scratch.resource_slots[compiled_resource_id];
-            original_source_size = scratch.resource_sizes[res_idx];
-        } else {
-            const auto cached = ctx.image_cache->find(img.path, img.decode_options);
-            if (!cached || !cached->valid() || cached->gpu_rgba.empty() || !cached->fb_img) {
-                report_fused_batch_error(
-                    ctx, RenderBackendErrorCode::ExecutionFailure,
-                    "image asset unavailable for GPU batch: " + img.path);
-                return;
-            }
-
-            const auto& key = cached->gpu_key;
-            const runtime::SurfaceDesc desc{
-                key.width, key.height, key.format,
-                runtime::ResourceUsage::Storage,
-                runtime::LifetimeClass::JobPersistent,
-                cached->gpu_rgba.size() * sizeof(float)};
-            const auto acquired = ctx.gpu_asset_cache->acquire(key, desc, cached->gpu_rgba);
-            if (!acquired.ok()) {
-                report_fused_batch_error(
-                    ctx, RenderBackendErrorCode::ExecutionFailure,
-                    "unable to acquire GPU image surface '" + img.path +
-                        "': " + acquired.error);
-                return;
-            }
-
-            runtime::RenderSurfaceHandle handle = acquired.handle;
-            auto it = std::find(resources.begin(), resources.end(), handle);
-            if (it != resources.end()) {
-                res_idx = static_cast<std::uint32_t>(std::distance(resources.begin(), it));
-            } else {
-                res_idx = static_cast<std::uint32_t>(resources.size());
-                resources.push_back(handle);
-                scratch.resource_sizes.push_back(Vec2{
-                    static_cast<float>(cached->fb_img->width()),
-                    static_cast<float>(cached->fb_img->height())});
-            }
-            scratch.resource_generation[compiled_resource_id] = scratch.generation;
-            scratch.resource_slots[compiled_resource_id] = res_idx;
-            original_source_size = scratch.resource_sizes[res_idx];
-        }
-
-        // Typed programs are sampled per frame before execution. The fused
-        // image path must consume the same sampled transform as the ordinary
-        // SourceNode path; reading only the immutable TransformNode here
-        // freezes entity cards at their authored centre and drops motion.
-        const compiler::SampledLayerParameters* sampled_layer = nullptr;
-        if (ctx.frame_parameters && inst.node < compiled.nodes.size() &&
-            compiled.nodes[inst.node].binding_meta.has_binding()) {
-            sampled_layer = compiler::find_layer(
-                *ctx.frame_parameters,
-                compiled.nodes[inst.node].binding_meta.layer_index);
-            if (!sampled_layer || !sampled_layer->active) {
-                continue;
-            }
-        }
-
-        float tx = 0.0f, ty = 0.0f, sx = 1.0f, sy = 1.0f;
-        float opacity = inst.opacity;
-        if (sampled_layer) {
-            const auto& m = sampled_layer->matrix;
-            tx = m[3][0];
-            ty = m[3][1];
-            sx = m[0][0];
-            sy = m[1][1];
-            opacity *= sampled_layer->opacity;
-        } else if (inst.transform_index != 0 && inst.transform_index < graph.size()) {
-            const auto& xform = static_cast<const TransformNode&>(graph.node(inst.transform_index));
-            const auto m = xform.matrix();
-            tx = m[3][0];
-            ty = m[3][1];
-            sx = m[0][0];
-            sy = m[1][1];
-            opacity *= xform.opacity();
-        }
-
-        const auto placement = compute_media_placement(original_source_size, img.size, img.fit, img.focal_point);
-
-        // [FUSED_IMAGE_DIAG] temporary: pins the sampled placement inputs for
-        // a short frame window so the entity image geometry can be reconciled
-        // against the compiled plan.
-        {
-            const auto diag = ctx.frame_input.frame.integral();
-            if (diag <= 8) {
-                spdlog::info(
-                    "[FUSED_IMAGE_DIAG] frame={} node={} has_sampled_layer={} tx={:.3f} ty={:.3f} sx={:.4f} sy={:.4f} opacity={:.4f} "
-                    "src_size={:.1f}x{:.1f} req_size={:.1f}x{:.1f} fit={} dst_rect=({:.1f},{:.1f},{:.1f},{:.1f}) src_rect=({:.1f},{:.1f},{:.1f},{:.1f})",
-                    diag, inst.node, sampled_layer != nullptr, tx, ty, sx, sy, opacity,
-                    original_source_size.x, original_source_size.y,
-                    img.size.x, img.size.y, static_cast<int>(img.fit),
-                    placement.dst_rect.origin.x, placement.dst_rect.origin.y,
-                    placement.dst_rect.size.x, placement.dst_rect.size.y,
-                    placement.src_rect.origin.x, placement.src_rect.origin.y,
-                    placement.src_rect.size.x, placement.src_rect.size.y);
-            }
-        }
-
-        // Placement is authored around the layer centre. Apply the sampled
-        // scale around that centre so scale-in/focus presets are visible in
-        // the GPU batch just as they are in the canonical source path.
-        const float centre_x = tx + (ctx.frame_input.width * 0.5f);
-        const float centre_y = ty + (ctx.frame_input.height * 0.5f);
-        const float local_x0 = -img.size.x * 0.5f + placement.dst_rect.origin.x;
-        const float local_y0 = -img.size.y * 0.5f + placement.dst_rect.origin.y;
-        const float local_x1 = local_x0 + placement.dst_rect.size.x;
-        const float local_y1 = local_y0 + placement.dst_rect.size.y;
-        const float world_x0 = centre_x + local_x0 * sx;
-        const float world_y0 = centre_y + local_y0 * sy;
-        const float world_x1 = centre_x + local_x1 * sx;
-        const float world_y1 = centre_y + local_y1 * sy;
-
-        runtime::LayerInstance gpu_inst{};
-        gpu_inst.resource_index = res_idx;
-        gpu_inst.dst_x0 = world_x0;
-        gpu_inst.dst_y0 = world_y0;
-        gpu_inst.dst_x1 = world_x1;
-        gpu_inst.dst_y1 = world_y1;
-        // layer_batch.comp samples src_rect as normalized coordinates (0..1),
-        // while media placement is expressed in source pixels. Convert at
-        // this boundary so the Vulkan fused image path samples the authored
-        // image instead of clamping every lookup to an edge texel.
-        const float source_width = original_source_size.x;
-        const float source_height = original_source_size.y;
-        gpu_inst.src_x0 = placement.src_rect.origin.x / source_width;
-        gpu_inst.src_y0 = placement.src_rect.origin.y / source_height;
-        gpu_inst.src_x1 = (placement.src_rect.origin.x + placement.src_rect.size.x) /
-                          source_width;
-        gpu_inst.src_y1 = (placement.src_rect.origin.y + placement.src_rect.size.y) /
-                          source_height;
-        gpu_inst.opacity = opacity;
-        gpu_inst.blend = BlendMode::Normal;
-        gpu_inst.kind = runtime::PrimitiveKind::Image;
-        instances.push_back(gpu_inst);
-
-        raster::BBox bbox{
-            static_cast<i32>(std::floor(world_x0)),
-            static_cast<i32>(std::floor(world_y0)),
-            static_cast<i32>(std::ceil(world_x1)),
-            static_cast<i32>(std::ceil(world_y1))};
-        bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
-        if (!image_bbox) image_bbox = bbox;
-        else {
-            image_bbox->x0 = std::min(image_bbox->x0, bbox.x0);
-            image_bbox->y0 = std::min(image_bbox->y0, bbox.y0);
-            image_bbox->x1 = std::max(image_bbox->x1, bbox.x1);
-            image_bbox->y1 = std::max(image_bbox->y1, bbox.y1);
-        }
-    }
-
-    if (instances.empty()) {
-        report_fused_batch_error(
-            ctx, RenderBackendErrorCode::ExecutionFailure,
-            "image batch materialized zero GPU instances");
-        return;
-    }
-
-    auto dest_fb = ctx.acquire_framebuffer(ctx.frame_input.width, ctx.frame_input.height, false);
-    if (!ensure_empty_native_surface(ctx, *dest_fb)) {
-        report_fused_batch_error(
-            ctx, RenderBackendErrorCode::ExecutionFailure,
-            "failed to materialize fused image batch destination");
-        return;
-    }
-    dest_fb->set_opaque(false);
-    gpu_batch.instances.swap(instances);
-    gpu_batch.resources.swap(resources);
-    const auto dispatch = ctx.execution_backend()->execute_layer_batch(
-        dest_fb->surface_handle(), gpu_batch, gpu_batch.resources, {}, {});
-    gpu_batch.resources.swap(resources);
-    gpu_batch.instances.swap(instances);
-    if (!dispatch.ok()) {
-        report_fused_batch_error(
-            ctx, dispatch.error().code,
-            "fused image batch dispatch failed: " + dispatch.error().message);
-        return;
-    }
-    dest_fb->mark_gpu_authoritative();
-
-    state.temp[id] = dest_fb;
-    state.resolved_bboxes[id] = image_bbox;
-    if (local_nodes_executed) {
-        ++(*local_nodes_executed);
-    } else if (parent_counters) {
-        parent_counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-    }
+    // This is a retired path. Image and video sources are native-path
+    // producers and must never be materialized as storage-image batch items.
+    report_fused_batch_error(
+        ctx, RenderBackendErrorCode::InvalidInput,
+        "retired fused image/video batch reached executor");
 }
 
 } // namespace

@@ -64,50 +64,15 @@ bool is_fusible_layer_node(
     const CompiledNodeInfo& node_info,
     bool current_batch_active) {
     const auto& graph_node = compiled.graph.node(node_id);
-    const bool multi_source_is_image_only =
-        node_info.source_shape_types.empty() ||
-        std::all_of(
-            node_info.source_shape_types.begin(),
-            node_info.source_shape_types.end(),
-            [](const int shape_type) {
-                return shape_type == static_cast<int>(ShapeType::Image);
-            });
-    const bool source_is_image =
-        node_info.shape_type == static_cast<int>(ShapeType::Image);
-    const bool is_canonical_layer_source =
-        (dynamic_cast<const SourceNode*>(&graph_node) != nullptr && source_is_image) ||
-        (dynamic_cast<const MultiSourceNode*>(&graph_node) != nullptr && multi_source_is_image_only);
-    // POLICY — image layers execute on SourceNode's native image path, never as
-    // members of the fused storage-image batch.  The native path stays
-    // device-local and supports the same Vulkan/NVENC production lane; the
-    // fused storage-image batch has no equivalent descriptor/readback contract
-    // for image assets.
-    //
-    // Be precise about what this predicate actually selects:
-    // `binding_meta.active` is set by frame_graph_builder_metadata_detail.hpp
-    // for BOTH `has_layer_location` and `is_root_source`, so `has_binding()` is
-    // true for every reachable image Source.  The exclusion is therefore TOTAL,
-    // not limited to some "frame-bound" subset — there is no static-compatible
-    // image layer left that could still fuse, and no such subset is claimed
-    // here any more.
-    //
-    // Fusion survives only for TextRun sources (`is_text_layer_source` below)
-    // plus the Transform nodes that ride along with them; `batch_is_sound()`
-    // still guards those batches against the dropped-layer failure.
-    //
-    // The retired contract ("image layers fuse into one storage-image batch")
-    // and its demolition record live in
-    // docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md.
-    const bool image_source_uses_native_path =
-        source_is_image && node_info.binding_meta.has_binding();
-    if (image_source_uses_native_path) return false;
+    // Image/video sources are native-path producers. They are deliberately not
+    // candidates for the retired storage-image batch; only TextRun owns the
+    // fused text descriptor contract below. Keeping this policy in the
+    // compiler predicate makes the executor unable to manufacture an image
+    // batch by accident.
     const bool is_text_layer_source =
         node_info.kind == RenderGraphNodeKind::TextRun &&
         dynamic_cast<const TextRunNode*>(&graph_node) != nullptr;
-    return ((is_canonical_layer_source || is_text_layer_source) &&
-            (node_info.kind == RenderGraphNodeKind::Source ||
-             node_info.kind == RenderGraphNodeKind::Video ||
-             node_info.kind == RenderGraphNodeKind::TextRun)) ||
+    return (is_text_layer_source && node_info.kind == RenderGraphNodeKind::TextRun) ||
            (current_batch_active &&
             (dynamic_cast<const TransformNode*>(&graph_node) != nullptr ||
              dynamic_cast<const CompositeNode*>(&graph_node) != nullptr));
@@ -134,23 +99,6 @@ bool fused_batch_payload_compatible(
     // starving upstream composite nodes of their input framebuffers.
     if (batch_has_text && candidate_text) {
         return false;
-    }
-    const bool candidate_image =
-        candidate.kind == RenderGraphNodeKind::Source ||
-        candidate.kind == RenderGraphNodeKind::Video;
-    if (!candidate_text && !candidate_image) return true;
-
-    for (const auto existing_id : current_batch) {
-        if (existing_id >= compiled.nodes.size()) continue;
-        const auto existing_kind = compiled.nodes[existing_id].kind;
-        if (candidate_text &&
-            (existing_kind == RenderGraphNodeKind::Source ||
-             existing_kind == RenderGraphNodeKind::Video)) {
-            return false;
-        }
-        if (candidate_image && existing_kind == RenderGraphNodeKind::TextRun) {
-            return false;
-        }
     }
     return true;
 }
@@ -260,10 +208,7 @@ void lower_layer_batches(CompiledFrameGraph& compiled) {
             compiled.nodes[member_id].lowered_into_batch = true;
             compiled.nodes[member_id].execution_owner = ExecutionOwner::Fused;
             const auto& info = compiled.nodes[member_id];
-            const bool is_source =
-                info.kind == RenderGraphNodeKind::Source ||
-                info.kind == RenderGraphNodeKind::TextRun ||
-                info.kind == RenderGraphNodeKind::Video;
+            const bool is_source = info.kind == RenderGraphNodeKind::TextRun;
             if (is_source) {
                 if (has_pending) batch.instances.push_back(pending_instance);
                 has_pending = true;
