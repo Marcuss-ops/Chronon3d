@@ -3,6 +3,7 @@
 #include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
 #include <apps/chronon3d_cli/commands/video/common/pipe_pixfmt_vocabulary.hpp>
 #include <apps/chronon3d_cli/commands/video/common/sink_options.hpp>
+#include <apps/chronon3d_cli/utils/video/video_export_support.hpp>
 
 #include <string>
 #include <vector>

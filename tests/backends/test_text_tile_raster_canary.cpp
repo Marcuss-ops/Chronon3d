@@ -64,6 +64,12 @@ struct GpuGlyphStatic {
 };
 static_assert(sizeof(GpuGlyphStatic) == 48);
 
+struct GpuGlyphDynamic {
+    float tracking_prefix;
+    float selector_weight;
+};
+static_assert(sizeof(GpuGlyphDynamic) == 8);
+
 // Use the production ABI directly.  The shader consumes the extended
 // selector/animator block (112 bytes, std430 stride); a hand-written 64-byte
 // mirror silently made every default-initialized glyph invisible and caused
@@ -378,16 +384,23 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     runs[1].opacity = 1.0f;
     runs[1].color = 0xFF0000FFu; // unpack_color → r=1,g=0,b=0,a=1 (red)
 
+    std::array<GpuGlyphDynamic, 2> glyph_dynamic{};
+    glyph_dynamic[0].selector_weight = 1.0f;
+    glyph_dynamic[1].selector_weight = 1.0f;
+
     const VkDeviceSize count_bytes = kTilesX * kTilesY * sizeof(std::uint32_t);
     const VkDeviceSize index_bytes = count_bytes * kMaxGlyphsPerTile;
 
     auto glyph_buf = make_host_buffer(ctx.device, ctx.physical, sizeof(glyphs));
+    auto glyph_dynamic_buf = make_host_buffer(ctx.device, ctx.physical,
+                                              sizeof(glyph_dynamic));
     auto run_buf = make_host_buffer(ctx.device, ctx.physical, sizeof(runs));
     auto count_buf = make_host_buffer(ctx.device, ctx.physical, count_bytes);
     auto index_buf = make_host_buffer(ctx.device, ctx.physical, index_bytes);
     auto staging = make_staging(ctx.device, ctx.physical,
                                 kAtlasSize * kAtlasSize * 4 + kDstSize * kDstSize * 16);
     std::memcpy(glyph_buf.mapped, glyphs.data(), sizeof(glyphs));
+    std::memcpy(glyph_dynamic_buf.mapped, glyph_dynamic.data(), sizeof(glyph_dynamic));
     std::memcpy(run_buf.mapped, runs.data(), sizeof(runs));
     std::memset(count_buf.mapped, 0, static_cast<std::size_t>(count_bytes));
     std::memset(index_buf.mapped, 0xFF, static_cast<std::size_t>(index_bytes));
@@ -433,10 +446,11 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
         {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
         {3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
         {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
-        {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
+        {5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
+        {6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
     VkDescriptorSetLayout raster_layout = VK_NULL_HANDLE;
     const VkDescriptorSetLayoutCreateInfo raster_layout_info{
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 6, raster_bindings};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 7, raster_bindings};
     REQUIRE(vkCreateDescriptorSetLayout(ctx.device, &raster_layout_info, nullptr,
                                         &raster_layout) == VK_SUCCESS);
 
@@ -501,6 +515,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     REQUIRE(vkAllocateDescriptorSets(ctx.device, &raster_alloc, &raster_set) == VK_SUCCESS);
 
     const VkDescriptorBufferInfo bg{glyph_buf.handle, 0, VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo bd{glyph_dynamic_buf.handle, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo br{run_buf.handle, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo bc{count_buf.handle, 0, VK_WHOLE_SIZE};
     const VkDescriptorBufferInfo bi{index_buf.handle, 0, VK_WHOLE_SIZE};
@@ -529,8 +544,10 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, raster_set, 4, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bc, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, raster_set, 5, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bi, nullptr}};
-    vkUpdateDescriptorSets(ctx.device, 6, raster_writes, 0, nullptr);
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bi, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, raster_set, 6, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bd, nullptr}};
+    vkUpdateDescriptorSets(ctx.device, 7, raster_writes, 0, nullptr);
 
     // ── Command buffer: clear dst, upload atlas, dispatch, read back ─────
     VkCommandPool cmd_pool = VK_NULL_HANDLE;
@@ -693,6 +710,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     vkDestroyDescriptorSetLayout(ctx.device, bin_layout, nullptr);
     vkDestroyDescriptorSetLayout(ctx.device, raster_layout, nullptr);
     glyph_buf.destroy();
+    glyph_dynamic_buf.destroy();
     run_buf.destroy();
     count_buf.destroy();
     index_buf.destroy();

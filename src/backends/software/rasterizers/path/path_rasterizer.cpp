@@ -10,6 +10,7 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
 #include <cmath>
@@ -48,6 +49,65 @@ namespace {
     return VectorRasterizerDebugMode::Custom;
 }
 } // anonymous namespace
+
+[[nodiscard]] graphics::CompiledGradient compile_legacy_gradient(
+    const GradientFill& legacy)
+{
+    graphics::GradientDefinition definition;
+    definition.type = legacy.type == FillType::LinearGradient
+        ? graphics::GradientType::Linear
+        : legacy.type == FillType::ConicGradient
+            ? graphics::GradientType::Conic
+            : graphics::GradientType::Radial;
+    definition.start = legacy.from;
+    definition.end = legacy.to;
+    definition.center = legacy.from;
+    definition.radius = glm::length(legacy.to - legacy.from);
+    definition.angle = std::atan2(
+        legacy.to.y - legacy.from.y, legacy.to.x - legacy.from.x);
+    definition.color_stops.reserve(legacy.stops.size());
+    for (const auto& stop : legacy.stops) {
+        definition.color_stops.push_back({stop.offset, stop.color});
+    }
+    std::stable_sort(definition.color_stops.begin(), definition.color_stops.end(),
+                     [](const graphics::GradientStop& a,
+                        const graphics::GradientStop& b) {
+                         return a.position < b.position;
+                     });
+    return graphics::compile_gradient(definition);
+}
+
+[[nodiscard]] Color resolve_compiled_gradient_color(
+    const graphics::CompiledGradient& gradient, Vec2 p,
+    const raster::BBox& bbox, f32 opacity)
+{
+    const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
+    const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
+    const Vec2 local{
+        (p.x - static_cast<f32>(bbox.x0)) / w,
+        (p.y - static_cast<f32>(bbox.y0)) / h};
+
+    f32 t = 0.0f;
+    if (gradient.type == graphics::GradientType::Linear) {
+        const Vec2 dir = gradient.end - gradient.start;
+        const f32 len2 = glm::dot(dir, dir);
+        if (len2 > kPathEpsilon) {
+            t = glm::dot(local - gradient.start, dir) / len2;
+        }
+    } else if (gradient.type == graphics::GradientType::Conic) {
+        const Vec2 d = local - gradient.center;
+        f32 angle = std::atan2(d.y, d.x) - gradient.angle;
+        if (angle < 0.0f) angle += 2.0f * 3.14159265f;
+        t = angle / (2.0f * 3.14159265f);
+    } else {
+        const f32 distance = glm::length(local - gradient.center);
+        t = gradient.radius > kPathEpsilon ? distance / gradient.radius : 0.0f;
+    }
+
+    Color c = graphics::sample_compiled_gradient(gradient, t);
+    c.a *= opacity;
+    return c;
+}
 
 raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spread) {
     // PR2: source-of-truth now lives in path_geometry.hpp but stroke
@@ -134,6 +194,11 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     const bool use_custom_fill =
         fill_enabled && (vec_mode == VectorRasterizerDebugMode::Custom);
 
+    std::optional<graphics::CompiledGradient> compiled_fill;
+    if (use_custom_fill && path.fill.type != FillType::Solid) {
+        compiled_fill = compile_legacy_gradient(path.fill.gradient);
+    }
+
     // PR1: prepare trim + dash once outside the per-pixel loop.
     // Legacy code recomputed trim_polyline_points / dash_polyline_points
     // for every (x, y, contour) — O(W·H·N) wasted allocations.
@@ -147,6 +212,10 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     // BL2; Chronon keeps colour resolution + alpha modulation.
     const bool use_custom_stroke =
         (vec_mode == VectorRasterizerDebugMode::Custom) && path.stroke.enabled;
+    std::optional<graphics::CompiledGradient> compiled_stroke;
+    if (use_custom_stroke && path.stroke.gradient.has_value()) {
+        compiled_stroke = compile_legacy_gradient(*path.stroke.gradient);
+    }
     if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
         rasterize_path_stroke_blend2d(
             fb, path, model, stroke_color,
@@ -186,7 +255,14 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     }
                 }
                 if (inside) {
-                    const Color pixel_color = resolve_fill_color(path.fill, p, bbox, opacity);
+                    Color pixel_color;
+                    if (path.fill.type == FillType::Solid) {
+                        pixel_color = path.fill.solid.to_linear();
+                        pixel_color.a *= opacity;
+                    } else {
+                        pixel_color = resolve_compiled_gradient_color(
+                            *compiled_fill, p, bbox, opacity);
+                    }
                     row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
                     continue;
                 }
@@ -197,11 +273,8 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                 // Use gradient stroke colour when available.
                 const Color base_color = [&]() -> Color {
                     if (path.stroke.gradient.has_value()) {
-                        Fill gradient_fill;
-                        gradient_fill.enabled  = true;
-                        gradient_fill.type = path.stroke.gradient->type;
-                        gradient_fill.gradient = *path.stroke.gradient;
-                        return resolve_fill_color(gradient_fill, p, bbox, 1.0f);
+                        return resolve_compiled_gradient_color(
+                            *compiled_stroke, p, bbox, 1.0f);
                     }
                     return path.stroke.color.to_linear();
                 }();

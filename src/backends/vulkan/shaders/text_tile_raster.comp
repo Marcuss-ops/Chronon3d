@@ -24,6 +24,11 @@ struct GpuGlyphStatic {
     uint pad2;
 };
 
+struct GpuGlyphDynamic {
+    float tracking_prefix;
+    float selector_weight;
+};
+
 struct GpuTextRunDynamic {
     float tx;
     float ty;
@@ -71,6 +76,10 @@ layout(std430, set = 0, binding = 5) readonly buffer TileGlyphIndices {
     uint tile_glyph_indices[];
 };
 
+layout(std430, set = 0, binding = 6) readonly buffer GlyphDynamicBuffer {
+    GpuGlyphDynamic glyph_dynamic[];
+};
+
 layout(push_constant) uniform PushConstants {
     uint tiles_x;
     uint tiles_y;
@@ -95,43 +104,6 @@ vec4 unpack_color(uint c) {
     float g = float((c >> 8)  & 0xFFu) / 255.0;
     float r = float( c        & 0xFFu) / 255.0;
     return vec4(r, g, b, a);
-}
-
-float selector_weight(GpuTextRunDynamic run, uint glyph_index) {
-    if ((run.flags & 2u) == 0u) return 1.0;
-    float total = max(float(run.selector_unit_count), 1.0);
-    float position = (float(glyph_index) + 0.5) / total;
-    float start = clamp(run.selector_start * 0.01, 0.0, 1.0);
-    float end = clamp(run.selector_end * 0.01, 0.0, 1.0);
-    if (start > end) {
-        float tmp = start;
-        start = end;
-        end = tmp;
-        position = 1.0 - position;
-    }
-    if (position <= start || position >= end) return 0.0;
-    float range = end - start;
-    float t = range > 0.0000001 ? (position - start) / range : 0.5;
-    float weight = 1.0;
-    if ((run.flags & 4u) != 0u) {
-        if (t <= 0.5) {
-            float u = 2.0 * t;
-            float one_minus_u = 1.0 - u;
-            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
-        } else {
-            float u = 2.0 * (1.0 - t);
-            float one_minus_u = 1.0 - u;
-            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
-        }
-    }
-    return clamp(weight * run.selector_amount * 0.01, 0.0, 1.0);
-}
-
-float tracking_prefix(GpuTextRunDynamic run, uint glyph_index) {
-    float result = 0.0;
-    for (uint i = 0u; i < glyph_index; ++i)
-        result += run.animator_tracking * selector_weight(run, i);
-    return result;
 }
 
 void main() {
@@ -199,7 +171,7 @@ void main() {
         uint gid = s_glyph_indices[i];
         GpuGlyphStatic glyph = glyphs[gid];
         GpuTextRunDynamic run = runs[glyph.run_index];
-        float reveal_weight = selector_weight(run, glyph.pad0);
+        float reveal_weight = glyph_dynamic[gid].selector_weight;
         if (run.visible_glyph_count != 0xFFFFFFFFu &&
             glyph.pad0 >= run.visible_glyph_count) continue;
 
@@ -221,7 +193,7 @@ void main() {
             if (plane_w <= 0.0 || plane_h <= 0.0) continue;
 
             vec2 pixel_pos = vec2(pixel_coord) + vec2(0.5);
-            float tracking = tracking_prefix(run, glyph.pad0);
+            float tracking = glyph_dynamic[gid].tracking_prefix;
             vec2 animator_offset = vec2(
                 run.animator_position_x * reveal_weight + tracking,
                 run.animator_position_y * reveal_weight);

@@ -89,8 +89,9 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
 )
 
 # Public SDK dependencies: one SSOT drives both the SDK install-interface link
-# contract and generated find_dependency() calls. IPC/FlatBuffers is appended
-# only when IPC is actually built so lean consumers do not inherit it.
+# contract and generated find_dependency() calls. FlatBuffers is also used by
+# the mandatory compiled-artifact cache; it is therefore not an IPC-only
+# dependency even when the IPC feature is disabled.
 set(CHRONON3D_SDK_PUBLIC_DEPS
     "glm::glm|glm"
     "fmt::fmt|fmt"
@@ -108,12 +109,8 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
     "nlohmann_json_schema_validator::validator|nlohmann_json_schema_validator"
     "xxHash::xxhash|xxHash"
     "zstd::libzstd|zstd"
+    "flatbuffers::flatbuffers|flatbuffers"
 )
-if(CHRONON3D_ENABLE_IPC)
-    list(APPEND CHRONON3D_SDK_PUBLIC_DEPS
-        "flatbuffers::flatbuffers|flatbuffers"
-    )
-endif()
 
 set(_chronon3d_find_dep_lines "")
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)

@@ -184,6 +184,27 @@ void VulkanBackend::Impl::ensure_text_run_dynamic_buffer(VkDeviceSize bytes,
     text_run_dynamic_sizes[index] = 0;
 }
 
+void VulkanBackend::Impl::ensure_text_glyph_dynamic_buffer(VkDeviceSize bytes,
+                                                            std::size_t index) {
+    if (index >= kGlyphInstanceRingSize) index = 0;
+    if (text_glyph_dynamic_buffers[index].size >= bytes) return;
+    if (text_glyph_dynamic_buffers[index].buffer != VK_NULL_HANDLE) {
+        memory_manager.destroy_buffer(text_glyph_dynamic_buffers[index]);
+    }
+    const VkBufferCreateInfo info{
+        VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+    text_glyph_dynamic_buffers[index] =
+        memory_manager.create_buffer(info, VulkanMemoryClass::DeviceLocal);
+    if (debug_context) {
+        debug_context->set_buffer_name(text_glyph_dynamic_buffers[index].buffer,
+                                       "Chronon3D.Buffer.GlyphDynamic");
+    }
+    text_glyph_dynamic_hashes[index] = 0;
+    text_glyph_dynamic_sizes[index] = 0;
+}
+
 void VulkanBackend::Impl::ensure_text_tile_buffer(VkDeviceSize bytes,
                                                    std::size_t index,
                                                    bool indices) {
