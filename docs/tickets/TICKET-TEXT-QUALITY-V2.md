@@ -3,7 +3,11 @@
 Stato: **OPEN — canary text-tile CHIUSO** (78/78, 2026-09-16: era un binario
 stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
-in §4.1. **Resta bloccante solo P0-0b**, la verità pre-encode: `not yet`.
+in §4.1. **P0-0b (verità pre-encode): SBLOCCATA 2026-09-17** — il PNG fedele è
+una proiezione del raw sink (`tools/raw_frame_to_png.py`, evidenza
+[`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md));
+resta da eseguirla su un artifact di un job reale prima di dichiarare qualunque
+guadagno pixel-level. Prossimo lavoro reale: **P0-2 contratto colore**.
 Ambito: `text_tile_raster.comp` (FullGraph), `cuda_nv12_kernels.hpp` (DirectYUV),
 `mtsdf_generator.cpp` (payload glifo), contratto colore del text run, contratto encoder.
 
@@ -114,7 +118,7 @@ Conseguenze sul piano, in ordine:
 | Priorità | Lavoro | Gate |
 |---|---|---|
 | ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
-| P0-0b | **Verità pre-encode**: far comporre il testo alla via still (`render -o x.png`) o produrre il PNG fedele via chunk | `flat_still.png` contiene il testo, non un frame uniforme — **rimane il blocco corrente** |
+| P0-0b | **Verità pre-encode** — **SBLOCCATA 2026-09-17**: la via immagine è dichiarata non-canonica ([IMAGE-PATH-PIXEL-TRUTH](TICKET-IMAGE-PATH-PIXEL-TRUTH.md), exit condition 2) e il PNG fedele esiste come proiezione del raw sink (`tools/raw_frame_to_png.py`, [evidenza](../evidence/pre-encode-pixel-truth-2026-09-17.md)) | il tool **rifiuta** un frame uniforme (`content_fraction=0` ⇒ exit 1) e produce il PNG verbatim; resta da eseguirlo su un artifact di un job reale |
 | ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
 | P0-2 | Contratto colore: linearizzare via `math/color.hpp` **oppure** dichiarare sRGB nel contratto del text run | golden re-pinnato + test sul grigio medio (`#808080`) |
 | P0-3 | Contratto encoder: rate control e preset espliciti per la lane overlay + bitrate minimo per contenuto grafico | artifact ≥ soglia, gate riproducibile |
@@ -131,7 +135,10 @@ Conseguenze sul piano, in ordine:
    corpus** di questa campagna (PNG/raw pre-encode, FullGraph, DirectYUV, H.264
    HQ), non un esperimento una tantum;
 2. ~~**Canary text-tile verde** (P0-1)~~ — **CHIUSO 2026-09-16 (78/78)**; il
-   blocco reale è a questo punto **P0-0b** (verità pre-encode), non lo shader:
+   blocco che ne seguiva era **P0-0b** (verità pre-encode), ora **sbloccata**
+   (2026-09-17): il campione pre-encode è il raw sink, proiettato in PNG dal
+   tool canonico. Il passo successivo della catena è il **contratto colore** (3),
+   che può ora essere misurato su quel campione:
 3. **Contratto colore** risolto **alla boundary di authoring/lowering**, non
    dentro gli shader: se `#808080` significa CSS/sRGB, deve diventare linear **una
    volta sola** prima di arrivare ai backend (niente `to_linear()` separato in
