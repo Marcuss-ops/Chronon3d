@@ -169,3 +169,6 @@ BitExactContract documented.
 5. **Removal scope**: this ticket closes; canonics get one status line.
 6. **Status**: VERIFY — Stages 1–5 are closed by inspection/build evidence;
    same-SHA `Chronon CI` and main-tip verification remain the only close gate.
+   The exact current SHA `cbc7b4350b1ef17ac2077f01212d992eb500c84b` was
+   rerun on 2026-09-17 but every job failed before runner steps (`steps=[]`);
+   see [`ci-preexecution-cbc7b4350-2026-09-17`](../evidence/ci-preexecution-cbc7b4350-2026-09-17.md).
