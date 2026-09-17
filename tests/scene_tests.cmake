@@ -127,6 +127,7 @@ chronon3d_add_test_suite(
         scene/test_scene_validator.cpp
         scene/test_layer_order_contract.cpp
         scene/test_layer_kind.cpp
+        scene/test_layer_content_ref.cpp   # ADR-031 P1 — (kind -> ContentRef, LayerRole) taxonomy + superset of the legacy chains
         scene/test_joints.cpp
         scene/test_motion_graph_prewarm.cpp
         render_graph/builder/test_graph_snapshot.cpp

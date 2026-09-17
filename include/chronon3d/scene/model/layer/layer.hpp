@@ -14,6 +14,7 @@
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/scene/model/layer/time_remap.hpp>
 #include <chronon3d/scene/model/layer/layer_time_resolver.hpp>
+#include <chronon3d/scene/model/layer/content_ref.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
 // material_2_5d.hpp  — forward-declared
 // card3d_material.hpp — forward-declared
@@ -47,6 +48,46 @@ enum class LayerKind {
     Audio         // audio-only layer (no visual; pre-warm hooks audio implicitly)
 };
 
+// ── ADR-031: the (content, role) view of `kind` ─────────────────────
+// Single place where the legacy kind axis is interpreted. The mapping is the
+// taxonomy signed off in TICKET-LAYER-CONTENT-REF §3; with `kind` still the
+// storage in P1 both functions are pure, so readers are unchanged. Neither
+// switch has a `default:` on purpose: adding a `LayerKind` value must be a
+// warning/error here instead of silently falling through.
+[[nodiscard]] constexpr ContentRef content_of(LayerKind kind) noexcept {
+    switch (kind) {
+        case LayerKind::Normal:     return ContentRef{ImageAssetId{}};
+        case LayerKind::Shape:      return ContentRef{ShapeAssetId{}};
+        case LayerKind::Text:       return ContentRef{TextAssetId{}};
+        case LayerKind::Video:      return ContentRef{VideoAssetId{}};
+        case LayerKind::Precomp:    return ContentRef{CompositionRef{}};
+        case LayerKind::Audio:      return ContentRef{AudioAssetId{}};
+        // Glass is a treatment of the content axis (frosted glass draws a
+        // rasterised surface), not a content kind of its own.
+        case LayerKind::Glass:      return ContentRef{ImageAssetId{}};
+        case LayerKind::Null:       return ContentRef{NoContent{}};
+        case LayerKind::Adjustment: return ContentRef{NoContent{}};
+        case LayerKind::Camera:     return ContentRef{NoContent{}};
+    }
+    return ContentRef{NoContent{}};
+}
+
+[[nodiscard]] constexpr LayerRole role_of(LayerKind kind) noexcept {
+    switch (kind) {
+        case LayerKind::Adjustment: return LayerRole::Adjustment;
+        case LayerKind::Null:       return LayerRole::Null;
+        case LayerKind::Camera:     return LayerRole::Camera;
+        case LayerKind::Audio:      return LayerRole::Audio;
+        case LayerKind::Normal:
+        case LayerKind::Precomp:
+        case LayerKind::Video:
+        case LayerKind::Glass:
+        case LayerKind::Shape:
+        case LayerKind::Text:       return LayerRole::Rendered;
+    }
+    return LayerRole::Rendered;
+}
+
 struct Layer {
     std::pmr::string name;
     std::pmr::string parent_name;
@@ -60,6 +101,18 @@ struct Layer {
     [[nodiscard]] constexpr bool is_text()   const noexcept { return kind == LayerKind::Text;   }
     [[nodiscard]] constexpr bool is_camera() const noexcept { return kind == LayerKind::Camera; }
     [[nodiscard]] constexpr bool is_audio()  const noexcept { return kind == LayerKind::Audio;  }
+
+    // ── ADR-031: content/role accessors (P1: derived from `kind`) ────
+    /// What this layer carries. Ids only — no content payload crosses this API.
+    [[nodiscard]] constexpr ContentRef content() const noexcept { return content_of(kind); }
+    /// What this layer does, independent of what it carries.
+    [[nodiscard]] constexpr LayerRole role() const noexcept { return role_of(kind); }
+    /// Canonical replacement for the hand-written chains in `refresh/source.cpp`,
+    /// `refresh/multi_source.cpp`, `scene_refresh.cpp`,
+    /// `graph_builder_source_pass.cpp` and `graph_builder_layer_pipeline.cpp`.
+    [[nodiscard]] constexpr bool carries_drawable_content() const noexcept {
+        return content().draws();
+    }
 
     /// True when any node in this layer is rendered by the native 3D path.
     /// This domain predicate is shared by layer resolution and graph build;

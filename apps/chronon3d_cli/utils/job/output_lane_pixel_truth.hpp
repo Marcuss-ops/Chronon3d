@@ -2,8 +2,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // apps/chronon3d_cli/utils/job/output_lane_pixel_truth.hpp
 //
-// TICKET-IMAGE-PATH-PIXEL-TRUTH — the image output lane (still / PNG sequence)
-// is NOT a pixel-truth surface.
+// TICKET-TEXT-QUALITY-V2 (P0-0b) — the image output lane (still / PNG
+// sequence) is NOT a pixel-truth surface.
 //
 // Why this header exists. `render -o x.png` renders through the image writer,
 // which produces a frame that does not compose the text layers and does not
@@ -42,7 +42,7 @@ namespace chronon3d::cli::pixel_truth {
 inline constexpr std::string_view kImageLaneNotice =
     "pixel truth: the image output lane (still / PNG sequence) is not a "
     "pixel-truth surface — it does not compose the text layers and does not "
-    "vary per frame or per backend (TICKET-IMAGE-PATH-PIXEL-TRUTH). For "
+    "vary per frame or per backend (TICKET-TEXT-QUALITY-V2 P0-0b). For "
     "pre-encode truth use `--video-sink raw`, or measure the decoded frame of "
     "the encoded output.";
 

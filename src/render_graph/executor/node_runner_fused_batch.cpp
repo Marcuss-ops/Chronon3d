@@ -541,6 +541,15 @@ void execute_fused_batch_impl(
             constexpr std::uint32_t run_page_idx = 0;
             if (atlas_pages.empty()) atlas_pages.push_back(kFusedTextAtlasPage);
 
+            // This fused batch lowers bitmap-atlas glyphs with
+            // `GlyphStatic::flags == 0` and leaves `TextRunDynamic::flags` bit 0
+            // clear, so the tile shaders resolve every one of them through the
+            // compatibility bitmap-origin branch (`round(tx)`/`round(ty)`).
+            // Census it host-side (TICKET-TEXT-QUALITY-V2 P0-2) so the legacy
+            // branch can be demolished on a measured 0-hit corpus instead of a
+            // guess. The MTSDF plane path sets `GlyphStatic::flags bit 0` and
+            // never reaches this block.
+            std::uint64_t legacy_placement_glyphs = 0;
             for (std::size_t gi = 0; gi < layout.placed.glyphs.size(); ++gi) {
                 const auto& gstate = render_shape->glyphs[gi];
                 if (gstate.glyph_id == 0) continue;
@@ -567,6 +576,13 @@ void execute_fused_batch_impl(
                 g_stat.draw_order = static_cast<uint32_t>(all_glyphs.size());
                 g_stat.pad0 = static_cast<uint32_t>(gi);
                 all_glyphs.push_back(g_stat);
+                ++legacy_placement_glyphs;
+            }
+            if (legacy_placement_glyphs != 0 && profiling::g_current_counters) {
+                profiling::g_current_counters->text_legacy_placement_runs
+                    .fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->text_legacy_placement_glyphs
+                    .fetch_add(legacy_placement_glyphs, std::memory_order_relaxed);
             }
         }
 

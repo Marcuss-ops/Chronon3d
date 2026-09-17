@@ -35,6 +35,7 @@ chronon3d_add_test_suite(
     NAME chronon3d_timeline_tests
     TIER UNIT
     SOURCES
+        animation/test_motion_certification.cpp
         timeline/test_render_job_video.cpp
         timeline/test_composition_descriptor_decode.cpp
         timeline/test_props_codec.cpp

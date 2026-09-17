@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract one frame from the pre-encode raw sink as a lossless PNG.
 
-TICKET-TEXT-QUALITY-V2 P0-0b / TICKET-IMAGE-PATH-PIXEL-TRUTH.
+TICKET-TEXT-QUALITY-V2 P0-0b.
 
 Why this exists
 ---------------

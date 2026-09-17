@@ -86,6 +86,11 @@ chronon3d_add_test_suite(
     SOURCES render_graph/compiler/test_fusion_pass.cpp
 )
 chronon3d_add_test_suite(
+    NAME chronon3d_pixel_program_tests
+    TIER UNIT
+    SOURCES render_graph/compiler/test_pixel_program.cpp
+)
+chronon3d_add_test_suite(
     NAME chronon3d_template_program_tests
     TIER UNIT
     SOURCES render_graph/compiler/test_template_program.cpp

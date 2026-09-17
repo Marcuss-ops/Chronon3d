@@ -44,16 +44,23 @@ DirectYuvTextTextureCache& text_texture_cache() {
 }
 
 std::uint32_t pack_text_color(const Color& color) noexcept {
-    // Text colours are authored in the public/sRGB representation while the
-    // DirectYUV resource contract is canonical linear light. Encode back to
-    // the target video transfer exactly once in the CUDA boundary.
-    const Color linear = color.to_linear();
+    // Text colours arrive ALREADY in the linear working domain.  The single
+    // sRGB→linear conversion for authored CSS colours happens at the
+    // authoring/lowering boundary (render_plan::parse_hex_color,
+    // TICKET-TEXT-QUALITY-V2 P0-2) so that every backend consumes linear
+    // light directly.  This packer is therefore a pure 8-bit quantization and
+    // is deliberately identical to the Vulkan pack_text_color in
+    // node_runner_fused_batch.cpp / gpu_text_run.cpp, which never linearizes.
+    //
+    // Do NOT reintroduce to_linear() here: it would double-convert and darken
+    // every non-primary colour, and it would re-open exactly the FullGraph vs
+    // DirectYUV drift F2 of the ticket.
     const auto to_byte = [](float value) {
         return static_cast<std::uint32_t>(std::clamp(
             std::lround(value * 255.0f), 0L, 255L));
     };
-    return to_byte(linear.r) | (to_byte(linear.g) << 8) |
-           (to_byte(linear.b) << 16) | (to_byte(linear.a) << 24);
+    return to_byte(color.r) | (to_byte(color.g) << 8) |
+           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
 }
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP

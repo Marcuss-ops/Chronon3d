@@ -73,6 +73,8 @@ enum class CacheFamily : unsigned char {
     ///   • CompiledGraphCache      — compiled frame graphs (dimension-dependent)
     ///   • SceneProgramCache       — scene-specific compiled programs
     ///   • OverlayTemplateCache    — overlay template GPU command plans
+    ///   • PixelProgram            — canonical semantic IR (graph::pixel::PixelProgram v1)
+    ///   • DeviceProgramKey        — lowered device program identity feeding ProgramArtifactKey
     ///   • CompiledArtifactCache   — persistent compiled-program artifact store
     ///                              (I/O adapter, not a second in-memory primitive)
     ///
@@ -83,6 +85,10 @@ enum class CacheFamily : unsigned char {
     ///   • CUDA → PTX module, CUBIN
     ///   • SASS specialization for a GPU architecture
     ///   • CUDA graph executable
+    ///   • PixelProgram → DeviceProgram lowering (all DeviceTarget values)
+    ///     share THIS key: DeviceProgramKey is the pre-persistent ProgramCache
+    ///     identity; cache::ProgramArtifactKey is the on-disk stable name.
+    ///     There is never a SlangCache / PtxCache / ShaderBinaryRegistry.
     ///
     /// A lowering is NOT a renderer, a backend, a cache family or a registry.
     /// Slang/PTX/SASS are compiler technologies that lower the SAME semantic

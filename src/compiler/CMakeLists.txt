@@ -30,6 +30,8 @@ add_library(chronon3d_compiler OBJECT
     graph/graph_compile_pipeline.cpp
     graph_compiler/scene_binding_compiler.cpp
     graph_compiler/fused_pixel_program.cpp
+    graph_compiler/pixel_program.cpp
+    graph_compiler/device_program.cpp
     graph_compiler/compiled_template_program.cpp
     optimizer/graph_optimizer.cpp
 )

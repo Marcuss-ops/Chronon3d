@@ -65,8 +65,24 @@ vuoto).
 
 ## 3. Verifica eseguita
 
+**(0) Il build lane canonico è certificato: ccache + mold + `-j16`.**
+`tools/check_cli_tests.sh` con `JOBS=16` ha configurato `linux-fast-dev` in
+`.tmp/chronon-builds/linux-fast-dev` e compilato/linkato `chronon3d_cli_tests`
+(321 step). Evidenze raccolte:
+
+* `-fuse-ld=mold` presente nella riga di link reale (`ninja -t commands
+  chronon3d_cli_tests`), non solo nella cache: il linker è mold;
+* ccache attivo come compiler launcher (155 hit / 594 miss nella sessione);
+* **suite verde**: `ctest -R '^chronon3d_cli_tests$'` → `1/1 Passed 1.03 sec`,
+e in esecuzione diretta **72/72 test case, 1005/1005 assertion, 0 failed**,
+compresi i tre casi nuovi di §2(c). Il notice è stato **osservato emesso**
+durante un piano Still (riga `[warning] pixel truth: …` nei log del test),
+cioè la dichiarazione non è solo testo pinnato: viene emessa dove la lane
+viene scelta.
+
 **(a) Compilazione dei traducenti toccati** (syntax-only, include dir del
-checkout + `vcpkg_installed/linux-fast-dev/x64-linux/include`):
+checkout + `vcpkg_installed/linux-fast-dev/x64-linux/include`) — controllo
+ridondante, tenuto perché isola ogni TU dal resto del link:
 
 | TU | esito | tempo |
 |---|---|---|
@@ -95,6 +111,40 @@ la forma è riconosciuta invece di essere accettata.
 `2a5579985` che ha esposto il raw sink: il tool lavora sullo stesso artifact che
 quella verifica ha prodotto.
 
+**(d) Il difetto RIPRODOTTO su un piano reale (stesso checkout, stesso giorno).**
+Con il CLI ricostruito e il piano/asset del repository non serve alcun workspace
+di job per misurare la **via immagine**:
+
+```bash
+chronon3d_cli render --plan <phrase_animations_v1/01_…_render_plan.json> \
+  --assets-root <assoluto>/testdata/golden --backend software \
+  --frames 60 -o /tmp/p0b/still.png
+```
+
+Esito misurato, per la prima volta con numeri su questo albero:
+
+| fatto | valore |
+|---|---|
+| il log del CLI emette il notice | **sì**: `[warning] pixel truth: the image output lane …` |
+| frame scritti per `--frames 60` su output `.png` | **120** (`still_0000.png` … `still_0119.png`) |
+| hash distinti su **tutti** i 120 frame | **1** (`6ff1f880955bcc26…`): byte-identici |
+| geometria | 1920×1080 RGBA |
+| profilo identico agli indici 0/30/60/119 | `distinct_levels=2 background_luma=0 white_pixels=518400 content_fraction=0.25` |
+
+`white_pixels = 518 400 = 960 × 540` esattamente, e
+`content_fraction = 0.25` esattamente: è **O2 dell'evidenza del difetto**
+(«contenuto confinato a un quadrante 960×540, 1/4 esatta dell'area»),
+riprodotta e per la prima volta **quantificata**, insieme a **O3** (frame
+byte-identici a ogni indice). Il valore `content_fraction` è misurato dallo
+stesso tool di §2(b), quindi la stessa misura che dichiara il difetto è quella
+che il gate usa.
+
+Nota di onestà sulla portata: il gate di contenuto distingue «uniforme» da «non
+uniforme», **non** «contenuto giusto» da «contenuto sbagliato». Qui la varianza
+non è zero (25%), quindi il gate passa: è precisamente la ragione per cui questo
+difetto non è auto-segnalante, e per cui la sua chiusura è *dichiarativa* (exit
+condition 2) e non un allargamento del gate.
+
 ## 4. Conseguenza sul programma qualità
 
 P0-0b chiedeva «far comporre il testo alla via still **oppure** produrre il PNG
@@ -111,12 +161,30 @@ contenga il testo. Quella prova richiede il workspace di un job
 
 ## 5. Non eseguito qui (nominato, non nascosto)
 
-* **link + esecuzione della suite** `chronon3d_render_job_contract_tests`: la
-  campagna di build richiede il lane `linux-video-test`, i cui alberi
-  (`.tmp/chronon-builds/*`) e la cui `vcpkg_installed/linux-video-test` sono stati
-  **liberati da un processo concorrente durante questa sessione** (il
-  `build/chronon/` non esiste più). La verifica conseguita è quindi di
-  compilazione + geometria dell'artifact, non di suite linkata.
-* **La prova su un job reale** (raw sink di un render overlay) e quindi la
-  certificazione pixel-level: nessun workspace di job disponibile.
+* **la suite dedicata `chronon3d_render_job_contract_tests`**: i suoi casi sono
+  compilati e verdi **dentro** `chronon3d_cli_tests` (§3.0), che è la suite
+  eseguita; il target dedicato non è stato linkato separatamente perché il lane
+  `linux-video-test` che lo ospita ha avuto gli alberi
+  (`.tmp/chronon-builds/*`, `build/chronon/`) **liberati da un processo
+  concorrente durante la sessione**. Il contratto è quindi verificato, il suo
+  lane GPU no.
+* **Il lato raw sink della prova su un piano reale**: il lane ricostruito in
+  questa sessione (`linux-fast-dev`) **non compila l'exporter video nativo**, e
+  `--video-sink raw` risponde `Video output requested but the CLI video exporter
+  target is disabled`. Serve un CLI da un lane video (`linux-video-release`,
+  `linux-video-test`), i cui alberi sono stati liberati da un processo
+  concorrente durante la sessione. La via immagine (§3d) invece gira da questo
+  checkout: plan + asset root bastano, nessun workspace di job.
+* **La certificazione pixel-level del testo composto**: richiede il confronto
+  tra il frame pre-encode del raw sink e il frame decodificato dello stesso
+  piano — cioè il punto precedente.
+* **La misura sull'host Vulkan/FullGraph**: il lane ricostruito non compila il
+  backend Vulkan (`no backend satisfies preference=gpu`), quindi la §3d misura
+  la via immagine sul backend software. Il profilo del difetto registrato
+  (`uniq=1`, luma 0.498) era su Vulkan: la §3d riproduce la **forma** (quadrante
+  esatto, frame identici), non lo stesso numero.
 * **Il gate GPU/WBH** invariato: `tools/verify_text_tile_gpu_canary.sh`.
+* **La calibrazione VRAM su 3–5 shape**: l'harness esiste e prende la shape dal
+  piano (`-mode two-runtime-pool -plan …`), quindi non richiede codice nuovo; la
+  sua esecuzione richiede l'host GPU libero e un piano certificato per shape, e
+  non è stata tentata in questa sessione.

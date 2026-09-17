@@ -3,7 +3,7 @@
 #include "../../utils/job/render_job.hpp"
 // Same pixel-truth authority the direct `render` route uses, so the two routes
 // cannot describe the selected output lane differently
-// (TICKET-IMAGE-PATH-PIXEL-TRUTH).
+// (TICKET-TEXT-QUALITY-V2 P0-0b).
 #include "../../utils/job/output_lane_pixel_truth.hpp"
 #include "command_render_plan.hpp"
 #include "render_plan_preparation.hpp"

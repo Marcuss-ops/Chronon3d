@@ -4,11 +4,13 @@
 // render_plan/subtitle_style.hpp — SubtitleTrack consumption of layer.style
 //
 // Lower a layer `style` block onto the SubtitleTrackBuilder with EXACTLY the
-// same semantics the text materializer (visual_preset_materializer.cpp)
-// applies to text layers: fill → text color, shadow → one enabled
-// TextShadow, font_size → font size. Both paths share parse_hex_color
-// (color_utils.hpp), so a custom subtitle color/shadow cannot drift from the
-// text materializer's interpretation.
+// same semantics the text materializer (render_plan_compiler_text.cpp) applies
+// to text layers: fill → text color, shadow → one enabled TextShadow,
+// font_size → font size. Both paths share parse_hex_color (color_utils.hpp),
+// so a custom subtitle color/shadow cannot drift from the text materializer's
+// interpretation — including the color domain: both emit the LINEAR working
+// domain (TICKET-TEXT-QUALITY-V2 P0-2, see color_utils.hpp COLOR DOMAIN),
+// and neither the subtitle nor the text backend re-linearizes.
 //
 // Absent fields stay std::nullopt so the caller keeps its preset/plan
 // defaults — the plan never fabricates a style the request did not declare.

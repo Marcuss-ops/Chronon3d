@@ -6,7 +6,7 @@
 // this translation unit asks the same authority the --video-sink checker uses.
 #include "../../commands/video/common/sink_options.hpp"
 // ONE pixel-truth authority: the lane selected below is announced through the
-// same header the `render --plan` route uses (TICKET-IMAGE-PATH-PIXEL-TRUTH).
+// same header the `render --plan` route uses (TICKET-TEXT-QUALITY-V2 P0-0b).
 #include "output_lane_pixel_truth.hpp"
 
 #include <chronon3d/media/video/video_config.hpp>

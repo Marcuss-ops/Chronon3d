@@ -222,8 +222,15 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const double writer_encode_ms = static_cast<double>(
         session->writer_encode_us_total.load(std::memory_order_relaxed)) / 1000.0;
 
-    spdlog::info("[video] render_ms={:.2f} encode_ms={:.2f} writer_encode_ms={:.2f} wall_ms={:.2f}",
-                 loop_output.render_ms, encode_ms, writer_encode_ms, wall_time_ms);
+    // nvml_stop_ms is reported next to the other export phases because it used
+    // to be attributed to nobody: the sampler is a per-job local whose worker is
+    // joined on the serialized job path, so its tail is part of this job's
+    // service time. A large value is a driver call in flight (NVML rate-limits
+    // the utilization family), never a sleep — the interval wait is
+    // interruptible (see utils/telemetry/nvml_sampler.hpp).
+    spdlog::info("[video] render_ms={:.2f} encode_ms={:.2f} writer_encode_ms={:.2f} wall_ms={:.2f} nvml_stop_ms={:.2f}",
+                 loop_output.render_ms, encode_ms, writer_encode_ms, wall_time_ms,
+                 nvml_stats.sampler_stop_ms);
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", loop_output.loop_result.queue_wait_ms);
 
     auto result = make_pipe_export_result(*session, loop_output.loop_result, close_result,
