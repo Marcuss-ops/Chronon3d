@@ -25,6 +25,7 @@ set(_cli_test_sources
     cli/test_camera_path_command.cpp
     cli/test_populate_run_host_attribs.cpp
     cli/test_render_job_write_frame_sanity.cpp
+    cli/test_nvml_sampler_lifecycle.cpp
     cli/test_semantic_script.cpp
 )
 

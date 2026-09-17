@@ -96,6 +96,20 @@ certificate e la telemetria interna degli allocator (exit condition §5).
    del mux, `vkDeviceWaitIdle`/fence wait, sync CUDA, distruzione di execution
    slot/pool, hash + rename atomico + sidecar. Un solo `waitIdle` o un poll con
    backoff in quel tratto spiegherebbe il costo.
+   **Aggiornamento 2026-09-17 (secondo esemplare della stessa classe, trovato e
+   chiuso):** la ricerca statica di un worker periodico `join`-ato da un
+   distruttore sul percorso del job ha trovato `NvmlSampler`
+   (`utils/telemetry/nvml_sampler.hpp`), una **locale di `video_export_pipe`**
+   avviata con intervallo 250 ms e fermata a riga 216: la vecchia `stop()`
+   attendeva la fine del tick (forma vecchia misurata: p50 **250 ms**, max
+   250 ms su n=20) e un sample NVML in volo. Ora l'attesa è interrompibile e il
+   costo residuo è **misurato** (`NvmlStats::sampler_stop_ms`, stampato come
+   `nvml_stop_ms=` nella riga `[video]`); dopo il fix: p50 **0.12–0.14 ms** nei
+   due casi peggiori (n=20 ciascuno). Evidenza e numeri:
+   [`docs/evidence/nvml-sampler-teardown-2026-09-17.md`](../evidence/nvml-sampler-teardown-2026-09-17.md).
+   **L'~1 s intermittente resta non attribuito**: su questo host le query NVML
+   costano 0.12–0.26 ms, quindi il sospetto successivo restano `encoder_reset` /
+   `full_graph_reset` sul percorso di produzione.
 2. **Una sola verifica dell'artifact** — **ATTERRATA** (verificata nel codice,
    2026-09-17). Il daemon produce il receipt canonico; il worker
    (`RenderingGen/renderinggen/internal/processor/finalize_job.go`) lo consuma:
@@ -137,7 +151,16 @@ evidenza in [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vr
 Resta aperto, e sono i criteri di accettazione della decisione:
 
 1. **3–5 shape** misurate con lo stesso harness: overlay-only (fatto, §3b),
-   video-sorgente FullGraph, DirectYUV, 4K, ed eventualmente 3D;
+   video-sorgente FullGraph, DirectYUV, 4K, ed eventualmente 3D. **Stato
+   2026-09-17:** l'esecuzione è ora una **suite** (matrice versionata, ≥3 run
+   per shape imposti dal loader, aggregazione min/p50/max dell'attribuzione per
+   processo, dry-run senza GPU) — `cmd/vram-probe -mode calibration-suite`,
+   [`docs/evidence/vram-calibration-suite-2026-09-17.md`](../evidence/vram-calibration-suite-2026-09-17.md).
+   Inventario del checkout: **113 piani concreti, tutti 1920×1080** → 2 shape
+   eseguibili (overlay-only, video-sorgente) e due bloccate da cause diverse:
+   **4K** non ha alcun piano nel repository, **DirectYUV** non è una proprietà
+   del piano (va certificata estraendo `execution_path` dal run, non dichiarata
+   in una label);
 2. **telemetria interna degli allocator** al posto di `nvidia-smi`: su host
    condiviso il contatore device-wide non è stabile (§3b), quindi il numero che
    alimenta `derive_vram_working_set` deve venire dal runtime;

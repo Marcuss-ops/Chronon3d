@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -24,7 +25,34 @@ struct NvmlStats {
     std::uint64_t vram_used_peak_mb{0};
     std::uint64_t vram_total_mb{0};
     std::uint64_t sample_count{0};
+    // Measured cost of `stop()`, in milliseconds: the teardown tail this
+    // sampler charges to the job. It exists because that tail was previously
+    // INVISIBLE — no timer covered it — and an invisible cost on the serialized
+    // job path is exactly how a ~1 s constant hides (see
+    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md). -1.0 means "no stop
+    // performed by this call" (already stopped, or never started).
+    double sampler_stop_ms{-1.0};
 };
+
+/// Wait for the next sampling tick, interruptibly.
+///
+/// Returns false as soon as the stop flag is set, true when the interval simply
+/// elapsed. This is the teardown contract, and it is a named function so a unit
+/// test can pin it without NVML: `stop()` must NEVER wait out the remainder of
+/// the sampling interval. The previous implementation slept for the full
+/// interval and then joined, so a job paid up to one whole interval (250 ms) of
+/// pure teardown latency — the same defect that was measured and fixed in
+/// `core::SystemMetricsCollector`.
+[[nodiscard]] inline bool wait_for_next_tick(std::condition_variable& wake,
+                                             std::mutex& wake_mutex,
+                                             const std::atomic<bool>& running,
+                                             std::chrono::milliseconds interval) {
+    std::unique_lock<std::mutex> lock(wake_mutex);
+    const bool woken = wake.wait_for(lock, interval, [&running] {
+        return !running.load(std::memory_order_acquire);
+    });
+    return !woken;
+}
 
 class NvmlSampler {
 public:
@@ -43,24 +71,48 @@ public:
 
     void start(std::chrono::milliseconds interval = std::chrono::milliseconds(250)) {
         if (!m_initialized || m_running.exchange(true)) return;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_last_stop_ms = -1.0;
+        }
         m_worker = std::thread([this, interval]() {
-            while (m_running.load(std::memory_order_relaxed)) {
+            while (m_running.load(std::memory_order_acquire)) {
                 sample_once();
-                std::this_thread::sleep_for(interval);
+                if (!wait_for_next_tick(m_wake, m_wake_mutex, m_running, interval)) {
+                    break;
+                }
             }
         });
     }
 
+    /// Stop the worker and return as soon as it can be joined.
+    ///
+    /// The join still pays for a sample already in flight (an NVML query is a
+    /// driver call, and the utilization family is rate-limited by the driver),
+    /// so that residual is MEASURED into `NvmlStats::sampler_stop_ms` instead of
+    /// being left to inference: a caller that sees a large value knows it paid a
+    /// driver call, not a sleep.
     void stop() {
-        if (!m_running.exchange(false)) return;
+        if (!m_running.exchange(false, std::memory_order_acq_rel)) return;
+        const auto t0 = std::chrono::steady_clock::now();
+        // Wake the worker out of its interval wait before joining it.
+        {
+            std::lock_guard<std::mutex> lock(m_wake_mutex);
+        }
+        m_wake.notify_all();
         if (m_worker.joinable()) {
             m_worker.join();
         }
+        const double stop_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - t0).count();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_last_stop_ms = stop_ms;
     }
 
     NvmlStats stats() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         NvmlStats s;
+        s.sampler_stop_ms = m_last_stop_ms;
         if (m_samples.empty()) return s;
         s.sample_count = m_samples.size();
         s.vram_total_mb = m_vram_total_mb;
@@ -110,9 +162,14 @@ private:
     bool m_initialized{false};
     std::atomic<bool> m_running{false};
     std::thread m_worker;
+    // Interval wait channel: `stop()` notifies it so the worker never sleeps out
+    // the remainder of a tick (see wait_for_next_tick).
+    std::condition_variable m_wake;
+    std::mutex m_wake_mutex;
     mutable std::mutex m_mutex;
     std::vector<Sample> m_samples;
     std::uint64_t m_vram_total_mb{0};
+    double m_last_stop_ms{-1.0};
 
     nvmlReturn_t (*p_nvmlInit)(){nullptr};
     nvmlReturn_t (*p_nvmlShutdown)(){nullptr};
