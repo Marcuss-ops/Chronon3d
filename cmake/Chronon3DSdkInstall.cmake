@@ -76,6 +76,12 @@ if(TARGET chronon3d_c)
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
+    # The neutral ABI is canonical; install the historical forwarding header
+    # as a compatibility path without creating a second contract.
+    install(FILES
+        "${CMAKE_SOURCE_DIR}/include/chronon/abi.h"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/chronon"
+    )
     install(FILES
         "${CMAKE_SOURCE_DIR}/include/chronon3d/c_api/chronon3d.h"
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/chronon3d/c_api"
