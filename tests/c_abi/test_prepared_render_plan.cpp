@@ -294,6 +294,11 @@ TEST_CASE("an unset render-settings dimension inherits the canvas on both paths"
 // of the text materializer: shared parse_hex_color (color_utils.hpp), same
 // shadow defaults (opacity 1.0 / blur 0.0 / offset (0,0) when absent), same
 // "absent → keep defaults" contract. These tests lock that parity.
+//
+// P0-2 (TICKET-TEXT-QUALITY-V2): the shared parser is the single
+// authoring/lowering boundary and emits Chronon's LINEAR working domain. A
+// CSS hex literal is sRGB, so it is converted exactly once here (see the
+// COLOR DOMAIN note in color_utils.hpp). No text backend re-linearizes.
 
 namespace {
 
@@ -313,9 +318,52 @@ TEST_CASE("resolve_subtitle_style lowers fill with text-materializer hex semanti
 
     const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
     REQUIRE(resolved.fill.has_value());
-    check_color(*resolved.fill, 1.0f, 0.7569f, 0.0275f, 1.0f);
+    // #FFC107 is CSS sRGB; the lowered Color lives in the linear working
+    // domain, so the expectation is the canonical sRGB→linear projection.
+    const chronon3d::Color expected =
+        chronon3d::Color{1.0f, 193.0f / 255.0f, 7.0f / 255.0f, 1.0f}.to_linear();
+    check_color(*resolved.fill, expected.r, expected.g, expected.b, expected.a);
+    // Pin one explicit value so a silent change to the conversion is caught
+    // even if to_linear() itself drifts: linear(#C1) = 0.53326.
+    CHECK(resolved.fill->g == doctest::Approx(0.53326f).epsilon(0.0002f));
+    // ... and the encoded channel must NOT survive to the consumer.
+    CHECK(resolved.fill->g != doctest::Approx(193.0f / 255.0f).epsilon(0.0001f));
     CHECK_FALSE(resolved.shadow.has_value());
     CHECK_FALSE(resolved.font_size.has_value());
+}
+
+// P0-2 gate: mid-gray is the smallest fixture that exposes an sRGB/linear
+// mix-up on BOTH text authoring paths.  CSS #808080 is sRGB 0.501961; the
+// linear working-domain value is 0.215861.  If a future change re-encodes the
+// boundary, the two are easy to confuse and this test fails loudly.
+TEST_CASE("parse_hex_color lowers CSS sRGB hex to the linear working domain") {
+    const auto gray = chronon3d::render_plan::parse_hex_color("#808080");
+    REQUIRE(gray.has_value());
+    check_color(*gray, 0.2158605f, 0.2158605f, 0.2158605f, 1.0f);
+    CHECK(gray->r != doctest::Approx(128.0f / 255.0f).epsilon(0.0001f));
+
+    // Alpha is a coverage factor, not a channel: it survives untouched.
+    const auto half = chronon3d::render_plan::parse_hex_color("#808080", 0.5f);
+    REQUIRE(half.has_value());
+    check_color(*half, 0.2158605f, 0.2158605f, 0.2158605f, 0.5f);
+
+    // Fixed points of the conversion stay exact and keep every existing
+    // white-fill / black-shadow production plan byte-stable.
+    const auto white = chronon3d::render_plan::parse_hex_color("#FFFFFF");
+    const auto black = chronon3d::render_plan::parse_hex_color("#000000");
+    REQUIRE(white.has_value());
+    REQUIRE(black.has_value());
+    check_color(*white, 1.0f, 1.0f, 1.0f, 1.0f);
+    check_color(*black, 0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+TEST_CASE("resolve_subtitle_style lowers mid-gray to the linear domain") {
+    chronon3d::render_plan::LayerStylePlan style;
+    style.fill = "#808080";
+
+    const auto resolved = chronon3d::render_plan::resolve_subtitle_style(style);
+    REQUIRE(resolved.fill.has_value());
+    check_color(*resolved.fill, 0.2158605f, 0.2158605f, 0.2158605f, 1.0f);
 }
 
 TEST_CASE("resolve_subtitle_style keeps defaults when fill is unusable") {

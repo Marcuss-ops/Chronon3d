@@ -89,6 +89,8 @@ namespace chronon3d {
 #define CHRONON_COUNTERS_TEXT(X) \
     X(text_prepare_per_frame_wall_us) \
     X(text_glyphs_rasterized) \
+    X(text_legacy_placement_runs)  /**< TICKET-TEXT-QUALITY-V2 P0-2 census: TextRunDynamic records produced through the compatibility bitmap-origin placement (GlyphStatic::flags bit 0 == 0 AND TextRunDynamic::flags bit 0 == 0). The MTSDF plane path never contributes. Host-side exit criterion before demolishing the legacy `round()` branch: this must be 0 on the production corpus. */ \
+    X(text_legacy_placement_glyphs)  /**< glyph instances carried by text_legacy_placement_runs */ \
     X(gpu_text_cpu_selector_compat_frames) \
     X(gpu_text_cpu_selector_compat_glyph_evals) \
     X(mtsdf_glyphs_generated) \
