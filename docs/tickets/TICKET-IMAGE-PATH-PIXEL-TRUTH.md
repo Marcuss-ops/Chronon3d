@@ -1,9 +1,11 @@
 # TICKET-IMAGE-PATH-PIXEL-TRUTH — la via immagine non è una verità pixel
 
-Stato: **OPEN (gap di verità pre-encode)** — **non** è un blocker di build né di
-render: i job di produzione sono video, non PNG. La via immagine resta un
-**surfacing di misura** rotto; il suo sostituto è atterrato ed è il **raw sink**
-pre-encode.
+Stato: **CHIUSA 2026-09-17 — exit condition 2** (dichiarata non-canonica),
+[evidenza](../evidence/pre-encode-pixel-truth-2026-09-17.md). La via immagine
+resta un **surfacing di misura** rotto (exit condition 1 non tentata, lavoro
+opzionale: nessuna misura lo richiede finché la via canonica è il raw sink), ma
+non è più **silenziosa**: il CLI annuncia la lane da una sola authority e la via
+pre-encode canonica è eseguibile (`--video-sink raw` + `tools/raw_frame_to_png.py`).
 
 Questo ticket esiste per **non riaprire il caso**: chiunque oggi lanci
 `chronon3d_cli render … -o x.png` e trovi un frame senza testo sta osservando
@@ -110,3 +112,26 @@ rifiuterebbe overlay statici legittimi.
   `tests/cli/test_render_job_write_frame_sanity.cpp`
 * raw sink: `apps/chronon3d_cli/commands/video/common/sink_options.hpp`,
   `apps/chronon3d_cli/utils/video/video_sink_adapter_config.cpp`
+
+## 7. Chiusura per exit condition 2 (2026-09-17)
+
+L'exit condition alternativa chiede che la via immagine sia **dichiarata
+non-canonica** con un messaggio esplicito nel CLI **e** in documentazione, e che
+ogni consumatore di qualità usi il raw sink o il frame decodificato. Entrambe le
+metà sono atterrate:
+
+* **messaggio**: `apps/chronon3d_cli/utils/job/output_lane_pixel_truth.hpp` è
+  l'unica authority che risponde "questa lane è una superficie di verità?" e
+  produce il testo; `utils/job/render_job.cpp` (route `render`) e
+  `commands/render/command_render_plan_internal.inc` (route `render --plan`) la
+  interrogano nello stesso punto in cui scelgono la lane, quindi un messaggio non
+  può esistere senza l'altro;
+* **documentazione**: questo ticket, §5 del ticket consumatore e
+  [`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md);
+* **consumatore**: `tools/raw_frame_to_png.py` rende il raw sink un PNG
+  **verbatim** con un gate di contenuto, e rifiuta chiuso un artifact di forma
+  sbagliata — è la sostituzione richiesta dell'exit condition 2.
+
+Non si chiude "migliorando" il sanity scan (vedi §2): la correzione è dire
+cosa è la lane, non allargare un gate che accetterebbe comunque overlay statici
+legittimi.
