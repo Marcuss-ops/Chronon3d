@@ -19,7 +19,8 @@ namespace chronon3d {
  *   TimelineBuilder t(s);
  *   t.add("title").from(0).duration(45).with([](LayerBuilder& l) {
  *       l.text("t", {...});
- *       l.motion("soft_pop", {});
+ *       l.scale_anim().key(Frame{0}, Vec3{0.9f, 0.9f, 1.0f})
+ *                      .key(Frame{20}, Vec3{1.0f, 1.0f, 1.0f});
  *   })
  *   .add("camera").from(0).duration(120).with_camera_pose(camera_v1::presets::hero_push_in())
  *   .stagger({"title"}, StaggerConfig{.delay_per_unit = Frame{4}}, StaggerOrder::LeftToRight)

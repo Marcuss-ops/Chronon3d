@@ -18,16 +18,6 @@ add_library(chronon3d_scene OBJECT
     media_placement.cpp
     path_factories.cpp
     presets/camera_motion_clip.cpp
-    presets/motion_renderer.cpp
-    presets/motion_resolver.cpp
-    presets/motion_preset_catalog.cpp
-    presets/motion_presets_reveal.cpp
-    presets/motion_presets_3d.cpp
-    presets/motion_presets_glow.cpp
-    presets/motion_presets_idle.cpp
-    presets/motion_presets_impact.cpp
-    presets/phrase_presets.cpp
-    presets/phrase_group_builder.cpp
     # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
     joints/joints_api.cpp
 

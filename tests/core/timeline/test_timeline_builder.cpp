@@ -65,11 +65,17 @@ TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
     TimelineBuilder t(s);
     t.add("a").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({-100.0f, 0.0f, 0.0f});
-        lb.motion("slide_in", {.vector = Vec3{-200.0f, 0.0f, 0.0f}, .duration = Frame{20}});
+        // Inlined slide-in: from the authored offset into the target position
+        // over 20 frames (the preset layer now lives in ChrononTemplate).
+        lb.position_anim().key(Frame{0}, Vec3{-200.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                          .key(Frame{20}, Vec3{-100.0f, 0.0f, 0.0f});
+        lb.opacity_anim().key(Frame{0}, 0.0f, Easing::OutCubic).key(Frame{20}, 1.0f);
     })
     .add("b").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({100.0f, 0.0f, 0.0f});
-        lb.motion("slide_in", {.vector = Vec3{0.0f, 0.0f, 0.0f}, .duration = Frame{20}});
+        lb.position_anim().key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                          .key(Frame{20}, Vec3{100.0f, 0.0f, 0.0f});
+        lb.opacity_anim().key(Frame{0}, 0.0f, Easing::OutCubic).key(Frame{20}, 1.0f);
     })
     .stagger({"a", "b"}, StaggerConfig{.delay_per_unit = Frame{4}}, StaggerOrder::LeftToRight)
     .apply();
@@ -134,11 +140,15 @@ TEST_CASE("TimelineBuilder: global stagger applies to all tracks") {
     TimelineBuilder t(s);
     t.add("x").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({0.0f, 0.0f, 0.0f});
-        lb.motion("slide_in", {.vector = Vec3{-50.0f, 0.0f, 0.0f}, .duration = Frame{10}});
+        lb.position_anim().key(Frame{0}, Vec3{-50.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                          .key(Frame{10}, Vec3{0.0f, 0.0f, 0.0f});
+        lb.opacity_anim().key(Frame{0}, 0.0f, Easing::OutCubic).key(Frame{10}, 1.0f);
     })
     .add("y").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({200.0f, 0.0f, 0.0f});
-        lb.motion("slide_in", {.vector = Vec3{150.0f, 0.0f, 0.0f}, .duration = Frame{10}});
+        lb.position_anim().key(Frame{0}, Vec3{150.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                          .key(Frame{10}, Vec3{200.0f, 0.0f, 0.0f});
+        lb.opacity_anim().key(Frame{0}, 0.0f, Easing::OutCubic).key(Frame{10}, 1.0f);
     })
     .stagger(StaggerConfig{.delay_per_unit = Frame{6}}, StaggerOrder::LeftToRight)
     .apply();

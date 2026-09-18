@@ -19,7 +19,6 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
-#include <chronon3d/presets/motion_parameters.hpp>
 
 #include <memory>
 #include <memory_resource>
@@ -190,11 +189,6 @@ public:
         std::string_view id, std::string name, registry::ShapeParams params);
     LayerBuilder& fake_box3d(std::string name, FakeBox3DParams params);
     LayerBuilder& grid_plane(std::string name, GridPlaneParams params);
-
-    // One generic entry point for all built-in motion descriptors.
-    LayerBuilder& motion(
-        std::string_view preset_id,
-        const presets::MotionParameters& params = {});
 
     LayerBuilder& video(video::VideoSource source);
     LayerBuilder& video_size(Vec2 size);

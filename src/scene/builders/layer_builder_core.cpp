@@ -177,10 +177,6 @@ AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transfor
 //   opacity_timeline, blur_timeline)
 // → layer_builder_motion.cpp
 
-// Motion preset methods (slide_in, soft_pop, float_idle, etc.) are now
-// defined in src/scene/presets/motion_preset_catalog.cpp.
-// This reduces layer_builder_core.cpp from 815 → ~515 lines.
-
 // NOTE — `screen_dimensions(w, h)` body intentionally remains inline in the
 // header because it is a small builder property setter.
 

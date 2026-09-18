@@ -65,7 +65,8 @@ Composition make_parallelism_fixture() {
             add_common_background(s);
             s.layer("image_layer", [](auto& l) {
                 l.pin_to(Anchor::Center);
-                l.motion("tracking_breathing", {.scale = 1.04f, .duration = Frame{120}});
+                l.scale_anim().key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, Easing::OutCubic)
+                              .key(Frame{120}, Vec3{1.0f, 1.0f, 1.0f});
                 add_image_border(l, IMAGE_SIZE);
                 l.image("img", {
                     .asset_path = IMAGE_PATH,
