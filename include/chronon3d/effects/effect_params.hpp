@@ -42,8 +42,7 @@ struct GlowParams {
     Color color{1,1,1,1};
     f32 threshold{0.0f};
     f32 spread{1.0f};
-    f32 softness{1.0f};
-    f32 falloff{0.85f};
+    f32 softness{1.0f};    f32   falloff{1.0f};
     f32 core_strength{0.70f};
     f32 aura_strength{0.35f};
     f32 bloom_strength{0.18f};
@@ -51,8 +50,8 @@ struct GlowParams {
     bool preserve_source{true};
     std::vector<GlowLayer> layers;
     BlendMode blend{BlendMode::Add};
-    // Preserve the established interactive default; cinematic text specs
-    // opt into High explicitly.
+    // Preview remains Fast by default; final execution upgrades the
+    // resolved pipeline to High at the effect boundary.
     GlowQuality quality{GlowQuality::Fast};
 };
 

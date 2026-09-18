@@ -66,8 +66,17 @@ public:
                const effects::EffectExecutionContext& context) override {
         const auto* p = std::get_if<GlowParams>(&params);
         if (!p) throw std::runtime_error("Glow processor received invalid parameters");
-        if (p->intensity > 0.0f)
-            apply_glow_effect(fb, *p, context.clip, context.debug_cfg);
+        if (p->intensity > 0.0f) {
+            // Final renders must use the quality path; preview keeps the
+            // authored Fast default for interactive latency.  Keep this
+            // resolution at the effect boundary so every final caller,
+            // including legacy GlowParams presets, gets the same contract.
+            GlowParams resolved = *p;
+            if (context.quality == effects::RenderQuality::Final) {
+                resolved.quality = GlowQuality::High;
+            }
+            apply_glow_effect(fb, resolved, context.clip, context.debug_cfg);
+        }
     }
 };
 

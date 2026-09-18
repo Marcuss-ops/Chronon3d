@@ -145,7 +145,7 @@ struct GlowPipeline {
         base_radius = max_layer_r;
     }
     const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return radius + 4.0f;
+    return std::ceil(radius * 4.0f) + 4.0f;
 }
 
 /// Overload for GlowPipeline (uses the same logic — fields are already
@@ -160,7 +160,7 @@ struct GlowPipeline {
         base_radius = max_layer_r;
     }
     const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return radius + 4.0f;
+    return std::ceil(radius * 4.0f) + 4.0f;
 }
 
 } // namespace chronon3d
