@@ -132,19 +132,22 @@ ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 - [x] Eseguire il test SDK install-consumer dopo la correzione del confine
       compatibility/typed: installazione, canary 10/10, text, grid, camera,
       full, C ABI (12 PASS/1 SKIP) e typed asset consumer PASS.
-- [ ] Completare il target aggregato `chronon3d_tests`: il build Debug
-      `linux-ci` ha esaurito il filesystem dopo i target già linkati; i test
-      mancanti sono stati separati per esecuzione incrementale a binario
-      singolo, così da non richiedere 30+ GB simultanei. La suite animation
-      incrementale è ora PASS dopo il fix di gating (1/1).
+- [ ] Completare il target aggregato `chronon3d_tests`: il target build è stato
+      riprovato sul `linux-fast-dev` corrente ma non ha restituito entro 600 s;
+      non viene dichiarato PASS. Tuttavia il CTest registrato sullo stesso
+      build directory ha eseguito **89/89 test PASS** serialmente, senza
+      ricompilare né creare pressione di memoria.
 - [x] Eseguire i gate developer registrati in `tools/gates/manifest.sh`: 10/10
       PASS con `TMPDIR=.tmp` scrivibile; il gate steady-state segnala solo
       evidenza storica su una revisione precedente.
 
 ## 4. Acceptance e certificazione raggiungibile
 
-- [ ] Eseguire la suite release/full-validation sullo stesso SHA.
-- [ ] Eseguire la certificazione C ABI/SDK consumer se la lane compila.
+- [ ] Eseguire la suite release/full-validation sullo stesso SHA: NOT RUN in
+      questo pass, perché il filesystem è al 98% (6.5 GiB liberi).
+- [ ] Eseguire la certificazione C ABI/SDK consumer se la lane compila: BLOCKED
+      localmente; `linux-fast-dev` e `linux-video-release` hanno
+      `CHRONON3D_BUILD_C_API=OFF` e non contengono `libchronon3d_c.so`.
 - [ ] Eseguire la matrice FFmpeg disponibile (`doctor`, codec/routing,
       native fail-closed).
 - [ ] Eseguire la certificazione video/GPU se l'host espone Vulkan/CUDA/NVENC
@@ -169,6 +172,9 @@ ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 
 - **Completato localmente:** sezioni 0, 1 e 2, salvo il gate `cmake-format` non
   eseguibile per dipendenza mancante.
-- **Raggiungibile ma ancora da eseguire:** sezione 3, dopo il bootstrap vcpkg.
-- **Condizionato da host/CI/content pack:** sezione 4.
+- **Raggiungibile ma ancora da eseguire:** target aggregato `chronon3d_tests`
+  come build target (il CTest equivalente è già 89/89 PASS).
+- **Bloccato dalle risorse/configurazione attuali:** SDK C ABI install-consumer;
+  serve una configurazione `CHRONON3D_BUILD_C_API=ON` e spazio libero sufficiente.
+- **Condizionato da host/CI/content pack:** la parte GPU/video della sezione 4.
 - **Non autorizzato prima delle equivalence:** sezione 5.

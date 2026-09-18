@@ -5,6 +5,7 @@
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/subtitle_style.hpp>
+#include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <chrono>
@@ -52,6 +53,15 @@ void write_asset(const std::filesystem::path& root, std::string contents) {
 }
 
 } // namespace
+
+TEST_CASE("all text backends share one linear-domain color packer") {
+    const chronon3d::Color color{0.2158605f, 0.5f, 1.0f, 0.5f};
+    const auto packed = chronon3d::text::pack_text_color(color);
+    CHECK((packed & 0xFFu) == 55u);
+    CHECK(((packed >> 8) & 0xFFu) == 128u);
+    CHECK(((packed >> 16) & 0xFFu) == 255u);
+    CHECK(((packed >> 24) & 0xFFu) == 128u);
+}
 
 TEST_CASE("compile_render_plan fails loudly when the budget is exceeded") {
     chronon3d::render_plan::RenderPlan plan;

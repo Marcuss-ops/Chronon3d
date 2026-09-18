@@ -9,6 +9,7 @@
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/media/video/cuda_image_resource.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/text/text_color_packing.hpp>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -43,25 +44,6 @@ DirectYuvTextTextureCache& text_texture_cache() {
     return cache;
 }
 
-std::uint32_t pack_text_color(const Color& color) noexcept {
-    // Text colours arrive ALREADY in the linear working domain.  The single
-    // sRGB→linear conversion for authored CSS colours happens at the
-    // authoring/lowering boundary (render_plan::parse_hex_color,
-    // TICKET-TEXT-QUALITY-V2 P0-2) so that every backend consumes linear
-    // light directly.  This packer is therefore a pure 8-bit quantization and
-    // is deliberately identical to the Vulkan pack_text_color in
-    // node_runner_fused_batch.cpp / gpu_text_run.cpp, which never linearizes.
-    //
-    // Do NOT reintroduce to_linear() here: it would double-convert and darken
-    // every non-primary colour, and it would re-open exactly the FullGraph vs
-    // DirectYUV drift F2 of the ticket.
-    const auto to_byte = [](float value) {
-        return static_cast<std::uint32_t>(std::clamp(
-            std::lround(value * 255.0f), 0L, 255L));
-    };
-    return to_byte(color.r) | (to_byte(color.g) << 8) |
-           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
-}
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 bool is_2d_transform(const Transform& t) {
@@ -279,15 +261,15 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             entry.distance_range_px = rasterized->distance_range_px;
             const Color fill_color = node.color.a > 0.0f
                 ? node.color : prepared_shape->paint.fill;
-            entry.color = pack_text_color(fill_color);
-            entry.stroke_color = pack_text_color(prepared_shape->paint.stroke_color);
+            entry.color = ::chronon3d::text::pack_text_color(fill_color);
+            entry.stroke_color = ::chronon3d::text::pack_text_color(prepared_shape->paint.stroke_color);
             entry.stroke_width = prepared_shape->paint.stroke_enabled
                 ? prepared_shape->paint.stroke_width : 0.0f;
             // Canonical single drop shadow. The kernel resamples the prepared
             // distance field for it, so only the parameters travel here; no
             // extra texture, upload or per-frame work is created.
             if (text_contract.shadow.enabled) {
-                entry.shadow_color = pack_text_color(text_contract.shadow.color);
+                entry.shadow_color = ::chronon3d::text::pack_text_color(text_contract.shadow.color);
                 entry.shadow_opacity = text_contract.shadow.opacity;
                 entry.shadow_dx = text_contract.shadow.offset_x;
                 entry.shadow_dy = text_contract.shadow.offset_y;

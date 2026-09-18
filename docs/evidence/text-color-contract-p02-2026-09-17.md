@@ -34,13 +34,16 @@ regressione latente.
 
 ### 1bis. Censimento `pack_text_color` e verifica del percorso software
 
-Censimento (tre copie, tutte **pure quantizzazioni** dopo P0-2):
+Dopo P0-2 le tre chiamate backend usano una sola authority condivisa:
+`include/chronon3d/text/text_color_packing.hpp`. Il corpo è una quantizzazione
+pura del dominio lineare; nessun backend esegue `to_linear()`.
 
-| Sede | Prima | Dopo | Lane |
-|---|---|---|---|
-| `src/media/video/direct_yuv/direct_yuv_program.cpp` | `to_linear()` | quantizzazione pura | DirectYUV |
-| `src/render_graph/executor/node_runner_fused_batch.cpp:120` | quantizzazione pura | invariata | FullGraph (i 24/24 job di produzione) |
-| `src/render_graph/nodes/text_run/gpu_text_run.cpp:273` | quantizzazione pura | invariata | FullGraph |
+| Sede | Dopo | Lane |
+|---|---|---|
+| `include/chronon3d/text/text_color_packing.hpp` | **authority unica**: quantizzazione pura | tutti i backend |
+| `src/media/video/direct_yuv/direct_yuv_program.cpp` | delega all'authority condivisa | DirectYUV |
+| `src/render_graph/executor/node_runner_fused_batch.cpp` | delega all'authority condivisa | FullGraph |
+| `src/render_graph/nodes/text_run/gpu_text_run.cpp` | delega all'authority condivisa | FullGraph |
 
 **Il percorso software NON era già corretto.**  Questa è la differenza decisiva
 rispetto a una lettura che mette la conversione nel packer GPU.  Il testo
@@ -148,12 +151,9 @@ debito di demolizione è già estinto in questa consegna.
    resta reale e appartiene alla campagna DirectYUV separata.
 3. **Certificazione pixel-level** del guadagno: richiede il campione pre-encode
    (P0-0b) su un artifact di un job reale, non è un gate di P0-2.
-4. **Duplicazione residua dei packer**: `pack_text_color` esiste in tre copie
-   (behavioralmente identiche dopo P0-2).  Unificarle è possibile ma
-   richiederebbe una nuova funzione in `include/chronon3d/` (accanto a
-   `runtime::TextRunDynamic`); AGENTS vieta l'espansione API non necessaria, e
-   nessun gate P0-2 lo richiede.  Raccomandato come `chore` separato, **con
-   corpo di quantizzazione pura** (mai `to_linear()`), vedi §1bis.
+4. **Packer unificato**: chiuso in questo pass con
+   `include/chronon3d/text/text_color_packing.hpp`; DirectYUV, fused FullGraph
+   e GPU text-run delegano tutti alla stessa quantizzazione pura.
 5. **`highlight_color`** (Vulkan) e i colori di material (bevel highlight): non
    passano dalla boundary hex, restano nel residuo «colori non-hex» (§6.1).
 
