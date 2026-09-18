@@ -4,8 +4,8 @@
 // preset_constraints.hpp — Responsive preset sizing helpers
 //
 // Shared types used by the Chronon3D text preset families.  Keeping them
-// in one header avoids duplication between text_presets.hpp and
-// text_presets_v1.hpp (AGENTS.md §anti-duplication).
+// in one header avoids duplication between the preset families that consume
+// them (AGENTS.md §anti-duplication).
 //
 //   TextBoxConstraints  — fractional + minimum box sizing
 //   AspectRatioPolicy   — how to resolve constraints on non-16:9 canvases
