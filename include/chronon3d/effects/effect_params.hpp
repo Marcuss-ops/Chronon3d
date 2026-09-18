@@ -14,6 +14,7 @@
 #include <variant>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
 
 namespace chronon3d {
 
@@ -28,6 +29,11 @@ struct GlowLayer {
     f32 opacity{1.0f};
     f32 scale{1.0f};
     Color color{0, 0, 0, 0};    // per-layer color tint; alpha=0 means "use pipeline color"
+};
+
+enum class GlowQuality : uint8_t {
+    Fast,  // existing box-filter path, intended for interactive previews
+    High,  // separable Gaussian in linear light with premultiplied filtering
 };
 
 struct GlowParams {
@@ -45,6 +51,9 @@ struct GlowParams {
     bool preserve_source{true};
     std::vector<GlowLayer> layers;
     BlendMode blend{BlendMode::Add};
+    // Preserve the established interactive default; cinematic text specs
+    // opt into High explicitly.
+    GlowQuality quality{GlowQuality::Fast};
 };
 
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
