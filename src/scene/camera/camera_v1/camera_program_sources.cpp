@@ -205,6 +205,38 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
 // eval_orbit_motion — TICKET-024 fix
 // =============================================================================
 
+Camera2_5D CameraMotionParamsSource::sample_at(Frame ctx_frame) const {
+    using namespace chronon3d::animation;
+
+    const Frame local_frame = (ctx_frame >= params.start_frame)
+                                  ? (ctx_frame - params.start_frame)
+                                  : Frame{0};
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = params.pose.position;
+    cam.rotation = params.pose.rotation;
+    cam.zoom = params.pose.zoom;
+
+    if (params.primary.enabled && params.primary.duration > 0) {
+        const f32 t = easing_value(
+            params.primary.easing,
+            normalized_time(local_frame, params.primary.duration));
+        cam.position = lerp(params.primary.from.position, params.primary.to.position, t);
+        cam.rotation = lerp(params.primary.from.rotation, params.primary.to.rotation, t);
+        cam.zoom = lerp(params.primary.from.zoom, params.primary.to.zoom, t);
+    } else {
+        const f32 t = normalized_time(local_frame, params.duration);
+        cam.position = params.position;
+        cam.zoom = params.zoom;
+        switch (params.axis) {
+            case MotionAxis::Tilt: cam.rotation.x = lerp(params.start_deg, params.end_deg, t); break;
+            case MotionAxis::Pan:  cam.rotation.y = lerp(params.start_deg, params.end_deg, t); break;
+            case MotionAxis::Roll: cam.rotation.z = lerp(params.start_deg, params.end_deg, t); break;
+        }
+    }
+    return cam;
+}
+
 Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
                              const OrbitMotion& orbit,
                              const CameraEvalContext& ctx,
