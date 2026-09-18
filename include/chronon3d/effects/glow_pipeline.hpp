@@ -111,6 +111,7 @@ struct GlowPipeline {
     f32 outer_downscale{0.25f};
     bool preserve_source{true};
     BlendMode blend{BlendMode::Add};
+    GlowQuality quality{GlowQuality::High};
 
     // ── Per-layer table (empty = use synthetic core/aura/bloom) ────
     std::vector<GlowLayer> layers;

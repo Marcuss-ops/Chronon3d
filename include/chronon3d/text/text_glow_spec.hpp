@@ -62,6 +62,7 @@ struct TextGlowSpec {
     // ── Quality / blend ─────────────────────────────────────────────────
     f32   spread{1.0f};
     f32   outer_downscale{0.25f};      // downsample outer bloom for perf
+    GlowQuality quality{GlowQuality::High};
     bool  core_preservation{true};     // keep text sharp (no blurry text)
     bool  use_additive_bloom{true};    // Add vs Screen blend mode
 
@@ -78,12 +79,12 @@ struct TextGlowSpec {
         p.color         = inner_color;
         p.preserve_source = core_preservation;
         p.blend         = use_additive_bloom ? BlendMode::Add : BlendMode::Screen;
-        p.blend         = use_additive_bloom ? BlendMode::Add : BlendMode::Screen;
         p.threshold     = threshold;
         p.softness      = softness;
         p.falloff       = falloff;
         p.spread        = spread;
         p.outer_downscale = outer_downscale;
+        p.quality       = quality;
         p.radius        = bloom_radius;
         p.intensity     = 1.0f;
         // Map AE-like 3-layer fields onto GlowLayer[] entries.  Each layer's

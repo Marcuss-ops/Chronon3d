@@ -25,6 +25,7 @@ GlowPipeline GlowPipeline::from(const GlowParams& p) {
     out.outer_downscale = p.outer_downscale;
     out.preserve_source = p.preserve_source;
     out.blend = p.blend;
+    out.quality = p.quality;
     out.layers = p.layers;
     return out;
 }

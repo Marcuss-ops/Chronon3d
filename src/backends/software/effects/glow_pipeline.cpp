@@ -111,6 +111,93 @@ struct GlowLayerPass {
     Color  tint{0, 0, 0, 0};  // per-layer color override (alpha > 0 means use this)
 };
 
+// High-quality glow blur. The source pass is straight-alpha sRGB; filtering is
+// performed as premultiplied linear RGB so transparent edge pixels cannot leak
+// dark/bright fringes into the halo. The result is converted back to straight
+// sRGB because the existing compositor's Normal path accepts that contract.
+void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
+    const int w = fb.width();
+    const int h = fb.height();
+    if (w <= 0 || h <= 0 || sigma <= 0.0f) return;
+
+    const int radius = std::max(1, static_cast<int>(std::ceil(sigma * 3.0f)));
+    std::vector<float> kernel(static_cast<std::size_t>(radius * 2 + 1));
+    float sum = 0.0f;
+    for (int i = -radius; i <= radius; ++i) {
+        const float weight = std::exp(-0.5f * (static_cast<float>(i * i) / (sigma * sigma)));
+        kernel[static_cast<std::size_t>(i + radius)] = weight;
+        sum += weight;
+    }
+    for (float& weight : kernel) weight /= sum;
+
+    auto horizontal = acquire_temp_framebuffer(w, h);
+    horizontal->clear(Color::transparent());
+    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
+                      [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            Color* dst = horizontal->pixels_row(y);
+            for (int x = 0; x < w; ++x) {
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
+                for (int k = -radius; k <= radius; ++k) {
+                    const int sx = x + k;
+                    if (sx < 0 || sx >= w) continue;
+                    const Color c = fb.pixels_row(y)[sx];
+                    const float weight = kernel[static_cast<std::size_t>(k + radius)];
+                    const float alpha = std::clamp(c.a, 0.0f, 1.0f) * weight;
+                    const Color linear = {
+                        std::pow(std::max(0.0f, c.r), 2.4f),
+                        std::pow(std::max(0.0f, c.g), 2.4f),
+                        std::pow(std::max(0.0f, c.b), 2.4f),
+                        c.a
+                    };
+                    r += linear.r * alpha;
+                    g += linear.g * alpha;
+                    b += linear.b * alpha;
+                    a += alpha;
+                }
+                dst[x] = {r, g, b, a};
+            }
+        }
+    });
+
+    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
+                      [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            Color* dst = fb.pixels_row(y);
+            for (int x = 0; x < w; ++x) {
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
+                for (int k = -radius; k <= radius; ++k) {
+                    const int sy = y + k;
+                    if (sy < 0 || sy >= h) continue;
+                    const Color c = horizontal->pixels_row(sy)[x];
+                    const float weight = kernel[static_cast<std::size_t>(k + radius)];
+                    r += c.r * weight;
+                    g += c.g * weight;
+                    b += c.b * weight;
+                    a += c.a * weight;
+                }
+                if (a <= 1.0e-8f) {
+                    dst[x] = Color::transparent();
+                    continue;
+                }
+                const float inv_alpha = 1.0f / a;
+                const auto linear_to_srgb = [](float value) {
+                    value = std::max(0.0f, value);
+                    return value <= 0.0031308f
+                        ? value * 12.92f
+                        : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+                };
+                dst[x] = {
+                    linear_to_srgb(r * inv_alpha),
+                    linear_to_srgb(g * inv_alpha),
+                    linear_to_srgb(b * inv_alpha),
+                    std::clamp(a, 0.0f, 1.0f)
+                };
+            }
+        }
+    });
+}
+
 // ── run_layer_mode (moved from apply_glow_effect) ────────────────────
 
 // ── Glow accumulator result ────────────────────────────────────────────
@@ -243,7 +330,14 @@ struct GlowAccumResult {
             // rescales the kernel radius to compensate.  Visually identical
             // to within 1-2/255 per pixel for typical SpecialName-style
             // glow radii (18-100px).
-            apply_blur(*pass_fb, r, std::nullopt, 2);
+            if (p.quality == GlowQuality::High) {
+                // Radius is the visual lobe extent; 3 sigma covers the
+                // Gaussian contribution without a hard rectangular edge.
+                apply_gaussian_blur_linear_premultiplied(*pass_fb,
+                                                         std::max(0.5f, r / 3.0f));
+            } else {
+                apply_blur(*pass_fb, r, std::nullopt, 2);
+            }
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p, falloff_lut);
 
             // Debug: save each glow pass before accumulation (per-instance debug_cfg — TICKET-007)
@@ -275,7 +369,14 @@ struct GlowAccumResult {
                 }
             });
 
-            apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale), std::nullopt, 2);
+            if (p.quality == GlowQuality::High) {
+                apply_gaussian_blur_linear_premultiplied(
+                    *small_fb,
+                    std::max(0.5f, r * pass.buffer_scale / 3.0f));
+            } else {
+                apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale),
+                           std::nullopt, 2);
+            }
             accumulate_scaled_glow_pass(*glow_acc_fb, *small_fb, p, pass.buffer_scale, falloff_lut);
         }
     }

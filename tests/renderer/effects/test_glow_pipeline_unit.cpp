@@ -16,6 +16,7 @@
 
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/effects/spatial_bounds.hpp>
+#include <chronon3d/text/text_glow_spec.hpp>
 
 #include <cmath>
 using namespace chronon3d;
@@ -38,6 +39,10 @@ TEST_CASE("PR2-Unit-Glow: from(GlowParams) round-trips the main fields") {
     CHECK(pipeline.radius    == doctest::Approx(24.0f));
     CHECK(pipeline.intensity == doctest::Approx(1.25f));
     CHECK(pipeline.spread    == doctest::Approx(1.5f));
+    CHECK(pipeline.quality == GlowQuality::Fast);
+
+    p.quality = GlowQuality::High;
+    CHECK(GlowPipeline::from(p).quality == GlowQuality::High);
 }
 
 TEST_CASE("PR2-Unit-Glow: from(BloomParams) sets Mode::Bloom + additive") {
@@ -69,6 +74,17 @@ TEST_CASE("PR2-Unit-Glow: glow_effect_extent accounts for max layer radius + 4 p
     p.layers.push_back(layer);
     const float e2 = glow_effect_extent(p);
     CHECK(e2 == doctest::Approx(54.0f));
+}
+
+TEST_CASE("GlowQuality: text spec preserves quality and alpha-mask contract") {
+    TextGlowSpec spec;
+    spec.quality = GlowQuality::Fast;
+    const GlowParams params = spec.to_glow_params();
+    CHECK(params.quality == GlowQuality::Fast);
+    CHECK(params.layers.size() == 3);
+    CHECK(params.core_strength == doctest::Approx(params.layers[0].opacity));
+    CHECK(params.aura_strength == doctest::Approx(params.layers[1].opacity));
+    CHECK(params.bloom_strength == doctest::Approx(params.layers[2].opacity));
 }
 
 TEST_CASE("PR2-Unit-ShadowBounds: halo matches contact and ambient shadow maps") {
