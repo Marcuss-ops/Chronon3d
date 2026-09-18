@@ -265,6 +265,15 @@ __device__ inline float direct_mtsdf_band_dest(const DirectYuvLayer& layer) {
   return range * source_scale;
 }
 
+__device__ float direct_mtsdf_alpha_at(const DirectYuvLayer& layer,
+                                        int sx, int sy) {
+  sx = min(max(sx, 0), layer.source_width - 1);
+  sy = min(max(sy, 0), layer.source_height - 1);
+  const char* row = (const char*)layer.rgba + sy * layer.pitch;
+  const unsigned int packed = ((const unsigned int*)row)[sx];
+  return (float)((packed >> 24u) & 0xFFu) / 255.0f;
+}
+
 __device__ float direct_mtsdf_signed_distance(const DirectYuvLayer& layer,
                                               float dst_x, float dst_y) {
   const float u = layer.src_x0 + (layer.src_x1 - layer.src_x0) *
@@ -274,13 +283,24 @@ __device__ float direct_mtsdf_signed_distance(const DirectYuvLayer& layer,
   // Outside the prepared plane there is no silhouette, so the field reads as
   // fully outside (alpha 0 → below the outline).
   if (u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f) return 0.0f;
-  const int sx = min(max((int)floorf(u * (float)layer.source_width), 0),
-                     layer.source_width - 1);
-  const int sy = min(max((int)floorf(v * (float)layer.source_height), 0),
-                     layer.source_height - 1);
-  const char* row = (const char*)layer.rgba + sy * layer.pitch;
-  const unsigned int packed = ((const unsigned int*)row)[sx];
-  return (float)((packed >> 24u) & 0xFFu) / 255.0f;
+
+  // Sample in texel-centre space and clamp to this glyph's own source rect.
+  // The old floor() read was nearest-neighbour and made scaled DirectYUV text
+  // shimmer. Four taps keep the fast lane on the same prepared MTSDF payload
+  // while preventing a neighbouring glyph from bleeding at the rect edge.
+  const float tx = u * (float)layer.source_width - 0.5f;
+  const float ty = v * (float)layer.source_height - 0.5f;
+  const int x0 = min(max((int)floorf(tx), 0), layer.source_width - 1);
+  const int y0 = min(max((int)floorf(ty), 0), layer.source_height - 1);
+  const int x1 = min(x0 + 1, layer.source_width - 1);
+  const int y1 = min(y0 + 1, layer.source_height - 1);
+  const float fx = fminf(fmaxf(tx - floorf(tx), 0.0f), 1.0f);
+  const float fy = fminf(fmaxf(ty - floorf(ty), 0.0f), 1.0f);
+  const float top = direct_mtsdf_alpha_at(layer, x0, y0) * (1.0f - fx) +
+                    direct_mtsdf_alpha_at(layer, x1, y0) * fx;
+  const float bottom = direct_mtsdf_alpha_at(layer, x0, y1) * (1.0f - fx) +
+                       direct_mtsdf_alpha_at(layer, x1, y1) * fx;
+  return top * (1.0f - fy) + bottom * fy;
 }
 
 __device__ float direct_mtsdf_shadow_tap(const DirectYuvLayer& layer,
@@ -400,11 +420,7 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
     // MTSDF resources use the same bit-preserving RGBA8-in-a-float-cell
     // upload ABI as the Vulkan atlas. CUDA decodes the field at the final
     // sample position, so DirectYUV never creates a CPU RGBA texture.
-    const unsigned int packed = ((const unsigned int*)row)[sx];
-    const float r = (float)(packed & 0xFFu) / 255.0f;
-    const float g = (float)((packed >> 8u) & 0xFFu) / 255.0f;
-    const float b = (float)((packed >> 16u) & 0xFFu) / 255.0f;
-    const float a_channel = (float)((packed >> 24u) & 0xFFu) / 255.0f;
+    const float a_channel = direct_mtsdf_signed_distance(layer, (float)x, (float)y);
     // The alpha lane is the canonical signed distance produced by the
     // MTSDF generator.  RGB are edge-coloured distances and may not be
     // median-combinable for fonts whose contour starts/ends on arbitrary
