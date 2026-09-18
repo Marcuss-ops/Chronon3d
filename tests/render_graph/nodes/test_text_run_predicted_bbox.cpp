@@ -54,7 +54,7 @@
 #include <string>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
-#include <chronon3d/presets/text/text_presets_v1.hpp>
+#include <chronon3d/presets/font_asset_paths.hpp>
 
 using namespace chronon3d;
 
@@ -510,12 +510,56 @@ TEST_CASE("BBoxParity: text corpus ink stays inside predicted placement box") {
     // ── Corpus definitions (canonical base presets + watermark surrogate). ──
     const CanvasInfo canvas = CanvasInfo::from_dimensions(1920.0f, 1080.0f);
 
-    TextDefinition headline = presets::text::title_centered("CORPUS HEADLINE", canvas);
+    // The corpus base placements that used to come from the text preset
+    // recipes are inlined here: recipes now live in ChrononTemplate, while the
+    // placement contract this test pins stays with the engine.
+    TextDefinition headline{};
+    headline.content.value = "CORPUS HEADLINE";
+    headline.style.font.font_path = presets::poppins_bold_font_path();
+    headline.style.font.font_family = "Poppins";
+    headline.style.font.font_weight = 700;
+    headline.style.font.font_size = 96.0f;
+    headline.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    headline.frame.size = Vec2{900.0f, 160.0f};
+    headline.frame.anchor = TextAnchor::Center;
+    headline.frame.align = TextAlign::Center;
+    headline.frame.vertical_align = VerticalAlign::Middle;
+    headline.frame.wrap = TextWrap::Word;
     headline.frame.overflow = TextOverflow::Clip;
+    headline.frame.line_height = 0.95f;
+    headline.frame.placement = TextPlacement{TextPlacementKind::CanvasCenter};
 
-    TextDefinition subtitle = presets::text::subtitle_bottom("corpus subtitle line", canvas);
+    TextDefinition subtitle{};
+    subtitle.content.value = "corpus subtitle line";
+    subtitle.style.font.font_path = presets::poppins_regular_font_path();
+    subtitle.style.font.font_family = "Poppins";
+    subtitle.style.font.font_weight = 600;
+    subtitle.style.font.font_size = 48.0f;
+    subtitle.style.color = Color{0.9f, 0.9f, 0.9f, 1.0f};
+    subtitle.frame.size = Vec2{1200.0f, 100.0f};
+    subtitle.frame.anchor = TextAnchor::Center;
+    subtitle.frame.align = TextAlign::Center;
+    subtitle.frame.vertical_align = VerticalAlign::Middle;
+    subtitle.frame.wrap = TextWrap::Word;
+    subtitle.frame.overflow = TextOverflow::Clip;
+    subtitle.frame.line_height = 1.05f;
+    subtitle.frame.placement = TextPlacement{TextPlacementKind::SafeAreaBottom};
 
-    TextDefinition lower = presets::text::lower_third("CORPUS LOWER THIRD", canvas);
+    TextDefinition lower{};
+    lower.content.value = "CORPUS LOWER THIRD";
+    lower.style.font.font_path = presets::poppins_bold_font_path();
+    lower.style.font.font_family = "Poppins";
+    lower.style.font.font_weight = 700;
+    lower.style.font.font_size = 42.0f;
+    lower.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    lower.frame.size = Vec2{1640.0f, 100.0f};
+    lower.frame.anchor = TextAnchor::BottomLeft;
+    lower.frame.align = TextAlign::Left;
+    lower.frame.vertical_align = VerticalAlign::Bottom;
+    lower.frame.wrap = TextWrap::Word;
+    lower.frame.overflow = TextOverflow::Clip;
+    lower.frame.line_height = 1.05f;
+    lower.frame.placement = TextPlacement{TextPlacementKind::BottomLeft};
 
     // Watermark surrogate: TopRight safe-area pin, box anchored to grow
     // down-left INTO the canvas (BottomRight box anchor).

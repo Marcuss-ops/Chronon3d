@@ -4,7 +4,6 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/random/deterministic_random.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
-#include <chronon3d/presets/motion_object.hpp>
 #include <vector>
 #include <numeric>
 #include <algorithm>
@@ -132,25 +131,6 @@ inline void stagger_layers(
     for (size_t i = 0; i < layers.size(); ++i) {
         Frame delay = compute_stagger_delay(ranks[i], layers.size(), config);
         layers[i].anim_transform.shift(delay);
-    }
-}
-
-// ── Stagger for MotionObjects ──────────────────────────────────────────────
-
-inline void stagger_motion_objects(
-    std::vector<presets::motion::MotionObject*>& objects,
-    const StaggerConfig& config,
-    StaggerOrder order = StaggerOrder::LeftToRight
-) {
-    auto ranks = detail::compute_stagger_ranks_impl(
-        objects, order,
-        [](const presets::motion::MotionObject& obj) { return obj.position_value; },
-        config
-    );
-
-    for (size_t i = 0; i < objects.size(); ++i) {
-        Frame delay = compute_stagger_delay(ranks[i], objects.size(), config);
-        objects[i]->shift(delay);
     }
 }
 

@@ -61,13 +61,6 @@ chronon3d_add_test_suite(
 )
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_safe_area_placement_tests)
 
-chronon3d_add_test_suite(
-    NAME chronon3d_text_canvas_aware_presets_tests
-    TIER UNIT
-    SOURCES text/test_preset_canvas_aware_presets.cpp
-)
-list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_text_canvas_aware_presets_tests)
-
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     chronon3d_add_test_suite(
         NAME chronon3d_text_clip_policy_tests

@@ -22,7 +22,7 @@ TEST_CASE("canonical error taxonomy keeps domain detail payloads") {
     CHECK(error.detail.legacy_type == "chronon3d::runtime::ExecutionFailure");
     CHECK(error.detail.legacy_code == "BackendFailure");
     CHECK(error.detail.component == "test_backend");
-    CHECK(chronon::kLegacyErrorMappings.size() == 28);
+    CHECK(chronon::kLegacyErrorMappings.size() == 27);
     CHECK(chronon::is_registered_legacy_type(
         "chronon3d::runtime::ExecutionFailure"));
     CHECK_FALSE(chronon::is_registered_legacy_type(
