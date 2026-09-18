@@ -82,6 +82,15 @@ namespace chronon3d {
             return u * u * (3.0f - 2.0f * u);
         }
 
+        // Canary renders are final-quality visual probes, not preview probes.
+        // Keep GlowParams::Fast as the interactive default elsewhere, but
+        // make the canary's quality choice explicit at the authoring site.
+        [[nodiscard]] GlowParams canary_glow(GlowParams params) {
+            params.quality = GlowQuality::High;
+            params.falloff = std::max(1.0f, params.falloff);
+            return params;
+        }
+
         /// A centred text run in the composition's own font: the one place a text
         /// layer's shape is decided, so a metric change lands in every clip at once.
         [[nodiscard]] TextDefinition canary_text(std::string value, const char *font_path,
@@ -201,7 +210,7 @@ namespace chronon3d {
                         l.parent("NULL_MAIN").enable_3d(true);
                         l.position({0.0f, 80.0f, 0.0f});
                         l.opacity(word_opacity);
-                        l.effect(GlowPresets::neon_blue(48.0f));
+                        l.effect(canary_glow(GlowPresets::neon_blue(48.0f)));
                         l.text("glow_word",
                                canary_text("GLOW", kCanaryFontBold, 260.0f, 700,
                                            Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1500.0f, 420.0f}));
@@ -210,7 +219,7 @@ namespace chronon3d {
                     scene.layer("SENTENCE", [](LayerBuilder &l) {
                         l.parent("NULL_MAIN").enable_3d(true);
                         l.position({0.0f, -190.0f, 70.0f});
-                        l.effect(GlowPresets::soft_cyan(26.0f));
+                        l.effect(canary_glow(GlowPresets::soft_cyan(26.0f)));
                         l.text("sentence",
                                canary_text("MOTION THAT FEELS PHYSICAL", kCanaryFontRegular, 64.0f,
                                            400, Color{0.88f, 0.94f, 1.0f, 1.0f},
@@ -246,7 +255,7 @@ namespace chronon3d {
 
                     scene.layer("SENTENCE", [](LayerBuilder &l) {
                         l.parent("NULL_SENTENCE").enable_3d(true).position({0.0f, 0.0f, 0.0f});
-                        l.effect(GlowPresets::editorial_highlight(30.0f));
+                        l.effect(canary_glow(GlowPresets::editorial_highlight(30.0f)));
                         l.text("sentence",
                                canary_text("CHRONON MOTION ENGINE\nMOTION THAT FEELS PHYSICAL",
                                            kCanaryFontBold, 92.0f, 700,
@@ -298,7 +307,7 @@ namespace chronon3d {
                         l.parent("NULL_B").enable_3d(true);
                         l.position({0.0f, canary_lerp(0.0f, 70.0f, t), 0.0f});
                         l.opacity(word_opacity);
-                        l.effect(GlowPresets::cinematic_gold(44.0f));
+                        l.effect(canary_glow(GlowPresets::cinematic_gold(44.0f)));
                         l.text("phrase",
                                canary_text("WORLD = PARENT x LOCAL", kCanaryFontBold, 116.0f, 700,
                                            Color{1.0f, 0.95f, 0.86f, 1.0f}, Vec2{1600.0f, 240.0f}));

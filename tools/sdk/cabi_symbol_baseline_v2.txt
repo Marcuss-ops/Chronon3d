@@ -34,5 +34,6 @@ chronon_plan_compile_json_n
 chronon_plan_destroy
 chronon_render_frame
 chronon_render_frame_into
+chronon_render_frame_with_layers
 chronon_render_file
 chronon_buffer_free

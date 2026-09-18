@@ -27,16 +27,14 @@ namespace chronon3d::text::resolver {
 
 namespace {
 
-// ── Canonical 5-tier fallback candidates (verbatim from prior impl) ──────
+// ── Canonical 6-tier fallback candidates (verbatim from prior impl) ──────
 //
 // Tier 0: primary font unchanged (caller already checked can_load above).
 // Tier 1: same font_family, no explicit path (engine family→path mapping).
 // Tier 2: sans-serif candidates (DejaVu Sans, Liberation Sans, Arial, Helvetica).
 // Tier 3: serif candidates (DejaVu Serif, Liberation Serif, Times New Roman, Georgia).
-// Tier 4: primary returned as-is (caller must treat as invisible).
-//
-// The extra-family candidates provided via FontRequest (if any) are tried
-// BEFORE tier 4; their fallback_index is 3.
+// Tier 4: extra-family candidates (caller-supplied, fallback_index = 3).
+// Tier 5: primary returned as-is, Unresolved (caller must treat as invisible).
 constexpr const char* kSansCandidates[] = {
     "DejaVu Sans",
     "Liberation Sans",

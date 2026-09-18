@@ -54,6 +54,11 @@
 #include <optional>
 #include <string>
 
+/// ADR-032 contract-zone record (defined in <chronon/abi.h>). Only a pointer to
+/// it crosses this header, so the tag is declared rather than the whole C ABI
+/// header pulled in.
+struct chronon_layer_state;
+
 namespace chronon3d {
 
 namespace image { class ImageBackend; }
@@ -253,6 +258,15 @@ public:
     [[nodiscard]]
     std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame);
+
+    /// Same route, with one frame of the ADR-032 motion handshake applied
+    /// between sampling and graph execution. Throws when a record fails the
+    /// contract's ABI discipline, so a malformed handshake cannot produce a
+    /// frame that merely looks plausible.
+    [[nodiscard]]
+    std::shared_ptr<Framebuffer> render_program(
+        const compiler::CompiledProgram& program, Frame frame,
+        const chronon_layer_state* layer_states, std::size_t layer_state_count);
 
     /// Compile and prepare once for repeated frame execution.
     [[nodiscard]] PreparedRenderJob prepare(

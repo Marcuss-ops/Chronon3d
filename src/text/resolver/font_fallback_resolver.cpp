@@ -19,6 +19,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <filesystem>
 #include <string>
@@ -88,6 +89,12 @@ namespace {
             specs.push_back(std::move(spec));
         }
     }
+    // Deterministic fallback: directory_iterator order is filesystem-dependent.
+    // Sort by path so the same content yields the same stack across machines
+    // (BitExact contract — cluster fallback must be reproducible).
+    std::sort(specs.begin(), specs.end(), [](const FontSpec& a, const FontSpec& b) {
+        return a.font_path < b.font_path;
+    });
     return specs;
 }
 

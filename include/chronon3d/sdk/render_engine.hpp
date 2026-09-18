@@ -36,8 +36,14 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
+
+/// ADR-032 contract-zone record (defined in <chronon/abi.h>). Only a pointer to
+/// it crosses this header, so the tag is declared rather than the C ABI header
+/// pulled into the SDK surface.
+struct chronon_layer_state;
 
 namespace chronon3d::compiler {
 class CompiledProgram;
@@ -92,6 +98,22 @@ public:
     chronon3d::Result<RenderOutput, RenderError>
     render_program(const chronon3d::compiler::CompiledProgram& program,
                    Frame frame);
+
+    /// Same route, with one frame of the ADR-032 motion handshake applied
+    /// between sampling and graph execution: the motion side's records decide
+    /// each named layer's transform, opacity and activity for this frame.
+    ///
+    /// A record set that fails the contract's ABI discipline (struct_size,
+    /// reserved or out-of-range layer id, duplicate layer id, non-finite
+    /// matrix) is refused before any render work starts and surfaces as a
+    /// RenderError, so a malformed handshake cannot yield a plausible frame.
+    /// Pass null/0 for no override.
+    [[nodiscard]]
+    chronon3d::Result<RenderOutput, RenderError>
+    render_program(const chronon3d::compiler::CompiledProgram& program,
+                   Frame frame,
+                   const chronon_layer_state* layer_states,
+                   std::size_t layer_state_count);
 
     /// Render a contiguous frame range into an encoded video file.
     /// This is a public wrapper over the same internal frame renderer and
