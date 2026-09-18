@@ -155,9 +155,13 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
                     const float srgb_r = std::max(0.0f, c.r * inv_alpha);
                     const float srgb_g = std::max(0.0f, c.g * inv_alpha);
                     const float srgb_b = std::max(0.0f, c.b * inv_alpha);
-                    r += std::pow(srgb_r, 2.4f) * alpha * weight;
-                    g += std::pow(srgb_g, 2.4f) * alpha * weight;
-                    b += std::pow(srgb_b, 2.4f) * alpha * weight;
+                    const auto srgb_to_linear = [](float v) {
+                        return v <= 0.04045f ? v / 12.92f
+                                             : std::pow((v + 0.055f) / 1.055f, 2.4f);
+                    };
+                    r += srgb_to_linear(srgb_r) * alpha * weight;
+                    g += srgb_to_linear(srgb_g) * alpha * weight;
+                    b += srgb_to_linear(srgb_b) * alpha * weight;
                     a += alpha * weight;
                 }
                 dst[x] = {r, g, b, a};

@@ -21,6 +21,10 @@ add_library(chronon3d_scene OBJECT
     # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
     joints/joints_api.cpp
 
+    # ── ADR-032 — contract-zone converters (chronon/abi.h motion handshake) ──
+    motion_contract_bridge.cpp
+    motion_contract_apply.cpp
+
     # Authoring facade implementations that depend on LayerBuilder.
     subtitle_track_builder.cpp
 )

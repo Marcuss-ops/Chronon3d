@@ -67,8 +67,8 @@ public:
         const auto* p = std::get_if<GlowParams>(&params);
         if (!p) throw std::runtime_error("Glow processor received invalid parameters");
         if (p->intensity > 0.0f) {
-            // Final renders must use the quality path; preview keeps the
-            // authored Fast default for interactive latency.  Keep this
+            // Final renders must use the High-quality path; preview keeps the
+            // authored Fast default for interactive latency. Keep this
             // resolution at the effect boundary so every final caller,
             // including legacy GlowParams presets, gets the same contract.
             GlowParams resolved = *p;

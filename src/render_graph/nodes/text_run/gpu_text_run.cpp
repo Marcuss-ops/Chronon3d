@@ -15,6 +15,7 @@
 #include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/animation/text_animator_properties.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
@@ -37,11 +38,6 @@
 namespace chronon3d::graph::text_run {
 
 namespace {
-
-// Defined with the rest of the text-run packing helpers below.  The run-level
-// animation lowering lives above those helpers so it can also be used by the
-// fused executor without duplicating the color packing contract.
-std::uint32_t pack_text_color(const Color& color) noexcept;
 
 bool is_full_run_selector(const TextRunShape& shape,
                           const TextAnimatorSpec& animator) noexcept {
@@ -139,7 +135,7 @@ void sample_gpu_run_level_animation(
             base.g += (fill->color.g - base.g) * selector_weight;
             base.b += (fill->color.b - base.b) * selector_weight;
             base.a += (fill->color.a - base.a) * selector_weight;
-            run.color = pack_text_color(base);
+            run.color = ::chronon3d::text::pack_text_color(base);
         }
     }
 }
@@ -268,15 +264,6 @@ bool checked_mul(std::size_t a, std::size_t b, std::size_t& out) {
     }
     out = a * b;
     return true;
-}
-
-std::uint32_t pack_text_color(const Color& color) noexcept {
-    const auto to_byte = [](float value) {
-        return static_cast<std::uint32_t>(std::clamp(
-            std::lround(value * 255.0f), 0L, 255L));
-    };
-    return to_byte(color.r) | (to_byte(color.g) << 8) |
-           (to_byte(color.b) << 16) | (to_byte(color.a) << 24);
 }
 
 struct PackedGlyph {
@@ -1000,7 +987,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.sx = model_matrix[0][0];
     run.sy = model_matrix[1][1];
     run.opacity = opacity;
-    run.color = pack_text_color(shape.paint.fill);
+    run.color = ::chronon3d::text::pack_text_color(shape.paint.fill);
     // Keep the shader interpretation tied to the atlas profile rather than
     // duplicating the distance range as a magic constant in GLSL.
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
@@ -1031,13 +1018,13 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
         run.stroke_width = shape.paint.stroke_width;
-        run.stroke_color = pack_text_color(shape.paint.stroke_color);
+        run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
     }
     for (const auto& shadow : shape.shadows) {
         if (!shadow.enabled) continue;
         Color shadow_color = shadow.color;
         shadow_color.a = std::clamp(shadow_color.a * shadow.opacity, 0.0f, 1.0f);
-        run.shadow_color = pack_text_color(shadow_color);
+        run.shadow_color = ::chronon3d::text::pack_text_color(shadow_color);
         run.shadow_dx = shadow.offset.x;
         run.shadow_dy = shadow.offset.y;
         run.shadow_blur = shadow.blur;

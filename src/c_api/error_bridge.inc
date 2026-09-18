@@ -30,6 +30,20 @@ const char* chronon_status_name(chronon_status status) {
 
 uint32_t chronon_abi_version(void) { return 2; }
 
+/* ADR-032 contract zone. Independent of the engine ABI: bumps only when a
+ * contract-zone record (chronon_content_metrics / chronon_layer_state) or
+ * the chronon_content_kind enum changes shape or value.
+ *
+ * The value has one source, chronon3d::motion::kContractZoneVersion, owned by
+ * the contract bridge. On ELF the engine already defines the symbol
+ * (src/scene/motion_contract_bridge.cpp), so this wrapper re-exports the
+ * engine's definition rather than carrying a second copy. Windows keeps the
+ * definition here, where CHRONON3D_BUILD_DLL turns abi.h's declaration into an
+ * export instead of a dllimport. */
+#if defined(_WIN32)
+uint32_t chronon_contract_version(void) { return chronon3d::motion::kContractZoneVersion; }
+#endif
+
 const char* chronon_engine_last_error(chronon_engine* engine) {
     return engine ? engine->last_error.c_str() : "invalid engine";
 }

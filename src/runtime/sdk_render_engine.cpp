@@ -327,6 +327,13 @@ RenderEngine::render_compiled(
 chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render_program(
     const chronon3d::compiler::CompiledProgram& program, Frame frame) {
+    return render_program(program, frame, nullptr, 0);
+}
+
+chronon3d::Result<RenderOutput, RenderError>
+RenderEngine::render_program(
+    const chronon3d::compiler::CompiledProgram& program, Frame frame,
+    const chronon_layer_state* layer_states, std::size_t layer_state_count) {
     return m_impl->render_frame(frame, [&] {
         auto settings = convert_settings(m_impl->settings);
         const auto& meta = program.metadata();
@@ -343,8 +350,11 @@ RenderEngine::render_program(
         m_impl->prepared_job.reset();
         m_impl->prepared_composition = nullptr;
         m_impl->engine.set_settings(settings);
+        // ADR-032 — the inner engine refuses a malformed record set before it
+        // starts rendering; that exception becomes the RenderError below.
         return m_impl->engine.render_program(
-            program, chronon3d::Frame{frame.integral()});
+            program, chronon3d::Frame{frame.integral()},
+            layer_states, layer_state_count);
     });
 }
 

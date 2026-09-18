@@ -106,6 +106,23 @@ std::shared_ptr<Framebuffer> RenderEngine::render_compiled(
 std::shared_ptr<Framebuffer> RenderEngine::render_program(
     const compiler::CompiledProgram& program, Frame frame)
 {
+    return render_program(program, frame, nullptr, 0);
+}
+
+std::shared_ptr<Framebuffer> RenderEngine::render_program(
+    const compiler::CompiledProgram& program, Frame frame,
+    const chronon_layer_state* layer_states, std::size_t layer_state_count)
+{
+    // ADR-032: refuse a malformed handshake here, at the execution boundary,
+    // before any render work starts — the same place and the same reason the
+    // asset integrity check below runs.
+    if (motion::ContractApplyReport refused{};
+        !motion::validate_layer_states(layer_states, layer_state_count, &refused)) {
+        throw std::runtime_error(
+            "ADR-032 motion handshake refused " + std::to_string(refused.rejected) +
+            " layer state record(s): struct_size, reserved (0) or out-of-range "
+            "layer id, duplicate layer id, or non-finite matrix");
+    }
     // CompiledProgram carries the immutable preflight manifest just like the
     // prepared-composition path. Verify it at the execution boundary before
     // decoders reopen source files, closing the same TOCTOU window for the
@@ -136,7 +153,8 @@ std::shared_ptr<Framebuffer> RenderEngine::render_program(
     settings.render_budget.max_temporal_pixels = b.max_temporal_pixels;
     m_impl->m_renderer->set_settings(settings);
     m_impl->m_renderer->session().clear_last_frame_error();
-    return m_impl->m_pipeline->render_program(program, frame);
+    return m_impl->m_pipeline->render_program(
+        program, frame, nullptr, layer_states, layer_state_count);
 }
 
 PreparedRenderJob RenderEngine::prepare(

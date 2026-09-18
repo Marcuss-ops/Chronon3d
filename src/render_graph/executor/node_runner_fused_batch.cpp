@@ -32,6 +32,7 @@
 #include <spdlog/spdlog.h>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
+#include <chronon3d/text/text_color_packing.hpp>
 #endif
 
 namespace chronon3d::graph::detail {
@@ -77,17 +78,6 @@ thread_local FusedWorkerScratch tls_fused_scratch;
 #if defined(CHRONON3D_ENABLE_TEXT)
 
 
-[[nodiscard]] std::uint32_t pack_text_color(const Color& color) noexcept {
-    const auto to_byte = [](float value) {
-        return static_cast<std::uint32_t>(std::clamp(
-            std::lround(value * 255.0f), 0L, 255L));
-    };
-    return to_byte(color.r) |
-           (to_byte(color.g) << 8) |
-           (to_byte(color.b) << 16) |
-           (to_byte(color.a) << 24);
-}
-
 void fill_mtsdf_effects(const TextRunShape& shape,
                         runtime::TextRunDynamic& run) noexcept {
     constexpr std::uint32_t kStroke = 1u << 0;
@@ -96,7 +86,7 @@ void fill_mtsdf_effects(const TextRunShape& shape,
 
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.stroke_width = shape.paint.stroke_width;
-        run.stroke_color = pack_text_color(shape.paint.stroke_color);
+        run.stroke_color = ::chronon3d::text::pack_text_color(shape.paint.stroke_color);
         run.effect_flags |= kStroke;
     }
 
@@ -104,7 +94,7 @@ void fill_mtsdf_effects(const TextRunShape& shape,
         if (!shadow.enabled) continue;
         Color shadow_color = shadow.color;
         shadow_color.a = std::clamp(shadow_color.a * shadow.opacity, 0.0f, 1.0f);
-        run.shadow_color = pack_text_color(shadow_color);
+        run.shadow_color = ::chronon3d::text::pack_text_color(shadow_color);
         run.shadow_dx = shadow.offset.x;
         run.shadow_dy = shadow.offset.y;
         run.shadow_blur = shadow.blur;
@@ -125,7 +115,7 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
     run.sx = sx;
     run.sy = sy;
     run.opacity = opacity;
-    run.color = pack_text_color(shape.paint.fill);
+    run.color = ::chronon3d::text::pack_text_color(shape.paint.fill);
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
@@ -419,7 +409,7 @@ void execute_fused_batch_impl(
                                 glyph_run.sx = sx * glyph.scale.x;
                                 glyph_run.sy = sy * glyph.scale.y;
                                 glyph_run.opacity = opacity * glyph.opacity;
-                                glyph_run.color = pack_text_color(glyph.fill);
+                                glyph_run.color = ::chronon3d::text::pack_text_color(glyph.fill);
                                 glyph_run.distance_range_bits = std::bit_cast<std::uint32_t>(
                                     static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
                                 glyph_run.visible_glyph_count =
@@ -440,7 +430,7 @@ void execute_fused_batch_impl(
                         run_dyn.sx = sx;
                         run_dyn.sy = sy;
                         run_dyn.opacity = opacity;
-                        run_dyn.color = pack_text_color(render_shape->paint.fill);
+                        run_dyn.color = ::chronon3d::text::pack_text_color(render_shape->paint.fill);
                         text_run::sample_gpu_run_level_animation(
                             *render_shape, ctx.frame_input.sample_time, run_dyn);
                         run_dyn.distance_range_bits = std::bit_cast<std::uint32_t>(

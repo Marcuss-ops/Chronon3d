@@ -31,6 +31,8 @@
 //     are wired.
 // ===========================================================================
 
+#include <chronon/abi.h>
+
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -182,9 +184,16 @@ public:
         const CompiledComposition& compiled, Frame frame,
         FrameExecution* execution = nullptr);
 
+    /// `layer_states` is one frame of the ADR-032 motion handshake: after the
+    /// sampler fills the frame's parameter block and before graph execution
+    /// consumes it, apply_layer_states() overrides the transform, opacity and
+    /// activity of the layers those records name. Null/0 means "no override",
+    /// which is every caller that has no motion side.
     [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame,
-        FrameExecution* execution = nullptr);
+        FrameExecution* execution = nullptr,
+        const chronon_layer_state* layer_states = nullptr,
+        std::size_t layer_state_count = 0);
 
     /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
     /// only a handle; it must not duplicate slot, queue, or FrameExecution

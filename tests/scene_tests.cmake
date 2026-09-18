@@ -156,6 +156,34 @@ chronon3d_add_test_suite(
 )
 target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
+# ── ADR-032 — contract-zone converters (chronon/abi.h motion handshake) ──────
+# POD purity, version handshake, kind mapping, matrix packing round-trip,
+# depth semantics, ContentRef extraction.
+chronon3d_add_test_suite(
+    NAME   chronon3d_motion_contract_bridge_tests
+    TIER   UNIT
+    LINK_TARGETS
+        chronon3d_sdk
+        chronon3d_sdk_impl
+        chronon3d_scene
+    SOURCES scene/motion/test_motion_contract_bridge.cpp
+)
+target_include_directories(chronon3d_motion_contract_bridge_tests PRIVATE ${CMAKE_SOURCE_DIR})
+
+# ── ADR-032 — motion-handshake determinism through the compiled camera path ──
+# Serial vs parallel + random-access evaluation must produce bit-identical
+# chronon_layer_state records (memcmp over the full POD).
+chronon3d_add_test_suite(
+    NAME   chronon3d_motion_contract_determinism_tests
+    TIER   INTEGRATION
+    LINK_TARGETS
+        chronon3d_sdk
+        chronon3d_sdk_impl
+        chronon3d_scene
+    SOURCES scene/motion/test_motion_contract_determinism.cpp
+)
+target_include_directories(chronon3d_motion_contract_determinism_tests PRIVATE ${CMAKE_SOURCE_DIR})
+
 # ── P3-F — Composition camera unification test suite ──
 # 7 mandatory end-to-end tests validating that Composition has NO mutable
 # camera state and the V2 pipeline (CompositionDefinition →
