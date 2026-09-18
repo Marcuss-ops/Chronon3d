@@ -62,7 +62,7 @@ struct LegacyErrorMapping {
 // Every legacy error enum has a recorded migration slot. Removing an entry
 // requires removing the enum or moving all direct construction to an adapter.
 // Keep this list exact: stale or duplicate rows make the migration gate lie.
-inline constexpr std::array<LegacyErrorMapping, 28> kLegacyErrorMappings{{
+inline constexpr std::array<LegacyErrorMapping, 27> kLegacyErrorMappings{{
     {"chronon3d::sdk::RenderErrorCode", "sdk"},
     {"chronon3d::render::RenderDiagnosticCode", "render_diagnostic"},
     {"chronon3d::graph::RenderBackendErrorCode", "render_backend"},
@@ -75,7 +75,6 @@ inline constexpr std::array<LegacyErrorMapping, 28> kLegacyErrorMappings{{
     {"chronon3d::TextLayoutErrorKind", "text_layout"},
     {"chronon3d::CameraErrorCode", "camera"},
     {"chronon3d::CameraCompileErrorCode", "camera_compile"},
-    {"chronon3d::presets::MotionErrorCode", "motion_preset"},
     {"chronon3d::media::video::MediaProbeErrorCode", "media_probe"},
     {"chronon3d::media::video::VideoSinkError", "video_sink"},
     {"chronon3d::media::ConversionError", "frame_conversion"},

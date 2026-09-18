@@ -67,7 +67,7 @@ required_patterns = [
 name = "canonical_error_legacy_mapping_inventory"
 scan_paths = ["include/chronon3d/core/types/error.hpp"]
 pattern = "\\{\\\"chronon3d::"
-min_matches = 28
+min_matches = 27
 
 [[scan]]
 name = "canonical_error_construction_gate"
@@ -217,13 +217,6 @@ name = "runtime_build_error_construction_adapter_only"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/render_runtime.hpp"]
 patterns = ["\\bRuntimeBuildError\\s*\\{"]
-skip_comments = true
-
-[[scan]]
-name = "motion_error_construction_adapter_only"
-scan_paths = ["include", "src", "apps", "tests"]
-allow_list = ["include/chronon3d/presets/motion_error.hpp"]
-patterns = ["\\bMotionError\\s*\\("]
 skip_comments = true
 
 [[scan]]

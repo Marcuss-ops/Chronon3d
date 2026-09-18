@@ -142,20 +142,6 @@ scan_paths = ["include/chronon3d/backends/software/software_renderer.hpp"]
 skip_comments = true
 
 [[scan]]
-name = "preset_catalog_no_magic_statics"
-# Invariant: preset-catalog accessors must only lazily construct their own
-# catalog type (function-local Meyers singleton — required for TU-init-order
-# independence, see motion_preset_catalog.cpp). Any other magic static inside
-# the accessor body is a violation.
-patterns = [
-  'motion_preset_catalog\([^)]*\)\s*\{\s*static\s+const\s+(?!MotionPresetCatalog\b)',
-  'builtin_text_preset_registry\([^)]*\)\s*\{\s*static\s+const\s+(?!TextPresetRegistry\b)',
-]
-scan_paths = ["include", "src"]
-multiline = true
-skip_comments = true
-
-[[scan]]
 name = "compiled_resource_no_parallel_authority"
 patterns = [
   '\b(?:struct|class)\s+PhysicalFramebufferAllocationPlan\b',

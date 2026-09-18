@@ -1,10 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/presets/motion_object.hpp>
 using namespace chronon3d;
-
-using namespace chronon3d::presets::motion;
 
 TEST_CASE("compute_stagger_delay basic linear") {
     StaggerConfig config{.delay_per_unit = Frame{4}, .easing = EasingCurve{Easing::Linear}};
@@ -170,24 +167,6 @@ TEST_CASE("AnimatedTransform::shift offsets keyframes") {
     CHECK(anim.position.evaluate(SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1})).x == doctest::Approx(100.0f));
     CHECK(anim.opacity.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})) == doctest::Approx(0.0f));
     CHECK(anim.opacity.evaluate(SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1})) == doctest::Approx(1.0f));
-}
-
-TEST_CASE("MotionObject::shift offsets animations and time window") {
-    MotionObject obj = MotionObject::rect("test")
-        .at({0.0f, 0.0f, 0.0f})
-        .time(Frame{0}, Frame{60});
-
-    obj.animate(MotionAnimation(Frame{0}, Frame{30}, EasingCurve{Easing::Linear},
-        [](MotionState& st, f32 progress) { st.position.x = progress * 100.0f; }));
-
-    obj.shift(Frame{12});
-
-    CHECK(obj.time_value.start == Frame{12});
-    CHECK(obj.time_value.end == Frame{72});
-
-    // Animation should only start after frame 12
-    CHECK(obj.get_animations()[0].start() == Frame{12});
-    CHECK(obj.get_animations()[0].end() == Frame{42});
 }
 
 TEST_CASE("stagger_layers CenterOut ordering") {
