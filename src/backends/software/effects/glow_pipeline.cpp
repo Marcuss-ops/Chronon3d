@@ -49,7 +49,10 @@ static constexpr int kGlowTbbGrain = 32;
 // Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
 // and golden tests can call it directly.  Do not use from production code.
 void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
-    const float safe_falloff = std::max(0.01f, falloff);
+    // Exponents below one amplify low-alpha noise and turn the outer halo
+    // into fog. Canonical glow falloff is monotonic and never boosts
+    // coverage, so values below one resolve to the neutral exponent.
+    const float safe_falloff = std::max(1.0f, falloff);
     for (int i = 0; i < kFalloffLutSize; ++i) {
         // Index 256 stays at 1.0 regardless, so a strict >255.0 packed alpha
         // can't accidentally index a different shape.
@@ -70,9 +73,6 @@ namespace {
 // ── Layer-mode helpers (moved from effect_glow_impl.cpp) ─────────────
 
 [[nodiscard]] BlendMode glow_blend_mode(const GlowPipeline& p) {
-    if (!p.layers.empty()) {
-        return p.blend;
-    }
     return p.blend;
 }
 
@@ -111,10 +111,12 @@ struct GlowLayerPass {
     Color  tint{0, 0, 0, 0};  // per-layer color override (alpha > 0 means use this)
 };
 
-// High-quality glow blur. The source pass is straight-alpha sRGB; filtering is
-// performed as premultiplied linear RGB so transparent edge pixels cannot leak
-// dark/bright fringes into the halo. The result is converted back to straight
-// sRGB because the existing compositor's Normal path accepts that contract.
+// High-quality glow blur. Framebuffer pixels use premultiplied RGB, so the
+// filter first unpremultiplies only to perform the sRGB -> linear conversion,
+// filters premultiplied linear RGB, then converts back to premultiplied sRGB.
+// Keeping the result premultiplied is essential: transparent glyph edges must
+// not leak dark RGB into the halo and the compositor must not multiply alpha
+// a second time.
 void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
     const int w = fb.width();
     const int h = fb.height();
@@ -143,17 +145,20 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
                     if (sx < 0 || sx >= w) continue;
                     const Color c = fb.pixels_row(y)[sx];
                     const float weight = kernel[static_cast<std::size_t>(k + radius)];
-                    const float alpha = std::clamp(c.a, 0.0f, 1.0f) * weight;
-                    const Color linear = {
-                        std::pow(std::max(0.0f, c.r), 2.4f),
-                        std::pow(std::max(0.0f, c.g), 2.4f),
-                        std::pow(std::max(0.0f, c.b), 2.4f),
-                        c.a
-                    };
-                    r += linear.r * alpha;
-                    g += linear.g * alpha;
-                    b += linear.b * alpha;
-                    a += alpha;
+                    const float alpha = std::clamp(c.a, 0.0f, 1.0f);
+                    if (alpha <= 1.0e-8f) continue;
+
+                    // c.rgb is premultiplied. Convert the unpremultiplied
+                    // display-referred color to linear, then premultiply it
+                    // again before accumulating.
+                    const float inv_alpha = 1.0f / alpha;
+                    const float srgb_r = std::max(0.0f, c.r * inv_alpha);
+                    const float srgb_g = std::max(0.0f, c.g * inv_alpha);
+                    const float srgb_b = std::max(0.0f, c.b * inv_alpha);
+                    r += std::pow(srgb_r, 2.4f) * alpha * weight;
+                    g += std::pow(srgb_g, 2.4f) * alpha * weight;
+                    b += std::pow(srgb_b, 2.4f) * alpha * weight;
+                    a += alpha * weight;
                 }
                 dst[x] = {r, g, b, a};
             }
@@ -187,11 +192,14 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
                         ? value * 12.92f
                         : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
                 };
+                const float out_a = std::clamp(a, 0.0f, 1.0f);
+                // Convert the filtered premultiplied linear values back to
+                // premultiplied sRGB, not straight RGB.
                 dst[x] = {
-                    linear_to_srgb(r * inv_alpha),
-                    linear_to_srgb(g * inv_alpha),
-                    linear_to_srgb(b * inv_alpha),
-                    std::clamp(a, 0.0f, 1.0f)
+                    linear_to_srgb(r * inv_alpha) * out_a,
+                    linear_to_srgb(g * inv_alpha) * out_a,
+                    linear_to_srgb(b * inv_alpha) * out_a,
+                    out_a
                 };
             }
         }
@@ -231,7 +239,13 @@ struct GlowAccumResult {
         y_min = std::max(0, effect_clip->y0);
         y_max = std::min(h, effect_clip->y1);
     }
-    const float base_radius = std::max(0.0f, p.radius) * std::max(0.0f, p.spread);
+    float authored_radius = std::max(0.0f, p.radius);
+    if (!p.layers.empty()) {
+        for (const auto& layer : p.layers) {
+            authored_radius = std::max(authored_radius, std::max(0.0f, layer.radius));
+        }
+    }
+    const float base_radius = authored_radius * std::max(0.0f, p.spread);
     // Generous padding = ceil(radius * 4) to avoid rectangular clipping of the
     // glow blur at the framebuffer boundary. The old helper blur_padding_for_radius
     // returns only ceil(radius)+2, which is insufficient for multi-layer glow and
@@ -250,16 +264,11 @@ struct GlowAccumResult {
 
     auto source_fb = acquire_temp_framebuffer(roi_w, roi_h);
     source_fb->clear({0,0,0,0});
-    // ── Source extraction with alpha threshold ──────────────────────────
-    // Copy source pixels into the temp buffer, applying an alpha floor:
-    // any pixel with 0 < alpha < 8/255 is zeroed out.  Text rasterisers
-    // (legacy `text_rasterizer_render.cpp` sole remaining call site post
-    // P1-7 Chore 1) can leave sub-pixel alpha (~1-7/255) in the padding
-    // area around glyph bounding boxes, which the blur would amplify
-    // into a visible rectangular fog.  This threshold eliminates that
-    // without affecting legitimate anti-aliased edges (≥ 32/255 at
-    // the glyph boundary).
-    static constexpr float kAlphaFloor = 8.0f / 255.0f;
+    // ── Source extraction ───────────────────────────────────────────────
+    // Preserve the complete glyph coverage mask.  Thresholding low-alpha
+    // pixels here creates a hard contour around anti-aliased glyph edges and
+    // makes the glow look cut out; transparent padding is already excluded
+    // by alpha==0 and the ROI is derived from the actual source bounds.
     tbb::parallel_for(tbb::blocked_range<int>(0, roi_h, kGlowTbbGrain),
                       [&](const tbb::blocked_range<int>& range) {
         for (int y = range.begin(); y < range.end(); ++y) {
@@ -268,9 +277,6 @@ struct GlowAccumResult {
             Color* source_row = source_fb->pixels_row(y);
             for (int x = 0; x < roi_w; ++x) {
                 Color c = src_row[x_min_pad + x];
-                if (c.a > 0.0f && c.a < kAlphaFloor) {
-                    c = Color::transparent();
-                }
                 source_row[x] = c;
             }
         }
@@ -297,7 +303,9 @@ struct GlowAccumResult {
             passes.push_back({layer.radius, layer.opacity, std::clamp(layer.scale, 0.05f, 1.0f), layer.color});
         }
     } else {
-        const float outer_downscale = std::clamp(p.outer_downscale, 0.05f, 1.0f);
+        const float outer_downscale = p.quality == GlowQuality::High
+            ? 1.0f
+            : std::clamp(p.outer_downscale, 0.05f, 1.0f);
         passes.push_back({0.10f * base_radius, std::max(0.0f, p.core_strength), 1.0f});
         passes.push_back({0.35f * base_radius, std::max(0.0f, p.aura_strength), 1.0f});
         passes.push_back({1.00f * base_radius, std::max(0.0f, p.bloom_strength), outer_downscale});
@@ -403,7 +411,9 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask, debug_cfg);
     if (!acc) return;
 
-    // Composite the accumulated glow back into the source framebuffer
+    // Composite the accumulated glow back into the source framebuffer.
+    // Both buffers use premultiplied RGB. Preserve-source mode places the
+    // glow behind the original glyph without multiplying its alpha twice.
     const auto& rb = acc->roi_bounds;
     const i32 g_w = rb.x1 - rb.x0;
     const i32 g_h = rb.y1 - rb.y0;
@@ -416,10 +426,19 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
             const i32 dx = x + rb.x0;
             if (dx < 0 || dx >= w) continue;
             const Color src_c = dst_row[dx];
+            const Color glow_c = glow_row[x];
             if (p.preserve_source) {
-                dst_row[dx] = compositor::blend(src_c, glow_row[x], BlendMode::Normal);
+                // glow behind source: source OVER glow, in premultiplied
+                // form. Opaque glyph cores therefore remain unchanged.
+                const float inv_source_a = 1.0f - std::clamp(src_c.a, 0.0f, 1.0f);
+                dst_row[dx] = {
+                    src_c.r + glow_c.r * inv_source_a,
+                    src_c.g + glow_c.g * inv_source_a,
+                    src_c.b + glow_c.b * inv_source_a,
+                    src_c.a + glow_c.a * inv_source_a
+                };
             } else {
-                dst_row[dx] = compositor::blend(glow_row[x], src_c, glow_blend_mode(p));
+                dst_row[dx] = compositor::blend(glow_c, src_c, glow_blend_mode(p));
             }
         }
     }
@@ -438,7 +457,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
 
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                           const GlowPipeline& p, const float* falloff_lut) {
-    const float falloff = std::max(0.01f, p.falloff);
+    const float falloff = std::max(1.0f, p.falloff);
     const int w = dst.width();
     const int h = dst.height();
     const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
@@ -469,7 +488,10 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 acc.r += g.r;
                 acc.g += g.g;
                 acc.b += g.b;
-                acc.a = std::max(acc.a, g.a);
+                // RGB is accumulated additively for HDR glow energy. Coverage
+                // follows a bounded union, not max(alpha), so separate lobes
+                // do not leave a flat outer alpha skirt.
+                acc.a = std::clamp(acc.a + g.a, 0.0f, 1.0f);
             }
         }
     });
@@ -478,7 +500,7 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
 void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
                                  const GlowPipeline& p, float scale,
                                  const float* falloff_lut) {
-    const float falloff = std::max(0.01f, p.falloff);
+    const float falloff = std::max(1.0f, p.falloff);
     const int w = dst.width();
     const int h = dst.height();
     const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
@@ -510,7 +532,10 @@ void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 acc.r += g.r;
                 acc.g += g.g;
                 acc.b += g.b;
-                acc.a = std::max(acc.a, g.a);
+                // RGB is accumulated additively for HDR glow energy. Coverage
+                // follows a bounded union, not max(alpha), so separate lobes
+                // do not leave a flat outer alpha skirt.
+                acc.a = std::clamp(acc.a + g.a, 0.0f, 1.0f);
             }
         }
     });
