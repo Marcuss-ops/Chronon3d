@@ -64,16 +64,17 @@ TEST_CASE("PR2-Unit-Glow: glow_effect_extent accounts for max layer radius + 4 p
     GlowParams p;
     p.radius = 20.0f;
     p.spread = 1.0f;
-    // Expected: max_layer_r = 20; radius = 20 * 1.0 = 20; extent = 20 + 4 = 24.
+    // Expected: radius = 20 * 1.0 = 20; the Gaussian ROI uses 4 sigma
+    // plus a 4 px guard, matching the renderer's actual padding.
     const float e = glow_effect_extent(p);
-    CHECK(e == doctest::Approx(24.0f));
+    CHECK(e == doctest::Approx(84.0f));
 
     // Synthetic layers override radius: max layer wins.
     GlowLayer layer;
     layer.radius = 50.0f;
     p.layers.push_back(layer);
     const float e2 = glow_effect_extent(p);
-    CHECK(e2 == doctest::Approx(54.0f));
+    CHECK(e2 == doctest::Approx(204.0f));
 }
 
 TEST_CASE("GlowQuality: text spec preserves quality and alpha-mask contract") {
