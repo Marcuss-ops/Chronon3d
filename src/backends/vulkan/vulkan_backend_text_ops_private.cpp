@@ -85,6 +85,12 @@ float selector_weight_cpu(const GpuTextRunDynamic& run,
     float position = (static_cast<float>(glyph_index) + 0.5f) / total;
     float start = std::clamp(run.selector_start * 0.01f, 0.0f, 1.0f);
     float end = std::clamp(run.selector_end * 0.01f, 0.0f, 1.0f);
+    if (std::abs(end - start) <= 0.0000001f) {
+        // The typewriter animator uses opacity=0: selector weight is the
+        // animator influence, so a completed collapsed range must have zero
+        // influence and leave the glyph fully visible.
+        return start >= 1.0f ? 0.0f : 1.0f;
+    }
     if (start > end) {
         std::swap(start, end);
         position = 1.0f - position;
@@ -372,7 +378,6 @@ void VulkanBackend::Impl::draw_text_batch(
             text_glyph_dynamic_sizes[pass_slot] = glyph_dynamic_bytes;
         }
         vkCmdFillBuffer(cmd, count_buffer, 0, tile_count_bytes, 0);
-
         std::array<VkBufferMemoryBarrier2KHR, 4> upload_barriers{};
         std::size_t upload_barrier_count = 0;
         const auto add_upload_barrier = [&](VkBuffer buffer,
