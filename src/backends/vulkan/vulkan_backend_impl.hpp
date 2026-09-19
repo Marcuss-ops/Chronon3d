@@ -79,8 +79,8 @@ struct alignas(16) VulkanGpuGlyphStatic {
     float plane_bottom{0.0f};
     std::uint32_t draw_order{0};
     std::uint32_t pad0{0};
-    std::uint32_t pad1{0};
-    std::uint32_t pad2{0};
+    float origin_x{0.0f};
+    float origin_y{0.0f};
 };
 static_assert(sizeof(VulkanGpuGlyphStatic) == 48,
               "VulkanGpuGlyphStatic must match the tiled text std430 ABI");

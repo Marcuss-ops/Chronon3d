@@ -68,6 +68,20 @@ Composition
 
 La direzione pubblica resta:
 
+```text
+Chronon3D owns content and pixels.
+ChrononMotion owns space and time.
+ChrononTemplate owns composition.
+RenderingGen owns editorial intent.
+```
+
+Chronon3D is the sole authority for text/font loading, shaping, glyph/cluster
+layout, glow, compositing, GPU rendering and encoding. ChrononTemplate may
+request text, but it must delegate to the Chronon ContentHost; ChrononMotion3D
+receives only opaque content identity, Chronon-produced metrics and final
+transforms. Any cluster-level animation is evaluated here from Chronon-owned
+stable element IDs, never reconstructed by a consumer.
+
 - una sola pipeline render compilata;
 - una sola pipeline testuale canonica;
 - una sola pipeline camera `CameraDescriptor → CameraProgram`;

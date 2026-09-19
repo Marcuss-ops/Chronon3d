@@ -101,133 +101,77 @@ Result<bool, TextError> typewriter_build(
     const TypewriterBuildOptions& opts, Frame frame,
     FontEngine& engine)
 {
-    FontSpec font_spec;
-    font_spec.font_path = opts.font_asset;
-    font_spec.font_family = opts.font_family;
-    font_spec.font_weight = opts.font_weight;
+    // The complete source string is shaped and laid out by Chronon3D's
+    // canonical text pipeline.  In particular, do not compile one mini text
+    // run/layer per character here: that loses the authoritative advances and
+    // makes the final frame contain both the full run and glyph copies.
+    (void)frame;
+    using chronon3d::detail::grapheme_cluster_count;
 
-    TypewriterLayoutKey key;
-    key.text = opts.text;
-    key.font = font_identity_of(font_spec);
-    key.font_size = opts.font_size;
-    key.tracking = opts.tracking;
-    key.box = opts.box;
-    key.line_height = opts.line_height;
+    if (opts.text.empty()) return make_text_error(
+        TextErrorCode::EmptyText,
+        "typewriter_build: text is empty");
 
-    auto& cache = engine.typewriter_layout_cache();
-    std::shared_ptr<const TypewriterLayoutEntry> entry = cache.get(key);
-
-    if (!entry) {
-        PlacedGlyphRun placed;
-        auto layout_result = compute_typewriter_layout(
-            opts.text, opts.font_size, opts.tracking,
-            opts.box, opts.line_height, font_spec,
-            engine,
-            &placed);
-        // F0.3 — propagate structured error from compute_typewriter_layout
-        if (!layout_result) return layout_result.error();
-
-        TypewriterLayoutEntry new_entry;
-        new_entry.layout = std::move(*layout_result);
-        new_entry.placed = std::move(placed);
-        // P0-3 fix(text/cache): do NOT cache TypewriterStyle alongside the
-        // geometry.  Style is applied at emit time from current opts.text
-        // (used to derive text_slice) and the typewriter_build() caller
-        // layer_prefix (used to derive layer_name).
-        new_entry.glyphs = detail::compile_typewriter_glyphs(
-            new_entry.layout, new_entry.placed, opts.text);
-
-        entry = std::make_shared<TypewriterLayoutEntry>(std::move(new_entry));
-        cache.put(key, entry);
-    }
-
-    if (entry->layout.chars.empty()) return make_text_error(
+    const std::size_t cluster_count = grapheme_cluster_count(opts.text);
+    if (cluster_count == 0) return make_text_error(
         TextErrorCode::NoLayoutChars,
-        "typewriter_build: layout has zero characters");
+        "typewriter_build: text has zero grapheme clusters");
 
-    const f32 total_chars = static_cast<f32>(entry->layout.chars.size());
-    const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(opts.start_delay);
+    const f32 chars_per_frame = std::max(opts.chars_per_frame, 0.0001f);
+    const int reveal_frames = std::max(
+        1, static_cast<int>(std::ceil(static_cast<f32>(cluster_count) / chars_per_frame)));
+    const Frame reveal_start = opts.start_delay;
+    const Frame reveal_end = reveal_start + Frame{reveal_frames};
 
-    // F0.3 — start-delay guard: not an error, normal operational state.
-    // The caller is expected to call typewriter_build() every frame;
-    // bool-as-void pattern: any value means Ok (Result<void,…> not available).
-    if (raw_frame < 0.0f) return true;
+    GlyphSelectorSpec hidden_clusters;
+    hidden_clusters.id = std::string(layer_prefix) + "_hidden_clusters";
+    hidden_clusters.unit = TextSelectorUnit::Grapheme;
+    // Select the unrevealed suffix as a hard range.  RampDown would leave
+    // the whole run partially visible at frame zero and then hide it again
+    // as the boundary advances; Square gives the required hidden-to-visible
+    // typewriter direction.
+    hidden_clusters.shape = TextSelectorShape::Square;
+    hidden_clusters.order = TextSelectorOrder::Forward;
+    hidden_clusters.start = 0.0f;
+    hidden_clusters.start.add_keyframe(reveal_start, 0.0f);
+    hidden_clusters.start.add_keyframe(reveal_end, 100.0f, opts.easing);
+    hidden_clusters.end = 100.0f;
+    hidden_clusters.exclude_spaces = true;
 
-    const f32 linear_t = std::clamp(raw_frame * opts.chars_per_frame / total_chars, 0.0f, 1.0f);
-    const f32 eased_t = opts.easing.apply(linear_t);
-    const f32 revealed_exact = eased_t * total_chars;
-    const size_t revealed_count = static_cast<size_t>(revealed_exact);
-    const f32 revealed_frac = revealed_exact - static_cast<f32>(revealed_count);
+    TextAnimatorSpec reveal;
+    reveal.id = std::string(layer_prefix) + "_typewriter_reveal";
+    reveal.selectors.push_back(std::move(hidden_clusters));
+    reveal.properties.push_back(OpacityProperty{0.0f});
+    reveal.transform_mode = TextPropertyBlendMode::Multiply;
 
-    for (size_t i = 0; i < entry->glyphs.size(); ++i) {
-        const auto& glyph = entry->glyphs[i];
+    TextDefinition definition;
+    definition.content.value = opts.text;
+    definition.style.font.font_path = opts.font_asset;
+    definition.style.font.font_family = opts.font_family;
+    definition.style.font.font_weight = opts.font_weight;
+    definition.style.font.font_size = opts.font_size;
+    definition.style.color = opts.color;
+    definition.frame.size = opts.box;
+    definition.frame.placement =
+        TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
+    definition.frame.anchor = TextAnchor::Center;
+    definition.frame.align = TextAlign::Center;
+    definition.frame.vertical_align = VerticalAlign::Middle;
+    definition.frame.wrap = TextWrap::None;
+    definition.frame.overflow = TextOverflow::Clip;
+    definition.frame.centering_mode = TextCenteringMode::PixelInk;
+    definition.frame.line_height = opts.line_height;
+    definition.frame.tracking = opts.tracking;
+    definition.animation.animators.push_back(std::move(reveal));
+    definition.animation.start_delay = opts.start_delay;
+    definition.animation.duration = reveal_end;
+    definition.animation.cache_layout = true;
 
-        f32 opacity;
-        if (glyph.original_index < revealed_count) {
-            opacity = 1.0f;
-        } else if (glyph.original_index == revealed_count) {
-            opacity = opts.fade_easing.apply(revealed_frac);
-        } else {
-            break;
-        }
-
-        if (opacity < 0.005f) continue;
-
-        // P0-3 fix(text/cache): derive layer_name per-call so cache hits
-        // do NOT reuse stale prefixes (cross-composition).
-        const std::string computed_layer_name =
-            std::string(layer_prefix) + "_c" + std::to_string(glyph.original_index);
-
-        // P0-3 SAFETY fix(text/cache): hoist all per-call options into scope-
-        // local values BEFORE s.layer() so the closure is fully self-contained
-        // (no capture-by-ref of opts).  Init-capture with std::move transfers
-        // ownership of the std::string heap buffers INTO the closure at
-        // lambda construction time, so SceneBuilder can defer lambda
-        // execution indefinitely without dangling against typewriter_build()'s
-        // `opts`.  Mirrors text_reveal.cpp pattern (which captures `d` by-value
-        // for the same reason).  Per-call, string count is reduced to 3
-        // std::moves (text_slice + font_asset + font_family) instead of N copies.
-        const auto& cp_outer = entry->layout.chars[glyph.original_index];
-        std::string  text_slice  = opts.text.substr(cp_outer.byte_offset, cp_outer.byte_len);
-        std::string  font_asset  = opts.font_asset;
-        std::string  font_family = opts.font_family;
-        int          font_weight = opts.font_weight;
-        f32          font_size_v = opts.font_size;
-        Color        color       = opts.color;
-        f32          line_height = opts.line_height;
-
-        s.layer(computed_layer_name,
-            [entry, i, opacity,
-             text_slice  = std::move(text_slice),
-             font_asset  = std::move(font_asset),
-             font_family = std::move(font_family),
-             font_weight, font_size_v, color, line_height](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
-                l.opacity(opacity);
-
-                const auto& g = entry->glyphs[i];
-                // F2.D — canonical TextDefinition; style fields come from
-                // per-call captured values (NOT cached entry.style).
-                l.text("glyph", TextDefinition{
-                    .content = {.value = text_slice, .pre_shaped = g.run},
-                    .style = {.font = {.font_path   = font_asset,
-                                       .font_family = font_family,
-                                       .font_weight = font_weight,
-                                       .font_size   = font_size_v},
-                              .color = color},
-                    .frame = {.size = {font_size_v * 2.0f, font_size_v * 2.0f},
-                              .placement = TextPlacement{TextPlacementKind::Absolute, {g.placement.x, g.placement.y}},
-                              .anchor = TextAnchor::Center,
-                              .align = TextAlign::Center,
-                              .vertical_align = VerticalAlign::Middle,
-                              .wrap = TextWrap::None,
-                              .overflow = TextOverflow::Clip,
-                              .centering_mode = TextCenteringMode::PixelInk,
-                              .line_height = line_height,
-                              .tracking = 0.0f},
-                });
-            });
-    }
+    s.font_engine(&engine);
+    const std::string layer_name{layer_prefix};
+    s.layer(layer_name, [definition = std::move(definition)](LayerBuilder& l) mutable {
+        l.text("text", std::move(definition));
+    });
     return true;
 }
 

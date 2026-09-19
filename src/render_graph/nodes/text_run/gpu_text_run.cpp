@@ -186,8 +186,15 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     bool saw_supported_property = false;
     for (const auto& property : animator.properties) {
         if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
-            if (opacity->value.has_expression()) return false;
-            saw_supported_property = true;
+            // Per-element opacity is not a run-uniform value.  The GPU
+            // selector record currently carries animator_opacity at run
+            // scope, so lowering this property here would turn an opacity
+            // stagger into "hide the complete text".  Keep the canonical
+            // shaped run and evaluate its glyph states on Chronon's CPU
+            // compatibility path until the GPU instance contract carries
+            // the per-element opacity explicitly.
+            (void)opacity;
+            return false;
         } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
             if (position->value.has_expression()) return false;
             saw_supported_property = true;
@@ -931,6 +938,11 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             static_cast<float>(location.height) * layout_scale;
         glyph.draw_order = static_cast<std::uint32_t>(layout_index);
         glyph.pad0 = static_cast<std::uint32_t>(layout_index);
+        // The prepared plane is in layout space.  Keep the baseline origin
+        // beside it so a selector-weighted scale can be inverted around the
+        // glyph's own layout origin in the MTSDF shader.
+        glyph.origin_x = placed.x;
+        glyph.origin_y = placed.y;
         batch->glyphs.push_back(glyph);
     }
     prepared->ready = !prepared->batches.empty() &&
@@ -957,6 +969,15 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this run"));
+    }
+    // A GPU success must never silently drop an unsupported animator.  The
+    // compatibility/software route evaluates the complete per-glyph state;
+    // this is especially important for staggered opacity and effects that
+    // cannot be represented by the run-uniform GPU record.
+    if (!can_lower_gpu_text_animation(shape)) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "MTSDF text route does not support this animator stack"));
     }
 
     auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout);
@@ -1014,6 +1035,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         }
         run.visible_glyph_count = visible_limit;
     }
+    sample_gpu_run_level_animation(shape, ctx.frame_input.sample_time, run);
     sample_gpu_text_animation(shape, ctx.frame_input.sample_time, run);
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
