@@ -13,8 +13,8 @@ struct GpuGlyphStatic {
     float plane_bottom;
     uint draw_order;
     uint pad0;
-    uint pad1;
-    uint pad2;
+    float origin_x;
+    float origin_y;
 };
 
 struct GpuTextRunDynamic {
@@ -126,12 +126,26 @@ void main() {
         // The dynamic animator can move a glyph and add cumulative tracking.
         // Use a conservative envelope here; raster computes the exact
         // per-glyph offset. This avoids dropping a tile contributor.
-        float extent = abs(r.animator_tracking) * float(r.selector_unit_count) +
-                       abs(r.animator_position_x) + abs(r.animator_position_y);
-        x0 = r.tx + g.plane_left * r.sx - extent;
-        y0 = r.ty + g.plane_top * r.sy - extent;
-        x1 = r.tx + g.plane_right * r.sx + extent;
-        y1 = r.ty + g.plane_bottom * r.sy + extent;
+        float extent_x = abs(r.animator_tracking) * float(r.selector_unit_count) +
+                         abs(r.animator_position_x);
+        float extent_y = abs(r.animator_tracking) * float(r.selector_unit_count) +
+                         abs(r.animator_position_y);
+        // Cover both contracts: run-level scale is around the run origin,
+        // while per-glyph scale is compensated around origin_x/origin_y in
+        // the raster shader.  This is conservative and prevents animated ink
+        // from disappearing at a tile boundary.
+        float scale_dx = abs(r.animator_scale_x - 1.0);
+        float scale_dy = abs(r.animator_scale_y - 1.0);
+        extent_x += abs(r.sx) * scale_dx * max(
+            max(abs(g.plane_left), abs(g.plane_right)),
+            max(abs(g.plane_left - g.origin_x), abs(g.plane_right - g.origin_x)));
+        extent_y += abs(r.sy) * scale_dy * max(
+            max(abs(g.plane_top), abs(g.plane_bottom)),
+            max(abs(g.plane_top - g.origin_y), abs(g.plane_bottom - g.origin_y)));
+        x0 = r.tx + g.plane_left * r.sx - extent_x;
+        y0 = r.ty + g.plane_top * r.sy - extent_y;
+        x1 = r.tx + g.plane_right * r.sx + extent_x;
+        y1 = r.ty + g.plane_bottom * r.sy + extent_y;
     } else {
         if (r.sx <= 0.0 || r.sy <= 0.0) return;
         uint atlas_w = g.atlas_size & 0xFFFFu;
