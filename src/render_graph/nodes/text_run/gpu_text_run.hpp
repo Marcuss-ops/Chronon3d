@@ -32,6 +32,50 @@ namespace chronon3d::runtime { class GpuGlyphAtlas; }
 
 namespace chronon3d::graph::text_run {
 
+/// GPU placement for one glyph when its animated state is submitted as a
+/// separate MTSDF run.
+///
+/// Prepared glyph planes keep their immutable coordinates in run/layout
+/// space.  A per-glyph scale must therefore be applied to the glyph's ink
+/// around its layout origin, exactly like the software text matrix does.  If
+/// the run translation were left unchanged, scaling a glyph at x=500 would
+/// also move it by 500 * (scale - 1) pixels; the resulting frame-to-frame
+/// drift is visible as text jitter during phrase emphasis animations.
+struct GpuGlyphPlacement {
+    float tx{0.0f};
+    float ty{0.0f};
+    float sx{1.0f};
+    float sy{1.0f};
+};
+
+[[nodiscard]] inline GpuGlyphPlacement make_gpu_glyph_placement(
+    const GlyphInstanceState& glyph,
+    float run_tx,
+    float run_ty,
+    float run_sx,
+    float run_sy) noexcept {
+    // Scale.z is the existing text 2.5D uniform scale.  Keeping it here
+    // makes the GPU placement match build_glyph_matrix() for the axes that
+    // this MTSDF path supports (rotation/skew are rejected separately).
+    const float glyph_scale_x = glyph.scale.x * glyph.scale.z;
+    const float glyph_scale_y = glyph.scale.y * glyph.scale.z;
+
+    // The immutable plane already contains layout_position.  Compensate the
+    // run origin so only the glyph-local ink is scaled, while position and
+    // baseline/anchor offsets remain in the same space as the CPU renderer.
+    const float origin_x = glyph.position.x;
+    const float origin_y = glyph.position.y + glyph.baseline_shift;
+    return GpuGlyphPlacement{
+        run_tx + run_sx * (origin_x +
+                           (glyph.layout_position.x + glyph.anchor.x) *
+                               (1.0f - glyph_scale_x)),
+        run_ty + run_sy * (origin_y +
+                           (glyph.layout_position.y + glyph.anchor.y) *
+                               (1.0f - glyph_scale_y)),
+        run_sx * glyph_scale_x,
+        run_sy * glyph_scale_y};
+}
+
 /// Return true when the text animator stack can be lowered to the GPU text
 /// dynamic record without rebuilding glyph state. The supported profiles are
 /// the canonical forward glyph typewriter and a full-run word emphasis whose
