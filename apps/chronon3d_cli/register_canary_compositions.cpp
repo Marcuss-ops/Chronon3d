@@ -51,6 +51,8 @@ namespace chronon3d {
         constexpr i32 kCanaryHeight = 1080;
         constexpr i32 kCanaryFps = 30;
         constexpr Frame kCanaryDuration{90};
+        constexpr Frame kBlackGlowDuration{150};
+        constexpr Frame kTypewriterRevealEnd{54}; // 1.8 s at 30 fps; then hold.
 
         // The fonts and the picture are logical asset paths resolved against
         // `--assets-root` at render time (the engine never touches the filesystem).
@@ -114,6 +116,53 @@ namespace chronon3d {
             definition.frame.centering_mode = TextCenteringMode::PixelInk;
             definition.frame.max_lines = max_lines;
             return definition;
+        }
+
+        /// Full-text typewriter definition.  Chronon3D shapes the complete source
+        /// string first; the animator only changes opacity on Chronon's stable
+        /// grapheme elements.  No substring, per-letter advance or second text
+        /// layout is created by the composition.
+        [[nodiscard]] TextDefinition canary_typewriter_text(
+            std::string value, const char *font_path, f32 font_size,
+            Color color, Vec2 box) {
+
+            auto definition = canary_text(
+                std::move(value), font_path, font_size, 700, color, box);
+
+            GlyphSelectorSpec hidden_clusters;
+            hidden_clusters.id = "typewriter_hidden_clusters";
+            hidden_clusters.unit = TextSelectorUnit::Grapheme;
+            hidden_clusters.shape = TextSelectorShape::Square;
+            hidden_clusters.order = TextSelectorOrder::Forward;
+            hidden_clusters.start = 0.0f;
+            hidden_clusters.start.add_keyframe(Frame{0}, 0.0f);
+            hidden_clusters.start.add_keyframe(
+                kTypewriterRevealEnd, 100.0f, EasingCurve{Easing::OutCubic});
+            hidden_clusters.end = 100.0f;
+            hidden_clusters.exclude_spaces = true;
+
+            TextAnimatorSpec reveal;
+            reveal.id = "typewriter_reveal_full_text";
+            reveal.selectors.push_back(std::move(hidden_clusters));
+            reveal.properties.push_back(OpacityProperty{0.0f});
+            reveal.transform_mode = TextPropertyBlendMode::Multiply;
+
+            definition.animation.animators.push_back(std::move(reveal));
+            definition.animation.duration = kTypewriterRevealEnd;
+            definition.animation.cache_layout = true;
+            return definition;
+        }
+
+        [[nodiscard]] GlowParams canary_red_cursor_glow() {
+            GlowParams glow = canary_glow(GlowPresets::editorial_highlight(30.0f));
+            glow.color = Color{1.0f, 0.035f, 0.035f, 1.0f};
+            glow.intensity = 1.05f;
+            glow.threshold = 0.0f;
+            glow.core_strength = 0.54f;
+            glow.aura_strength = 0.34f;
+            glow.bloom_strength = 0.12f;
+            glow.blend = BlendMode::Add;
+            return glow;
         }
 
         enum class ElementCanaryMode {
@@ -256,6 +305,132 @@ namespace chronon3d {
                                    .height = kCanaryHeight,
                                    .frame_rate = FrameRate{kCanaryFps, 1},
                                    .duration = kCanaryDuration};
+        }
+
+        [[nodiscard]] CompositionSpec black_glow_spec(const char *name) {
+
+            return CompositionSpec{.name = name,
+                                   .width = kCanaryWidth,
+                                   .height = kCanaryHeight,
+                                   .frame_rate = FrameRate{kCanaryFps, 1},
+                                   .duration = kBlackGlowDuration};
+        }
+
+        /// Five intentionally boring baselines for font selection.  There is no
+        /// camera motion, no per-glyph animation and no duplicated text node here:
+        /// Chronon3D shapes and rasterizes one complete word, centred on a black
+        /// screen, with only a restrained white halo.
+        [[nodiscard]] Composition make_black_glow_static(const char *name,
+                                                         const char *font_path,
+                                                         f32 font_size) {
+
+            return composition(
+                black_glow_spec(name), [font_path, font_size](const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) {
+                        l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
+                    });
+
+                    scene.layer("CHRONON_TEXT", [&](LayerBuilder &l) {
+                        l.text("text", canary_text(
+                            "CHRONON", font_path, font_size, 700,
+                            Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f}));
+                        // The earlier editorial preset was correct for a pale
+                        // background, but nearly disappeared on pure black.
+                        // Keep the halo soft while giving it enough radius and
+                        // energy to survive H.264 encoding and normal playback.
+                        GlowParams glow = canary_glow(GlowPresets::editorial_highlight(42.0f));
+                        glow.intensity = 0.92f;
+                        glow.threshold = 0.0f;
+                        glow.core_strength = 0.48f;
+                        glow.aura_strength = 0.30f;
+                        glow.bloom_strength = 0.10f;
+                        l.effect(glow);
+                    });
+
+                    scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                    return scene.build();
+                });
+        }
+
+        /// Final typewriter card used for the five font comparisons.  The intro
+        /// lasts 54 frames (1.8 s); after that, text, cursor and camera are held
+        /// still for the rest of the five-second video.  The 3D movement is a
+        /// single restrained settle, not a perpetual orbit.
+        [[nodiscard]] Composition make_typewriter_final(const char *name,
+                                                         const char *font_path,
+                                                         f32 font_size,
+                                                         f32 cursor_x) {
+            return composition(
+                black_glow_spec(name), [font_path, font_size, cursor_x](
+                    const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    const i32 frame = ctx.frame().integral();
+                    const f32 reveal_t = std::clamp(
+                        static_cast<f32>(frame) /
+                            static_cast<f32>(kTypewriterRevealEnd.integral()),
+                        0.0f, 1.0f);
+                    const f32 settle = canary_smoothstep(reveal_t);
+
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) {
+                        l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
+                    });
+
+                    // One shared 3D parent keeps the word and its cursor in the
+                    // same shallow card plane.
+                    scene.null_layer("TYPEWRITER_ROOT", [&](LayerBuilder &l) {
+                        l.enable_3d(true)
+                            .position({0.0f, canary_lerp(22.0f, 0.0f, settle),
+                                       canary_lerp(-24.0f, 0.0f, settle)})
+                            .rotate({canary_lerp(-2.5f, 0.0f, settle),
+                                     canary_lerp(-5.0f, 0.0f, settle),
+                                     canary_lerp(1.2f, 0.0f, settle)});
+                    });
+
+                    scene.layer("TYPEWRITER_TEXT", [&](LayerBuilder &l) {
+                        l.parent("TYPEWRITER_ROOT")
+                            .enable_3d(true)
+                            .scale({canary_lerp(0.95f, 1.0f, settle),
+                                    canary_lerp(0.95f, 1.0f, settle), 1.0f});
+                        GlowParams glow = canary_glow(
+                            GlowPresets::editorial_highlight(38.0f));
+                        glow.intensity = 0.86f;
+                        glow.threshold = 0.0f;
+                        glow.core_strength = 0.46f;
+                        glow.aura_strength = 0.28f;
+                        glow.bloom_strength = 0.09f;
+                        l.effect(glow);
+                        l.text("text", canary_typewriter_text(
+                            "CHRONON", font_path, font_size,
+                            Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f}));
+                    });
+
+                    // The red underscore is a real Chronon text node, so its
+                    // glyph and glow still belong to Chronon3D.  It is not used
+                    // to rebuild or position the letters in the main word.
+                    f32 cursor_opacity = reveal_t < 1.0f
+                        ? ((frame / 10) % 2 == 0 ? 1.0f : 0.58f)
+                        : std::clamp(1.0f -
+                                     static_cast<f32>(frame - kTypewriterRevealEnd.integral()) /
+                                         12.0f,
+                                     0.0f, 1.0f);
+                    scene.layer("TYPEWRITER_CURSOR", [&](LayerBuilder &l) {
+                        l.parent("TYPEWRITER_ROOT")
+                            .enable_3d(true)
+                            .position({cursor_x, 6.0f, 0.0f})
+                            .opacity(cursor_opacity);
+                        l.effect(canary_red_cursor_glow());
+                        l.text("underscore", canary_text(
+                            "_", font_path, font_size * 0.82f, 700,
+                            Color{1.0f, 0.035f, 0.035f, 1.0f}, Vec2{180.0f, 260.0f}));
+                    });
+
+                    scene.camera().set(canary_orbit_camera(
+                        canary_lerp(-3.5f, 0.0f, settle),
+                        canary_lerp(1.8f, 0.0f, settle),
+                        canary_lerp(1040.0f, 1000.0f, settle)));
+                    return scene.build();
+                });
         }
 
         // ── 1. Hero: real text + real image + 3D orbit + glow ───────────────────────
@@ -639,6 +814,59 @@ namespace chronon3d {
                                                  [] { return make_final3d_catalog("clean_red"); }));
         registry.add(make_composition_descriptor("youtube_canary",
                                                  [] { return make_final3d_catalog("youtube_canary"); }));
+
+        // Static font/glow baselines.  Keep these separate from the animated
+        // canaries: they are the visual reference selected before typewriter or
+        // 3D motion is introduced.
+        registry.add(make_composition_descriptor(
+            "black_glow_inter",
+            [] { return make_black_glow_static("black_glow_inter",
+                                               "assets/fonts/Inter-Bold.ttf", 190.0f); }));
+        registry.add(make_composition_descriptor(
+            "black_glow_poppins",
+            [] { return make_black_glow_static("black_glow_poppins",
+                                               "assets/fonts/Poppins-Bold.ttf", 190.0f); }));
+        registry.add(make_composition_descriptor(
+            "black_glow_dmsans",
+            [] { return make_black_glow_static("black_glow_dmsans",
+                                               "assets/fonts/DMSans-Bold.ttf", 190.0f); }));
+        registry.add(make_composition_descriptor(
+            "black_glow_georgia",
+            [] { return make_black_glow_static("black_glow_georgia",
+                                               "assets/fonts/Georgia_Bold.ttf", 190.0f); }));
+        registry.add(make_composition_descriptor(
+            "black_glow_freeserif",
+            [] { return make_black_glow_static("black_glow_freeserif",
+                                               "assets/fonts/FreeSerif.ttf", 190.0f); }));
+
+        // Final typewriter + restrained 2.5D settle.  Keep one composition per
+        // font so the rendered videos are directly comparable while sharing the
+        // exact same timing, camera motion, glow and red underscore treatment.
+        registry.add(make_composition_descriptor(
+            "typewriter_final_inter",
+            [] { return make_typewriter_final("typewriter_final_inter",
+                                              "assets/fonts/Inter-Bold.ttf", 190.0f,
+                                              452.0f); }));
+        registry.add(make_composition_descriptor(
+            "typewriter_final_poppins",
+            [] { return make_typewriter_final("typewriter_final_poppins",
+                                              "assets/fonts/Poppins-Bold.ttf", 190.0f,
+                                              500.0f); }));
+        registry.add(make_composition_descriptor(
+            "typewriter_final_dmsans",
+            [] { return make_typewriter_final("typewriter_final_dmsans",
+                                              "assets/fonts/DMSans-Bold.ttf", 190.0f,
+                                              452.0f); }));
+        registry.add(make_composition_descriptor(
+            "typewriter_final_georgia",
+            [] { return make_typewriter_final("typewriter_final_georgia",
+                                              "assets/fonts/Georgia_Bold.ttf", 190.0f,
+                                              438.0f); }));
+        registry.add(make_composition_descriptor(
+            "typewriter_final_freeserif",
+            [] { return make_typewriter_final("typewriter_final_freeserif",
+                                              "assets/fonts/FreeSerif.ttf", 190.0f,
+                                              438.0f); }));
     }
 
 } // namespace chronon3d
