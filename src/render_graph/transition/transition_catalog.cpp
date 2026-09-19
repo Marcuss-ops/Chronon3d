@@ -40,7 +40,7 @@ public:
         } else {
             t = std::clamp((u - sweep + m_feather) / m_feather, 0.0f, 1.0f);
         }
-        return t * t * (3.0f - 2.0f * t);
+        return chronon3d::math::smoothstep(t);
     }
 
 private:
@@ -69,7 +69,7 @@ public:
         } else {
             t = std::clamp((max_r - sweep_r - dist + r_feather) / r_feather, 0.0f, 1.0f);
         }
-        return t * t * (3.0f - 2.0f * t);
+        return chronon3d::math::smoothstep(t);
     }
 
 private:

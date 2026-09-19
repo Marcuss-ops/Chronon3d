@@ -154,7 +154,8 @@ namespace chronon3d {
         }
 
         [[nodiscard]] GlowParams canary_red_cursor_glow() {
-            GlowParams glow = canary_glow(GlowPresets::editorial_highlight(30.0f));
+            GlowParams glow = GlowPresets::editorial_highlight(26.0f);
+            glow.quality = GlowQuality::Fast;
             glow.color = Color{1.0f, 0.035f, 0.035f, 1.0f};
             glow.intensity = 1.05f;
             glow.threshold = 0.0f;
@@ -360,9 +361,9 @@ namespace chronon3d {
         [[nodiscard]] Composition make_typewriter_final(const char *name,
                                                          const char *font_path,
                                                          f32 font_size,
-                                                         f32 cursor_x) {
+                                                         f32 cursor_edge) {
             return composition(
-                black_glow_spec(name), [font_path, font_size, cursor_x](
+                black_glow_spec(name), [font_path, font_size, cursor_edge](
                     const FrameContext &ctx) -> Scene {
                     SceneBuilder scene(ctx);
                     const i32 frame = ctx.frame().integral();
@@ -392,8 +393,8 @@ namespace chronon3d {
                             .enable_3d(true)
                             .scale({canary_lerp(0.95f, 1.0f, settle),
                                     canary_lerp(0.95f, 1.0f, settle), 1.0f});
-                        GlowParams glow = canary_glow(
-                            GlowPresets::editorial_highlight(38.0f));
+                        GlowParams glow = GlowPresets::editorial_highlight(32.0f);
+                        glow.quality = GlowQuality::Fast;
                         glow.intensity = 0.86f;
                         glow.threshold = 0.0f;
                         glow.core_strength = 0.46f;
@@ -408,6 +409,10 @@ namespace chronon3d {
                     // The red underscore is a real Chronon text node, so its
                     // glyph and glow still belong to Chronon3D.  It is not used
                     // to rebuild or position the letters in the main word.
+                    // Its X position follows the reveal from the shaped run's
+                    // left edge to its right edge; the spacing itself remains
+                    // entirely owned by Chronon's layout.
+                    const f32 cursor_x = canary_lerp(-cursor_edge, cursor_edge, reveal_t) + 40.0f;
                     f32 cursor_opacity = reveal_t < 1.0f
                         ? ((frame / 10) % 2 == 0 ? 1.0f : 0.58f)
                         : std::clamp(1.0f -

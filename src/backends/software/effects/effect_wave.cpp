@@ -33,7 +33,7 @@ void deform_horizontal(const Framebuffer& src, Framebuffer& dst,
         const f32 scale_x = safe_scale(depth * p.depth_px, p.perspective);
         f32 shade = 1.0f + std::max(0.0f, depth) * p.highlight;
         shade *= 1.0f - std::max(0.0f, -depth) * p.side_darkening;
-        shade = clamp01(shade);
+        shade = chronon3d::math::clamp01(shade);
 
         for (i32 y = y0; y < yy1; ++y) {
             Color* dst_row = dst.pixels_row(y);
@@ -70,7 +70,7 @@ void deform_vertical(const Framebuffer& src, Framebuffer& dst,
         const f32 scale_y = safe_scale(depth * p.depth_px, p.perspective);
         f32 shade = 1.0f + std::max(0.0f, depth) * p.highlight;
         shade *= 1.0f - std::max(0.0f, -depth) * p.side_darkening;
-        shade = clamp01(shade);
+        shade = chronon3d::math::clamp01(shade);
 
         for (i32 x = x0; x < xx1; ++x) {
             for (i32 y = 0; y < h; ++y) {

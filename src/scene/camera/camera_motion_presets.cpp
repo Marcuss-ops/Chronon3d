@@ -19,21 +19,6 @@
 
 namespace chronon3d::camera_motion {
 
-// ── Easing helpers ────────────────────────────────────────────────────────────
-
-float clamp01(float t) {
-    return std::clamp(t, 0.0f, 1.0f);
-}
-
-float smoothstep(float t) {
-    t = clamp01(t);
-    return t * t * (3.0f - 2.0f * t);
-}
-
-float lerp(float a, float b, float t) {
-    return a + (b - a) * clamp01(t);
-}
-
 // ── Preset implementations ────────────────────────────────────────────────────
 
 Camera2_5D dolly(float t, const DollyParams& p) {

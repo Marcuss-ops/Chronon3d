@@ -22,8 +22,8 @@ inline float value_noise_2d(float x, float y) {
     float c = noise_hash(ix, iy + 1.0f);
     float d = noise_hash(ix + 1.0f, iy + 1.0f);
 
-    float ux = fx * fx * (3.0f - 2.0f * fx);
-    float uy = fy * fy * (3.0f - 2.0f * fy);
+    float ux = chronon3d::math::smoothstep(fx);
+    float uy = chronon3d::math::smoothstep(fy);
 
     return (a * (1.0f - ux) + b * ux) * (1.0f - uy) +
            (c * (1.0f - ux) + d * ux) * uy;
@@ -44,7 +44,7 @@ float procedural_remotion_mask(float u, float v, float t, float seed) {
     float dist = std::sqrt(dx * dx + dy * dy);
 
     float edge_factor = std::clamp((dist - 0.05f) / 0.6f, 0.0f, 1.0f);
-    float vignette = edge_factor * edge_factor * (3.0f - 2.0f * edge_factor);
+    float vignette = chronon3d::math::smoothstep(edge_factor);
 
     return leak * vignette * p * 2.0f;
 }
@@ -92,7 +92,7 @@ float remotion_mask(float u, float v, float t, float speed, float direction) {
 
     float threshA = 1.0f - evolve;
     float revealAlpha = std::clamp((pv1 - threshA) / 0.3f, 0.0f, 1.0f);
-    revealAlpha = revealAlpha * revealAlpha * (3.0f - 2.0f * revealAlpha);
+    revealAlpha = chronon3d::math::smoothstep(revealAlpha);
 
     float maxU = refScale;
     float maxV = refScale * aspect;
@@ -104,7 +104,7 @@ float remotion_mask(float u, float v, float t, float speed, float direction) {
 
     float threshB = 1.0f - retract;
     float eraseAlpha = std::clamp((pv2 - threshB) / 0.3f, 0.0f, 1.0f);
-    eraseAlpha = eraseAlpha * eraseAlpha * (3.0f - 2.0f * eraseAlpha);
+    eraseAlpha = chronon3d::math::smoothstep(eraseAlpha);
 
     float mask = std::clamp(revealAlpha * (1.0f - eraseAlpha), 0.0f, 1.0f);
 

@@ -14,6 +14,7 @@
 //   - transition_out semantics (current shot's exit transition)
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
+#include <chronon3d/math/interpolate.hpp>
 
 // P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — the cache-controlled
 // evaluate() path uses `lease.session()` which returns `CameraSession&`.
@@ -235,7 +236,7 @@ public:
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
         if (t <= 0.0f) return from;
         if (t >= 1.0f) return to;
-        float et = t * t * (3.0f - 2.0f * t);  // smoothstep
+        const float et = chronon3d::math::smoothstep(t);
         Camera2_5D out = blend_camera_fields(t, from, to);
         out.rotation = slerp_rotation(from.rotation, to.rotation, et);
         return out;
