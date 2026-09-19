@@ -79,6 +79,7 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_mask_node_rg_integration.cpp
         render_graph/nodes/test_mask_node_unit.cpp
         render_graph/nodes/test_multi_source_text_run.cpp
+        render_graph/nodes/test_gpu_text_run_placement.cpp
         render_graph/nodes/test_text_run_node_execute_error.cpp
         render_graph/nodes/test_text_run_node_return_channel.cpp
         render_graph/nodes/test_text_run_predicted_bbox.cpp
