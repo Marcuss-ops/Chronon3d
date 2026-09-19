@@ -42,6 +42,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/text/text_run.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/support/pixel_scan_helpers.hpp>
 
@@ -79,6 +80,12 @@ TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     // F0.3 — valid text must return Ok (not silent failure).
     REQUIRE(result.has_value());
     CHECK(result.value() == true);
+
+    // The typewriter is one canonical full-text node.  Per-grapheme reveal
+    // state belongs to Chronon3D's text animator, not to seven mini layers.
+    auto scene = s.build();
+    REQUIRE(scene.layers().size() == 1);
+    CHECK(scene.layers()[0].nodes.size() == 1);
 }
 
 TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") {
@@ -192,7 +199,14 @@ TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
             REQUIRE(result.has_value());
             CHECK(result.value() == true);
 
-            return s.build();
+            auto built = s.build();
+            const auto &shape = built.layers()[0].nodes[0].shape.text_run_shape_handle().value;
+            REQUIRE(shape != nullptr);
+            INFO("frame=", ctx.frame().integral(), " opacities=",
+                 shape->glyphs.empty() ? -1.0f : shape->glyphs.front().opacity, ",",
+                 shape->glyphs.size() < 2 ? -1.0f : shape->glyphs[1].opacity, ",",
+                 shape->glyphs.size() < 3 ? -1.0f : shape->glyphs[2].opacity);
+            return built;
         });
 
     auto renderer = chronon3d::test::make_renderer();

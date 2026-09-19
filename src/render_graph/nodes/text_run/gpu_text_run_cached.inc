@@ -4,6 +4,15 @@ graph::RenderOpResult draw_cached_text_run(
     const TextRunShape& shape,
     const glm::mat4& model_matrix,
     float opacity) {
+    // The packed bitmap kernel uses integer quad origins and cannot preserve
+    // the complete semantics of an unsupported animated glyph state.  Let the
+    // canonical software renderer own those cases instead of producing a
+    // superficially successful but visibly unstable approximation.
+    if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: animated glyph state requires software path"));
+    }
     // MTSDF is the canonical lowering shared with DirectYUV. Keep the packed
     // atlas below as a compatibility fallback for runs outside that contract.
     if (ctx.gpu_text_prepared_cache && ctx.backend && ctx.surface_registry) {

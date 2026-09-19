@@ -235,8 +235,8 @@ void VulkanBackend::Impl::draw_text_batch(
         gg.draw_order = gs.draw_order != 0
             ? gs.draw_order : static_cast<std::uint32_t>(i);
         gg.pad0 = gs.pad0;
-        gg.pad1 = gs.pad1;
-        gg.pad2 = gs.pad2;
+        gg.origin_x = gs.origin_x;
+        gg.origin_y = gs.origin_y;
 
         const auto& run = gpu_runs[gg.run_index];
         auto& dynamic = gpu_glyph_dynamic[i];

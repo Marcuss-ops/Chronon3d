@@ -343,8 +343,10 @@ struct alignas(16) GlyphStatic {
 
     std::uint32_t draw_order{0};
     std::uint32_t pad0{0};
-    std::uint32_t pad1{0};
-    std::uint32_t pad2{0};
+    // Layout-space origin used by per-glyph MTSDF scale compensation.  These
+    // replace the two unused padding words without changing the 48-byte ABI.
+    float origin_x{0.0f};
+    float origin_y{0.0f};
 
     std::uint16_t uv_x() const noexcept { return atlas_x; }
     std::uint16_t uv_y() const noexcept { return atlas_y; }

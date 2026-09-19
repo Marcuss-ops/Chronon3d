@@ -20,8 +20,8 @@ struct GpuGlyphStatic {
     float plane_bottom;
     uint draw_order;
     uint pad0;
-    uint pad1;
-    uint pad2;
+    float origin_x;
+    float origin_y;
 };
 
 struct GpuGlyphDynamic {
@@ -250,7 +250,17 @@ void main() {
             vec2 animator_scale = vec2(
                 1.0 + (run.animator_scale_x - 1.0) * reveal_weight,
                 1.0 + (run.animator_scale_y - 1.0) * reveal_weight);
-            vec2 local = (pixel_pos - vec2(run.tx, run.ty) - animator_offset) /
+            vec2 scale_origin_compensation = vec2(0.0);
+            if ((run.flags & 2u) != 0u) {
+                // Per-glyph scale must preserve the glyph's layout origin.
+                // Without this term, a glyph at x=500 acquires an unintended
+                // 500*(scale-1) translation and the phrase visibly trembles.
+                scale_origin_compensation = vec2(run.sx, run.sy) *
+                    vec2(glyph.origin_x, glyph.origin_y) *
+                    (vec2(1.0) - animator_scale);
+            }
+            vec2 local = (pixel_pos - vec2(run.tx, run.ty) - animator_offset -
+                          scale_origin_compensation) /
                          (vec2(run.sx, run.sy) * animator_scale);
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
                      local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;

@@ -54,8 +54,10 @@ namespace chronon3d {
 
         // The fonts and the picture are logical asset paths resolved against
         // `--assets-root` at render time (the engine never touches the filesystem).
-        constexpr const char *kCanaryFontBold = "assets/fonts/Inter-Bold.ttf";
-        constexpr const char *kCanaryFontRegular = "assets/fonts/Inter-Regular.ttf";
+        constexpr const char *kCanaryFontBold = "tests/fixtures/Inter-Bold.ttf";
+        // The fixture checkout contains the canonical Inter Bold face; Chronon3D
+        // still owns font loading/shaping/rasterization for both authored roles.
+        constexpr const char *kCanaryFontRegular = "tests/fixtures/Inter-Bold.ttf";
         constexpr const char *kCanaryImageCard = "assets/images/checker.png";
 
         constexpr Color kCanaryVoid{0.035f, 0.043f, 0.075f, 1.0f};
@@ -111,6 +113,93 @@ namespace chronon3d {
             definition.frame.vertical_align = VerticalAlign::Middle;
             definition.frame.centering_mode = TextCenteringMode::PixelInk;
             definition.frame.max_lines = max_lines;
+            return definition;
+        }
+
+        enum class ElementCanaryMode {
+            Static,
+            Opacity,
+            Motion,
+        };
+
+        // A canary for the Chronon text-element contract.  The text remains
+        // one complete TextDefinition and therefore one shaped/layout-owned
+        // node.  "Elements" here are Chronon's internal glyph states: this
+        // helper never creates a second text run and never reconstructs
+        // advances in the composition layer.
+        [[nodiscard]] TextDefinition canary_element_text(
+            std::string value, ElementCanaryMode mode) {
+            auto definition = canary_text(
+                std::move(value), kCanaryFontBold, 180.0f, 700,
+                Color{1.0f, 0.86f, 0.86f, 1.0f}, Vec2{1600.0f, 360.0f});
+
+            GlyphSelectorSpec selector;
+            selector.id = "chronon_elements";
+            selector.unit = TextSelectorUnit::Grapheme;
+            selector.shape = TextSelectorShape::Square;
+            selector.order = TextSelectorOrder::Forward;
+            selector.start = 0.0f;
+            selector.end = 100.0f;
+            selector.exclude_spaces = true;
+
+            TextAnimatorSpec animator;
+            animator.id = "chronon_elements_static_or_reveal";
+            animator.selectors.push_back(selector);
+
+            if (mode == ElementCanaryMode::Static) {
+                // B: selecting every shaped element with an identity visual
+                // property must be pixel-equivalent to the plain full run.
+                animator.properties.push_back(OpacityProperty{1.0f});
+            } else {
+                // C/D: hide the still-unrevealed shaped elements.  The
+                // selector boundary is animated; no glyph position is
+                // invented here.
+                selector.start = 0.0f;
+                selector.start.add_keyframe(Frame{0}, 0.0f,
+                                            EasingCurve{Easing::Linear});
+                selector.start.add_keyframe(Frame{42}, 100.0f,
+                                            EasingCurve{Easing::OutCubic});
+                animator.selectors.clear();
+                animator.selectors.push_back(std::move(selector));
+                animator.properties.push_back(OpacityProperty{0.0f});
+                animator.transform_mode = TextPropertyBlendMode::Multiply;
+            }
+
+            definition.animation.animators.push_back(std::move(animator));
+
+            if (mode == ElementCanaryMode::Motion) {
+                // D: the same shaped elements now receive only motion deltas.
+                // The base positions/advances still come from Chronon's
+                // layout.  Layer-level 3D rotation remains the camera-facing
+                // rotation; per-element Z/scale are evaluated here.
+                GlyphSelectorSpec motion_selector;
+                motion_selector.id = "chronon_elements_motion";
+                motion_selector.unit = TextSelectorUnit::Grapheme;
+                motion_selector.shape = TextSelectorShape::Square;
+                motion_selector.start = 0.0f;
+                motion_selector.end = 100.0f;
+
+                TextAnimatorSpec motion;
+                motion.id = "chronon_elements_motion_delta";
+                motion.selectors.push_back(std::move(motion_selector));
+
+                PositionProperty position;
+                position.value.add_keyframe(Frame{0}, Vec3{0.0f, -24.0f, -20.0f},
+                                            EasingCurve{Easing::OutCubic});
+                position.value.add_keyframe(Frame{42}, Vec3{0.0f, 0.0f, 0.0f},
+                                            EasingCurve{Easing::OutCubic});
+                motion.properties.push_back(std::move(position));
+
+                ScaleProperty scale;
+                scale.value.add_keyframe(Frame{0}, Vec3{0.82f, 0.82f, 1.0f},
+                                         EasingCurve{Easing::OutCubic});
+                scale.value.add_keyframe(Frame{42}, Vec3{1.0f, 1.0f, 1.0f},
+                                         EasingCurve{Easing::OutCubic});
+                motion.properties.push_back(std::move(scale));
+
+                definition.animation.animators.push_back(std::move(motion));
+            }
+
             return definition;
         }
 
@@ -366,6 +455,139 @@ namespace chronon3d {
             });
         }
 
+        [[nodiscard]] Composition make_text_elements_canary(
+            const char *name, ElementCanaryMode mode) {
+            return composition(
+                canary_spec(name), [mode](const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    const bool moving = mode != ElementCanaryMode::Static;
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) {
+                        l.fill(kCanaryVoid);
+                    });
+
+                    scene.layer("CHRONON_TEXT_ELEMENTS", [&](LayerBuilder &l) {
+                        l.enable_3d(true);
+                        if (moving) {
+                            l.rotate({0.0f, canary_lerp(-8.0f, 8.0f,
+                                                        canary_progress(ctx)), 0.0f});
+                        }
+                        l.effect(canary_glow(GlowPresets::editorial_highlight(30.0f)));
+                        l.text("text", canary_element_text("CHRONON", mode));
+                    });
+
+                    scene.camera().set(moving
+                        ? canary_orbit_camera(
+                            canary_lerp(-8.0f, 8.0f, canary_progress(ctx)), 0.0f, 1000.0f)
+                        : canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                    return scene.build();
+                });
+        }
+
+        [[nodiscard]] Composition make_text_full_static_canary(const char *name) {
+            return composition(
+                canary_spec(name), [](const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) {
+                        l.fill(kCanaryVoid);
+                    });
+
+                    scene.layer("CHRONON_TEXT_FULL_STATIC", [&](LayerBuilder &l) {
+                        l.enable_3d(true);
+                        l.effect(canary_glow(GlowPresets::editorial_highlight(30.0f)));
+                        l.text("text", canary_text(
+                            "CHRONON", kCanaryFontBold, 180.0f, 700,
+                            Color{1.0f, 0.86f, 0.86f, 1.0f}, Vec2{1600.0f, 360.0f}));
+                    });
+
+                    scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                    return scene.build();
+                });
+        }
+
+        // ── Final3D catalog: nine production composition IDs ───────────────────────
+        // These are Chronon3D-owned compositions. Template intent is represented
+        // here as content definitions and motion is evaluated by this runtime; no
+        // preview rasterizer or per-character fallback participates.
+        [[nodiscard]] Composition make_final3d_catalog(const char *name) {
+            return composition(
+                canary_spec(name), [name](const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    const f32 t = canary_progress(ctx);
+                    const i32 frame = ctx.frame().integral();
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) { l.fill(kCanaryVoid); });
+
+                    const std::string id{name};
+                    const bool product = id == "product_orbit" || id == "macbook_product";
+                    const bool title_card = id == "title_card_3d";
+                    const bool typewriter = id == "typewriter_3d_glow";
+                    const bool clean_red = id == "clean_red" || id == "youtube_canary";
+
+                    scene.null_layer("FINAL3D_ROOT", [&](LayerBuilder &l) {
+                        l.enable_3d(true)
+                            .rotate({0.0f, canary_lerp(-8.0f, 8.0f, canary_smoothstep(t)), 0.0f});
+                    });
+
+                    if (product) {
+                        scene.layer("PRODUCT", [&](LayerBuilder &l) {
+                            l.parent("FINAL3D_ROOT").enable_3d(true)
+                                .position({0.0f, -40.0f, 0.0f})
+                                .rotate({0.0f, canary_lerp(-24.0f, 24.0f, t), 0.0f})
+                                .scale({canary_lerp(0.72f, 1.0f, canary_smoothstep(t)),
+                                        canary_lerp(0.72f, 1.0f, canary_smoothstep(t)), 1.0f});
+                            l.effect(GlowPresets::editorial_highlight(28.0f));
+                            l.text("product_title", canary_text(
+                                id == "macbook_product" ? "MACBOOK PRODUCT" : "PRODUCT ORBIT",
+                                kCanaryFontBold, 132.0f, 700,
+                                Color{0.94f, 0.97f, 1.0f, 1.0f},
+                                id == "macbook_product" ? Vec2{1500.0f, 300.0f}
+                                                           : Vec2{1300.0f, 300.0f}));
+                        });
+                    } else {
+                        const f32 opacity = typewriter
+                            ? canary_smoothstep(static_cast<f32>(frame) / 36.0f)
+                            : canary_smoothstep(static_cast<f32>(frame) / 12.0f);
+                        scene.layer("TITLE", [&](LayerBuilder &l) {
+                            l.parent("FINAL3D_ROOT").enable_3d(true)
+                                .position({0.0f, title_card ? 70.0f : 0.0f, 0.0f})
+                                .opacity(opacity)
+                                .scale({canary_lerp(0.82f, 1.0f, canary_smoothstep(t)),
+                                        canary_lerp(0.82f, 1.0f, canary_smoothstep(t)), 1.0f})
+                                .rotate({canary_lerp(-8.0f, 8.0f, t),
+                                         canary_lerp(-12.0f, 12.0f, t), 0.0f});
+                            l.effect(canary_glow(clean_red
+                                                     ? GlowPresets::editorial_highlight(34.0f)
+                                                     : GlowPresets::neon_blue(34.0f)));
+                            l.text("title", typewriter
+                                ? canary_element_text("TYPEWRITER 3D", ElementCanaryMode::Motion)
+                                : canary_text(
+                                    clean_red ? "CHRONON" : "CHRONON",
+                                    kCanaryFontBold, 180.0f, 700,
+                                    clean_red ? Color{1.0f, 0.86f, 0.86f, 1.0f}
+                                              : Color{1.0f, 1.0f, 1.0f, 1.0f},
+                                    Vec2{1600.0f, 360.0f}));
+                        });
+                        if (title_card) {
+                            scene.layer("SUBTITLE", [&](LayerBuilder &l) {
+                                l.parent("FINAL3D_ROOT").enable_3d(true)
+                                    .position({0.0f, -160.0f, 0.0f})
+                                    .opacity(canary_smoothstep(static_cast<f32>(frame - 18) / 18.0f));
+                                l.text("subtitle", canary_text("MOTION ENGINE", kCanaryFontRegular,
+                                                                   68.0f, 400,
+                                                                   Color{0.88f, 0.92f, 1.0f, 1.0f},
+                                                                   Vec2{1400.0f, 120.0f}));
+                            });
+                        }
+                    }
+
+                    const f32 yaw = id == "camera_push" ? 0.0f : canary_lerp(-14.0f, 14.0f, t);
+                    const f32 distance = id == "camera_push"
+                        ? canary_lerp(1120.0f, 880.0f, canary_smoothstep(t))
+                        : (id == "light_pulse" ? 1010.0f : 1000.0f);
+                    scene.camera().set(canary_orbit_camera(yaw, canary_lerp(4.0f, -4.0f, t), distance));
+                    return scene.build();
+                });
+        }
+
     } // namespace
 
     void register_canary_compositions(CompositionRegistry &registry) {
@@ -379,6 +601,44 @@ namespace chronon3d {
                                                  [] { return make_motion3d_same_motion(true); }));
         registry.add(make_composition_descriptor("Motion3DSameMotionImage",
                                                  [] { return make_motion3d_same_motion(false); }));
+
+        // Text contract canaries: B (static identity), C (opacity stagger),
+        // D (opacity plus per-element motion delta).  Each uses one complete
+        // Chronon text node; none combines a base run with glyph copies.
+        registry.add(make_composition_descriptor(
+            "chronon_text_full_static",
+            [] { return make_text_full_static_canary("chronon_text_full_static"); }));
+        registry.add(make_composition_descriptor(
+            "chronon_text_elements_static",
+            [] { return make_text_elements_canary("chronon_text_elements_static",
+                                                   ElementCanaryMode::Static); }));
+        registry.add(make_composition_descriptor(
+            "chronon_text_elements_opacity",
+            [] { return make_text_elements_canary("chronon_text_elements_opacity",
+                                                   ElementCanaryMode::Opacity); }));
+        registry.add(make_composition_descriptor(
+            "chronon_text_elements_motion",
+            [] { return make_text_elements_canary("chronon_text_elements_motion",
+                                                   ElementCanaryMode::Motion); }));
+
+        registry.add(make_composition_descriptor("logo_reveal",
+                                                 [] { return make_final3d_catalog("logo_reveal"); }));
+        registry.add(make_composition_descriptor("product_orbit",
+                                                 [] { return make_final3d_catalog("product_orbit"); }));
+        registry.add(make_composition_descriptor("title_card_3d",
+                                                 [] { return make_final3d_catalog("title_card_3d"); }));
+        registry.add(make_composition_descriptor("camera_push",
+                                                 [] { return make_final3d_catalog("camera_push"); }));
+        registry.add(make_composition_descriptor("light_pulse",
+                                                 [] { return make_final3d_catalog("light_pulse"); }));
+        registry.add(make_composition_descriptor("macbook_product",
+                                                 [] { return make_final3d_catalog("macbook_product"); }));
+        registry.add(make_composition_descriptor("typewriter_3d_glow",
+                                                 [] { return make_final3d_catalog("typewriter_3d_glow"); }));
+        registry.add(make_composition_descriptor("clean_red",
+                                                 [] { return make_final3d_catalog("clean_red"); }));
+        registry.add(make_composition_descriptor("youtube_canary",
+                                                 [] { return make_final3d_catalog("youtube_canary"); }));
     }
 
 } // namespace chronon3d
