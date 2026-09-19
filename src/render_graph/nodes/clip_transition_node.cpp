@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/math/interpolate.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -82,11 +83,6 @@ float select_directional_mask(TransitionDirection dir, float u, float v) {
         case TransitionDirection::Down:  return v;
         default:                         return u;
     }
-}
-
-float smoothstep01(float t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
 }
 
 } // namespace
@@ -289,7 +285,8 @@ NodeExecResult ClipTransitionNode::execute(
                     const float v = (y + 0.5f) * inv_h;
                     const float mask_u = select_directional_mask(m_spec.direction, u, v);
                     const float sweep = p * (1.0f + feather);
-                    const float mask = smoothstep01(std::clamp((sweep - mask_u) / feather, 0.0f, 1.0f));
+                    const float mask = chronon3d::math::smoothstep(
+                        std::clamp((sweep - mask_u) / feather, 0.0f, 1.0f));
                     const Color ca = sample_uv(*a, u, v);
                     const Color cb = sample_uv(*b, u, v);
                     Color result;
@@ -323,7 +320,8 @@ NodeExecResult ClipTransitionNode::execute(
                     const float dist = std::sqrt(dx * dx + dy * dy);
                     const float r_feather = std::max(0.001f, max_r * feather);
                     const float sweep_r = p * (max_r + r_feather);
-                    const float mask = smoothstep01(std::clamp((sweep_r - dist) / r_feather, 0.0f, 1.0f));
+                    const float mask = chronon3d::math::smoothstep(
+                        std::clamp((sweep_r - dist) / r_feather, 0.0f, 1.0f));
                     const Color ca = sample_uv(*a, u, v);
                     const Color cb = sample_uv(*b, u, v);
                     Color result;

@@ -4,6 +4,7 @@
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/interpolate.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -65,18 +66,8 @@ struct CameraMotionParams {
     std::optional<assets::ImageRef> reference_image{};
 };
 
-inline f32 lerp(f32 a, f32 b, f32 t) {
-    return a + (b - a) * t;
-}
-
-inline Vec3 lerp(const Vec3& a, const Vec3& b, f32 t) {
-    return a + (b - a) * t;
-}
-
-inline f32 smoothstep(f32 t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
-}
+using chronon3d::math::lerp;
+using chronon3d::math::smoothstep;
 
 inline f32 normalized_time(Frame frame, Frame duration) {
     const Frame span = std::max<Frame>(1, duration - 1);
@@ -103,4 +94,3 @@ inline f32 easing_value(Easing easing, f32 t) {
 }
 
 } // namespace chronon3d::animation
-
