@@ -354,10 +354,11 @@ namespace chronon3d {
                 });
         }
 
-        /// Final typewriter card used for the five font comparisons.  The intro
-        /// lasts 54 frames (1.8 s); after that, text, cursor and camera are held
-        /// still for the rest of the five-second video.  The 3D movement is a
-        /// single restrained settle, not a perpetual orbit.
+        /// Final typewriter card used for the font comparison.  The intro lasts
+        /// 54 frames (1.8 s); after that, text and cursor are held still for the
+        /// rest of the five-second video.  Keep this card on the GPU-native
+        /// text contract: translation/scale only, with no unimplemented
+        /// RenderSurface effect stack or legacy 3D rotation fallback.
         [[nodiscard]] Composition make_typewriter_final(const char *name,
                                                          const char *font_path,
                                                          f32 font_size,
@@ -377,30 +378,17 @@ namespace chronon3d {
                         l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
                     });
 
-                    // One shared 3D parent keeps the word and its cursor in the
-                    // same shallow card plane.
+                    // One shared 2D parent keeps the word and its cursor aligned
+                    // while remaining compatible with the native GPU text path.
                     scene.null_layer("TYPEWRITER_ROOT", [&](LayerBuilder &l) {
-                        l.enable_3d(true)
-                            .position({0.0f, canary_lerp(22.0f, 0.0f, settle),
-                                       canary_lerp(-24.0f, 0.0f, settle)})
-                            .rotate({canary_lerp(-2.5f, 0.0f, settle),
-                                     canary_lerp(-5.0f, 0.0f, settle),
-                                     canary_lerp(1.2f, 0.0f, settle)});
+                        l.position({0.0f, canary_lerp(22.0f, 0.0f, settle),
+                                    canary_lerp(-24.0f, 0.0f, settle)});
                     });
 
                     scene.layer("TYPEWRITER_TEXT", [&](LayerBuilder &l) {
                         l.parent("TYPEWRITER_ROOT")
-                            .enable_3d(true)
                             .scale({canary_lerp(0.95f, 1.0f, settle),
                                     canary_lerp(0.95f, 1.0f, settle), 1.0f});
-                        GlowParams glow = GlowPresets::editorial_highlight(32.0f);
-                        glow.quality = GlowQuality::Fast;
-                        glow.intensity = 0.86f;
-                        glow.threshold = 0.0f;
-                        glow.core_strength = 0.46f;
-                        glow.aura_strength = 0.28f;
-                        glow.bloom_strength = 0.09f;
-                        l.effect(glow);
                         l.text("text", canary_typewriter_text(
                             "CHRONON", font_path, font_size,
                             Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f}));
@@ -421,19 +409,14 @@ namespace chronon3d {
                                      0.0f, 1.0f);
                     scene.layer("TYPEWRITER_CURSOR", [&](LayerBuilder &l) {
                         l.parent("TYPEWRITER_ROOT")
-                            .enable_3d(true)
                             .position({cursor_x, 6.0f, 0.0f})
                             .opacity(cursor_opacity);
-                        l.effect(canary_red_cursor_glow());
                         l.text("underscore", canary_text(
                             "_", font_path, font_size * 0.82f, 700,
                             Color{1.0f, 0.035f, 0.035f, 1.0f}, Vec2{180.0f, 260.0f}));
                     });
 
-                    scene.camera().set(canary_orbit_camera(
-                        canary_lerp(-3.5f, 0.0f, settle),
-                        canary_lerp(1.8f, 0.0f, settle),
-                        canary_lerp(1040.0f, 1000.0f, settle)));
+                    scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
                     return scene.build();
                 });
         }
@@ -844,34 +827,13 @@ namespace chronon3d {
             [] { return make_black_glow_static("black_glow_freeserif",
                                                "assets/fonts/FreeSerif.ttf", 190.0f); }));
 
-        // Final typewriter + restrained 2.5D settle.  Keep one composition per
-        // font so the rendered videos are directly comparable while sharing the
-        // exact same timing, camera motion, glow and red underscore treatment.
-        registry.add(make_composition_descriptor(
-            "typewriter_final_inter",
-            [] { return make_typewriter_final("typewriter_final_inter",
-                                              "assets/fonts/Inter-Bold.ttf", 190.0f,
-                                              452.0f); }));
+        // Final typewriter card. Keep one composition while the native GPU
+        // reveal path is validated; Poppins is the selected production font.
         registry.add(make_composition_descriptor(
             "typewriter_final_poppins",
             [] { return make_typewriter_final("typewriter_final_poppins",
                                               "assets/fonts/Poppins-Bold.ttf", 190.0f,
                                               500.0f); }));
-        registry.add(make_composition_descriptor(
-            "typewriter_final_dmsans",
-            [] { return make_typewriter_final("typewriter_final_dmsans",
-                                              "assets/fonts/DMSans-Bold.ttf", 190.0f,
-                                              452.0f); }));
-        registry.add(make_composition_descriptor(
-            "typewriter_final_georgia",
-            [] { return make_typewriter_final("typewriter_final_georgia",
-                                              "assets/fonts/Georgia_Bold.ttf", 190.0f,
-                                              438.0f); }));
-        registry.add(make_composition_descriptor(
-            "typewriter_final_freeserif",
-            [] { return make_typewriter_final("typewriter_final_freeserif",
-                                              "assets/fonts/FreeSerif.ttf", 190.0f,
-                                              438.0f); }));
     }
 
 } // namespace chronon3d

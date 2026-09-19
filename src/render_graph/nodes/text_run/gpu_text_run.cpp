@@ -186,15 +186,12 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     bool saw_supported_property = false;
     for (const auto& property : animator.properties) {
         if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
-            // Per-element opacity is not a run-uniform value.  The GPU
-            // selector record currently carries animator_opacity at run
-            // scope, so lowering this property here would turn an opacity
-            // stagger into "hide the complete text".  Keep the canonical
-            // shaped run and evaluate its glyph states on Chronon's CPU
-            // compatibility path until the GPU instance contract carries
-            // the per-element opacity explicitly.
-            (void)opacity;
-            return false;
+            // The tiled text shader already folds animator_opacity with the
+            // per-glyph selector weight.  Keep this profile GPU-native rather
+            // than routing the canonical typewriter reveal through the
+            // legacy software glyph loop.
+            if (opacity->value.has_expression()) return false;
+            saw_supported_property = true;
         } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
             if (position->value.has_expression()) return false;
             saw_supported_property = true;
@@ -303,11 +300,14 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
     }
     BLBoxI bounds{};
     if (font.getGlyphBounds(&glyph_id, 0, &bounds, 1) != BL_SUCCESS) return std::nullopt;
-    constexpr double kGlyphUnit = 1.0 / 64.0;
-    const double bx0 = static_cast<double>(bounds.x0) * kGlyphUnit;
-    const double by0 = static_cast<double>(bounds.y0) * kGlyphUnit;
-    const double bx1 = static_cast<double>(bounds.x1) * kGlyphUnit;
-    const double by1 = static_cast<double>(bounds.y1) * kGlyphUnit;
+    // Blend2D's BLBoxI result is already expressed in the font's pixel
+    // coordinate space.  Dividing it by 64 (as if it were a 26.6 value)
+    // produces a tiny bitmap while getGlyphOutlines() correctly returns the
+    // full-size path.  Keep the two APIs in the same coordinate space.
+    const double bx0 = static_cast<double>(bounds.x0);
+    const double by0 = static_cast<double>(bounds.y0);
+    const double bx1 = static_cast<double>(bounds.x1);
+    const double by1 = static_cast<double>(bounds.y1);
     const int x0 = static_cast<int>(std::floor(bx0));
     const int y0 = static_cast<int>(std::floor(by0));
     const int width = static_cast<int>(std::ceil(bx1)) - x0;
@@ -325,6 +325,30 @@ std::optional<GlyphAtlasEntry> rasterize_missing_glyph(
         static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f),
         static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f),
         static_cast<std::uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f)));
+    // The compatibility BLGlyphRun prewarm can yield a dimensioned but empty
+    // PRGB32 image for some resolved font faces. Blend2D can decode the same
+    // glyph outline directly from its BLFont; draw that path into the bitmap
+    // and keep the upload contract unchanged.
+    BLPath outline;
+    if (font.getGlyphOutlines(glyph_id, outline) == BL_SUCCESS &&
+        !outline.empty()) {
+        BLBox outline_box{};
+        if (outline.getBoundingBox(&outline_box) == BL_SUCCESS &&
+            outline.translate(BLPoint(-outline_box.x0, -outline_box.y0)) == BL_SUCCESS &&
+            context.fillPath(outline) == BL_SUCCESS) {
+            context.end();
+            GlyphAtlasEntry entry;
+            entry.image = std::move(image);
+            entry.x_offset = x0;
+            entry.y_offset = y0;
+            entry.fill_color_rgba =
+                (static_cast<std::uint32_t>(std::clamp(color.r, 0.0f, 1.0f) * 255.0f) << 24u) |
+                (static_cast<std::uint32_t>(std::clamp(color.g, 0.0f, 1.0f) * 255.0f) << 16u) |
+                (static_cast<std::uint32_t>(std::clamp(color.b, 0.0f, 1.0f) * 255.0f) << 8u) |
+                static_cast<std::uint32_t>(std::clamp(color.a, 0.0f, 1.0f) * 255.0f);
+            return entry;
+        }
+    }
     BLGlyphPlacement placement{};
     placement.placement.reset(0.0, 0.0);
     placement.advance.reset(0.0, 0.0);
@@ -970,11 +994,10 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this run"));
     }
-    // A GPU success must never silently drop an unsupported animator.  The
-    // compatibility/software route evaluates the complete per-glyph state;
-    // this is especially important for staggered opacity and effects that
-    // cannot be represented by the run-uniform GPU record.
-    if (!can_lower_gpu_text_animation(shape)) {
+    // A GPU success must never silently drop an unsupported animator. The
+    // canonical MTSDF route owns the lowerable typewriter selector; only
+    // unsupported animator stacks are rejected here.
+    if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this animator stack"));

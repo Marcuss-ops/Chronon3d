@@ -13,12 +13,26 @@ graph::RenderOpResult draw_cached_text_run(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: animated glyph state requires software path"));
     }
-    // MTSDF is the canonical lowering shared with DirectYUV. Keep the packed
-    // atlas below as a compatibility fallback for runs outside that contract.
+    // The native text kernels are still experimental for this export lane.
+    // Keep an explicit escape hatch so Vulkan composition can remain native
+    // while the canonical CPU text renderer supplies an exact glyph surface.
+    if (std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::UnsupportedCapability,
+            "draw_cached_text_run: forced software text fallback"));
+    }
+    // MTSDF is the canonical lowering shared with DirectYUV. It also owns the
+    // lowerable typewriter selector: the shaped run stays resident and the
+    // tile shader applies the per-glyph reveal weight each frame. The packed
+    // bitmap route below remains only as a compatibility fallback for shapes
+    // outside this contract.
+    const bool lowerable_gpu_animation =
+        !shape.animators.empty() && can_lower_gpu_text_animation(shape);
     if (ctx.gpu_text_prepared_cache && ctx.backend && ctx.surface_registry) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
         if (mtsdf.ok()) return mtsdf;
+        if (lowerable_gpu_animation) return mtsdf;
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_mtsdf_fallback_count.fetch_add(
                 1, std::memory_order_relaxed);
@@ -155,6 +169,45 @@ graph::RenderOpResult draw_cached_text_run(
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
                 "draw_cached_text_run: glyph bitmap not prewarmed"));
+        }
+        // A preflight atlas entry can survive from an older preparation path
+        // with valid dimensions but no coverage. Do not upload that empty
+        // bitmap to the GPU: refresh it through the canonical glyph rasterizer
+        // before building the packed atlas.
+        BLImageData coverage_data{};
+        bool has_coverage = false;
+        if (entry->image->getData(&coverage_data) == BL_SUCCESS &&
+            coverage_data.pixelData && coverage_data.size.w > 0 &&
+            coverage_data.size.h > 0) {
+            const auto* pixels = static_cast<const std::uint8_t*>(coverage_data.pixelData);
+            for (int y = 0; y < coverage_data.size.h && !has_coverage; ++y) {
+                const auto* row = pixels + static_cast<std::size_t>(y) * coverage_data.stride;
+                for (int x = 0; x < coverage_data.size.w; ++x) {
+                    if (row[static_cast<std::size_t>(x) * 4u + 3u] != 0u) {
+                        has_coverage = true;
+                        break;
+                    }
+                }
+            }
+        }
+        const int expected_width = std::max(
+            1, static_cast<int>(std::ceil(placed.bbox_x1 - placed.bbox_x0)));
+        const int expected_height = std::max(
+            1, static_cast<int>(std::ceil(std::abs(placed.bbox_y1 - placed.bbox_y0))));
+        const bool undersized = static_cast<int>(entry->image->width()) * 2 < expected_width ||
+            static_cast<int>(entry->image->height()) * 2 < expected_height;
+        if (ctx.asset_resolver && (!has_coverage || undersized)) {
+            auto refreshed = rasterize_missing_glyph(
+                *ctx.text_render_resources, *ctx.asset_resolver,
+                layout.font.font_path, state.glyph_id,
+                static_cast<u32>(font_size),
+                state.fill);
+            if (refreshed && refreshed->image && !refreshed->image->empty()) {
+                ctx.text_render_resources->store_glyph_atlas(
+                    layout.font.font_path, state.glyph_id,
+                    static_cast<u32>(font_size), *refreshed);
+                entry = std::move(refreshed);
+            }
         }
         BLImageData data{};
         if (entry->image->getData(&data) != BL_SUCCESS ||
@@ -340,6 +393,23 @@ graph::RenderOpResult draw_cached_text_run(
                 ? highlight_plan.glyph_ranges[i].second
                 : -1.0f;
 
+        float glyph_opacity = state.opacity;
+        for (const auto& animator : shape.animators) {
+            for (const auto& selector : animator.selectors) {
+                const float selector_weight = evaluate_selector(
+                    selector, layout.units, static_cast<u32>(i),
+                    layout.source_text, ctx.frame_input.sample_time,
+                    &layout.placed);
+                for (const auto& property : animator.properties) {
+                    if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
+                        glyph_opacity *= 1.0f +
+                            (opacity->value.evaluate(ctx.frame_input.sample_time) - 1.0f) *
+                            selector_weight;
+                    }
+                }
+            }
+        }
+
         glyphs.push_back(GpuTextGlyph{
             styled->width,
             styled->height,
@@ -362,12 +432,11 @@ graph::RenderOpResult draw_cached_text_run(
                          pad))),
             state.scale.x * model_scale_x,
             state.scale.y * model_scale_y,
-            state.opacity * opacity,
+            glyph_opacity * opacity,
             styled->rgba,
             highlight_start,
             highlight_end
         });
-
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_glyphs_built.fetch_add(1, std::memory_order_relaxed);
         }

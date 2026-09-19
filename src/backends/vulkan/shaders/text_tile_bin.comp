@@ -81,6 +81,9 @@ float selector_weight(GpuTextRunDynamic run, uint glyph_index) {
     float position = (float(glyph_index) + 0.5) / total;
     float start = clamp(run.selector_start * 0.01, 0.0, 1.0);
     float end = clamp(run.selector_end * 0.01, 0.0, 1.0);
+    if (abs(end - start) <= 0.0000001) {
+        return start >= 1.0 ? 0.0 : 1.0;
+    }
     if (start > end) {
         float tmp = start;
         start = end;
@@ -178,7 +181,7 @@ void main() {
             if (slot < params.max_glyphs_per_tile) {
                 tile_glyph_indices[tile_idx * params.max_glyphs_per_tile + slot] = gid;
             } else {
-                // The count buffer doubles as the certification flag.  The
+                // The count buffer doubles as the certification flag. The
                 // raster pass drops the complete tile when this bit is set,
                 // so an overfull tile can never silently render a truncated
                 // contributor list.

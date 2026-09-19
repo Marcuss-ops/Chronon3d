@@ -240,6 +240,7 @@ void execute_fused_batch_impl(
                     const auto& shape = static_cast<const TextRunNode&>(
                         graph.node(inst.node)).shape();
                     if (!shape || !shape->layout || shape->animated_doc ||
+                        !shape->animators.empty() ||
                         (!shape->animators.empty() &&
                          !text_run::can_lower_gpu_text_animation(*shape))) {
                         can_reuse = false;
@@ -469,6 +470,20 @@ void execute_fused_batch_impl(
                                           batch.glyphs.end());
                         for (std::size_t i = first; i < all_glyphs.size(); ++i) {
                             all_glyphs[i].run_index = run_index;
+                            // The prepared static record stores the layout
+                            // glyph index. The Vulkan bin/raster pair needs
+                            // the selector-unit index for an animated run;
+                            // use the compiled TextUnitMap rather than
+                            // assuming grapheme == glyph.
+                            if (!render_shape->animators.empty()) {
+                                const auto& selector =
+                                    render_shape->animators.front().selectors.front();
+                                const auto layout_index = all_glyphs[i].pad0;
+                                if (layout_index < layout.units.glyph_to_grapheme.size()) {
+                                    all_glyphs[i].pad0 = layout.units.unit_index(
+                                        layout_index, selector.unit);
+                                }
+                            }
                         }
                         continue;
                     }
