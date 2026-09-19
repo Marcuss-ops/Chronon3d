@@ -45,6 +45,23 @@ float luma(const Color& c) {
     return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
 }
 
+Vec2 weighted_centroid(const Framebuffer& fb, float background_luma) {
+    double sum_x = 0.0;
+    double sum_y = 0.0;
+    double weight = 0.0;
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const float w = std::max(0.0f, luma(fb.get_pixel(x, y)) - background_luma);
+            sum_x += static_cast<double>(x) * w;
+            sum_y += static_cast<double>(y) * w;
+            weight += w;
+        }
+    }
+    if (weight <= 0.0) return {-1.0f, -1.0f};
+    return {static_cast<float>(sum_x / weight),
+            static_cast<float>(sum_y / weight)};
+}
+
 uint64_t fb_hash(const Framebuffer& fb) {
     uint64_t h = 0xcbf29ce484222325ULL;
     for (int y = 0; y < fb.height(); ++y) {
@@ -110,6 +127,30 @@ Composition make_bloom_threshold_scene() {
             return s.build();
         });
 }
+
+Composition make_centered_glow_centroid_scene(bool glow) {
+    return composition({.width = 300, .height = 220, .duration = 1},
+        [glow](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.layer("bg", [](LayerBuilder& l) {
+                l.fill(Color{0.004f, 0.006f, 0.016f, 1.0f});
+            });
+            s.layer("source", [glow](LayerBuilder& l) {
+                if (glow) {
+                    GlowParams params = GlowPresets::neon_blue(34.0f);
+                    params.blend = BlendMode::Screen;
+                    l.effect(params);
+                }
+                l.rounded_rect("card", {
+                    .size = {52.0f, 36.0f},
+                    .radius = 8.0f,
+                    .color = Color{0.95f, 0.98f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f}
+                });
+            });
+            return s.build();
+        });
+}
 }  // namespace
 
 TEST_CASE("PR2-RG-Glow: layer-mode glow creates a halo around bright source") {
@@ -146,4 +187,20 @@ TEST_CASE("PR2-RG-Glow: consecutive renders are deterministic") {
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     CHECK(fb_hash(*fb1) == fb_hash(*fb2));
+}
+
+TEST_CASE("PR2-RG-Glow: glow expands bounds without shifting the source centroid") {
+    auto r = glow_rg_impl::make_glow_rg_renderer();
+    auto without_glow = r.render(make_centered_glow_centroid_scene(false), 0);
+    auto with_glow = r.render(make_centered_glow_centroid_scene(true), 0);
+    REQUIRE(without_glow != nullptr);
+    REQUIRE(with_glow != nullptr);
+
+    const float background = luma(Color{0.004f, 0.006f, 0.016f, 1.0f});
+    const auto a = weighted_centroid(*without_glow, background);
+    const auto b = weighted_centroid(*with_glow, background);
+    REQUIRE(a.x >= 0.0f);
+    REQUIRE(b.x >= 0.0f);
+    CHECK(std::abs(a.x - b.x) < 0.5f);
+    CHECK(std::abs(a.y - b.y) < 0.5f);
 }

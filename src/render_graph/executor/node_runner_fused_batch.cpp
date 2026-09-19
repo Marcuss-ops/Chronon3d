@@ -403,11 +403,13 @@ void execute_fused_batch_impl(
                                     return;
                                 }
                                 runtime::TextRunDynamic glyph_run{};
-                                glyph_run.tx = tx + glyph.position.x * sx;
-                                glyph_run.ty = ty + (glyph.position.y +
-                                    glyph.baseline_shift) * sy;
-                                glyph_run.sx = sx * glyph.scale.x;
-                                glyph_run.sy = sy * glyph.scale.y;
+                                const auto glyph_placement =
+                                    text_run::make_gpu_glyph_placement(
+                                        glyph, tx, ty, sx, sy);
+                                glyph_run.tx = glyph_placement.tx;
+                                glyph_run.ty = glyph_placement.ty;
+                                glyph_run.sx = glyph_placement.sx;
+                                glyph_run.sy = glyph_placement.sy;
                                 glyph_run.opacity = opacity * glyph.opacity;
                                 glyph_run.color = ::chronon3d::text::pack_text_color(glyph.fill);
                                 glyph_run.distance_range_bits = std::bit_cast<std::uint32_t>(
