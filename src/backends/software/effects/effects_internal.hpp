@@ -14,6 +14,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/math/interpolate.hpp>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -23,9 +24,7 @@ namespace renderer {
 
 // ── Math helpers ─────────────────────────────────────────────────────────────
 
-inline f32 clamp01(f32 v) {
-    return std::clamp(v, 0.0f, 1.0f);
-}
+using chronon3d::math::clamp01;
 
 inline f32 safe_scale(f32 depth, f32 perspective) {
     return std::max(0.1f, 1.0f + depth * perspective / 100.0f);

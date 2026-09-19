@@ -2,10 +2,13 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/interpolate.hpp>
 
 // Camera motion presets for 2.5D animation.
 // All preset functions take t ∈ [0,1] (normalised frame progress).
-// Call camera_motion::smoothstep(t) is already applied internally.
+// The legacy helpers below are aliases to chronon3d::math. New camera motion
+// should use CameraDescriptor + compile_camera(); these presets are retained
+// for existing content and tests during the migration.
 //
 // Usage:
 //   const float t = ctx.frame_input.frame / float(ctx.duration - 1);
@@ -19,11 +22,11 @@ namespace chronon3d {
 namespace chronon3d::camera_motion {
 
 
-// ── Easing helpers ────────────────────────────────────────────────────────────
+// ── Legacy interpolation compatibility ───────────────────────────────────────
 
-float clamp01(float t);
-float smoothstep(float t);
-float lerp(float a, float b, float t);
+using chronon3d::math::clamp01;
+using chronon3d::math::smoothstep;
+using chronon3d::math::lerp;
 
 // ── Param structs ─────────────────────────────────────────────────────────────
 

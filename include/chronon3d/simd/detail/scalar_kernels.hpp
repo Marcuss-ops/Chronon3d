@@ -30,15 +30,13 @@
 #include <cstddef>
 
 #include <chronon3d/simd/pixel_kernels.hpp>
+#include <chronon3d/math/interpolate.hpp>
 
 namespace chronon3d {
 namespace simd {
 namespace detail {
 
-// ── Helper: clamp float to [0.0, 1.0] ────────────────────────────────────
-inline float clamp01(float v) noexcept {
-    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
-}
+using chronon3d::math::clamp01;
 
 // ── Blur (scalar reference) ─────────────────────────────────────────────
 //

@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
+#include <chronon3d/math/interpolate.hpp>
 #include <span>
 
 namespace chronon3d::graph {
@@ -53,7 +54,7 @@ private:
 namespace transition_math {
 
 inline float smoothstep01(float val) {
-    return val * val * (3.0f - 2.0f * val);
+    return chronon3d::math::smoothstep(val);
 }
 
 float procedural_remotion_mask(float u, float v, float t, float seed);
