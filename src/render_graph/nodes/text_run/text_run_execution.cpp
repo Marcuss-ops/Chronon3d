@@ -200,8 +200,15 @@ graph::RenderOpResult render_text_run_item(
     // glyph reset and driver call from the common typewriter/export path.
     static thread_local TextRunFrameState frame;
     const TextRunShape* render_shape = &source_shape;
-    if ((!source_shape.animators.empty() &&
-         !can_lower_gpu_text_animation(source_shape)) ||
+    // Lowerable GPU selectors are sampled into the run-level dynamic record by
+    // the native MTSDF path. Preparing their glyph states here would leave the
+    // compatibility opacity at frame-zero while the shader expects to own the
+    // per-glyph reveal. Only software/compatibility shapes need the scratch
+    // frame evaluation.
+    const bool lowerable_gpu_animation =
+        !source_shape.animators.empty() &&
+        can_lower_gpu_text_animation(source_shape);
+    if ((!lowerable_gpu_animation && !source_shape.animators.empty()) ||
         source_shape.animated_doc) {
         prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame);
         render_shape = &frame.render_shape;
