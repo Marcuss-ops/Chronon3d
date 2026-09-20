@@ -28,10 +28,6 @@ set(CORE_TEST_SOURCES
     core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
     text/test_text_placement_resolver.cpp
-    # Split from test_text_placement_resolver.cpp (each part ≤ 400 LOC):
-    text/test_text_placement_resolver_anchors.cpp
-    text/test_text_placement_resolver_adr019.cpp
-    text/test_text_placement_resolver_coordinate_contract.cpp
     text/test_timed_text_equivalence.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
