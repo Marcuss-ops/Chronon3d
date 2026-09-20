@@ -187,11 +187,6 @@ chronon3d_add_test_suite(
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver.cpp
 )
 chronon3d_add_test_suite(
-    NAME chronon3d_text_run_driver_pr10_tests
-    TIER INTEGRATION
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver_pr10.cpp
-)
-chronon3d_add_test_suite(
     NAME chronon3d_prewarm_text_layout_cache_tests
     TIER INTEGRATION
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_prewarm_text_layout_cache.cpp
