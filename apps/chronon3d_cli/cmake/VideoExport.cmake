@@ -25,7 +25,13 @@ add_library(chronon3d_cli_video_export STATIC
     utils/video/video_sink_adapter_submit.cpp
     utils/video/encoder_config_resolution.cpp
     utils/video/encoder_bitstream_contract.cpp
+    # P2 structure pass: the GOP smart-copy implementation is split across
+    # focused TUs (byte-level bitstream readers, source analysis/copy and
+    # work-unit submission) with gop_smart_copy_bitstream.hpp as the shared
+    # internal seam.
     utils/video/gop_smart_copy.cpp
+    utils/video/gop_smart_copy_bitstream.cpp
+    utils/video/gop_smart_copy_submit.cpp
 )
 if(NOT CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE

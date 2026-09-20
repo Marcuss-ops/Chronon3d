@@ -53,7 +53,6 @@ allow_list = [
   '^src/c_api/log_callback_bridge\.inc$',
   '^src/c_api/plan_compile_api\.inc$',
   '^src/c_api/render_api\.inc$',
-  '^src/render_graph/nodes/text_run/gpu_text_run_cached\.inc$',
   '^src/render_graph/nodes/text_run/text_run_node_geometry\.inc$',
 ]
 skip_comments = false
