@@ -49,6 +49,20 @@ enum class AlignItems {
     Stretch,  // reserved; in v1 behaves like Start (size-stretch unimplemented)
 };
 
+/// Distribution of free space along a flow's main axis.
+///
+/// This is the Flexbox-style `justify-content` counterpart to `AlignItems`.
+/// When the line is wider than the available extent, the content remains
+/// packed at Start and is never given a negative gap.
+enum class JustifyContent {
+    Start,
+    Center,
+    End,
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+};
+
 /// How a `LayoutGrid` grows when the item count exceeds the declared axes.
 enum class GridFit {
     Auto,           // columns = `columns`; rows grows with item count
@@ -68,6 +82,7 @@ struct LayoutFlow {
     f32         gap{ 0.0f };
     bool        wrap{ false };
     AlignItems  align{ AlignItems::Start };
+    JustifyContent justify{ JustifyContent::Start };
     std::string group_id{};
     Vec2        cell_size{ 0.0f, 0.0f };   // uniform (W,H) per cell; (0,0) ⇒ auto from canvas/N
 };

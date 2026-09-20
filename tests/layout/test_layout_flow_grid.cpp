@@ -162,6 +162,57 @@ TEST_CASE("LayoutFlow wrap=true: items that overflow wrap onto secondary axis") 
     CHECK(find_layer(scene, "w3").transform.position.y == doctest::Approx(75.0f));  // 25 + 50
 }
 
+TEST_CASE("LayoutFlow justify=Center distributes free main-axis space") {
+    Scene scene;
+    push_layer(scene, "j0");
+    push_layer(scene, "j1");
+    push_layer(scene, "j2");
+
+    for (auto& layer : scene.layers()) {
+        layer.layout.flow = LayoutFlow{
+            .main_axis = Axis::Row,
+            .gap = 10.0f,
+            .justify = JustifyContent::Center,
+            .group_id = "justify-center",
+            .cell_size = Vec2{100.0f, 40.0f},
+        };
+    }
+
+    LayoutSolver{}.solve(scene, 600, 200);
+
+    // Occupied width is 320, so Center contributes 140px on both sides.
+    CHECK(find_layer(scene, "j0").transform.position.x == doctest::Approx(190.0f));
+    CHECK(find_layer(scene, "j1").transform.position.x == doctest::Approx(300.0f));
+    CHECK(find_layer(scene, "j2").transform.position.x == doctest::Approx(410.0f));
+}
+
+TEST_CASE("LayoutFlow justify=SpaceBetween is resolved independently per wrapped line") {
+    Scene scene;
+    push_layer(scene, "s0");
+    push_layer(scene, "s1");
+    push_layer(scene, "s2");
+
+    for (auto& layer : scene.layers()) {
+        layer.layout.flow = LayoutFlow{
+            .main_axis = Axis::Row,
+            .gap = 10.0f,
+            .wrap = true,
+            .justify = JustifyContent::SpaceBetween,
+            .group_id = "justify-wrap",
+            .cell_size = Vec2{100.0f, 40.0f},
+        };
+    }
+
+    LayoutSolver{}.solve(scene, 250, 200);
+
+    // First line: two cells, 40px free space → 50px distributed gap.
+    CHECK(find_layer(scene, "s0").transform.position.x == doctest::Approx(50.0f));
+    CHECK(find_layer(scene, "s1").transform.position.x == doctest::Approx(200.0f));
+    // Second line has one item and therefore keeps the start position.
+    CHECK(find_layer(scene, "s2").transform.position.x == doctest::Approx(50.0f));
+    CHECK(find_layer(scene, "s2").transform.position.y == doctest::Approx(70.0f));
+}
+
 // ──────────────────────────────────────────────────────────────────────
 //  LayoutGrid — row-major
 // ──────────────────────────────────────────────────────────────────────

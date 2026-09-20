@@ -127,45 +127,85 @@ void apply_flow_group(std::vector<Layer*>& members,
     const f32 cell_main    = (flow.main_axis == Axis::Row) ? cell.x : cell.y;
     const f32 cell_cross   = (flow.main_axis == Axis::Row) ? cell.y : cell.x;
 
+    // First partition the uniform cells into lines.  Keeping this explicit
+    // makes justify-content apply independently to every wrapped line, which
+    // is the useful Flexbox behaviour for card rows.
+    std::vector<std::pair<size_t, size_t>> lines;
+    size_t line_begin = 0;
     f32 cursor = 0.0f;
-    Vec2 line_offset{0.0f, 0.0f};
-    int  in_line = 0;
-
     for (size_t i = 0; i < members.size(); ++i) {
-        if (flow.wrap && cursor + cell_main > extent_main && in_line > 0) {
-            // Wrap: step onto secondary axis, reset main cursor.
-            if (flow.main_axis == Axis::Row) {
-                line_offset.y += cell_cross + gap;
-            } else {
-                line_offset.x += cell_cross + gap;
-            }
+        if (flow.wrap && i > line_begin && cursor + cell_main > extent_main) {
+            lines.emplace_back(line_begin, i);
+            line_begin = i;
             cursor = 0.0f;
-            in_line = 0;
         }
-
-        // Main axis: cursor in pixels + half-cell to land the cell CENTER on main axis.
-        // Cross axis: align_offset returns the cell CENTER coord directly.
-        Vec2 pos = line_offset;
-        if (flow.main_axis == Axis::Row) {
-            pos.x += cursor + cell_main * 0.5f;
-            pos.y += align_offset(flow.align, cell_cross, H);
-        } else {
-            pos.y += cursor + cell_main * 0.5f;
-            pos.x += align_offset(flow.align, cell_cross, W);
-        }
-
-        Layer& l = *members[i];
-        const Vec3 delta{
-            pos.x - l.transform.position.x,
-            pos.y - l.transform.position.y,
-            0.0f,
-        };
-        l.transform.position.x = pos.x;
-        l.transform.position.y = pos.y;
-        out_deltas.push_back(delta);
-
         cursor += cell_main + gap;
-        in_line += 1;
+    }
+    if (line_begin < members.size()) lines.emplace_back(line_begin, members.size());
+
+    for (size_t line_index = 0; line_index < lines.size(); ++line_index) {
+        const auto [begin, end] = lines[line_index];
+        const size_t count = end - begin;
+        const f32 occupied = static_cast<f32>(count) * cell_main
+                           + static_cast<f32>(count > 0 ? count - 1 : 0) * gap;
+        const f32 free_space = std::max(0.0f, extent_main - occupied);
+
+        f32 leading = 0.0f;
+        f32 distributed_gap = gap;
+        switch (flow.justify) {
+        case JustifyContent::Start:
+            break;
+        case JustifyContent::Center:
+            leading = free_space * 0.5f;
+            break;
+        case JustifyContent::End:
+            leading = free_space;
+            break;
+        case JustifyContent::SpaceBetween:
+            if (count > 1) distributed_gap += free_space / static_cast<f32>(count - 1);
+            break;
+        case JustifyContent::SpaceAround: {
+            const f32 extra = free_space / static_cast<f32>(count);
+            leading = extra * 0.5f;
+            distributed_gap += extra;
+            break;
+        }
+        case JustifyContent::SpaceEvenly: {
+            const f32 extra = free_space / static_cast<f32>(count + 1);
+            leading = extra;
+            distributed_gap += extra;
+            break;
+        }
+        }
+
+        const f32 cross_offset = static_cast<f32>(line_index) * (cell_cross + gap);
+        for (size_t i = begin; i < end; ++i) {
+            const f32 line_index_offset = static_cast<f32>(i - begin);
+            const f32 main_position = leading
+                + line_index_offset * (cell_main + distributed_gap)
+                + cell_main * 0.5f;
+
+            // Main axis: distributed cursor + half-cell to land the cell
+            // center. Cross axis: align_offset returns the cell center.
+            Vec2 pos{0.0f, 0.0f};
+            if (flow.main_axis == Axis::Row) {
+                pos.x = main_position;
+                pos.y = align_offset(flow.align, cell_cross, H) + cross_offset;
+            } else {
+                pos.y = main_position;
+                pos.x = align_offset(flow.align, cell_cross, W) + cross_offset;
+            }
+
+            Layer& l = *members[i];
+            const Vec3 delta{
+                pos.x - l.transform.position.x,
+                pos.y - l.transform.position.y,
+                0.0f,
+            };
+            l.transform.position.x = pos.x;
+            l.transform.position.y = pos.y;
+            out_deltas.push_back(delta);
+        }
     }
 }
 
