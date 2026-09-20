@@ -425,3 +425,108 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox int
     // ALSO check visible_px > 0 (false-green check: must produce some ink).
     CHECK(count_visible_pixels(*fb) > 100);
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Isolated auto-fit contracts folded from test_text_auto_fit.cpp.  These use
+// the same materialization surface as the ADR-018 cases but retain their
+// explicit DejaVu Sans / 400x200 setup and cache toggle coverage.
+namespace {
+
+[[nodiscard]] PreparedText make_isolated_autofit_params(
+    const std::string& utf8,
+    float font_size,
+    bool auto_fit,
+    float min_font_size = 40.0f,
+    float max_font_size = 200.0f,
+    bool cache_layout = true
+) {
+    PreparedText params;
+    params.document.utf8 = utf8;
+    params.style.font.font_family = "DejaVu Sans";
+    params.style.font.font_size = font_size;
+    params.style.font.font_weight = 400;
+    params.frame.auto_fit = auto_fit;
+    params.frame.min_font_size = min_font_size;
+    params.frame.max_font_size = max_font_size;
+    params.frame.size = {400.0f, 200.0f};
+    params.shaping.direction = TextDirection::LTR;
+    params.shaping.language = "en";
+    params.animation.cache_layout = cache_layout;
+    return params;
+}
+
+} // namespace
+
+TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit cache on/off determinism") {
+    LocalEngine env;
+
+    auto params_cache_on = make_isolated_autofit_params(
+        "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+        120.0f, true, 40.0f, 200.0f, true);
+    auto params_cache_off = params_cache_on;
+    params_cache_off.animation.cache_layout = false;
+
+    auto shape_on = materialize_prepared_text(params_cache_on, &env.engine, SampleTime{});
+    auto shape_off = materialize_prepared_text(params_cache_off, &env.engine, SampleTime{});
+
+    if (!shape_on || !shape_on->layout || !shape_off || !shape_off->layout) {
+        MESSAGE("test skipped: system fonts unavailable");
+        return;
+    }
+
+    CHECK(shape_on->layout->font_size == doctest::Approx(shape_off->layout->font_size));
+    CHECK(shape_on->layout->bounds.x == doctest::Approx(shape_off->layout->bounds.x));
+    CHECK(shape_on->layout->bounds.y == doctest::Approx(shape_off->layout->bounds.y));
+    CHECK(shape_on->layout->font_size < 120.0f);
+    CHECK(shape_on->layout->font_size >= 40.0f);
+}
+
+TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit impossible min_font_size produces explicit overflow") {
+    LocalEngine env;
+
+    auto params = make_isolated_autofit_params(
+        "Hello", 120.0f, true, 200.0f, 200.0f, false);
+    auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
+
+    if (!shape || !shape->layout) {
+        MESSAGE("test skipped: system fonts unavailable");
+        return;
+    }
+
+    CHECK(shape->layout->font_size == doctest::Approx(200.0f));
+    CHECK(shape->layout->bounds.x > 400.0f);
+    CHECK(shape->layout->bounds.y > 200.0f);
+}
+
+TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit 5-run determinism certification") {
+    LocalEngine env;
+
+    auto params = make_isolated_autofit_params(
+        "Determinism 5-run cert — moderate length text for shrink-to-fit",
+        120.0f, true, 40.0f, 200.0f, false);
+
+    constexpr int kRuns = 5;
+    std::vector<float> font_sizes;
+    std::vector<float> widths;
+    std::vector<float> heights;
+    font_sizes.reserve(kRuns);
+    widths.reserve(kRuns);
+    heights.reserve(kRuns);
+
+    for (int i = 0; i < kRuns; ++i) {
+        auto shape = materialize_prepared_text(params, &env.engine, SampleTime{});
+        if (!shape || !shape->layout) {
+            MESSAGE("test skipped: system fonts unavailable");
+            return;
+        }
+        font_sizes.push_back(shape->layout->font_size);
+        widths.push_back(shape->layout->bounds.x);
+        heights.push_back(shape->layout->bounds.y);
+    }
+
+    for (int i = 1; i < kRuns; ++i) {
+        CHECK(font_sizes[i] == doctest::Approx(font_sizes[0]));
+        CHECK(widths[i] == doctest::Approx(widths[0]));
+        CHECK(heights[i] == doctest::Approx(heights[0]));
+    }
+}
