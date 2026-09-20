@@ -146,3 +146,11 @@ if(CHRONON3D_BUILD_CLI_DEV)
     )
     list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_introspection_tests)
 endif()
+
+# CLI suites are selectable independently from the rendering domains.
+chronon3d_label_tests(cli
+    chronon3d_cli_tests
+    chronon3d_daemon_render_concurrency_tests
+    chronon3d_render_job_contract_tests
+    chronon3d_inspect_text_tests
+    chronon3d_introspection_tests)

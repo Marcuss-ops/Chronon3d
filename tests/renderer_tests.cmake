@@ -169,3 +169,10 @@ add_custom_target(chronon3d_renderer_tests
         chronon3d_camera_tests
         chronon3d_precomp_tests
 )
+
+# Renderer/graph suites share the graph label for selective validation.
+chronon3d_label_tests(graph
+    chronon3d_renderer_core_tests
+    chronon3d_render_graph_tests
+    chronon3d_effects_tests
+    chronon3d_camera_tests)
