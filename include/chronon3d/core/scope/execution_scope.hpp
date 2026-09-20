@@ -96,8 +96,9 @@ public:
     //   * chain_length() of the anchor is exactly 1 regardless of bound
     //
     // The factory accepts an explicit `FrameArena&` (NOT defaulted to
-    // `session.arena()`) so the call site is honest about arena ownership:
-    // callers that need the root to use `session.arena()` pass that
+    // `session.root_arena()`) so the call site is honest about arena
+    // ownership: callers that need the standalone root use
+    // `session.root_arena()` pass that
     // explicitly, callers that want a distinct fast-reset arena (e.g. a
     // transient scratch arena for the render job) pass that instead.  This
     // mirrors the discipline used in `make_child` so root + child sites use

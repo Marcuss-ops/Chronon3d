@@ -76,7 +76,7 @@ public:
     ///   - ctx.session->program_store()    for cache lookup
     ///   - ctx.session->executor()         for inner execution
     ///     (BORROWED — no local GraphExecutor instance)
-    ///   - ctx.session->arena()            for inner graph PMR allocs
+    ///   - ctx.execution->arena()          for inner graph PMR allocs
     ///
     /// WP-6 PR 6.3 — legacy path delegates to `execute_with_scope(...)`
     /// after synthesizing a Root parent scope; the lease-held +

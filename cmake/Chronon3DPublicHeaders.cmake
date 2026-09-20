@@ -152,7 +152,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/scene_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/sequence_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/layer_builder.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/layer_builder_text.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/layer_builder_inline.inl"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_inline.inl"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_layers.inl"
