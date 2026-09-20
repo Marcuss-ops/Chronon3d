@@ -4,7 +4,6 @@
 #include "../../../utils/video/video_sink_encoders.hpp"
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
 #include <spdlog/spdlog.h>
-#include <cstdlib>
 
 namespace chronon3d::cli {
 
@@ -48,21 +47,8 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(
         return nullptr;
     }
 #endif
-    spdlog::info("[video] Using new FFmpeg pipe sink via VideoSinkEncoderAdapter");
+    spdlog::info("[video] Using in-process FFmpeg sink via VideoSinkEncoderAdapter");
     return std::make_unique<VideoSinkEncoderAdapter>(VideoSinkType::Ffmpeg);
-}
-
-bool ffmpeg_in_path() {
-    return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
-}
-
-bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend) {
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    return !is_native_encoder_transport(encoder_backend);
-#else
-    (void)encoder_backend;
-    return true;
-#endif
 }
 
 std::optional<PipePixelFormat> try_parse_pipe_pixfmt(std::string_view fmt) noexcept {

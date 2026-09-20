@@ -39,16 +39,9 @@ bool validate_video_job(const RenderJob& job) {
             job.video_settings.sink_type, video_sink_names_joined());
         return false;
     }
-    // A pre-encode sink writes the rendered host frames itself: no encoder, no
-    // muxer, and therefore no external ffmpeg requirement and no ffmpeg-mode
-    // constraint. Only the encoding sink owns those two preconditions.
-    if (video_sink_type_encodes(*sink)) {
-        if (encoder_backend_requires_ffmpeg(job.video_settings.encoder_backend) &&
-            !ffmpeg_in_path()) {
-            spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
-            return false;
-        }
-    }
+    // A pre-encode sink writes rendered host frames itself. Encoding sinks use
+    // the in-process media authority as well; no external ffmpeg executable is
+    // probed or required by job validation.
     if (job.last_frame < job.first_frame) {
         spdlog::error("[video] Empty frame range [{}, {}]",
                       job.first_frame, job.last_frame);

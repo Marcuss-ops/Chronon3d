@@ -638,10 +638,6 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (encoder_backend_requires_ffmpeg(opts.encoder.encoder_backend) && !ffmpeg_in_path()) {
-        spdlog::error("[video] ffmpeg not found in PATH (required by the pipe encoder).");
-        return 1;
-    }
     if (end <= start) {
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
