@@ -74,6 +74,9 @@ struct RenderJobRequest {
     std::filesystem::path assets_root;
 
     std::optional<FrameRange> frame_range;
+    /// Explicit admission hint from the trusted chunk producer. Never infer
+    /// this from frame_range: a ranged request is not proof of disjoint work.
+    bool parallel_disjoint{false};
     media::ExecutionRequirements requirements{};
     OutputSpec output{};
     TraceOptions trace{};
@@ -117,6 +120,7 @@ struct NormalizedRenderJob {
     std::filesystem::path output_path;
     std::filesystem::path assets_root;
     std::optional<FrameRange> frame_range;
+    bool parallel_disjoint{false};
     media::ExecutionRequirements requirements{};
     OutputSpec output{};
     TraceOptions trace{};

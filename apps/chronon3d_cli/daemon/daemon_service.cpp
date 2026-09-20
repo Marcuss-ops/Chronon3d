@@ -133,10 +133,8 @@ static uint32_t advertised_render_job_slots() {
         if (!reported) {
             reported = true;
             spdlog::warn(
-                "{}={} requested but the video-render execution domain is "
-                "mutex-serialized: advertising render_job_slots={}. Lift "
-                "kRenderJobExecutionSerialized together with m_render_job_mutex "
-                "only after per-job peak VRAM is reduced.",
+                "{}={} exceeds the policy-approved render-job capacity: "
+                "advertising render_job_slots={}",
                 kRenderJobSlotsEnvVar, resolution.requested, resolution.slots);
         }
     }
