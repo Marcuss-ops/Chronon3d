@@ -40,7 +40,10 @@ name = "daemon_json_parse_outside_payload_decoder"
 description = "Phase 9: JSON decoding in the daemon lives ONLY in the canonical codec file (decode_render_job_payload + ipc_assemble_segments)"
 patterns = ['nlohmann::json::parse']
 scan_paths = ["apps/chronon3d_cli/daemon"]
-allow_list = ['apps/chronon3d_cli/daemon/daemon_service_ipc\.cpp']
+allow_list = [
+  'apps/chronon3d_cli/daemon/daemon_service_ipc\.cpp',
+  'apps/chronon3d_cli/daemon/daemon_service_ipc_dispatch\.cpp',
+]
 skip_comments = true
 hint = "RENDER_JOB JSON decoding goes through daemon_service_ipc.cpp exclusively. A parse anywhere else in the daemon recreates the pre-Phase-9 re-decode drift."
 
@@ -48,7 +51,7 @@ hint = "RENDER_JOB JSON decoding goes through daemon_service_ipc.cpp exclusively
 name = "daemon_json_parse_sites_pinned"
 description = "Phase 9: the canonical codec file owns exactly two JSON parse sites (RENDER_JOB decode + ASSEMBLE_SEGMENTS decode)"
 pattern = 'nlohmann::json::parse'
-scan_paths = ["apps/chronon3d_cli/daemon/daemon_service_ipc.cpp"]
+scan_paths = ["apps/chronon3d_cli/daemon"]
 max_count = 2
 allow_list = []
 skip_comments = true

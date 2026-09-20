@@ -1,12 +1,10 @@
 // ---------------------------------------------------------------------------
 // Daemon render-job concurrency contract.
 //
-// The IPC RENDER_JOB path holds `DaemonService::m_render_job_mutex` for the
-// whole job, so the execution domain admits exactly one video render at a time.
-// The DeviceScheduler capacity that the daemon advertises is resolved from the
-// same authority (daemon_render_concurrency.hpp); these cases pin that the
-// advertised number can never exceed the serialized limit and that an override
-// asking for more is reported rather than quietly ignored.
+// The IPC RENDER_JOB path takes the shared or exclusive side of
+// `DaemonService::m_render_job_mutex` from the same policy that charges VRAM.
+// DirectYUV disjoint chunks may overlap; monolithic and FullGraph jobs remain
+// exclusive. The DeviceScheduler capacity is resolved from that authority.
 //
 // `daemon_service_ipc.cpp` carries the matching static_asserts next to the
 // mutex, so the contract fails the build if only one side is changed.
@@ -29,6 +27,7 @@ using chronon3d::cli::decide_render_admission;
 using chronon3d::cli::kDefaultRenderJobClass;
 using chronon3d::cli::kMaxConfigurableRenderJobSlots;
 using chronon3d::cli::kMeasuredFullGraphPeakBytes;
+using chronon3d::cli::kMeasuredDirectYuvPeakBytes;
 using chronon3d::cli::kReferenceDeviceVramBytes;
 using chronon3d::cli::kRenderJobExecutionSerialized;
 using chronon3d::cli::reference_device_policy_input;
@@ -57,24 +56,21 @@ constexpr std::uint64_t kDevice16GiB = 16ULL * kGiB;
 
 } // namespace
 
-TEST_CASE("render concurrency: an unset override advertises the serialized limit") {
+TEST_CASE("render concurrency: an unset override advertises the safe chunk capacity") {
     for (const char* env : std::array<const char*, 2>{nullptr, ""}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == kSerializedRenderJobSlots);
+        CHECK(resolution.slots == kTargetConcurrentRenderJobs);
         CHECK(resolution.requested == kTargetConcurrentRenderJobs);
         CHECK(resolution.requested_more_than_effective ==
-              (kTargetConcurrentRenderJobs > kSerializedRenderJobSlots));
+              (kTargetConcurrentRenderJobs > resolution.slots));
     }
 }
 
-TEST_CASE("render concurrency: an override above the serialized limit is clamped and reported") {
-    // The production target (2) and any higher request cannot be honoured while
-    // the execution domain is serialized: the daemon must advertise 1 and say so.
+TEST_CASE("render concurrency: an override within the configured bound is honoured") {
     for (const char* env : {"2", "3", "8"}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == kSerializedRenderJobSlots);
-        CHECK(resolution.requested > resolution.slots);
-        CHECK(resolution.requested_more_than_effective);
+        CHECK(resolution.slots == static_cast<std::uint32_t>(std::stoi(env)));
+        CHECK_FALSE(resolution.requested_more_than_effective);
     }
 }
 
@@ -88,7 +84,7 @@ TEST_CASE("render concurrency: requesting the serializeable limit is not reporte
 TEST_CASE("render concurrency: out-of-range and unparsable values fall back to the target") {
     for (const char* env : {"0", "-3", "9", "999", "abc", "  ", "2x"}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == kSerializedRenderJobSlots);
+        CHECK(resolution.slots == kTargetConcurrentRenderJobs);
         CHECK(resolution.requested == kTargetConcurrentRenderJobs);
     }
 }
@@ -154,6 +150,18 @@ TEST_CASE("concurrency policy: the reference device refuses overlap for every cl
             CHECK(std::string(decision.reason).find("execution domain") != std::string::npos);
         }
     }
+}
+
+TEST_CASE("concurrency policy: measured DirectYUV chunks overlap on the reference device") {
+    const auto decision = decide_render_admission(RenderPolicyInput{
+        .job_class = RenderJobClass::ChunkedDisjointSamePlan,
+        .job_peak_vram_bytes = kMeasuredDirectYuvPeakBytes,
+        .device_total_vram_bytes = kReferenceDeviceVramBytes,
+        .device_free_vram_bytes = kReferenceDeviceVramBytes,
+    });
+    CHECK(decision.admission == RenderAdmission::ParallelDisjoint);
+    CHECK(decision.admitted_slots >= 2U);
+    CHECK(decision.peak_footprints_that_fit >= 2U);
 }
 
 TEST_CASE("concurrency policy: a device with room flips the verdict for disjoint work only") {

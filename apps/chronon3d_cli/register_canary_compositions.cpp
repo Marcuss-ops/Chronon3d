@@ -32,6 +32,7 @@
 #include "register_compositions.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/effects/presets/glow_presets.hpp>
@@ -340,6 +341,202 @@ namespace chronon3d {
                         // background, but nearly disappeared on pure black.
                         // Keep the halo soft while giving it enough radius and
                         // energy to survive H.264 encoding and normal playback.
+                        GlowParams glow = canary_glow(GlowPresets::editorial_highlight(42.0f));
+                        glow.intensity = 0.92f;
+                        glow.threshold = 0.0f;
+                        glow.core_strength = 0.48f;
+                        glow.aura_strength = 0.30f;
+                        glow.bloom_strength = 0.10f;
+                        l.effect(glow);
+                    });
+
+                    scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                    return scene.build();
+                });
+        }
+
+        // Apple-like V3 motion is deliberately a text-animation concern only:
+        // the scene, font size, centering, black background and glow below are
+        // the same contract as make_black_glow_static().  This keeps the font
+        // fleet useful as a visual baseline while the glyph/word choreography
+        // can evolve independently.
+        enum class AppleV3Motion {
+            PremiumSoftReveal,
+            PrecisionWordStagger,
+            MaskedVerticalLift,
+            HeroScaleFocus,
+            KineticKeywordLock,
+        };
+
+        [[nodiscard]] GlyphSelectorSpec apple_v3_selector(
+            const char *id, TextSelectorUnit unit, TextSelectorOrder order) {
+            GlyphSelectorSpec selector;
+            selector.id = id;
+            selector.unit = unit;
+            selector.shape = TextSelectorShape::Square;
+            selector.order = order;
+            selector.start = 0.0f;
+            selector.start.add_keyframe(Frame{0}, 0.0f,
+                                        EasingCurve{Easing::Linear});
+            selector.start.add_keyframe(Frame{60}, 100.0f,
+                                        EasingCurve{Easing::OutCubic});
+            selector.end = 100.0f;
+            selector.exclude_spaces = true;
+            return selector;
+        }
+
+        [[nodiscard]] Composition make_black_glow_apple_v3(
+            const char *name, const char *font_path, f32 font_size,
+            AppleV3Motion motion) {
+            return composition(
+                black_glow_spec(name), [font_path, font_size, motion](
+                    const FrameContext &ctx) -> Scene {
+                    SceneBuilder scene(ctx);
+                    scene.screen_layer("BACKGROUND", [](LayerBuilder &l) {
+                        l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
+                    });
+
+                    scene.layer("CHRONON_TEXT", [&](LayerBuilder &l) {
+                        const bool word_motion =
+                            motion == AppleV3Motion::PrecisionWordStagger ||
+                            motion == AppleV3Motion::MaskedVerticalLift ||
+                            motion == AppleV3Motion::KineticKeywordLock;
+                        TextDefinition definition = canary_text(
+                            word_motion ? "CHRONON LAB" : "CHRONON",
+                            font_path, font_size, 700,
+                            Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f});
+
+                        const TextSelectorUnit unit =
+                            (motion == AppleV3Motion::PremiumSoftReveal ||
+                             motion == AppleV3Motion::HeroScaleFocus)
+                                ? TextSelectorUnit::Glyph
+                                : TextSelectorUnit::Word;
+                        const TextSelectorOrder order =
+                            (motion == AppleV3Motion::HeroScaleFocus ||
+                             motion == AppleV3Motion::KineticKeywordLock)
+                                ? TextSelectorOrder::FromCenter
+                                : TextSelectorOrder::Forward;
+
+                        TextAnimatorSpec reveal;
+                        reveal.id = "apple_v3_reveal";
+                        reveal.selectors.push_back(
+                            apple_v3_selector("apple_v3_reveal_selector", unit, order));
+                        reveal.properties.push_back(OpacityProperty{0.0f});
+                        reveal.transform_mode = TextPropertyBlendMode::Multiply;
+                        definition.animation.animators.push_back(std::move(reveal));
+
+                        TextAnimatorSpec motion_animator;
+                        motion_animator.id = "apple_v3_motion";
+                        motion_animator.selectors.push_back(
+                            apple_v3_selector("apple_v3_motion_selector", unit, order));
+
+                        switch (motion) {
+                        case AppleV3Motion::PremiumSoftReveal: {
+                            PositionProperty position;
+                            position.value.add_keyframe(
+                                Frame{0}, Vec3{0.0f, 10.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            position.value.add_keyframe(
+                                Frame{60}, Vec3{0.0f, 0.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(position));
+
+                            ScaleProperty scale;
+                            scale.value.add_keyframe(
+                                Frame{0}, Vec3{0.97f, 0.97f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            scale.value.add_keyframe(
+                                Frame{60}, Vec3{1.0f, 1.0f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(scale));
+
+                            BlurProperty blur;
+                            blur.radius.add_keyframe(
+                                Frame{0}, 14.0f, EasingCurve{Easing::OutCubic});
+                            blur.radius.add_keyframe(
+                                Frame{60}, 0.0f, EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(blur));
+                            break;
+                        }
+                        case AppleV3Motion::PrecisionWordStagger: {
+                            PositionProperty position;
+                            position.value.add_keyframe(
+                                Frame{0}, Vec3{0.0f, 14.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            position.value.add_keyframe(
+                                Frame{60}, Vec3{0.0f, 0.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(position));
+
+                            ScaleProperty scale;
+                            scale.value.add_keyframe(
+                                Frame{0}, Vec3{0.985f, 0.985f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            scale.value.add_keyframe(
+                                Frame{60}, Vec3{1.0f, 1.0f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(scale));
+                            break;
+                        }
+                        case AppleV3Motion::MaskedVerticalLift: {
+                            PositionProperty position;
+                            position.value.add_keyframe(
+                                Frame{0}, Vec3{0.0f, 36.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            position.value.add_keyframe(
+                                Frame{60}, Vec3{0.0f, 0.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(position));
+                            break;
+                        }
+                        case AppleV3Motion::HeroScaleFocus: {
+                            ScaleProperty scale;
+                            scale.value.add_keyframe(
+                                Frame{0}, Vec3{1.08f, 1.08f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            scale.value.add_keyframe(
+                                Frame{60}, Vec3{1.0f, 1.0f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(scale));
+
+                            BlurProperty blur;
+                            blur.radius.add_keyframe(
+                                Frame{0}, 10.0f, EasingCurve{Easing::OutCubic});
+                            blur.radius.add_keyframe(
+                                Frame{60}, 0.0f, EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(blur));
+                            break;
+                        }
+                        case AppleV3Motion::KineticKeywordLock: {
+                            PositionProperty position;
+                            position.value.add_keyframe(
+                                Frame{0}, Vec3{0.0f, 12.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            position.value.add_keyframe(
+                                Frame{60}, Vec3{0.0f, 0.0f, 0.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(position));
+
+                            ScaleProperty scale;
+                            scale.value.add_keyframe(
+                                Frame{0}, Vec3{0.96f, 0.96f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            scale.value.add_keyframe(
+                                Frame{30}, Vec3{1.04f, 1.04f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            scale.value.add_keyframe(
+                                Frame{60}, Vec3{1.0f, 1.0f, 1.0f},
+                                EasingCurve{Easing::OutCubic});
+                            motion_animator.properties.push_back(std::move(scale));
+                            break;
+                        }
+                        }
+
+                        definition.animation.animators.push_back(std::move(motion_animator));
+                        definition.animation.duration = kBlackGlowDuration;
+                        definition.animation.cache_layout = true;
+                        l.text("text", std::move(definition));
+
                         GlowParams glow = canary_glow(GlowPresets::editorial_highlight(42.0f));
                         glow.intensity = 0.92f;
                         glow.threshold = 0.0f;
@@ -826,6 +1023,46 @@ namespace chronon3d {
             "black_glow_freeserif",
             [] { return make_black_glow_static("black_glow_freeserif",
                                                "assets/fonts/FreeSerif.ttf", 190.0f); }));
+
+        // The same five-font fleet with only the letter/word choreography
+        // changed.  Keeping the matrix explicit in the registry makes every
+        // render addressable and keeps the static baselines above untouched.
+        struct AppleV3Font {
+            const char *suffix;
+            const char *path;
+        };
+        struct AppleV3MotionEntry {
+            const char *suffix;
+            AppleV3Motion motion;
+        };
+
+        constexpr std::array<AppleV3Font, 5> apple_v3_fonts{{
+            {"inter", "assets/fonts/Inter-Bold.ttf"},
+            {"poppins", "assets/fonts/Poppins-Bold.ttf"},
+            {"dmsans", "assets/fonts/DMSans-Bold.ttf"},
+            {"georgia", "assets/fonts/Georgia_Bold.ttf"},
+            {"freeserif", "assets/fonts/FreeSerif.ttf"},
+        }};
+        constexpr std::array<AppleV3MotionEntry, 5> apple_v3_motions{{
+            {"premium_soft_reveal", AppleV3Motion::PremiumSoftReveal},
+            {"precision_word_stagger", AppleV3Motion::PrecisionWordStagger},
+            {"masked_vertical_lift", AppleV3Motion::MaskedVerticalLift},
+            {"hero_scale_focus", AppleV3Motion::HeroScaleFocus},
+            {"kinetic_keyword_lock", AppleV3Motion::KineticKeywordLock},
+        }};
+
+        for (const auto &font : apple_v3_fonts) {
+            for (const auto &entry : apple_v3_motions) {
+                const std::string id = std::string{"black_glow_"} + font.suffix +
+                                       "_" + entry.suffix;
+                registry.add(make_composition_descriptor(
+                    id,
+                    [id, font_path = font.path, motion = entry.motion] {
+                        return make_black_glow_apple_v3(
+                            id.c_str(), font_path, 190.0f, motion);
+                    }));
+            }
+        }
 
         // Final typewriter card. Keep one composition while the native GPU
         // reveal path is validated; Poppins is the selected production font.
