@@ -1,5 +1,4 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/random.hpp>
 #include <chronon3d/core/random/deterministic_random.hpp>
 #include <algorithm>
 #include <cmath>
@@ -11,12 +10,12 @@ using namespace chronon3d;
 
 TEST_CASE("deterministic_random — same input → same output (lock)") {
     SUBCASE("RandomSeed + index identical, repeated call determinism") {
-        CHECK(deterministic_random(RandomSeed{12345}, 67)
-              == deterministic_random(RandomSeed{12345}, 67));
-        CHECK(deterministic_random(RandomSeed{0}, 0)
-              == deterministic_random(RandomSeed{0}, 0));
-        CHECK(deterministic_random(RandomSeed{UINT64_MAX}, 1024)
-              == deterministic_random(RandomSeed{UINT64_MAX}, 1024));
+        CHECK(chronon3d::random::unit(chronon3d::random::Seed{12345}, 67)
+              == chronon3d::random::unit(chronon3d::random::Seed{12345}, 67));
+        CHECK(chronon3d::random::unit(chronon3d::random::Seed{0}, 0)
+              == chronon3d::random::unit(chronon3d::random::Seed{0}, 0));
+        CHECK(chronon3d::random::unit(chronon3d::random::Seed{UINT64_MAX}, 1024)
+              == chronon3d::random::unit(chronon3d::random::Seed{UINT64_MAX}, 1024));
     }
 }
 
@@ -34,8 +33,8 @@ TEST_CASE("core random API delegates to the canonical stateless sampler") {
 
 TEST_CASE("deterministic_random — different seed → different output") {
     SUBCASE("Neighbouring seeds differ") {
-        f32 a = deterministic_random(RandomSeed{1}, 100);
-        f32 b = deterministic_random(RandomSeed{2}, 100);
+        f32 a = chronon3d::random::unit(chronon3d::random::Seed{1}, 100);
+        f32 b = chronon3d::random::unit(chronon3d::random::Seed{2}, 100);
         CHECK(a != b);
         CHECK(a >= 0.0f);
         CHECK(a < 1.0f);
@@ -44,41 +43,41 @@ TEST_CASE("deterministic_random — different seed → different output") {
     }
 
     SUBCASE("High-bit-flip seed differs") {
-        f32 a = deterministic_random(RandomSeed{42}, 0);
-        f32 b = deterministic_random(RandomSeed{static_cast<u64>(42) ^ (1ULL << 63)}, 0);
+        f32 a = chronon3d::random::unit(chronon3d::random::Seed{42}, 0);
+        f32 b = chronon3d::random::unit(chronon3d::random::Seed{static_cast<u64>(42) ^ (1ULL << 63)}, 0);
         CHECK(a != b);
     }
 }
 
 TEST_CASE("deterministic_random — different index → different output") {
     SUBCASE("Neighbouring indices differ") {
-        f32 a = deterministic_random(RandomSeed{42}, 0);
-        f32 b = deterministic_random(RandomSeed{42}, 1);
+        f32 a = chronon3d::random::unit(chronon3d::random::Seed{42}, 0);
+        f32 b = chronon3d::random::unit(chronon3d::random::Seed{42}, 1);
         CHECK(a != b);
     }
 
     SUBCASE("Far-apart indices differ") {
-        f32 a = deterministic_random(RandomSeed{42}, 0);
-        f32 b = deterministic_random(RandomSeed{42}, 1ULL << 32);
+        f32 a = chronon3d::random::unit(chronon3d::random::Seed{42}, 0);
+        f32 b = chronon3d::random::unit(chronon3d::random::Seed{42}, 1ULL << 32);
         CHECK(a != b);
     }
 }
 
 TEST_CASE("deterministic_random — string_view overload") {
     SUBCASE("Different strings → different output") {
-        f32 a = deterministic_random("hello", 0);
-        f32 b = deterministic_random("world", 0);
+        f32 a = chronon3d::random::unit("hello", 0);
+        f32 b = chronon3d::random::unit("world", 0);
         CHECK(a != b);
     }
 
     SUBCASE("Same string + same index → same output (XXH64 bit-stable)") {
-        CHECK(deterministic_random("chronon3d", 0)
-              == deterministic_random("chronon3d", 0));
+        CHECK(chronon3d::random::unit("chronon3d", 0)
+              == chronon3d::random::unit("chronon3d", 0));
     }
 
     SUBCASE("Different index for same string → different output") {
-        f32 a = deterministic_random("title-jitter", 0);
-        f32 b = deterministic_random("title-jitter", 1);
+        f32 a = chronon3d::random::unit("title-jitter", 0);
+        f32 b = chronon3d::random::unit("title-jitter", 1);
         CHECK(a != b);
     }
 
@@ -86,8 +85,8 @@ TEST_CASE("deterministic_random — string_view overload") {
         // Sanity: the XXH64 fold of an empty string ≠ 0 (XXH64 seeds == 0).
         // We don't compare to a specific value — just that the string seed
         // pipeline is routed through XXH64 instead of zero-extension.
-        f32 empty_str = deterministic_random(std::string_view{}, 0);
-        f32 zero_seed = deterministic_random(RandomSeed{XXH64(nullptr, 0, 0)}, 0);
+        f32 empty_str = chronon3d::random::unit(std::string_view{}, 0);
+        f32 zero_seed = chronon3d::random::unit(chronon3d::random::Seed{XXH64(nullptr, 0, 0)}, 0);
         CHECK(empty_str == zero_seed);
     }
 }
@@ -99,7 +98,7 @@ TEST_CASE("deterministic_random — output range invariants") {
     const u64 test_indices[] = {u64{0}, u64{1}, u64{7}, u64{100}, u64{65535}};
     for (u64 s : test_seeds) {
         for (u64 i : test_indices) {
-            f32 v = deterministic_random(RandomSeed{s}, i);
+            f32 v = chronon3d::random::unit(chronon3d::random::Seed{s}, i);
             CHECK(v >= 0.0f);
             CHECK(v < 1.0f);
             CHECK(std::isfinite(v));
@@ -115,38 +114,38 @@ TEST_CASE("deterministic_random — golden platform lock (cross-OS bit-stable)")
     //
     // Reference values computed locally on Linux (glibc) — locked here
     // to make any divergence visible at CI time.
-    SUBCASE("(RandomSeed{12345}, 67) bit-stable canonical output") {
+    SUBCASE("(chronon3d::random::Seed{12345}, 67) bit-stable canonical output") {
         // Vector for the documented hash-combine + SplitMix finalizer.
         const f32 expected = 0.115754783f;
-        f32 actual = deterministic_random(RandomSeed{12345}, 67);
+        f32 actual = chronon3d::random::unit(chronon3d::random::Seed{12345}, 67);
         CHECK(actual == doctest::Approx(expected));
     }
 
-    SUBCASE("(RandomSeed{0}, 0) bit-stable") {
-        CHECK(deterministic_random(RandomSeed{0}, 0)
+    SUBCASE("(chronon3d::random::Seed{0}, 0) bit-stable") {
+        CHECK(chronon3d::random::unit(chronon3d::random::Seed{0}, 0)
               == doctest::Approx(0.883310795f));
     }
 
-    SUBCASE("(RandomSeed{0}, 1) bit-stable") {
-        const f32 expected = deterministic_random(RandomSeed{0}, 1);
+    SUBCASE("(chronon3d::random::Seed{0}, 1) bit-stable") {
+        const f32 expected = chronon3d::random::unit(chronon3d::random::Seed{0}, 1);
         // Locked twice — same call returns same value (determinism self-lock).
-        CHECK(deterministic_random(RandomSeed{0}, 1) == expected);
+        CHECK(chronon3d::random::unit(chronon3d::random::Seed{0}, 1) == expected);
     }
 }
 
 TEST_CASE("deterministic_random — string overload bit-stable") {
     // Cross-OS lock for XXH64-funneled string seeds.
     SUBCASE("('chronon3d', 0) bit-stable") {
-        const f32 expected = deterministic_random("chronon3d", 0);
+        const f32 expected = chronon3d::random::unit("chronon3d", 0);
         // Self-determinism lock (no fixed value yet — first CI run captures it).
-        CHECK(deterministic_random("chronon3d", 0) == expected);
+        CHECK(chronon3d::random::unit("chronon3d", 0) == expected);
     }
 }
 
 TEST_CASE("build_random_permutation — Fisher-Yates bijection lock") {
     SUBCASE("For total_units in {1, 2, 3, 5, 10, 16, 50, 100}, sorted perm == [0..n)") {
         for (u32 n : {1u, 2u, 3u, 5u, 10u, 16u, 50u, 100u}) {
-            const auto perm = build_random_permutation(RandomSeed{42}, n);
+            const auto perm = chronon3d::random::permutation(chronon3d::random::Seed{42}, n);
             REQUIRE(perm.size() == n);
 
             std::vector<u32> sorted(perm.begin(), perm.end());
@@ -159,8 +158,8 @@ TEST_CASE("build_random_permutation — Fisher-Yates bijection lock") {
 
     SUBCASE("Same seed → same permutation (determinism lock)") {
         constexpr u32 N = 32;
-        const auto p1 = build_random_permutation(RandomSeed{12345}, N);
-        const auto p2 = build_random_permutation(RandomSeed{12345}, N);
+        const auto p1 = chronon3d::random::permutation(chronon3d::random::Seed{12345}, N);
+        const auto p2 = chronon3d::random::permutation(chronon3d::random::Seed{12345}, N);
         REQUIRE(p1.size() == N);
         REQUIRE(p2.size() == N);
         for (u32 i = 0; i < N; ++i) {
@@ -173,8 +172,8 @@ TEST_CASE("build_random_permutation — Fisher-Yates bijection lock") {
         // differ in MORE than trivial-frequency overlap (i.e., they
         // are not the identity and not the same shuffle).
         constexpr u32 N = 64;
-        const auto p_a = build_random_permutation(RandomSeed{1}, N);
-        const auto p_b = build_random_permutation(RandomSeed{2}, N);
+        const auto p_a = chronon3d::random::permutation(chronon3d::random::Seed{1}, N);
+        const auto p_b = chronon3d::random::permutation(chronon3d::random::Seed{2}, N);
         size_t differ_count = 0;
         for (u32 i = 0; i < N; ++i) {
             if (p_a[i] != p_b[i]) ++differ_count;
@@ -184,12 +183,12 @@ TEST_CASE("build_random_permutation — Fisher-Yates bijection lock") {
     }
 
     SUBCASE("Edge: total_units == 0 → empty permutation") {
-        const auto perm = build_random_permutation(RandomSeed{0}, 0);
+        const auto perm = chronon3d::random::permutation(chronon3d::random::Seed{0}, 0);
         CHECK(perm.empty());
     }
 
     SUBCASE("Edge: total_units == 1 → singleton permutation [0]") {
-        const auto perm = build_random_permutation(RandomSeed{0}, 1);
+        const auto perm = chronon3d::random::permutation(chronon3d::random::Seed{0}, 1);
         REQUIRE(perm.size() == 1);
         CHECK(perm[0] == 0);
     }
@@ -202,7 +201,7 @@ TEST_CASE("deterministic_random — descriptor certify integration with Random o
     for (u32 n : {4u, 7u, 12u}) {
         std::vector<u32> outputs;
         outputs.reserve(n);
-        const auto perm = build_random_permutation(RandomSeed{99}, n);
+        const auto perm = chronon3d::random::permutation(chronon3d::random::Seed{99}, n);
         REQUIRE(perm.size() == n);
         for (u32 i = 0; i < n; ++i) {
             outputs.push_back(perm[i]);
