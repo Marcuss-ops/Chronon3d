@@ -58,6 +58,10 @@ OUTPUT_DIR="/tmp/zero_copy_verify"
 PLAN=""
 DIRECT_YUV_CERT=0
 PIPE_PIXFMT=""
+# Optional codec/encoder override. Empty keeps the CLI default (h264_nvenc
+# when --hardware nvenc is set). Set to "hevc" to certify the A4000's
+# hevc_nvenc lane: `CHRONON3D_BENCH_CODEC=hevc tools/verify_zero_copy_end_to_end.sh`.
+CODEC="${CHRONON3D_BENCH_CODEC:-}"
 
 CLI_BIN="${CHRONON3D_CLI:-}"
 if [[ -z "$CLI_BIN" ]]; then
@@ -82,6 +86,7 @@ while [[ $# -gt 0 ]]; do
         --plan)         PLAN="$2"; shift 2 ;;
         --direct-yuv)   DIRECT_YUV_CERT=1; shift ;;
         --pipe-pixfmt)  PIPE_PIXFMT="$2"; shift 2 ;;
+        --codec)        CODEC="$2"; shift 2 ;;
         --frames)       FRAMES="$2"; shift 2 ;;
         --warmup)       WARMUP="$2"; shift 2 ;;
         --report-json)  REPORT_JSON="$2"; shift 2 ;;
@@ -169,6 +174,9 @@ if [[ -z "$REPORT_JSON" ]]; then
         --gpu-hot-path-mode "$([[ $DIRECT_YUV_CERT -eq 1 ]] && echo require_direct_yuv || echo require_gpu_native)" \
         --report \
         -o "$OUTPUT_DIR/zero_copy.mp4")
+    if [[ -n "$CODEC" ]]; then
+        render_args+=(--codec "$CODEC")
+    fi
     if [[ -n "$PIPE_PIXFMT" ]]; then
         render_args+=(--pipe-pixfmt "$PIPE_PIXFMT")
     fi
