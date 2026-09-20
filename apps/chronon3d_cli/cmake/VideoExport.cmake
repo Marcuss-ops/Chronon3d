@@ -129,7 +129,7 @@ endif()
 
 target_sources(chronon3d_cli_render PRIVATE
     commands/video/common/video_export_common.cpp
-    commands/video/exporters/video_export_pipe.cpp
+    commands/video/exporters/video_export_native.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute_options.cpp
@@ -137,7 +137,7 @@ target_sources(chronon3d_cli_render PRIVATE
 )
 set_target_properties(chronon3d_cli_render PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(
-    commands/video/exporters/video_export_pipe.cpp
+    commands/video/exporters/video_export_native.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 target_link_libraries(chronon3d_cli_render PRIVATE
