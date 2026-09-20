@@ -39,18 +39,10 @@ namespace chronon3d::cli {
 // Use parse_video_sink_type() to parse CLI strings to VideoSinkType.
 // Use chronon3d::cli::to_string() to convert VideoSinkType to string.
 
-bool ffmpeg_in_path();
-
-/// True when the selected encoder backend runs as an external `ffmpeg`
-/// subprocess (the "pipe" encoder) and therefore requires the `ffmpeg` binary
-/// on PATH.
-///
-/// The in-process `native` libavcodec encoder must NOT depend on the external
-/// ffmpeg executable — only the separate output-verification capability
-/// (ffprobe / full-decode) may.  When native support is disabled at build
-/// time, an explicit "native" request is rejected by create_video_encoder;
-/// it never falls back to the pipe encoder.
-bool encoder_backend_requires_ffmpeg(const std::string& encoder_backend);
+/// Video export encoding is resolved by the in-process media sink.  The
+/// historical transport field remains part of the wire contract for
+/// compatibility, but export validation must not probe or execute an external
+/// `ffmpeg` binary.
 
 /// Canonical parse of a pipe pixel format string.
 ///
