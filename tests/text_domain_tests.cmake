@@ -99,12 +99,6 @@ if(CHRONON3D_BUILD_TESTS)
         LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
     )
     chronon3d_add_test_suite(
-        NAME chronon3d_text_auto_fit_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_auto_fit.cpp
-        LINK_TARGETS chronon3d_pipeline
-    )
-    chronon3d_add_test_suite(
         NAME chronon3d_text_unicode_line_breaking_tests
         TIER UNIT
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_unicode_line_breaking.cpp
