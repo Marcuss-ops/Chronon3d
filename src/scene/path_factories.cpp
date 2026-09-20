@@ -56,16 +56,20 @@ PathParams make_arrow(const ArrowParams& p) {
     dir /= len;
     Vec2 normal{-dir.y, dir.x};
 
-    f32 h_len = p.head_length;
-    f32 h_wid = p.head_width;
+    // Keep malformed authoring data from producing inverted or self-crossing
+    // arrow polygons.  A head cannot be longer than the shaft's centerline,
+    // and negative dimensions are treated as zero-sized geometry.
+    const f32 h_len = std::clamp(p.head_length, 0.0f, len);
+    const f32 h_wid = std::max(0.0f, p.head_width);
+    const f32 thickness = std::max(0.0f, p.thickness);
 
-    Vec2 p1 = p.from - normal * (p.thickness * 0.5f);
-    Vec2 p2 = (p.to - dir * h_len) - normal * (p.thickness * 0.5f);
+    Vec2 p1 = p.from - normal * (thickness * 0.5f);
+    Vec2 p2 = (p.to - dir * h_len) - normal * (thickness * 0.5f);
     Vec2 p3 = (p.to - dir * h_len) - normal * (h_wid * 0.5f);
     Vec2 p4 = p.to;
     Vec2 p5 = (p.to - dir * h_len) + normal * (h_wid * 0.5f);
-    Vec2 p6 = (p.to - dir * h_len) + normal * (p.thickness * 0.5f);
-    Vec2 p7 = p.from + normal * (p.thickness * 0.5f);
+    Vec2 p6 = (p.to - dir * h_len) + normal * (thickness * 0.5f);
+    Vec2 p7 = p.from + normal * (thickness * 0.5f);
 
     path.commands.push_back(PathCommand::move_to(p1));
     path.commands.push_back(PathCommand::line_to(p2));
