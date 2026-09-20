@@ -21,6 +21,7 @@
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include "src/render_graph/executor/tile_pruning.hpp"
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -53,13 +54,11 @@ TEST_CASE("Camera2_5D multi-source cold and warm renders are identical") {
     camera.position = {0.0f, 0.0f, -800.0f};
     camera.zoom = 800.0f;
 
-    const auto cold = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    const auto cold = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(cold != nullptr);
-    const auto warm = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    const auto warm = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(warm != nullptr);
 
-    // The public render_scene entrypoint may satisfy the second render through
-    // an upstream fast path before the graph-cache counter is incremented.
     // The observable contract here is deterministic framebuffer equivalence
     // between cold and warm execution of the same projected multi-source scene.
     CHECK(test::framebuffer_hash(*warm) == test::framebuffer_hash(*cold));
@@ -77,7 +76,7 @@ TEST_CASE("Effects, predicted_bbox and clipping - Blur near border doesn't crash
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 200, 200, 30.0f);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 200);
 }
@@ -92,7 +91,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Pixel check white") {
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 100, 100, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 100, 100, 30.0f);
     REQUIRE(fb != nullptr);
 
     Color center = fb->get_pixel(25, 25);
@@ -119,7 +118,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Alpha blending") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 200, 200, 30.0f);
     REQUIRE(fb != nullptr);
 
     Color center = fb->get_pixel(100, 100);

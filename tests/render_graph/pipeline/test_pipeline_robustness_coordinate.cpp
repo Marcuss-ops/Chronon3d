@@ -18,6 +18,7 @@
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include "src/render_graph/executor/tile_pruning.hpp"
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -36,7 +37,7 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard centered layer") {
 
     Camera camera;
 
-    auto fb = renderer.render_scene(scene, camera, 200, 200, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 200, 200, 30.0f);
     REQUIRE(fb != nullptr);
 
     // With the modular (centered) coordinate system the 100x100 rect is
@@ -103,7 +104,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
         renderer.set_settings(settings);
 
     Camera camera;
-    auto fb = renderer.render_scene(scene, camera, 1536, 1024, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 1536, 1024, 30.0f);
     REQUIRE(fb != nullptr);
 
     CHECK(fb->get_pixel(10, 10).r > 0.4f);
@@ -133,7 +134,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
     camera.position = {0.0f, 0.0f, -800.0f};
     camera.zoom = 800.0f;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(fb != nullptr);
 
     Color p_in_0 = fb->get_pixel(860, 440);
@@ -204,7 +205,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     camera.position = {0.0f, 0.0f, -800.0f};
     camera.zoom = 800.0f;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(fb != nullptr);
 
     i32 min_red_x = 9999, max_red_x = -9999;
@@ -252,7 +253,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
     camera.position = {0.0f, 0.0f, -800.0f};
     camera.zoom = 800.0f;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(fb != nullptr);
 
     // Camera2_5D flips authored Y around the canvas center; the border layer
@@ -284,7 +285,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
     camera.position = {0.0f, 0.0f, -800.0f};
     camera.zoom = 800.0f;
 
-    auto fb = renderer.render_scene(scene, camera, 1920, 1080, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 1920, 1080, 30.0f);
     REQUIRE(fb != nullptr);
 
     // In the modular coordinate system both layers are centered; a pixel
@@ -298,4 +299,3 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
     CHECK(p3d.b > 0.9f);
     CHECK(p3d.a > 0.9f);
 }
-
