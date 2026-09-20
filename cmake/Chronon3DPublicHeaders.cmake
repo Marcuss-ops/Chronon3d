@@ -310,7 +310,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/resource_state.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/resource_residency.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/random/deterministic_random.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/raster/bbox.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/shape_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/media_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/text_params.hpp"
