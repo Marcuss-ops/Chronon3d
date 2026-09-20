@@ -98,6 +98,8 @@ option(CHRONON3D_ENABLE_VULKAN "Build the headless Vulkan backend" OFF)
 option(CHRONON3D_BUILD_FUZZERS "Build libFuzzer targets (Clang only)" OFF)
 option(CHRONON3D_ENABLE_CUDA_INTEROP
        "Build CUDA/Vulkan external-memory interop prerequisites" OFF)
+option(CHRONON3D_BUILD_HWLAB
+       "Build standalone CUDA/Vulkan/NVENC hardware-lab probes and benchmarks" OFF)
 option(CHRONON3D_DEV_SPLIT_DWARF
        "Use split DWARF debug information in developer builds" OFF)
 option(CHRONON3D_BUILD_TIME_TRACE
