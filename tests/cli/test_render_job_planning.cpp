@@ -2,6 +2,7 @@
 
 #include "commands.hpp"
 #include "daemon/daemon_render_job_payload.hpp"
+#include "daemon/daemon_service_job_admission.hpp"
 #include "utils/job/output_lane_pixel_truth.hpp"
 #include "utils/job/render_job.hpp"
 
@@ -15,6 +16,10 @@
 #include <exception>
 #include <limits>
 #include <memory>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 
@@ -775,6 +780,50 @@ TEST_CASE("decode_render_job_payload refuses a key outside the closed vocabulary
         cli::decode_render_job_payload(
             R"({"plan_path":"plan.json","execution_requirements":"nope"})"),
         std::exception);
+}
+
+TEST_CASE("RenderJobAdmissionContext releases lock and reservation on scope exit") {
+    c3d::runtime::DeviceScheduler scheduler;
+    scheduler.register_device(
+        c3d::runtime::DeviceCapabilities{.name = "admission-fixture"},
+        c3d::runtime::DeviceResourceVector{
+            .compute_units = 1.0f,
+            .vram_bytes = 4096,
+            .pcie_bandwidth = 1.0f});
+    const c3d::runtime::DeviceSelectionRequirements requirements{
+        .resources = c3d::runtime::DeviceResourceVector{
+            .compute_units = 0.25f,
+            .vram_bytes = 512,
+            .pcie_bandwidth = 0.25f}};
+    std::shared_mutex render_mutex;
+    std::mutex admission_mutex;
+    std::condition_variable admission_cv;
+    std::atomic<bool> running{true};
+
+    {
+        cli::RenderJobAdmissionContext context(
+            false, 512, render_mutex, admission_mutex, admission_cv,
+            running, scheduler, requirements);
+        REQUIRE(context.admitted());
+        const auto state = scheduler.resource_state(0);
+        REQUIRE(state.has_value());
+        CHECK(state->reserved.vram_bytes == 512);
+        // The context retains the token; its destructor must release it even
+        // when the render body exits normally.
+    }
+
+    const auto released = scheduler.resource_state(0);
+    REQUIRE(released.has_value());
+    CHECK(released->reserved.vram_bytes == 0);
+    CHECK(released->reserved.compute_units == doctest::Approx(0.0f));
+
+    // The execution lock was also released; a second context can acquire it.
+    {
+        cli::RenderJobAdmissionContext second(
+            false, 512, render_mutex, admission_mutex, admission_cv,
+            running, scheduler, requirements);
+        CHECK(second.admitted());
+    }
 }
 
 TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {

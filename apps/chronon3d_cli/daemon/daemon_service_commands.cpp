@@ -32,7 +32,7 @@ void DaemonService::run() {
     spdlog::info("");
 
     std::string line;
-    while (m_running && std::getline(std::cin, line)) {
+    while (m_running.load(std::memory_order_acquire) && std::getline(std::cin, line)) {
         while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(0, 1);
         while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) line.pop_back();
         if (line.empty()) continue;
@@ -61,7 +61,7 @@ void DaemonService::handle_command(const std::string& line) {
     } else if (cmd == "help" || cmd == "h") {
         cmd_help();
     } else if (cmd == "quit" || cmd == "q" || cmd == "exit") {
-        m_running = false;
+        m_running.store(false, std::memory_order_release);
     } else {
         spdlog::warn("Unknown command: '{}'.  Type 'h' for help.", cmd);
     }
