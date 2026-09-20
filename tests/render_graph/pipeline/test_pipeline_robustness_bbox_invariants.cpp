@@ -21,6 +21,7 @@
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include "src/render_graph/executor/tile_pruning.hpp"
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -122,14 +123,14 @@ TEST_CASE("SourceNode execution bbox is invariant under diagnostics") {
     auto off_settings = off_renderer.render_settings();
     off_settings.diagnostics.enabled = false;
     off_renderer.set_settings(off_settings);
-    const auto off_frame = off_renderer.render_scene(scene, camera, 320, 240, 30.0f);
+    const auto off_frame = test::render_scene_graph(off_renderer, scene, camera, 320, 240, 30.0f);
     REQUIRE(off_frame != nullptr);
 
     auto on_renderer = test::make_renderer();
     auto on_settings = on_renderer.render_settings();
     on_settings.diagnostics.enabled = true;
     on_renderer.set_settings(on_settings);
-    const auto on_frame = on_renderer.render_scene(scene, camera, 320, 240, 30.0f);
+    const auto on_frame = test::render_scene_graph(on_renderer, scene, camera, 320, 240, 30.0f);
     REQUIRE(on_frame != nullptr);
 
     CHECK(test::framebuffer_hash(*off_frame) == test::framebuffer_hash(*on_frame));

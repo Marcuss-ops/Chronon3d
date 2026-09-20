@@ -12,6 +12,7 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 
 #include <algorithm>
 #include <array>
@@ -64,7 +65,7 @@ RenderResult render_single_element_scene([[maybe_unused]] const std::string& typ
     auto scene = s.build();
 
     auto renderer = test::make_renderer();
-    auto fb = renderer.render_scene(scene, camera, width, height, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, width, height, 30.0f);
     REQUIRE(fb != nullptr);
 
     RenderResult out;
