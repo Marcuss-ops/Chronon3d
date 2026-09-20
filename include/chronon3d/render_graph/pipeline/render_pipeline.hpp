@@ -2,7 +2,7 @@
 // Canonical graph adapter for legacy Composition diagnostics and the typed
 // CompiledProgram execution path.  The latter is the production route.
 //
-//   CompiledProgram → ProgramSampler → render_scene_via_graph()
+//   CompiledProgram → SceneMaterializer → render_scene_via_graph()
 //
 // `render_compiled_composition_frame` remains a compatibility adapter for
 // arbitrary Composition authoring callers

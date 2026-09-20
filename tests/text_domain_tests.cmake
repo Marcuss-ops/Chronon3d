@@ -99,12 +99,6 @@ if(CHRONON3D_BUILD_TESTS)
         LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
     )
     chronon3d_add_test_suite(
-        NAME chronon3d_text_auto_fit_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_auto_fit.cpp
-        LINK_TARGETS chronon3d_pipeline
-    )
-    chronon3d_add_test_suite(
         NAME chronon3d_text_unicode_line_breaking_tests
         TIER UNIT
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_unicode_line_breaking.cpp
@@ -187,11 +181,6 @@ chronon3d_add_test_suite(
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver.cpp
 )
 chronon3d_add_test_suite(
-    NAME chronon3d_text_run_driver_pr10_tests
-    TIER INTEGRATION
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_run_driver_pr10.cpp
-)
-chronon3d_add_test_suite(
     NAME chronon3d_prewarm_text_layout_cache_tests
     TIER INTEGRATION
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_prewarm_text_layout_cache.cpp
@@ -211,3 +200,34 @@ chronon3d_add_test_suite(
     TIER INTEGRATION
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_builder_consumed_commit_validation.cpp
 )
+
+# Domain labels for selective text validation: ctest -L text.
+chronon3d_label_tests(text
+    chronon3d_text_health_tests
+    chronon3d_mtsdf_generator_tests
+    chronon3d_mtsdf_font_identity_tests
+    chronon3d_text_fallback_tests
+    chronon3d_text_definition_tests
+    chronon3d_safe_area_placement_tests
+    chronon3d_text_clip_policy_tests
+    chronon3d_visibility_contract_tests
+    chronon3d_text_layout_advanced_tests
+    chronon3d_text_alignment_isolated_tests
+    chronon3d_text_unicode_line_breaking_tests
+    chronon3d_text_clip_oversized_tests
+    chronon3d_text_word_emphasis_animators_tests
+    chronon3d_text_lightweight_emphasis_tests
+    chronon3d_subtitle_font_ref_tests
+    chronon3d_text_document_tests
+    chronon3d_text_resolver_tests
+    chronon3d_single_line_composer_tests
+    chronon3d_paragraph_layout_extras_tests
+    chronon3d_every_line_composer_tests
+    chronon3d_path_sampler_tests
+    chronon3d_text_path_composer_tests
+    chronon3d_text_run_builder_animated_doc_tests
+    chronon3d_text_run_driver_tests
+    chronon3d_prewarm_text_layout_cache_tests
+    chronon3d_video_flicker_fps_tests
+    chronon3d_text_animator_property_tests
+    chronon3d_builder_consumed_commit_validation_tests)

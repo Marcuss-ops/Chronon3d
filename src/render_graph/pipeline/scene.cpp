@@ -441,7 +441,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     // Wave 7: production frames use the leased FrameExecution payload arena.
     // The JobSession arena remains only as an explicit compatibility fallback
     // for standalone/preflight callers that do not provide a frame lease.
-    FrameArena& frame_arena = execution ? *execution->arena() : session_ref.arena();
+    FrameArena& frame_arena = execution
+        ? *execution->arena() : session_ref.root_arena();
     ExecutionScope root_scope = ExecutionScope::make_root(
         session_ref, frame_arena,
         graph_result.compiled.graph_instance_id);

@@ -1,6 +1,6 @@
 #include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/compiler/program_sampler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -118,7 +118,7 @@ RenderPreparationResult prepare_render(
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     // Preparation needs graph topology only. Frame-varying values are sampled
     // by TypedProgramSampler at execution time and are not materialized here.
-    Scene scene = compiler::ProgramSampler{}.materialize_scene(program);
+    Scene scene = compiler::SceneMaterializer{}.materialize_scene(program);
     auto result = detail::prepare_render_scene(
         renderer, scene,
         CompositionSpec{

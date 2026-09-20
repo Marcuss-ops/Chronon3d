@@ -128,7 +128,7 @@ struct ChainSlotBuilder {
         GraphInstanceId gid = kInvalidGraphInstanceId
     ) {
         slots.push_back(std::make_unique<ExecutionScope>(
-            ExecutionScope::make_root(session, session.arena(), gid)));
+            ExecutionScope::make_root(session, session.root_arena(), gid)));
         return *slots.back();
     }
 
@@ -156,7 +156,7 @@ struct ChainSlotBuilder {
 TEST_CASE("ExecutionScope: root construction — kind=Root, depth=0, parent=null") {
     JobSession session;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
 
     CHECK(root.kind() == ExecutionScopeKind::Root);
     CHECK(root.depth() == 0);
@@ -164,7 +164,7 @@ TEST_CASE("ExecutionScope: root construction — kind=Root, depth=0, parent=null
     CHECK(root.chain_length() == 1);
     CHECK(root.graph_id() == GraphInstanceId{1});
     CHECK(&root.session() == &session);
-    CHECK(&root.arena() == &session.arena());
+    CHECK(&root.arena() == &session.root_arena());
     CHECK(root.owner_key() == 0u);
 }
 
@@ -172,7 +172,7 @@ TEST_CASE("ExecutionScope: tile child — depth=1, parent links to root") {
     JobSession root_session;
     FrameArena child_arena;
     auto root_res = ExecutionScope::make_root(
-        root_session, root_session.arena(), GraphInstanceId{1});
+        root_session, root_session.root_arena(), GraphInstanceId{1});
     const ExecutionScope& root = root_res;  // bind const ref to extend lifetime past the temp's destruction site
 
     auto tile_res = ExecutionScope::make_child(
@@ -193,7 +193,7 @@ TEST_CASE("ExecutionScope: sibling scopes are NOT descendants of each other") {
     JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_a_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_a,
         GraphInstanceId{2}, &root);
@@ -216,7 +216,7 @@ TEST_CASE("ExecutionScope: deeper chain — grandchild depth=2") {
     JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_a,
         GraphInstanceId{2}, &root);
@@ -245,7 +245,7 @@ TEST_CASE("ExecutionScope: recursion detection — direct precomp loop rejected"
     JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto pc1_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_a,
         GraphInstanceId{2}, &root, /*owner_key*/ 0xDEADBEEFull);
@@ -281,7 +281,7 @@ TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ance
     JobSession session;
     FrameArena arena_a, arena_b, arena_c;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto pc1_res = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_a,
         GraphInstanceId{2}, &root, /*owner_key*/ 0x456ull);
@@ -310,7 +310,7 @@ TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
     JobSession parent_session;
     FrameArena child_arena;
     ExecutionScope parent = ExecutionScope::make_root(
-        parent_session, parent_session.arena(), GraphInstanceId{1});
+        parent_session, parent_session.root_arena(), GraphInstanceId{1});
     auto child_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, parent_session, child_arena,
         GraphInstanceId{2}, &parent);
@@ -318,7 +318,7 @@ TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
     const ExecutionScope& child = child_res.value();
 
     REQUIRE(&child.arena() != &parent.arena());
-    auto parent_resource = parent_session.arena().resource();
+    auto parent_resource = parent_session.root_arena().resource();
     auto child_resource  = child_arena.resource();
     REQUIRE(parent_resource != nullptr);
     REQUIRE(child_resource  != nullptr);
@@ -327,14 +327,14 @@ TEST_CASE("ExecutionScope: child arena — independent of parent arena") {
     // Resetting the child's arena MUST NOT touch the parent arena's
     // resource pointer (the parent_session.arena_ptr is unaffected).
     child_arena.reset();
-    CHECK(parent_session.arena().resource() == parent_resource);
+    CHECK(parent_session.root_arena().resource() == parent_resource);
 }
 
 TEST_CASE("ExecutionScope: kind() round-trips all three kinds") {
     JobSession session;
     FrameArena arena_a, arena_b;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{0});
+        session, session.root_arena(), GraphInstanceId{0});
     auto tile_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_a,
         GraphInstanceId{0}, &root);
@@ -357,7 +357,7 @@ TEST_CASE("ExecutionScope: chain depth grows by one per nested child") {
     JobSession session;
     FrameArena arena_a, arena_b, arena_c, arena_d, arena_e;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{0});
+        session, session.root_arena(), GraphInstanceId{0});
     auto t1_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_a,
         GraphInstanceId{0}, &root);
@@ -400,7 +400,7 @@ TEST_CASE("ExecutionScope: anthrilinear (ancestor-then-sibling) — RecursiveOwn
     JobSession session;
     FrameArena a[5];
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{0});
+        session, session.root_arena(), GraphInstanceId{0});
     auto a_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, a[0],
         GraphInstanceId{0}, &root);
@@ -473,7 +473,7 @@ TEST_CASE("ExecutionScope: make_child — Root kind rejected (InvalidChildKind)"
     JobSession session;
     FrameArena arena;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Root, session, arena,
         GraphInstanceId{2}, &root);
@@ -497,9 +497,9 @@ TEST_CASE("ExecutionScope FASE 5: make_child — arena aliasing rejected (ArenaA
     // still holds.  This was a silent acceptance pre-FASE-5.
     JobSession session;
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto bad = ExecutionScope::make_child(
-        ExecutionScopeKind::Tile, session, session.arena(),
+        ExecutionScopeKind::Tile, session, session.root_arena(),
         GraphInstanceId{2}, &root);
     REQUIRE_FALSE(bad.has_value());
     CHECK(bad.error().code == ScopeErrorCode::ArenaAliasesParent);
@@ -523,14 +523,14 @@ TEST_CASE("ExecutionScope PR 6.6: ArenaGuard — child scope reset does not touc
     JobSession parent_session;
     FrameArena child_arena;
 
-    auto* parent_resource = parent_session.arena().resource();
+    auto* parent_resource = parent_session.root_arena().resource();
     auto* child_resource  = child_arena.resource();
     REQUIRE(parent_resource != nullptr);
     REQUIRE(child_resource  != nullptr);
     REQUIRE(parent_resource != child_resource);
 
     ExecutionScope parent = ExecutionScope::make_root(
-        parent_session, parent_session.arena(), GraphInstanceId{1});
+        parent_session, parent_session.root_arena(), GraphInstanceId{1});
     auto child_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, parent_session, child_arena,
         GraphInstanceId{2}, &parent);
@@ -538,24 +538,24 @@ TEST_CASE("ExecutionScope PR 6.6: ArenaGuard — child scope reset does not touc
     const ExecutionScope& child = child_res.value();
 
     REQUIRE(&child.arena() == &child_arena);
-    REQUIRE(&parent.arena() == &parent_session.arena());
+    REQUIRE(&parent.arena() == &parent_session.root_arena());
 
     {
         TestArenaGuard guard{child_arena};
     }
-    CHECK(parent_session.arena().resource() == parent_resource);
+    CHECK(parent_session.root_arena().resource() == parent_resource);
 }
 
 TEST_CASE("ExecutionScope PR 6.6: tile scope reset does not touch root arena") {
     JobSession session;
     FrameArena tile_arena;
 
-    auto* root_resource = session.arena().resource();
+    auto* root_resource = session.root_arena().resource();
     auto* tile_resource = tile_arena.resource();
     REQUIRE(root_resource != tile_resource);
 
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, tile_arena,
         GraphInstanceId{2}, &root);
@@ -565,14 +565,14 @@ TEST_CASE("ExecutionScope PR 6.6: tile scope reset does not touch root arena") {
     {
         TestArenaGuard guard{tile_arena};
     }
-    CHECK(session.arena().resource() == root_resource);
+    CHECK(session.root_arena().resource() == root_resource);
 }
 
 TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child arena") {
     JobSession session;
     FrameArena tile_arena, precomp_arena;
 
-    auto* root_res = session.arena().resource();
+    auto* root_res = session.root_arena().resource();
     auto* tile_res = tile_arena.resource();
     auto* pre_res  = precomp_arena.resource();
 
@@ -581,7 +581,7 @@ TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child are
     REQUIRE(root_res != pre_res);
 
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_res_obj = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, tile_arena,
         GraphInstanceId{2}, &root);
@@ -595,13 +595,13 @@ TEST_CASE("ExecutionScope PR 6.6: precomp inside tile uses independent child are
 
     REQUIRE(&pre.arena() == &precomp_arena);
     REQUIRE(&tile.arena() == &tile_arena);
-    REQUIRE(&root.arena() == &session.arena());
+    REQUIRE(&root.arena() == &session.root_arena());
 
     {
         TestArenaGuard guard{precomp_arena};
     }
     CHECK(tile_arena.resource() == tile_res);
-    CHECK(session.arena().resource() == root_res);
+    CHECK(session.root_arena().resource() == root_res);
 }
 
 TEST_CASE("ExecutionScope PR 6.6: two sibling tile scopes use independent arenas") {
@@ -613,7 +613,7 @@ TEST_CASE("ExecutionScope PR 6.6: two sibling tile scopes use independent arenas
     REQUIRE(res_a != res_b);
 
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_a_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, tile_a_arena,
         GraphInstanceId{2}, &root);
@@ -638,7 +638,7 @@ TEST_CASE("ExecutionScope PR 6.6: tile scopes share the same session by referenc
     FrameArena arena_a, arena_b;
 
     ExecutionScope root = ExecutionScope::make_root(
-        session, session.arena(), GraphInstanceId{1});
+        session, session.root_arena(), GraphInstanceId{1});
     auto tile_a_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena_a,
         GraphInstanceId{2}, &root);

@@ -94,3 +94,14 @@ function(chronon3d_add_test_suite)
         "${ARG_NAME}"
     )
 endfunction()
+
+# Apply a domain label to suites that are enabled by the current configure.
+# Optional test registrations may be absent, so this helper deliberately
+# ignores names that were gated out instead of making configure fail.
+function(chronon3d_label_tests label)
+    foreach(test_name IN LISTS ARGN)
+        if(TEST "${test_name}")
+            set_tests_properties(${test_name} PROPERTIES LABELS "${label}")
+        endif()
+    endforeach()
+endfunction()
