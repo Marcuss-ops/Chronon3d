@@ -29,6 +29,54 @@ chronon_status chronon_render_frame(chronon_engine* engine, const chronon_plan* 
     return CHRONON_OK;
 }
 
+chronon_status chronon_render_frame_with_layers_and_elements(
+                                                chronon_engine* engine,
+                                                const chronon_plan* plan,
+                                                uint64_t frame,
+                                                const chronon_layer_state* states,
+                                                uint64_t state_count,
+                                                const chronon_element_state* elements,
+                                                uint64_t element_count,
+                                                chronon_frame_buffer* out_buffer) {
+    if (!engine || !plan || !out_buffer)
+        return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "invalid render arguments");
+    if ((state_count != 0 && !states) || (element_count != 0 && !elements))
+        return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "non-zero state count with NULL pointer");
+    if (state_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) ||
+        element_count > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()))
+        return set_error(engine, CHRONON_ERROR_INVALID_ARGUMENT, "state count exceeds addressable size");
+    chronon3d::motion::ContractApplyReport layer_report{};
+    chronon3d::motion::ElementApplyReport element_report{};
+    if (!chronon3d::motion::validate_layer_states(states, static_cast<std::size_t>(state_count), &layer_report) ||
+        !chronon3d::motion::validate_element_states(elements, static_cast<std::size_t>(element_count), &element_report))
+        return set_error(engine, CHRONON_ERROR_ABI_MISMATCH, "element or layer state record set rejected");
+    EngineUseGuard use(engine->in_use);
+    if (!use.acquired()) return CHRONON_ERROR_BUSY;
+    std::memset(out_buffer, 0, sizeof(*out_buffer));
+    engine->engine.set_settings(plan->settings);
+    auto result = engine->engine.render_program(
+        plan->program, chronon3d::sdk::Frame{static_cast<std::int64_t>(frame)},
+        states, static_cast<std::size_t>(state_count),
+        elements, static_cast<std::size_t>(element_count));
+    if (!result) return set_render_error(engine, result.error());
+    const auto& rendered = result.value();
+    const auto size = rendered_byte_size(rendered);
+    if (!size) return set_error(engine, CHRONON_ERROR_IO_FAILED, "invalid rendered frame size");
+    auto* data = static_cast<std::uint8_t*>(std::realloc(engine->buffer, *size));
+    if (!data) return set_error(engine, CHRONON_ERROR_IO_FAILED, "frame buffer allocation failed");
+    engine->buffer = data;
+    engine->buffer_size = *size;
+    std::memcpy(engine->buffer, rendered.pixels, *size);
+    out_buffer->data = engine->buffer;
+    out_buffer->size = *size;
+    out_buffer->width = static_cast<uint32_t>(rendered.width);
+    out_buffer->height = static_cast<uint32_t>(rendered.height);
+    out_buffer->stride = static_cast<uint32_t>(rendered.bytes_per_row);
+    out_buffer->pixel_format = static_cast<uint32_t>(rendered.format);
+    clear_error(engine);
+    return CHRONON_OK;
+}
+
 chronon_status chronon_render_frame_with_layers(chronon_engine* engine,
                                                 const chronon_plan* plan,
                                                 uint64_t frame,

@@ -58,6 +58,7 @@
 /// it crosses this header, so the tag is declared rather than the whole C ABI
 /// header pulled in.
 struct chronon_layer_state;
+struct chronon_element_state;
 
 namespace chronon3d {
 
@@ -267,6 +268,11 @@ public:
     std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame,
         const chronon_layer_state* layer_states, std::size_t layer_state_count);
+
+    [[nodiscard]] std::shared_ptr<Framebuffer> render_program(
+        const compiler::CompiledProgram& program, Frame frame,
+        const chronon_layer_state* layer_states, std::size_t layer_state_count,
+        const chronon_element_state* element_states, std::size_t element_state_count);
 
     /// Compile and prepare once for repeated frame execution.
     [[nodiscard]] PreparedRenderJob prepare(

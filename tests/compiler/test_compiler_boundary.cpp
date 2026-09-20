@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <utility>
 #include <filesystem>
+#include <cmath>
 
 TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     static_assert(!std::is_copy_constructible_v<chronon3d::compiler::CompiledProgram>);
@@ -103,6 +104,9 @@ TEST_CASE("CompiledProgram owns typed timeline, animation and text lowering") {
     auto plan = test_plan();
     plan.layers.front().animation->tracks.push_back({
         "opacity", {{chronon3d::Frame{0}, {0.25f}}, {chronon3d::Frame{12}, {1.0f}}}, "linear"});
+    plan.layers.front().animation->tracks.push_back({
+        "rotation_z", {{chronon3d::Frame{0}, {-30.0f}},
+                        {chronon3d::Frame{12}, {30.0f}}}, "linear"});
     chronon3d::render_plan::LayerPlan text;
     text.id = "title";
     text.type = chronon3d::render_plan::LayerType::Text;
@@ -144,6 +148,14 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(frame.layers.front().opacity == doctest::Approx(0.625f));
     CHECK(frame.layers.front().matrix[3][0] == doctest::Approx(10.0f));
     CHECK(frame.layers.front().matrix[3][1] == doctest::Approx(20.0f));
+
+    const auto frame0 = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{0});
+    const auto frame12 = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{12});
+    CHECK(std::fabs(frame0.layers.front().matrix[0][1]) > 0.4f);
+    CHECK(frame0.layers.front().matrix[0][1] ==
+          doctest::Approx(-frame12.layers.front().matrix[0][1]).epsilon(1e-4f));
 
     // Production FrameExecution slots retain this destination between
     // frames.  Sampling must refill it without growing the layer vector after

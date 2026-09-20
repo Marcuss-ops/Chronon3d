@@ -15,8 +15,8 @@ chronon3d::Scene ProgramSampler::materialize_scene(
         Transform transform;
         transform.position = {layer.position[0], layer.position[1], layer.position[2]};
         transform.scale = {layer.scale[0], layer.scale[1], layer.scale[2]};
-        transform.rotation = glm::angleAxis(
-            glm::radians(layer.rotation[2]), Vec3{0.0f, 0.0f, 1.0f});
+        transform.rotation = glm::quat(glm::radians(Vec3{
+            layer.rotation[0], layer.rotation[1], layer.rotation[2]}));
         transform.opacity = layer.opacity;
 
         scene.layer(name, [&](LayerBuilder& builder) {

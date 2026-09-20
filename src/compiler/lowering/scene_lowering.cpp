@@ -27,6 +27,14 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.size = layer.size;
         lowered.color = layer.color;
         lowered.position = layer.position;
+        // Native phrase style positions are authored in canvas space as the
+        // centre of the text box. The scene graph uses a canvas-centred local
+        // basis, so lower that position once for both render paths.
+        if (layer.type == render_plan::LayerType::Text &&
+            layer.position_dimensions >= 2) {
+            lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
+            lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
+        }
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;
         lowered.size_dimensions = static_cast<std::uint8_t>(layer.size_dimensions);

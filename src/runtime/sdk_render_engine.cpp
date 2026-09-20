@@ -334,6 +334,14 @@ chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render_program(
     const chronon3d::compiler::CompiledProgram& program, Frame frame,
     const chronon_layer_state* layer_states, std::size_t layer_state_count) {
+    return render_program(program, frame, layer_states, layer_state_count, nullptr, 0);
+}
+
+chronon3d::Result<RenderOutput, RenderError>
+RenderEngine::render_program(
+    const chronon3d::compiler::CompiledProgram& program, Frame frame,
+    const chronon_layer_state* layer_states, std::size_t layer_state_count,
+    const chronon_element_state* element_states, std::size_t element_state_count) {
     return m_impl->render_frame(frame, [&] {
         auto settings = convert_settings(m_impl->settings);
         const auto& meta = program.metadata();
@@ -354,7 +362,7 @@ RenderEngine::render_program(
         // starts rendering; that exception becomes the RenderError below.
         return m_impl->engine.render_program(
             program, chronon3d::Frame{frame.integral()},
-            layer_states, layer_state_count);
+            layer_states, layer_state_count, element_states, element_state_count);
     });
 }
 

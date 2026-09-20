@@ -37,6 +37,9 @@ enum class AnimationProperty : std::uint8_t {
     ScaleY,
     ScaleZ,
     UniformScale,
+    RotationX,
+    RotationY,
+    RotationZ,
 };
 
 /// Immutable, typed timeline entry. Frame values are authored-time data;

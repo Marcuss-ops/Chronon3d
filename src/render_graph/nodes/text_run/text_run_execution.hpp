@@ -21,6 +21,7 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run.hpp>
@@ -55,7 +56,8 @@ std::optional<NodeExecutionError> validate_execution(
 void prepare_per_frame_shape(
     const TextRunShape& source,
     chronon3d::SampleTime sample_time,
-    TextRunFrameState& frame
+    TextRunFrameState& frame,
+    const compiler::SampledLayerParameters* sampled_layer = nullptr
 );
 
 /// Unified TextRun rendering — used by BOTH TextRunNode::execute()
@@ -69,7 +71,8 @@ void prepare_per_frame_shape(
     Framebuffer& fb,
     const TextRunShape& source_shape,
     const TextRunPlacement& placement,
-    float opacity
+    float opacity,
+    const compiler::SampledLayerParameters* sampled_layer = nullptr
 );
 
 #endif // CHRONON3D_ENABLE_TEXT

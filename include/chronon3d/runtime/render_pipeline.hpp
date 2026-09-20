@@ -50,6 +50,8 @@
 #include <optional>
 #include <string>
 
+struct chronon_element_state;
+
 namespace chronon3d {
 class SoftwareRenderer;
 struct SoftwareExecutionContext;
@@ -193,7 +195,9 @@ public:
         const compiler::CompiledProgram& program, Frame frame,
         FrameExecution* execution = nullptr,
         const chronon_layer_state* layer_states = nullptr,
-        std::size_t layer_state_count = 0);
+        std::size_t layer_state_count = 0,
+        const chronon_element_state* element_states = nullptr,
+        std::size_t element_state_count = 0);
 
     /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
     /// only a handle; it must not duplicate slot, queue, or FrameExecution
