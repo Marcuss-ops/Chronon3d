@@ -4,7 +4,7 @@
 #include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
-#include <chronon3d/runtime/context/runtime_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
 

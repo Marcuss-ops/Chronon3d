@@ -1,4 +1,4 @@
-#include <chronon3d/animations/camera_motion.hpp>
+#include <chronon3d/animations/camera_motion_params.hpp>
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/composition/register_builtin_compositions.hpp>
