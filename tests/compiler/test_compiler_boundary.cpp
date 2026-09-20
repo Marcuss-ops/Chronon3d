@@ -124,9 +124,10 @@ TEST_CASE("CompiledProgram owns typed timeline, animation and text lowering") {
 
     REQUIRE(program.timelines().size() == 2);
     CHECK(program.timelines()[1].duration_frames == plan.canvas.duration.integral());
-    REQUIRE(program.animation_tracks().size() == 1);
+    REQUIRE(program.animation_tracks().size() == 2);
     CHECK(program.animation_tracks().front().property == "opacity");
-    CHECK(program.curve_keyframes().size() == 2);
+    CHECK(program.animation_tracks().back().property == "rotation_z");
+    CHECK(program.curve_keyframes().size() == 4);
     REQUIRE(program.texts().size() == 1);
     CHECK(program.text_values()[program.texts().front().text_index] == "Chronon");
 }
@@ -136,6 +137,9 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     plan.layers.front().position = {10.0f, 20.0f, 0.0f};
     plan.layers.front().animation->tracks.push_back({
         "opacity", {{chronon3d::Frame{0}, {0.25f}}, {chronon3d::Frame{12}, {1.0f}}}, "linear"});
+    plan.layers.front().animation->tracks.push_back({
+        "rotation_z", {{chronon3d::Frame{0}, {-30.0f}},
+                        {chronon3d::Frame{12}, {30.0f}}}, "linear"});
     chronon3d::assets::AssetResolver resolver;
     auto result = chronon3d::compiler::compile(plan, resolver);
     REQUIRE(result);
