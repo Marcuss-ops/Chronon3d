@@ -318,6 +318,9 @@ void build_summary_and_job_sections(
     put_gpu_u64("vulkan_cuda_export_fence_wait_us", timings.gpu.vulkan_cuda_export_fence_wait_us);
     put_gpu_u64("gpu_readback_bytes", timings.gpu.gpu_readback_bytes);
     put_gpu_u64("gpu_upload_bytes", timings.gpu.gpu_upload_bytes);
+    put_gpu_u64("vma_allocation_count", timings.gpu.vma_allocation_count);
+    put_gpu_u64("vma_usage_bytes", timings.gpu.vma_usage_bytes);
+    put_gpu_u64("vma_budget_bytes", timings.gpu.vma_budget_bytes);
     put_gpu_u64("cuda_host_upload_bytes", timings.gpu.cuda_host_upload_bytes);
     put_gpu_u64("cuda_host_upload_bytes_prewarm", timings.gpu.cuda_host_upload_bytes_prewarm);
     put_gpu_u64("cuda_host_upload_bytes_steady", timings.gpu.cuda_host_upload_bytes_steady);
