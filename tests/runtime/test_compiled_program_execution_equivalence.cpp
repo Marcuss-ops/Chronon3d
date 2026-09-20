@@ -3,7 +3,7 @@
 //
 // Typed-program execution gate. The old render-plan comparison was removed
 // with the legacy sampler bridge; this corpus checks deterministic output from
-// the canonical CompiledProgram -> ProgramSampler -> graph path.
+// the canonical CompiledProgram -> SceneMaterializer -> graph path.
 // =============================================================================
 
 #include <doctest/doctest.h>

@@ -1,11 +1,11 @@
-#include <chronon3d/compiler/program_sampler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
 #include <cmath>
 
 namespace chronon3d::compiler {
 
-chronon3d::Scene ProgramSampler::materialize_scene(
+chronon3d::Scene SceneMaterializer::materialize_scene(
     const CompiledProgram& program, std::pmr::memory_resource* resource) const {
     const auto& meta = program.metadata();
     SceneBuilder scene(resource);
