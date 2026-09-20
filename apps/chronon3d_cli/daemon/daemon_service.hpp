@@ -190,7 +190,7 @@ private:
     // m_admission_cv until an active job finishes and releases its reservation.
     mutable std::mutex m_admission_mutex;
     mutable std::condition_variable m_admission_cv;
-    bool m_running{true};
+    std::atomic<bool> m_running{true};
     std::atomic<int> m_render_count{0};
     std::atomic<double> m_total_render_ms{0.0};
 };
