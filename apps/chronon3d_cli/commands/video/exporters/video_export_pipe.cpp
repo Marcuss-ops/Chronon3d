@@ -616,6 +616,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
                 timings.gpu.gpu_readback_bytes = value;
             } else if (name == "gpu_upload_bytes") {
                 timings.gpu.gpu_upload_bytes = value;
+            } else if (name == "vma_allocation_count") {
+                timings.gpu.vma_allocation_count = value;
+            } else if (name == "vma_usage_bytes") {
+                timings.gpu.vma_usage_bytes = value;
+            } else if (name == "vma_budget_bytes") {
+                timings.gpu.vma_budget_bytes = value;
             } else if (name == "gpu_upload_full_surface_bytes") {
                 timings.gpu.gpu_upload_full_surface_bytes = value;
             } else if (name == "gpu_upload_region_bytes") {

@@ -128,6 +128,12 @@ struct GpuMetrics {
     std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_us;
     std::optional<std::uint64_t> gpu_readback_bytes;
     std::optional<std::uint64_t> gpu_upload_bytes;
+    // Allocator-owned device residency sampled from the backend (VMA), not
+    // host-wide nvidia-smi. These fields are per-job snapshots used by VRAM
+    // admission calibration and are null when the backend has no allocator.
+    std::optional<std::uint64_t> vma_allocation_count;
+    std::optional<std::uint64_t> vma_usage_bytes;
+    std::optional<std::uint64_t> vma_budget_bytes;
     // CUDA-lane host uploads (VideoDeviceRuntime image cache cuMemcpyHtoD),
     // the other half of zero-copy gate 1; gpu_upload_bytes is the Vulkan
     // backend half. Device-cumulative, same window semantics as backend stats.
