@@ -1,5 +1,5 @@
 option(CHRONON3D_CLI_WITH_CANARY_REGISTRY
-    "Compile and register the Motion3D canary composition pack" ON)
+    "Compile and register the Motion3D canary composition pack" OFF)
 
 add_executable(chronon3d_cli
     main.cpp
