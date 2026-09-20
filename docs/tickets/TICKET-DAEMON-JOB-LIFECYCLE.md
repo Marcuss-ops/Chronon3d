@@ -1,8 +1,9 @@
 # TICKET-DAEMON-JOB-LIFECYCLE — il renderer non è lento: lo è il ciclo di vita del job
 
-Stato: **OPEN** — leva 1 parzialmente chiusa (i 1 280 ms attribuiti e rimossi,
-come `SystemMetricsCollector` che join-ava un `sleep_for(1s)`), resta il ~1 s
-**intermittente** del percorso di produzione e restano le leve 2–5.
+Stato: **OPEN** — la sincronizzazione di lifecycle/admission è ora RAII e
+race-free, e l'allocator telemetry contract è atterrato; restano la misura GPU
+multi-shape, la decisione runtime sul mutex, il batch one-runtime/one-pool e
+il ~1 s intermittente del percorso di produzione.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 Origine: misure 2026-09-16 sulla matrice overlay 10×10 e sul probe a due job.
 
@@ -141,6 +142,12 @@ certificate e la telemetria interna degli allocator (exit condition §5).
    due runtime simultanei, §5).
 
 ## 5. Exit condition della domanda "si può togliere il mutex?"
+
+**Repository closeout (2026-09-20):** the daemon admission context now owns the
+policy-selected lock and scheduler reservation through RAII, shutdown observes
+`m_running` atomically, and VMA allocator snapshots are carried into the video
+GPU timing sidecar. These changes make the gate fail-closed and measurable; they
+do not authorize removing the mutex without the external 3–5-shape GPU suite.
 
 L'harness di laboratorio che tiene **due runtime della stessa shape vivi
 contemporaneamente** (due daemon posseduti su socket distinti, campionamento
