@@ -149,22 +149,26 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
     target_link_libraries(chronon3d_backend_vulkan
         PUBLIC "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
 
-    add_executable(chronon3d_cuda_vulkan_external_memory_probe
-        "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_external_memory_probe.cpp"
-        cuda_vulkan_surface_bridge.cpp)
-    target_include_directories(chronon3d_cuda_vulkan_external_memory_probe
-        PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
-    target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
-        PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    if(CHRONON3D_BUILD_HWLAB)
+        add_executable(chronon3d_cuda_vulkan_external_memory_probe
+            "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_external_memory_probe.cpp"
+            cuda_vulkan_surface_bridge.cpp)
+        target_include_directories(chronon3d_cuda_vulkan_external_memory_probe
+            PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
+        target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
+            PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+    endif()
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-        add_executable(chronon3d_cuda_vulkan_nvenc_probe
-            "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_nvenc_probe.cpp")
-        target_include_directories(chronon3d_cuda_vulkan_nvenc_probe
-            PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
-        target_link_libraries(chronon3d_cuda_vulkan_nvenc_probe
-            PRIVATE chronon3d_ffmpeg_full Vulkan::Vulkan
-                    "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+        if(CHRONON3D_BUILD_HWLAB)
+            add_executable(chronon3d_cuda_vulkan_nvenc_probe
+                "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_nvenc_probe.cpp")
+            target_include_directories(chronon3d_cuda_vulkan_nvenc_probe
+                PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}")
+            target_link_libraries(chronon3d_cuda_vulkan_nvenc_probe
+                PRIVATE chronon3d_ffmpeg_full Vulkan::Vulkan
+                        "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+        endif()
 
         if(TARGET chronon3d_media_native)
             target_include_directories(chronon3d_media_native PRIVATE
@@ -175,29 +179,31 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
         if(CHRONON3D_NVRTC_INCLUDE_DIR AND CHRONON3D_NVRTC_LIBRARY)
             target_link_libraries(chronon3d_backend_vulkan PUBLIC
                 "${CHRONON3D_NVRTC_LIBRARY}")
-            add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_nvdec_nvenc_overlay_bench.cpp")
-            target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}"
-                        "${CHRONON3D_NVRTC_INCLUDE_DIR}")
-            target_link_libraries(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                PRIVATE chronon3d_ffmpeg_full
-                        "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
-                        "${CHRONON3D_NVRTC_LIBRARY}")
-
-            find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR ffnvcodec/nvEncodeAPI.h
-                HINTS "$ENV{NV_CODEC_HEADERS}" "$ENV{NV_CODEC_INCLUDE_DIR}"
-                PATH_SUFFIXES include)
-            find_library(CHRONON3D_NVENCODE_LIBRARY nvidia-encode
-                HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
-                PATH_SUFFIXES lib64 lib lib/x64)
-            if(CHRONON3D_NV_CODEC_INCLUDE_DIR AND CHRONON3D_NVENCODE_LIBRARY)
-                target_compile_definitions(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                    PRIVATE CHRONON3D_ENABLE_RAW_NVENC)
+            if(CHRONON3D_BUILD_HWLAB)
+                add_executable(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                    "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_nvdec_nvenc_overlay_bench.cpp")
                 target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                    PRIVATE "${CHRONON3D_NV_CODEC_INCLUDE_DIR}")
+                    PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}"
+                            "${CHRONON3D_NVRTC_INCLUDE_DIR}")
                 target_link_libraries(chronon3d_cuda_nvdec_nvenc_overlay_bench
-                    PRIVATE "${CHRONON3D_NVENCODE_LIBRARY}" dl)
+                    PRIVATE chronon3d_ffmpeg_full
+                            "${CHRONON3D_CUDA_DRIVER_LIBRARY}"
+                            "${CHRONON3D_NVRTC_LIBRARY}")
+
+                find_path(CHRONON3D_NV_CODEC_INCLUDE_DIR ffnvcodec/nvEncodeAPI.h
+                    HINTS "$ENV{NV_CODEC_HEADERS}" "$ENV{NV_CODEC_INCLUDE_DIR}"
+                    PATH_SUFFIXES include)
+                find_library(CHRONON3D_NVENCODE_LIBRARY nvidia-encode
+                    HINTS "$ENV{CUDA_HOME}" "$ENV{CUDA_PATH}"
+                    PATH_SUFFIXES lib64 lib lib/x64)
+                if(CHRONON3D_NV_CODEC_INCLUDE_DIR AND CHRONON3D_NVENCODE_LIBRARY)
+                    target_compile_definitions(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                        PRIVATE CHRONON3D_ENABLE_RAW_NVENC)
+                    target_include_directories(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                        PRIVATE "${CHRONON3D_NV_CODEC_INCLUDE_DIR}")
+                    target_link_libraries(chronon3d_cuda_nvdec_nvenc_overlay_bench
+                        PRIVATE "${CHRONON3D_NVENCODE_LIBRARY}" dl)
+                endif()
             endif()
         endif()
     endif()
