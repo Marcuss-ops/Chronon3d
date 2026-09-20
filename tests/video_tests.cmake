@@ -77,3 +77,12 @@ chronon3d_add_test_suite(
             video/test_direct_yuv_text_contract.cpp
             video/test_nv12_region_policy.cpp
 )
+
+# Video/export suites are selectable with ctest -L video.
+chronon3d_label_tests(video
+    chronon3d_video_contracts_tests
+    chronon3d_native_video_sink_factory_tests
+    chronon3d_no_native_video_sink_factory_tests
+    chronon3d_keyframe_cadence_tests
+    chronon3d_source_sample_table_tests
+    chronon3d_zero_copy_capability_tests)
