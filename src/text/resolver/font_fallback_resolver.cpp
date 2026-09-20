@@ -86,6 +86,14 @@ namespace {
             spec.font_family = std::move(family);
             spec.font_style  = std::move(style);
             spec.font_weight = weight;
+            // FreeSerif is bundled for explicit outline/emoji fixtures, but
+            // its broad Arabic coverage must not win the automatic fallback
+            // scan over the script-specific Noto families. Callers that
+            // explicitly request FreeSerif still retain it unchanged.
+            std::string family_key = spec.font_family;
+            std::transform(family_key.begin(), family_key.end(), family_key.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (family_key == "freeserif" || family_key == "free serif") continue;
             specs.push_back(std::move(spec));
         }
     }
