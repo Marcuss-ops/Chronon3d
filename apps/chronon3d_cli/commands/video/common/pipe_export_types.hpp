@@ -75,7 +75,10 @@ inline void observe_pipeline_peak(
     }
 }
 
-struct WriterThreadContext {
+/// Context for the single encoder-consumer thread. The implementation is a
+/// shared in-process sink for FullGraph, DirectYUV, and CPU fallback frames;
+/// it is deliberately not tied to the historical subprocess-pipe name.
+struct EncoderSinkContext {
     RenderFrameQueue& queue;
     PipelineDepthMetrics& pipeline_metrics;
     std::atomic<bool>& writer_failed;
@@ -132,11 +135,11 @@ struct RenderLoopOutput {
     std::chrono::steady_clock::time_point render_end;
 };
 
-void run_writer_thread(const WriterThreadContext& ctx);
+void run_encoder_sink_thread(const EncoderSinkContext& ctx);
 
 /// F5.2 — exception-boundary target. Declared here so the boundary wrapper
-/// in pipe_export_writer.cpp can call it; definition lives in the same TU.
-void run_writer_thread_impl(const WriterThreadContext& ctx);
+/// in video_export_sink.cpp can call it; definition lives in the same TU.
+void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx);
 
 [[nodiscard]] RenderLoopResult run_render_loop(const RenderLoopContext& ctx);
 
