@@ -33,8 +33,11 @@ int main(int argc, char** argv) {
     chronon3d::register_content_modules(test_catalog, test_ctx);
 #endif
 
-    // Enable debug logging to see why assets might fail to load
-    spdlog::set_level(spdlog::level::debug);
+    // Warning-level logging in tests: debug output (such as the
+    // RuntimeContext::populate() banner emitted once per test process) is pure
+    // noise and drowns real failures; asset-loading problems surface as
+    // warnings/errors, not debug lines.
+    spdlog::set_level(spdlog::level::warn);
 
     int res = context.run();
 
