@@ -21,7 +21,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/compiler/program_sampler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/motion/contract_apply.hpp>
 #include <chronon3d/motion/element_contract.hpp>
@@ -289,7 +289,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const auto topology = m_topologies.compute_if_absent(
         key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
             return {std::make_shared<const Scene>(
-                        compiler::ProgramSampler{}.materialize_scene(program)),
+                        compiler::SceneMaterializer{}.materialize_scene(program)),
                     1};
         });
     return chronon3d::graph::render_scene_via_graph(
