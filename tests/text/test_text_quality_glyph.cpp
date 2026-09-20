@@ -14,7 +14,7 @@ TEST_CASE("TextQuality: glyph placement — relative offsets used") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto run = shape(engine, "ABC", 32.0f);
     REQUIRE(run.has_value());
@@ -40,7 +40,7 @@ TEST_CASE("TextQuality: glyph placement — no double-counting") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto run = shape(engine, "AV", 32.0f);
     REQUIRE(run.has_value());
@@ -58,7 +58,7 @@ TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto run = shape(engine, "M", 100.0f);
     REQUIRE(run.has_value());
@@ -80,7 +80,7 @@ TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "ABC";
@@ -108,7 +108,7 @@ TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "A";
@@ -131,7 +131,7 @@ TEST_CASE("TextQuality: tracking — empty string has zero width") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "";

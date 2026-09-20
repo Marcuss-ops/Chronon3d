@@ -212,7 +212,7 @@ TEST_CASE("ShapingCorpus: AVATAR records glyph IDs, advances and kerning") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("AVATAR");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -249,7 +249,7 @@ TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("office affine");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -290,7 +290,7 @@ TEST_CASE("ShapingCorpus: To WA records glyph and cluster metrics") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("To WA");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -307,7 +307,7 @@ TEST_CASE("ShapingCorpus: Cafe déjà vu cluster mapping is valid") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("Café déjà vu");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -333,7 +333,7 @@ TEST_CASE("ShapingCorpus: Cyrillic Привет мир shapes and records metric
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("Привет мир");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -350,9 +350,7 @@ TEST_CASE("ShapingCorpus: Arabic contextual shaping differs from isolated forms"
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine, noto_naskh_arabic_quality())) {
-        if (!require_font(engine)) return;
-    }
+    REQUIRE(require_font(engine, noto_naskh_arabic_quality()));
 
     auto doc = make_corpus_doc("مرحبا بالعالم");
     // Prefer Noto Naskh Arabic if available so contextual forms are real.
@@ -409,7 +407,7 @@ TEST_CASE("ShapingCorpus: Hebrew עברית shapes with RTL direction") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("עברית");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -441,7 +439,7 @@ TEST_CASE("ShapingCorpus: Devanagari हिन्दी shapes with clusters") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("हिन्दी");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -465,7 +463,7 @@ TEST_CASE("ShapingCorpus: Thai ภาษาไทย shapes with clusters") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("ภาษาไทย");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -489,7 +487,7 @@ TEST_CASE("ShapingCorpus: CJK 你好世界 shapes with valid advances") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("你好世界");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
@@ -517,7 +515,7 @@ TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one cluster") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     // U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466  👨‍👩‍👧‍👦
     const std::string family = "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7\xE2\x80\x8D\xF0\x9F\x91\xA6";
@@ -552,7 +550,7 @@ TEST_CASE("ShapingCorpus: mixed RTL/LTR produces multiple directional runs") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     // "Hello " + Arabic "سلام" + " World"
     const std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
@@ -615,7 +613,7 @@ TEST_CASE("ShapingCorpus: word wrap reduces layout width") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextDocument doc;
     doc.utf8 = "The quick brown fox jumps over the lazy dog";

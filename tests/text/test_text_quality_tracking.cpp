@@ -57,7 +57,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits e+combining acute"
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = text;
@@ -89,7 +89,7 @@ TEST_CASE("TextQuality: integration — wrapping never splits RI flag pair") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = text;
@@ -118,7 +118,7 @@ TEST_CASE("TextQuality: inter-token tracking — non-wrapping adds tracking betw
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "AB CD";
@@ -141,7 +141,7 @@ TEST_CASE("TextQuality: inter-token tracking — three words have more gaps") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "A B C";
@@ -164,7 +164,7 @@ TEST_CASE("TextQuality: inter-token tracking — single token has fewer gaps") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "ABC";
@@ -187,7 +187,7 @@ TEST_CASE("TextQuality: inter-token tracking — single char with spaces has no 
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "A";
@@ -210,7 +210,7 @@ TEST_CASE("TextQuality: inter-token tracking — word wrap preserves inter-token
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "ABCDEF";
@@ -238,7 +238,7 @@ TEST_CASE("TextQuality: inter-token tracking — multi-word wrap with tracking")
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "AB CD EF";
@@ -266,7 +266,7 @@ TEST_CASE("TextQuality: inter-token tracking — ellipsis with tracking remeasur
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "ABCD EFGH IJKL MNOP";
@@ -295,7 +295,7 @@ TEST_CASE("TextQuality: inter-token tracking — no tracking with zero value") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     TextLayoutInput li;
     li.text = "A B C D E";
@@ -322,7 +322,7 @@ TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "HELLO WORLD";
     const float size = 48.0f;
@@ -352,7 +352,7 @@ TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "ABC";
     const float size = 32.0f;
@@ -381,7 +381,7 @@ TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total")
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "ABCD";
     const float size = 48.0f;
@@ -409,7 +409,7 @@ TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-c
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "A" "e\xCC\x81" "B";
     const float size = 48.0f;
@@ -443,7 +443,7 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string zwj_seq =
         "\xF0\x9F\x91\xA9"
@@ -475,7 +475,7 @@ TEST_CASE("TextQuality: typewriter tracking — different tracking values scale 
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "TYPEWRITER";
     const float size = 40.0f;
@@ -508,7 +508,7 @@ TEST_CASE("TextQuality: typewriter — progressive reveal keeps final anchor fix
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     const std::string text = "T.y. {W!g?#% 123} - AV";
     const float size = 64.0f;

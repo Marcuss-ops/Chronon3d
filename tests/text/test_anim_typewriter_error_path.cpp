@@ -57,7 +57,7 @@ TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     FrameContext ctx = make_frame_context(FrameContextParams{
     .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
@@ -93,7 +93,7 @@ TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") 
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     FrameContext ctx = make_frame_context(FrameContextParams{
     .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
@@ -125,7 +125,7 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     FrameContext ctx = make_frame_context(FrameContextParams{
     .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
@@ -176,7 +176,7 @@ TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!require_font(engine)) return;
+    REQUIRE(require_font(engine));
 
     auto comp = composition(
         {.name = "TypewriterFrames",
