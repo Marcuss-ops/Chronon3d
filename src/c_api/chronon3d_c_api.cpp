@@ -5,6 +5,7 @@
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/motion/contract_apply.hpp>
 #include <chronon3d/motion/contract_bridge.hpp>
+#include <chronon3d/motion/element_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/sdk/render_engine.hpp>

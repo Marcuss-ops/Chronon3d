@@ -167,6 +167,7 @@ chronon3d_add_test_suite(
         chronon3d_sdk_impl
         chronon3d_scene
     SOURCES scene/motion/test_motion_contract_bridge.cpp
+            scene/motion/test_element_contract.cpp
 )
 target_include_directories(chronon3d_motion_contract_bridge_tests PRIVATE ${CMAKE_SOURCE_DIR})
 

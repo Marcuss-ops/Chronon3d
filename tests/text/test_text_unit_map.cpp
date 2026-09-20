@@ -109,6 +109,32 @@ TEST_CASE("TextUnitMap: lines separated by newline") {
     CHECK(map.glyph_to_line[source.size() - 1] != map.glyph_to_line[0]);
 }
 
+TEST_CASE("TextUnitMap: wrapped visual lines follow placed baselines") {
+    const std::string source = "ABCD";
+    PlacedGlyphRun run;
+    for (size_t i = 0; i < source.size(); ++i) {
+        PlacedGlyph g;
+        g.glyph_id = static_cast<u32>(i + 1);
+        g.cluster = static_cast<u32>(i);
+        g.is_cluster_start = true;
+        g.advance_x = 10.0f;
+        g.x = static_cast<float>(i % 2) * 10.0f;
+        g.y = static_cast<float>(i / 2) * 20.0f;
+        g.byte_offset = i;
+        g.byte_len = 1;
+        run.glyphs.push_back(g);
+    }
+
+    const auto map = build_text_unit_map(run, source);
+    REQUIRE(map.line_count == 2);
+    CHECK(map.glyph_to_line[0] == 0);
+    CHECK(map.glyph_to_line[1] == 0);
+    CHECK(map.glyph_to_line[2] == 1);
+    CHECK(map.glyph_to_line[3] == 1);
+    CHECK(map.first_glyph_for_line[0] == 0);
+    CHECK(map.first_glyph_for_line[1] == 2);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Exclude_spaces tests
 // ═══════════════════════════════════════════════════════════════════════════

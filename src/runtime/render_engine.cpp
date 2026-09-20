@@ -7,6 +7,7 @@
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/motion/contract_apply.hpp>
+#include <chronon3d/motion/element_contract.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>

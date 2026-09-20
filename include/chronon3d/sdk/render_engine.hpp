@@ -44,6 +44,7 @@
 /// it crosses this header, so the tag is declared rather than the C ABI header
 /// pulled into the SDK surface.
 struct chronon_layer_state;
+struct chronon_element_state;
 
 namespace chronon3d::compiler {
 class CompiledProgram;
@@ -114,6 +115,15 @@ public:
                    Frame frame,
                    const chronon_layer_state* layer_states,
                    std::size_t layer_state_count);
+
+    [[nodiscard]]
+    chronon3d::Result<RenderOutput, RenderError>
+    render_program(const chronon3d::compiler::CompiledProgram& program,
+                   Frame frame,
+                   const chronon_layer_state* layer_states,
+                   std::size_t layer_state_count,
+                   const chronon_element_state* element_states,
+                   std::size_t element_state_count);
 
     /// Render a contiguous frame range into an encoded video file.
     /// This is a public wrapper over the same internal frame renderer and

@@ -258,7 +258,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             break;
                         }
                     }
-                    detail::apply_layer_primitives(builder, layer);
+                    detail::apply_layer_primitives(
+                        builder, layer, plan.canvas.width, plan.canvas.height);
                     if (layer.type == LayerType::Video &&
                         layer.position_dimensions >= 2) {
                         const float sx = std::abs(layer.scale[0]) > 1e-6f

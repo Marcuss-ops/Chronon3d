@@ -12,6 +12,9 @@ namespace chronon3d::render_plan::detail {
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer);
 [[nodiscard]] chronon3d::TextDefinition materialize_text(
     const LayerPlan& layer, const chronon3d::CanvasInfo& canvas);
-void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& layer);
+void apply_layer_primitives(chronon3d::LayerBuilder& builder,
+                            const LayerPlan& layer,
+                            int canvas_width,
+                            int canvas_height);
 
 }  // namespace chronon3d::render_plan::detail

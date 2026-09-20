@@ -189,9 +189,18 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) 
     return animator;
 }
 
-void apply_animation_tracks(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
+void apply_animation_tracks(chronon3d::LayerBuilder& builder,
+                            const LayerPlan& layer,
+                            int canvas_width,
+                            int canvas_height) {
     if (!layer.animation) return;
-    const chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
+    chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
+    if (layer.type == LayerType::Text && layer.position_dimensions >= 2) {
+        // Primitive animation keyframes are offsets from the authored text
+        // centre. Resolve that centre once before applying the offsets.
+        base_position.x -= static_cast<float>(canvas_width) * 0.5f;
+        base_position.y -= static_cast<float>(canvas_height) * 0.5f;
+    }
     const chronon3d::Vec3 base_scale{layer.scale[0], layer.scale[1], layer.scale[2]};
     const chronon3d::Vec3 base_rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
 
@@ -292,18 +301,35 @@ void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& l
         builder.animator(compile_text_animator(animator));
 }
 
-void apply_layer_primitives(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
+void apply_layer_primitives(chronon3d::LayerBuilder& builder,
+                            const LayerPlan& layer,
+                            int canvas_width,
+                            int canvas_height) {
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
-    if (layer.position_dimensions >= 2)
-        builder.position({layer.position[0], layer.position[1], layer.position[2]});
+    if (layer.position_dimensions >= 2) {
+        // Render-plan text geometry is authored in canvas coordinates with a
+        // top-left box origin, while LayerBuilder transforms are centred on
+        // the canvas.  The old path applied [x,y] directly and therefore
+        // translated a centred [960,540] text box another [960,540] pixels
+        // into the bottom-right corner.  Convert the box origin once; motion
+        // tracks remain additive offsets from this resolved placement.
+        if (layer.type == LayerType::Text) {
+            builder.position({
+                layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
+                layer.position[1] - static_cast<float>(canvas_height) * 0.5f,
+                layer.position[2]});
+        } else {
+            builder.position({layer.position[0], layer.position[1], layer.position[2]});
+        }
+    }
     if (layer.scale_dimensions >= 2)
         builder.scale({layer.scale[0], layer.scale[1], layer.scale[2]});
     if (layer.rotation_dimensions > 0)
         builder.rotate({layer.rotation[0], layer.rotation[1], layer.rotation[2]});
     if (layer.blend_mode) builder.blend(*layer.blend_mode);
     if (layer.opacity) builder.opacity(*layer.opacity);
-    apply_animation_tracks(builder, layer);
+    apply_animation_tracks(builder, layer, canvas_width, canvas_height);
 }
 
 }  // namespace chronon3d::render_plan::detail

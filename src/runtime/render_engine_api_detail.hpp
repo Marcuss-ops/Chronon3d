@@ -113,6 +113,14 @@ std::shared_ptr<Framebuffer> RenderEngine::render_program(
     const compiler::CompiledProgram& program, Frame frame,
     const chronon_layer_state* layer_states, std::size_t layer_state_count)
 {
+    return render_program(program, frame, layer_states, layer_state_count, nullptr, 0);
+}
+
+std::shared_ptr<Framebuffer> RenderEngine::render_program(
+    const compiler::CompiledProgram& program, Frame frame,
+    const chronon_layer_state* layer_states, std::size_t layer_state_count,
+    const chronon_element_state* element_states, std::size_t element_state_count)
+{
     // ADR-032: refuse a malformed handshake here, at the execution boundary,
     // before any render work starts — the same place and the same reason the
     // asset integrity check below runs.
@@ -153,8 +161,15 @@ std::shared_ptr<Framebuffer> RenderEngine::render_program(
     settings.render_budget.max_temporal_pixels = b.max_temporal_pixels;
     m_impl->m_renderer->set_settings(settings);
     m_impl->m_renderer->session().clear_last_frame_error();
+    if (motion::ElementApplyReport element_refused{};
+        !motion::validate_element_states(element_states, element_state_count, &element_refused)) {
+        throw std::runtime_error(
+            "element state handshake refused " + std::to_string(element_refused.rejected) +
+            " record(s)");
+    }
     return m_impl->m_pipeline->render_program(
-        program, frame, nullptr, layer_states, layer_state_count);
+        program, frame, nullptr, layer_states, layer_state_count,
+        element_states, element_state_count);
 }
 
 PreparedRenderJob RenderEngine::prepare(

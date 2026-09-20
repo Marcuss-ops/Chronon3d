@@ -19,6 +19,12 @@ AnimationProperty property_kind(std::string_view property) {
     if (property == "scale_y") return AnimationProperty::ScaleY;
     if (property == "scale_z") return AnimationProperty::ScaleZ;
     if (property == "scale") return AnimationProperty::UniformScale;
+    if (property == "rotation.x") return AnimationProperty::RotationX;
+    if (property == "rotation.y") return AnimationProperty::RotationY;
+    if (property == "rotation.z") return AnimationProperty::RotationZ;
+    if (property == "rotation_x") return AnimationProperty::RotationX;
+    if (property == "rotation_y") return AnimationProperty::RotationY;
+    if (property == "rotation_z") return AnimationProperty::RotationZ;
     return AnimationProperty::Unknown;
 }
 }
