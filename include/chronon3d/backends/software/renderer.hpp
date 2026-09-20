@@ -1,16 +1,10 @@
 #pragma once
 
-#include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/scene/model/camera/camera.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/timeline/composition.hpp>
-
-#include <memory>
-#include <optional>
-
 namespace chronon3d {
 
+// The former scene/debug rendering interface was retired in Fase C3. Keep
+// this lightweight type name for internal source compatibility; rendering now
+// enters through the canonical graph or compiled-composition APIs.
 class Renderer {
 public:
     Renderer() = default;
@@ -20,17 +14,6 @@ public:
     Renderer(Renderer&&) noexcept = default;
     Renderer& operator=(Renderer&&) noexcept = default;
 
-    virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
-                                                      const Camera& camera,
-                                                      i32 width,
-                                                      i32 height,
-                                                      float fps) = 0;
-
-    virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
-                                                      const std::optional<Camera2_5D>& camera,
-                                                      i32 width,
-                                                      i32 height,
-                                                      float fps) = 0;
 };
 
 } // namespace chronon3d

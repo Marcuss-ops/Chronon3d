@@ -4,12 +4,7 @@
 // M1.5#12 2/4 — SoftwareRenderer dispatch surface: render entry points +
 // shape/composite/effect-blur/DOF dispatch to the resolved execution context.
 //
-// Single source of truth for the renderer's "dispatch to backend" methods
-// that do NOT touch text resources.  The text-aware `render_scene(scene,
-// optional<Camera2_5D>)` overload (which auto-arms `debug_io_fence` via
-// `RenderIOFenceGuard`) lives in `software_renderer_text.cpp` for
-// single-responsibility cohesion — that overload is functionally
-// preflight+arm-dispatch combined, not pure dispatch.
+// Single source of truth for the renderer's dispatch-to-backend methods.
 //
 // Helpers `to_local_clip` and `clipped_area` are confined to the
 // anonymous namespace of THIS TU because they are only used by
@@ -102,7 +97,6 @@ void SoftwareRenderer::preflight_images(const Scene& scene) {
 // ── Render entry points ──────────────────────────────────────────────────────
 
 /// Fase C3 — canonical unified pipeline.  This is the V0.2 SDK path;
-/// `render_scene()` overloads are @deprecated thin wrappers.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
                                                      Frame frame) {
     if (!m_session.software.authoring_compiled_composition ||
@@ -152,70 +146,6 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     m_session.common.clear_last_frame_error();
     return runtime::RenderPipeline(this, m_execution_context).render_program(program, frame);
-}
-
-/// @deprecated Fase C3 — use render(Composition, Frame) instead.
-std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
-                                                            const Camera& camera, i32 width,
-                                                            i32 height, float fps) {
-    m_session.common.clear_last_frame_error();
-    // Cat-2 font preflight: warm both BLFontFace and FreeTypeFace caches
-    // BEFORE any draw_text_run dispatch.  After this call, every
-    // render-thread resolve_handle becomes a cache hit (no I/O).  The
-    // I/O fence itself is opt-in (callers/test may arm with
-    // trr->set_debug_io_fence(true) for defence-in-depth).
-    //
-    // preflight_fonts() body lives in software_renderer_text.cpp; declared
-    // canonically here via the class header, so link works.
-    if (auto* trr = text_render_resources(); trr && m_execution_context.text.assets) {
-        (void)preflight_fonts(scene, *m_execution_context.text.assets);
-    }
-
-    // This deprecated scene wrapper predates the compiled preparation
-    // barrier. Keep its compatibility contract explicit: image I/O is done
-    // once before graph execution, while the graph/render loop remains
-    // lookup-only. The canonical composition path uses prepare_render()
-    // instead and does not enter this wrapper.
-    preflight_images(scene);
-    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
-
-    auto res = graph::render_scene_via_graph(
-        *m_execution_context.backend,
-        node_cache(),
-        scene,
-        camera,
-        width,
-        height,
-        0,
-        0.0f,
-        m_settings,
-        m_execution_context.registry.compositions,
-        m_execution_context.video_decoder,
-        fps,
-        "scene",
-        this
-    );
-    return res;
-}
-
-/// @deprecated Fase C3 — diagnostics-only wrapper.
-std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
-                                                  i32 width, i32 height, float fps, Frame frame,
-                                                  f32 frame_time) const {
-    return graph::debug_scene_graph(
-        *m_execution_context.backend,
-        const_cast<cache::NodeCache&>(node_cache()),
-        scene,
-        camera,
-        width,
-        height,
-        frame,
-        frame_time,
-        m_settings,
-        m_execution_context.registry.compositions,
-        m_execution_context.video_decoder,
-        fps
-    );
 }
 
 // ── Shape dispatch ───────────────────────────────────────────────────────────

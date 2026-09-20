@@ -209,9 +209,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
     float fps)
 {
     // 2.5D variant: clone the scene, stamp the optional camera
-    // onto it, then route through the standard Scene path.  Mirrors
-    // `SoftwareRenderer::render_scene(scene, optional<Camera2_5D>, …)`
-    // semantics exactly.
+    // onto it, then route through the standard Scene path.
     Scene effective = scene.clone();
     if (camera.has_value()) {
         effective.set_camera_2_5d(*camera);
