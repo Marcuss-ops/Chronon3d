@@ -181,7 +181,7 @@ struct PipeExportSession {
     RenderFrameQueue queue;
     PipelineDepthMetrics pipeline_metrics;
     std::atomic<bool> writer_failed{false};
-    std::unique_ptr<WriterThreadContext> writer_ctx;
+    std::unique_ptr<EncoderSinkContext> sink_ctx;
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};
     std::atomic<int> frames_encoded{0};
