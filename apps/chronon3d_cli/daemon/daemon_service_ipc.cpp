@@ -2,12 +2,11 @@
 #include "daemon_render_concurrency.hpp"
 #include "daemon_render_job_payload.hpp"
 #include "daemon_service_internal.hpp"
+#include "daemon_service_ipc_protocol.hpp"
+#include "daemon_service_job_admission.hpp"
 
-#include <chronon3d/api/render_engine.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
-#include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/runtime/job/render_job_request.hpp>
 
 #include <nlohmann/json.hpp>
@@ -16,7 +15,6 @@
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -73,54 +71,6 @@ bool spec_or_root_bool(
     return fallback;
 }
 
-enum class PlanDimensions : std::uint8_t {
-    NotRequested,   // no plan path, or the caller already knows the canvas
-    Resolved,       // canvas (or width+height) read from the plan
-    NoCanvasField,  // plan parsed, but it carries no canvas: unknown, not invented
-    Unreadable,     // plan missing or corrupt: fail closed, never guess
-};
-
-/// Read the plan's canvas dimensions for the admission charge.
-///
-/// AUDIT §6 — this used to swallow every failure with `catch (...) {}` and then
-/// substitute hardcoded 1920x1080. Those dimensions are not cosmetic: they feed
-/// `resolve_device_requirements(...)` and therefore the VRAM admission charge,
-/// so an unreadable plan silently under- or over-charged the device with no log
-/// and no way for the caller to notice. A plan that cannot be read is now
-/// reported (`Unreadable`) and the caller refuses the job; a plan that simply
-/// has no canvas is reported as unknown (`NoCanvasField`) so the pre-compile
-/// floor stays the honest answer instead of a manufactured one.
-PlanDimensions extract_plan_dimensions(const std::filesystem::path& plan_path,
-                                      std::uint32_t& width, std::uint32_t& height) {
-    if (width > 0 && height > 0) return PlanDimensions::NotRequested;
-    if (plan_path.empty()) return PlanDimensions::NotRequested;
-    std::ifstream file(plan_path);
-    if (!file.is_open()) {
-        spdlog::error("[daemon] plan dimensions unavailable: cannot open '{}'",
-                      plan_path.string());
-        return PlanDimensions::Unreadable;
-    }
-    try {
-        nlohmann::json plan_json;
-        file >> plan_json;
-        if (plan_json.contains("canvas") && plan_json["canvas"].is_object()) {
-            width = plan_json["canvas"].value("width", 0U);
-            height = plan_json["canvas"].value("height", 0U);
-        } else if (plan_json.contains("width") && plan_json.contains("height")) {
-            width = plan_json.value("width", 0U);
-            height = plan_json.value("height", 0U);
-        }
-    } catch (const std::exception& exception) {
-        spdlog::error("[daemon] plan dimensions unavailable: '{}' is not a readable "
-                      "plan ({})", plan_path.string(), exception.what());
-        width = 0;
-        height = 0;
-        return PlanDimensions::Unreadable;
-    }
-    return (width > 0 && height > 0) ? PlanDimensions::Resolved
-                                     : PlanDimensions::NoCanvasField;
-}
-
 // ── The RENDER_JOB payload vocabulary (closed) ──────────────────────────────
 //
 // Union of what the RenderingGen client actually sends
@@ -139,7 +89,7 @@ PlanDimensions extract_plan_dimensions(const std::filesystem::path& plan_path,
 constexpr std::string_view kRenderJobRootKeys[] = {
     "plan_path", "prepared_package_path", "output", "assets_root", "report",
     "trace_output", "trace_level", "receipt_verify",
-    "range_enabled", "first_frame", "last_frame",
+    "range_enabled", "first_frame", "last_frame", "parallel_disjoint",
     "codec", "hardware_encoder", "hardware", "encoder_backend",
     "ffmpeg_mode", "gpu_hot_path_mode", "encode_preset", "rate_control_mode",
     "crf", "qp", "bitrate", "audio_source_path",
@@ -283,6 +233,10 @@ runtime::job::RenderJobRequest decode_render_job_payload(
             request.value("first_frame", std::int64_t{0}),
             request.value("last_frame", std::int64_t{0})};
     }
+    // This is an explicit producer contract. A frame range by itself is not
+    // enough to authorize overlap: it may be a seek/export request whose
+    // complementary range is not owned by another job.
+    job_request.parallel_disjoint = request.value("parallel_disjoint", false);
 
     auto& out = job_request.output;
     out.codec = spec_or_root(request, "codec");
@@ -456,16 +410,6 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             // daemon currently receives. A job the policy admits as
             // ParallelDisjoint (a disjoint chunk of a plan with room for a
             // second peak footprint) takes the shared side instead.
-            static_assert(kSerializedRenderJobSlots == 1U,
-                          "one exclusive execution domain admits exactly one render job");
-            static_assert(kRenderJobExecutionSerialized,
-                          "this path holds ONE execution-domain mutex for the "
-                          "whole render, so the policy must keep answering "
-                          "Serial on the reference device (the flag is DERIVED "
-                          "from decide_render_admission, so this fires exactly "
-                          "when the policy changes, never from a hand edit)");
-
-            std::unique_lock<std::mutex> render_job_lock(m_render_job_mutex);
             const bool native_nvenc = canon.native_nvenc;
             const std::string& hot_path = canon.gpu_hot_path_mode;
             const std::string& codec = canon.codec;
@@ -498,33 +442,27 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             const auto estimated_vram = requirements.resources.vram_bytes;
 
             // The concurrency verdict for THIS job, charged with the peak
-            // admission just estimated for it. A job whose verdict is not
-            // SERIAL must not be rendered by a one-job domain: silently
-            // serializing it would be the daemon pretending to honour a
-            // capacity it does not have (the failure mode the audit found when
-            // CHRONON_RENDER_JOB_SLOTS advertised 2 while the mutex admitted 1).
-            const RenderPolicyDecision concurrency = decide_render_admission(
-                RenderPolicyInput{
-                    .job_class = kDefaultRenderJobClass,
-                    .job_peak_vram_bytes = estimated_vram,
-                    .device_total_vram_bytes = kReferenceDeviceVramBytes,
-                    .device_free_vram_bytes = kReferenceDeviceVramBytes,
-                });
-            if (concurrency.admission != RenderAdmission::Serial) {
-                return ipc::Reply{
-                    ipc::Status::Error,
-                    std::string{"RENDER_JOB rejected: the concurrency policy admits "} +
-                        (concurrency.admission == RenderAdmission::ParallelDisjoint
-                             ? "ParallelDisjoint"
-                             : "an unknown admission") +
-                        " for this job (" + concurrency.reason +
-                        "), but the daemon's execution domain is one exclusive "
-                        "job: implement the overlap in the same change that "
-                        "declares the class, never by ignoring this verdict"};
+            // admission just estimated for it. Only the explicitly marked
+            // disjoint chunk class can receive a shared execution lock; a
+            // monolithic render remains serial even when the card has spare
+            // memory.
+            const RenderPolicyDecision concurrency = decide_render_job_admission(
+                resolved.parallel_disjoint, estimated_vram);
+            std::unique_lock<std::shared_mutex> render_job_lock(
+                m_render_job_mutex, std::defer_lock);
+            std::shared_lock<std::shared_mutex> render_job_shared_lock(
+                m_render_job_mutex, std::defer_lock);
+            if (concurrency.admission == RenderAdmission::ParallelDisjoint) {
+                render_job_shared_lock.lock();
+            } else {
+                render_job_lock.lock();
             }
             spdlog::debug(
-                "[daemon] render concurrency verdict: admission=serial "
+                "[daemon] render concurrency verdict: class={} admission={} "
                 "slots={} peak={} MiB footprints_that_fit={} reason={}",
+                resolved.parallel_disjoint ? "chunked_disjoint" : "monolithic",
+                concurrency.admission == RenderAdmission::Serial
+                    ? "serial" : "parallel_disjoint",
                 concurrency.admitted_slots,
                 estimated_vram / (1024ULL * 1024ULL),
                 concurrency.peak_footprints_that_fit, concurrency.reason);
@@ -625,156 +563,6 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
     }
 }
 
-ipc::Reply DaemonService::ipc_prefetch_asset(const std::string& path) {
-    if (path.empty()) {
-        return ipc::Reply{ipc::Status::BadRequest, "PREFETCH_ASSET requires an asset path"};
-    }
-    // RenderEngine mutation domain: the asset registry is engine-owned state.
-    std::lock_guard<std::mutex> engine_lock(m_engine_mutex);
-    const auto id = m_engine->assets().import_by_extension(path);
-    if (!id) {
-        return ipc::Reply{ipc::Status::NotFound,
-                          "unrecognized asset extension: '" + path + "'"};
-    }
-    spdlog::info("📦 PREFETCH_ASSET {} (id {})", path, *id);
-    return ipc::Reply{ipc::Status::Ok, "prefetched"};
-}
 
-ipc::Reply DaemonService::ipc_prepare_plan(const std::string& comp_id) {
-    if (comp_id.empty()) {
-        return ipc::Reply{ipc::Status::BadRequest, "PREPARE_PLAN requires a composition id"};
-    }
-    if (!m_registry.contains(comp_id)) {
-        return ipc::Reply{ipc::Status::NotFound, "unknown composition '" + comp_id + "'"};
-    }
-    try {
-        auto comp = m_registry.create(comp_id);
-        // Compile + plan under the engine domain only. The prepared-plan slot
-        // is published afterwards under its own mutex, so a long compile no
-        // longer blocks STATUS or an in-flight RENDER_OVERLAY.
-        std::shared_ptr<PreparedRenderJob> prepared;
-        {
-            std::lock_guard<std::mutex> engine_lock(m_engine_mutex);
-            prepared = std::make_shared<PreparedRenderJob>(
-                m_engine->prepare(comp));
-        }
-        std::size_t slots = 0;
-        {
-            std::lock_guard<std::mutex> lock(m_prepared_mutex);
-            slots = prepared->resource_plan().slots.size();
-            m_prepared_job = std::move(prepared);
-            m_prepared_comp_id = comp_id;
-        }
-        spdlog::info("🧠 PREPARE_PLAN '{}' — resource plan slots: {}",
-                     comp_id, slots);
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(m_prepared_mutex);
-        m_prepared_job.reset();
-        m_prepared_comp_id.clear();
-        return ipc::Reply{ipc::Status::Error, std::string{"prepare failed: "} + e.what()};
-    }
-    return ipc::Reply{ipc::Status::Ok, "plan ready"};
-}
-
-ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
-    const auto tokens = daemon_detail::split_args(args);
-    if (tokens.empty()) {
-        return ipc::Reply{ipc::Status::BadRequest,
-                          "RENDER_OVERLAY requires '<frame> [output]'"};
-    }
-    // Snapshot the plan handle; the shared_ptr keeps it alive for the whole
-    // render even if a concurrent PREPARE_PLAN publishes a replacement.
-    std::shared_ptr<PreparedRenderJob> prepared;
-    {
-        std::lock_guard<std::mutex> lock(m_prepared_mutex);
-        prepared = m_prepared_job;
-    }
-    if (!prepared) {
-        return ipc::Reply{ipc::Status::Error,
-                          "no prepared plan — send PREPARE_PLAN first"};
-    }
-
-    Frame frame{0};
-    try {
-        frame = Frame(std::stoll(tokens[0]));
-    } catch (const std::exception&) {
-        return ipc::Reply{ipc::Status::BadRequest,
-                          "invalid frame number: '" + tokens[0] + "'"};
-    }
-
-    std::string output = tokens.size() > 1 ? tokens[1] : "output/overlay_####.png";
-    output = daemon_detail::format_output_path(output, static_cast<std::int32_t>(frame));
-
-    // Overlay domain: the prepared job owns one single-job JobSession, so two
-    // overlapping overlays on the same plan must serialize. This is the only
-    // lock held on this path — STATUS, PREFETCH, PREPARE_PLAN and RENDER_JOB
-    // all proceed while the render + disk write below run.
-    std::lock_guard<std::mutex> overlay_lock(m_overlay_mutex);
-
-    std::shared_ptr<Framebuffer> fb;
-    try {
-        fb = prepared->render(frame);
-    } catch (const std::exception& e) {
-        return ipc::Reply{ipc::Status::Error,
-                          std::string{"render failed: "} + e.what()};
-    }
-    if (!fb) {
-        return ipc::Reply{ipc::Status::Error,
-                          "renderer returned a null framebuffer"};
-    }
-
-    std::filesystem::path out_path(output);
-    if (out_path.has_parent_path()) {
-        std::filesystem::create_directories(out_path.parent_path());
-    }
-    ImageWriteOptions write_opts;
-    write_opts.format = image_format_from_path(output);
-    if (!save_image(*fb, output, write_opts)) {
-        return ipc::Reply{ipc::Status::Error, "failed to save frame to '" + output + "'"};
-    }
-
-    m_render_count.fetch_add(1, std::memory_order_relaxed);
-    return ipc::Reply{ipc::Status::Ok, output};
-}
-
-ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
-    // assemble_segments lives in chronon3d_media_native (libavformat MuxSession
-    // authority), which exists only when native FFmpeg is enabled. The old
-    // CHRONON3D_ENABLE_VIDEO guard was wrong and produced an undefined symbol
-    // at link time in video-enabled / native-ffmpeg-disabled presets.
-#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    try {
-        const auto request = nlohmann::json::parse(payload.begin(), payload.end());
-        const auto paths = request.value("input_paths", std::vector<std::string>{});
-        const auto output = request.value("output_path", std::string{});
-        std::string joined;
-        for (const auto& path : paths) { if (!joined.empty()) joined += ", "; joined += path; }
-        const auto result = media::assemble_segments(media::SegmentAssemblyRequest{paths, output});
-        if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
-        return ipc::Reply{ipc::Status::Ok, output};
-    } catch (const std::exception& e) {
-        return ipc::Reply{ipc::Status::BadRequest, std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};
-    }
-#else
-    (void)payload;
-    return ipc::Reply{ipc::Status::Error,
-                      std::string{"ASSEMBLE_SEGMENTS unavailable: built without native FFmpeg mux"}};
-#endif
-}
-
-ipc::Reply DaemonService::ipc_status() {
-    // STATUS takes no execution-domain lock: counters are atomic and the
-    // prepared handle is read under its own short-lived mutex.
-    std::string prepared_comp;
-    {
-        std::lock_guard<std::mutex> lock(m_prepared_mutex);
-        prepared_comp = m_prepared_comp_id.empty() ? "(none)" : m_prepared_comp_id;
-    }
-    std::ostringstream ss;
-    ss << "frames_rendered=" << m_render_count.load(std::memory_order_relaxed)
-       << " total_ms=" << m_total_render_ms.load(std::memory_order_relaxed)
-       << " prepared_comp=" << prepared_comp;
-    return ipc::Reply{ipc::Status::Ok, ss.str()};
-}
 
 } // namespace chronon3d::cli

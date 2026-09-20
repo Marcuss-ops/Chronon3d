@@ -15,6 +15,7 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <vector>
 #include <unordered_map>
 
@@ -178,7 +179,10 @@ private:
     // the day a producer submits a disjoint chunk class, that refusal is the
     // signal that this boundary must change with it, instead of a silent
     // serialization nobody can explain.
-    mutable std::mutex m_render_job_mutex;
+    // Shared for policy-approved disjoint DirectYUV chunks; exclusive for
+    // monolithic and FullGraph jobs. The IPC path chooses the side from the
+    // same RenderPolicyDecision used for VRAM admission.
+    mutable std::shared_mutex m_render_job_mutex;
     // Dynamic VRAM-credit admission domain for RENDER_JOB.
     // Concurrency is governed dynamically by DeviceScheduler based on
     // VRAM credits and render job slots (default: 2 concurrent jobs).

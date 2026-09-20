@@ -60,6 +60,11 @@ normalize_render_job(
             RenderJobRequestErrorCode::InvalidFrameRange,
             "render job frame range is invalid");
     }
+    if (request.parallel_disjoint && !request.frame_range) {
+        return make_render_job_request_error(
+            RenderJobRequestErrorCode::InvalidFrameRange,
+            "parallel disjoint admission requires an explicit frame range");
+    }
     // Boundary validation for the pipe pixel format. This is the one place a
     // plan-file request and a daemon/IPC request both pass through, and before
     // it existed an unknown name travelled all the way to the runtime parser,
@@ -87,6 +92,7 @@ normalize_render_job(
     resolved.output_path = request.output_path;
     resolved.assets_root = request.assets_root;
     resolved.frame_range = request.frame_range;
+    resolved.parallel_disjoint = request.parallel_disjoint;
     resolved.requirements = request.requirements;
     resolved.output = request.output;
     resolved.trace = request.trace;
@@ -161,6 +167,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     } else {
         fp += "range=none|";
     }
+    append_flag(fp, "parallel_disjoint", job.parallel_disjoint);
     append_field(fp, "backend", job.backend);
     append_flag(fp, "report", job.report);
     const auto& out = job.output;

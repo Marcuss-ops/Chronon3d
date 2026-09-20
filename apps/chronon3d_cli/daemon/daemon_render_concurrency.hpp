@@ -17,16 +17,14 @@
 // their value here, so the advertised capacity and the mutex contract cannot
 // drift apart again.
 //
-// Why the serialization exists: each video job owns a complete Vulkan/CUDA
-// exporter and its frame-transient surface ring. The measured peak VRAM for a
-// single 1080p render was ~8.8 GB on a 16 GB device, so a second concurrent
-// exporter does not fit — lifting this is a VRAM-safety decision (reduce peak
-// transient residency first), not a tuning knob.
-//
-// To raise the concurrency: reduce per-job peak VRAM, then flip
-// `kRenderJobExecutionSerialized` to false together with removing the mutex in
-// `daemon_service_ipc.cpp`. The two are asserted to move together by
-// `tests/cli/test_daemon_render_concurrency.cpp`.
+// Why most jobs are still serialized: each FullGraph video job owns a complete
+// Vulkan/CUDA exporter and its frame-transient surface ring. The measured peak
+// VRAM for a single 1080p FullGraph render was ~8.8 GB on a 16 GB device, so a
+// second concurrent FullGraph exporter does not fit. DirectYUV chunk children
+// are the measured exception: their conservative 1 GiB charge fits twice and
+// they use disjoint frame windows. The daemon uses a shared lock only for that
+// policy-approved class; monolithic and FullGraph jobs retain an exclusive
+// lock. This is an admission decision, not a tuning knob.
 // ---------------------------------------------------------------------------
 
 #include <cstdint>
@@ -46,6 +44,13 @@ inline constexpr std::uint32_t kSerializedRenderJobSlots = 1;
 /// one measurement is how admission and the serialization decision drift.
 inline constexpr std::uint64_t kMeasuredFullGraphPeakBytes =
     8800ULL * 1024ULL * 1024ULL;
+
+/// Conservative DirectYUV floor used for the disjoint-chunk admission class.
+/// The current two-runtime canary measured ~810 MiB of additional residency;
+/// the policy charges a full GiB and still requires the scheduler's live VRAM
+/// reservation before admitting a second child.
+inline constexpr std::uint64_t kMeasuredDirectYuvPeakBytes =
+    1024ULL * 1024ULL * 1024ULL;
 
 // ── Concurrency POLICY — one decision, three classes, named reasons ─────────
 //
@@ -124,9 +129,9 @@ struct RenderPolicyDecision {
 inline constexpr RenderJobClass kDefaultRenderJobClass =
     RenderJobClass::MonolithicSamePlan;
 
-/// The reference deployment the serialization decision was taken on:
-/// one 1080p FullGraph render on a 16 GB device (see
-/// `estimate_peak_vram_bytes`). A different card re-decides by data.
+/// The reference deployment for the shared execution domain: two 1080p
+/// DirectYUV chunk children on a 16 GB device. FullGraph remains serial by its
+/// own class and measured footprint; a different card re-decides by data.
 inline constexpr std::uint64_t kReferenceDeviceVramBytes =
     16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -187,15 +192,16 @@ inline constexpr std::uint64_t kReferenceDeviceVramBytes =
 [[nodiscard]] constexpr RenderPolicyInput reference_device_policy_input() {
     RenderPolicyInput input;
     input.job_class = RenderJobClass::ChunkedDisjointSamePlan;
-    input.job_peak_vram_bytes = kMeasuredFullGraphPeakBytes;
+    input.job_peak_vram_bytes = kMeasuredDirectYuvPeakBytes;
     input.device_total_vram_bytes = kReferenceDeviceVramBytes;
     input.device_free_vram_bytes = kReferenceDeviceVramBytes;
     return input;
 }
 
-/// Does the execution domain admit more than one render job on the reference
-/// device? DERIVED from the policy, never restated: `resolve_render_job_slots`
-/// clamps to this and the daemon chooses the lock side from the same verdict.
+/// Does the execution domain have a policy-approved parallel class on the
+/// reference device? DERIVED from the policy, never restated. It is false only
+/// when even the safest class cannot fit twice; it does not make monolithic
+/// jobs parallel.
 inline constexpr bool kRenderJobExecutionSerialized =
     decide_render_admission(reference_device_policy_input()).admission ==
     RenderAdmission::Serial;
@@ -206,15 +212,9 @@ inline constexpr std::uint32_t kTargetConcurrentRenderJobs = 2;
 /// Upper bound accepted from the environment (mirrors the historical clamp).
 inline constexpr std::uint32_t kMaxConfigurableRenderJobSlots = 8;
 
-/// Name of the REQUESTED render-job capacity, NOT a lever: it says how many
-/// jobs the operator would like to run, and the resolution below clamps it to
-/// what the execution domain admits (`kSerializedRenderJobSlots`). While
-/// `kRenderJobExecutionSerialized` is true there is no value of this variable
-/// that produces `slots == 2`; the daemon reports the clamp once (see
-/// `advertised_render_job_slots`) and carries on with ONE slot. The VRAM A/B is
-/// measured with `renderinggen/bin/vram-probe -mode two-runtime-pool`, which
-/// owns its daemons and never goes through this mutex — not by exporting this
-/// variable. Lifting the serialization is the code change described above.
+/// Name of the REQUESTED render-job capacity. It is bounded by the existence
+/// of a policy-approved parallel class; per-job VRAM and the class verdict
+/// still decide whether a particular request can overlap.
 inline constexpr const char* kRenderJobSlotsEnvVar = "CHRONON_RENDER_JOB_SLOTS";
 
 /// Outcome of resolving the requested/effective render-job slots.
@@ -292,7 +292,7 @@ struct RenderConcurrencyResolution {
         // DirectYUV: NVDEC + NVENC CUDA pools + one device image cache,
         // but no Vulkan transient ring.  Keep 1 GB floor to avoid admitting
         // many DirectYUV jobs while the true peak is still being measured.
-        return 1024ULL * 1024ULL * 1024ULL;
+        return kMeasuredDirectYuvPeakBytes;
     }
     // FullGraph: observed 8.8 GB at 1920x1080.  Scale linearly with pixel
     // count, clamp to 2 GB minimum so 720p still reserves meaningfully.
