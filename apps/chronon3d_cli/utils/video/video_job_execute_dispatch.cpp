@@ -454,7 +454,7 @@ bool execute_direct_mux_gop_plan(
             // opens, finalizes or publishes a container of its own.
             child.borrowed_mux = BorrowedMuxTarget{&session, *declared};
 
-            const auto rendered = render_and_encode_ffmpeg_pipe(
+            const auto rendered = render_and_encode_native(
                 registry, compiled, composition_id, settings, render_start,
                 render_end, child, cpu_budget,
                 execution ? execution->video_runtimes : nullptr,
@@ -848,7 +848,7 @@ int render_and_encode_ffmpeg(
 
     auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
     auto video_runtimes = execution ? execution->video_runtimes : nullptr;
-    auto result = render_and_encode_ffmpeg_pipe(
+    auto result = render_and_encode_native(
         registry, compiled, composition_id,
         settings, start, end, render_opts, cpu_budget,
         std::move(video_runtimes),

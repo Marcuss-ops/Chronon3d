@@ -62,7 +62,7 @@ void warmup_pipe_slots(PipeExportSession& session);
 
 // ── Main orchestrator ───────────────────────────────────────────────────────
 
-[[nodiscard]] PipeExportResult render_and_encode_ffmpeg_pipe(
+[[nodiscard]] PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
     const std::string& composition_id,
