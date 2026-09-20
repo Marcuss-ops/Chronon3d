@@ -88,6 +88,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
 
         Vec3 position{layer.position[0], layer.position[1], layer.position[2]};
         Vec3 scale{layer.scale[0], layer.scale[1], layer.scale[2]};
+        Vec3 rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
         sampled.opacity = layer.opacity;
 
         if (layer.animation_program_index < program.animations().size()) {
@@ -115,6 +116,9 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     case AnimationProperty::ScaleY: scale.y = value; break;
                     case AnimationProperty::ScaleZ: scale.z = value; break;
                     case AnimationProperty::UniformScale: scale = {value, value, value}; break;
+                    case AnimationProperty::RotationX: rotation.x = value; break;
+                    case AnimationProperty::RotationY: rotation.y = value; break;
+                    case AnimationProperty::RotationZ: rotation.z = value; break;
                     case AnimationProperty::Unknown: break;
                 }
             }
@@ -123,8 +127,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         Transform transform;
         transform.position = position;
         transform.scale = scale;
-        transform.rotation = glm::angleAxis(
-            glm::radians(layer.rotation[2]), Vec3{0.0f, 0.0f, 1.0f});
+        transform.rotation = glm::quat(glm::radians(rotation));
         transform.opacity = sampled.opacity;
         sampled.matrix = transform.to_matrix();
         block.layers.push_back(std::move(sampled));

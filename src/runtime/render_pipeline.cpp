@@ -24,6 +24,7 @@
 #include <chronon3d/compiler/program_sampler.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 #include <chronon3d/motion/contract_apply.hpp>
+#include <chronon3d/motion/element_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <array>
@@ -246,7 +247,8 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
 std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const compiler::CompiledProgram& program, Frame frame,
     FrameExecution* execution, const chronon_layer_state* layer_states,
-    std::size_t layer_state_count) {
+    std::size_t layer_state_count, const chronon_element_state* element_states,
+    std::size_t element_state_count) {
     const auto& metadata = program.metadata();
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     // TypedProgramSampler is the only frame-varying producer on this route.
@@ -263,14 +265,18 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     if (execution) {
         compiler::TypedProgramSampler{}.sample_into(
             program, frame, execution->parameters());
-        motion::apply_layer_states(layer_states, layer_state_count,
-                                   execution->parameters());
+        (void)motion::apply_layer_states(layer_states, layer_state_count,
+                                          execution->parameters());
+        (void)motion::apply_element_states(element_states, element_state_count,
+                                            execution->parameters());
         frame_parameters = &execution->parameters();
     } else {
         compiler::TypedProgramSampler{}.sample_into(
             program, frame, compatibility_parameters);
-        motion::apply_layer_states(layer_states, layer_state_count,
-                                   compatibility_parameters);
+        (void)motion::apply_layer_states(layer_states, layer_state_count,
+                                          compatibility_parameters);
+        (void)motion::apply_element_states(element_states, element_state_count,
+                                            compatibility_parameters);
         frame_parameters = &compatibility_parameters;
     }
     // AUDIT F11 — the canonical LruCache owns lookup, LRU eviction and request

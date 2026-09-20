@@ -24,6 +24,7 @@ add_library(chronon3d_scene OBJECT
     # ── ADR-032 — contract-zone converters (chronon/abi.h motion handshake) ──
     motion_contract_bridge.cpp
     motion_contract_apply.cpp
+    element_contract.cpp
 
     # Authoring facade implementations that depend on LayerBuilder.
     subtitle_track_builder.cpp

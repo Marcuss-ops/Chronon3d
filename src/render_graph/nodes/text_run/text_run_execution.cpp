@@ -11,6 +11,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/profiling_context.hpp>
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 
@@ -141,7 +142,8 @@ std::optional<NodeExecutionError> validate_execution(
 void prepare_per_frame_shape(
     const TextRunShape& source,
     chronon3d::SampleTime sample_time,
-    TextRunFrameState& frame
+    TextRunFrameState& frame,
+    const compiler::SampledLayerParameters* sampled_layer
 ) {
     const auto timing_start = profiling::g_current_counters
         ? std::optional{profiling::now()} : std::nullopt;
@@ -170,6 +172,33 @@ void prepare_per_frame_shape(
         view.dissolve_glyphs.clear();
     }
     chronon3d::update_text_run_shape_per_frame(view, sample_time);
+
+    // ABI element ids are cluster ids, not glyph ordinals. Apply the external
+    // motion override after the Chronon-owned animator stack so authoring can
+    // move stable clusters without replacing shaping or rasterization. A
+    // cluster may contain multiple glyphs (ligatures/combining marks), and all
+    // glyphs in that cluster receive the same override.
+    if (sampled_layer && view.layout) {
+        for (std::size_t glyph_index = 0; glyph_index < view.glyphs.size(); ++glyph_index) {
+            auto& glyph = view.glyphs[glyph_index];
+            if (glyph_index >= view.layout->placed.glyphs.size()) continue;
+            // ABI ids reserve zero; cluster 0 is therefore transported as
+            // element id 1, preserving a deterministic one-to-one mapping.
+            const auto cluster_id = view.layout->placed.glyphs[glyph_index].cluster;
+            const auto element = std::find_if(
+                sampled_layer->elements.begin(), sampled_layer->elements.end(),
+                [&](const auto& candidate) {
+                    return candidate.id == static_cast<std::uint64_t>(cluster_id) + 1u;
+                });
+            if (element == sampled_layer->elements.end()) continue;
+            glyph.position = element->position;
+            glyph.rotation = element->rotation;
+            glyph.scale = element->scale;
+            glyph.opacity = element->opacity;
+            glyph.blur = element->blur;
+            if (!element->active) glyph.opacity = 0.0f;
+        }
+    }
     // The document is only the source of this frame's sampled layout/state.
     // Keep the sampled scratch shape eligible for the GPU lowering checks;
     // retaining the marker would make an otherwise lowerable frame look like
@@ -192,7 +221,8 @@ graph::RenderOpResult render_text_run_item(
     Framebuffer& fb,
     const TextRunShape& source_shape,
     const TextRunPlacement& placement,
-    float opacity
+    float opacity,
+    const compiler::SampledLayerParameters* sampled_layer
 ) {
     // A6 immutability: dynamic text is evaluated into worker-owned frame
     // scratch. A fully static run is already compiled and immutable, so it
@@ -205,12 +235,15 @@ graph::RenderOpResult render_text_run_item(
     // compatibility opacity at frame-zero while the shader expects to own the
     // per-glyph reveal. Only software/compatibility shapes need the scratch
     // frame evaluation.
+    sampled_layer = sampled_layer ? sampled_layer : ctx.node_exec.sampled_layer;
     const bool lowerable_gpu_animation =
         !source_shape.animators.empty() &&
         can_lower_gpu_text_animation(source_shape);
+    const bool has_element_overrides = sampled_layer && !sampled_layer->elements.empty();
     if ((!lowerable_gpu_animation && !source_shape.animators.empty()) ||
-        source_shape.animated_doc) {
-        prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame);
+        source_shape.animated_doc || has_element_overrides) {
+        prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame,
+                                sampled_layer);
         render_shape = &frame.render_shape;
     }
     const auto& local_shape = *render_shape;

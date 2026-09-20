@@ -30,7 +30,7 @@ extern "C" {
  * a layer state carries an opaque content id plus the final compiled
  * transform. The motion side decides WHERE and WHEN; the content side
  * decides WHAT. Neither side sees the other's semantics: no scene graph,
- * no camera authoring types, no keyframes, no STL on this boundary.
+ * no camera authoring types, no keyframes, no C++ runtime on this boundary.
  *
  * Field order is part of the ABI: append-only evolution, evergreen
  * `struct_size` as the first field of every versioned record.
@@ -74,7 +74,7 @@ typedef struct chronon_content_metrics {
 /* Motion handshake (Motion3D → Chronon): one layer's final compiled state
  * at one frame. `clip_from_local` is the full projection·view·world·local
  * product — Chronon never receives a camera. Row-major storage, column
- * vectors, forward (left-handed) depth 0..1. */
+ * columns, forward (left-handed) depth 0..1. */
 typedef struct chronon_layer_state {
     uint32_t struct_size;   /* sizeof(chronon_layer_state) */
     uint8_t visible;        /* 0 = skip, 1 = draw */
@@ -85,6 +85,24 @@ typedef struct chronon_layer_state {
     float opacity;          /* 0..1, composited multiplicatively up the hierarchy */
     float depth;            /* forward depth of the layer origin, 0..1 (NDC) */
 } chronon_layer_state;
+
+/* Additive element/cluster handshake (contract zone v2). One record applies
+ * to one stable Chronon-owned element inside one content layer. The motion side
+ * supplies deltas only; Chronon remains the authority for shaping, cluster
+ * identity and glyph rasterization. IDs are opaque and stable for the content
+ * revision identified by the containing layer state. */
+typedef struct chronon_element_state {
+    uint32_t struct_size;   /* sizeof(chronon_element_state) */
+    uint8_t visible;
+    uint8_t reserved[3];
+    chronon_layer_id layer;
+    uint64_t element;
+    float position[3];
+    float rotation[3];
+    float scale[3];
+    float opacity;
+    float blur;
+} chronon_element_state;
 
 typedef enum chronon_status {
     CHRONON_OK = 0,
@@ -198,6 +216,14 @@ CHRONON_API chronon_status chronon_render_frame_into(
 CHRONON_API chronon_status chronon_render_frame_with_layers(
     chronon_engine* engine, const chronon_plan* plan, uint64_t frame,
     const chronon_layer_state* states, uint64_t state_count,
+    chronon_frame_buffer* out_buffer);
+/* Additive ABI-034 entry point. The ABI-032 function above remains unchanged.
+ * Element records are validated and consumed together with the layer records
+ * before graph execution. */
+CHRONON_API chronon_status chronon_render_frame_with_layers_and_elements(
+    chronon_engine* engine, const chronon_plan* plan, uint64_t frame,
+    const chronon_layer_state* states, uint64_t state_count,
+    const chronon_element_state* elements, uint64_t element_count,
     chronon_frame_buffer* out_buffer);
 CHRONON_API chronon_status chronon_render_file(
     chronon_engine* engine, const chronon_plan* plan,

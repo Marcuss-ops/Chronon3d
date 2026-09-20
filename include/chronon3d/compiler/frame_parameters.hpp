@@ -54,6 +54,16 @@ using SampledLayerPayload = std::variant<
 /// Frame-local values produced by the compiler IR sampler. This is
 /// deliberately CPU-only data: backend resources are resolved later by graph
 /// materialization.
+struct SampledElementParameters {
+    std::uint64_t id{0};
+    Vec3 position{0.0f};
+    Vec3 rotation{0.0f};
+    Vec3 scale{1.0f};
+    float opacity{1.0f};
+    float blur{0.0f};
+    bool active{true};
+};
+
 struct SampledLayerParameters {
     NodeId id{0};
     NodeKind kind{NodeKind::Unknown};
@@ -62,6 +72,7 @@ struct SampledLayerParameters {
     bool active{false};
     std::uint32_t text_index{0};
     SampledLayerPayload payload{};
+    std::vector<SampledElementParameters> elements;
 };
 
 /// Stable, typed output of sampling one immutable CompiledProgram.

@@ -130,6 +130,35 @@ TextUnitMap build_text_unit_map(
                 map.first_glyph_for_line[l] = static_cast<u32>(g);
             }
         }
+
+        // Source newlines are not the complete definition of a visual line:
+        // the composer can wrap a paragraph without putting a newline in the
+        // source.  Line selectors must follow the shaped placement, otherwise
+        // every wrapped line is incorrectly treated as line zero.  Keep the
+        // source-derived map for synthetic/unit-test runs that do not carry
+        // vertical placement information, and prefer the real glyph baseline
+        // whenever it proves that the layout contains multiple visual lines.
+        std::vector<u32> geometry_lines(glyph_count, 0);
+        u32 geometry_line_count = 1;
+        float line_baseline = placed.glyphs.front().y;
+        for (size_t g = 1; g < glyph_count; ++g) {
+            if (std::fabs(placed.glyphs[g].y - line_baseline) > 0.5f) {
+                ++geometry_line_count;
+                line_baseline = placed.glyphs[g].y;
+            }
+            geometry_lines[g] = geometry_line_count - 1;
+        }
+        if (geometry_line_count > 1) {
+            map.line_count = geometry_line_count;
+            map.glyph_to_line = std::move(geometry_lines);
+            map.first_glyph_for_line.assign(map.line_count, kNotFound);
+            for (size_t g = 0; g < glyph_count; ++g) {
+                const u32 line = map.glyph_to_line[g];
+                if (map.first_glyph_for_line[line] == kNotFound) {
+                    map.first_glyph_for_line[line] = static_cast<u32>(g);
+                }
+            }
+        }
     }
 
     return map;

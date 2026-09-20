@@ -204,7 +204,8 @@ NodeExecResult TextRunNode::execute(
     if (!ctx.policy.diagnostic_overlay_only) {
 #ifdef CHRONON3D_ENABLE_TEXT
         auto dispatch = text_run::render_text_run_item(
-            ctx, *backend, *fb, *m_shape, m_placement, opacity);
+            ctx, *backend, *fb, *m_shape, m_placement, opacity,
+            ctx.node_exec.sampled_layer);
 
         if (!dispatch) {
 
