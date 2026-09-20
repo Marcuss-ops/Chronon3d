@@ -141,7 +141,7 @@ struct FfmpegExportOptions {
     std::vector<OutputVariant> variants;
 };
 
-// render_and_encode_ffmpeg_pipe() is declared in pipe_export_pipeline.hpp
+// render_and_encode_native() is declared in pipe_export_pipeline.hpp
 // and returns PipeExportResult (boundary model with all status/timing data).
 
 /// Context handed to the encoder factory. The encoder does NOT discover or
