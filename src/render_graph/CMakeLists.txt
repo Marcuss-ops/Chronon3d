@@ -60,7 +60,14 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/text_run/text_run_execution.cpp
     nodes/text_run/text_run_transform.cpp
     nodes/text_run/text_run_diagnostics.cpp
+    # P2 structure pass: the packed-atlas GPU text path is split across focused
+    # TUs (animation lowering, shared packing helpers, surface draw, MTSDF and
+    # cached bridge). Internal-only; not exposed via include/.
     nodes/text_run/gpu_text_run.cpp
+    nodes/text_run/gpu_text_run_animation.cpp
+    nodes/text_run/gpu_text_run_packed.cpp
+    nodes/text_run/gpu_text_run_mtsdf.cpp
+    nodes/text_run/gpu_text_run_cached.cpp
 )
 set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes

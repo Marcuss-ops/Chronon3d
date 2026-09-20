@@ -1,3 +1,39 @@
+// SPDX-License-Identifier: MIT
+//
+// gpu_text_run_cached.cpp — compatibility bridge for the cached GPU text-run
+// path.
+//
+// Migrated from the textually-included gpu_text_run_cached.inc (handwritten
+// .inc debt ratchet): the body is unchanged, but it now compiles as its own
+// translation unit instead of being spliced into gpu_text_run.cpp. It tries
+// the canonical MTSDF lowering first and keeps the packed-bitmap route as the
+// compatibility fallback for shapes outside that contract.
+
+#include "gpu_text_run.hpp"
+#include "gpu_text_run_detail.hpp"
+
+#include "../native_surface.hpp"
+
+#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+
+#include <blend2d.h>
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+#include <bit>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <vector>
+
+namespace chronon3d::graph::text_run {
+
 graph::RenderOpResult draw_cached_text_run(
     RenderGraphContext& ctx,
     Framebuffer& destination,
@@ -86,7 +122,7 @@ graph::RenderOpResult draw_cached_text_run(
     const float model_scale_y = model_matrix[1][1];
     const float model_translate_x = model_matrix[3][0];
     const float model_translate_y = model_matrix[3][1];
-    const auto highlight_plan = build_timed_highlight_plan(shape);
+    const auto highlight_plan = detail::build_timed_highlight_plan(shape);
     const float current_frame = static_cast<float>(ctx.frame_input.sample_time.frame);
     // The shadow stack is immutable for this run. Fold it once instead of
     // walking it for every glyph probe.
@@ -150,7 +186,7 @@ graph::RenderOpResult draw_cached_text_run(
                     graph::RenderBackendErrorCode::UnsupportedCapability,
                     "draw_cached_text_run: glyph bitmap was not prepared for GPU-native export"));
             }
-            auto warmed = rasterize_missing_glyph(
+            auto warmed = detail::rasterize_missing_glyph(
                 *ctx.text_render_resources, *ctx.asset_resolver,
                 layout.font.font_path, state.glyph_id,
                 static_cast<u32>(font_size), state.fill);
@@ -197,7 +233,7 @@ graph::RenderOpResult draw_cached_text_run(
         const bool undersized = static_cast<int>(entry->image->width()) * 2 < expected_width ||
             static_cast<int>(entry->image->height()) * 2 < expected_height;
         if (ctx.asset_resolver && (!has_coverage || undersized)) {
-            auto refreshed = rasterize_missing_glyph(
+            auto refreshed = detail::rasterize_missing_glyph(
                 *ctx.text_render_resources, *ctx.asset_resolver,
                 layout.font.font_path, state.glyph_id,
                 static_cast<u32>(font_size),
@@ -261,9 +297,9 @@ graph::RenderOpResult draw_cached_text_run(
             }
             std::size_t raster_pixels = 0;
             std::size_t raster_floats = 0;
-            if (!checked_mul(static_cast<std::size_t>(output_width),
+            if (!detail::checked_mul(static_cast<std::size_t>(output_width),
                              static_cast<std::size_t>(output_height), raster_pixels) ||
-                !checked_mul(raster_pixels, 4u, raster_floats)) {
+                !detail::checked_mul(raster_pixels, 4u, raster_floats)) {
                 return graph::RenderOpResult(graph::make_render_backend_error(
                     graph::RenderBackendErrorCode::InvalidInput,
                     "draw_cached_text_run: styled glyph raster size overflow"));
@@ -372,9 +408,9 @@ graph::RenderOpResult draw_cached_text_run(
 
         std::size_t glyph_pixels = 0;
         std::size_t expected_pixels = 0;
-        if (!checked_mul(static_cast<std::size_t>(styled->width),
+        if (!detail::checked_mul(static_cast<std::size_t>(styled->width),
                          static_cast<std::size_t>(styled->height), glyph_pixels) ||
-            !checked_mul(glyph_pixels, 4u, expected_pixels) ||
+            !detail::checked_mul(glyph_pixels, 4u, expected_pixels) ||
             styled->rgba->size() != expected_pixels) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::InvalidInput,
@@ -459,3 +495,5 @@ graph::RenderOpResult draw_cached_text_run(
         highlight_plan.color, highlight_plan.enabled);
     return result;
 }
+
+} // namespace chronon3d::graph::text_run
