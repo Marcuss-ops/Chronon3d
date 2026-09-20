@@ -132,7 +132,7 @@ NodeExecResult PrecompNode::execute(
     // FrameArena — borrow the same session's arena so the parent chain
     // anchor is consistent with execute_with_scope() (the canonical body).
     ExecutionScope parent_root = ExecutionScope::make_root(
-        *session, session->arena(), graph_id);
+        *session, session->root_arena(), graph_id);
     return execute_with_scope(parent_root, ctx, fbs, clips);
 }
 
