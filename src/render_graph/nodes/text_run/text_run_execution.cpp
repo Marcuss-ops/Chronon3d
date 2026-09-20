@@ -335,7 +335,18 @@ graph::RenderOpResult render_text_run_item(
         spdlog::info(
             "[text-debug] frame={} phase=software.begin", frame_number);
     }
-    auto fallback = backend.draw_text_run(fb, local_shape, world_matrix, opacity);
+    // A lowerable selector is normally sampled by the native MTSDF shader,
+    // but the software/compatibility fallback still needs the same per-glyph
+    // state.  Prepare it only after native rendering has declined, so the
+    // GPU path keeps its compact run-level contract without paying the CPU
+    // glyph walk on successful frames.
+    const TextRunShape* software_shape = render_shape;
+    if (lowerable_gpu_animation && render_shape == &source_shape) {
+        prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame,
+                                sampled_layer);
+        software_shape = &frame.render_shape;
+    }
+    auto fallback = backend.draw_text_run(fb, *software_shape, world_matrix, opacity);
     if (text_debug) {
         spdlog::info(
             "[text-debug] frame={} phase=software.end ok={}",
