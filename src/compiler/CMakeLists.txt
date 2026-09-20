@@ -2,7 +2,7 @@ add_library(chronon3d_compiler OBJECT
     compiler.cpp
     compiler_graph.cpp
     compiler_pass_pipeline.cpp
-    program_sampler.cpp
+    scene_materializer.cpp
     typed_program_sampler.cpp
     compiled_program.cpp
     compiled_program_validator.cpp

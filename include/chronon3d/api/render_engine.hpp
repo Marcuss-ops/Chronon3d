@@ -253,7 +253,7 @@ public:
 
     /// Execute a frame from the compiler-boundary `CompiledProgram`.
     /// Equivalence-gate seam: the compiled-program path renders through
-    /// the canonical ProgramSampler + graph pipeline instead of the
+    /// the canonical SceneMaterializer + graph pipeline instead of the
     /// legacy prepared-composition bridge.  The two seams must produce
     /// identical frames for the same plan.
     [[nodiscard]]
