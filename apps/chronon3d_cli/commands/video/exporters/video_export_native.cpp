@@ -35,7 +35,7 @@ extern "C" {
 
 namespace chronon3d::cli {
 
-PipeExportResult render_and_encode_ffmpeg_pipe(
+PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
     const CompiledComposition& compiled,
     const std::string& composition_id,
@@ -841,3 +841,4 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 }
 
 } // namespace chronon3d::cli
+

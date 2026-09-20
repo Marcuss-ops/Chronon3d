@@ -1,5 +1,7 @@
 #include <chronon3d/math/path_utils.hpp>
+#include <chronon3d/vector/path_factories.hpp>
 #include <doctest/doctest.h>
+#include <cmath>
 using namespace chronon3d;
 
 using namespace chronon3d::math;
@@ -86,4 +88,26 @@ TEST_CASE("Path Utilities: Path Flattening") {
     CHECK(subpaths.size() == 1);
     CHECK(subpaths[0].size() == 4);
     CHECK(subpaths[0].back() == subpaths[0].front());
+}
+
+TEST_CASE("Arrow factory emits a closed polygon and clamps malformed dimensions") {
+    ArrowParams params;
+    params.from = {0.0f, 0.0f};
+    params.to = {100.0f, 0.0f};
+    params.thickness = -4.0f;
+    params.head_width = -20.0f;
+    params.head_length = 500.0f;
+
+    const PathParams arrow = make_arrow(params);
+    REQUIRE(arrow.closed);
+    REQUIRE(arrow.commands.size() == 8);
+    for (const auto& command : arrow.commands) {
+        CHECK(std::isfinite(command.p0.x));
+        CHECK(std::isfinite(command.p0.y));
+    }
+
+    // A head longer than the shaft is clamped to the endpoint, so the tip
+    // remains exactly at the requested destination rather than overshooting.
+    CHECK(arrow.commands[3].p0.x == doctest::Approx(100.0f));
+    CHECK(arrow.commands[3].p0.y == doctest::Approx(0.0f));
 }

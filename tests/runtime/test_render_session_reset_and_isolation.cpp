@@ -174,10 +174,10 @@ TEST_CASE("WP-3 PR 3.1: default-constructed program_store() is non-null and apis
     CHECK_NOTHROW((void)ps.aggregate_stats());
 }
 
-TEST_CASE("WP-3 PR 3.0 → 3.1: arena() remains noexcept (negative regression guard)") {
+TEST_CASE("WP-3 PR 3.0 → 3.1: root_arena() remains noexcept for diagnostics") {
     JobSession session;
-    const auto& ca = static_cast<const JobSession&>(session).arena();
-    CHECK(&ca == &static_cast<const JobSession&>(session).arena());
+    const auto& ca = static_cast<const JobSession&>(session).root_arena();
+    CHECK(&ca == &static_cast<const JobSession&>(session).root_arena());
 }
 
 // ============================================================================
