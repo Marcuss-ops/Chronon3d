@@ -13,6 +13,8 @@
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
@@ -400,5 +402,161 @@ TEST_CASE("TextRunDriver: animators preserved across layout swap") {
     update_text_run_shape_per_frame(*shape, SampleTime{});
     if (!shape->layout->placed.glyphs.empty()) {
         CHECK(shape->glyphs[0].position.x == doctest::Approx(15.0f));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hash & Prewarm contracts (folded from test_text_run_driver_pr10.cpp)
+//
+// PR-10 added hash stability and prewarm idempotency contracts on the same
+// driver surface; they live here so the driver has one test authority.
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// Build a tiny TextRunShape with no font work (null layout / no engine).
+/// Suitable for hash-only tests.
+std::shared_ptr<TextRunShape> make_hash_only_shape_pr10() {
+    auto shape = std::make_shared<TextRunShape>();
+    return shape;
+}
+
+/// Build a 2-keyframe AnimatedTextDocument that swaps from "Alpha" to
+/// "Beta" with a Cut transition.
+std::shared_ptr<AnimatedTextDocument> make_hold_doc_pr10() {
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "Alpha";
+    doc->add_keyframe(kf0);
+
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document.utf8 = "Beta";
+    kf60.transition = SourceTextTransition::Cut;
+    doc->add_keyframe(kf60);
+    return doc;
+}
+
+} // namespace
+
+TEST_CASE("Hash PR10: legacy overload always returns same hash for identical shape") {
+    auto a = make_hash_only_shape_pr10();
+    auto b = make_hash_only_shape_pr10();
+    CHECK(hash_text_run_shape(*a) == hash_text_run_shape(*b));
+}
+
+TEST_CASE("Hash PR10: static shape (no animated_doc) returns identical hash at any frame") {
+    auto shape = make_hash_only_shape_pr10();
+
+    const u64 h0 = hash_text_run_shape(*shape, Frame{0});
+    const u64 h60 = hash_text_run_shape(*shape, Frame{60});
+    const u64 h120 = hash_text_run_shape(*shape, Frame{120});
+    const u64 h9999 = hash_text_run_shape(*shape, Frame{9999});
+
+    CHECK(h0 == h60);
+    CHECK(h0 == h120);
+    CHECK(h0 == h9999);
+}
+
+TEST_CASE("Hash PR10: Hold/Cut boundaries produce distinct hashes") {
+    auto shape = make_hash_only_shape_pr10();
+    shape->animated_doc = make_hold_doc_pr10();
+
+    const u64 h0 = hash_text_run_shape(*shape, Frame{0});
+    const u64 h30 = hash_text_run_shape(*shape, Frame{30});
+    const u64 h60 = hash_text_run_shape(*shape, Frame{60});
+    const u64 h120 = hash_text_run_shape(*shape, Frame{120});
+
+    CHECK(h0 != h60);
+    CHECK(h30 != h60);
+    CHECK(h60 == h120);
+    CHECK(hash_text_run_shape(*shape) == hash_text_run_shape(*shape));
+}
+
+TEST_CASE("Hash PR10: Scramble mid-transition frames produce distinct hashes") {
+    auto shape = make_hash_only_shape_pr10();
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "Hello";
+    kf0.transition = SourceTextTransition::Scramble;
+    kf0.scramble_params.seed = 42;
+    doc->add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document.utf8 = "World";
+    doc->add_keyframe(kf60);
+    shape->animated_doc = doc;
+
+    const u64 h30a = hash_text_run_shape(*shape, Frame{30});
+    const u64 h30b = hash_text_run_shape(*shape, Frame{30});
+    CHECK(h30a == h30b);
+
+    const u64 h31 = hash_text_run_shape(*shape, Frame{31});
+    CHECK(h30a != h31);
+
+    const u64 h0 = hash_text_run_shape(*shape, Frame{0});
+    const u64 h60 = hash_text_run_shape(*shape, Frame{60});
+    CHECK(h0 != h30a);
+    CHECK(h60 != h30a);
+
+    auto alt_doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe k0;
+    k0.frame = Frame{0};
+    k0.document.utf8 = "Hello";
+    k0.transition = SourceTextTransition::Scramble;
+    k0.scramble_params.seed = 42;
+    alt_doc->add_keyframe(k0);
+    SourceTextKeyframe k6;
+    k6.frame = Frame{60};
+    k6.document.utf8 = "World";
+    alt_doc->add_keyframe(k6);
+    shape->animated_doc = alt_doc;
+    const u64 h30_alt = hash_text_run_shape(*shape, Frame{30});
+    CHECK(h30a == h30_alt);
+}
+
+TEST_CASE("Hash PR10: Morph transit produces distinct hashes per frame") {
+    auto shape = make_hash_only_shape_pr10();
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
+    kf0.frame = Frame{0};
+    kf0.document.utf8 = "ABC";
+    kf0.transition = SourceTextTransition::Morph;
+    doc->add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
+    kf60.document.utf8 = "XYZ";
+    doc->add_keyframe(kf60);
+    shape->animated_doc = doc;
+
+    const u64 h10 = hash_text_run_shape(*shape, Frame{10});
+    const u64 h20 = hash_text_run_shape(*shape, Frame{20});
+    const u64 h50 = hash_text_run_shape(*shape, Frame{50});
+    CHECK(h10 != h20);
+    CHECK(h20 != h50);
+    CHECK(h10 != h50);
+}
+
+TEST_CASE("Prewarm PR10: returns false when shape.animated_doc is null") {
+    auto shape = make_hash_only_shape_pr10();
+    const bool stored = prewarm_text_run_layout_for_frame(*shape, Frame{30});
+    CHECK(stored == false);
+}
+
+TEST_CASE("Prewarm PR10: returns false when shape.animated_doc set but engine is null") {
+    auto shape = make_hash_only_shape_pr10();
+    shape->animated_doc = make_hold_doc_pr10();
+    const bool stored = prewarm_text_run_layout_for_frame(*shape, Frame{30});
+    CHECK(stored == false);
+}
+
+TEST_CASE("Prewarm PR10: idempotent — calling twice with the same args is safe") {
+    auto shape = make_hash_only_shape_pr10();
+    shape->animated_doc = make_hold_doc_pr10();
+    for (int i = 0; i < 3; ++i) {
+        const bool stored = prewarm_text_run_layout_for_frame(*shape, Frame{30});
+        CHECK(stored == false);
     }
 }

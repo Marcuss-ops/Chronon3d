@@ -279,24 +279,13 @@ public:
     [[nodiscard]] const graph::SceneHasher& scene_hasher() const noexcept { return scene_hasher_state; }
     [[nodiscard]] graph::SceneProgramStore& program_store() noexcept { return *program_store_state; }
     [[nodiscard]] const graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
-    // Compatibility accessor for standalone graph diagnostics. Production
-    // execution uses FrameExecution::arena(), which resolves to the leased
-    // slot payload. Slot zero is the stable standalone payload for callers
-    // that do not have a lease yet.
-    // AUDIT-2026-09-09 D-02 — DEPRECATED for production callers. This
-    // resolves to slot 0's arena regardless of which frame is executing: a
-    // render-path caller would bypass the bounded per-frame leasing and
-    // alias the slot-0 arena while another frame owns it
-    // (use-after-recycle). Canonical authority is FrameExecution::arena()
-    // (leased per slot); pre-frame setup goes through
-    // ExecutionScope::make_root(session, session.arena(), ...). Kept for
-    // test harnesses and diagnostics; do not extend its callers.
-    [[deprecated("D-02: use FrameExecution::arena() (leased) or ExecutionScope::make_root; "
-                 "this aliases slot 0's arena and bypasses frame leasing")]]
-    [[nodiscard]] FrameArena& arena() noexcept { return slots_->payload(0).arena; }
-    [[deprecated("D-02: use FrameExecution::arena() (leased) or ExecutionScope::make_root; "
-                 "this aliases slot 0's arena and bypasses frame leasing")]]
-    [[nodiscard]] const FrameArena& arena() const noexcept { return slots_->payload(0).arena; }
+    // Standalone graph diagnostics have no leased FrameExecution. Keep their
+    // slot-zero ownership explicit; production frame work must use
+    // FrameExecution::arena() so it follows the active lease.
+    [[nodiscard]] FrameArena& root_arena() noexcept { return slots_->payload(0).arena; }
+    [[nodiscard]] const FrameArena& root_arena() const noexcept {
+        return slots_->payload(0).arena;
+    }
     [[nodiscard]] FrameHistoryState history_state() noexcept {
         return FrameHistoryState{frame_history, dirty_telemetry};
     }

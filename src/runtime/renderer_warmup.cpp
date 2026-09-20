@@ -3,7 +3,6 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/compiler/program_sampler.hpp>
 #include <stdexcept>
 #include <utility>
 

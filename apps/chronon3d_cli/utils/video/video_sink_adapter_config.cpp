@@ -100,15 +100,15 @@ bool VideoSinkEncoderAdapter::build_sink_config(
         config.encoder.codec = media::video::resolve_auto_codec(raw_codec, container);
 
         // ── Single-authority encoder configuration ─────────────────────
-        // This adapter runs the CPU (external-pipe) encoder path. For the
+        // This adapter runs the CPU frame-submit encoder path. For the
         // libx264 family the encoder-configuration resolver is the only place
         // that interprets rate-control intent, presets and tunes: unknown
         // rate-control strings, bitrate/QP modes without their required
         // value, invalid presets and unsupported tunes fail fast here instead
         // of silently degrading to CRF or the driver default. NVENC never
         // reaches this adapter in native builds (NativeAvEncoder owns it);
-        // when native FFmpeg is disabled the historical CPU-fallback mapping
-        // is kept, but unknown rate-control strings still fail below.
+        // when native FFmpeg is disabled, the media sink factory fails closed;
+        // unknown rate-control strings still fail below.
         const bool x264_family =
             opts.codec == "libx264" || opts.codec == "libx264rgb" ||
             opts.codec == "h264" || opts.codec == "auto";
@@ -227,7 +227,7 @@ bool VideoSinkEncoderAdapter::build_sink_config(
     config.output.output_path = std::filesystem::path(opts.output_path);
     config.output.overwrite = true;
     config.label = sink_type_ == VideoSinkType::RawFile
-        ? "adapter-raw-video-sink" : "adapter-ffmpeg-pipe-sink";
+        ? "adapter-raw-video-sink" : "adapter-ffmpeg-sink";
     return true;
 }
 

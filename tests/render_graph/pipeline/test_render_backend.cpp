@@ -102,7 +102,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     GraphExecutor executor;
     runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    auto root_scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
+    auto root_scope = ExecutionScope::make_root(session, session.root_arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope, scheduler);
 
     REQUIRE(out.has_framebuffer());
@@ -127,7 +127,7 @@ TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame fail
     GraphExecutor executor;
     runtime::JobSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    auto scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
+    auto scope = ExecutionScope::make_root(session, session.root_arena(), compiled.graph_instance_id);
     auto output = executor.execute(compiled, ctx, scope, scheduler);
     CHECK_FALSE(output.ok());
     REQUIRE(session.last_frame_error());
@@ -161,7 +161,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     GraphExecutor executor;
     runtime::JobSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
-    auto root_scope2 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
+    auto root_scope2 = ExecutionScope::make_root(session, session.root_arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope2, scheduler2);
 
     REQUIRE(out.has_framebuffer());
@@ -192,7 +192,7 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     GraphExecutor executor;
     runtime::JobSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
-    auto root_scope3 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
+    auto root_scope3 = ExecutionScope::make_root(session, session.root_arena(), compiled.graph_instance_id);
     auto out = executor.execute(compiled, ctx, root_scope3, scheduler3);
 
     REQUIRE(out.has_framebuffer());

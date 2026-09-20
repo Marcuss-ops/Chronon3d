@@ -1,7 +1,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
-#include <chronon3d/compiler/program_sampler.hpp>
+#include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/runtime/context/runtime_context.hpp>
@@ -174,7 +174,7 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(reused.frame == chronon3d::Frame{12});
     CHECK(reused.layers.front().opacity == doctest::Approx(1.0f));
 
-    const auto scene = chronon3d::compiler::ProgramSampler{}.materialize_scene(program);
+    const auto scene = chronon3d::compiler::SceneMaterializer{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
 }
 
