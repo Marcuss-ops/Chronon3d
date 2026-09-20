@@ -18,7 +18,7 @@ add_library(chronon3d_cli_video_export STATIC
     commands/video/common/pipe_export_stages.cpp
     commands/video/common/pipe_export_render_loop.cpp
     commands/video/common/pipe_export_direct_yuv.cpp
-    commands/video/common/pipe_export_writer.cpp
+    commands/video/common/video_export_sink.cpp
     utils/video/video_sink_encoders.cpp
     utils/video/video_sink_adapter_config.cpp
     utils/video/video_sink_adapter_lifecycle.cpp
