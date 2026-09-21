@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // pipe_timing_sidecar.cpp — frame-timing sidecar orchestrator.
 //
-// write_frame_timing_sidecar() was a single ~700-line function; it is now
-// phased across sibling TUs (pure code move, no schema change):
+// write_frame_timing_sidecar() is phased across sibling implementation TUs;
+// they all write the one v2 document below:
 //   - pipe_timing_sidecar_frames.cpp       per-frame sections (phase 1)
 //   - pipe_timing_sidecar_summary.cpp      summary + job sections (phase 2)
 //   - pipe_timing_sidecar_diagnostics.cpp  cache/memory/wall/etc. (phase 3)
@@ -56,11 +56,6 @@ void write_frame_timing_sidecar(
     }
     file << out.dump(2) << '\n';
     spdlog::info("[video] Wrote exact per-frame timing sidecar: {}", sidecar);
-
-    // Observability ownership (phase 4): the bounded typed summary sidecar is
-    // the ONLY telemetry surface hosts/collectors may consume. The raw
-    // per-frame sidecar above stays a Chronon-owned deep profile.
-    detail::write_bounded_telemetry_summary_sidecar(video_path, out);
 }
 
 } // namespace chronon3d::cli

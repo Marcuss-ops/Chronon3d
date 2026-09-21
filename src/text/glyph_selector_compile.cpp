@@ -191,6 +191,61 @@ CompiledSelector compile_selector(
     return c;
 }
 
+SelectorWeightParams bind_selector_runtime(
+    const GlyphSelectorSpec& spec,
+    const u32 total_units,
+    const SampleTime time
+) {
+    const f32 start = spec.start.evaluate(time);
+    const f32 end = spec.end.evaluate(time);
+
+    return SelectorWeightParams{
+        spec.shape,
+        start,
+        end,
+        spec.offset.evaluate(time),
+        spec.amount.evaluate(time),
+        total_units,
+        0u,
+        false,
+        true,
+        std::abs(end - start) <= 1e-7f && start >= 100.0f,
+    };
+}
+
+SelectorWeightParams bind_selector_runtime(
+    const CompiledSelector& compiled,
+    const TextUnitMap&,
+    const SampleTime time
+) {
+    if (compiled.spec == nullptr) return {};
+    return bind_selector_runtime(*compiled.spec, compiled.total_units, time);
+}
+
+SelectorWeightParams bind_selector_runtime(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    const u32 glyph_index,
+    const SampleTime time
+) {
+    auto params = bind_selector_runtime(compiled, unit_map, time);
+    if (compiled.spec == nullptr || compiled.total_units == 0 ||
+        glyph_index >= unit_map.glyph_to_grapheme.size()) {
+        return params;
+    }
+
+    const auto& spec = *compiled.spec;
+    const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
+    if (raw_index >= compiled.total_units) return params;
+
+    params.ordered_index = !compiled.random_permutation.empty()
+        ? compiled.random_permutation[raw_index]
+        : detail::apply_selector_order(spec.order, raw_index,
+                                       compiled.total_units, 0);
+    params.use_ordered_index = true;
+    return params;
+}
+
 SelectorWeight selector_weight(
     const SelectorWeightParams& params,
     const u32 glyph_index
@@ -257,38 +312,16 @@ SelectorWeight selector_weight(
 
     if (raw_index >= total) return 0.0f;
 
-    u32 ordered_index;
-    if (!compiled.random_permutation.empty()) {
-        ordered_index = compiled.random_permutation[raw_index];
-    } else {
-        ordered_index = detail::apply_selector_order(
-            spec.order, raw_index, total, 0);
-    }
+    const auto params = bind_selector_runtime(compiled, unit_map,
+                                              glyph_index, time);
+    const f32 unit_position =
+        (static_cast<f32>(params.ordered_index) + 0.5f) /
+        static_cast<f32>(total);
+    const f32 animated_start = params.start;
+    const f32 animated_end = params.end;
 
-    const f32 unit_position = (static_cast<f32>(ordered_index) + 0.5f)
-                            / static_cast<f32>(total);
-
-    const f32 animated_start  = spec.start.evaluate(time);
-    const f32 animated_end    = spec.end.evaluate(time);
-    const f32 animated_offset = spec.offset.evaluate(time);
-    const f32 animated_amount = spec.amount.evaluate(time);
-
-    f32 shifted_position = unit_position - animated_offset * 0.01f;
+    f32 shifted_position = unit_position - params.offset * 0.01f;
     shifted_position = shifted_position - std::floor(shifted_position);
-
-    const SelectorWeightParams params{
-        spec.shape,
-        animated_start,
-        animated_end,
-        animated_offset,
-        animated_amount,
-        total,
-        ordered_index,
-        true,
-        true,
-        std::abs(animated_end - animated_start) <= 1e-7f &&
-            animated_start >= 100.0f,
-    };
     f32 weight = selector_weight(params, raw_index);
 
     if (weight > 0.0f && weight < 1.0f) {

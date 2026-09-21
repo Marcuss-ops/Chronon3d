@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // pipe_timing_sidecar_frames.cpp — phase 1 of the frame-timing sidecar.
 //
-// Split out of pipe_timing_sidecar.cpp (pure code move, no schema change):
+// Split out of pipe_timing_sidecar.cpp; owns the v2 per-frame section.
 // shared per-frame JSON section builders + the sorted "frame_times_ms" array.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -168,7 +168,8 @@ std::vector<double> build_frame_times_section(nlohmann::json& out, SidecarContex
     });
 
     out = nlohmann::json{
-        {"schema", "chronon3d.frame-timing.v1"},
+        {"schema", pipe_timing::kTimingSidecarSchema},
+        {"version", pipe_timing::kTimingSidecarVersion},
         {"video", ctx.video_path},
         {"wall_time_ms", ctx.wall_time_ms},
         {"render_ms", ctx.render_ms},

@@ -316,7 +316,6 @@ def dig(data: dict, *keys, default=None):
 
 def benchmark_from_sidecar(timing_path: Path, wall_ms: float, peak_rss_kb: int) -> dict:
     timing = load_json(timing_path)
-    telemetry = load_json(Path(str(timing_path).replace(".timing.json", ".telemetry-summary.json")))
     cpu = dig(timing, "job", "cpu_breakdown", default={}) or {}
     return {
         "frames": timing.get("frames_total"),
@@ -343,7 +342,7 @@ def benchmark_from_sidecar(timing_path: Path, wall_ms: float, peak_rss_kb: int) 
         "encoder": dig(timing, "job", "encoder", default={}) or {},
         "memory": dig(timing, "memory", default={}) or {},
         "cache": timing.get("cache", {}),
-        "backend": dig(telemetry, "job", "backend", default=None),
+        "backend": dig(timing, "job", "gpu", "effective_backend", default=None),
     }
 
 
@@ -404,7 +403,6 @@ def cmd_goldens(ctx: Context) -> None:
                             ctx.out / "benchmark" / f"{clip}_raw.timing.json")
         raw.unlink(missing_ok=True)
         raw.with_suffix(raw.suffix + ".timing.json").unlink(missing_ok=True)
-        raw.with_suffix(raw.suffix + ".telemetry-summary.json").unlink(missing_ok=True)
     ctx.report["goldens"] = result
 
 
@@ -749,7 +747,6 @@ def cmd_benchmark(ctx: Context) -> None:
         shutil.copyfile(Path(str(raw) + ".timing.json"), bench_dir / f"{clip}_raw.timing.json")
         raw.unlink(missing_ok=True)
         Path(str(raw) + ".timing.json").unlink(missing_ok=True)
-        Path(str(raw) + ".telemetry-summary.json").unlink(missing_ok=True)
 
         video = ctx.out / "mp4" / f"{clip}_1920x1080_30fps_3s.mp4"
         video.parent.mkdir(parents=True, exist_ok=True)
@@ -826,7 +823,6 @@ def cmd_recheck(ctx: Context) -> None:
         result["all_match"] = result["all_match"] and gate["passes"]
         raw.unlink(missing_ok=True)
         raw.with_suffix(raw.suffix + ".timing.json").unlink(missing_ok=True)
-        raw.with_suffix(raw.suffix + ".telemetry-summary.json").unlink(missing_ok=True)
 
     (ctx.out / "recheck").mkdir(parents=True, exist_ok=True)
     (ctx.out / "recheck" / "rebuild_recheck.json").write_text(json.dumps(result, indent=2) + "\n")

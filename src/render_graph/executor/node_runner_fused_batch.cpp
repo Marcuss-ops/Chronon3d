@@ -120,52 +120,6 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    if (shape.layout && !shape.animators.empty()) {
-        // The prepared selector is compiled and owned by the runtime cache;
-        // this helper only samples its immutable program for the current
-        // frame. Non-lowerable animation is rejected by the reuse preflight.
-        auto prepared = ctx.gpu_text_prepared_cache
-            ? ctx.gpu_text_prepared_cache->find(*shape.layout)
-            : nullptr;
-        // Lowerable glyph selectors are evaluated by the GPU text shader from
-        // the compact dynamic run record.  Do not walk every glyph here: that
-        // both defeats the hot path and can dereference an incomplete
-        // compatibility selector sample (notably for Tracking).
-        //
-        // DEMOLITION DEBT (ACTIVE) — TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT.
-        // The branch below is the CPU per-glyph compatibility path for
-        // animation shapes the GPU lowering cannot express. It is O(glyphs)
-        // per frame and contradicts the prepared-GPU-text direction: the
-        // end-state is "unsupported GPU animation fails or falls back AT
-        // PREPARE time", never a per-frame CPU glyph walk. Its two counters
-        // exist so the official corpus can prove the exit condition
-        // (0 hits) before the branch is deleted.
-        if (prepared && prepared->reveal_selector &&
-            !text_run::can_lower_gpu_text_animation(shape)) {
-            std::uint32_t visible_limit = 0;
-            std::uint64_t glyph_evals = 0;
-            const auto sample_time = ctx.frame_input.sample_time;
-            for (std::size_t i = 0; i < shape.layout->placed.glyphs.size(); ++i) {
-                if (shape.glyphs[i].glyph_id == 0 ||
-                    shape.layout->placed.glyphs[i].bbox_x1 <=
-                        shape.layout->placed.glyphs[i].bbox_x0) {
-                    continue;
-                }
-                const auto weight = selector_weight(
-                    *prepared->reveal_selector, shape.layout->units,
-                    static_cast<std::uint32_t>(i), sample_time);
-                ++glyph_evals;
-                if (weight <= 1e-6f) visible_limit = static_cast<std::uint32_t>(i + 1);
-            }
-            run.visible_glyph_count = visible_limit;
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->gpu_text_cpu_selector_compat_frames
-                    .fetch_add(1, std::memory_order_relaxed);
-                profiling::g_current_counters->gpu_text_cpu_selector_compat_glyph_evals
-                    .fetch_add(glyph_evals, std::memory_order_relaxed);
-            }
-        }
-    }
     run.flags = 0u;
     fill_mtsdf_effects(shape, run);
     text_run::sample_gpu_text_animation(
@@ -445,24 +399,6 @@ void execute_fused_batch_impl(
                             static_cast<float>(text::kCanonicalMtsdfProfile.distance_range_px));
                         run_dyn.visible_glyph_count =
                             std::numeric_limits<std::uint32_t>::max();
-                        if (prepared->reveal_selector &&
-                            !text_run::can_lower_gpu_text_animation(*render_shape)) {
-                            std::uint32_t visible_limit = 0;
-                            const auto sample_time = ctx.frame_input.sample_time;
-                            for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
-                                if (render_shape->glyphs[i].glyph_id == 0 ||
-                                    layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
-                                    continue;
-                                }
-                                const auto weight = selector_weight(
-                                    *prepared->reveal_selector, layout.units,
-                                    static_cast<std::uint32_t>(i), sample_time);
-                                if (weight <= 1e-6f) {
-                                    visible_limit = static_cast<std::uint32_t>(i + 1);
-                                }
-                            }
-                            run_dyn.visible_glyph_count = visible_limit;
-                        }
                         run_dyn.flags = 0u;
                         fill_mtsdf_effects(*render_shape, run_dyn);
                         text_run::sample_gpu_text_animation(

@@ -307,27 +307,6 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(kRangePx));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    // Lowerable glyph selectors stay entirely GPU-native.  The shader uses
-    // the selector scalars populated below, so a CPU per-glyph visibility
-    // pass here would be redundant and would reintroduce frame-loop work.
-    if (prepared->reveal_selector &&
-        !can_lower_gpu_text_animation(shape)) {
-        std::uint32_t visible_limit = 0;
-        const auto sample_time = ctx.frame_input.sample_time;
-        for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
-            if (shape.glyphs[i].glyph_id == 0 ||
-                layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
-                continue;
-            }
-            const auto weight = selector_weight(
-                *prepared->reveal_selector, layout.units,
-                static_cast<std::uint32_t>(i), sample_time);
-            if (weight <= 1e-6f) {
-                visible_limit = static_cast<std::uint32_t>(i + 1);
-            }
-        }
-        run.visible_glyph_count = visible_limit;
-    }
     sample_gpu_run_level_animation(shape, ctx.frame_input.sample_time, run);
     sample_gpu_text_animation(shape, ctx.frame_input.sample_time, run);
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {

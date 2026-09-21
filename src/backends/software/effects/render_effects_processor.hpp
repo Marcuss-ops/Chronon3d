@@ -38,16 +38,10 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float t
 
 // ── Individual effect implementations (extracted from effect_stack.cpp) ──
 //
-// TICKET-007 — `apply_glow_effect` now accepts a per-instance
-// `DebugConfig*` forwarded from `EffectExecutionContext::debug_cfg`.
-// When nullptr, the per-pass debug PNG artifacts (debug_glow_source.png
-// / debug_glow_pass_*.png / debug_glow_accumulated.png) are skipped —
-// matching the safe default that replaces the removed process-wide
-// `detail::g_debug_config`.  Defaulted so that existing call-sites
-// without context bindings compile unchanged.
-void apply_glow_effect(Framebuffer& fb, const GlowParams& p, const std::optional<raster::BBox>& clip, const chronon3d::DebugConfig* debug_cfg = nullptr);
+// TICKET-007 — glow debug artifacts receive a per-instance `DebugConfig*`
+// from `EffectExecutionContext::debug_cfg`; nullptr keeps them disabled.
+// This replaces the removed process-wide `detail::g_debug_config`.
 void apply_shadow_effect(Framebuffer& fb, const DropShadowParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
-void apply_bloom_effect(Framebuffer& fb, const BloomParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
 
 // ── Adjustment-layer color correction (AE-5) ──
 void apply_saturation(Framebuffer& fb, f32 sat, const std::optional<raster::BBox>& clip = std::nullopt);

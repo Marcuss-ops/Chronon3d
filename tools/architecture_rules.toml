@@ -114,6 +114,35 @@ allow_list = [
 skip_comments = true
 hint = "Do not duplicate selector shape/Smooth mathematics in another runtime TU."
 
+[[forbidden_symbol]]
+name = "text_selector_runtime_binding_authority"
+description = "Animated selector state and traversal binding live in the compiled selector authority."
+patterns = ['\b(?:\.start|\.end|\.offset|\.amount)\.evaluate\s*\(']
+scan_paths = ["src", "apps"]
+allow_list = [
+  "src/text/glyph_selector_compile.cpp",
+]
+skip_comments = true
+hint = "Bind selector animation through bind_selector_runtime(); consumers receive SelectorWeightParams."
+
+[[forbidden_symbol]]
+name = "text_route_legacy_policy_surface"
+description = "Text execution uses one structured route decision, not the cached-path policy API."
+patterns = ['\b(?:CachedTextExecution(?:Path)|resolve_cached_text_execution_(?:path)|cached_text_execution_(?:path_name))\b']
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = []
+skip_comments = true
+hint = "Use TextRouteDecision from resolve_text_execution_route()."
+
+[[presence]]
+name = "text_route_decision_is_observable"
+description = "Every resolved text route is represented in the canonical telemetry snapshot."
+scan_paths = ["apps/chronon3d_cli/utils/telemetry/telemetry_capture.hpp"]
+pattern = "gpu_text_route_(?:native_mtsdf|native_packed|software|reject)_count"
+min_matches = 4
+skip_comments = true
+hint = "Add the route counter to telemetry_capture.hpp before introducing a new text route."
+
 [[scan]]
 name = "render_error_taxonomy_consolidated"
 scan_paths = ["include", "src", "apps", "tests"]
@@ -419,21 +448,32 @@ min_matches = 1
 skip_comments = false
 hint = "Set \"CHRONON3D_BUILD_C_API\": \"ON\" in the linux-ci preset, or move the SDK-distribution lane to a preset that does."
 
-# ── Demolition-debt counters must have a reader ──────────────────────
-# AGENTS.md requires every compatibility path to declare an observable exit
-# condition. A counter that is written but snapshot by nothing is a dead
-# lighthouse: the branch it measures can never be proven removable, so it
-# survives forever. This rule keeps those counters wired to the canonical
-# telemetry snapshot surface (apps/chronon3d_cli/utils/telemetry/
-# telemetry_capture.hpp), which feeds reports and the corpus gates.
-[[presence]]
-name = "demolition_debt_counters_are_observable"
-description = "TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT counters must be readable from the canonical telemetry snapshot (AUDIT F1); remove the rule together with the branch when the exit condition is met."
-scan_paths = ["apps/chronon3d_cli/utils/telemetry/telemetry_capture.hpp"]
-pattern = "gpu_text_cpu_selector_compat_(?:frames|glyph_evals)"
-min_matches = 2
+# ── Closed Glow and timing-sidecar demolition debt ───────────────────
+[[forbidden_path]]
+name = "unified_glow_has_no_forwarding_shims"
+paths = [
+  "src/backends/software/effects/effect_glow_impl.cpp",
+  "src/backends/software/effects/effect_bloom_impl.cpp",
+  "apps/chronon3d_cli/commands/video/exporters/pipe_timing_sidecar_summary_v1.cpp",
+]
+
+[[forbidden_symbol]]
+name = "unified_glow_dispatch_has_no_shim_symbols"
+patterns = ['\bapply_(?:glow|bloom)_effect\s*\(']
+scan_paths = ["include", "src", "apps", "tests"]
 skip_comments = true
-hint = "Snapshot the counter in capture_counters() (or delete both the counter and the compatibility branch it measures)."
+hint = "Convert the caller to GlowPipeline::from(...) + run_glow_pipeline(); do not restore effect forwarding shims."
+
+[[forbidden_symbol]]
+name = "timing_sidecar_v2_is_the_only_schema"
+patterns = [
+  'chronon3d\.frame-timing\.v1',
+  'chronon3d\.render-telemetry-summary\.v1',
+  'write_bounded_telemetry_summary_sidecar',
+]
+scan_paths = ["apps", "include", "src", "tests", "tools"]
+skip_comments = true
+hint = "Emit the v2 timing sidecar with its inline summary; do not create a second telemetry artifact."
 
 [[contract]]
 name = "cache_taxonomy_gpu_artifact_doctrine"
