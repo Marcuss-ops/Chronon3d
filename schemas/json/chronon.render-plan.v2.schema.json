@@ -137,6 +137,7 @@
             "type": "array", "minItems": 1, "maxItems": 3,
             "items": { "type": "number" }
           },
+          "enable_3d": { "type": "boolean" },
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },

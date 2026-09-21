@@ -561,6 +561,18 @@ public:
             "RenderBackend::color_adjust_surface: native surfaces are not supported"));
     }
 
+    /// Apply a constant per-layer lighting multiplier to native RGBA surfaces.
+    /// The layer's normal/light/material evaluation happens once on the CPU;
+    /// the pixel multiply itself stays on the device and preserves alpha.
+    virtual RenderOpResult lighting_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const Color& /*multiplier*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::lighting_surface: native surfaces are not supported"));
+    }
+
     virtual RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*target*/,

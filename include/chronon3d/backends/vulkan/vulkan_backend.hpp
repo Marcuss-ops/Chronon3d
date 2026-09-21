@@ -422,6 +422,9 @@ public:
     graph::RenderOpResult color_adjust_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&, float) override;
+    graph::RenderOpResult lighting_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const Color&) override;
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, bool) override;

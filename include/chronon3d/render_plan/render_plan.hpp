@@ -140,6 +140,10 @@ struct LayerPlan {
     std::size_t scale_dimensions{0};
     std::array<float, 3> rotation{0.0f, 0.0f, 0.0f};
     std::size_t rotation_dimensions{0};
+    // Route this layer through Chronon's camera-backed 2.5D/3D projection.
+    // The flag is explicit so a plan cannot accidentally carry X/Y rotation
+    // while still being treated as a flat screen-space overlay.
+    bool enable_3d{false};
     // Rounded image corner radius, evaluated by the image compositor's
     // analytic/SDF-style mask. Zero keeps the regular image fast path.
     std::optional<float> radius;

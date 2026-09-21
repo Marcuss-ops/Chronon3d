@@ -83,6 +83,16 @@ public:
             return ctx.acquire_owned_fb(*inputs[0]); // near: no grading
         }
 
+        // DepthGrade is still the CPU reference implementation.  Never call
+        // pixels_row() on a strict native surface: fail with a diagnostic
+        // capability error until a matching Vulkan color-grade kernel exists.
+        if (ctx.policy.require_native_gpu && !inputs[0]->data()) {
+            return NodeExecResult(NodeExecutionError{
+                RenderBackendErrorCode::UnsupportedCapability,
+                std::string(name()),
+                "depth grade requires a native GPU pass or CPU pixel backing"});
+        }
+
         auto result = ctx.acquire_owned_fb(*inputs[0]);
 
         for (i32 y = 0; y < result->height(); ++y) {

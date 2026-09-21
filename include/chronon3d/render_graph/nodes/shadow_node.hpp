@@ -124,6 +124,16 @@ public:
         if (inputs.empty() || !inputs[0]) return result;
         const Framebuffer& src = *inputs[0];
 
+        // ShadowNode is still the CPU reference implementation.  A strict
+        // native export must not dereference pixels_row() on a GPU-only
+        // caster; report the missing native capability instead.
+        if (ctx.policy.require_native_gpu && !src.data()) {
+            return NodeExecResult(NodeExecutionError{
+                RenderBackendErrorCode::UnsupportedCapability,
+                std::string(name()),
+                "shadow requires a native GPU pass or CPU pixel backing"});
+        }
+
         // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ.
         const float dz = m_caster_world_z - m_receiver_world_z;
         const float depth = std::abs(dz);

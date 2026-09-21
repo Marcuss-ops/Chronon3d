@@ -9,6 +9,7 @@
 #include <tbb/parallel_for.h>
 #include <span>
 #include <array>
+#include <bit>
 #include <cstring>
 
 #include "native_surface.hpp"
@@ -75,10 +76,38 @@ NodeExecResult TransformNode::execute(
 
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
+
+    // A projected layer can arrive here from a CPU-authored text/image
+    // producer without a device handle yet.  Native transform dispatch used
+    // to test the handle and then enter the GPU path with an unresolved input,
+    // leaving the frame graph with no output surface. Promote the producer
+    // before choosing the transform path; this is the same explicit CPU→GPU
+    // bridge used by CompositeNode and EffectStackNode.
+    if (ctx.policy.require_native_gpu &&
+        input->surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend && ctx.surface_registry &&
+        ctx.backend->supports_native_surfaces() &&
+        !ensure_native_surface(ctx, *input, "TransformNode.input")) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            std::string(name()),
+            "native transform input promotion failed"});
+    }
     // ── Identity fast-path (uses cached analysis) ──────────────────────
     const bool is_identity = get_transform_type() == TransformType::Identity;
 
-    if (is_identity && std::abs(opacity - 1.0f) < 1e-6f &&
+    // A native projected layer must still pass through the affine surface
+    // kernel at the neutral pose.  The legacy identity copy path only knows
+    // about CPU/full-frame storage and drops tight GPU surfaces when the 3D
+    // animation reaches rotation=0,z=0 (the exact frame where the title
+    // should be most visible).
+    const bool native_projected_input =
+        ctx.policy.require_native_gpu &&
+        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend && ctx.surface_registry &&
+        ctx.backend->is_native_surface_valid(input->surface_handle());
+    if (is_identity && !native_projected_input &&
+        std::abs(opacity - 1.0f) < 1e-6f &&
         input->width() == out_w && input->height() == out_h &&
         input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
         const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
@@ -346,15 +375,16 @@ NodeExecResult TransformNode::execute(
         }
     }
 
-    // Native GPU path for the general affine (non-projective) case. The
-    // inverse homography is the same mapping used by execute_affine_rows;
-    // projective transforms and clipped passes remain on the CPU reference.
+    // Native GPU path for affine and projective transforms. The inverse
+    // homography is the same mapping used by execute_*_rows; the Vulkan
+    // affine kernel consumes an optional denominator so 2.5D tilt/rotation
+    // stays on GPU instead of falling through to a CPU readback.
     const auto affine_native_path = detail::resolve_transform_execution_path(
         ctx.policy.require_native_gpu,
         input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
-    if (is_affine && affine_native_path == detail::TransformExecutionPath::NativeSurface) {
+    if (affine_native_path == detail::TransformExecutionPath::NativeSurface) {
         runtime::SurfaceAffineTransform transform{};
         runtime::set_canvas_source_mapping(
             transform,
@@ -363,6 +393,11 @@ NodeExecResult TransformNode::execute(
             runtime::RectF{x_min_src, y_min_src, x_max_src, y_max_src});
         transform.opacity = opacity;
         transform.bilinear = m_mode == SamplingMode::Bilinear ? 1u : 0u;
+        if (!is_affine) {
+            transform.padding[0] = std::bit_cast<std::uint32_t>(inv_H_corrected[0][2]);
+            transform.padding[1] = std::bit_cast<std::uint32_t>(inv_H_corrected[1][2]);
+            transform.padding[2] = std::bit_cast<std::uint32_t>(inv_H_corrected[2][2]);
+        }
         transform.destination_origin_x = result->origin_x();
         transform.destination_origin_y = result->origin_y();
         if (ctx.node_exec.clip_rect) {
@@ -425,7 +460,7 @@ NodeExecResult TransformNode::execute(
         return NodeExecResult(NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             std::string(name()),
-            "native affine transform failed"});
+            "native affine/projective transform failed"});
     }
 
     // General path: affine or projective, row-based

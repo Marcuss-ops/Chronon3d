@@ -10,6 +10,7 @@
 #include <chronon3d/timeline/composition_definition.hpp>
 
 #include <filesystem>
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
@@ -171,10 +172,30 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
 
         CompositionDefinition definition;
         definition.composition = spec;
-        definition.scene = [plan, resolved_video_paths, prepared_texts, font_engine](
+        const bool has_3d_layer = std::any_of(
+            plan.layers.begin(), plan.layers.end(),
+            [](const LayerPlan& layer) { return layer.enable_3d; });
+        definition.scene = [plan, resolved_video_paths, prepared_texts, font_engine, has_3d_layer](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             scene.font_engine(font_engine.get());
+
+            // Render-plan text positions are converted to centre-relative
+            // layer coordinates by apply_layer_primitives(). Keep the
+            // approved GlowBasics camera at that canonical world origin; a
+            // second canvas-centre translation here would move the text out
+            // of frame.
+            if (has_3d_layer) {
+                Camera2_5D camera;
+                camera.enabled = true;
+                camera.optics_mode = CameraOpticsMode::Zoom;
+                camera.position = Vec3{0.0f, 0.0f, -1000.0f};
+                camera.zoom = 1000.0f;
+                camera.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};
+                camera.point_of_interest_enabled = true;
+                camera.is_animated = true;
+                scene.camera().set(camera);
+            }
 
             for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                 const auto& layer = plan.layers[index];

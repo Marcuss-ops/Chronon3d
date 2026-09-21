@@ -88,6 +88,45 @@ TEST_CASE("Vulkan color adjust matches the CPU scalar oracle") {
     }
 }
 
+TEST_CASE("Vulkan lighting preserves alpha and matches the CPU multiplier oracle") {
+    using namespace chronon3d;
+
+    backends::vulkan::VulkanBackend backend;
+    constexpr std::uint32_t width = 2;
+    constexpr std::uint32_t height = 2;
+    const runtime::SurfaceDesc desc{
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{
+        0.2f, 0.4f, 0.6f, 1.0f,
+        0.8f, 0.1f, 0.3f, 0.5f,
+        0.9f, 0.9f, 0.9f, 0.0f,
+        0.0f, 0.2f, 1.0f, 1.0f};
+    const Color multiplier{0.25f, 0.5f, 0.75f, 1.0f};
+    std::vector<float> actual(source.size(), 0.0f);
+
+    REQUIRE(backend.create_surface(461, desc).ok());
+    REQUIRE(backend.create_surface(462, desc).ok());
+    REQUIRE(backend.upload_surface(462, desc, source).ok());
+    REQUIRE(backend.lighting_surface(461, 462, multiplier).ok());
+    REQUIRE(backend.download_surface(461, actual).ok());
+
+    for (std::size_t pixel = 0; pixel < source.size() / 4; ++pixel) {
+        const auto base = pixel * 4;
+        if (source[base + 3] == 0.0f) {
+            CHECK(actual[base + 0] == doctest::Approx(source[base + 0]));
+            CHECK(actual[base + 1] == doctest::Approx(source[base + 1]));
+            CHECK(actual[base + 2] == doctest::Approx(source[base + 2]));
+        } else {
+            CHECK(actual[base + 0] == doctest::Approx(source[base + 0] * multiplier.r));
+            CHECK(actual[base + 1] == doctest::Approx(source[base + 1] * multiplier.g));
+            CHECK(actual[base + 2] == doctest::Approx(source[base + 2] * multiplier.b));
+        }
+        CHECK(actual[base + 3] == doctest::Approx(source[base + 3]));
+    }
+}
+
 TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
