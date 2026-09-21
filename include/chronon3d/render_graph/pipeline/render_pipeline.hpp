@@ -9,9 +9,6 @@
 // and tests; production prepared-program execution uses RenderPipeline.
 //
 // Deprecated paths (thin wrappers, migrate to render()):
-//   * SoftwareRenderer::render_scene(Scene, Camera, ...)          — Fase C3 @deprecated
-//   * SoftwareRenderer::render_scene(Scene, optional<Camera2_5D>) — Fase C3 @deprecated
-//   * SoftwareRenderer::debug_render_graph(...)                   — Fase C3 @deprecated
 //   * RenderPipeline::render_scene(...) x2                        — Fase C3 @deprecated
 //   * RenderPipeline::debug_graph(...)                            — Fase C3 @deprecated
 // ═══════════════════════════════════════════════════════════════════════════

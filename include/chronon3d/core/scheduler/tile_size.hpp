@@ -21,7 +21,7 @@
 
 #include <cstddef>
 
-#include <chronon3d/raster/bbox.hpp>  // raster::BBox
+#include <chronon3d/math/raster_utils.hpp>  // raster::BBox
 
 namespace chronon3d {
 namespace scheduler {

@@ -1,21 +1,12 @@
 // ===========================================================================
 // src/backends/software/software_renderer_text.cpp
 //
-// M1.5#12 3/4 — SoftwareRenderer text surface: preflight_fonts + text-aware
-// render_scene overload + text_render_resources / font_engine accessors.
+// M1.5#12 3/4 — SoftwareRenderer text surface: preflight_fonts plus
+// text_render_resources / font_engine accessors.
 //
-// Single source of truth for the renderer's text-dispatch logic.  Per FASE
-// B B1 / Cat-2 framing, the text-aware `render_scene(scene, optional<
-// Camera2_5D>)` overload lives here because it auto-arms the
-// `TextRenderResources::debug_io_fence` (Cat-2 / TICKET-087) — preflight +
-// fence-arm is intrinsically text logic and may NOT be split across TUs
-// (an unnamed-namespace struct cannot live in one TU and be used in
-// another).  The non-text-aware `render_scene(scene, Camera)` overload
-// stays in dispatch.cpp because it does not arm the fence.
+// Single source of truth for the renderer's text resource and preflight logic.
+// Text resource and preflight implementations live in this TU.
 //
-// Anonymous-namespace `RenderIOFenceGuard` struct is the Cat-2 RAII
-// helper for the atomic fence — confined to this TU because only the
-// text-aware render_scene variant uses it.
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -33,48 +24,11 @@
 #include <chronon3d/text/font_engine.hpp>
 #endif
 #include "../../render_graph/nodes/text_run/gpu_text_run.hpp"
-// CHRONON3D_BUILD_DIAGNOSTICS=ON enables the draw_null_overlay()
-// call below; include its header so the namespace resolves.
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-#include "diagnostics/nulls_overlay.hpp"
-#endif
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <optional>
 #include <set>
 #include <string>
 #include <utility>
 
 namespace chronon3d {
-
-namespace {
-
-// Cat-2 RAII guard for the TextRenderResources::debug_io_fence atomic.
-// Constructed with a nullptr (fence disarmed).  Public `fence` member
-// lets the renderer attach the actual atomic AFTER preflight_fonts()
-// has warmed both BL + FT caches, so any unforeseen cache miss surfaces
-// as a deterministic std::runtime_error (see Bug #7 / Cat-2 docblock
-// in text_render_resources.hpp).  Dtor symmetrically disarms via
-// memory_order_release (the release-set / acquire-get pair matches
-// TextRenderResources::set_debug_io_fence/is_debug_io_fence_active).
-//
-// Confined to THIS TU (anonymous namespace) — only the text-aware
-// render_scene variant uses it.  Duplicated in text.cpp would re-open
-// Cat-5 over-engineering concerns.
-struct RenderIOFenceGuard {
-    std::atomic<bool>* fence{nullptr};
-    RenderIOFenceGuard() noexcept = default;
-    explicit RenderIOFenceGuard(std::atomic<bool>* f) noexcept : fence(f) {}
-    ~RenderIOFenceGuard() {
-        if (fence) fence->store(false, std::memory_order_release);
-    }
-    // RAII — must not be copied / moved; a copy would double-disarm.
-    RenderIOFenceGuard(const RenderIOFenceGuard&) = delete;
-    RenderIOFenceGuard& operator=(const RenderIOFenceGuard&) = delete;
-    RenderIOFenceGuard(RenderIOFenceGuard&&) = delete;
-    RenderIOFenceGuard& operator=(RenderIOFenceGuard&&) = delete;
-};
-
-} // namespace
 
 // ── Text accessors (single per-renderer FontEngine + TextRenderResources) ────
 
@@ -97,7 +51,7 @@ const FontEngine& SoftwareRenderer::font_engine() const { return *m_execution_co
 // `struct FontPreflightSummary;` forward-decl (gate-3 I3 fix 7 → 6
 // preserved from TICKET-078).  Only the body definition lives here; the
 // parent header's class declaration names `preflight_fonts` so the
-// symbol is visible at call sites in dispatch.cpp's render_scene body.
+// symbol is visible at canonical renderer call sites.
 //
 // Cat-2 font preflight (Cat-2 framing per AGENTS.md freeze audit).
 // Per-layer (fontspec) walk: for each LayerKind::Text, scan nodes for the
@@ -209,57 +163,6 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
         }
     }
     return summary;
-}
-
-// ── Text-aware render_scene overload (auto-arms debug_io_fence) ──────────────
-//
-// Lives here (not in dispatch.cpp) because it must arm the
-// `RenderIOFenceGuard` from the Cat-2 RAII helper above.  Functionally
-// combines preflight + arm-fence + render dispatch — text logic that
-// the dispatch TU cannot replicate without exporting the
-// `RenderIOFenceGuard` struct.
-std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
-    const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height, float fps) {
-    m_session.common.clear_last_frame_error();
-    // Cat-2 font preflight + auto-arm — same pattern as the Camera
-    // overload above.  RAII guard disarms on every exit path.
-    RenderIOFenceGuard fence_guard(nullptr);
-    if (auto* trr = text_render_resources(); trr && m_execution_context.text.assets) {
-        (void)preflight_fonts(scene, *m_execution_context.text.assets);
-        fence_guard.fence = &trr->debug_io_fence;
-    }
-    preflight_images(scene);
-
-    profiling::ProfilingGuard scope(&m_counters, m_execution_context.scratch.framebuffer_pool.get());
-
-    Scene effective_scene = scene.clone();
-    if (camera.has_value()) {
-        effective_scene.set_camera_2_5d(*camera);
-    }
-
-    Camera default_camera;
-    auto res = graph::render_scene_via_graph(
-        *m_execution_context.backend,
-        node_cache(),
-        effective_scene,
-        default_camera,
-        width,
-        height,
-        0,
-        0.0f,
-        m_settings,
-        m_execution_context.registry.compositions,
-        m_execution_context.video_decoder,
-        fps,
-        "scene",
-        this
-    );
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    if (res && m_settings.diagnostics.enabled) {
-        renderer::diagnostics::draw_null_overlay(*res, effective_scene, effective_scene.camera_2_5d());
-    }
-#endif
-    return res;
 }
 
 } // namespace chronon3d

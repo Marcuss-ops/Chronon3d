@@ -5,6 +5,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -50,7 +51,7 @@ TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") 
     CHECK(found_red);
 }
 
-TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output as render_scene_via_graph") {
+TEST_CASE("RenderPipeline - repeated graph entry produces stable output") {
     SceneBuilder builder;
     builder.rect("blue_rect", {.size={60.0f, 60.0f}, .color=Color::blue(), .pos={10.0f, 10.0f, 0.0f}});
     Scene scene = builder.build();
@@ -58,7 +59,7 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb_backend = renderer.render_scene(scene, camera, 100, 100, 30.0f);
+    auto fb_backend = test::render_scene_graph(renderer, scene, camera, 100, 100, 30.0f);
     
     cache::NodeCache node_cache;
     auto fb_pipeline = render_scene_via_graph(
@@ -105,7 +106,7 @@ TEST_CASE("RenderPipeline - debug_render_graph passes through the unique pipelin
     auto renderer = test::make_renderer();
     Camera camera;
 
-    std::string dot = renderer.debug_render_graph(scene, camera, 100, 100, 30.0f);
+    std::string dot = test::debug_render_scene_graph(renderer, scene, camera, 100, 100, 30.0f);
 
     // DOT output should contain standard clear/composite nodes
     CHECK(dot.find("Clear") != std::string::npos);

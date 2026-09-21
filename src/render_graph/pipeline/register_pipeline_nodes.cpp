@@ -22,7 +22,7 @@
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/runtime/context/runtime_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/extension/extension_module.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/extension/extension_context.hpp>

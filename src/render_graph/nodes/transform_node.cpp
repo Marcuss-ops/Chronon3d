@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "native_surface.hpp"
+#include "transform_policy.hpp"
 
 // Internal helpers extracted into separate compilation units
 #include "transform_internal.hpp"
@@ -271,8 +272,12 @@ NodeExecResult TransformNode::execute(
             // The source must already be a device-local logical surface; the
             // CPU implementation remains the fallback for the first upload,
             // perspective, and filtered affine paths.
-            if (input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-                ctx.backend && ctx.surface_registry) {
+            const auto native_path = detail::resolve_transform_execution_path(
+                ctx.policy.require_native_gpu,
+                input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
+                ctx.backend != nullptr,
+                ctx.surface_registry != nullptr);
+            if (native_path == detail::TransformExecutionPath::NativeSurface) {
                 const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
                     static_cast<std::uint32_t>(result->width()),
                     static_cast<std::uint32_t>(result->height()),
@@ -348,9 +353,12 @@ NodeExecResult TransformNode::execute(
     // Native GPU path for the general affine (non-projective) case. The
     // inverse homography is the same mapping used by execute_affine_rows;
     // projective transforms and clipped passes remain on the CPU reference.
-    if (is_affine &&
-        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-        ctx.backend && ctx.surface_registry) {
+    const auto affine_native_path = detail::resolve_transform_execution_path(
+        ctx.policy.require_native_gpu,
+        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
+        ctx.backend != nullptr,
+        ctx.surface_registry != nullptr);
+    if (is_affine && affine_native_path == detail::TransformExecutionPath::NativeSurface) {
         runtime::SurfaceAffineTransform transform{};
         runtime::set_canvas_source_mapping(
             transform,

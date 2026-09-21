@@ -1,5 +1,4 @@
 #pragma once
-#include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -27,7 +26,7 @@ namespace compiler { class CompiledProgram; }
 struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel; struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
 struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOperator : unsigned char;
 
-class SoftwareRenderer : public Renderer {
+class SoftwareRenderer {
 public:
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_compiled(
@@ -35,21 +34,10 @@ public:
     std::shared_ptr<Framebuffer> render_program(
         const compiler::CompiledProgram& program, Frame frame);
 
-    std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
-                                              i32 width, i32 height, float fps);
-
-    std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
-                                              const std::optional<Camera2_5D>& camera,
-                                              i32 width, i32 height, float fps) override;
-    [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
-                                                 i32 width, i32 height, float fps,
-                                                 Frame frame = 0,
-                                                 f32 frame_time = 0.0f) const;
-
     [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
         const chronon3d::Scene& scene, const chronon3d::assets::AssetResolver& resolver);
     explicit SoftwareRenderer(SoftwareExecutionContext context, Config config);
-    ~SoftwareRenderer() override;
+    ~SoftwareRenderer();
     SoftwareRenderer(SoftwareRenderer const&) = delete;
     SoftwareRenderer const& operator=(SoftwareRenderer const&) = delete;
     SoftwareRenderer(SoftwareRenderer&& other) noexcept;

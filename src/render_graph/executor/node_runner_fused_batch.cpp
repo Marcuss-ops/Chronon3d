@@ -5,6 +5,7 @@
 // and their include webs through a detail fragment.
 
 #include "node_runner_fused_batch_detail.hpp"
+#include "fused_batch_policy.hpp"
 
 #include "../nodes/native_surface.hpp"
 
@@ -196,8 +197,6 @@ void execute_fused_batch_impl(
     RenderCounters* parent_counters,
     const CompiledFrameGraph& compiled,
     std::uint64_t* local_nodes_executed) {
-    if (!ctx.execution_backend() || batch.instances.empty()) return;
-
     bool is_text_batch = false;
     for (const auto& inst : batch.instances) {
         if (inst.node < compiled.nodes.size() && compiled.nodes[inst.node].kind == RenderGraphNodeKind::TextRun) {
@@ -206,7 +205,13 @@ void execute_fused_batch_impl(
         }
     }
 
-    if (is_text_batch) {
+    const auto batch_kind = resolve_fused_batch_kind(
+        ctx.execution_backend() != nullptr,
+        !batch.instances.empty(),
+        is_text_batch);
+    if (batch_kind == FusedBatchKind::Skip) return;
+    if (batch_kind == FusedBatchKind::Text) {
+
 #if defined(CHRONON3D_ENABLE_TEXT)
         auto& scratch = tls_fused_scratch;
         auto& all_glyphs = scratch.glyphs;

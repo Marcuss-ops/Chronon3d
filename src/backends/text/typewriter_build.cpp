@@ -5,7 +5,7 @@
 // (content/text/typewriter_build.cpp, removed in 6e6905116).
 
 #include <chronon3d/text/typewriter_layout.hpp>
-#include <chronon3d/backends/text/text_unicode_utils.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
