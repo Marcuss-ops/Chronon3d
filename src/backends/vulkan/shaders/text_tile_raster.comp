@@ -340,21 +340,21 @@ void main() {
                     float shadow_distance_px =
                         (shadow_msd - 0.5) * distance_range * texel_to_screen;
                     // The authored blur is a paint-space width, while the cap
-                    // is the field's own representable softness: fewer than
-                    // 0.75 of the encoded range, expressed in screen pixels.
+                    // is the field's own representable softness: at most 0.48
+                    // of the encoded distance range, expressed in screen pixels.
+                    // Capping below 0.5 ensures that the smoothstep lower bound
+                    // (-shadow_softness_px) is reached before the distance field
+                    // clamp endpoint (shadow_msd = 0.0), eliminating rectangular
+                    // / circular cutoff step discontinuities around glyphs.
                     float shadow_softness_px = clamp(
                         run.shadow_blur * local_to_screen,
-                        0.0, max(distance_range * 0.75 * texel_to_screen, 0.0));
-                    // MTSDF encodes distances beyond its range at the
-                    // 0.0 endpoint.  Treating that endpoint as a blurred
-                    // edge makes the entire padded atlas rectangle opaque
-                    // for large shadows (the old typewriter halo).  It is
-                    // outside the representable field, not a real contour.
-                    float shadow_alpha = shadow_msd <= (1.0 / 255.0)
+                        0.0, max(distance_range * 0.48 * texel_to_screen, 0.0));
+                    float edge_fade = smoothstep(0.01, 0.08, shadow_msd);
+                    float shadow_alpha = (shadow_msd <= (1.0 / 255.0))
                         ? 0.0
                         : (shadow_softness_px > 0.0
                             ? smoothstep(-shadow_softness_px, 0.0,
-                                         shadow_distance_px)
+                                         shadow_distance_px) * edge_fade
                             : step(0.0, shadow_distance_px));
                     vec4 glyph_shadow = unpack_color(run.shadow_color) * shadow_alpha;
                     if (glyph_shadow.a > shadow_layer.a) {

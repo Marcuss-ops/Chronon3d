@@ -68,6 +68,7 @@ struct TextMetrics {
     std::optional<double> atlas_cache_acquire_ms;
     std::optional<std::uint64_t> prepared_batch_build_count;
     std::optional<std::uint64_t> prepared_batch_reuse_count;
+    std::optional<std::uint64_t> zero_visible_frames;
 };
 
 /// Encoder settings for this job. The `preset`/`rate_control`/`async_depth`
