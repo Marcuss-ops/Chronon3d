@@ -61,9 +61,10 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& /*as
     // certifications, launches, text placement, etc.).
     register_content_compositions(registry);
 
-    // Layer 2b — the optional Motion3D canary pack (measured scenes, see
-    // register_canary_compositions.cpp).  Production/certification profiles
-    // keep this enabled; minimal deployment profiles may compile it out.
+    // Layer 2b — the optional canary pack (measured scenes, see
+    // register_canary_compositions.cpp and the canary/ subfiles).
+    // Production/certification profiles keep this enabled; minimal deployment
+    // profiles may compile it out.
 #ifdef CHRONON3D_CLI_WITH_CANARY_REGISTRY
     register_canary_compositions(registry);
 #endif
