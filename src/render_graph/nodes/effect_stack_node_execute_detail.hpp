@@ -11,10 +11,16 @@ NodeExecResult EffectStackNode::execute(
 
     const f32 spread = compute_max_effect_spread();
     auto pred_bbox = predicted_bbox(ctx, input_bboxes);
+    // A strict native export may carry a stale CPU-side allocation from a
+    // reused physical slot while the Vulkan surface is already authoritative.
+    // The native handle, not the optional CPU pointer, decides residency here;
+    // otherwise a tight projected text surface is incorrectly expanded through
+    // the CPU crop path and attempts to resize an external framebuffer.
     const bool gpu_only_input =
-        ctx.policy.require_native_gpu && !inputs[0]->data() &&
-        inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
-
+        ctx.policy.require_native_gpu &&
+        inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        (!ctx.backend || ctx.backend->is_native_surface_valid(
+            inputs[0]->surface_handle()));
     OwnedFB result;
     if (spread > 0.0f && pred_bbox) {
         const raster::BBox out_bounds = *pred_bbox;

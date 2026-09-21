@@ -8,6 +8,7 @@
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
+#include "lighting_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
@@ -287,6 +288,29 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::ColorAdjust, color_adjust_pipeline, "ColorAdjust");
         if (debug_context) debug_context->set_pipeline_name(color_adjust_pipeline, "Chronon3D.Pipeline.ColorAdjust");
+
+        const VkShaderModuleCreateInfo lighting_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_lighting_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_lighting_comp_spv)};
+        VkShaderModule lighting_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &lighting_shader_info, nullptr, &lighting_shader),
+              "vkCreateShaderModule(lighting)");
+        const VkPipelineShaderStageCreateInfo lighting_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            lighting_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo lighting_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            lighting_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline lighting_pipeline = VK_NULL_HANDLE;
+        const VkResult lighting_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &lighting_pipeline_info, nullptr, &lighting_pipeline);
+        vkDestroyShaderModule(device, lighting_shader, nullptr);
+        check(lighting_result, "vkCreateComputePipelines(lighting)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Lighting, lighting_pipeline, "Lighting");
+        if (debug_context) debug_context->set_pipeline_name(lighting_pipeline, "Chronon3D.Pipeline.Lighting");
 
         const VkShaderModuleCreateInfo matte_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

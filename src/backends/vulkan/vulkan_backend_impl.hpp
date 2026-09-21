@@ -700,6 +700,9 @@ struct VulkanBackend::Impl {
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
                              const Color& tint, float tint_amount);
+    void record_lighting(VkCommandBuffer command, VkDescriptorSet descriptors,
+                         const Image& destination, const Image& source,
+                         const Color& multiplier);
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
                       const Image& matte, bool luma, bool inverted);
@@ -782,6 +785,9 @@ struct VulkanBackend::Impl {
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,
                       const Color& tint, float tint_amount);
+    void lighting(runtime::RenderSurfaceHandle destination,
+                  runtime::RenderSurfaceHandle source,
+                  const Color& multiplier);
     void matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,

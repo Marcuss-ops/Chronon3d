@@ -10,6 +10,7 @@ set(_chronon3d_shaders
     affine_transform
     blur
     color_adjust
+    lighting
     matte
     text_run
     fill_rect
@@ -42,6 +43,7 @@ set(_chronon3d_shader_abi_prefixes
     affine_transform:AffineTransform
     blur:Blur
     color_adjust:ColorAdjust
+    lighting:Lighting
     matte:Matte
     text_run:TextRun
     fill_rect:FillRect

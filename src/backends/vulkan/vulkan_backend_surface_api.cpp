@@ -719,6 +719,23 @@ graph::RenderOpResult VulkanBackend::color_adjust_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::lighting_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& multiplier) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->lighting(destination, source, multiplier);
+    });
+#else
+    (void)destination; (void)source; (void)multiplier;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::lighting_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::matte_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle target,

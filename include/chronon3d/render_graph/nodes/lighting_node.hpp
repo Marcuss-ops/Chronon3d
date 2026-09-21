@@ -50,31 +50,8 @@ public:
     NodeExecResult execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
-        std::span<const std::optional<raster::BBox>>
-    ) override {
-        if (inputs.empty()) {
-            return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
-        }
-
-        if (!ctx.frame_input.light_context.enabled || !m_material.accepts_lights) {
-            return ctx.acquire_owned_fb(*inputs[0]);
-        }
-
-        auto result = ctx.acquire_owned_fb(*inputs[0]);
-        const Vec3 normal_world = rendering::transform_normal(m_world_matrix, {0.0f, 0.0f, 1.0f});
-
-        for (i32 y = 0; y < result->height(); ++y) {
-            Color* row = result->pixels_row(y);
-            for (i32 x = 0; x < result->width(); ++x) {
-                if (row[x].a <= 0.0f) {
-                    continue;
-                }
-                row[x] = rendering::evaluate_lighting(row[x], normal_world, ctx.frame_input.light_context, m_material);
-            }
-        }
-
-        return result;
-    }
+        std::span<const std::optional<raster::BBox>> input_bboxes
+    ) override;
 
     static std::unique_ptr<LightingNode> create(std::string layer_name, const Mat4& world_matrix,
                                                  const Material2_5D& material) {
