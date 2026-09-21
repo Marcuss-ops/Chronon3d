@@ -260,6 +260,7 @@ struct FrameTextTiming {
     double atlas_cache_acquire_ms{0.0};
     uint64_t prepared_batch_build_count{0};
     uint64_t prepared_batch_reuse_count{0};
+    uint64_t zero_visible_frames{0};
 };
 
 /// Per-frame projection of cumulative Vulkan backend counters. The Vulkan

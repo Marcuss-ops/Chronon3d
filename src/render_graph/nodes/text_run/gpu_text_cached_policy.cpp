@@ -2,6 +2,21 @@
 
 namespace chronon3d::graph::text_run::detail {
 
+const char* cached_text_execution_path_name(
+    const CachedTextExecutionPath path) noexcept {
+    switch (path) {
+        case CachedTextExecutionPath::RejectUnsupportedAnimation:
+            return "reject-unsupported-animation";
+        case CachedTextExecutionPath::RejectForcedSoftware:
+            return "reject-forced-software";
+        case CachedTextExecutionPath::TryMtsdf:
+            return "mtsdf";
+        case CachedTextExecutionPath::PackedBitmap:
+            return "packed-compat";
+    }
+    return "unknown";
+}
+
 CachedTextExecutionPath resolve_cached_text_execution_path(
     const bool unsupported_animation,
     const bool force_software,

@@ -23,6 +23,7 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
     s.text_atlas_cache_acquire_us = load(ctx.counters->gpu_text_atlas_cache_acquire_wall_us);
     s.text_prepared_batch_build_count = load(ctx.counters->gpu_text_prepared_batch_build_count);
     s.text_prepared_batch_reuse_count = load(ctx.counters->gpu_text_prepared_batch_reuse_count);
+    s.text_run_zero_visible_frames = load(ctx.counters->text_run_zero_visible_frames);
     s.text_us = s.text_prepare_per_frame_us
               + s.text_styled_glyph_build_us
               + s.text_atlas_pack_us
@@ -124,6 +125,9 @@ FrameTimingProjection project_frame_timings(
     p.text_timing.prepared_batch_reuse_count =
         after.text_prepared_batch_reuse_count >= before.text_prepared_batch_reuse_count
             ? after.text_prepared_batch_reuse_count - before.text_prepared_batch_reuse_count : 0;
+    p.text_timing.zero_visible_frames =
+        after.text_run_zero_visible_frames >= before.text_run_zero_visible_frames
+            ? after.text_run_zero_visible_frames - before.text_run_zero_visible_frames : 0;
     p.node_lookup_ms = static_cast<double>(after.node_lookup_us - before.node_lookup_us) / 1000.0;
     p.gpu_timing.timestamp_execute_ms = static_cast<double>(
         after.gpu_execute_us - before.gpu_execute_us) / 1000.0;
