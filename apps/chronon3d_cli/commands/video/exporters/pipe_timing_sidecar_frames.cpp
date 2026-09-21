@@ -117,7 +117,8 @@ nlohmann::json build_text_section(const FrameTelemetry& f) {
         {"atlas_sha256_ms", f.text_timing.atlas_sha256_ms},
         {"atlas_cache_acquire_ms", f.text_timing.atlas_cache_acquire_ms},
         {"prepared_batch_build_count", f.text_timing.prepared_batch_build_count},
-        {"prepared_batch_reuse_count", f.text_timing.prepared_batch_reuse_count}
+        {"prepared_batch_reuse_count", f.text_timing.prepared_batch_reuse_count},
+        {"text_run_zero_visible_frames", f.text_timing.zero_visible_frames}
     };
 }
 
