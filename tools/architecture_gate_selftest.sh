@@ -213,19 +213,19 @@ namespace runtime { namespace job { struct RenderJobRequest; } }
 EOF
     write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service_ipc.cpp" <<'EOF'
 #include "daemon_render_job_payload.hpp"
-#include <string>
-
-runtime::job::RenderJobRequest decode_render_job_payload(
-    const std::string& payload) {
+// IPC ingress delegates parsing to the canonical protocol/dispatch codecs.
+void handle_render_job() {}
+EOF
+    write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service_ipc_protocol.cpp" <<'EOF'
+void decode_render_job_payload(const std::string& payload) {
     const auto request = nlohmann::json::parse(payload);
     (void)request;
-    return {};
 }
-
-ipc::Reply ipc_assemble_segments(const std::string& payload) {
-    const auto request = nlohmann::json::parse(payload);
+EOF
+    write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service_ipc_dispatch.cpp" <<'EOF'
+void decode_segment_payload(const std::string& payload) {
+    const auto request = nlohmann::json::parse(payload.begin(), payload.end());
     (void)request;
-    return {};
 }
 EOF
     write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service.hpp" <<'EOF'
