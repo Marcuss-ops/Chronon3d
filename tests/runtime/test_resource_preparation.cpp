@@ -155,16 +155,29 @@ TEST_CASE("ResourcePreparation::prepare — missing required font → fail-loud 
 }
 
 TEST_CASE("ResourcePreparation::prepare — all assets present → success, 4 keyed maps populated") {
-    chronon3d::assets::AssetManifest manifest;
-    manifest.add_font("present/font.ttf",         "owner/font");
-    manifest.add_image("present/image.png",       "owner/image");
-    manifest.add_video("present/video.mp4",       "owner/video");
-    manifest.add_audio("present/audio.wav",       "owner/audio");
+    const auto fixture_root = std::filesystem::temp_directory_path() /
+        ("chronon3d-preparation-all-assets-" +
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(fixture_root / "present");
+    std::filesystem::copy_file(
+        chronon3d::test::test_repo_root() / "tests/fixtures/Inter-Bold.ttf",
+        fixture_root / "present/font.ttf");
+    std::filesystem::copy_file(
+        chronon3d::test::test_repo_root() / "tests/install_consumer/assets/test_image.png",
+        fixture_root / "present/image.png");
+    const auto video_fixture = write_probe_video_fixture();
+    const auto audio_fixture = write_probe_audio_fixture();
+    std::filesystem::copy_file(video_fixture, fixture_root / "present/video.y4m");
+    std::filesystem::copy_file(audio_fixture, fixture_root / "present/audio.wav");
 
-    MockResolver resolver(std::unordered_set<std::string>{
-        "present/font.ttf", "present/image.png",
-        "present/video.mp4", "present/audio.wav"
-    });
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_font("present/font.ttf",  "owner/font");
+    manifest.add_image("present/image.png", "owner/image");
+    manifest.add_video("present/video.y4m", "owner/video");
+    manifest.add_audio("present/audio.wav", "owner/audio");
+
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(fixture_root);
     chronon3d::runtime::PreparationOptions options;
     // layout_preparation is keyed by Image kind (placeholder); opt it OUT
     // for this test so we don't double-count images via layout phase.
@@ -192,6 +205,11 @@ TEST_CASE("ResourcePreparation::prepare — all assets present → success, 4 ke
     CHECK(result.value().diagnostics.audio_indexes_built    == 1);
     CHECK(result.value().diagnostics.layouts_prepared       == 0);
 #endif
+
+    std::error_code ignored;
+    std::filesystem::remove(video_fixture, ignored);
+    std::filesystem::remove(audio_fixture, ignored);
+    std::filesystem::remove_all(fixture_root, ignored);
 }
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
