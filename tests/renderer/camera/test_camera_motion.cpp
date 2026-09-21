@@ -2,7 +2,7 @@
 #include <doctest/doctest.h>
 #include <tests/helpers/composition_helpers.hpp>
 
-#include <chronon3d/animations/camera_motion.hpp>
+#include <chronon3d/animations/camera_motion_params.hpp>
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>

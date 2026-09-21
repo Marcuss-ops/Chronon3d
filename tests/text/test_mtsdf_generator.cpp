@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/backends/text/mtsdf_generator.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/backends/text/text_font_resources.hpp>
 #include <chronon3d/core/profiling/profiling_context.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 

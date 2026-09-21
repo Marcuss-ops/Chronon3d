@@ -8,7 +8,7 @@
 
 #include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content declarations
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/backends/text/text_unicode_utils.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 
 #include <utility>
 #include <vector>

@@ -35,9 +35,7 @@
 //
 // What's NOT here anymore (M1.5#12 split — 3 companion TUs):
 //   * 2 regular ctors              → software_renderer_factory.cpp
-//   * render / render_scene × 2    → software_renderer_dispatch.cpp +
-//                                     software_renderer_text.cpp
-//   * debug_render_graph           → software_renderer_dispatch.cpp
+//   * render / render_compiled / render_program → software_renderer_dispatch.cpp
 //   * draw_node                    → software_renderer_dispatch.cpp
 //   * composite_layer / apply_blur → software_renderer_dispatch.cpp
 //   * apply_per_pixel_dof          → software_renderer_dispatch.cpp
@@ -46,7 +44,6 @@
 //   * text_render_resources() × 2  → software_renderer_text.cpp
 //   * font_engine() × 2            → software_renderer_text.cpp
 //   * to_local_clip / clipped_area → software_renderer_dispatch.cpp
-//   * RenderIOFenceGuard (RAII)    → software_renderer_text.cpp
 // ===========================================================================
 
 #include <chronon3d/backends/software/software_renderer.hpp>

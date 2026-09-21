@@ -9,6 +9,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <cmath>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -473,7 +474,7 @@ TEST_CASE("GraphHealth: graph output matches direct renderer for layered scene")
 
     auto direct_renderer = test::make_renderer();
     Camera camera;
-    auto fb_direct = direct_renderer.render_scene(scene, camera, W, H, 30.0f);
+    auto fb_direct = test::render_scene_graph(direct_renderer, scene, camera, W, H, 30.0f);
 
     auto graph_renderer = test::make_renderer();
     cache::NodeCache node_cache;

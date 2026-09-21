@@ -6,6 +6,7 @@
 // (TICKET-TEXT-QUALITY-V2 P0-0b).
 #include "../../utils/job/output_lane_pixel_truth.hpp"
 #include "command_render_plan.hpp"
+#include "command_render_plan_internal.hpp"
 #include "render_plan_preparation.hpp"
 #include "../video/common/pipe_pixfmt_vocabulary.hpp"
 // ONE sink vocabulary for the --video-sink option checker (sink_options.hpp).
@@ -34,7 +35,6 @@
 
 namespace chronon3d::cli {
 
-#include "command_render_plan_internal.inc"
 #include "command_render_plan_api.inc"
 
 } // namespace chronon3d::cli

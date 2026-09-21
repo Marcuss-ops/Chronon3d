@@ -5,6 +5,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <cmath>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -24,7 +25,7 @@ TEST_CASE("Line Thickness - BBox and Raster Verification") {
     Camera camera;
 
     // Render onto a 400x200 framebuffer
-    auto fb = renderer.render_scene(scene, camera, 400, 200, 30.0f);
+    auto fb = test::render_scene_graph(renderer, scene, camera, 400, 200, 30.0f);
     REQUIRE(fb != nullptr);
 
     // Let's print any colored pixels we find

@@ -1,37 +1,30 @@
-namespace {
+#include "command_render_plan_internal.hpp"
 
-struct RenderPlanState {
-    std::string input;
-    std::string prepared_package;
-    std::string output;
-    std::string assets_root;
-    std::uint64_t start_frame{0};
-    std::uint64_t end_frame{0};
-    // start_frame/end_frame explicitness: only an EXPLICIT --start-frame /
-    // --end-frame pair (or daemon range_enabled) makes an end value of 0 a
-    // real inclusive last frame 0. When end was never requested, the legacy
-    // end==0 sentinel still means "through the last frame".
-    bool start_frame_explicit{false};
-    bool end_frame_explicit{false};
-    std::uint32_t fps_num{30};
-    std::uint32_t fps_den{1};
-    int crf{-1};
-    std::string encode_preset;
-    bool report{false};
-    // Resolver-owned default (audit N8).
-    std::string backend{std::string{media::kDefaultBackend}};
-    std::shared_ptr<SoftwareRenderer> warm_renderer;
-    RenderPlanVideoOverrides video;
-    std::string trace_output;
-    std::string trace_level{"pipeline"};
-    std::string gpu_hot_path_mode{"auto"};
-    // Explicit sink request for the `render-plan` compatibility alias. Empty
-    // means "not requested": normalization back-fills the canonical default.
-    std::string video_sink;
-    std::string receipt_verify;
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution;
-    std::optional<runtime::job::NormalizedRenderJob> normalized_request;
-};
+#include "../../utils/job/render_job.hpp"
+#include "../../utils/job/output_lane_pixel_truth.hpp"
+#include "../video/common/pipe_pixfmt_vocabulary.hpp"
+#include "../video/common/sink_options.hpp"
+#include "../../utils/video/encoder_config_resolution.hpp"
+#include "../../utils/video/copy_lane_coverage.hpp"
+#include "render_plan_preparation.hpp"
+
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/render_graph/backend_selection.hpp>
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/timeline/compiled_composition.hpp>
+#ifdef CHRONON3D_ENABLE_VERIFICATION
+#include <chronon3d/verification/render_receipt.hpp>
+#endif
+#include <chronon3d/media/video/video_execution_resolver.hpp>
+
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+#include <chrono>
+#include <filesystem>
+#include <string>
+
+namespace chronon3d::cli {
 
 runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& args) {
     runtime::job::RenderJobRequest request;
@@ -49,9 +42,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.encoder_backend = args.video.encoder_backend;
     request.output.ffmpeg_mode = args.video.ffmpeg_mode;
     request.output.gpu_hot_path_mode = args.gpu_hot_path_mode;
-    if (!args.video_sink.empty()) {
-        request.output.sink_type = args.video_sink;
-    }
+    if (!args.video_sink.empty()) request.output.sink_type = args.video_sink;
     request.output.encode_preset = !args.video.encode_preset.empty()
         ? args.video.encode_preset : args.encode_preset;
     request.output.rate_control_mode = args.video.rate_control_mode;
@@ -72,6 +63,8 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     }
     return request;
 }
+
+namespace {
 
 graph::BackendPreference backend_preference_from_name(const std::string& value) {
     if (value == "software") return graph::BackendPreference::Software;
@@ -96,12 +89,10 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
+} // namespace
+
 int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
     try {
-        // Phase 9 (CLI/IPC parity): normalization happens exactly once, at the
-        // two canonical entry boundaries (run_render_plan_file / daemon IPC
-        // decode). The execution layer never re-normalizes: every caller is
-        // required to hand in an already-normalized job.
         if (!args.normalized_request) {
             spdlog::error(
                 "execute_render_plan requires a NormalizedRenderJob (Phase 9: "
@@ -120,49 +111,32 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                           preparation.error().message);
             return 1;
         }
-
         auto context = std::move(preparation).value();
 
-        // COPY-LANE TRUST BOUNDARY (see utils/video/copy_lane_coverage.hpp).
-        // The GOP copy lane publishes the compressed source's packets verbatim
-        // for every interval the caller did NOT declare as changed, so the
-        // declaration has to be able to carry the plan's rendered content. The
-        // two cases refused here — an overlay window the caller never declared,
-        // and gop_copy_only over a plan that draws layers — both used to publish
-        // unlocalized frames and exit 0. This is the one place where the decoded
-        // plan and the normalized job are both in hand, and it is on the single
-        // path the CLI and the daemon share.
-        {
-            const auto coverage = validate_copy_lane_coverage(
-                context.decoded, normalized_job.output.gop_copy_only,
-                normalized_job.output.changed_intervals);
-            if (!coverage.ok) {
-                spdlog::error("[video] refusing copy-lane job: {}", coverage.message);
-                return 1;
-            }
+        const auto coverage = validate_copy_lane_coverage(
+            context.decoded, normalized_job.output.gop_copy_only,
+            normalized_job.output.changed_intervals);
+        if (!coverage.ok) {
+            spdlog::error("[video] refusing copy-lane job: {}", coverage.message);
+            return 1;
         }
 
         const auto& meta = context.program->metadata();
         const auto& fp = context.program->fingerprint_data();
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
-
         const auto output = normalized_job.output_path.empty()
             ? meta.output.path : normalized_job.output_path.string();
         const auto first = normalized_job.frame_range
             ? normalized_job.frame_range->first : std::int64_t{0};
-        // Explicit frame-range semantics: when --end-frame (or the daemon
-        // range_end) was explicitly requested, an end value of 0 is a real
-        // inclusive last frame 0 (single-frame chunk at frame 0). Without an
-        // explicit end the legacy end==0 sentinel means "through the last
-        // frame of the plan".
-        const std::int64_t last = normalized_job.frame_range
+        const auto last = normalized_job.frame_range
             ? normalized_job.frame_range->last
             : static_cast<std::int64_t>(meta.duration_frames) - 1;
+
         RenderRequest request;
         request.comp_id = meta.job_id;
         request.compiled_program = context.program;
-		request.compiled_composition = context.video_compatibility_view;
+        request.compiled_composition = context.video_compatibility_view;
         request.output = output;
         request.execution.assets_root = effective_assets_root.empty()
             ? std::nullopt
@@ -183,9 +157,13 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             ? meta.fps_numerator : normalized_job.output.fps_num;
         request.video_settings.fps_den = normalized_job.output.fps_num == 0
             ? meta.fps_denominator : normalized_job.output.fps_den;
-        request.video_settings.codec = codec_name(static_cast<render_plan::VideoCodec>(meta.output.codec));
-        request.video_settings.rate_control_mode = meta.output.rate_control == static_cast<std::uint8_t>(render_plan::RateControlMode::ConstantQp) ? "qp" :
-            (meta.output.rate_control == static_cast<std::uint8_t>(render_plan::RateControlMode::Bitrate) ? "bitrate" : "crf");
+        request.video_settings.codec = codec_name(
+            static_cast<render_plan::VideoCodec>(meta.output.codec));
+        request.video_settings.rate_control_mode =
+            meta.output.rate_control == static_cast<std::uint8_t>(render_plan::RateControlMode::ConstantQp)
+                ? "qp"
+                : (meta.output.rate_control == static_cast<std::uint8_t>(render_plan::RateControlMode::Bitrate)
+                    ? "bitrate" : "crf");
         request.video_settings.qp = meta.output.qp;
         request.video_settings.bitrate = meta.output.bitrate;
         if (!normalized_job.output.codec.empty()) request.video_settings.codec = normalized_job.output.codec;
@@ -193,18 +171,12 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
         if (!normalized_job.output.encoder_backend.empty())
             request.video_settings.encoder_backend = normalized_job.output.encoder_backend;
-        // Preserve the optional source media path through the render-plan
-        // adapter. The native encoder uses it to mux the master audio stream;
-        // dropping it here produces a valid video-only MP4 silently.
         request.video_settings.gop_source = normalized_job.output.audio_source_path;
         request.video_settings.audio_target_sample_rate =
             normalized_job.output.audio_target_sample_rate;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
-        // Sink axis: the normalized job carries the canonical (back-filled)
-        // sink name, so the plan route and the direct route reach the executor
-        // through the same field with the same default.
         if (!normalized_job.output.sink_type.empty()) {
             request.video_settings.sink_type = normalized_job.output.sink_type;
             request.video_settings.sink_type_explicit = true;
@@ -223,49 +195,28 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.video_settings.rate_control_mode = "crf";
             request.video_settings.crf = meta.output.crf;
         }
-        if (!normalized_job.output.encode_preset.empty()) {
+        if (!normalized_job.output.encode_preset.empty())
             request.video_settings.encode_preset = normalized_job.output.encode_preset;
-        }
-        // Explicitness markers: only CLI/API overrides and values that the
-        // render plan itself decoded as explicit configuration count as user
-        // requests. Engine placeholder defaults (rate_control default "crf"
-        // with no crf/qp/bitrate value, the default encode preset) stay
-        // unmarked so the encoder-configuration resolver can apply the
-        // deterministic per-backend engine default instead of rejecting an
-        // NVENC job that simply never mentioned rate control.
         request.video_settings.rate_control_mode_explicit =
             !normalized_job.output.rate_control_mode.empty() ||
             meta.output.rate_control != static_cast<std::uint8_t>(render_plan::RateControlMode::Crf) ||
             (meta.output.crf > 0 && meta.output.crf <= 51);
-        request.video_settings.crf_explicit =
-            normalized_job.output.crf >= 0 ||
+        request.video_settings.crf_explicit = normalized_job.output.crf >= 0 ||
             (meta.output.crf > 0 && meta.output.crf <= 51);
-        request.video_settings.qp_explicit =
-            normalized_job.output.qp >= 0 || meta.output.qp >= 0;
-        request.video_settings.bitrate_explicit =
-            normalized_job.output.bitrate > 0 || meta.output.bitrate > 0;
-        request.video_settings.encode_preset_explicit =
-            !normalized_job.output.encode_preset.empty();
+        request.video_settings.qp_explicit = normalized_job.output.qp >= 0 || meta.output.qp >= 0;
+        request.video_settings.bitrate_explicit = normalized_job.output.bitrate > 0 || meta.output.bitrate > 0;
+        request.video_settings.encode_preset_explicit = !normalized_job.output.encode_preset.empty();
         request.video_settings.tune_explicit = false;
-        // The (0,0) frame pair only re-expands to the whole plan when NO
-        // range was requested. Explicit --start/--end or daemon range_enabled
-        // keeps 0..0 as a real single-frame chunk (see RenderRequest docs).
         request.frame_range_explicit = normalized_job.frame_range.has_value();
 
-        // The output lane is selected by OUTPUT INTENT: a container extension
-        // picks the encoder path as before, and an explicitly requested sink
-        // picks the video lane even when the output path carries no container
-        // extension (the pre-encode "raw" sink writes frames to a bare .raw).
         if (video_output(output) ||
             video_sink_name_selects_video_lane(normalized_job.output.sink_type)) {
             request.mode = RenderMode::Video;
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
             const bool gpu_native =
-                hardware_nvenc_requested(
-                    request.video_settings.hardware_encoder) &&
-                is_native_encoder_transport(
-                    request.video_settings.encoder_backend) &&
+                hardware_nvenc_requested(request.video_settings.hardware_encoder) &&
+                is_native_encoder_transport(request.video_settings.encoder_backend) &&
                 normalized_job.backend == "vulkan";
             request.execution.warmup_renderer = !gpu_native;
             request.execution.warmup_dummy_frame = !gpu_native;
@@ -277,8 +228,6 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
         }
-        // Same pixel-truth authority as the direct `render` route: the plan
-        // route announces the lane it just chose (TICKET-TEXT-QUALITY-V2 P0-0b).
         pixel_truth::announce_lane(request.mode);
 
         auto job = resolve_render_request(registry, std::move(request));
@@ -286,14 +235,6 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             spdlog::error("Render plan job failed: {}", job.error().message);
             return 1;
         }
-        // Job-lifecycle attribution. The timing sidecar accounts for every
-        // phase up to the export's own wall_t1, so two costs are invisible to
-        // all existing timers: (a) RETURNING from the export, i.e. the
-        // exporter/session teardown that runs when the result objects are
-        // destroyed, and (b) the receipt path. Both sit on the serialized
-        // daemon service (see docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md),
-        // where they were measured as a ~1.3 s constant per job. Recorded here
-        // as a phase line instead of being buried in the job wall.
         const auto lifecycle_execute_t0 = std::chrono::steady_clock::now();
         auto result = execute_render_job(
             *job, std::move(args.warm_renderer), std::move(args.video_execution));
@@ -311,8 +252,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 receipt_input.job_id = meta.job_id;
                 receipt_input.content_digest = fp.content_digest.hex();
                 receipt_input.request_digest = fp.request_digest.hex();
-                receipt_input.asset_manifest_digest =
-                    meta.asset_manifest.manifest_digest().hex();
+                receipt_input.asset_manifest_digest = meta.asset_manifest.manifest_digest().hex();
 #ifdef CHRONON3D_CLI_PROJECT_VERSION
                 receipt_input.chronon_version = CHRONON3D_CLI_PROJECT_VERSION;
 #endif
@@ -323,20 +263,15 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 receipt_input.fps_num = meta.fps_numerator;
                 receipt_input.fps_den = meta.fps_denominator;
                 receipt_input.frames = meta.duration_frames;
-                receipt_input.requested_codec = codec_name(static_cast<render_plan::VideoCodec>(meta.output.codec));
+                receipt_input.requested_codec = codec_name(
+                    static_cast<render_plan::VideoCodec>(meta.output.codec));
                 receipt_input.has_audio_tracks = false;
-                // Explicit per-job verification policy (daemon RENDER_JOB
-                // payload / render-plan boundary). Empty falls back to the
-                // process environment (CHRONON_RECEIPT_VERIFY), preserving
-                // the CLI subprocess contract.
                 receipt_input.receipt_verify_policy = normalized_job.receipt_verification;
-
                 const auto receipt_build_t0 = std::chrono::steady_clock::now();
                 const auto receipt = verification::build_render_receipt(
                     receipt_input, output, video_output(output));
                 const auto receipt_build_t1 = std::chrono::steady_clock::now();
-                const auto receipt_path =
-                    verification::write_render_receipt(receipt, output);
+                const auto receipt_path = verification::write_render_receipt(receipt, output);
                 const auto receipt_write_t1 = std::chrono::steady_clock::now();
                 lifecycle_receipt_build_ms = std::chrono::duration<double, std::milli>(
                     receipt_build_t1 - receipt_build_t0).count();
@@ -344,21 +279,18 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                     receipt_write_t1 - receipt_build_t1).count();
                 spdlog::info("receipt: {}", receipt_path.string());
                 spdlog::info(
-                    "[video] receipt verification policy={} total_ms={:.1f} "
-                    "sha256_ms={:.1f} probe_ms={:.1f} count_frames_ms={:.1f} "
-                    "decode_ms={:.1f} copy_eligible={}",
-                    receipt.verification.resolved_policy,
-                    receipt.timing.total_ms, receipt.timing.sha256_ms,
-                    receipt.timing.probe_ms, receipt.timing.count_frames_ms,
-                    receipt.timing.decode_ms,
+                    "[video] receipt verification policy={} total_ms={:.1f} sha256_ms={:.1f} "
+                    "probe_ms={:.1f} count_frames_ms={:.1f} decode_ms={:.1f} copy_eligible={}",
+                    receipt.verification.resolved_policy, receipt.timing.total_ms,
+                    receipt.timing.sha256_ms, receipt.timing.probe_ms,
+                    receipt.timing.count_frames_ms, receipt.timing.decode_ms,
                     receipt.copy_eligible ? "true" : "false");
             } catch (const std::exception& error) {
                 spdlog::warn("receipt generation failed: {}", error.what());
             }
 #else
             spdlog::info(
-                "render report requested but verification/receipts are disabled "
-                "in this build");
+                "render report requested but verification/receipts are disabled in this build");
 #endif
         }
         spdlog::info(
@@ -382,10 +314,10 @@ int execute_normalized_render_job(
     std::shared_ptr<SoftwareRenderer> warm_renderer,
     std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
     RenderPlanState state;
-    state.normalized_request = job;
+    state.normalized_request = std::move(job);
     state.warm_renderer = std::move(warm_renderer);
     state.video_execution = std::move(video_execution);
     return execute_render_plan(registry, state);
 }
 
-} // namespace
+} // namespace chronon3d::cli

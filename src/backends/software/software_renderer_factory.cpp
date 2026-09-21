@@ -8,9 +8,8 @@
 // (no move ops, no dtor, no setters).  Move ops / settings / orchestration
 // live in `software_renderer.cpp`.  This split keeps each TU under one
 // responsibility boundary in the spirit of the M1.5#12 decomposition and
-// keeps the orphan helpers (anonymous-namespace `to_local_clip`,
-// `clipped_area`, `RenderIOFenceGuard`) confined to the TUs that actually
-// use them (dispatch.cpp / text.cpp respectively).
+// keeps the orphan helpers (anonymous-namespace `to_local_clip` and
+// `clipped_area`) confined to the dispatch TU that actually uses them.
 //
 // Anti-duplication invariant (strict): ONLY the 2 ctors live here.  The
 // class header (`include/chronon3d/backends/software/software_renderer.hpp`)

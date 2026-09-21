@@ -37,6 +37,8 @@ if(CHRONON3D_ENABLE_VIDEO)
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
             video/mux/packet_assembler.cpp
+            video/mux/packet_assembler_hash_writer.cpp
+            video/mux/packet_assembler_segments.cpp
             video/mux/audio_resampler.cpp
             video/gop_execution_executor.cpp
         )

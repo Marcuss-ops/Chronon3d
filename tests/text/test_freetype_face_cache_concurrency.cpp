@@ -23,7 +23,7 @@
 //
 // Framework: doctest (matching other tests/text/*.cpp conventions).
 
-#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/backends/text/text_font_resources.hpp>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H

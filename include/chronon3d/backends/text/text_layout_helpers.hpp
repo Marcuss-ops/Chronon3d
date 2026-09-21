@@ -1,7 +1,7 @@
 #pragma once
 
 #include "text_layout_types.hpp"
-#include "text_unicode_utils.hpp"
+#include "text_unicode_grapheme.hpp"
 
 #include <algorithm>
 #include <string>

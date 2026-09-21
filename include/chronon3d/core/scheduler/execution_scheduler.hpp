@@ -30,7 +30,7 @@
 
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/scheduler/for_each_tile.hpp>
-#include <chronon3d/raster/bbox.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 
 namespace chronon3d {
 

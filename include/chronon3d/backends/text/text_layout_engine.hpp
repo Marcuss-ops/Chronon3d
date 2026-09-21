@@ -5,11 +5,11 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>
 
 // ── Extracted modules ────────────────────────────────────────────────────
-// text_unicode_utils.hpp: UTF-8 codec + grapheme cluster utilities
+// text_unicode_grapheme.hpp: UTF-8 codec + grapheme cluster utilities
 // text_layout_types.hpp: TextLayoutRun/Input/Line/Result data structures
 // text_layout_single.hpp: measurement helpers + layout_single_run()
 // text_layout_inline.hpp: layout_inline_runs() with per-run styling
-#include "text_unicode_utils.hpp"
+#include "text_unicode_grapheme.hpp"
 #include "text_layout_types.hpp"
 #include "text_layout_single.hpp"
 #include "text_layout_inline.hpp"

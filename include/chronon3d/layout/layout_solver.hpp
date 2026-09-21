@@ -11,7 +11,7 @@ namespace chronon3d {
 // Pipeline:
 //   SceneBuilder::build() -> Scene
 //   LayoutSolver::solve(scene, width, height)
-//   -> SoftwareRenderer::render_scene(scene, ...)
+//   -> graph::render_scene_via_graph(...)
 class LayoutSolver {
 public:
     void solve(Scene& scene, i32 canvas_width, i32 canvas_height) const;

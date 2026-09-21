@@ -1,5 +1,5 @@
 #include <chronon3d/runtime/job/job_session.hpp>
-#include <chronon3d/runtime/context/runtime_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 
 #include <utility>

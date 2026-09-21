@@ -390,7 +390,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->prepare_breakdown.triple_arena_alloc_ms = profiling::duration_ms(arena_t0, profiling::now());
     }
 
-    auto writer_ctx = std::unique_ptr<WriterThreadContext>(new WriterThreadContext{
+    auto sink_ctx = std::unique_ptr<EncoderSinkContext>(new EncoderSinkContext{
         .queue = session->queue,
         .pipeline_metrics = session->pipeline_metrics,
         .writer_failed = session->writer_failed,
@@ -412,8 +412,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         .trace_job_id = session->trace_job_id,
     });
     const auto spawn_t0 = profiling::now();
-    session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));
-    session->writer_ctx = std::move(writer_ctx);
+    session->writer_thread = std::thread(run_encoder_sink_thread, std::ref(*sink_ctx));
+    session->sink_ctx = std::move(sink_ctx);
     session->prepare_breakdown.writer_thread_spawn_ms = profiling::duration_ms(spawn_t0, profiling::now());
     session->setup_prepare_ms = profiling::duration_ms(prep_start, profiling::now());
 

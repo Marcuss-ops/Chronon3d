@@ -50,7 +50,7 @@ inline std::string bundled_font_path(const std::string& rel) {
 // ── Renderer factories ────────────────────────────────────────────────────
 
 /// Attach a `SoftwareBackend` to the renderer's runtime.  Required before
-/// calling `render_frame` / `render_scene` — `RuntimeContext::backend()`
+/// calling canonical render entry points — `RuntimeContext::backend()`
 /// throws when called before `attach_backend()`.  Call after `set_settings()`.
 ///
 /// TICKET-118 closure — `SoftwareBackendServices::owner` REMOVED.  The

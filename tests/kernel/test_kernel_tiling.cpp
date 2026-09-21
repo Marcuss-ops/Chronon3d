@@ -18,7 +18,7 @@
 #include <cstddef>
 
 #include <chronon3d/core/scheduler/tile_size.hpp>
-#include <chronon3d/raster/bbox.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 
 #include <doctest/doctest.h>
 
