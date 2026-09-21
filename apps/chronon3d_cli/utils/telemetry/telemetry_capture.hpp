@@ -54,6 +54,10 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"gpu_text_fast_path_success", counters.gpu_text_fast_path_success.load(std::memory_order_relaxed)},
         {"gpu_text_mtsdf_fallback_count", counters.gpu_text_mtsdf_fallback_count.load(std::memory_order_relaxed)},
         {"gpu_text_fallback_count", counters.gpu_text_fallback_count.load(std::memory_order_relaxed)},
+        {"gpu_text_route_native_mtsdf_count", counters.gpu_text_route_native_mtsdf_count.load(std::memory_order_relaxed)},
+        {"gpu_text_route_native_packed_count", counters.gpu_text_route_native_packed_count.load(std::memory_order_relaxed)},
+        {"gpu_text_route_software_count", counters.gpu_text_route_software_count.load(std::memory_order_relaxed)},
+        {"gpu_text_route_reject_count", counters.gpu_text_route_reject_count.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_count", counters.gpu_text_instance_upload_count.load(std::memory_order_relaxed)},
         {"gpu_text_instance_upload_bytes", counters.gpu_text_instance_upload_bytes.load(std::memory_order_relaxed)},
         {"text_prepare_per_frame_wall_us", counters.text_prepare_per_frame_wall_us.load(std::memory_order_relaxed)},
@@ -64,18 +68,6 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"gpu_text_atlas_cache_acquire_wall_us", counters.gpu_text_atlas_cache_acquire_wall_us.load(std::memory_order_relaxed)},
         {"gpu_text_prepared_batch_build_count", counters.gpu_text_prepared_batch_build_count.load(std::memory_order_relaxed)},
         {"gpu_text_prepared_batch_reuse_count", counters.gpu_text_prepared_batch_reuse_count.load(std::memory_order_relaxed)},
-        // AUDIT F1 — TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT demolition-debt
-        // observability. These two counters were written by the executor's
-        // per-glyph CPU compatibility branch (node_runner_fused_batch.cpp) but
-        // read by nothing, so the branch's declared exit condition ("0 hits")
-        // was structurally unmeasurable and the branch could never be retired.
-        // Snapshotting them here is what makes the exit condition checkable: a
-        // corpus run that reports 0 for both proves the GPU lowering covers the
-        // shapes in the corpus, and the branch (and these counters) can then be
-        // deleted. Reachable in the video report sidecar and in
-        // tools/verify_zero_copy_end_to_end.sh via extract_counter().
-        {"gpu_text_cpu_selector_compat_frames", counters.gpu_text_cpu_selector_compat_frames.load(std::memory_order_relaxed)},
-        {"gpu_text_cpu_selector_compat_glyph_evals", counters.gpu_text_cpu_selector_compat_glyph_evals.load(std::memory_order_relaxed)},
         {"frame_slot_wait_count", counters.frame_slot_wait_count.load(std::memory_order_relaxed)},
         {"frame_slot_wait_us", counters.frame_slot_wait_us.load(std::memory_order_relaxed)},
         {"frame_arena_upstream_allocations", counters.frame_arena_upstream_allocations.load(std::memory_order_relaxed)},
