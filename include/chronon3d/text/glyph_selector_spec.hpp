@@ -65,6 +65,22 @@ enum class SelectorCombineMode {
 
 using SelectorWeight = f32;
 
+/// Runtime selector binding shared by CPU preparation and GPU metadata upload.
+/// Backends consume these parameters; selector-window and Smooth mathematics
+/// remain owned by the canonical selector compiler.
+struct SelectorWeightParams {
+    TextSelectorShape shape{TextSelectorShape::Square};
+    f32 start{0.0f};
+    f32 end{100.0f};
+    f32 offset{0.0f};
+    f32 amount{100.0f};
+    u32 total_units{0};
+    u32 ordered_index{0};
+    bool use_ordered_index{false};
+    bool enabled{false};
+    bool window_completed{false};
+};
+
 // ── GlyphSelectorSpec — declarative selector description ─────────────────
 //
 // Each selector computes a weight ∈ [0,1] for every glyph unit.

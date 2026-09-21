@@ -151,7 +151,7 @@ runtime::TextRunDynamic build_prepared_mtsdf_run(
                         shape.layout->placed.glyphs[i].bbox_x0) {
                     continue;
                 }
-                const auto weight = evaluate_compiled_selector(
+                const auto weight = selector_weight(
                     *prepared->reveal_selector, shape.layout->units,
                     static_cast<std::uint32_t>(i), sample_time);
                 ++glyph_evals;
@@ -454,7 +454,7 @@ void execute_fused_batch_impl(
                                     layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
                                     continue;
                                 }
-                                const auto weight = evaluate_compiled_selector(
+                                const auto weight = selector_weight(
                                     *prepared->reveal_selector, layout.units,
                                     static_cast<std::uint32_t>(i), sample_time);
                                 if (weight <= 1e-6f) {

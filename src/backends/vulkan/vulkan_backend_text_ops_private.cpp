@@ -2,6 +2,7 @@
 // (text_run_surface, tiled text batch upload and dispatch).
 
 #include "vulkan_backend_impl.hpp"
+#include <chronon3d/text/glyph_selector.hpp>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -79,38 +80,21 @@ static_assert(sizeof(GpuTextRunDynamic) == 112,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
 
 float selector_weight_cpu(const GpuTextRunDynamic& run,
-                          std::uint32_t glyph_index) {
-    if ((run.flags & 2u) == 0u) return 1.0f;
-    const float total = std::max(static_cast<float>(run.selector_unit_count), 1.0f);
-    float position = (static_cast<float>(glyph_index) + 0.5f) / total;
-    float start = std::clamp(run.selector_start * 0.01f, 0.0f, 1.0f);
-    float end = std::clamp(run.selector_end * 0.01f, 0.0f, 1.0f);
-    if (std::abs(end - start) <= 0.0000001f) {
-        // The typewriter animator uses opacity=0: selector weight is the
-        // animator influence, so a completed collapsed range must have zero
-        // influence and leave the glyph fully visible.
-        return start >= 1.0f ? 0.0f : 1.0f;
-    }
-    if (start > end) {
-        std::swap(start, end);
-        position = 1.0f - position;
-    }
-    if (position <= start || position >= end) return 0.0f;
-    const float range = end - start;
-    const float t = range > 0.0000001f ? (position - start) / range : 0.5f;
-    float weight = 1.0f;
-    if ((run.flags & 4u) != 0u) {
-        if (t <= 0.5f) {
-            const float u = 2.0f * t;
-            const float one_minus_u = 1.0f - u;
-            weight = 1.0f - one_minus_u * one_minus_u * one_minus_u;
-        } else {
-            const float u = 2.0f * (1.0f - t);
-            const float one_minus_u = 1.0f - u;
-            weight = 1.0f - one_minus_u * one_minus_u * one_minus_u;
-        }
-    }
-    return std::clamp(weight * run.selector_amount * 0.01f, 0.0f, 1.0f);
+                          const std::uint32_t glyph_index) {
+    const SelectorWeightParams params{
+        (run.flags & 4u) != 0u ? TextSelectorShape::Smooth
+                               : TextSelectorShape::Square,
+        run.selector_start,
+        run.selector_end,
+        0.0f,
+        run.selector_amount,
+        run.selector_unit_count,
+        0u,
+        false,
+        (run.flags & 2u) != 0u,
+        (run.flags & 8u) != 0u,
+    };
+    return selector_weight(params, glyph_index);
 }
 
 } // namespace

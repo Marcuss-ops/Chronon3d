@@ -75,39 +75,6 @@ layout(push_constant) uniform PushConstants {
     uint dst_height;
 } params;
 
-float selector_weight(GpuTextRunDynamic run, uint glyph_index) {
-    if ((run.flags & 2u) == 0u) return 1.0;
-    float total = max(float(run.selector_unit_count), 1.0);
-    float position = (float(glyph_index) + 0.5) / total;
-    float start = clamp(run.selector_start * 0.01, 0.0, 1.0);
-    float end = clamp(run.selector_end * 0.01, 0.0, 1.0);
-    if (abs(end - start) <= 0.0000001) {
-        return start >= 1.0 ? 0.0 : 1.0;
-    }
-    if (start > end) {
-        float tmp = start;
-        start = end;
-        end = tmp;
-        position = 1.0 - position;
-    }
-    if (position <= start || position >= end) return 0.0;
-    float range = end - start;
-    float t = range > 0.0000001 ? (position - start) / range : 0.5;
-    float weight = 1.0;
-    if ((run.flags & 4u) != 0u) {
-        if (t <= 0.5) {
-            float u = 2.0 * t;
-            float one_minus_u = 1.0 - u;
-            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
-        } else {
-            float u = 2.0 * (1.0 - t);
-            float one_minus_u = 1.0 - u;
-            weight = 1.0 - one_minus_u * one_minus_u * one_minus_u;
-        }
-    }
-    return clamp(weight * run.selector_amount * 0.01, 0.0, 1.0);
-}
-
 void main() {
     const uint kOverflowBit = 0x80000000u;
     uint gid = gl_GlobalInvocationID.x;

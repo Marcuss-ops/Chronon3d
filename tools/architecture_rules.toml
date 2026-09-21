@@ -89,6 +89,31 @@ patterns = ["catch\\s*\\(\\s*\\.\\.\\.\\s*\\)\\s*\\{(?:(?!\\}).){0,600}\\bcontin
 multiline = true
 skip_comments = true
 
+[[forbidden_symbol]]
+name = "text_selector_evaluator_authority"
+description = "Selector semantics have one compiled authority; callers use selector_weight()."
+patterns = ['\bevaluate_compiled_selector\s*\(']
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = [
+  "include/chronon3d/text/glyph_selector.hpp",
+  "src/text/glyph_selector_compile.cpp",
+]
+skip_comments = true
+hint = "Use selector_weight(); do not call the legacy evaluator outside glyph_selector_compile.cpp."
+
+[[forbidden_symbol]]
+name = "text_selector_shape_math_authority"
+description = "Smooth and selector-shape mathematics live in glyph_selector_compile.cpp."
+patterns = ['\bevaluate_selector_shape\s*\(']
+scan_paths = ["include", "src", "apps", "tests"]
+allow_list = [
+  "include/chronon3d/text/glyph_selector.hpp",
+  "src/text/glyph_selector_compile.cpp",
+  "tests/text/test_selector_shapes.cpp",
+]
+skip_comments = true
+hint = "Do not duplicate selector shape/Smooth mathematics in another runtime TU."
+
 [[scan]]
 name = "render_error_taxonomy_consolidated"
 scan_paths = ["include", "src", "apps", "tests"]
