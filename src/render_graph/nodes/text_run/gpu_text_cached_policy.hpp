@@ -2,20 +2,36 @@
 
 namespace chronon3d::graph::text_run::detail {
 
-enum class CachedTextExecutionPath {
-    RejectUnsupportedAnimation,
-    RejectForcedSoftware,
-    TryMtsdf,
-    PackedBitmap,
+enum class TextExecutionRoute {
+    NativeMtsdf,
+    NativePacked,
+    Software,
+    Reject,
 };
 
-[[nodiscard]] const char* cached_text_execution_path_name(
-    CachedTextExecutionPath path) noexcept;
+enum class TextRouteReason {
+    UnsupportedAnimation,
+    ForcedSoftware,
+    NativeResourcesAvailable,
+    NativeResourcesUnavailable,
+};
 
-/// Select the first cached-text authority without inspecting glyph data or
-/// allocating atlas resources. The caller still owns runtime failure handling
-/// and may fall back from MTSDF to the packed compatibility route.
-[[nodiscard]] CachedTextExecutionPath resolve_cached_text_execution_path(
+struct TextRouteDecision {
+    TextExecutionRoute route{TextExecutionRoute::Reject};
+    TextRouteReason reason{TextRouteReason::UnsupportedAnimation};
+};
+
+[[nodiscard]] const char* text_execution_route_name(
+    TextExecutionRoute route) noexcept;
+
+[[nodiscard]] const char* text_route_reason_name(
+    TextRouteReason reason) noexcept;
+
+/// Resolve the one text execution route before resources are touched. The
+/// caller consumes the decision mechanically; unsupported animation is a
+/// reject, while explicit software selection is observable rather than a
+/// silent GPU fallback.
+[[nodiscard]] TextRouteDecision resolve_text_execution_route(
     bool unsupported_animation,
     bool force_software,
     bool prepared_cache_available,

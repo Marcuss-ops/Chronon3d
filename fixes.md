@@ -26,8 +26,8 @@ Stato generale: disciplina forte (`steady_state_allocations_per_frame=0` gate, `
 
 ### [P1] 1.2 — `gpu_text_run.cpp` prepare path: 9 vettori per prepared run
 - Evidenze: `src/render_graph/nodes/text_run/gpu_text_run.cpp:825-846, 888-897`
-- Fatto: `keys/widths/heights/metrics` + 5 `pending_*` vettori, `make_shared<GpuPreparedTextRun>`, `std::vector<FontFaceHandle> fonts` per ogni *nuovo* prepared run (cache-miss); loop di re-check richiama `location()`/`metrics()` per glyph. Su testo animato (ticket `gpu_text_cpu_selector_compat`) può rientrare nel path.
-- Fix consigliato: prepare-scratch riutilizzabile (pattern `download_scratch_`).
+- Fatto: `keys/widths/heights/metrics` + 5 `pending_*` vettori, `make_shared<GpuPreparedTextRun>`, `std::vector<FontFaceHandle> fonts` per ogni *nuovo* prepared run (cache-miss); loop di re-check richiama `location()`/`metrics()` per glyph. Il vecchio walk selector di compatibilità del testo è stato rimosso.
+- Fix consigliato: prepare-scratch riutilizzabile (pattern `download_scratch_`); il vecchio walk selector di compatibilità è stato rimosso.
 - Rischio: Basso.
 
 ### [P1] 1.3 — `LruCache`: heap work per-op sui warm-path hit

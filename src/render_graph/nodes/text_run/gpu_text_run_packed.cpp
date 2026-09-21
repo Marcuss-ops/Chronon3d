@@ -12,6 +12,7 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/text/animation/text_animator_properties.hpp>
+#include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/glyph_selector_spec.hpp>
 
 #include <blend2d.h>
@@ -175,6 +176,9 @@ TimedHighlightPlan build_timed_highlight_plan(const TextRunShape& shape) {
 
         for (const auto& selector : animator.selectors) {
             if (selector.unit != TextSelectorUnit::Word) continue;
+            const auto bound = bind_selector_runtime(
+                selector, shape.layout->units.word_count,
+                SampleTime::from_frame(0.0, FrameRate{30, 1}));
             const auto& keyframes = selector.amount.keyframes();
             float start_frame = -1.0f;
             float end_frame = -1.0f;
@@ -189,10 +193,10 @@ TimedHighlightPlan build_timed_highlight_plan(const TextRunShape& shape) {
             if (start_frame < 0.0f || end_frame < start_frame) continue;
 
             const float first_word = std::clamp(
-                selector.start.evaluate(0.0) * word_count / 100.0f,
+                bound.start * word_count / 100.0f,
                 0.0f, word_count);
             const float last_word = std::clamp(
-                selector.end.evaluate(0.0) * word_count / 100.0f,
+                bound.end * word_count / 100.0f,
                 0.0f, word_count);
             for (std::size_t glyph = 0; glyph < plan.glyph_ranges.size(); ++glyph) {
                 const auto word = static_cast<float>(

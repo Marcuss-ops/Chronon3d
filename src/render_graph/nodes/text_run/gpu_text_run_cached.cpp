@@ -45,27 +45,48 @@ graph::RenderOpResult draw_cached_text_run(
     // the complete semantics of an unsupported animated glyph state.  Let the
     // canonical software renderer own those cases instead of producing a
     // superficially successful but visibly unstable approximation.
-    const bool unsupported_animation =
-        !shape.animators.empty() && !can_lower_gpu_text_animation(shape);
     const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
     const bool lowerable_gpu_animation =
         !shape.animators.empty() && can_lower_gpu_text_animation(shape);
-    const auto execution_path = detail::resolve_cached_text_execution_path(
+    const bool unsupported_animation =
+        !shape.animators.empty() && !lowerable_gpu_animation;
+    const auto route_decision = detail::resolve_text_execution_route(
         unsupported_animation,
         force_software,
         ctx.gpu_text_prepared_cache != nullptr,
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
+    if (profiling::g_current_counters) {
+        switch (route_decision.route) {
+            case detail::TextExecutionRoute::NativeMtsdf:
+                profiling::g_current_counters->gpu_text_route_native_mtsdf_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::NativePacked:
+                profiling::g_current_counters->gpu_text_route_native_packed_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::Software:
+                profiling::g_current_counters->gpu_text_route_software_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::Reject:
+                profiling::g_current_counters->gpu_text_route_reject_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+        }
+    }
     const auto frame_number = ctx.frame_input.frame.integral();
     spdlog::info(
-        "[text-route] frame={} route={} reason=policy-decision unsupported_animation={} "
+        "[text-route] frame={} route={} reason={} unsupported_animation={} "
         "forced_software={} prepared_cache={} backend={} surface_registry={}",
         frame_number,
-        detail::cached_text_execution_path_name(execution_path),
+        detail::text_execution_route_name(route_decision.route),
+        detail::text_route_reason_name(route_decision.reason),
         unsupported_animation, force_software,
         ctx.gpu_text_prepared_cache != nullptr, ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
-    if (execution_path == detail::CachedTextExecutionPath::RejectUnsupportedAnimation) {
+    if (route_decision.route == detail::TextExecutionRoute::Reject) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: animated glyph state requires software path"));
@@ -73,7 +94,7 @@ graph::RenderOpResult draw_cached_text_run(
     // The native text kernels are still experimental for this export lane.
     // Keep an explicit escape hatch so Vulkan composition can remain native
     // while the canonical CPU text renderer supplies an exact glyph surface.
-    if (execution_path == detail::CachedTextExecutionPath::RejectForcedSoftware) {
+    if (route_decision.route == detail::TextExecutionRoute::Software) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: forced software text fallback"));
@@ -83,7 +104,7 @@ graph::RenderOpResult draw_cached_text_run(
     // tile shader applies the per-glyph reveal weight each frame. The packed
     // bitmap route below remains only as a compatibility fallback for shapes
     // outside this contract.
-    if (execution_path == detail::CachedTextExecutionPath::TryMtsdf) {
+    if (route_decision.route == detail::TextExecutionRoute::NativeMtsdf) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
         if (mtsdf.ok()) {
@@ -104,8 +125,12 @@ graph::RenderOpResult draw_cached_text_run(
             "[text-mtsdf] canonical lowering rejected; using compatibility path: {}",
             mtsdf.error().message);
         spdlog::info(
-            "[text-route] frame={} route=packed-compat reason=mtsdf-rejected error='{}'",
+            "[text-route] frame={} route=native_packed reason=mtsdf-rejected error='{}'",
             frame_number, mtsdf.error().message);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_route_native_packed_count
+                .fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     if (!ctx.text_render_resources || !shape.layout ||

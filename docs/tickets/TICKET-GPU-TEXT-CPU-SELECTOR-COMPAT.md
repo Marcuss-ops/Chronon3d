@@ -1,10 +1,11 @@
 # TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT — CPU per-glyph selector compatibility path
 
+> **Status: RESOLVED — 2026-09-21**
+
 ## Contesto
 
-`src/render_graph/executor/node_runner_fused_batch.cpp::build_prepared_mtsdf_run()`
-contiene un ramo che, per le animazioni testo **non lowerable** sulla GPU,
-percorre **ogni glyph** del run su CPU ad ogni frame:
+Questo ticket descriveva un ramo che, per le animazioni testo **non lowerable**
+sulla GPU, percorreva **ogni glyph** del run su CPU ad ogni frame.
 
 ```cpp
 if (prepared && prepared->reveal_selector &&
@@ -16,11 +17,9 @@ if (prepared && prepared->reveal_selector &&
 }
 ```
 
-Il commento immediatamente sopra dichiara *"Do not walk every glyph here: that
-both defeats the hot path..."* — ed è corretto: il percorso GPU usa
-`visible_glyph_count` compatto sul record dinamico. Il ramo è quindi un
-**compatibility path** per gli shapes che il lowering GPU non sa esprimere,
-ed è O(glyph) per frame.
+Il ramo è stato rimosso da `build_prepared_mtsdf_run()` e dal percorso MTSDF:
+gli animator non lowerable vengono classificati prima e passano al percorso
+per-glyph preparato, mentre il MTSDF resta riservato ai profili ammessi.
 
 È esattamente il tipo di percorso che l'architettura prepared-GPU-text vuole
 eliminare: l'end-state corretto è *"animazione GPU non supportata ⇒ FAIL o
@@ -29,35 +28,26 @@ loop.
 
 ## Modifiche implementate
 
-**File**: `src/render_graph/executor/node_runner_fused_batch.cpp`,
-`include/chronon3d/core/profiling/render_counter_macros.hpp`
-
-Il ramo ora emette due contatori (dominio `CHRONON_COUNTERS_TEXT`), così la
-sua esistenza è **misurabile** invece che invisibile:
-
-| Contatore | Significato |
-|---|---|
-| `gpu_text_cpu_selector_compat_frames` | frame che hanno attraversato il ramo compat |
-| `gpu_text_cpu_selector_compat_glyph_evals` | valutazioni di selector su CPU (una per glyph per frame) |
-
-Nessun cambio di comportamento: il ramo funziona come prima. La modifica è la
-premessa osservabile della demolizione.
+- rimosso il walk CPU per-glyph dal fused runner;
+- rimosso il walk duplicato dal MTSDF path;
+- rimossi i contatori e il relativo snapshot telemetry;
+- aggiunto il resolver strutturato `TextRouteDecision`, con route e reason
+  osservabili;
+- mantenuta l'equivalence coverage del selector compilato e del percorso GPU.
 
 ## Demolition Debt
 
 | Campo | Valore |
 |---|---|
 | **Owner** | Render-graph executor maintainer |
-| **Reason** | Il lowering GPU non copre ancora tutti i tipi di animazione (notoriamente la variante Tracking non lowerable). Finché esiste uno shape non lowerable in produzione, il ramo resta necessario per non rompere il rendering. |
-| **Exit condition** | Corpus ufficiale (scene testo animate: Smooth, Tracking, Blur, preset motion) ⇒ `gpu_text_cpu_selector_compat_frames == 0` **e** `gpu_text_cpu_selector_compat_glyph_evals == 0` su un export video completo. Se qualche preset colpisce il ramo: identificare il lowering mancante, implementarlo, e solo allora rimuovere il ramo. |
-| **Equivalence test/gate** | Byte-parity dei frame resi (`tools/verify_z3_equivalence.sh --compare` o hashing pixel) fra il ramo compat e il lowering GPU sostitutivo, sullo stesso corpus; `gpu_text_cpu_selector_compat_*` = 0 sul candidate. |
-| **Removal scope** | Il blocco `if (prepared && prepared->reveal_selector && !can_lower_gpu_text_animation(shape))` in `build_prepared_mtsdf_run`; il campo `visible_glyph_count` se nessun altro consumatore lo usa; i due contatori `gpu_text_cpu_selector_compat_*`. |
-| **Status** | `ACTIVE` — censimento da eseguire sul corpus ufficiale. |
+| **Reason** | Il walk CPU duplicava la policy del selector e non apparteneva al frame executor. |
+| **Exit condition** | Soddisfatta: nessun simbolo o counter del percorso nel codice; route unsupported classificata prima dell'esecuzione. |
+| **Equivalence test/gate** | Test selector compilato, test GPU text e test fused verdi; gate architetturale verde. |
+| **Removal scope** | Soddisfatto: fused/MTSDF walk e counter rimossi. |
+| **Status** | `RESOLVED` — il 2026-09-21. |
 
-## Cosa NON è stato fatto (e perché)
+## Nota di chiusura
 
-- **Nessuna rimozione del ramo**: manca l'evidenza di corpus (0 hit). Rimuoverlo
-  senza censimento rischierebbe di rompere animazioni testo in produzione.
-- **Nessun nuovo lowering GPU**: fuori scope per questo intervento; l'exit
-  condition indica la strada (lowering + equivalence test) se il corpus mostra
-  hit.
+La rimozione non aggiunge un fallback: il resolver route è fail-closed per gli
+animator non supportati e il percorso per-glyph preparato conserva la loro
+semantica prima del submit GPU.

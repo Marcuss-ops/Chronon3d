@@ -30,6 +30,8 @@ bool is_full_run_selector(const TextRunShape& shape,
         return false;
     }
     const auto& selector = animator.selectors.front();
+    const auto initial = bind_selector_runtime(
+        selector, 1u, SampleTime::from_frame(0.0, FrameRate{30, 1}));
     return selector.unit == TextSelectorUnit::Word &&
            (selector.shape == TextSelectorShape::Square ||
             selector.shape == TextSelectorShape::Smooth) &&
@@ -39,25 +41,15 @@ bool is_full_run_selector(const TextRunShape& shape,
            !selector.start.has_expression() &&
            !selector.end.has_expression() &&
            !selector.amount.has_expression() &&
-           std::abs(selector.start.evaluate(0.0)) <= 1e-6f &&
-           std::abs(selector.end.evaluate(0.0) - 100.0f) <= 1e-6f;
+           std::abs(initial.start) <= 1e-6f &&
+           std::abs(initial.end - 100.0f) <= 1e-6f;
 }
 
 float sample_full_run_selector_weight(
     const GlyphSelectorSpec& selector,
     SampleTime sample_time) noexcept {
-    const SelectorWeightParams params{
-        selector.shape,
-        selector.start.evaluate(sample_time),
-        selector.end.evaluate(sample_time),
-        selector.offset.evaluate(sample_time),
-        selector.amount.evaluate(sample_time),
-        1u,
-        0u,
-        false,
-        true,
-        false,
-    };
+    const SelectorWeightParams params =
+        bind_selector_runtime(selector, 1u, sample_time);
     return selector_weight(params, 0u);
 }
 
@@ -166,8 +158,12 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         selector.order != TextSelectorOrder::Forward ||
         selector.combine != SelectorCombineMode::Replace ||
         selector.randomize_order || selector.offset.is_time_dependent() ||
-        std::abs(selector.offset.evaluate(0.0)) > 1e-6f ||
-        std::abs(selector.amount.evaluate(0.0) - 100.0f) > 1e-6f) {
+        std::abs(bind_selector_runtime(
+                     selector, shape.layout->units.unit_count(selector.unit),
+                     SampleTime::from_frame(0.0, FrameRate{30, 1})).offset) > 1e-6f ||
+        std::abs(bind_selector_runtime(
+                     selector, shape.layout->units.unit_count(selector.unit),
+                     SampleTime::from_frame(0.0, FrameRate{30, 1})).amount - 100.0f) > 1e-6f) {
         return false;
     }
     bool saw_supported_property = false;
@@ -215,15 +211,15 @@ void sample_gpu_text_animation(
     // Bit 3 is a host-resolved completed-window flag. The shaders consume the
     // resulting per-glyph weights and never recalculate selector semantics.
     run.flags |= 2u;
-    if (selector.shape == TextSelectorShape::Smooth) run.flags |= 4u;
-    const auto start = selector.start.evaluate(sample_time);
-    const auto end = selector.end.evaluate(sample_time);
-    if (std::abs(end - start) <= 1e-6f && start >= 100.0f) run.flags |= 8u;
+    const auto bound = bind_selector_runtime(
+        selector, shape.layout->units.unit_count(selector.unit), sample_time);
+    if (bound.shape == TextSelectorShape::Smooth) run.flags |= 4u;
+    if (bound.window_completed) run.flags |= 8u;
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    run.selector_start = selector.start.evaluate(sample_time);
-    run.selector_end = selector.end.evaluate(sample_time);
-    run.selector_amount = selector.amount.evaluate(sample_time);
-    run.selector_unit_count = shape.layout->units.unit_count(selector.unit);
+    run.selector_start = bound.start;
+    run.selector_end = bound.end;
+    run.selector_amount = bound.amount;
+    run.selector_unit_count = bound.total_units;
 
     for (const auto& property : animator.properties) {
         if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {

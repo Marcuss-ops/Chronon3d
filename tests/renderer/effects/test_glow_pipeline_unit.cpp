@@ -4,7 +4,7 @@
 // PR2 — GlowPipeline unit tests (math/API correctness).
 //
 // GlowPipeline is the unified struct that captures every parameter any of
-// the four glow paths (apply_glow_effect, apply_bloom_effect, text_glow,
+// the unified glow paths (software effect processing, text_glow,
 // These unit tests verify the conversions and pure-math
 // helpers:
 //   1. GlowPipeline::from(GlowParams) preserves all important fields.

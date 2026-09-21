@@ -5,11 +5,10 @@
 //
 // Unified glow pipeline. Before this header the codebase had three parallel
 // glow paths:
-//   1. apply_glow_effect()    (framebuffer-based, GlowParams)
-//   2. apply_bloom_effect()   (framebuffer-based, BloomParams)
-//   3. text_glow.cpp          (BLImage-based, Glow fields on RenderNode)
+//   1. software effect processing (framebuffer-based, GlowParams/BloomParams)
+//   2. text_glow.cpp             (BLImage-based, Glow fields on RenderNode)
 //
-// All four share the same conceptual pipeline:
+// Both routes share the same conceptual pipeline:
 //   - extract trigger mask (alpha / brightness / text alpha)
 //   - build N concentric colorized blur layers
 //   - accumulate additively into a single buffer
@@ -26,8 +25,8 @@
 //
 // New unified entry point (Item 17):
 //   GlowPipeline::render(ctx, input) → GlowPipelineOutput
-// Both apply_glow_effect() and text_glow.cpp should use this single entry
-// point so that layer glow and text glow share the same blur/accumulate/
+// Software effect processing and text_glow.cpp use this single entry point
+// so that layer glow and text glow share the same blur/accumulate/
 // composite code path.  Text glow still builds its own padded alpha mask
 // (the text-specific step) and passes source_is_alpha_mask = true.
 // ---------------------------------------------------------------------------
@@ -87,8 +86,8 @@ struct GlowPipelineOutput {
 
 struct GlowPipeline {
     /// Which implementation path to use.
-    /// - Layer:  multi-layer glow (used by apply_glow_effect)
-    /// - Bloom:  bright-pass + blur + additive (used by apply_bloom_effect)
+    /// - Layer:  multi-layer glow (used by software effect processing)
+    /// - Bloom:  bright-pass + blur + additive (used by software effect processing)
     /// - Shadow: reserved for future apply_shadow_effect routing
     enum class Mode {
         Layer,
@@ -128,7 +127,7 @@ struct GlowPipeline {
     ///
     /// Internally converts GlowParams → GlowPipeline and dispatches
     /// to the same run_layer_mode / run_bloom_mode paths used by
-    /// apply_glow_effect / apply_bloom_effect.
+    /// software effect processing.
     static GlowPipelineOutput render(class graph::RenderGraphContext& ctx,
                                      const GlowPipelineInput& input);
 };
