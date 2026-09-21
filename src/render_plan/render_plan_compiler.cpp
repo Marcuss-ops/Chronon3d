@@ -134,36 +134,42 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
 #ifdef CHRONON3D_USE_BLEND2D
-            // Cross the prepare barrier before the per-frame scene callback:
-            // shaping, layout, material and stroke data are immutable for the
-            // whole render plan. Only glyph animator state is evaluated per
-            // frame by LayerBuilder.
-            std::string package_key;
-            if (const auto it = text_package_key_by_layer.find(layer.id);
-                it != text_package_key_by_layer.end()) {
-                package_key = it->second;
-            }
-            if (!package_key.empty()) {
-                if (const auto cached = prepared_text_runs_by_key.find(package_key);
-                    cached != prepared_text_runs_by_key.end()) {
-                    prepared_texts[index]->prepared_run = cached->second;
-                } else {
-                    auto prepared_run = chronon3d::prepare_text_run(
-                        *prepared_texts[index], font_engine.get());
-                    prepared_texts[index]->prepared_run = prepared_run;
-                    if (prepared_run) {
-                        prepared_text_runs_by_key.emplace(
-                            package_key, std::move(prepared_run));
-                    }
+            // Cross the prepare barrier only for genuinely static text. The
+            // render-plan scene callback attaches `layer.text_animators`
+            // after this loop, so pre-preparing an animated layer would cache
+            // a layout snapshot with animators=[] and every later shape would
+            // lose its selector before it reaches the renderer. Animated
+            // layers are still shaped through the same canonical path, but
+            // their PreparedTextRun is materialized after the animator stack
+            // has been attached by LayerBuilder::build().
+            if (layer.text_animators.empty()) {
+                std::string package_key;
+                if (const auto it = text_package_key_by_layer.find(layer.id);
+                    it != text_package_key_by_layer.end()) {
+                    package_key = it->second;
                 }
-            } else {
-                prepared_texts[index]->prepared_run =
-                    chronon3d::prepare_text_run(
-                        *prepared_texts[index], font_engine.get());
-            }
-            if (!prepared_texts[index]->prepared_run) {
-                throw std::runtime_error(
-                    "text layer could not be prepared");
+                if (!package_key.empty()) {
+                    if (const auto cached = prepared_text_runs_by_key.find(package_key);
+                        cached != prepared_text_runs_by_key.end()) {
+                        prepared_texts[index]->prepared_run = cached->second;
+                    } else {
+                        auto prepared_run = chronon3d::prepare_text_run(
+                            *prepared_texts[index], font_engine.get());
+                        prepared_texts[index]->prepared_run = prepared_run;
+                        if (prepared_run) {
+                            prepared_text_runs_by_key.emplace(
+                                package_key, std::move(prepared_run));
+                        }
+                    }
+                } else {
+                    prepared_texts[index]->prepared_run =
+                        chronon3d::prepare_text_run(
+                            *prepared_texts[index], font_engine.get());
+                }
+                if (!prepared_texts[index]->prepared_run) {
+                    throw std::runtime_error(
+                        "text layer could not be prepared");
+                }
             }
 #endif
         }

@@ -158,8 +158,16 @@ Layer LayerBuilder::build() {
 
             // The pending payload is the one unified text transport for
             // authoring and compiled construction.
-            const PreparedText prepared =
+            PreparedText prepared =
                 text_internal::normalize_prepared_text(spec.params);
+            // A prepared run is immutable and may have been prewarmed before
+            // the render-plan callback attached its text animators. Never
+            // reuse that static snapshot for an animated payload: doing so
+            // preserves the layout but drops the selector/animator vector
+            // from the runtime TextRunShape.
+            if (!prepared.animation.animators.empty()) {
+                prepared.prepared_run.reset();
+            }
             // The resolver owns TextPlacement, anchor, and box-size
             // semantics. Its layout_origin is Canvas-space; only the
             // Canvas → layer basis conversion belongs at this boundary.
