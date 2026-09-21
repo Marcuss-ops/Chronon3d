@@ -49,6 +49,51 @@ namespace chronon3d {
 
 namespace detail {
 
+f32 evaluate_selector_shape(
+    const TextSelectorShape shape,
+    f32 unit_position,
+    f32 start,
+    f32 end
+) {
+    unit_position = std::clamp(unit_position, 0.0f, 1.0f);
+    start = std::clamp(start, 0.0f, 1.0f);
+    end = std::clamp(end, 0.0f, 1.0f);
+
+    if (start > end) {
+        std::swap(start, end);
+        unit_position = 1.0f - unit_position;
+    }
+
+    const f32 range = end - start;
+    if (unit_position <= start) {
+        if (shape == TextSelectorShape::RampDown) return 1.0f;
+        return 0.0f;
+    }
+    if (unit_position >= end) {
+        if (shape == TextSelectorShape::RampUp) return 1.0f;
+        return 0.0f;
+    }
+
+    const f32 t = range > 1e-7f ? (unit_position - start) / range : 0.5f;
+    switch (shape) {
+        case TextSelectorShape::Square: return 1.0f;
+        case TextSelectorShape::RampUp: return t;
+        case TextSelectorShape::RampDown: return 1.0f - t;
+        case TextSelectorShape::Triangle:
+            return t <= 0.5f ? 2.0f * t : 2.0f * (1.0f - t);
+        case TextSelectorShape::Round: {
+            const f32 u = t <= 0.5f ? 2.0f * t : 2.0f * (1.0f - t);
+            return 3.0f * u * u - 2.0f * u * u * u;
+        }
+        case TextSelectorShape::Smooth: {
+            const f32 u = t <= 0.5f ? 2.0f * t : 2.0f * (1.0f - t);
+            const f32 one_minus_u = 1.0f - u;
+            return 1.0f - one_minus_u * one_minus_u * one_minus_u;
+        }
+    }
+    return 0.0f;
+}
+
 bool should_exclude_unit(
     const GlyphSelectorSpec& spec,
     const TextUnitMap& unit_map,
@@ -146,6 +191,36 @@ CompiledSelector compile_selector(
     return c;
 }
 
+SelectorWeight selector_weight(
+    const SelectorWeightParams& params,
+    const u32 glyph_index
+) noexcept {
+    if (!params.enabled) return 1.0f;
+
+    const f32 total = std::max(static_cast<f32>(params.total_units), 1.0f);
+    const u32 position_index = params.use_ordered_index
+        ? params.ordered_index : glyph_index;
+    f32 position = (static_cast<f32>(position_index) + 0.5f) / total;
+    position -= params.offset * 0.01f;
+    position -= std::floor(position);
+
+    const f32 start = std::clamp(params.start * 0.01f, 0.0f, 1.0f);
+    const f32 end = std::clamp(params.end * 0.01f, 0.0f, 1.0f);
+    const f32 amount = std::clamp(params.amount * 0.01f, 0.0f, 1.0f);
+    // A completed hidden-window selector has no remaining influence.  This
+    // is the host-resolved typewriter terminal state: with an opacity=0
+    // property it leaves the entire run visible instead of turning the final
+    // frame black.  The flag keeps this terminal decision out of GPU math.
+    if (params.window_completed) return 0.0f;
+    if (std::abs(end - start) <= 1e-7f) {
+        return start >= 1.0f ? 0.0f : amount;
+    }
+
+    return std::clamp(
+        detail::evaluate_selector_shape(params.shape, position, start, end) * amount,
+        0.0f, 1.0f);
+}
+
 std::vector<CompiledSelector> compile_selectors(
     const std::vector<GlyphSelectorSpec>& specs,
     const TextUnitMap& unit_map,
@@ -160,7 +235,7 @@ std::vector<CompiledSelector> compile_selectors(
     return compiled;
 }
 
-SelectorWeight evaluate_compiled_selector(
+SelectorWeight selector_weight(
     const CompiledSelector& compiled,
     const TextUnitMap& unit_map,
     u32 glyph_index,
@@ -193,25 +268,37 @@ SelectorWeight evaluate_compiled_selector(
     const f32 unit_position = (static_cast<f32>(ordered_index) + 0.5f)
                             / static_cast<f32>(total);
 
-    const f32 animated_start  = spec.start.evaluate(time)  / 100.0f;
-    const f32 animated_end    = spec.end.evaluate(time)    / 100.0f;
-    const f32 animated_offset = spec.offset.evaluate(time) / 100.0f;
-    const f32 animated_amount = spec.amount.evaluate(time) / 100.0f;
+    const f32 animated_start  = spec.start.evaluate(time);
+    const f32 animated_end    = spec.end.evaluate(time);
+    const f32 animated_offset = spec.offset.evaluate(time);
+    const f32 animated_amount = spec.amount.evaluate(time);
 
-    f32 shifted_position = unit_position - animated_offset;
+    f32 shifted_position = unit_position - animated_offset * 0.01f;
     shifted_position = shifted_position - std::floor(shifted_position);
 
-    f32 weight = detail::evaluate_selector_shape(
-        spec.shape, shifted_position, animated_start, animated_end);
+    const SelectorWeightParams params{
+        spec.shape,
+        animated_start,
+        animated_end,
+        animated_offset,
+        animated_amount,
+        total,
+        ordered_index,
+        true,
+        true,
+        std::abs(animated_end - animated_start) <= 1e-7f &&
+            animated_start >= 100.0f,
+    };
+    f32 weight = selector_weight(params, raw_index);
 
     if (weight > 0.0f && weight < 1.0f) {
         const f32 ease_low_norm  = std::clamp(spec.ease_low  / 100.0f, 0.0f, 1.0f);
         const f32 ease_high_norm = std::clamp(spec.ease_high / 100.0f, 0.0f, 1.0f);
 
         if (ease_low_norm > 0.0f || ease_high_norm < 1.0f) {
-            const f32 abs_range = std::abs(animated_end - animated_start);
+            const f32 abs_range = std::abs(animated_end - animated_start) * 0.01f;
             if (abs_range > 1e-7f) {
-                const f32 t_raw = (shifted_position - animated_start) / abs_range;
+                const f32 t_raw = (shifted_position - animated_start * 0.01f) / abs_range;
                 const f32 t_clamped = std::clamp(t_raw, 0.0f, 1.0f);
 
                 f32 ease_factor = 1.0f;
@@ -232,8 +319,29 @@ SelectorWeight evaluate_compiled_selector(
         }
     }
 
-    weight *= std::clamp(animated_amount, 0.0f, 1.0f);
     return std::clamp(weight, 0.0f, 1.0f);
+}
+
+SelectorWeight evaluate_compiled_selector(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    const u32 glyph_index,
+    const SampleTime time
+) {
+    return selector_weight(compiled, unit_map, glyph_index, time);
+}
+
+SelectorWeight selector_weight(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    const u32 glyph_index,
+    const std::string_view source,
+    const SampleTime time,
+    const PlacedGlyphRun* placed
+) {
+    return selector_weight(
+        compile_selector(spec, unit_map, source, placed),
+        unit_map, glyph_index, time);
 }
 
 SelectorWeight evaluate_compiled_selectors(
@@ -246,7 +354,7 @@ SelectorWeight evaluate_compiled_selectors(
     bool first = true;
 
     for (const auto& cs : compiled) {
-        const SelectorWeight w = evaluate_compiled_selector(cs, unit_map, glyph_index, time);
+        const SelectorWeight w = selector_weight(cs, unit_map, glyph_index, time);
 
         if (first) {
             combined = w;

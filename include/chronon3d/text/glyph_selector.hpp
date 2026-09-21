@@ -87,6 +87,32 @@ struct CompiledSelector {
     std::vector<u32> random_permutation;
 };
 
+/// Single selector-weight authority used by all text execution routes.
+[[nodiscard]] SelectorWeight selector_weight(
+    const SelectorWeightParams& params,
+    u32 glyph_index
+) noexcept;
+
+/// Evaluate a compiled selector through the same authority used by the
+/// runtime binding path.
+[[nodiscard]] SelectorWeight selector_weight(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    SampleTime time
+);
+
+/// Public semantic contract for one glyph. Compilation and evaluation remain
+/// owned by glyph_selector_compile.cpp.
+[[nodiscard]] SelectorWeight selector_weight(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    std::string_view source,
+    SampleTime time,
+    const PlacedGlyphRun* placed = nullptr
+);
+
 /// Compile a single selector spec into a CompiledSelector.
 [[nodiscard]] CompiledSelector compile_selector(
     const GlyphSelectorSpec& spec,

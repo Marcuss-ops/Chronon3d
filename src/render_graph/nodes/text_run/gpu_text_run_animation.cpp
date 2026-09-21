@@ -46,16 +46,19 @@ bool is_full_run_selector(const TextRunShape& shape,
 float sample_full_run_selector_weight(
     const GlyphSelectorSpec& selector,
     SampleTime sample_time) noexcept {
-    const float start = selector.start.evaluate(sample_time) * 0.01f;
-    const float end = selector.end.evaluate(sample_time) * 0.01f;
-    const float offset = selector.offset.evaluate(sample_time) * 0.01f;
-    float position = 0.5f - offset;
-    position -= std::floor(position);
-    const float shape_weight = ::chronon3d::detail::evaluate_selector_shape(
-        selector.shape, position, start, end);
-    return std::clamp(
-        shape_weight * selector.amount.evaluate(sample_time) * 0.01f,
-        0.0f, 1.0f);
+    const SelectorWeightParams params{
+        selector.shape,
+        selector.start.evaluate(sample_time),
+        selector.end.evaluate(sample_time),
+        selector.offset.evaluate(sample_time),
+        selector.amount.evaluate(sample_time),
+        1u,
+        0u,
+        false,
+        true,
+        false,
+    };
+    return selector_weight(params, 0u);
 }
 
 } // namespace
@@ -208,10 +211,14 @@ void sample_gpu_text_animation(
         selector.unit != TextSelectorUnit::Character &&
         selector.unit != TextSelectorUnit::Grapheme) return;
 
-    // flags bit 0 is shaped-plane placement; bits 1/2 are the dynamic
-    // selector enable/shape contract shared with text_tile_bin/raster.
+    // flags bit 0 is shaped-plane placement; bits 1/2 are selector metadata.
+    // Bit 3 is a host-resolved completed-window flag. The shaders consume the
+    // resulting per-glyph weights and never recalculate selector semantics.
     run.flags |= 2u;
     if (selector.shape == TextSelectorShape::Smooth) run.flags |= 4u;
+    const auto start = selector.start.evaluate(sample_time);
+    const auto end = selector.end.evaluate(sample_time);
+    if (std::abs(end - start) <= 1e-6f && start >= 100.0f) run.flags |= 8u;
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
     run.selector_start = selector.start.evaluate(sample_time);
     run.selector_end = selector.end.evaluate(sample_time);

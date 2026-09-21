@@ -29,6 +29,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::text_run {
 
@@ -253,6 +254,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     if (!ctx.gpu_glyph_atlas || !ctx.gpu_text_prepared_cache ||
         !ctx.asset_resolver || !ctx.backend ||
         !ctx.surface_registry || !shape.layout) {
+        spdlog::warn(
+            "[text-route] frame={} route=mtsdf reason=missing-native-contract",
+            ctx.frame_input.frame.integral());
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this run"));
@@ -261,6 +265,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     // canonical MTSDF route owns the lowerable typewriter selector; only
     // unsupported animator stacks are rejected here.
     if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
+        spdlog::warn(
+            "[text-route] frame={} route=mtsdf reason=unsupported-animator",
+            ctx.frame_input.frame.integral());
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this animator stack"));
@@ -312,7 +319,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
                 continue;
             }
-            const auto weight = evaluate_compiled_selector(
+            const auto weight = selector_weight(
                 *prepared->reveal_selector, layout.units,
                 static_cast<std::uint32_t>(i), sample_time);
             if (weight <= 1e-6f) {

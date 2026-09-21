@@ -181,8 +181,7 @@ SelectorWeight evaluate_selector(
     SampleTime time,
     const PlacedGlyphRun* placed
 ) {
-    auto compiled = compile_selector(spec, unit_map, source, placed);
-    return evaluate_compiled_selector(compiled, unit_map, glyph_index, time);
+    return selector_weight(spec, unit_map, glyph_index, source, time, placed);
 }
 
 SelectorWeight evaluate_selectors(
