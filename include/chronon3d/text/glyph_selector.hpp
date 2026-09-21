@@ -87,6 +87,36 @@ struct CompiledSelector {
     std::vector<u32> random_permutation;
 };
 
+/// Resolve the time-dependent selector state once for a compiled run.
+///
+/// This is the runtime binding seam: consumers receive canonical parameters
+/// and must not re-evaluate selector start/end/offset/amount or terminal
+/// window state themselves.
+[[nodiscard]] SelectorWeightParams bind_selector_runtime(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    SampleTime time
+);
+
+/// Bind a single selector that has already been reduced to one runtime unit.
+/// Used by run-level GPU lowering, where the selector applies to the whole
+/// shaped run rather than to an individual glyph.
+[[nodiscard]] SelectorWeightParams bind_selector_runtime(
+    const GlyphSelectorSpec& spec,
+    u32 total_units,
+    SampleTime time
+);
+
+/// Bind the canonical parameters for one glyph unit, including its compiled
+/// traversal order.  The caller still owns only mechanical exclusion/range
+/// checks; selector policy remains in glyph_selector_compile.cpp.
+[[nodiscard]] SelectorWeightParams bind_selector_runtime(
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index,
+    SampleTime time
+);
+
 /// Single selector-weight authority used by all text execution routes.
 [[nodiscard]] SelectorWeight selector_weight(
     const SelectorWeightParams& params,
@@ -100,6 +130,16 @@ struct CompiledSelector {
     const TextUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
+);
+
+/// Evaluate one glyph from a binding that was resolved once for the frame.
+/// The compiled selector supplies only immutable traversal/whitespace data;
+/// animated values are never re-evaluated by this overload.
+[[nodiscard]] SelectorWeight selector_weight(
+    const SelectorWeightParams& params,
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    u32 glyph_index
 );
 
 /// Public semantic contract for one glyph. Compilation and evaluation remain

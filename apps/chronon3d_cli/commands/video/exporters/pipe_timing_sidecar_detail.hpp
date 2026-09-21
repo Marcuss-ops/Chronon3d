@@ -65,14 +65,4 @@ void build_summary_and_job_sections(
 void build_diagnostics_sections(
     nlohmann::json& out, const pipe_timing::JobTimings& timings, std::size_t frame_count);
 
-// ── phase 4 (observability ownership): bounded telemetry summary sidecar ───
-// Emits `<video>.telemetry-summary.json` — the stable, bounded
-// chronon3d.render-telemetry-summary.v1 document (job/execution/GPU/outcome
-// scalars only, NO per-frame arrays). It is the ONLY Chronon telemetry
-// surface a host/collector may consume; the raw `<video>.timing.json` deep
-// profile stays a Chronon-owned artifact that consumers treat as opaque
-// bytes (hash → store → reference), never as a parsed/transported schema.
-void write_bounded_telemetry_summary_sidecar(
-    const std::string& video_path, const nlohmann::json& raw_sidecar);
-
 } // namespace chronon3d::cli::pipe_timing_detail

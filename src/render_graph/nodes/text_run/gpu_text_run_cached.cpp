@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 namespace chronon3d::graph::text_run {
@@ -45,53 +46,76 @@ graph::RenderOpResult draw_cached_text_run(
     // the complete semantics of an unsupported animated glyph state.  Let the
     // canonical software renderer own those cases instead of producing a
     // superficially successful but visibly unstable approximation.
-    const bool unsupported_animation =
-        !shape.animators.empty() && !can_lower_gpu_text_animation(shape);
     const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
     const bool lowerable_gpu_animation =
         !shape.animators.empty() && can_lower_gpu_text_animation(shape);
-    // A single-selector stack can still be represented by the canonical
-    // MTSDF route: it compiles the selector once and uses its bounded
-    // per-glyph compatibility visibility contract. Do not reject that route
-    // merely because the compact shader record cannot express the selector's
-    // order/property combination (notably from_center + blur).
-    const bool mtsdf_compatible_animation =
-        unsupported_animation && shape.animators.size() == 1 &&
-        !shape.animators.front().selectors.empty();
-    const auto execution_path = detail::resolve_cached_text_execution_path(
-        unsupported_animation && !mtsdf_compatible_animation,
+    const bool unsupported_animation =
+        !shape.animators.empty() && !lowerable_gpu_animation;
+    // Every native text kernel needs a resident glyph surface, so a lane whose
+    // backend cannot host native surfaces has no GPU text route at all.  Class
+    // that lane up front instead of acquiring the prepared cache and failing
+    // the MTSDF dispatch once per frame: the hand-off is a route decision.
+    const bool native_surfaces_supported =
+        ctx.backend != nullptr && ctx.backend->supports_native_surfaces();
+    const auto route_decision = detail::resolve_text_execution_route(
+        unsupported_animation,
+        native_surfaces_supported,
         force_software,
         ctx.gpu_text_prepared_cache != nullptr,
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
+    if (profiling::g_current_counters) {
+        switch (route_decision.route) {
+            case detail::TextExecutionRoute::NativeMtsdf:
+                profiling::g_current_counters->gpu_text_route_native_mtsdf_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::NativePacked:
+                profiling::g_current_counters->gpu_text_route_native_packed_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::Software:
+                profiling::g_current_counters->gpu_text_route_software_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+            case detail::TextExecutionRoute::Reject:
+                profiling::g_current_counters->gpu_text_route_reject_count
+                    .fetch_add(1, std::memory_order_relaxed);
+                break;
+        }
+    }
     const auto frame_number = ctx.frame_input.frame.integral();
     spdlog::info(
-        "[text-route] frame={} route={} reason=policy-decision unsupported_animation={} "
-        "forced_software={} prepared_cache={} backend={} surface_registry={}",
+        "[text-route] frame={} route={} reason={} unsupported_animation={} "
+        "forced_software={} native_surfaces={} prepared_cache={} backend={} "
+        "surface_registry={}",
         frame_number,
-        detail::cached_text_execution_path_name(execution_path),
-        unsupported_animation, force_software,
+        detail::text_execution_route_name(route_decision.route),
+        detail::text_route_reason_name(route_decision.reason),
+        unsupported_animation, force_software, native_surfaces_supported,
         ctx.gpu_text_prepared_cache != nullptr, ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
-    if (execution_path == detail::CachedTextExecutionPath::RejectUnsupportedAnimation) {
+    if (route_decision.route == detail::TextExecutionRoute::Reject) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: animated glyph state requires software path"));
     }
-    // The native text kernels are still experimental for this export lane.
-    // Keep an explicit escape hatch so Vulkan composition can remain native
-    // while the canonical CPU text renderer supplies an exact glyph surface.
-    if (execution_path == detail::CachedTextExecutionPath::RejectForcedSoftware) {
+    // The native text kernels need a resident glyph surface, so a lane without
+    // native surfaces and the explicit escape hatch both land here: the
+    // canonical CPU text renderer supplies the exact glyph surface for the
+    // frame.  Report which one decided it instead of a generic fallback.
+    if (route_decision.route == detail::TextExecutionRoute::Software) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "draw_cached_text_run: forced software text fallback"));
+            std::string("draw_cached_text_run: software text fallback (") +
+                detail::text_route_reason_name(route_decision.reason) + ")"));
     }
     // MTSDF is the canonical lowering shared with DirectYUV. It also owns the
     // lowerable typewriter selector: the shaped run stays resident and the
     // tile shader applies the per-glyph reveal weight each frame. The packed
     // bitmap route below remains only as a compatibility fallback for shapes
     // outside this contract.
-    if (execution_path == detail::CachedTextExecutionPath::TryMtsdf) {
+    if (route_decision.route == detail::TextExecutionRoute::NativeMtsdf) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
         if (mtsdf.ok()) {
@@ -112,8 +136,12 @@ graph::RenderOpResult draw_cached_text_run(
             "[text-mtsdf] canonical lowering rejected; using compatibility path: {}",
             mtsdf.error().message);
         spdlog::info(
-            "[text-route] frame={} route=packed-compat reason=mtsdf-rejected error='{}'",
+            "[text-route] frame={} route=native_packed reason=mtsdf-rejected error='{}'",
             frame_number, mtsdf.error().message);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->gpu_text_route_native_packed_count
+                .fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     if (!ctx.text_render_resources || !shape.layout ||
@@ -188,6 +216,24 @@ graph::RenderOpResult draw_cached_text_run(
     }();
     std::vector<GpuTextGlyph> glyphs;
     glyphs.reserve(layout.placed.glyphs.size());
+    std::vector<std::vector<CompiledSelector>> compiled_animator_selectors;
+    compiled_animator_selectors.reserve(shape.animators.size());
+    for (const auto& animator : shape.animators) {
+        compiled_animator_selectors.push_back(compile_selectors(
+            animator.selectors, layout.units, layout.source_text,
+            &layout.placed));
+    }
+    const auto selector_time = ctx.frame_input.sample_time;
+    std::vector<std::vector<SelectorWeightParams>> bound_animator_selectors;
+    bound_animator_selectors.reserve(compiled_animator_selectors.size());
+    for (const auto& selectors : compiled_animator_selectors) {
+        auto& bound = bound_animator_selectors.emplace_back();
+        bound.reserve(selectors.size());
+        for (const auto& compiled : selectors) {
+            bound.push_back(bind_selector_runtime(
+                compiled, layout.units, selector_time));
+        }
+    }
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
         const auto& state = shape.glyphs[i];
         // HarfBuzz uses glyph id 0 for whitespace/missing-glyph entries.
@@ -468,17 +514,21 @@ graph::RenderOpResult draw_cached_text_run(
                 : -1.0f;
 
         float glyph_opacity = state.opacity;
-        for (const auto& animator : shape.animators) {
-            for (const auto& selector : animator.selectors) {
-                const float selector_weight = evaluate_selector(
-                    selector, layout.units, static_cast<u32>(i),
-                    layout.source_text, ctx.frame_input.sample_time,
-                    &layout.placed);
+        for (std::size_t animator_index = 0;
+             animator_index < shape.animators.size(); ++animator_index) {
+            const auto& animator = shape.animators[animator_index];
+            const auto& selectors = compiled_animator_selectors[animator_index];
+            const auto& bound_selectors = bound_animator_selectors[animator_index];
+            for (std::size_t selector_index = 0;
+                 selector_index < selectors.size(); ++selector_index) {
+                const float weight = selector_weight(
+                    bound_selectors[selector_index], selectors[selector_index],
+                    layout.units, static_cast<u32>(i));
                 for (const auto& property : animator.properties) {
                     if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
                         glyph_opacity *= 1.0f +
                             (opacity->value.evaluate(ctx.frame_input.sample_time) - 1.0f) *
-                            selector_weight;
+                            weight;
                     }
                 }
             }

@@ -2,21 +2,45 @@
 
 namespace chronon3d::graph::text_run::detail {
 
-enum class CachedTextExecutionPath {
-    RejectUnsupportedAnimation,
-    RejectForcedSoftware,
-    TryMtsdf,
-    PackedBitmap,
+enum class TextExecutionRoute {
+    NativeMtsdf,
+    NativePacked,
+    Software,
+    Reject,
 };
 
-[[nodiscard]] const char* cached_text_execution_path_name(
-    CachedTextExecutionPath path) noexcept;
+enum class TextRouteReason {
+    UnsupportedAnimation,
+    ForcedSoftware,
+    NativeSurfacesUnavailable,
+    NativeResourcesAvailable,
+    NativeResourcesUnavailable,
+};
 
-/// Select the first cached-text authority without inspecting glyph data or
-/// allocating atlas resources. The caller still owns runtime failure handling
-/// and may fall back from MTSDF to the packed compatibility route.
-[[nodiscard]] CachedTextExecutionPath resolve_cached_text_execution_path(
+struct TextRouteDecision {
+    TextExecutionRoute route{TextExecutionRoute::Reject};
+    TextRouteReason reason{TextRouteReason::UnsupportedAnimation};
+};
+
+[[nodiscard]] const char* text_execution_route_name(
+    TextExecutionRoute route) noexcept;
+
+[[nodiscard]] const char* text_route_reason_name(
+    TextRouteReason reason) noexcept;
+
+/// Resolve the one text execution route before resources are touched. The
+/// caller consumes the decision mechanically; unsupported animation is a
+/// reject, while explicit software selection is observable rather than a
+/// silent GPU fallback.
+///
+/// `native_surfaces_supported` is a lane capability, not a resource: every
+/// native text kernel (MTSDF and packed) needs a resident glyph surface, so a
+/// backend that cannot host one has no GPU text route at all and the canonical
+/// software renderer owns the frame.  Resolving it here keeps that hand-off
+/// explicit instead of paying a failed glyph-surface acquisition every frame.
+[[nodiscard]] TextRouteDecision resolve_text_execution_route(
     bool unsupported_animation,
+    bool native_surfaces_supported,
     bool force_software,
     bool prepared_cache_available,
     bool backend_available,

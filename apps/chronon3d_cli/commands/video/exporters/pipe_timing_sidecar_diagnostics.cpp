@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // pipe_timing_sidecar_diagnostics.cpp — phase 3 of the frame-timing sidecar.
 //
-// Split out of pipe_timing_sidecar.cpp (pure code move, no schema change):
+// Split out of pipe_timing_sidecar.cpp; owns v2 diagnostic sections.
 // cache / memory / exclusive-wall-timeline / internal-profiling / startup /
 // prepare-breakdown sections.
 // ═══════════════════════════════════════════════════════════════════════════

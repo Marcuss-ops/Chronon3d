@@ -217,6 +217,10 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         glyph.atlas_y = location.atlas_y;
         glyph.atlas_w = location.width;
         glyph.atlas_h = location.height;
+        // The atlas already reports the padded quad the glyph was rasterised
+        // into, so take the plane from that location instead of rebuilding it
+        // from the unpadded bbox: the two disagree by the padding and the
+        // shader samples the resident tile, not the nominal glyph box.
         glyph.plane_left = placed.x + location.plane_left * layout_scale;
         glyph.plane_top = placed.y + location.plane_top * layout_scale;
         glyph.plane_right = glyph.plane_left +
@@ -261,14 +265,9 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "MTSDF text route does not support this run"));
     }
     // A GPU success must never silently drop an unsupported animator. The
-    // canonical MTSDF route owns the lowerable typewriter selector, as well
-    // as single-selector stacks evaluated via the compatibility visibility contract;
-    // only truly unsupported animator stacks are rejected here.
-    const bool mtsdf_compatible_animation =
-        !shape.animators.empty() && shape.animators.size() == 1 &&
-        !shape.animators.front().selectors.empty();
-    if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape) &&
-        !mtsdf_compatible_animation) {
+    // canonical MTSDF route owns the lowerable typewriter selector; only
+    // unsupported animator stacks are rejected here.
+    if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
         spdlog::warn(
             "[text-route] frame={} route=mtsdf reason=unsupported-animator",
             ctx.frame_input.frame.integral());
@@ -299,22 +298,6 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const auto& layout = *shape.layout;
     constexpr std::uint16_t kRangePx = text::kCanonicalMtsdfProfile.distance_range_px;
 
-    // The prepared cache is keyed by immutable layout, but selector state is
-    // part of the current animated shape. Recover it from the current shape
-    // when an older/cache entry has no reveal selector, otherwise a completed
-    // reveal can reach MTSDF with selector=false and the visibility sentinel
-    // path cannot apply the selector contract.
-    std::optional<CompiledSelector> current_reveal_selector;
-    if (!prepared->reveal_selector && !shape.animators.empty() &&
-        !shape.animators.front().selectors.empty()) {
-        current_reveal_selector = compile_selector(
-            shape.animators.front().selectors.front(),
-            layout.units, layout.source_text, &layout.placed);
-    }
-    const CompiledSelector* reveal_selector = prepared->reveal_selector
-        ? &*prepared->reveal_selector
-        : (current_reveal_selector ? &*current_reveal_selector : nullptr);
-
     runtime::TextRunDynamic run{};
     run.tx = model_matrix[3][0];
     run.ty = model_matrix[3][1];
@@ -327,43 +310,6 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(kRangePx));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    // MTSDF can carry a selector even when the complete animator stack is
-    // not lowerable as a run-level GPU animation (for example, because it
-    // also contains blur). Mark a completed animated reveal here so the
-    // Vulkan glyph-dynamic weight path keeps every glyph visible.
-    if (reveal_selector && reveal_selector->spec &&
-        reveal_selector->spec->end.is_time_dependent() &&
-        reveal_selector->spec->start.evaluate(ctx.frame_input.sample_time) <= 0.0f &&
-        reveal_selector->spec->end.evaluate(ctx.frame_input.sample_time) >= 100.0f) {
-        run.flags |= 8u;
-    }
-    // Lowerable glyph selectors stay entirely GPU-native.  The shader uses
-    // the selector scalars populated below, so a CPU per-glyph visibility
-    // pass here would be redundant and would reintroduce frame-loop work.
-    if (reveal_selector && !can_lower_gpu_text_animation(shape)) {
-        std::uint32_t visible_limit = 0;
-        bool has_hidden_glyph = false;
-        const auto sample_time = ctx.frame_input.sample_time;
-        for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
-            if (shape.glyphs[i].glyph_id == 0 ||
-                layout.placed.glyphs[i].bbox_x1 <= layout.placed.glyphs[i].bbox_x0) {
-                continue;
-            }
-            const auto weight = selector_weight(
-                *reveal_selector, layout.units,
-                static_cast<std::uint32_t>(i), sample_time);
-            if (weight <= 1e-6f) {
-                has_hidden_glyph = true;
-                visible_limit = static_cast<std::uint32_t>(i + 1);
-            }
-        }
-        // A completed selector hides no glyphs. Zero is a real visibility
-        // limit (hide every glyph), so use the sentinel for the unrestricted
-        // case instead of turning a completed reveal into a black frame.
-        run.visible_glyph_count = has_hidden_glyph
-            ? visible_limit
-            : std::numeric_limits<std::uint32_t>::max();
-    }
     sample_gpu_run_level_animation(shape, ctx.frame_input.sample_time, run);
     sample_gpu_text_animation(shape, ctx.frame_input.sample_time, run);
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
