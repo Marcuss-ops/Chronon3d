@@ -377,6 +377,9 @@ TEST_CASE("Runtime selector binding owns animated window state") {
         CHECK(glyph_params.use_ordered_index);
         CHECK(selector_weight(compiled, map, glyph, time) ==
               doctest::Approx(selector_weight(glyph_params, glyph)));
+        CHECK(selector_weight(
+                  run_params, compiled, map, glyph) ==
+              doctest::Approx(selector_weight(compiled, map, glyph, time)));
     }
 
     spec.start.set(100.0f);

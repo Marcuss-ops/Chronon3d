@@ -41,6 +41,8 @@ bool is_full_run_selector(const TextRunShape& shape,
            !selector.start.has_expression() &&
            !selector.end.has_expression() &&
            !selector.amount.has_expression() &&
+           std::abs(selector.ease_low) <= 1e-6f &&
+           std::abs(selector.ease_high - 100.0f) <= 1e-6f &&
            std::abs(initial.start) <= 1e-6f &&
            std::abs(initial.end - 100.0f) <= 1e-6f;
 }
@@ -158,6 +160,8 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         selector.order != TextSelectorOrder::Forward ||
         selector.combine != SelectorCombineMode::Replace ||
         selector.randomize_order || selector.offset.is_time_dependent() ||
+        std::abs(selector.ease_low) > 1e-6f ||
+        std::abs(selector.ease_high - 100.0f) > 1e-6f ||
         std::abs(bind_selector_runtime(
                      selector, shape.layout->units.unit_count(selector.unit),
                      SampleTime::from_frame(0.0, FrameRate{30, 1})).offset) > 1e-6f ||
