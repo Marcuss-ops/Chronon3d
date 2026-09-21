@@ -17,7 +17,7 @@
 
 #include <chronon3d/text/typewriter_layout.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
-#include <chronon3d/backends/text/text_unicode_utils.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/font_engine.hpp>
 

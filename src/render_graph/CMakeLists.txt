@@ -44,11 +44,13 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node_native_image.cpp
     nodes/multi_source_node.cpp
     nodes/transform_node.cpp
+    nodes/transform_policy.cpp
     nodes/transform_kernels.cpp
     nodes/transition_node.cpp
     nodes/clip_transition_node.cpp
     nodes/effect_stack_node.cpp
     nodes/clear_node.cpp
+    nodes/clear_policy.cpp
     nodes/composite_node.cpp
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
@@ -68,6 +70,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/text_run/gpu_text_run_packed.cpp
     nodes/text_run/gpu_text_run_mtsdf.cpp
     nodes/text_run/gpu_text_run_cached.cpp
+    nodes/text_run/gpu_text_cached_policy.cpp
 )
 set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_nodes
@@ -96,6 +99,7 @@ add_library(chronon3d_graph_executor OBJECT
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
     executor/node_runner.cpp
+    executor/fused_batch_policy.cpp
     executor/node_runner_fused_batch.cpp  # P1.5 — fused batch implementation moved out of the detail header (kills text/transform/source include fanout in the executor hot TU)
     executor/node_state_commit.cpp     # P1 step 3 — extract commit_node_state (5 per-node state-slot writes from cache_eval + bbox; byte-equivalent to inline pattern at Site 1 cache-hit fast-path + Site 3 main tail in executor/node_runner.cpp; Site 2 tile-skip stays inline per Cat-3 anti-dup)
     executor/text_bbox_reconcile.cpp   # P0 #1 — extracted post-render alpha_bbox reconciliation helper (replaces duplicate TU-local scan in executor/node_runner.cpp + closes static-bool race)
@@ -187,6 +191,7 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
+    pipeline/scene_temporal_policy.cpp
     pipeline/scene_native_output.cpp
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
     pipeline/scene_dirty.cpp

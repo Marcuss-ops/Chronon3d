@@ -22,7 +22,7 @@
 //
 // ONE authority. Both lane-decision sites — the direct `render` route
 // (utils/job/render_job.cpp) and the `render --plan` route
-// (commands/render/command_render_plan_internal.inc) — ask this header whether
+// (commands/render/command_render_plan_internal.cpp) — ask this header whether
 // the lane they just selected is a truth surface, and print the same notice.
 // Two independently written messages would drift, and a lane added later has to
 // answer the question here instead of quietly becoming a third opinion.
