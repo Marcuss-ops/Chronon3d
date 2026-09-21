@@ -10,3 +10,5 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Render.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/VideoExport.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dev.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Executable.cmake)
+# After Executable.cmake: the canary pack adds sources to the CLI target.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Canary.cmake)

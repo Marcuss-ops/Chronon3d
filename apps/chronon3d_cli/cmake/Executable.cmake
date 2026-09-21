@@ -1,6 +1,3 @@
-option(CHRONON3D_CLI_WITH_CANARY_REGISTRY
-    "Compile and register the Motion3D canary composition pack" OFF)
-
 add_executable(chronon3d_cli
     main.cpp
     register_runtime_compositions.cpp
@@ -8,11 +5,8 @@ add_executable(chronon3d_cli
     register_dev_compositions.cpp
 )
 
-if(CHRONON3D_CLI_WITH_CANARY_REGISTRY)
-    target_sources(chronon3d_cli PRIVATE register_canary_compositions.cpp)
-    target_compile_definitions(chronon3d_cli PRIVATE
-        CHRONON3D_CLI_WITH_CANARY_REGISTRY)
-endif()
+# The optional canary pack is added by cmake/Canary.cmake, which CMakeLists.txt
+# includes after this file (target_sources() needs the target above).
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11
     INTERFACE_INCLUDE_DIRECTORIES
