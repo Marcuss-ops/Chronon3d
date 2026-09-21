@@ -268,7 +268,10 @@ SelectorWeight selector_weight(
     // frame black.  The flag keeps this terminal decision out of GPU math.
     if (params.window_completed) return 0.0f;
     if (std::abs(end - start) <= 1e-7f) {
-        return start >= 1.0f ? 0.0f : amount;
+        // A collapsed range has no active units.  The explicit terminal flag
+        // above still documents/handles the host typewriter terminal state;
+        // without it, both animated endpoints must remain an empty window.
+        return 0.0f;
     }
 
     return std::clamp(

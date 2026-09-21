@@ -4,6 +4,7 @@
 
 #include <chronon3d/runtime/resource_preparation.hpp>
 
+#include <cmath>
 #include <utility>
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
@@ -97,7 +98,18 @@ ResourcePreparation::probe_video_metadata(
     // F3.1 — carry the rate as an exact rational; no float authority.
     const FrameRate frame_rate = rate.den != 0
         ? FrameRate{rate.num, rate.den} : FrameRate{0, 1};
-    const std::int64_t frame_count = stream->nb_frames > 0 ? stream->nb_frames : 0;
+    // Containers such as Y4M commonly leave nb_frames unset even though the
+    // stream duration and exact frame rate are available. Preserve a useful
+    // frame count for those valid streams instead of treating them as empty.
+    std::int64_t frame_count = stream->nb_frames > 0 ? stream->nb_frames : 0;
+    if (frame_count <= 0 && stream->duration != AV_NOPTS_VALUE &&
+        rate.num > 0 && rate.den > 0) {
+        const double duration_seconds =
+            static_cast<double>(stream->duration) * av_q2d(stream->time_base);
+        frame_count = static_cast<std::int64_t>(std::llround(
+            duration_seconds * static_cast<double>(rate.num) /
+            static_cast<double>(rate.den)));
+    }
     PreparedVideoMetadata metadata{
         .path = ref.path, .owner = ref.owner,
         .width = codec->width, .height = codec->height,
