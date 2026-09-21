@@ -54,9 +54,11 @@ invariato.
   (`MuxAvioHashWriter`, checksum finale e metriche) dal ciclo di vita di
   `MuxSession`. Il seam è in `packet_assembler_hash_writer.{hpp,cpp}`;
   entrambi i TU passano la compilazione sintattica native-FFmpeg.
-- [ ] **B2 — MuxSession seam.** Lasciare in `MuxSession` solo apertura,
+- [x] **B2 — MuxSession seam.** Lasciare in `MuxSession` solo apertura,
   stream setup, packet placement, audio resampling, trailer e stato della
-  sessione. Non duplicare l'autorità di checksum.
+  sessione. L'implementazione della sessione è ora in
+  `packet_assembler_session.cpp`; l'autorità checksum resta nel seam
+  `packet_assembler_hash_writer.{hpp,cpp}`.
 - [ ] **B3 — Assemble segments.** Mantenere `assemble_segments()` come
   orchestratore sottile; spostare input validation/timestamp normalization in
   helper puri e conservare i 29 casi di
@@ -72,15 +74,17 @@ invariato.
   pura tra native GPU, software e dirty-rect, inclusa la policy strict-mode.
   Il seam native/software è in `clear_policy.{hpp,cpp}` con test per tutte le
   combinazioni di capability; il seam ora espone anche `Reject` per strict
-  mode. La policy dirty-rect/runtime resta nel follow-up C1b prima della
+  mode. La policy pura dirty-rect/runtime è ora in `clear_policy.{hpp,cpp}`
+  con test di eleggibilità, clip vuoto, clip grande e costo pixel; il loop
+  di copia/clear e la telemetria restano nel follow-up C1b prima della
   chiusura completa del nodo.
 - [ ] **C2 — Transform policy.** Spezzare
   `src/render_graph/nodes/transform_node.cpp::TransformNode::execute()` in
   normalize/clip, scelta backend e applicazione dell'operazione; aggiungere
-  test per foreground scale, affine, clipping e fallback. La prima cucitura
-  della scelta backend è in `transform_policy.{hpp,cpp}` con 8 assertion
-  native/software/reject; restano da estrarre normalize/clip e da aggiungere
-  i test geometrici/canary.
+  test per foreground scale, affine, clipping e fallback. La scelta backend e
+  il contratto puro normalize/clip sono in `transform_policy.{hpp,cpp}` con
+  test native/software/reject e test geometrici; il kernel di rasterizzazione
+  e il canary end-to-end restano nel nodo.
 - [ ] **C3 — Temporal scene pipeline.** Ridurre
   `render_scene_via_graph_temporal()` in `src/render_graph/pipeline/scene.cpp`
   a fasi esplicite: frame parameters, graph execution, output lease e
@@ -151,14 +155,15 @@ invariato.
 - `chronon3d_cli_render` compila con `-j10`.
 - `chronon3d_cli_tests` compila e il test CTest registrato passa.
 - `clear_policy.{hpp,cpp}` separa la decisione native/software di `ClearNode`;
-  il test mirato passa (6 assertion) e strict mode rifiuta prima del
-  percorso software quando mancano backend o registry. La parte dirty-rect
-  resta aperta nella stessa action.
+  il test mirato copre anche dirty-rect, clip vuoto/grande e costo pixel;
+  strict mode rifiuta prima del percorso software quando mancano backend o
+  registry. Il loop pixel/telemetria resta aperto nella stessa action.
 - `transform_policy.{hpp,cpp}` separa la decisione native/software/reject di
-  `TransformNode`; il test mirato passa (2 casi, 8 assertion). La parte
-  normalize/clip e i test geometrici restano aperti.
-- Il test diretto del nuovo seam resta aperto perché la preset corrente non
-  registra `test_packet_assembler_contract.cpp` nel target CLI attivo.
+  `TransformNode` e ora centralizza normalize/clip; il test mirato copre
+  bbox offset, clipping e intersezione vuota.
+- `test_packet_assembler_contract.cpp` è registrato nel target
+  `chronon3d_cli_tests`; la verifica runtime FFmpeg resta subordinata alla
+  preset video/native-FFmpeg.
 - `packet_assembler_segments.{hpp,cpp}` contiene ora i helper di contratto
   codec/timestamp; `packet_assembler.cpp` li usa via namespace `detail` e i
   due TU passano syntax-check native-FFmpeg.
@@ -173,6 +178,13 @@ invariato.
 - I cinque seam policy del render graph passano tutti i test mirati nel
   preset veloce: Clear `6/6`, Transform `8/8`, Fused `4/4`, Cached GPU text
   `6/6`, temporal settings `10/10`.
+- `MuxSession` è stato spostato fuori da `packet_assembler.cpp` in un TU
+  dedicato; `chronon3d_media_native` e `chronon3d_cli_video_export` compilano
+  con il nuovo confine.
+- Lo split degli header text ora include esplicitamente
+  `text_render_resources.hpp` nei quattro stage software che usano la
+  forward declaration; il target render-graph torna compilabile nel preset
+  senza GPU.
 
 ## Definition of done
 

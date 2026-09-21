@@ -20,6 +20,7 @@
 // s.raster_space + s.active_tiers + ...).
 
 #include "text_run_stages.hpp"
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/core/config.hpp>
