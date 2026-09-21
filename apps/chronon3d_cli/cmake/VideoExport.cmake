@@ -25,6 +25,7 @@ add_library(chronon3d_cli_video_export STATIC
     utils/video/video_sink_adapter_submit.cpp
     utils/video/encoder_config_resolution.cpp
     utils/video/encoder_bitstream_contract.cpp
+    utils/video/gop_target_contract.cpp
     # P2 structure pass: the GOP smart-copy implementation is split across
     # focused TUs (byte-level bitstream readers, source analysis/copy and
     # work-unit submission) with gop_smart_copy_bitstream.hpp as the shared

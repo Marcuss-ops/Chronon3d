@@ -2,6 +2,7 @@
 #include "gop_smart_copy.hpp"
 #include "encoder_config_resolution.hpp"
 #include "encoder_bitstream_contract.hpp"
+#include "gop_target_contract.hpp"
 #include "../../commands/video/common/pipe_export_helpers.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
@@ -27,36 +28,6 @@
 namespace chronon3d::cli {
 namespace {
 
-// ── Target contract: the stream the OUTPUT container will carry ───────────
-//
-// The compressed source may only ever be the `source` side of the splice
-// comparison. Which producer owns the target depends on the lane:
-//
-//   whole-clip packet copy  → no encoder runs, so the output stream IS the
-//                             source stream (make_remux_target_contract)
-//   anything that re-encodes → the target MUST be the encoder-owned contract
-//                             (resolve_encoder_bitstream_contract), built from
-//                             the exact configuration the encoder will apply.
-//
-// P0-5A: the previous implementation opened `source_path` and overwrote every
-// target field with the source's own, so inspect_gop_source() compared the
-// source with itself and always certified the splice. That source-driven
-// overwrite is gone. When the encoder's output facts are not yet materialized
-// the contract is incomplete on purpose and the splice gate fails closed.
-std::optional<BitstreamTargetContract> make_bitstream_target_contract(
-    const FfmpegExportOptions& opts, const CompiledComposition& compiled,
-    const chronon3d::CpuBudget& cpu_budget) {
-    if (opts.gop_copy_only) {
-        return make_remux_target_contract(opts.gop_source);
-    }
-    const auto codec = resolve_cli_ffmpeg_codec(
-        opts.encoder.codec, opts.encoder.hardware_encoder);
-    const auto pipe_options =
-        make_pipe_options(compiled, opts, codec, cpu_budget);
-    if (!pipe_options) return std::nullopt;
-    return resolve_encoder_bitstream_contract(*pipe_options);
-}
-
 // ── Single GOP preflight (before any decision) ─────────────────────────────
 // Runs once at the top of the executor; the resulting summary is folded into
 // the resolver so the FINAL plan already contains any downgrade.  The
@@ -67,7 +38,7 @@ media::GopAnalysisSummary inspect_source_once(
     const chronon3d::CpuBudget& cpu_budget) {
     media::GopAnalysisSummary summary;
     if (opts.gop_source.empty()) return summary;
-    const auto target = make_bitstream_target_contract(opts, compiled, cpu_budget);
+    const auto target = resolve_gop_target_contract(opts, compiled, cpu_budget);
     if (!target) {
         // No encoder-owned contract could be produced for a lane that
         // re-encodes: the splice gate cannot be evaluated, so it is unsafe.

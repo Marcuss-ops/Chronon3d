@@ -10,6 +10,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     commands/render/command_render_plan.cpp
+    commands/render/command_render_plan_internal.cpp
     commands/render/render_plan_preparation.cpp
     commands/render/render_plan_inspection.cpp
     commands/render/command_inspect_plan.cpp
@@ -57,7 +58,7 @@ target_compile_definitions(chronon3d_cli_render PRIVATE
     CHRONON3D_CLI_PROJECT_VERSION="${PROJECT_VERSION}"
 )
 
-# The receipt/report block in commands/render/command_render_plan_internal.inc
+# The receipt/report block in commands/render/command_render_plan_internal.cpp
 # and the receipt include in command_render_plan.cpp are guarded by
 # `#ifdef CHRONON3D_ENABLE_VERIFICATION` — a PREPROCESSOR macro, not the CMake
 # variable of the same name. Nothing ever defined the macro, so a build with

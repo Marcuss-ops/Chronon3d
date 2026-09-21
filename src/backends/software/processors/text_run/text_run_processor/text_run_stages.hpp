@@ -25,7 +25,8 @@
 
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include <chronon3d/backends/software/text_run_processor.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/backends/text/text_font_resources.hpp>
+#include <chronon3d/backends/text/text_scratch_pool.hpp>
 #include <chronon3d/text/text_run_layout.hpp>
 #include <blend2d.h>
 

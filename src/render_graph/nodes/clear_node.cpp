@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "native_surface.hpp"
+#include "clear_policy.hpp"
 
 namespace chronon3d::graph {
 
@@ -29,8 +30,18 @@ NodeExecResult ClearNode::execute(
     // target.  The legacy clear path owns only CPU pixels; letting that
     // framebuffer reach CompositeNode would force a full RGBA32F promotion
     // (or, in strict mode, fail after the composite has already been built).
-    if ((ctx.policy.require_native_gpu || (ctx.backend && ctx.backend->supports_native_video_surface())) &&
-        ctx.backend && ctx.surface_registry) {
+    const auto clear_path = detail::resolve_clear_execution_path(
+        ctx.policy.require_native_gpu,
+        ctx.backend && ctx.backend->supports_native_video_surface(),
+        ctx.backend != nullptr,
+        ctx.surface_registry != nullptr);
+    if (clear_path == detail::ClearExecutionPath::Reject) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "ClearNode",
+            "native residency violation: native clear requires backend and surface registry"};
+    }
+    if (clear_path == detail::ClearExecutionPath::NativeSurface) {
         auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, false);
         if (ensure_empty_native_surface(ctx, *fb)) {
             // ensure_empty_native_surface initializes the new GPU target to
