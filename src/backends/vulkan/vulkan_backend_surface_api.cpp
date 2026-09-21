@@ -760,9 +760,11 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface(
     std::span<const runtime::GlyphInstance> glyphs) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, atlas};
-    return run_batched_surface_op(touched, {}, [&] {
+    const auto res = run_batched_surface_op(touched, {}, [&] {
         m_impl->text_run_surface(destination, atlas, glyphs);
     });
+    if (!res.ok()) return res;
+    return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
 #else
     (void)destination; (void)atlas; (void)glyphs;
     return graph::RenderOpResult(graph::make_render_backend_error(
@@ -780,10 +782,12 @@ graph::RenderOpResult VulkanBackend::draw_text_run_surface_timed(
     bool highlight_enabled) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, atlas};
-    return run_batched_surface_op(touched, {}, [&] {
+    const auto res = run_batched_surface_op(touched, {}, [&] {
         m_impl->text_run_surface(destination, atlas, glyphs, current_frame,
                                  highlight_color, highlight_enabled);
     });
+    if (!res.ok()) return res;
+    return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
 #else
     (void)destination; (void)atlas; (void)glyphs; (void)current_frame;
     (void)highlight_color; (void)highlight_enabled;
@@ -802,9 +806,11 @@ graph::RenderOpResult VulkanBackend::draw_text_batch(
     // The atlas pages are resolved through resolve_image() by the op, so they
     // are part of the leased set (read_surfaces = the op's read-only set).
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
-    return run_batched_surface_op(touched, atlas_pages, [&] {
+    const auto res = run_batched_surface_op(touched, atlas_pages, [&] {
         m_impl->draw_text_batch(destination, glyphs, runs, atlas_pages);
     });
+    if (!res.ok()) return res;
+    return graph::RenderOpResult(graph::RenderOpOutcome{glyphs.size()});
 #else
     (void)destination; (void)glyphs; (void)runs; (void)atlas_pages;
     return graph::RenderOpResult(graph::make_render_backend_error(
