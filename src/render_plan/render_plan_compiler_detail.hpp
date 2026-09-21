@@ -10,6 +10,7 @@ namespace chronon3d::render_plan::detail {
 
 [[nodiscard]] chronon3d::FitMode fit_mode(FitMode value);
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer);
+void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer);
 [[nodiscard]] chronon3d::TextDefinition materialize_text(
     const LayerPlan& layer, const chronon3d::CanvasInfo& canvas);
 void apply_layer_primitives(chronon3d::LayerBuilder& builder,

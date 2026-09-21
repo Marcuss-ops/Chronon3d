@@ -195,7 +195,7 @@ struct RenderSettings {
      * The four other SIMD-relevant sites use **independent gating
      * mechanisms** and are NOT controlled by this flag:
      *
-     *   * `src/backends/software/utils/blend2d_bridge_core.cpp`
+     *   * `src/backends/software/blend2d/blend2d_bridge_core.cpp`
      *     (composite_framebuffer — Normal-blend AVX2 batch) — gated by
      *     the COMPILE-TIME macro `CHRONON3D_FORCE_SCALAR_BLEND`, defined
      *     via `#define CHRONON3D_FORCE_SCALAR_BLEND` near the top of the
@@ -204,7 +204,7 @@ struct RenderSettings {
      *     `CHRONON3D_ENABLE_AVX2_BLEND` via CMake
      *     `target_compile_definitions(<bench-target> PRIVATE
      *     CHRONON3D_ENABLE_AVX2_BLEND)`.
-     *   * `src/backends/software/utils/blend2d_bridge_transforms_fb.cpp`
+     *   * `src/backends/software/blend2d/blend2d_bridge_transforms_fb.cpp`
      *     (composite_framebuffer_transformed — scale-translation AVX2) —
      *     same `CHRONON3D_FORCE_SCALAR_BLEND` macro gate as above
      *     (defined inside its own TU).

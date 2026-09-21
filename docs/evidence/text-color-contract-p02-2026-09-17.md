@@ -48,7 +48,7 @@ pura del dominio lineare; nessun backend esegue `to_linear()`.
 **Il percorso software NON era già corretto.**  Questa è la differenza decisiva
 rispetto a una lettura che mette la conversione nel packer GPU.  Il testo
 software non usa `pack_text_color`: passa dal bridge Blend2D, e
-`to_bl_rgba` (`utils/blend2d_paint.hpp`) converte un `Color` **lineare** in 8 bit
+`to_bl_rgba` (`blend2d/blend2d_paint.hpp`) converte un `Color` **lineare** in 8 bit
 senza ri-linearizzare — coerente con il resto del software path, dove i
 chiamanti fanno `.to_linear()` prima di `to_bl_rgba`.
 
@@ -59,7 +59,7 @@ Il ritorno in framebuffer però **non decodifica il transfer**:
 * `blend2d_bridge_transforms.cpp` → `sample_bilinear_prgb32` — stessa cosa per il
   path scalato/trasformato (quello usato da `composite_text_run`).
 
-Nessun `srgb_to_linear`/`linear_from_srgb` in `src/backends/software/utils/`.
+Nessun `srgb_to_linear`/`linear_from_srgb` in `src/backends/software/blend2d/`.
 Quindi con `#808080` sRGB (0.502) il software scriveva byte 128 e lo componeva
 come **lineare 0.502** ⇒ uscita ~187, **esattamente come FullGraph GPU**.
 

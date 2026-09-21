@@ -18,18 +18,20 @@
 add_library(chronon3d_backend_assets OBJECT
     image_cache.cpp
     image_renderer.cpp
-    # bridge symbols previously owned by backend_software's utils/.  Moved
-    # here so backend_assets's image_renderer.cpp links against its own
-    # OBJECT and the cycle backend_assets ↔ backend_software dissolves.
-    ${CMAKE_CURRENT_SOURCE_DIR}/../software/utils/blend2d_bridge_core.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../software/utils/blend2d_bridge_transforms_fb.cpp
+    # Bridge symbols are now owned by src/backends/software/blend2d/
+    # (consolidated from utils/ on 2026-09-20).  backend_assets references
+    # them via ../software/blend2d/ so backend_assets's
+    # image_renderer.cpp links against its own OBJECT and the cycle
+    # backend_assets ↔ backend_software dissolves.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../software/blend2d/blend2d_bridge_core.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../software/blend2d/blend2d_bridge_transforms_fb.cpp
 )
 
 if(CHRONON3D_USE_BLEND2D)
     # 'target_sources' only accepts PRIVATE/PUBLIC/INTERFACE — not OBJECT.
     # (OBJECT is an add_library type, not a target_sources visibility.)
     target_sources(chronon3d_backend_assets PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../software/utils/blend2d_bridge_transforms.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../software/blend2d/blend2d_bridge_transforms.cpp
     )
 endif()
 

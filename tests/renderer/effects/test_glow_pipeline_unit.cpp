@@ -1,7 +1,7 @@
 // ==============================================================================
 // tests/renderer/effects/test_glow_pipeline_unit.cpp
 //
-// PR2 — GlowPipeline unit tests (3 tests, math/API correctness).
+// PR2 — GlowPipeline unit tests (math/API correctness).
 //
 // GlowPipeline is the unified struct that captures every parameter any of
 // the four glow paths (apply_glow_effect, apply_bloom_effect, text_glow,
@@ -10,13 +10,14 @@
 //   1. GlowPipeline::from(GlowParams) preserves all important fields.
 //   2. GlowPipeline::from(BloomParams) sets Mode::Bloom.
 //   3. glow_effect_extent() returns max(implied radius + 4 px).
+//   4. GlowPipeline::from(GlowParams) preserves quality + the layer table.
 // ==============================================================================
 
 #include <doctest/doctest.h>
 
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <chronon3d/effects/spatial_bounds.hpp>
-#include <chronon3d/text/text_glow_spec.hpp>
 
 #include <cmath>
 using namespace chronon3d;
@@ -77,15 +78,45 @@ TEST_CASE("PR2-Unit-Glow: glow_effect_extent accounts for max layer radius + 4 p
     CHECK(e2 == doctest::Approx(204.0f));
 }
 
-TEST_CASE("GlowQuality: text spec preserves quality and alpha-mask contract") {
-    TextGlowSpec spec;
-    spec.quality = GlowQuality::Fast;
-    const GlowParams params = spec.to_glow_params();
-    CHECK(params.quality == GlowQuality::Fast);
-    CHECK(params.layers.size() == 3);
-    CHECK(params.core_strength == doctest::Approx(params.layers[0].opacity));
-    CHECK(params.aura_strength == doctest::Approx(params.layers[1].opacity));
-    CHECK(params.bloom_strength == doctest::Approx(params.layers[2].opacity));
+TEST_CASE("GlowQuality: from(GlowParams) preserves quality and the layer table") {
+    GlowParams params;
+    params.quality = GlowQuality::Fast;
+    params.layers = {
+        GlowLayer{4.0f, 0.55f, 1.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}},
+        GlowLayer{14.0f, 0.22f, 1.0f, Color{0.50f, 0.70f, 1.0f, 1.0f}},
+        GlowLayer{34.0f, 0.08f, 0.25f, Color{0.50f, 0.70f, 1.0f, 1.0f}},
+    };
+    params.core_strength = params.layers[0].opacity;
+    params.aura_strength = params.layers[1].opacity;
+    params.bloom_strength = params.layers[2].opacity;
+
+    const auto pipeline = GlowPipeline::from(params);
+    CHECK(pipeline.quality == GlowQuality::Fast);
+    REQUIRE(pipeline.layers.size() == 3);
+    CHECK(pipeline.layers[0].radius == doctest::Approx(4.0f));
+    CHECK(pipeline.layers[1].radius == doctest::Approx(14.0f));
+    CHECK(pipeline.layers[2].radius == doctest::Approx(34.0f));
+    CHECK(pipeline.layers[2].scale == doctest::Approx(0.25f));
+    CHECK(pipeline.core_strength == doctest::Approx(pipeline.layers[0].opacity));
+    CHECK(pipeline.aura_strength == doctest::Approx(pipeline.layers[1].opacity));
+    CHECK(pipeline.bloom_strength == doctest::Approx(pipeline.layers[2].opacity));
+}
+
+TEST_CASE("GPU canary glow uses the same three-lobe contract as software") {
+    const auto params = GlowPresets::canary_black(42.0f);
+    const auto lobes = synthetic_glow_lobes(params);
+
+    CHECK(lobes[0].radius_factor == doctest::Approx(0.10f));
+    CHECK(lobes[0].strength == doctest::Approx(0.48f));
+    CHECK(lobes[1].radius_factor == doctest::Approx(0.35f));
+    CHECK(lobes[1].strength == doctest::Approx(0.30f));
+    CHECK(lobes[2].radius_factor == doctest::Approx(1.00f));
+    CHECK(lobes[2].strength == doctest::Approx(0.10f));
+    CHECK(lobes[2].buffer_scale == doctest::Approx(1.0f));
+
+    CHECK(42.0f * lobes[0].radius_factor == doctest::Approx(4.2f));
+    CHECK(42.0f * lobes[1].radius_factor == doctest::Approx(14.7f));
+    CHECK(42.0f * lobes[2].radius_factor == doctest::Approx(42.0f));
 }
 
 TEST_CASE("PR2-Unit-ShadowBounds: halo matches contact and ambient shadow maps") {

@@ -23,6 +23,8 @@
 namespace test_text_fixture {
 
 constexpr const char* kInterBoldPath = "tests/fixtures/Inter-Bold.ttf";
+// When assets/ has been bootstrapped this resolves to the fleet entry
+// Chronon3d/assets/fonts/Inter-Bold.ttf — same bytes as the fixture above.
 
 inline bool fixture_exists(const char* p) noexcept {
     if (p == nullptr) return false;
@@ -39,6 +41,13 @@ inline void skip_if_missing(const char* fixture, const char* what) noexcept {
 
 /// Canonical Inter-Bold font fixture for deterministic text tests.
 /// Font path: tests/fixtures/Inter-Bold.ttf (tracked in git).
+///
+/// Rationale vs. assets/fonts/Inter-Bold.ttf: the bootstrap fleet under
+/// assets/ is gitignored and materialized on demand by
+/// tools/bootstrap_test_fonts.py (blob SHA-1 pinned). This fixture is a
+/// self-contained tracked copy so text unit tests run on a fresh checkout
+/// without a prior bootstrap step; the MD5-duplicate with the fleet is
+/// intentional and documented (see DEDUP.md font-fleet policy).
 inline chronon3d::FontSpec inter_bold() {
     const auto fixture = std::filesystem::absolute(kInterBoldPath).string();
     return chronon3d::FontSpec{

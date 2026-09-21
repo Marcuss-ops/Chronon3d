@@ -11,6 +11,9 @@ NodeExecResult EffectStackNode::execute(
 
     const f32 spread = compute_max_effect_spread();
     auto pred_bbox = predicted_bbox(ctx, input_bboxes);
+    const bool gpu_only_input =
+        ctx.policy.require_native_gpu && !inputs[0]->data() &&
+        inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
 
     OwnedFB result;
     if (spread > 0.0f && pred_bbox) {
@@ -18,14 +21,25 @@ NodeExecResult EffectStackNode::execute(
         const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
         const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
 
-        result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
+        if (gpu_only_input) {
+            // Native video execution keeps the producer surface GPU-only.
+            // The CPU crop below is invalid in that mode; the native glow
+            // path consumes the producer handle and renders a full-frame
+            // result instead, which is semantically identical for the
+            // transparent canvas used by text effects.
+            result = ctx.acquire_owned_fb(
+                inputs[0]->width(), inputs[0]->height(), false);
+            result->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+        } else {
+            result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
+        }
 
         const i32 intersect_x0 = std::max(inputs[0]->origin_x(), out_bounds.x0);
         const i32 intersect_y0 = std::max(inputs[0]->origin_y(), out_bounds.y0);
         const i32 intersect_x1 = std::min(inputs[0]->origin_x() + inputs[0]->width(), out_bounds.x1);
         const i32 intersect_y1 = std::min(inputs[0]->origin_y() + inputs[0]->height(), out_bounds.y1);
 
-        if (intersect_x1 > intersect_x0 && intersect_y1 > intersect_y0) {
+        if (!gpu_only_input && intersect_x1 > intersect_x0 && intersect_y1 > intersect_y0) {
             const i32 w_copy = intersect_x1 - intersect_x0;
             for (i32 y = intersect_y0; y < intersect_y1; ++y) {
                 const Color* src = inputs[0]->pixels_row(y - inputs[0]->origin_y()) + (intersect_x0 - inputs[0]->origin_x());
@@ -88,9 +102,26 @@ NodeExecResult EffectStackNode::execute(
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
 
         };
-        if (!native_effects::try_native_full_frame_blur(ctx, m_effects, *result, local_clip) &&
-            !native_effects::try_native_full_frame_glow(ctx, m_effects, *result, local_clip) &&
-            !native_effects::try_native_full_frame_tint(ctx, m_effects, *result, local_clip)) {
+        const auto native_source = gpu_only_input
+            ? inputs[0]->surface_handle()
+            : runtime::kInvalidRenderSurfaceHandle;
+        const auto native_clip = gpu_only_input
+            ? std::optional<raster::BBox>{}
+            : local_clip;
+        bool native_handled = false;
+        if (!gpu_only_input) {
+            native_handled = native_effects::try_native_full_frame_blur(
+                ctx, m_effects, *result, local_clip);
+        }
+        if (!native_handled) {
+            native_handled = native_effects::try_native_full_frame_glow(
+                ctx, m_effects, *result, native_clip, native_source);
+        }
+        if (!native_handled && !gpu_only_input) {
+            native_handled = native_effects::try_native_full_frame_tint(
+                ctx, m_effects, *result, local_clip);
+        }
+        if (!native_handled && !gpu_only_input) {
             ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
         if (ctx.node_exec.counters) {

@@ -179,7 +179,10 @@ struct MuxAvioHashWriter {
         return true;
     }
 
-    static int write_packet(void* opaque, const std::uint8_t* buffer,
+    // FFmpeg's avio_alloc_context write callback is `int (*)(void*, uint8_t*, int)`;
+    // the buffer is only read here (avio_write / av_hash_update), so the
+    // parameter is non-const to match the callback type.
+    static int write_packet(void* opaque, std::uint8_t* buffer,
                             int buffer_size) noexcept {
         auto* self = static_cast<MuxAvioHashWriter*>(opaque);
         if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);

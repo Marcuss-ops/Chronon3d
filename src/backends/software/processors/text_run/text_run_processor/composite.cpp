@@ -16,7 +16,7 @@
 // AGENTS.md v0.1 freeze Cat-3 internal — strictly internal.
 
 #include "text_run_stages.hpp"
-#include "../../../utils/blend2d_bridge.hpp"
+#include "../../../blend2d/blend2d_bridge.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <cstdint>

@@ -3,7 +3,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <utils/blend2d_bridge.hpp>
+#include <blend2d/blend2d_bridge.hpp>
 
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>

@@ -14,23 +14,30 @@ bool clip_covers_result(const std::optional<raster::BBox>& clip,
 bool try_native_full_frame_glow(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
-                                const std::optional<raster::BBox>& clip) {
+                                const std::optional<raster::BBox>& clip,
+                                runtime::RenderSurfaceHandle existing_source) {
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
-        effect_stack.size() != 1 ||
-        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        effect_stack.size() != 1) {
         return false;
     }
     const auto& instance = effect_stack[0];
     if (!instance.enabled || instance.effect_type != effects::EffectType::Glow) return false;
     const auto* params = std::get_if<GlowParams>(&instance.params);
-    if (!params || params->layers.size() != 0 || !params->preserve_source ||
-        params->blend != BlendMode::Add || params->threshold != 0.0f ||
-        params->spread != 1.0f || params->softness != 1.0f ||
-        params->falloff != 0.85f || params->core_strength != 0.70f ||
-        params->aura_strength != 0.35f || params->bloom_strength != 0.18f ||
-        params->outer_downscale != 0.25f || !std::isfinite(params->radius) ||
-        !std::isfinite(params->intensity) || params->radius < 0.0f ||
-        params->radius > 32.0f || params->intensity < 0.0f) {
+    const bool valid_glow = params && params->layers.empty() && params->preserve_source &&
+        params->blend == BlendMode::Add && params->threshold == 0.0f &&
+        params->spread == 1.0f && params->softness == 1.0f &&
+        params->falloff == 1.0f && params->quality == GlowQuality::High &&
+        std::isfinite(params->radius) && std::isfinite(params->intensity) &&
+        std::isfinite(params->outer_downscale) &&
+        std::isfinite(params->core_strength) &&
+        std::isfinite(params->aura_strength) &&
+        std::isfinite(params->bloom_strength) &&
+        std::isfinite(params->color.r) && std::isfinite(params->color.g) &&
+        std::isfinite(params->color.b) && std::isfinite(params->color.a) &&
+        params->radius >= 0.0f && params->radius <= 64.0f &&
+        params->intensity >= 0.0f && params->core_strength >= 0.0f &&
+        params->aura_strength >= 0.0f && params->bloom_strength >= 0.0f;
+    if (!valid_glow) {
         return false;
     }
 
@@ -42,51 +49,95 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     // call. This removed a ~33 MB allocate+copy per effect per frame at 1080p
     // (RGBA-f32), which is exactly the steady-state heap churn the
     // check_steady_state_allocations gate is meant to catch.
+    const bool source_is_existing =
+        existing_source != runtime::kInvalidRenderSurfaceHandle;
     std::vector<float> packed_rgba;
-    const auto rgba = framebuffer_rgba_view(result, packed_rgba);
+    const auto rgba = source_is_existing
+        ? std::span<const float>{}
+        : framebuffer_rgba_view(result, packed_rgba);
+    const auto source = source_is_existing
+        ? existing_source
+        : ctx.surface_registry->create(desc);
     const auto output = ctx.surface_registry->create(desc);
     const auto horizontal = ctx.surface_registry->create(desc);
     const auto vertical = ctx.surface_registry->create(desc);
-    if (output == runtime::kInvalidRenderSurfaceHandle ||
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        output == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         vertical == runtime::kInvalidRenderSurfaceHandle) {
+        if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
+            ctx.surface_registry->release(source);
         if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
         if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
         if (vertical != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(vertical);
         return false;
     }
     const auto cleanup = [&] {
+        if (!source_is_existing) (void)ctx.backend->release_surface(source);
         (void)ctx.backend->release_surface(output);
         (void)ctx.backend->release_surface(horizontal);
         (void)ctx.backend->release_surface(vertical);
+        if (!source_is_existing) ctx.surface_registry->release(source);
         ctx.surface_registry->release(output);
         ctx.surface_registry->release(horizontal);
         ctx.surface_registry->release(vertical);
     };
-    const auto create_output = ctx.backend->create_surface(output, desc);
-    RenderOpResult upload = create_output;
-    if (create_output.ok()) {
+    const auto source_ready = source_is_existing
+        ? RenderOpResult(RenderOpOutcome{})
+        : ctx.backend->create_surface(source, desc);
+    RenderOpResult upload = source_ready;
+    if (!source_is_existing && source_ready.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
-        upload = ctx.backend->upload_surface(output, desc, rgba);
+        upload = ctx.backend->upload_surface(source, desc, rgba);
     }
-    const auto create_horizontal = upload.ok()
-        ? ctx.backend->create_surface(horizontal, desc)
+    const auto create_output = upload.ok()
+        ? ctx.backend->create_surface(output, desc)
         : upload;
+    RenderOpResult upload_output = create_output;
+    if (create_output.ok()) {
+        if (source_is_existing) {
+            upload_output = ctx.backend->copy_surface(output, source);
+        } else {
+            profiling::GpuUploadProducerScope upload_scope(
+                profiling::GpuUploadProducer::Effects);
+            upload_output = ctx.backend->upload_surface(output, desc, rgba);
+        }
+    }
+    const auto create_horizontal = upload_output.ok()
+        ? ctx.backend->create_surface(horizontal, desc)
+        : upload_output;
     const auto create_vertical = create_horizontal.ok()
         ? ctx.backend->create_surface(vertical, desc)
         : create_horizontal;
-    const auto glow = create_vertical.ok()
-        ? ctx.backend->glow_surfaces(
-            output, output, horizontal, vertical, params->radius,
-            params->intensity, params->color)
-        : create_vertical;
-    if (!glow.ok()) {
+    if (!create_vertical.ok()) {
+        spdlog::error("[native-glow] surface setup failed: {}",
+                      create_vertical.error().message);
         cleanup();
         return false;
     }
+
+    // Keep source immutable and accumulate the three separable Gaussian
+    // lobes into the already-uploaded output. Each pass reads the original
+    // source, so the lobes do not blur one another recursively.
+    for (const auto& lobe : synthetic_glow_lobes(*params)) {
+        const float lobe_radius = params->radius * lobe.radius_factor;
+        if (lobe_radius < 0.5f || lobe.strength <= 0.0f) continue;
+        const auto glow = ctx.backend->glow_surfaces(
+            output, source, horizontal, vertical, lobe_radius,
+            params->intensity * lobe.strength, params->color);
+        if (!glow.ok()) {
+            spdlog::error("[native-glow] lobe radius={} failed: {}",
+                          lobe_radius, glow.error().message);
+            cleanup();
+            return false;
+        }
+    }
+
+    if (!source_is_existing) (void)ctx.backend->release_surface(source);
     (void)ctx.backend->release_surface(horizontal);
     (void)ctx.backend->release_surface(vertical);
+    if (!source_is_existing) ctx.surface_registry->release(source);
     ctx.surface_registry->release(horizontal);
     ctx.surface_registry->release(vertical);
     result.set_surface_handle(output);
