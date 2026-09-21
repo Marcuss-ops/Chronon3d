@@ -205,6 +205,24 @@ graph::RenderOpResult draw_cached_text_run(
     }();
     std::vector<GpuTextGlyph> glyphs;
     glyphs.reserve(layout.placed.glyphs.size());
+    std::vector<std::vector<CompiledSelector>> compiled_animator_selectors;
+    compiled_animator_selectors.reserve(shape.animators.size());
+    for (const auto& animator : shape.animators) {
+        compiled_animator_selectors.push_back(compile_selectors(
+            animator.selectors, layout.units, layout.source_text,
+            &layout.placed));
+    }
+    const auto selector_time = ctx.frame_input.sample_time;
+    std::vector<std::vector<SelectorWeightParams>> bound_animator_selectors;
+    bound_animator_selectors.reserve(compiled_animator_selectors.size());
+    for (const auto& selectors : compiled_animator_selectors) {
+        auto& bound = bound_animator_selectors.emplace_back();
+        bound.reserve(selectors.size());
+        for (const auto& compiled : selectors) {
+            bound.push_back(bind_selector_runtime(
+                compiled, layout.units, selector_time));
+        }
+    }
     for (std::size_t i = 0; i < layout.placed.glyphs.size(); ++i) {
         const auto& state = shape.glyphs[i];
         // HarfBuzz uses glyph id 0 for whitespace/missing-glyph entries.
@@ -485,17 +503,21 @@ graph::RenderOpResult draw_cached_text_run(
                 : -1.0f;
 
         float glyph_opacity = state.opacity;
-        for (const auto& animator : shape.animators) {
-            for (const auto& selector : animator.selectors) {
-                const float selector_weight = evaluate_selector(
-                    selector, layout.units, static_cast<u32>(i),
-                    layout.source_text, ctx.frame_input.sample_time,
-                    &layout.placed);
+        for (std::size_t animator_index = 0;
+             animator_index < shape.animators.size(); ++animator_index) {
+            const auto& animator = shape.animators[animator_index];
+            const auto& selectors = compiled_animator_selectors[animator_index];
+            const auto& bound_selectors = bound_animator_selectors[animator_index];
+            for (std::size_t selector_index = 0;
+                 selector_index < selectors.size(); ++selector_index) {
+                const float weight = selector_weight(
+                    bound_selectors[selector_index], selectors[selector_index],
+                    layout.units, static_cast<u32>(i));
                 for (const auto& property : animator.properties) {
                     if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
                         glyph_opacity *= 1.0f +
                             (opacity->value.evaluate(ctx.frame_input.sample_time) - 1.0f) *
-                            selector_weight;
+                            weight;
                     }
                 }
             }
