@@ -14,7 +14,7 @@
 
 #include "src/text/unicode/utf8_decoder.hpp"
 
-#include <chronon3d/backends/text/text_unicode_utils.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>

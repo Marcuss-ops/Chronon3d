@@ -1,7 +1,7 @@
 #include <chronon3d/backends/text/text_layout_inline.hpp>
 #include <chronon3d/backends/text/text_layout_single.hpp>
 #include <chronon3d/backends/text/text_layout_helpers.hpp>
-#include <chronon3d/backends/text/text_unicode_utils.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>

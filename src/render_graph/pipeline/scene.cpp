@@ -35,6 +35,7 @@
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
+#include "scene_temporal_policy.hpp"
 #include "scene_native_output.hpp"        // native output sync + residency
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "../core/scene_fingerprint.hpp"
@@ -86,16 +87,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     const bool isolated_temporal_sample = temporal_context != nullptr;
     RenderSettings sample_settings;
     if (isolated_temporal_sample) {
-        sample_settings = settings;
-        sample_settings.dirty.enabled = false;
-        sample_settings.dirty.use_bitmask = false;
-        sample_settings.dirty.use_tiles = false;
-        sample_settings.dirty.tile_size = 0;
-        sample_settings.diagnostics.enabled = false;
-        sample_settings.diagnostics.plan = false;
-        sample_settings.diagnostics.plan_output.clear();
-        sample_settings.text_layout_debug = false;
-        sample_settings.diagnostic_overlay_only = false;
+        sample_settings = detail::make_isolated_temporal_settings(settings);
     }
     const RenderSettings& effective_settings = isolated_temporal_sample
         ? sample_settings : settings;
