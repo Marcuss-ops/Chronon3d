@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/animations/camera_motion.hpp>
+#include <chronon3d/animations/camera_motion_params.hpp>
 #include <chronon3d/core/string_utils.hpp>
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>

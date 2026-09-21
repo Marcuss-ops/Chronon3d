@@ -77,9 +77,13 @@ chronon3d_add_test_suite(
         render_graph/features/test_transition_certification.cpp
         render_graph/features/test_unified_transform_path.cpp
         render_graph/nodes/test_mask_node_rg_integration.cpp
+        render_graph/nodes/test_clear_policy.cpp
+        render_graph/nodes/test_transform_policy.cpp
+        render_graph/executor/test_fused_batch_policy.cpp
         render_graph/nodes/test_mask_node_unit.cpp
         render_graph/nodes/test_multi_source_text_run.cpp
         render_graph/nodes/test_gpu_text_run_placement.cpp
+        render_graph/nodes/test_gpu_text_cached_policy.cpp
         render_graph/nodes/test_text_run_node_execute_error.cpp
         render_graph/nodes/test_text_run_node_return_channel.cpp
         render_graph/nodes/test_text_run_predicted_bbox.cpp
@@ -91,6 +95,7 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_shadow_node_rg_integration.cpp
         render_graph/nodes/test_shadow_node_unit.cpp
         render_graph/pipeline/test_dirty_rect_contract.cpp
+        render_graph/pipeline/test_scene_temporal_policy.cpp
         render_graph/pipeline/test_dirty_rects.cpp
         render_graph/pipeline/test_dirty_rects_v2.cpp
         render_graph/pipeline/test_dirty_tiles_output.cpp

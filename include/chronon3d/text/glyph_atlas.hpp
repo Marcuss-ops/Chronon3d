@@ -1,8 +1,8 @@
 #pragma once
 
-#include <chronon3d/backends/text/text_render_resources.hpp>  // P1-9: forward-decls GlyphAtlasEntry, GlyphAtlasStats
 #include <chronon3d/core/types/types.hpp>
 
+#include <cstddef>
 #include <memory>
 
 // Forward declarations for Blend2D types (defined in <blend2d.h>)

@@ -1,5 +1,5 @@
 #include <chronon3d/text/text_material.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/backends/text/text_scratch_pool.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

@@ -10,7 +10,7 @@ namespace chronon3d::cli {
 
 namespace {
 
-double anchor_offset_ms(const WriterThreadContext& ctx,
+double anchor_offset_ms(const EncoderSinkContext& ctx,
                         std::chrono::steady_clock::time_point point) noexcept {
     const auto anchor_ns = ctx.telemetry_anchor_ns.load(std::memory_order_acquire);
     if (anchor_ns == 0 || point == std::chrono::steady_clock::time_point{}) {
@@ -69,12 +69,12 @@ private:
 // finalize refuses to publish, and the .partial artifact is removed. It must
 // NOT swallow silently: the reason is logged with the failing frame when the
 // package is identifiable.
-void run_writer_thread(const WriterThreadContext& ctx) {
+void run_encoder_sink_thread(const EncoderSinkContext& ctx) {
     // Arena release for the in-flight package is handled by the impl loop:
     // every early-return inside it releases cpu_arena before propagating, so
     // the boundary here only needs to publish failure + close the queue.
     try {
-        run_writer_thread_impl(ctx);
+        run_encoder_sink_thread_impl(ctx);
     } catch (const std::exception& e) {
         spdlog::error("[video] writer thread exception: {}", e.what());
         ctx.writer_failed.store(true);
@@ -86,7 +86,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     }
 }
 
-void run_writer_thread_impl(const WriterThreadContext& ctx) {
+void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
     profiling::g_current_counters = ctx.counters;
     profiling::g_current_framebuffer_pool = ctx.renderer
         ? ctx.renderer->framebuffer_pool().get() : nullptr;

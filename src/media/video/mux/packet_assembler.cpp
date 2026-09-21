@@ -3,70 +3,21 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
+#include "packet_assembler_hash_writer.hpp"
+#include "packet_assembler_segments.hpp"
+
 #include <algorithm>
-#include <array>
 #include <cerrno>
 #include <chrono>
-#include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
-
-extern "C" {
-#include <libavcodec/version.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/error.h>
-#include <libavutil/hash.h>
-#include <libavutil/mem.h>
-}
 
 namespace chronon3d::media {
 namespace {
 
 constexpr int kMuxAvioBufferSize = 64 * 1024;
-constexpr std::size_t kChecksumReadBufferSize = 64 * 1024;
-constexpr std::size_t kSha256HexChars = 64;
-
-bool finish_sha256_hex(AVHashContext* hash, std::string& checksum) {
-    if (!hash || av_hash_get_size(hash) != 32) return false;
-    std::array<char, kSha256HexChars + 1> digest{};
-    av_hash_final_hex(hash, reinterpret_cast<uint8_t*>(digest.data()), static_cast<int>(digest.size()));
-    checksum.assign(digest.data(), kSha256HexChars);
-    return true;
-}
-
-bool hash_final_file(const std::string& path, std::string& checksum,
-                     std::uint64_t* bytes_read = nullptr) {
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return false;
-
-    AVHashContext* hash = nullptr;
-    if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
-    const auto free_hash = [](AVHashContext* value) {
-        if (value) av_hash_freep(&value);
-    };
-    std::unique_ptr<AVHashContext, decltype(free_hash)> guard(hash, free_hash);
-    av_hash_init(hash);
-
-    std::array<char, kChecksumReadBufferSize> buffer{};
-    while (input) {
-        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const auto read = input.gcount();
-        if (read > 0) {
-            if (bytes_read) {
-                *bytes_read += static_cast<std::uint64_t>(read);
-            }
-            av_hash_update(hash,
-                           reinterpret_cast<const std::uint8_t*>(buffer.data()),
-                           static_cast<std::size_t>(read));
-        }
-    }
-    if (!input.eof()) return false;
-    return finish_sha256_hex(hash, checksum);
-}
-
 struct InputFile {
     InputFile() = default;
     AVFormatContext* format{nullptr};
@@ -79,39 +30,6 @@ struct InputFile {
     InputFile(const InputFile&) = delete;
     InputFile& operator=(const InputFile&) = delete;
 };
-
-bool same_bytes(const std::uint8_t* a, int a_size,
-                const std::uint8_t* b, int b_size) {
-    return a_size == b_size && (a_size == 0 ||
-        (a != nullptr && b != nullptr && std::memcmp(a, b, static_cast<std::size_t>(a_size)) == 0));
-}
-
-bool compatible_codec_parameters(const AVCodecParameters* a,
-                                 const AVCodecParameters* b,
-                                 std::string& reason) {
-    if (!a || !b) { reason = "missing codec parameters"; return false; }
-    if (a->codec_type != b->codec_type || a->codec_id != b->codec_id ||
-        a->profile != b->profile || a->level != b->level) {
-        reason = "codec/profile/level mismatch"; return false;
-    }
-    if (a->codec_type == AVMEDIA_TYPE_VIDEO &&
-        (a->width != b->width || a->height != b->height || a->format != b->format)) {
-        reason = "video resolution or pixel format mismatch"; return false;
-    }
-    if (a->codec_type == AVMEDIA_TYPE_AUDIO &&
-        (a->sample_rate != b->sample_rate || a->format != b->format ||
-#if LIBAVCODEC_VERSION_MAJOR >= 59
-         av_channel_layout_compare(&a->ch_layout, &b->ch_layout) != 0)) {
-#else
-         a->channel_layout != b->channel_layout || a->channels != b->channels)) {
-#endif
-        reason = "audio sample rate, format, or channel layout mismatch"; return false;
-    }
-    if (!same_bytes(a->extradata, a->extradata_size, b->extradata, b->extradata_size)) {
-        reason = "codec extradata mismatch"; return false;
-    }
-    return true;
-}
 
 bool find_streams(InputFile& input, std::string& reason) {
     if (avformat_find_stream_info(input.format, nullptr) < 0) {
@@ -127,166 +45,7 @@ bool find_streams(InputFile& input, std::string& reason) {
     return true;
 }
 
-std::int64_t stream_duration(const AVStream* stream) {
-    if (!stream || stream->duration == AV_NOPTS_VALUE || stream->duration < 0) return 0;
-    return stream->duration;
-}
-
-std::int64_t normalize_timestamp(std::int64_t value, std::int64_t first,
-                                  std::int64_t offset) {
-    if (value == AV_NOPTS_VALUE) return value;
-    return value - first + offset;
-}
-
 } // namespace
-
-struct MuxAvioHashWriter {
-    AVIOContext* sink{nullptr};
-    AVHashContext* hash{nullptr};
-    std::int64_t position{0};
-    std::int64_t append_end{0};
-    /// True only while an incremental digest is both REQUESTED and still
-    /// valid. A disabled digest is not "valid but unused": nothing is hashed
-    /// and no invalidation is counted, because a counter that moves for work
-    /// nobody asked for is a lie in the timing sidecar.
-    bool incremental_valid{false};
-    bool checksum_requested{false};
-    MuxHashMetrics metrics{};
-
-    MuxAvioHashWriter() = default;
-    MuxAvioHashWriter(const MuxAvioHashWriter&) = delete;
-    MuxAvioHashWriter& operator=(const MuxAvioHashWriter&) = delete;
-
-    ~MuxAvioHashWriter() {
-        if (sink) avio_closep(&sink);
-        if (hash) av_hash_freep(&hash);
-    }
-
-    /// `request_checksum` selects whether this writer owns a digest of the
-    /// final file. Off (the exporter lane) the writer is a pure sink: no hash
-    /// context, no invalidation bookkeeping, and no re-read at close.
-    [[nodiscard]] bool open(const std::string& path, bool request_checksum) noexcept {
-        checksum_requested = request_checksum;
-        if (checksum_requested) {
-            if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
-            av_hash_init(hash);
-        }
-        if (avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE) < 0 || !sink) return false;
-        const auto initial = avio_tell(sink);
-        position = initial >= 0 ? initial : 0;
-        append_end = position;
-        incremental_valid = checksum_requested;
-        return true;
-    }
-
-    // FFmpeg's avio_alloc_context write callback is `int (*)(void*, uint8_t*, int)`;
-    // the buffer is only read here (avio_write / av_hash_update), so the
-    // parameter is non-const to match the callback type.
-    static int write_packet(void* opaque, std::uint8_t* buffer,
-                            int buffer_size) noexcept {
-        auto* self = static_cast<MuxAvioHashWriter*>(opaque);
-        if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);
-        if (buffer_size == 0) return 0;
-
-        const bool append_write = self->position == self->append_end;
-        if (!append_write) {
-            const auto overwritten = self->position < self->append_end
-                ? std::min<std::int64_t>(
-                    self->append_end - self->position,
-                    static_cast<std::int64_t>(buffer_size))
-                : 0;
-            self->metrics.output_overwrite_bytes +=
-                static_cast<std::uint64_t>(std::max<std::int64_t>(0, overwritten));
-            if (self->incremental_valid) {
-                self->incremental_valid = false;
-                ++self->metrics.incremental_hash_invalidations;
-            }
-        }
-
-        avio_write(self->sink, buffer, buffer_size);
-        if (self->sink->error < 0) return self->sink->error;
-
-        if (self->incremental_valid) {
-            av_hash_update(self->hash, buffer, static_cast<std::size_t>(buffer_size));
-        }
-        self->metrics.output_write_bytes += static_cast<std::uint64_t>(buffer_size);
-        self->position += buffer_size;
-        self->append_end = std::max(self->append_end, self->position);
-        return buffer_size;
-    }
-
-    static std::int64_t seek(void* opaque, std::int64_t offset, int whence) noexcept {
-        auto* self = static_cast<MuxAvioHashWriter*>(opaque);
-        if (!self || !self->sink) return AVERROR(EINVAL);
-        if (whence & AVSEEK_SIZE) return avio_size(self->sink);
-
-        const int seek_whence = whence & ~AVSEEK_FORCE;
-        ++self->metrics.output_seek_count;
-        const auto position = avio_seek(self->sink, offset, seek_whence);
-        if (position >= 0) self->position = position;
-        return position;
-    }
-
-    [[nodiscard]] bool close_and_checksum(const std::string& path,
-                                          std::string& checksum,
-                                          bool& used_reread) noexcept {
-        try {
-            if (!sink) return false;
-            avio_flush(sink);
-            if (sink->error < 0) return false;
-
-            const bool needs_reread = checksum_requested && !incremental_valid;
-            std::string streaming_checksum;
-            if (checksum_requested && !needs_reread &&
-                !finish_sha256_hex(hash, streaming_checksum)) {
-                return false;
-            }
-
-            const int close_result = avio_closep(&sink);
-            if (close_result < 0) return false;
-
-            if (!checksum_requested) {
-                // No digest was asked for: the file is closed and nothing else
-                // is read. The artifact's digest/verification belongs to the
-                // caller that publishes it (see MuxOpenConfig::checksum).
-                checksum.clear();
-                used_reread = false;
-                return true;
-            }
-
-            used_reread = needs_reread;
-            if (needs_reread) {
-                // ERR-RAISE — a non-append write pattern invalidated the
-                // incremental hash and forced a full-file re-read for the
-                // verification checksum. This is a silent-cost fallback:
-                // an extra O(file) pass over the muxed output. It stays a
-                // fallback (the checksum is still authoritative), but it is
-                // now observable instead of invisible.
-                spdlog::warn(
-                    "[packet-assembler] incremental sha256 invalid for '{}' — "
-                    "falling back to full-file re-read",
-                    path);
-                return hash_final_file(path, checksum, &metrics.final_reread_bytes);
-            }
-            checksum = std::move(streaming_checksum);
-            return true;
-        } catch (...) {
-            // ERR-RAISE — the audit flagged this catch-all as fully silent.
-            // A crash here used to be indistinguishable from an ordinary
-            // verification failure. Keep the noexcept-safe `return false`
-            // contract, but leave an error trace with the failing path.
-            spdlog::error(
-                "[packet-assembler] close_and_checksum failed with an "
-                "unknown exception for '{}'",
-                path);
-            return false;
-        }
-    }
-
-    [[nodiscard]] MuxHashMetrics hash_metrics() const noexcept {
-        return metrics;
-    }
-};
 
 SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     SegmentAssemblyResult result;
@@ -312,7 +71,7 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         ? inputs.front()->format->streams[inputs.front()->audio_index] : nullptr;
     for (std::size_t i = 1; i < inputs.size(); ++i) {
         const auto* video = inputs[i]->format->streams[inputs[i]->video_index];
-        if (!compatible_codec_parameters(reference_video->codecpar, video->codecpar, result.reason)) return result;
+        if (!detail::compatible_codec_parameters(reference_video->codecpar, video->codecpar, result.reason)) return result;
         if (video->time_base.num != reference_video->time_base.num ||
             video->time_base.den != reference_video->time_base.den) {
             result.reason = "video time base mismatch";
@@ -324,8 +83,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
             result.reason = "audio stream presence mismatch";
             return result;
         }
-        if (reference_audio && !compatible_codec_parameters(reference_audio->codecpar,
-                                                              audio->codecpar, result.reason)) return result;
+        if (reference_audio && !detail::compatible_codec_parameters(reference_audio->codecpar,
+                                                                     audio->codecpar, result.reason)) return result;
         if (reference_audio && (audio->time_base.num != reference_audio->time_base.num ||
                                 audio->time_base.den != reference_audio->time_base.den)) {
             result.reason = "audio time base mismatch";
@@ -409,8 +168,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                     result.reason = "failed to copy video packet";
                     return result;
                 }
-                copy->pts = normalize_timestamp(copy->pts, first_video_dts, video_offset);
-                copy->dts = normalize_timestamp(copy->dts, first_video_dts, video_offset);
+                copy->pts = detail::normalize_timestamp(copy->pts, first_video_dts, video_offset);
+                copy->dts = detail::normalize_timestamp(copy->dts, first_video_dts, video_offset);
                 copy->stream_index = 0;
                 const auto packet_duration = std::max<std::int64_t>(1, copy->duration);
                 const auto packet_end = std::max(copy->dts, copy->pts);
@@ -442,8 +201,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                     result.reason = "failed to copy audio packet";
                     return result;
                 }
-                copy->pts = normalize_timestamp(copy->pts, first_audio_dts, audio_offset);
-                copy->dts = normalize_timestamp(copy->dts, first_audio_dts, audio_offset);
+                copy->pts = detail::normalize_timestamp(copy->pts, first_audio_dts, audio_offset);
+                copy->dts = detail::normalize_timestamp(copy->dts, first_audio_dts, audio_offset);
                 copy->stream_index = 1;
                 const auto packet_duration = std::max<std::int64_t>(1, copy->duration);
                 const auto packet_end = std::max(copy->dts, copy->pts);
@@ -460,14 +219,14 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
             av_packet_unref(raw);
         }
         av_packet_free(&raw);
-        const auto video_duration = stream_duration(video_stream);
+        const auto video_duration = detail::stream_duration(video_stream);
         if (segment_last_video_timestamp != AV_NOPTS_VALUE) {
             video_offset = segment_last_video_timestamp;
         } else if (video_duration > 0) {
             video_offset += video_duration;
         }
         if (audio_stream) {
-            const auto audio_duration = stream_duration(audio_stream);
+            const auto audio_duration = detail::stream_duration(audio_stream);
             if (segment_last_audio_timestamp != AV_NOPTS_VALUE) {
                 audio_offset = segment_last_audio_timestamp;
             } else if (audio_duration > 0) {
@@ -483,10 +242,6 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     result.checksum_used_reread = mux.checksum_used_reread();
     result.success = true;
     return result;
-}
-
-void MuxSession::delete_writer(MuxAvioHashWriter* writer) noexcept {
-    delete writer;
 }
 
 MuxSession::MuxSession() = default;

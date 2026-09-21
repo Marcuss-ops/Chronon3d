@@ -18,6 +18,7 @@
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include "src/render_graph/executor/tile_pruning.hpp"
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/render_scene_graph.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::graph;
@@ -344,10 +345,11 @@ RuntimeDiagnosticsObservation observe_runtime_diagnostics(
         camera.enabled = true;
         camera.position = {0.0f, 0.0f, -800.0f};
         camera.zoom = 800.0f;
-        framebuffer = renderer.render_scene(
+        framebuffer = test::render_scene_graph(
+            renderer,
             scene, std::optional<Camera2_5D>{camera}, 320, 240, 30.0f);
     } else {
-        framebuffer = renderer.render_scene(scene, Camera{}, 320, 240, 30.0f);
+        framebuffer = test::render_scene_graph(renderer, scene, Camera{}, 320, 240, 30.0f);
     }
     REQUIRE(framebuffer != nullptr);
 

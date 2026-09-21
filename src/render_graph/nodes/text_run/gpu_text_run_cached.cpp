@@ -11,6 +11,7 @@
 
 #include "gpu_text_run.hpp"
 #include "gpu_text_run_detail.hpp"
+#include "gpu_text_cached_policy.hpp"
 
 #include "../native_surface.hpp"
 
@@ -44,7 +45,18 @@ graph::RenderOpResult draw_cached_text_run(
     // the complete semantics of an unsupported animated glyph state.  Let the
     // canonical software renderer own those cases instead of producing a
     // superficially successful but visibly unstable approximation.
-    if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
+    const bool unsupported_animation =
+        !shape.animators.empty() && !can_lower_gpu_text_animation(shape);
+    const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
+    const bool lowerable_gpu_animation =
+        !shape.animators.empty() && can_lower_gpu_text_animation(shape);
+    const auto execution_path = detail::resolve_cached_text_execution_path(
+        unsupported_animation,
+        force_software,
+        ctx.gpu_text_prepared_cache != nullptr,
+        ctx.backend != nullptr,
+        ctx.surface_registry != nullptr);
+    if (execution_path == detail::CachedTextExecutionPath::RejectUnsupportedAnimation) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: animated glyph state requires software path"));
@@ -52,7 +64,7 @@ graph::RenderOpResult draw_cached_text_run(
     // The native text kernels are still experimental for this export lane.
     // Keep an explicit escape hatch so Vulkan composition can remain native
     // while the canonical CPU text renderer supplies an exact glyph surface.
-    if (std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr) {
+    if (execution_path == detail::CachedTextExecutionPath::RejectForcedSoftware) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "draw_cached_text_run: forced software text fallback"));
@@ -62,9 +74,7 @@ graph::RenderOpResult draw_cached_text_run(
     // tile shader applies the per-glyph reveal weight each frame. The packed
     // bitmap route below remains only as a compatibility fallback for shapes
     // outside this contract.
-    const bool lowerable_gpu_animation =
-        !shape.animators.empty() && can_lower_gpu_text_animation(shape);
-    if (ctx.gpu_text_prepared_cache && ctx.backend && ctx.surface_registry) {
+    if (execution_path == detail::CachedTextExecutionPath::TryMtsdf) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
         if (mtsdf.ok()) return mtsdf;

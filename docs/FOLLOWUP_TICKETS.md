@@ -70,6 +70,12 @@
 |---|---|---|---|
 | Video execution authority + easy cleanup + surface tests + telemetry gate | P1 | CODE DONE (build/CI pending) | [AUDIT-ROADMAP-WAVES](tickets/TICKET-AUDIT-ROADMAP-WAVES.md) — Waves 1/2/3/5/6 code landed; Wave 4 NV12 unified in Wave 1D into `media::video::CudaNv12Compositor` (contract matrix registered, determinism evidence pending GPU-host run); downgrade reason/count receipt is now emitted by the final resolver decision |
 
+## Refactor backlog (non-blocking)
+
+| Area | Pri | Stato | Scheda |
+|---|---|---|---|
+| Hotspot decomposition: export, mux, render policies, Vulkan e text headers | P1 | ACTIVE | [HOTSPOT-DECOMPOSITION](tickets/TICKET-HOTSPOT-DECOMPOSITION.md) — Wave A–E: contract tests native export, `.inc` production TU, MuxSession/hash seam, node policy seams, Vulkan/CUDA split e header fan-out reduction; primo seam GOP target estratto e build CLI verde |
+
 ## Recently Closed (ultimi 4)
 
 - **2026-09-16 — schede a chiusura terminale rimosse** (12 ticket + l'audit datato del
