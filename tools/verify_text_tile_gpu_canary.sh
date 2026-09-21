@@ -16,7 +16,8 @@
 # The suite was recorded as 65/78 (13 pixel assertions at 0) and excluded from
 # every lane. That number came from a binary built at 07:00 UTC while the ABI
 # fix landed at 16:33 UTC (`5b59cfd48`); the target was never rebuilt because no
-# gate built it. Rebuilt from the same tree it is 78/78 — see
+# gate built it. The current canary also covers fractional atlas sampling and
+# atlas-rect clamping, so its certified contract is 104/104 assertions — see
 # docs/evidence/text-tile-canary-2026-09-16.md.
 #
 # Usage:
@@ -34,7 +35,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 PRESET="${CHRONON3D_TEXT_CANARY_PRESET:-linux-video-test}"
 BUILD_DIR="${1:-${CHRONON3D_TEXT_CANARY_BUILD_DIR:-${ROOT}/build/chronon/${PRESET}}}"
 TARGET=chronon3d_text_tile_raster_canary_tests
-EXPECTED_ASSERTIONS="${CHRONON3D_TEXT_CANARY_EXPECTED_ASSERTIONS:-78}"
+EXPECTED_ASSERTIONS="${CHRONON3D_TEXT_CANARY_EXPECTED_ASSERTIONS:-104}"
 
 if [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
     echo "verify_text_tile_gpu_canary: configuring preset ${PRESET}"

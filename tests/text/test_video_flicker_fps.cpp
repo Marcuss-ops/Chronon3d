@@ -31,12 +31,16 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/text/prepared_text.hpp>
+#include <chronon3d/text/animation/text_animator_spec.hpp>
 
 #include <tests/helpers/test_utils.hpp>
+#include <tests/support/pixel_scan_helpers.hpp>
 #include <tests/support/text_pixel_helpers.hpp>
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <vector>
@@ -119,6 +123,57 @@ Composition make_typewriter_class(SoftwareRenderer& r, FrameRate rate) {
 
 }  // namespace
 
+// Real selector-driven text sequence used by the golden-video gate. The
+// sampled frames deliberately include completion and completion+1: a still at
+// the last reveal frame cannot catch a cache/route that turns black afterward.
+Composition make_selector_typewriter_golden(SoftwareRenderer& r) {
+    return Composition{
+        {.name = "TextGoldenVideo/SelectorTypewriter",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1}, .duration = Frame{90}},
+        [&r](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&r.font_engine());
+            PreparedText text;
+            text.document.utf8 = "CHRONON TYPEWRITER";
+            text.style.font = FontSpec{
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter", .font_weight = 700,
+                .font_size = 128.0f};
+            text.style.color = Color::white();
+            text.style.paint.fill = text.style.color;
+            text.frame.size = {1500.0f, 260.0f};
+            text.frame.placement = TextPlacement{
+                TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
+            text.frame.align = TextAlign::Center;
+            text.frame.vertical_align = VerticalAlign::Middle;
+
+            TextAnimatorSpec animator;
+            animator.id = "golden_typewriter";
+            GlyphSelectorSpec selector;
+            selector.id = "golden_reveal";
+            selector.unit = TextSelectorUnit::Glyph;
+            selector.shape = TextSelectorShape::Square;
+            selector.order = TextSelectorOrder::Forward;
+            selector.exclude_spaces = true;
+            // The canonical typewriter contract animates the hidden suffix's
+            // start boundary.  Keep the first glyph visible at frame 0 so
+            // every sampled video frame has non-zero luminance.
+            selector.start.set(5.0f);
+            selector.start.add_keyframe(Frame{30}, 50.0f);
+            selector.start.add_keyframe(Frame{60}, 100.0f);
+            selector.end.set(100.0f);
+            animator.selectors.push_back(std::move(selector));
+            animator.properties.push_back(OpacityProperty{0.0f});
+            text.animation.animators.push_back(std::move(animator));
+
+            s.layer("golden_typewriter", [&text](LayerBuilder& layer) {
+                layer.text_run("title", text).commit();
+            });
+            return s.build();
+        }};
+}
+
 // §8 anti-flicker across adjacent decoded-MP4 frames.
 TEST_CASE("VideoAntiFlicker.AdjacentFrames_MeanLumaDelta_LT_20p0_1920x1080") {
     const std::filesystem::path frames_dir =
@@ -165,4 +220,27 @@ TEST_CASE("VideoAnim.MultiFPS_SameWallClock_RendersEquivalentCentroid_1920x1080"
         CHECK(centroid_distance(*frames[0], *frames[2]) < 2.0f);
         CHECK(centroid_distance(*frames[1], *frames[2]) < 2.0f);
     }
+}
+
+TEST_CASE("TextGoldenVideo.SelectorTypewriter_SampledFramesStayVisible") {
+    auto renderer = test::make_renderer();
+    auto composition = make_selector_typewriter_golden(renderer);
+    const std::array<int, 5> samples = {0, 30, 60, 61, 90};
+    std::array<int, samples.size()> bright_pixels{};
+    std::array<std::uint64_t, samples.size()> hashes{};
+
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        auto frame = renderer.render(composition, Frame{samples[i]});
+        REQUIRE(frame != nullptr);
+        bright_pixels[i] = chronon3d::test::completeness::count_bright_pixels(
+            *frame, 0.01f);
+        hashes[i] = framebuffer_hash(*frame);
+        CAPTURE(samples[i]);
+        CAPTURE(bright_pixels[i]);
+        CHECK(bright_pixels[i] > 32);
+        if (i > 0) CHECK(bright_pixels[i] >= bright_pixels[i - 1]);
+    }
+
+    CHECK(hashes[2] == hashes[3]);
+    CHECK(hashes[3] == hashes[4]);
 }
