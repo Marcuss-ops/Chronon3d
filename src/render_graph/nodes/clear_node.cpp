@@ -59,15 +59,18 @@ NodeExecResult ClearNode::execute(
 
     auto* sw_backend = dynamic_cast<SoftwareBackend*>(ctx.backend);
     auto* buffer_ring = ctx.node_exec.buffer_ring;
-    bool use_dirty_rects = sw_backend && ctx.policy.reuse_prev_framebuffer &&
-        ctx.node_exec.ping_write.fb && buffer_ring &&
-        buffer_ring->prev_framebuffer();
-    const bool skip_clear = ctx.policy.skip_initial_clear ||
-        (use_dirty_rects && ctx.node_exec.clip_rect && ctx.node_exec.clip_rect->is_empty());
-    const uint64_t clear_pixels = ctx.node_exec.clip_rect
-        ? static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->x1 - ctx.node_exec.clip_rect->x0)) *
-          static_cast<uint64_t>(std::max(0, ctx.node_exec.clip_rect->y1 - ctx.node_exec.clip_rect->y0))
-        : static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
+    const auto dirty_plan = detail::resolve_dirty_rect_clear_plan(
+        sw_backend != nullptr,
+        ctx.policy.reuse_prev_framebuffer,
+        ctx.node_exec.ping_write.fb != nullptr,
+        buffer_ring && buffer_ring->prev_framebuffer() != nullptr,
+        ctx.policy.skip_initial_clear,
+        ctx.node_exec.clip_rect,
+        ctx.frame_input.width,
+        ctx.frame_input.height);
+    const bool use_dirty_rects = dirty_plan.use_dirty_rects;
+    const bool skip_clear = dirty_plan.skip_clear;
+    const uint64_t clear_pixels = dirty_plan.clear_pixels;
 
     if (sw_backend && ctx.policy.diagnostics_enabled) {
         spdlog::info(

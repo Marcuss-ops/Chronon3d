@@ -166,7 +166,7 @@ public:
     // Declared, not defaulted inline: MuxSession owns a unique_ptr to the
     // forward-declared AudioResampler, so both the constructor's exception
     // cleanup and the destructor are defined in the translation unit where
-    // AudioResampler is complete (packet_assembler.cpp).
+    // AudioResampler is complete (packet_assembler_session.cpp).
     MuxSession();
     ~MuxSession();
     MuxSession(const MuxSession&) = delete;
