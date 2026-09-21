@@ -9,6 +9,9 @@ enum class CachedTextExecutionPath {
     PackedBitmap,
 };
 
+[[nodiscard]] const char* cached_text_execution_path_name(
+    CachedTextExecutionPath path) noexcept;
+
 /// Select the first cached-text authority without inspecting glyph data or
 /// allocating atlas resources. The caller still owns runtime failure handling
 /// and may fall back from MTSDF to the packed compatibility route.

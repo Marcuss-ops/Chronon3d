@@ -497,6 +497,7 @@ void build_summary_and_job_sections(
     put_text_u64("instance_upload_bytes", timings.text.instance_upload_bytes);
     put_text_u64("prepared_batch_build_count", timings.text.prepared_batch_build_count);
     put_text_u64("prepared_batch_reuse_count", timings.text.prepared_batch_reuse_count);
+    put_text_u64("text_run_zero_visible_frames", timings.text.zero_visible_frames);
 
     auto& encoder = job["encoder"];
     const auto put_encoder = [&encoder](const char* key, const std::optional<double>& value) {

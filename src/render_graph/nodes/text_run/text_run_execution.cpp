@@ -258,6 +258,33 @@ graph::RenderOpResult render_text_run_item(
     const bool text_debug = ctx.policy.diagnostics_enabled || text_debug_env;
     const auto shaped_glyph_count = local_shape.layout
         ? local_shape.layout->placed.glyphs.size() : std::size_t{0};
+    const auto drawable_glyph_count = local_shape.layout
+        ? std::count_if(
+              local_shape.glyphs.begin(), local_shape.glyphs.end(),
+              [&local_shape](const auto& glyph) {
+                  const auto index = static_cast<std::size_t>(
+                      &glyph - local_shape.glyphs.data());
+                  // A selector is allowed to hide every glyph during an
+                  // intentional reveal frame. Only count drawable glyphs
+                  // that the evaluated shape expects to contribute.
+                  return glyph.glyph_id != 0 && glyph.opacity > 1e-5f &&
+                      index < local_shape.layout->placed.glyphs.size() &&
+                      local_shape.layout->placed.glyphs[index].bbox_x1 >
+                          local_shape.layout->placed.glyphs[index].bbox_x0;
+              })
+        : std::size_t{0};
+    const auto zero_visible_error = [&]() {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_run_zero_visible_frames.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        spdlog::error(
+            "[text-run] frame={} FAIL_CLOSED zero_visible_glyphs drawable_glyphs={}",
+            ctx.frame_input.frame.integral(), drawable_glyph_count);
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            RenderBackendErrorCode::ExecutionFailure,
+            "render_text_run_item: non-empty TextRun produced zero visible glyphs"));
+    };
     if (text_debug) {
         spdlog::info(
             "[text-frame] frame={} phase=invariants shape_glyphs={} "
@@ -301,6 +328,9 @@ graph::RenderOpResult render_text_run_item(
             native.ok() ? "" : native.error().message);
     }
     if (native.ok()) {
+        if (drawable_glyph_count > 0 && native.value().items_drawn == 0) {
+            return zero_visible_error();
+        }
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_fast_path_success.fetch_add(
                 1, std::memory_order_relaxed);
@@ -376,6 +406,10 @@ graph::RenderOpResult render_text_run_item(
                 RenderBackendErrorCode::ExecutionFailure,
                 "TextRun fallback rendered but could not be uploaded to the native surface"));
         }
+    }
+    if (fallback.ok() && drawable_glyph_count > 0 &&
+        fallback.value().items_drawn == 0) {
+        return zero_visible_error();
     }
     return fallback;
 }

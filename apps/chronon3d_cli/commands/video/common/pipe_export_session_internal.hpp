@@ -35,6 +35,7 @@ struct FrameProfileSample {
     uint64_t text_atlas_cache_acquire_us{0};
     uint64_t text_prepared_batch_build_count{0};
     uint64_t text_prepared_batch_reuse_count{0};
+    uint64_t text_run_zero_visible_frames{0};
     uint64_t node_lookup_us{0};
     uint64_t gpu_execute_us{0};
     uint64_t gpu_submit_cpu_us{0};

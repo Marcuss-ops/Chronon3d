@@ -56,6 +56,15 @@ graph::RenderOpResult draw_cached_text_run(
         ctx.gpu_text_prepared_cache != nullptr,
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
+    const auto frame_number = ctx.frame_input.frame.integral();
+    spdlog::info(
+        "[text-route] frame={} route={} reason=policy-decision unsupported_animation={} "
+        "forced_software={} prepared_cache={} backend={} surface_registry={}",
+        frame_number,
+        detail::cached_text_execution_path_name(execution_path),
+        unsupported_animation, force_software,
+        ctx.gpu_text_prepared_cache != nullptr, ctx.backend != nullptr,
+        ctx.surface_registry != nullptr);
     if (execution_path == detail::CachedTextExecutionPath::RejectUnsupportedAnimation) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -77,8 +86,16 @@ graph::RenderOpResult draw_cached_text_run(
     if (execution_path == detail::CachedTextExecutionPath::TryMtsdf) {
         auto mtsdf = draw_cached_text_run_mtsdf(
             ctx, destination, shape, model_matrix, opacity);
-        if (mtsdf.ok()) return mtsdf;
-        if (lowerable_gpu_animation) return mtsdf;
+        if (mtsdf.ok()) {
+            spdlog::info("[text-route] frame={} route=mtsdf reason=accepted", frame_number);
+            return mtsdf;
+        }
+        if (lowerable_gpu_animation) {
+            spdlog::error(
+                "[text-route] frame={} route=mtsdf reason=lowerable-dispatch-failed error='{}'",
+                frame_number, mtsdf.error().message);
+            return mtsdf;
+        }
         if (profiling::g_current_counters) {
             profiling::g_current_counters->gpu_text_mtsdf_fallback_count.fetch_add(
                 1, std::memory_order_relaxed);
@@ -86,6 +103,9 @@ graph::RenderOpResult draw_cached_text_run(
         spdlog::debug(
             "[text-mtsdf] canonical lowering rejected; using compatibility path: {}",
             mtsdf.error().message);
+        spdlog::info(
+            "[text-route] frame={} route=packed-compat reason=mtsdf-rejected error='{}'",
+            frame_number, mtsdf.error().message);
     }
 
     if (!ctx.text_render_resources || !shape.layout ||
