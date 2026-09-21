@@ -50,8 +50,16 @@ graph::RenderOpResult draw_cached_text_run(
     const bool force_software = std::getenv("CHRONON3D_FORCE_SOFTWARE_TEXT") != nullptr;
     const bool lowerable_gpu_animation =
         !shape.animators.empty() && can_lower_gpu_text_animation(shape);
+    // A single-selector stack can still be represented by the canonical
+    // MTSDF route: it compiles the selector once and uses its bounded
+    // per-glyph compatibility visibility contract. Do not reject that route
+    // merely because the compact shader record cannot express the selector's
+    // order/property combination (notably from_center + blur).
+    const bool mtsdf_compatible_animation =
+        unsupported_animation && shape.animators.size() == 1 &&
+        !shape.animators.front().selectors.empty();
     const auto execution_path = detail::resolve_cached_text_execution_path(
-        unsupported_animation,
+        unsupported_animation && !mtsdf_compatible_animation,
         force_software,
         ctx.gpu_text_prepared_cache != nullptr,
         ctx.backend != nullptr,
