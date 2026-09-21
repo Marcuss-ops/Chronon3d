@@ -38,40 +38,6 @@ chronon3d::Rect local_bounds_to_rect(
     return chronon3d::renderer::to_rect(*bounds);
 }
 
-// ------------------------------------------------------------------
-// TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session warn-once (TU-local).
-//
-// Consolidates the dedup-decision pattern that previously appeared
-// inlined at both the CONSERVATIVE_EXPAND and FU04_EXPAND sites in
-// `predicted_bbox()` below.  Replaces the inline duplication with a
-// single canonical helper (Cat-3 anti-dup: dedup logic declared
-// ONCE; the message strings still live at the call sites so
-// `rg '\bCONSERVATIVE_EXPAND\b'` / `rg '\bFU04_EXPAND\b'` continues
-// to discover them).
-//
-// Behaviour preserved from the original inlined pattern:
-//   - null reporter → suppress dedup (always emit; standalone test
-//     paths drive `predicted_bbox()` without an executor and need
-//     every warning to surface);
-//   - wired reporter → exactly-once per session via the atomic
-//     `TextBboxReporter::has_warned()` + `mark_warned()` pair
-//     (closes §honesty defects: data race on parallel render and
-//     first-error-masking later invocations).
-// ------------------------------------------------------------------
-template <typename... Args>
-inline void text_bbox_warn_once(
-    chronon3d::graph::TextBboxReporter* reporter,
-    std::string_view fmt_str, Args&&... args)
-{
-    if (reporter && reporter->has_warned()) {
-        return;
-    }
-    spdlog::warn(fmt::runtime(fmt_str.data()), std::forward<Args>(args)...);
-    if (reporter) {
-        reporter->mark_warned();
-    }
-}
-
 }  // anonymous namespace
 // M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
 // (NOT under include/chronon3d/).  Same-directory-relative include
@@ -113,8 +79,6 @@ namespace chronon3d::graph {
 // =============================================================================
 // Constructor
 // =============================================================================
-
-#include "text_run/text_run_node_geometry.inc"
 
 // =============================================================================
 // execute — M1.5#1 ORCHESTRATOR
