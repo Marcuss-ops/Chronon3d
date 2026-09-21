@@ -31,11 +31,9 @@ struct MuxAvioHashWriter {
     [[nodiscard]] bool open(const std::string& path,
                              bool request_checksum) noexcept;
 
-    // FFmpeg's avio_alloc_context write callback is
-    // `int (*)(void*, uint8_t*, int)`; the buffer is only read here
-    // (avio_write / av_hash_update), so the parameter is non-const to match
-    // the callback type.
-    static int write_packet(void* opaque, std::uint8_t* buffer,
+    // FFmpeg's avio_alloc_context write callback receives a read-only buffer;
+    // this sink forwards it to the file and optional digest without mutation.
+    static int write_packet(void* opaque, const std::uint8_t* buffer,
                             int buffer_size) noexcept;
     static std::int64_t seek(void* opaque, std::int64_t offset,
                              int whence) noexcept;

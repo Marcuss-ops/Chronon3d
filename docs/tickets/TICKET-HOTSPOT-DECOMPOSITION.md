@@ -186,6 +186,23 @@ invariato.
   forward declaration; il target render-graph torna compilabile nel preset
   senza GPU.
 
+## Progress snapshot — 2026-09-21
+
+- `video_export_native_support.{hpp,cpp}` contiene ora l’ammissione del
+  `DeviceScheduler` locale, inclusa la probe capability NVENC/NVDEC e la
+  risoluzione dei render-job slots; `render_and_encode_native()` conserva il
+  coordinamento della sessione e del loop.
+- `text_run_node_geometry.inc` è stato convertito in
+  `text_run_node_geometry.cpp`: costruttore, placement refresh, world matrix,
+  predicted bbox e cache key restano nello stesso contratto ma non sono più
+  inclusi testualmente nel TU dell’orchestratore.
+- La callback AVIO del mux è stata allineata alla firma const richiesta da
+  FFmpeg corrente; `chronon3d_cli_render` e `chronon3d_cli_video_export`
+  compilano con `-j10`.
+- Il focused render-graph run passa con 9 test case e 47 assertion; le prove
+  GPU/CUDA end-to-end e gli split Vulkan/CUDA restano subordinati alla macchina
+  con hardware.
+
 ## Definition of done
 
 - [ ] Ogni funzione indicata è sotto la soglia concordata dal reviewer oppure

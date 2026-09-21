@@ -1,3 +1,40 @@
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/cache/node_cache_identity_builder.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/text/text_run_geometry.hpp>
+#include "../executor/text_bbox_reporter.hpp"
+#include "text_run/text_run_transform.hpp"
+
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#include <chronon3d/text/text_visibility_audit.hpp>
+#endif
+
+#include <algorithm>
+#include <cmath>
+#include <glm/glm.hpp>
+#include <spdlog/spdlog.h>
+
+namespace {
+chronon3d::Rect local_bounds_to_rect(
+    const std::optional<chronon3d::renderer::TextRunLocalBounds>& bounds) {
+    if (!bounds) return chronon3d::Rect{};
+    return chronon3d::renderer::to_rect(*bounds);
+}
+
+template <typename... Args>
+inline void text_bbox_warn_once(
+    chronon3d::graph::TextBboxReporter* reporter,
+    std::string_view fmt_str, Args&&... args)
+{
+    if (reporter && reporter->has_warned()) return;
+    spdlog::warn(fmt::runtime(fmt_str.data()), std::forward<Args>(args)...);
+    if (reporter) reporter->mark_warned();
+}
+} // namespace
+
+namespace chronon3d::graph {
+
 TextRunNode::TextRunNode(
     std::string name,
     std::string layer_id,
@@ -349,3 +386,4 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
 
     return key;
 }
+} // namespace chronon3d::graph
