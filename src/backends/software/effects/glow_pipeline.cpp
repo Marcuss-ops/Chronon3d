@@ -1,9 +1,7 @@
 // ---------------------------------------------------------------------------
 // glow_pipeline.cpp — Unified glow/bloom pipeline
 //
-// This file replaces effect_glow_impl.cpp and effect_bloom_impl.cpp as the
-// single home for the Layer and Bloom mode implementations.  The two legacy
-// effect files forward through run_glow_pipeline() so callers stay unchanged.
+// This file is the single home for the Layer and Bloom mode implementations.
 // Glow and bloom are rendered exclusively by the blur/accumulation pipeline
 // implemented here: run_layer_mode and run_bloom_mode both live in this
 // translation unit.
@@ -71,7 +69,7 @@ namespace {
     return lut[static_cast<int>(alpha * 255.0f)];
 }
 
-// ── Layer-mode helpers (moved from effect_glow_impl.cpp) ─────────────
+// ── Layer-mode helpers ──────────────────────────────────────────────
 
 [[nodiscard]] BlendMode glow_blend_mode(const GlowPipeline& p) {
     return p.blend;
@@ -211,7 +209,7 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
     });
 }
 
-// ── run_layer_mode (moved from apply_glow_effect) ────────────────────
+// ── run_layer_mode ───────────────────────────────────────────────────
 
 // ── Glow accumulator result ────────────────────────────────────────────
 struct GlowAccumResult {

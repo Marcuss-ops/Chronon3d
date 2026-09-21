@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // pipe_timing_sidecar_summary.cpp — phase 2 of the frame-timing sidecar.
 //
-// Split out of pipe_timing_sidecar.cpp (pure code move, no schema change):
+// Split out of pipe_timing_sidecar.cpp; owns the v2 summary and job sections.
 // the "summary" section (statistics, FPS, budget) and the "job" section
 // (wall/process timings + gpu/prepare/image/text/encoder subsections).
 // ═══════════════════════════════════════════════════════════════════════════

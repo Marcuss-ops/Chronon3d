@@ -12,6 +12,9 @@
 
 namespace chronon3d::cli::pipe_timing {
 
+inline constexpr const char* kTimingSidecarSchema = "chronon3d.frame-timing.v2";
+inline constexpr int kTimingSidecarVersion = 2;
+
 struct CacheMetrics {
     std::optional<double> node_lookup_ms;
     std::optional<std::uint64_t> node_cache_hits;

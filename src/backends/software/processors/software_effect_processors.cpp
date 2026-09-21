@@ -8,6 +8,7 @@
 #include "effects/stroke/stroke.hpp"
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
+#include <chronon3d/effects/glow_pipeline.hpp>
 #include <stdexcept>
 
 namespace chronon3d::renderer {
@@ -75,7 +76,8 @@ public:
             if (context.quality == effects::RenderQuality::Final) {
                 resolved.quality = GlowQuality::High;
             }
-            apply_glow_effect(fb, resolved, context.clip, context.debug_cfg);
+            run_glow_pipeline(fb, GlowPipeline::from(resolved), context.clip,
+                              /*source_is_alpha_mask=*/false, context.debug_cfg);
         }
     }
 };
@@ -136,7 +138,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         const auto* p = std::get_if<BloomParams>(&params);
         if (!p) throw std::runtime_error("Bloom processor received invalid parameters");
-        apply_bloom_effect(fb, *p, context.clip, context.diagnostics_enabled);
+        run_glow_pipeline(fb, GlowPipeline::from(*p), context.clip);
     }
 };
 
