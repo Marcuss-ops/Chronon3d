@@ -169,6 +169,20 @@
                   }
                 }
               },
+              "glow": {
+                "type": "object", "additionalProperties": false,
+                "required": ["radius", "intensity", "threshold", "falloff", "core_strength", "aura_strength", "bloom_strength", "high_quality"],
+                "properties": {
+                  "radius": { "type": "number", "minimum": 0 },
+                  "intensity": { "type": "number", "minimum": 0 },
+                  "threshold": { "type": "number", "minimum": 0 },
+                  "falloff": { "type": "number", "minimum": 1 },
+                  "core_strength": { "type": "number", "minimum": 0 },
+                  "aura_strength": { "type": "number", "minimum": 0 },
+                  "bloom_strength": { "type": "number", "minimum": 0 },
+                  "high_quality": { "type": "boolean" }
+                }
+              },
               "background": {
                 "type": "object", "additionalProperties": false,
                 "required": ["color"],

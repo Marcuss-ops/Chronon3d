@@ -20,8 +20,8 @@
 //          s.all_active_glyphs (built here).
 
 #include "text_run_stages.hpp"
-#include "../../../utils/blend2d_bridge.hpp"
-#include "../../../utils/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
+#include "../../../blend2d/blend2d_bridge.hpp"
+#include "../../../blend2d/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
 #include <chronon3d/core/profiling/profiling.hpp>
 // NOTE: `build_glyph_matrix` is defined in text_run_matrix.cpp (same
 // linker target).  The function lives in `chronon3d::renderer` namespace;

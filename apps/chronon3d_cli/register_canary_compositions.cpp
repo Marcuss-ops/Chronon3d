@@ -154,19 +154,6 @@ namespace chronon3d {
             return definition;
         }
 
-        [[nodiscard]] GlowParams canary_red_cursor_glow() {
-            GlowParams glow = GlowPresets::editorial_highlight(26.0f);
-            glow.quality = GlowQuality::Fast;
-            glow.color = Color{1.0f, 0.035f, 0.035f, 1.0f};
-            glow.intensity = 1.05f;
-            glow.threshold = 0.0f;
-            glow.core_strength = 0.54f;
-            glow.aura_strength = 0.34f;
-            glow.bloom_strength = 0.12f;
-            glow.blend = BlendMode::Add;
-            return glow;
-        }
-
         enum class ElementCanaryMode {
             Static,
             Opacity,
@@ -337,17 +324,11 @@ namespace chronon3d {
                         l.text("text", canary_text(
                             "CHRONON", font_path, font_size, 700,
                             Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f}));
-                        // The earlier editorial preset was correct for a pale
-                        // background, but nearly disappeared on pure black.
-                        // Keep the halo soft while giving it enough radius and
-                        // energy to survive H.264 encoding and normal playback.
-                        GlowParams glow = canary_glow(GlowPresets::editorial_highlight(42.0f));
-                        glow.intensity = 0.92f;
-                        glow.threshold = 0.0f;
-                        glow.core_strength = 0.48f;
-                        glow.aura_strength = 0.30f;
-                        glow.bloom_strength = 0.10f;
-                        l.effect(glow);
+                        // The black-backdrop tuning lives in the preset, so
+                        // the authoring site names the look instead of
+                        // restating five numbers that must stay in sync
+                        // across every black-glow clip.
+                        l.effect(GlowPresets::canary_black());
                     });
 
                     scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
@@ -537,13 +518,9 @@ namespace chronon3d {
                         definition.animation.cache_layout = true;
                         l.text("text", std::move(definition));
 
-                        GlowParams glow = canary_glow(GlowPresets::editorial_highlight(42.0f));
-                        glow.intensity = 0.92f;
-                        glow.threshold = 0.0f;
-                        glow.core_strength = 0.48f;
-                        glow.aura_strength = 0.30f;
-                        glow.bloom_strength = 0.10f;
-                        l.effect(glow);
+                        // Identical glow contract to make_black_glow_static():
+                        // motion is the only variable in this baseline.
+                        l.effect(GlowPresets::canary_black());
                     });
 
                     scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));

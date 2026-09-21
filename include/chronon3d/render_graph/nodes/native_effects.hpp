@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <optional>
 
 namespace chronon3d {
@@ -16,7 +17,8 @@ bool try_native_full_frame_blur(
     const std::optional<raster::BBox>&);
 bool try_native_full_frame_glow(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
-    const std::optional<raster::BBox>&);
+    const std::optional<raster::BBox>&,
+    runtime::RenderSurfaceHandle = runtime::kInvalidRenderSurfaceHandle);
 bool try_native_full_frame_tint(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&);

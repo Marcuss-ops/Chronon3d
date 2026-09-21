@@ -32,6 +32,16 @@ add_test(
 set_tests_properties(chronon3d_ipc_schema_documents_tests PROPERTIES
     LABELS "ipc;schema;contract")
 
+# Gate: sdk-dist/schemas must be generated, not hand-copied; it must be
+# byte-identical to schemas/json/ when present (see tools/check_schema_sdk_parity.py).
+add_test(
+    NAME chronon3d_sdk_schema_parity_tests
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_schema_sdk_parity.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_sdk_schema_parity_tests PROPERTIES
+    LABELS "schema;contract;parity")
+
 chronon3d_add_test_suite(
     NAME chronon3d_contract_validator_registry_tests
     TIER INTEGRATION

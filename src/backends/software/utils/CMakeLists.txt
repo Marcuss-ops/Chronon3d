@@ -1,15 +1,10 @@
 # ==============================================================================
 # src/backends/software/utils/CMakeLists.txt
+# Backend-internal analysis and projection helpers.  The Blend2D bridge
+# (blend2d_bridge_*, blend2d_paint_*) was consolidated into
+# src/backends/software/blend2d/ on 2026-09-20 — this directory no longer
+# owns a Blend2D entry point.
 # ==============================================================================
-
-if(CHRONON3D_USE_BLEND2D)
-# Shared Blend2D paint utilities — used by both backend_software and backend_text.
-add_library(chronon3d_blend2d_paint OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/blend2d_paint.cpp
-)
-target_link_libraries(chronon3d_blend2d_paint PUBLIC chronon3d blend2d::blend2d)
-target_include_directories(chronon3d_blend2d_paint PRIVATE ${CMAKE_SOURCE_DIR})
-endif()
 
 # Backend-internal analysis, projection and effect helpers.
 target_sources(chronon3d_backend_software PRIVATE

@@ -15,7 +15,9 @@ void main() {
     if (pixel.x >= size.x || pixel.y >= size.y) return;
 
     float sigma = max(params.radius, 0.5);
-    int extent = clamp(int(ceil(sigma * 2.0)), 1, 32);
+    // The glow path accepts radii up to 64. A radius of 42 therefore needs
+    // an 84-pixel support window to preserve the approved canary falloff.
+    int extent = clamp(int(ceil(sigma * 2.0)), 1, 128);
     vec4 accumulated = vec4(0.0);
     float weight_sum = 0.0;
     for (int offset = -extent; offset <= extent; ++offset) {
