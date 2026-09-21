@@ -2,6 +2,7 @@
 """The Motion3D canary harness.
 
 Renders the `Motion3D*` canary compositions (registered by
+`apps/chronon3d_cli/canary/register_canary_motion3d.cpp`, orchestrated by
 `apps/chronon3d_cli/register_canary_compositions.cpp`) and measures them, so a
 claim about the motion model can be checked instead of believed:
 

@@ -42,13 +42,18 @@ void register_runtime_compositions(CompositionRegistry& registry);
 /// or diagnostics is built).  Calls chronon3d::register_content_modules().
 void register_content_compositions(CompositionRegistry& registry);
 
-/// Register the Motion3D canary pack when CHRONON3D_CLI_WITH_CANARY_REGISTRY
-/// is enabled for the CLI executable.
+/// Register the canary pack when CHRONON3D_CLI_WITH_CANARY_REGISTRY is enabled
+/// for the CLI executable.  The pack is one subfile per family under
+/// apps/chronon3d_cli/canary/ (motion3d, text contract, Final3D catalog, font
+/// baselines, Apple V3 matrix, final cards); register_canary_compositions.cpp
+/// is the orchestrator and each
+/// subfile's header comment says why its compositions exist and what they are
+/// evidence of.
 /// Registers: Motion3DGlowOrbit, Motion3DSentenceOrbit,
-/// Motion3DTextParentCamera, Motion3DSameMotionText, Motion3DSameMotionImage.
-/// These are the compositions the Motion3D canary harness renders raw, hashes
-/// and re-renders out of order; see register_canary_compositions.cpp for why
-/// each one exists and what it is evidence of.
+/// Motion3DTextParentCamera, Motion3DSameMotionText, Motion3DSameMotionImage
+/// (the compositions the Motion3D canary harness renders raw, hashes and
+/// re-renders out of order), the chronon_text_* element canaries, the nine
+/// Final3D production IDs, and the black_glow_* font/glow fleet.
 void register_canary_compositions(CompositionRegistry& registry);
 
 #ifdef CHRONON3D_BUILD_CLI_DEV
