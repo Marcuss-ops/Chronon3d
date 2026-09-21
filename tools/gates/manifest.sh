@@ -14,6 +14,7 @@ DEVELOPER_GATES=(
     check_architecture.py
     architecture_gate_selftest.sh
     check_steady_state_allocations.sh
+    verify_registry_render_graph_cache.sh
 )
 
 CI_PHASES=(
