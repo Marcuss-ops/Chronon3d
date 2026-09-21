@@ -202,6 +202,16 @@ invariato.
 - Il focused render-graph run passa con 9 test case e 47 assertion; le prove
   GPU/CUDA end-to-end e gli split Vulkan/CUDA restano subordinati alla macchina
   con hardware.
+- Il cached GPU text route compila i selector una volta per run e risolve
+  `SelectorWeightParams` una volta per frame; il loop glyph usa solo il
+  consumer canonico `selector_weight()` e non il legacy evaluator.
+- L'overload preparato mantiene l'equivalenza tra binding per-glyph e binding
+  per-frame; il lowering GPU rifiuta ora anche easing non-default, che non è
+  rappresentato nel payload `TextRunDynamic`.
+- Il gate architetturale `text_selector_legacy_runtime_consumer` impedisce ai
+  consumer di produzione di reintrodurre `evaluate_selector(s)`. Il focused
+  selector run passa con 8 test case e 70 assertion; il render-graph focused
+  run passa con 5 test case e 518 assertion.
 
 ## Definition of done
 

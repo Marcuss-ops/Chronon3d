@@ -342,3 +342,50 @@ TEST_CASE("Animated: motion-blur sub-frame stability") {
     }
     CHECK(any_different);
 }
+
+TEST_CASE("Runtime selector binding owns animated window state") {
+    GlyphSelectorSpec spec;
+    spec.id = "binding";
+    spec.unit = TextSelectorUnit::Glyph;
+    spec.shape = TextSelectorShape::Smooth;
+    spec.order = TextSelectorOrder::Reverse;
+    spec.start.key(Frame{0}, 0.0f).key(Frame{30}, 100.0f,
+                                      EasingCurve{Easing::Linear});
+    spec.end.set(100.0f);
+    spec.offset.set(12.0f);
+    spec.amount.set(75.0f);
+
+    auto placed = make_test_placed_run(4);
+    auto source = make_test_source(4);
+    auto map = build_text_unit_map(placed, source);
+    auto compiled = compile_selector(spec, map, source, &placed);
+    const auto time = SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1});
+
+    const auto run_params = bind_selector_runtime(compiled, map, time);
+    CHECK(run_params.shape == TextSelectorShape::Smooth);
+    CHECK(run_params.start == doctest::Approx(50.0f));
+    CHECK(run_params.end == doctest::Approx(100.0f));
+    CHECK(run_params.offset == doctest::Approx(12.0f));
+    CHECK(run_params.amount == doctest::Approx(75.0f));
+    CHECK(run_params.total_units == 4u);
+    CHECK(run_params.enabled);
+    CHECK_FALSE(run_params.window_completed);
+
+    for (u32 glyph = 0; glyph < 4; ++glyph) {
+        const auto glyph_params = bind_selector_runtime(
+            compiled, map, glyph, time);
+        CHECK(glyph_params.use_ordered_index);
+        CHECK(selector_weight(compiled, map, glyph, time) ==
+              doctest::Approx(selector_weight(glyph_params, glyph)));
+        CHECK(selector_weight(
+                  run_params, compiled, map, glyph) ==
+              doctest::Approx(selector_weight(compiled, map, glyph, time)));
+    }
+
+    spec.start.set(100.0f);
+    spec.end.set(100.0f);
+    compiled = compile_selector(spec, map, source, &placed);
+    const auto terminal = bind_selector_runtime(compiled, map, time);
+    CHECK(terminal.window_completed);
+    CHECK(selector_weight(terminal, 0u) == doctest::Approx(0.0f));
+}

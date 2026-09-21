@@ -46,6 +46,7 @@ if(TARGET chronon3d_cli_video_export)
         cli/test_packet_assembler_contract.cpp
         cli/test_encoder_config_resolution.cpp
         cli/test_gop_direct_mux_parity.cpp
+        cli/test_timing_sidecar_schema.cpp
     )
 endif()
 
