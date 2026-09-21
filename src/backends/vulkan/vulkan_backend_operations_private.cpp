@@ -354,6 +354,30 @@ void VulkanBackend::Impl::color_adjust(
     throw std::logic_error("Vulkan color_adjust requires an active frame batch");
 }
 
+void VulkanBackend::Impl::lighting(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const Color& multiplier) {
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst.width != src_image.width || dst.height != src_image.height) {
+        throw std::invalid_argument("Vulkan lighting references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, dst, src_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst, &src_image});
+        record_lighting(cmd, descriptors, dst, src_image, multiplier);
+        dst.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan lighting requires an active frame batch");
+}
+
 void VulkanBackend::Impl::matte(runtime::RenderSurfaceHandle destination,
                                 runtime::RenderSurfaceHandle target,
                                 runtime::RenderSurfaceHandle matte_surface,

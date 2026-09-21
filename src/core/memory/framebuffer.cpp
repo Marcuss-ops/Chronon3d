@@ -100,7 +100,12 @@ void Framebuffer::resize_logical(i32 width, i32 height) {
 
     if (!m_owns_pixels) {
         if (width > m_allocated_width || height > m_allocated_height) {
-            throw std::runtime_error("Cannot resize external Framebuffer beyond its allocated size");
+            throw std::runtime_error(
+                "Cannot resize external Framebuffer beyond its allocated size "
+                "(requested=" + std::to_string(width) + "x" +
+                std::to_string(height) + ", allocated=" +
+                std::to_string(m_allocated_width) + "x" +
+                std::to_string(m_allocated_height) + ")");
         }
         m_width = width;
         m_height = height;

@@ -188,6 +188,7 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_size(layer.scale_dimensions);
     for (const auto value : layer.rotation) out.add_float(value);
     out.add_size(layer.rotation_dimensions);
+    out.add_bool(layer.enable_3d);
 
     add_optional(out, layer.radius,
                  [](auto& writer, float value) { writer.add_float(value); });

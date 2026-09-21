@@ -46,6 +46,18 @@ void main() {
          destination.x >= params.clip_rect.z || destination.y >= params.clip_rect.w)) return;
     vec2 source = vec2(dot(params.source_x.xyz, vec3(canvas, 1.0)),
                        dot(params.source_y.xyz, vec3(canvas, 1.0)));
+    // The same kernel handles the 2.5D projective case.  Non-zero padding
+    // carries the inverse-homography denominator as float bits; zero padding
+    // preserves the original affine contract.
+    if (params.padding2 != 0u) {
+        float denominator = dot(
+            vec3(uintBitsToFloat(params.padding0),
+                 uintBitsToFloat(params.padding1),
+                 uintBitsToFloat(params.padding2)),
+            vec3(canvas, 1.0));
+        if (abs(denominator) < 1e-7) return;
+        source /= denominator;
+    }
     vec4 value = vec4(0.0);
     if (source.x >= params.source_x.w && source.x < params.limits.x &&
         source.y >= params.source_y.w && source.y < params.limits.y) {

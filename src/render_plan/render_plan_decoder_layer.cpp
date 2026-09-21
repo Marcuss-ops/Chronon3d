@@ -117,6 +117,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (std::size_t i = 0; i < rotation.size() && i < layer.rotation.size(); ++i)
             layer.rotation[i] = rotation.at(i).get<float>();
     }
+    layer.enable_3d = value.value("enable_3d", false);
 
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");
