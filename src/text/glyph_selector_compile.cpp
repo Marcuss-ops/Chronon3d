@@ -296,33 +296,44 @@ SelectorWeight selector_weight(
     u32 glyph_index,
     SampleTime time
 ) {
-    const auto& spec = *compiled.spec;
-    const u32 total = compiled.total_units;
+    const auto params = bind_selector_runtime(compiled, unit_map, time);
+    return selector_weight(params, compiled, unit_map, glyph_index);
+}
 
-    if (total == 0) return 0.0f;
-
-    const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
-
-    if (spec.exclude_spaces && !compiled.unit_is_whitespace.empty()) {
-        if (raw_index < compiled.unit_is_whitespace.size()
-            && compiled.unit_is_whitespace[raw_index]) {
-            return 0.0f;
-        }
+SelectorWeight selector_weight(
+    const SelectorWeightParams& params,
+    const CompiledSelector& compiled,
+    const TextUnitMap& unit_map,
+    const u32 glyph_index
+) {
+    if (compiled.spec == nullptr || compiled.total_units == 0 ||
+        glyph_index >= unit_map.glyph_to_grapheme.size()) {
+        return 0.0f;
     }
-
+    const auto& spec = *compiled.spec;
+    const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
+    const u32 total = compiled.total_units;
+    if (spec.exclude_spaces && !compiled.unit_is_whitespace.empty() &&
+        raw_index < compiled.unit_is_whitespace.size() &&
+        compiled.unit_is_whitespace[raw_index]) {
+        return 0.0f;
+    }
     if (raw_index >= total) return 0.0f;
 
-    const auto params = bind_selector_runtime(compiled, unit_map,
-                                              glyph_index, time);
+    auto glyph_params = params;
+    glyph_params.ordered_index = !compiled.random_permutation.empty()
+        ? compiled.random_permutation[raw_index]
+        : detail::apply_selector_order(spec.order, raw_index, total, 0);
+    glyph_params.use_ordered_index = true;
     const f32 unit_position =
-        (static_cast<f32>(params.ordered_index) + 0.5f) /
+        (static_cast<f32>(glyph_params.ordered_index) + 0.5f) /
         static_cast<f32>(total);
-    const f32 animated_start = params.start;
-    const f32 animated_end = params.end;
+    const f32 animated_start = glyph_params.start;
+    const f32 animated_end = glyph_params.end;
 
-    f32 shifted_position = unit_position - params.offset * 0.01f;
+    f32 shifted_position = unit_position - glyph_params.offset * 0.01f;
     shifted_position = shifted_position - std::floor(shifted_position);
-    f32 weight = selector_weight(params, raw_index);
+    f32 weight = selector_weight(glyph_params, raw_index);
 
     if (weight > 0.0f && weight < 1.0f) {
         const f32 ease_low_norm  = std::clamp(spec.ease_low  / 100.0f, 0.0f, 1.0f);
