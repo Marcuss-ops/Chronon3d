@@ -145,16 +145,14 @@ NodeExecResult TransformNode::execute(
     f32 x_max_src = static_cast<f32>(input->width());
     f32 y_max_src = static_cast<f32>(input->height());
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
-        const auto& in_box = *input_bboxes[0];
-        const i32 local_x0 = in_box.x0 - input->origin_x();
-        const i32 local_y0 = in_box.y0 - input->origin_y();
-        const i32 local_x1 = in_box.x1 - input->origin_x();
-        const i32 local_y1 = in_box.y1 - input->origin_y();
-        x_min_src = static_cast<f32>(std::clamp(local_x0, 0, input->width()));
-        y_min_src = static_cast<f32>(std::clamp(local_y0, 0, input->height()));
-        x_max_src = static_cast<f32>(std::clamp(local_x1, 0, input->width()));
-        y_max_src = static_cast<f32>(std::clamp(local_y1, 0, input->height()));
-        if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
+        const auto source = detail::normalize_transform_source_rect(
+            *input_bboxes[0], input->origin_x(), input->origin_y(),
+            input->width(), input->height());
+        x_min_src = source.x0;
+        y_min_src = source.y0;
+        x_max_src = source.x1;
+        y_max_src = source.y1;
+        if (!source.valid()) {
             return NodeExecResult{std::move(result)};
         }
     }
@@ -226,17 +224,15 @@ NodeExecResult TransformNode::execute(
         return NodeExecResult{std::move(result)};
     }
 
-    i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), result->origin_x(), result->origin_x() + result->width());
-    i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), result->origin_x(), result->origin_x() + result->width());
-    i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), result->origin_y(), result->origin_y() + result->height());
-    i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), result->origin_y(), result->origin_y() + result->height());
-
-    if (ctx.node_exec.clip_rect) {
-        x0 = std::max(x0, ctx.node_exec.clip_rect->x0);
-        y0 = std::max(y0, ctx.node_exec.clip_rect->y0);
-        x1 = std::min(x1, ctx.node_exec.clip_rect->x1);
-        y1 = std::min(y1, ctx.node_exec.clip_rect->y1);
-    }
+    const auto clipped_bounds = detail::clip_transform_bounds(
+        min_x, min_y, max_x, max_y,
+        result->origin_x(), result->origin_y(), result->width(), result->height(),
+        ctx.node_exec.clip_rect);
+    if (!clipped_bounds) return NodeExecResult{std::move(result)};
+    const i32 x0 = clipped_bounds->x0;
+    const i32 x1 = clipped_bounds->x1;
+    const i32 y0 = clipped_bounds->y0;
+    const i32 y1 = clipped_bounds->y1;
 
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
@@ -589,16 +585,18 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     f32 y_max_src = source_size.y;
 
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
-        const auto& in_box = *input_bboxes[0];
         // The graph bbox can describe media/source geometry rather than the
         // actual surface supplied to this node.  Keep prediction consistent
         // with execute(), which clips the source rectangle to the input
         // surface before sampling.  Otherwise an oversized bbox expands the
         // predicted output and makes opaque padding cover the composite.
-        x_min_src = std::clamp(static_cast<f32>(in_box.x0), 0.0f, source_size.x);
-        y_min_src = std::clamp(static_cast<f32>(in_box.y0), 0.0f, source_size.y);
-        x_max_src = std::clamp(static_cast<f32>(in_box.x1), 0.0f, source_size.x);
-        y_max_src = std::clamp(static_cast<f32>(in_box.y1), 0.0f, source_size.y);
+        const auto source = detail::normalize_transform_source_rect(
+            *input_bboxes[0], 0, 0,
+            source_size.x, source_size.y);
+        x_min_src = source.x0;
+        y_min_src = source.y0;
+        x_max_src = source.x1;
+        y_max_src = source.y1;
 
     }
 
@@ -631,12 +629,9 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         return std::nullopt;
     }
 
-    return raster::BBox{
-        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.frame_input.width),
-        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.frame_input.height),
-        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.frame_input.width),
-        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.frame_input.height)
-    };
+    return detail::clip_transform_bounds(
+        min_x, min_y, max_x, max_y,
+        0, 0, ctx.frame_input.width, ctx.frame_input.height, std::nullopt);
 }
 
 } // namespace chronon3d::graph

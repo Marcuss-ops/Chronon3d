@@ -23,6 +23,7 @@
 // NOT promoted to include/chronon3d/.
 
 #include "text_run_stages.hpp"
+#include <chronon3d/backends/text/text_render_resources.hpp>
 
 #include <algorithm>
 #include <cmath>

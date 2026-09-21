@@ -20,6 +20,7 @@
 //          s.all_active_glyphs (built here).
 
 #include "text_run_stages.hpp"
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #include "../../../blend2d/blend2d_bridge.hpp"
 #include "../../../blend2d/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
 #include <chronon3d/core/profiling/profiling.hpp>
