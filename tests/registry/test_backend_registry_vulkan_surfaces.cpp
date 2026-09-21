@@ -148,6 +148,11 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     params.radius = 2.0f;
     params.intensity = 0.5f;
     params.color = Color{0.25f, 0.5f, 1.0f, 1.0f};
+    // The native glow contract (7e6568262) dispatches only High-quality glow
+    // through Vulkan surfaces. Final plans resolve to High at compile time
+    // (render_plan_compiler_text.cpp), so exercise the production contract,
+    // not the GlowParams default (Fast).
+    params.quality = GlowQuality::High;
     EffectStack effects;
     effects.push_back(effects::EffectInstance{params});
     EffectStackNode node(std::move(effects));
@@ -174,6 +179,34 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
 
     REQUIRE(backend.release_surface(handle).ok());
     CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("EffectStackNode fails closed for non-native glow quality under Vulkan") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 8;
+    ctx.frame_input.height = 8;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+
+    auto source = std::make_shared<Framebuffer>(8, 8);
+    source->clear(Color::transparent());
+    source->set_pixel(4, 4, Color{1.0f, 0.5f, 0.25f, 1.0f});
+
+    GlowParams params;  // default GlowQuality::Fast -> native gate rejects
+    params.radius = 2.0f;
+    EffectStack effects;
+    effects.push_back(effects::EffectInstance{params});
+    EffectStackNode node(std::move(effects));
+
+    const std::array<FramebufferRef, 1> inputs{source.get()};
+    const std::array<std::optional<raster::BBox>, 1> bboxes{
+        raster::BBox{0, 0, 8, 8}};
+    CHECK_THROWS_AS(node.execute(ctx, inputs, bboxes), std::runtime_error);
 }
 
 TEST_CASE("EffectStackNode dispatches a full-frame tint through Vulkan surfaces") {
