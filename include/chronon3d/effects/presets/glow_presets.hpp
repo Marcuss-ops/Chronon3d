@@ -146,5 +146,28 @@ namespace GlowPresets {
     };
 }
 
+/// White halo for white text on a pure-black backdrop, tuned against the
+/// canary clips (H.264 survives the encode; the halo does not disappear).
+///
+/// Lineage: `editorial_highlight` geometry with the threshold forced to 0 and
+/// a tighter core/aura/bloom split.  The editorial preset alone was authored
+/// for pale backgrounds and nearly vanished on black, so the black-backdrop
+/// tuning lives here instead of being restated at each authoring site.
+/// Rendered at High quality: these are final-quality visual probes.
+[[nodiscard]] inline GlowParams canary_black(f32 radius = 42.0f) {
+    GlowParams p = editorial_highlight(radius);
+    p.quality = GlowQuality::High;
+    p.intensity = 0.92f;
+    p.threshold = 0.0f;
+    p.spread = 1.0f;
+    p.softness = 1.0f;
+    p.falloff = 1.0f;
+    p.core_strength = 0.48f;
+    p.aura_strength = 0.30f;
+    p.bloom_strength = 0.10f;
+    p.blend = BlendMode::Add;
+    return p;
+}
+
 } // namespace GlowPresets
 } // namespace chronon3d

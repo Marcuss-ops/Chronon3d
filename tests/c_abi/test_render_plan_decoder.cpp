@@ -317,6 +317,10 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
                 {"stroke", {{"color", "#000000"}, {"width", 2}}},
                 {"shadow", {{"color", "#000000"}, {"opacity", 0.65},
                              {"blur", 16}, {"offset", {0, 6}}}},
+                {"glow", {{"radius", 42}, {"intensity", 0.92},
+                           {"threshold", 0}, {"falloff", 1},
+                           {"core_strength", 0.48}, {"aura_strength", 0.30},
+                           {"bloom_strength", 0.10}, {"high_quality", true}}},
                 {"background", {{"color", "#050509"}, {"opacity", 0.86},
                                  {"radius", 12}, {"padding", {24, 14}}}}
             }},
@@ -348,6 +352,14 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
     REQUIRE(layer.style->shadow.has_value());
     CHECK(layer.style->shadow->blur.value() == doctest::Approx(16.0f));
     CHECK(layer.style->shadow->offset[1] == doctest::Approx(6.0f));
+    REQUIRE(layer.style->glow.has_value());
+    CHECK(layer.style->glow->radius == doctest::Approx(42.0f));
+    CHECK(layer.style->glow->intensity == doctest::Approx(0.92f));
+    CHECK(layer.style->glow->falloff == doctest::Approx(1.0f));
+    CHECK(layer.style->glow->core_strength == doctest::Approx(0.48f));
+    CHECK(layer.style->glow->aura_strength == doctest::Approx(0.30f));
+    CHECK(layer.style->glow->bloom_strength == doctest::Approx(0.10f));
+    CHECK(layer.style->glow->high_quality);
     REQUIRE(layer.style->background.has_value());
     CHECK(layer.style->background->radius.value() == doctest::Approx(12.0f));
     CHECK(layer.style->background->padding[0] == doctest::Approx(24.0f));

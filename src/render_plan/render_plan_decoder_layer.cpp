@@ -2,8 +2,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -145,6 +147,29 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     shadow_plan.offset[i] = offset.at(i).get<float>();
             }
             style_plan.shadow = std::move(shadow_plan);
+        }
+        if (style.contains("glow")) {
+            const auto& glow = style.at("glow");
+            GlowStyle glow_plan;
+            glow_plan.radius = glow.at("radius").get<float>();
+            glow_plan.intensity = glow.at("intensity").get<float>();
+            glow_plan.threshold = glow.at("threshold").get<float>();
+            glow_plan.falloff = glow.at("falloff").get<float>();
+            glow_plan.core_strength = glow.at("core_strength").get<float>();
+            glow_plan.aura_strength = glow.at("aura_strength").get<float>();
+            glow_plan.bloom_strength = glow.at("bloom_strength").get<float>();
+            glow_plan.high_quality = glow.at("high_quality").get<bool>();
+            if (!std::isfinite(glow_plan.radius) || glow_plan.radius < 0.0f ||
+                !std::isfinite(glow_plan.intensity) || glow_plan.intensity < 0.0f ||
+                !std::isfinite(glow_plan.threshold) || glow_plan.threshold < 0.0f ||
+                !std::isfinite(glow_plan.falloff) || glow_plan.falloff < 1.0f ||
+                !std::isfinite(glow_plan.core_strength) || glow_plan.core_strength < 0.0f ||
+                !std::isfinite(glow_plan.aura_strength) || glow_plan.aura_strength < 0.0f ||
+                !std::isfinite(glow_plan.bloom_strength) || glow_plan.bloom_strength < 0.0f) {
+                throw std::runtime_error(
+                    "style.glow values must be finite, non-negative, with falloff >= 1");
+            }
+            style_plan.glow = std::move(glow_plan);
         }
         if (style.contains("background")) {
             const auto& background = style.at("background");

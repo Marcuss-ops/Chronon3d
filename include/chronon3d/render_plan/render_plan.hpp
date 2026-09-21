@@ -46,6 +46,19 @@ struct ShadowStyle {
     std::size_t offset_dimensions{0};
 };
 
+// Per-text halo parameters. This is distinct from ShadowStyle: shadow is a
+// translated blurred silhouette, while glow is lowered to GlowParams.
+struct GlowStyle {
+    float radius{0.0f};
+    float intensity{0.0f};
+    float threshold{0.0f};
+    float falloff{1.0f};
+    float core_strength{0.0f};
+    float aura_strength{0.0f};
+    float bloom_strength{0.0f};
+    bool high_quality{false};
+};
+
 struct BackgroundStyle {
     std::string color;
     std::optional<float> opacity;
@@ -62,6 +75,7 @@ struct LayerStylePlan {
     std::string fill;
     std::optional<StrokeStyle> stroke;
     std::optional<ShadowStyle> shadow;
+    std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
 };
 

@@ -124,6 +124,16 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         for (const auto value : shadow.offset) writer.add_float(value);
         writer.add_size(shadow.offset_dimensions);
     });
+    add_optional(out, style.glow, [](auto& writer, const GlowStyle& glow) {
+        writer.add_float(glow.radius);
+        writer.add_float(glow.intensity);
+        writer.add_float(glow.threshold);
+        writer.add_float(glow.falloff);
+        writer.add_float(glow.core_strength);
+        writer.add_float(glow.aura_strength);
+        writer.add_float(glow.bloom_strength);
+        writer.add_bool(glow.high_quality);
+    });
     add_optional(out, style.background,
                  [](auto& writer, const BackgroundStyle& background) {
         writer.add_string(background.color);

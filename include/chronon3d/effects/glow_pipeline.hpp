@@ -40,6 +40,7 @@
 #include <optional>
 #include <vector>
 #include <algorithm>
+#include <array>
 
 namespace chronon3d::graph {
     struct RenderGraphContext;
@@ -131,6 +132,25 @@ struct GlowPipeline {
     static GlowPipelineOutput render(class graph::RenderGraphContext& ctx,
                                      const GlowPipelineInput& input);
 };
+
+// Shared visual contract for the synthetic core/aura/bloom decomposition.
+// GPU backends consume this table directly so a canary plan cannot degrade
+// into a single blurred shadow.
+struct SyntheticGlowLobe {
+    f32 radius_factor{1.0f};
+    f32 strength{0.0f};
+    f32 buffer_scale{1.0f};
+};
+
+[[nodiscard]] inline std::array<SyntheticGlowLobe, 3>
+synthetic_glow_lobes(const GlowParams& p) noexcept {
+    const f32 outer_scale = p.quality == GlowQuality::High
+        ? 1.0f
+        : std::clamp(p.outer_downscale, 0.05f, 1.0f);
+    return {{{0.10f, std::max(0.0f, p.core_strength), 1.0f},
+             {0.35f, std::max(0.0f, p.aura_strength), 1.0f},
+             {1.00f, std::max(0.0f, p.bloom_strength), outer_scale}}};
+}
 
 /// Compute the maximum spatial extent (in pixels) that a glow effect
 /// can reach beyond its source geometry.  Used for bounding-box prediction

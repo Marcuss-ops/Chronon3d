@@ -255,6 +255,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 *prepared_texts[index])
                                 .font_engine(font_engine.get());
                             detail::apply_text_animators(text_builder, layer);
+                            detail::apply_text_glow(builder, layer);
                             break;
                         }
                     }

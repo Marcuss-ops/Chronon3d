@@ -7,7 +7,7 @@
 // blend_pixel lives in the backend detail header — include it directly
 // since this test specifically validates the NaN/Inf guard we added there.
 // CMAKE_SOURCE_DIR is the project root, so this path resolves correctly.
-#include "src/backends/software/utils/blend2d_bridge_detail.hpp"
+#include "src/backends/software/blend2d/blend2d_bridge_detail.hpp"
 using namespace chronon3d;
 
 

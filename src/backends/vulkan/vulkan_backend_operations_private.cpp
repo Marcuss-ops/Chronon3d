@@ -261,8 +261,8 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle scratch_vertical,
                                float radius, float intensity,
                                const Color& tint) {
-    if (!(radius >= 0.0f) || radius > 32.0f) {
-        throw std::invalid_argument("Vulkan glow radius must be within [0, 32]");
+    if (!(radius >= 0.0f) || radius > 64.0f) {
+        throw std::invalid_argument("Vulkan glow radius must be within [0, 64]");
     }
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);

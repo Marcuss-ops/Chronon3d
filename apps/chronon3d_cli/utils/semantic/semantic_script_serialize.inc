@@ -25,6 +25,19 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
             style["font"] = layer.style->font;
             if (layer.style->font_size) style["font_size"] = *layer.style->font_size;
             style["fill"] = layer.style->fill;
+            if (layer.style->glow) {
+                const auto& glow = *layer.style->glow;
+                style["glow"] = {
+                    {"radius", glow.radius},
+                    {"intensity", glow.intensity},
+                    {"threshold", glow.threshold},
+                    {"falloff", glow.falloff},
+                    {"core_strength", glow.core_strength},
+                    {"aura_strength", glow.aura_strength},
+                    {"bloom_strength", glow.bloom_strength},
+                    {"high_quality", glow.high_quality},
+                };
+            }
             value["style"] = std::move(style);
         }
         if (layer.size_dimensions == 2) {
