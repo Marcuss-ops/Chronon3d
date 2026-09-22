@@ -69,6 +69,14 @@ private:
     }
 
     void append_animator(TextAnimatorSpec spec);
+
+    /// Invalidate any inherited (prewarmed) `PreparedTextRun`.  A prepared run
+    /// is only valid for the exact payload it was prepared from, and the
+    /// animation identity is part of that payload, so mutating the
+    /// animator/selector stack invalidates it.  This is the canonical
+    /// invalidation point: it lives in the text-run factory, not in a
+    /// downstream builder that would have to reset the cache by hand.
+    void invalidate_prepared_run() noexcept;
     [[nodiscard]] static GlyphSelectorSpec make_global_glyph_selector(
         std::string id);
 

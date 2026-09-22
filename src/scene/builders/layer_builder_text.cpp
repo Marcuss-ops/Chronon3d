@@ -160,14 +160,12 @@ Layer LayerBuilder::build() {
             // authoring and compiled construction.
             PreparedText prepared =
                 text_internal::normalize_prepared_text(spec.params);
-            // A prepared run is immutable and may have been prewarmed before
-            // the render-plan callback attached its text animators. Never
-            // reuse that static snapshot for an animated payload: doing so
-            // preserves the layout but drops the selector/animator vector
-            // from the runtime TextRunShape.
-            if (!prepared.animation.animators.empty()) {
-                prepared.prepared_run.reset();
-            }
+            // A prewarmed PreparedTextRun is valid only for the payload it was
+            // prepared from. TextRunBuilder — the canonical text-run factory —
+            // invalidates the inherited run the moment it mutates the
+            // animator/selector stack, so this boundary stays read-only: a
+            // static payload keeps its prewarmed run, and an animated payload
+            // arrives here already invalidated.
             // The resolver owns TextPlacement, anchor, and box-size
             // semantics. Its layout_origin is Canvas-space; only the
             // Canvas → layer basis conversion belongs at this boundary.

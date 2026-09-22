@@ -121,3 +121,38 @@ Regole operative:
 4. Un albero Debug di questo repo produce binari da ~1 GB per target di test:
    verifica `df -h` prima di configurare un'altra lane (al 2026-09-16: 145 GiB
    liberi).
+
+## Follow-up 2026-09-21 — `-j20` diventa un opt-in esplicito (ceiling JOBS 14 → 20)
+
+`build-fast.sh` rifiutava in modo hard `JOBS > 14`. Il ceiling ora è una sola
+variabile, `CHRONON3D_MAX_JOBS` (default `20`): `JOBS=20 ./build-fast.sh …`
+viene accettato, mentre il **default resta 14**, cioè il valore misurato come
+sicuro su questo host condiviso. Un guard sul budget di RAM avverte (senza mai
+fallire) quando la parallelisità richiesta eccede la memoria disponibile —
+~1.6 GiB per unità di compilazione unity C++20 in parallelo:
+
+```text
+$ JOBS=20 ./build-fast.sh cli
+⚠️  JOBS=20 needs ~31 GiB but only 22 GiB is available; expect swap pressure.
+```
+
+Il guard si silenzia con `CHRONON3D_SKIP_MEMORY_GUARD=1`.
+
+### Verifica sul campo (host 24 core / 29 GiB, condiviso)
+
+```text
+cmake --build build/chronon/linux-video-test --target chronon3d_cli -j 20
+→ 12 edge in 69.5 s, Exit status 0, Swaps: 0
+```
+
+Nessun thrashing alla dimensione di target provata. Per alberi Debug completi
+(unity 16-32) resta valido il tetto `-j12` della nota 2026-09-16 sopra, a meno
+che l'host non abbia davvero il budget di RAM.
+
+### ccache + mold restano attivi (verificato, non assunto)
+
+La lane configurata espone `CMAKE_CXX_COMPILER_LAUNCHER:UNINITIALIZED=ccache`
+e `CMAKE_C_COMPILER_LAUNCHER:UNINITIALIZED=ccache` in `CMakeCache.txt`, e
+`-fuse-ld=mold` nelle regole di link generate in `build.ninja`. `CMakeLists.txt`
+resta l'unica autorità del linker; i preset restano l'unica autorità del
+launcher ccache.

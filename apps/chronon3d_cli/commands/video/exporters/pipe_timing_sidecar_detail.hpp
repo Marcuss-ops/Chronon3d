@@ -57,6 +57,16 @@ struct SidecarContext {
 std::vector<double> build_frame_times_section(nlohmann::json& out, SidecarContext& ctx);
 
 // ── phase 2: summary + job sections ─────────────────────────────────────────
+// The two sections are built by directly callable pure serializers so the frozen
+// schema is testable without running an export. Every optional-valued field is
+// written through the single serializer in pipe_timing_sidecar_serialize.hpp.
+[[nodiscard]] nlohmann::json build_summary_section(
+    const SidecarContext& ctx, const std::vector<double>& durations,
+    const pipe_timing::JobTimings& timings);
+
+void serialize_job_section(nlohmann::json& job,
+                           const pipe_timing::JobTimings& timings);
+
 void build_summary_and_job_sections(
     nlohmann::json& out, const SidecarContext& ctx,
     const std::vector<double>& durations, const pipe_timing::JobTimings& timings);

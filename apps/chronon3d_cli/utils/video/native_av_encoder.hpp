@@ -281,6 +281,19 @@ private:
     double native_trailer_ms_{0.0};
     EncoderFrameTelemetry last_frame_telemetry_{};
 
+    // ── open() phases (TICKET-HOTSPOT-DECOMPOSITION A6) ───────────────────
+    // open() is a thin orchestrator over these phases. Every phase returns
+    // whether the encoder may continue and reports the SAME public error
+    // reason the monolithic open() used to emit, so callers and logs are
+    // unchanged.
+    void reset_open_state(const FfmpegPipeOptions& options);
+    [[nodiscard]] bool resolve_open_configuration();
+    [[nodiscard]] bool configure_codec_and_surface();
+    [[nodiscard]] bool apply_resolved_encoder_options();
+    [[nodiscard]] bool open_codec_and_probe_contract();
+    [[nodiscard]] bool wire_container(const std::string& filename);
+    [[nodiscard]] bool finalize_open(const std::string& filename);
+
     bool drain_packets();
     bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
