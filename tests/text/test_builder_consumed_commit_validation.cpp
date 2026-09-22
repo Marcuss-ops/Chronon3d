@@ -34,6 +34,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun + TextRunBuilder + accessor types
+#include <chronon3d/scene/builders/text_run_materialization.hpp> // complete PreparedTextRun for the prewarm regression
 #include <chronon3d/scene/builders/layer_builder.hpp>     // LayerBuilder + text_run() entry point
 #include <chronon3d/core/types/sample_time.hpp>           // SampleTime for LayerBuilder ctor
 
@@ -281,6 +282,38 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
 // `text_internal::mark_consumed(run)` which sets the flag AND bumps
 // the relaxed-atomic counter by exactly 1.
 // ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PreparedText prewarm is invalidated by every identity mutation") {
+    LayerBuilder layer("prepared_text_identity", SampleTime{});
+    PreparedText params;
+    params.document.utf8 = "identity";
+    TextRunBuilder& builder = layer.text_run("run", std::move(params));
+
+    const auto assert_invalidated = [&builder](auto&& mutate) {
+        builder.build_spec().params.prepared_run =
+            std::make_shared<const PreparedTextRun>();
+        REQUIRE(builder.build_spec().params.prepared_run != nullptr);
+        mutate(builder);
+        CHECK(builder.build_spec().params.prepared_run == nullptr);
+    };
+
+    assert_invalidated([](TextRunBuilder& b) { b.font_size(48.0f); });
+    assert_invalidated([](TextRunBuilder& b) { b.font("replacement.ttf"); });
+    assert_invalidated([](TextRunBuilder& b) { b.font_engine(nullptr); });
+
+    TextAnimatorSpec animator;
+    animator.id = "identity_animator";
+    assert_invalidated([&animator](TextRunBuilder& b) {
+        b.animator(animator);
+    });
+
+    GlyphSelectorSpec selector;
+    selector.id = "identity_selector";
+    selector.unit = TextSelectorUnit::Glyph;
+    assert_invalidated([&selector](TextRunBuilder& b) {
+        b.selector(selector);
+    });
+}
 
 TEST_CASE("TICKET-104 (2) text_internal::mark_consumed REALLY decrements the counter") {
     // ── Reset the process-wide counter to 0 for a deterministic delta. ──

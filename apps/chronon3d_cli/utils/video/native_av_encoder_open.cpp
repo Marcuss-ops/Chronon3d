@@ -86,6 +86,9 @@ const BitstreamTargetContract& NativeAvEncoder::encoder_target_contract() {
     return bitstream_contract_;
 }
 
+// ── open() orchestrator (TICKET-HOTSPOT-DECOMPOSITION A6) ────────────────
+// The phases below own the work; this function only sequences them and keeps
+// the public contract (bool + the same spdlog reason) unchanged.
 bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (mux_ || codec_) {
         spdlog::error("[native_av] Encoder already open");
@@ -102,6 +105,32 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
+    // Phase 1 — clear the per-open state and publish the caller's options.
+    reset_open_state(options);
+
+    // Phase 2 — resolve + validate the encoder configuration BEFORE any
+    // FFmpeg/decoder/CUDA/render setup.
+    if (!resolve_open_configuration()) return false;
+
+    // Phase 3 — allocate the codec context and select the surface.
+    if (!configure_codec_and_surface()) return false;
+
+    // Phase 4 — apply the RESOLVED configuration verbatim.
+    if (!apply_resolved_encoder_options()) return false;
+
+    // Phase 5 — open the codec and probe the encoder-owned bitstream contract.
+    if (!open_codec_and_probe_contract()) return false;
+
+    const std::string filename = options_.output_path;
+
+    // Phase 6 — container ownership / mux wiring.
+    if (!wire_container(filename)) return false;
+
+    // Phase 7 — frame buffers and final validation.
+    return finalize_open(filename);
+}
+
+void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     options_ = options;
     options_.fps_num = options.canonical_fps_num();
     options_.fps_den = options.canonical_fps_den();
@@ -148,7 +177,9 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     owned_mux_.reset();
     borrowed_stream_reproduced_ = false;
     borrowed_stream_checked_ = false;
+}
 
+bool NativeAvEncoder::resolve_open_configuration() {
     // ── C-1/C-2: resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup. NativeAvEncoder applies the resolved
     // configuration verbatim; it never interprets raw rate-control/preset/
@@ -163,10 +194,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
                       resolution.error().message);
         return false;
     }
-	// ResolvedEncoderConfig is intentionally immutable after construction and
-	// therefore deletes assignment operators. Construct the optional in place
-	// instead of attempting move-assignment into an existing optional.
-	resolved_encoder_config_.emplace(std::move(resolution).value());
+    // ResolvedEncoderConfig is intentionally immutable after construction and
+    // therefore deletes assignment operators. Construct the optional in place
+    // instead of attempting move-assignment into an existing optional.
+    resolved_encoder_config_.emplace(std::move(resolution).value());
     const auto& resolved = *resolved_encoder_config_;
 
     gpu_nvenc_ = resolved.backend() == EncoderBackend::Nvenc;
@@ -184,8 +215,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
                                             : "engine-default";
     requested_encoder_preset_ =
         options_.preset_explicit ? options_.preset : "engine-default";
+    return true;
+}
 
-    const std::string filename = options_.output_path;
+bool NativeAvEncoder::configure_codec_and_surface() {
+    const auto& resolved = *resolved_encoder_config_;
 
     const AVCodec* encoder =
         avcodec_find_encoder_by_name(resolved.encoder_name().c_str());
@@ -324,8 +358,12 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         runtime::ColorRange::Limited,
         runtime::ChromaLocation::Left,
         runtime::AlphaMode::Opaque};
+    return true;
+}
 
-    // ── Apply the RESOLVED configuration verbatim ────────────────────────
+bool NativeAvEncoder::apply_resolved_encoder_options() {
+    const auto& resolved = *resolved_encoder_config_;
+
     // Everything below is driven by `resolved` (from
     // resolve_encoder_config). NativeAvEncoder no longer interprets
     // rate-control/preset/tune strings: the resolver already validated the
@@ -427,6 +465,18 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         applied_encoder_rate_control_ = resolved.rate_control_label();
         applied_encoder_async_depth_ = 0;
     }
+    return true;
+}
+
+bool NativeAvEncoder::open_codec_and_probe_contract() {
+    const auto& resolved = *resolved_encoder_config_;
+
+    // Phase 3 resolved the encoder by name; re-resolving here keeps this phase
+    // self-contained and yields exactly the same AVCodec instance the context
+    // was allocated with (codec_->codec is the allocation-time fallback).
+    const AVCodec* encoder =
+        avcodec_find_encoder_by_name(resolved.encoder_name().c_str());
+    if (!encoder) encoder = codec_->codec;
 
     const auto nvenc_t0 = Clock::now();
     if (avcodec_open2(codec_, encoder, nullptr) < 0) {
@@ -450,7 +500,10 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         static_cast<int>(bitstream_contract_.pixel_format),
         bitstream_contract_.parameter_sets.size(),
         bitstream_contract_.encoder_materialized);
+    return true;
+}
 
+bool NativeAvEncoder::wire_container(const std::string& filename) {
     std::optional<chronon3d::media::AudioStreamConfig> audio_config;
     if (!options_.audio_source_path.empty()) {
         if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),
@@ -502,6 +555,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         }
         mux_ = owned_mux_.get();
     }
+    return true;
+}
+
+bool NativeAvEncoder::finalize_open(const std::string& filename) {
+    const auto& resolved = *resolved_encoder_config_;
 
     frame_ = av_frame_alloc();
     packet_ = av_packet_alloc();

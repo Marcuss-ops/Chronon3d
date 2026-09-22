@@ -1,29 +1,25 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// doctor_report.cpp — the public façade of the `chronon doctor` report.
+//
+// TICKET-HOTSPOT-DECOMPOSITION A3: the engine now lives in its own translation
+// unit (doctor_report_internal.cpp) instead of being textually included here.
+// What remains is the pair of public status-name functions declared in
+// doctor_report.hpp, delegating to the engine's single switch authority so the
+// machine-readable ("pass") and human-readable ("PASS") vocabularies cannot
+// drift apart.
+// ═══════════════════════════════════════════════════════════════════════════
+
 #include "doctor_report.hpp"
-
-#include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/render_graph/backend_registry.hpp>
-#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#ifdef CHRONON3D_HAS_C_API
-#include <chronon/abi.h>
-#endif
-
-#include <spdlog/spdlog.h>
-
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <thread>
-
-#if defined(__linux__)
-#include <unistd.h>
-#endif
+#include "doctor_report_internal.hpp"
 
 namespace chronon3d::cli {
 
-#include "doctor_report_helpers.inc"
-#include "doctor_report_checks.inc"
-#include "doctor_report_api.inc"
+const char* doctor_status_name(DoctorStatus status) noexcept {
+    return doctor_detail::doctor_status_name_impl(status);
+}
+
+const char* doctor_status_label(DoctorStatus status) noexcept {
+    return doctor_detail::doctor_status_label_impl(status);
+}
 
 } // namespace chronon3d::cli

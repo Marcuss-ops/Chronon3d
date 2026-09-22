@@ -4,25 +4,9 @@ constexpr const char* kRenderPlanSchema = "chronon.render-plan.v2";
 constexpr const char* kFontRegular = "assets/fonts/Inter-Regular.ttf";
 constexpr const char* kFontBold = "assets/fonts/Inter-Bold.ttf";
 
-const char* doctor_status_name_impl(DoctorStatus status) noexcept {
-    switch (status) {
-        case DoctorStatus::Pass: return "pass";
-        case DoctorStatus::Warn: return "warn";
-        case DoctorStatus::Fail: return "fail";
-        case DoctorStatus::Skip: return "skip";
-    }
-    return "skip";
-}
-
-const char* doctor_status_label_impl(DoctorStatus status) noexcept {
-    switch (status) {
-        case DoctorStatus::Pass: return "PASS";
-        case DoctorStatus::Warn: return "WARN";
-        case DoctorStatus::Fail: return "FAIL";
-        case DoctorStatus::Skip: return "SKIP";
-    }
-    return "SKIP";
-}
+// The status-name switches live in doctor_report_internal.cpp under
+// doctor_detail (declared in doctor_report_internal.hpp): they are the one
+// cross-TU dependency of the engine, so they are not re-declared here.
 
 void add_check(DoctorReport& report, std::string id, DoctorStatus status,
                std::string message) {

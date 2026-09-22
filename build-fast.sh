@@ -39,9 +39,11 @@ Commands:
   release             RelWithDebInfo build (optimised + debug symbols, 2-5× faster runtime)
 
 Environment:
-  JOBS                       Parallel jobs (default: 14; override for CI/low-RAM hosts)
+  JOBS                       Parallel jobs (default: 14; range 1..\${CHRONON3D_MAX_JOBS:-20})
+  CHRONON3D_MAX_JOBS         Hard ceiling for JOBS (default: 20; -j20 is an explicit opt-in)
   CCACHE_DIR                 ccache store (default: \${ROOT_DIR}/.ccache, max 20G)
   BUILD_DIR_OVERRIDE         Override the resolved build dir (default: .tmp/chronon-builds/linux-fast-dev)
+  CHRONON3D_SKIP_MEMORY_GUARD=1  Silence the available-RAM warning for high JOBS
 
 Notes:
   - Build dir defaults to project-local .tmp/ on disk.
@@ -54,6 +56,7 @@ Examples:
   ./build-fast.sh test "Extension*"        # run matching core tests
   ./build-fast.sh turbo-inc video          # incremental video group rebuild
   JOBS=8 ./build-fast.sh cli               # limit parallel jobs
+  JOBS=20 ./build-fast.sh cli              # max parallelism (needs the RAM budget)
 EOF
     exit 0
 }
@@ -140,10 +143,27 @@ TURBO_BUILD_DIR="$ROOT_DIR/build/chronon/linux-turbo"
 TURBO_PRESET="linux-turbo"
 RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev-release}"
 RELEASE_PRESET="linux-fast-dev-release"
+# Parallelism ceiling. Memory — not cores — is the scarce resource on shared
+# build hosts: docs/CCACHE-AUDIT-2026-09-10.md measured -j18 on a 24-core /
+# 29 GiB host driving load 55-69 and 1.7 GiB of swap, i.e. thrashing. The
+# default therefore stays at the safe 14; -j20 is an explicit opt-in for hosts
+# with the RAM budget. CHRONON3D_MAX_JOBS is the single ceiling authority.
+CHRONON3D_MAX_JOBS="${CHRONON3D_MAX_JOBS:-20}"
 JOBS="${JOBS:-14}"
-if [[ ! "$JOBS" =~ ^[0-9]+$ ]] || (( JOBS < 1 || JOBS > 14 )); then
-    echo "Error: JOBS must be an integer in the range 1..14 (got '$JOBS')" >&2
+if [[ ! "$JOBS" =~ ^[0-9]+$ ]] || (( JOBS < 1 || JOBS > CHRONON3D_MAX_JOBS )); then
+    echo "Error: JOBS must be an integer in the range 1..${CHRONON3D_MAX_JOBS} (got '$JOBS')" >&2
     exit 2
+fi
+
+# Warn (never fail) when the requested parallelism exceeds the RAM budget:
+# each parallel unity C++20 translation unit can touch ~1.6 GiB and the link
+# pool is serialized by CMakeLists.txt, so RAM is what actually saturates.
+if [[ "${CHRONON3D_SKIP_MEMORY_GUARD:-0}" != "1" ]]; then
+    avail_mb="$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || printf 0)"
+    if (( avail_mb > 0 )) && (( JOBS * 1638 > avail_mb )); then
+        echo "⚠️  JOBS=$JOBS needs ~$(( JOBS * 1638 / 1024 )) GiB but only $(( avail_mb / 1024 )) GiB is available; expect swap pressure." >&2
+        echo "    Lower JOBS or set CHRONON3D_SKIP_MEMORY_GUARD=1 to silence this warning." >&2
+    fi
 fi
 
 ensure_configured() {
