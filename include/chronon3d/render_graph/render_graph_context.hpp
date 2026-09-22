@@ -105,7 +105,6 @@ namespace chronon3d::runtime {
     class GpuAssetCache;
     class GpuGlyphAtlas;
     class GpuStyledGlyphCache;
-    class GpuTextAtlasCache;
     class GpuTextRunPreparedCache;
 }
 
@@ -510,7 +509,6 @@ struct RenderGraphContext {
     // up through the runtime composition root.
     runtime::GpuAssetCache* gpu_asset_cache{nullptr};
     runtime::GpuGlyphAtlas* gpu_glyph_atlas{nullptr};
-    runtime::GpuTextAtlasCache* gpu_text_atlas_cache{nullptr};
     runtime::GpuStyledGlyphCache* gpu_styled_glyph_cache{nullptr};
     runtime::GpuTextRunPreparedCache* gpu_text_prepared_cache{nullptr};
     ImageCache* image_cache{nullptr};

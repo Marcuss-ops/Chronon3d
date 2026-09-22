@@ -112,6 +112,8 @@ namespace chronon3d {
     X(glyph_atlas_hits) \
     X(glyph_atlas_misses) \
     X(glyph_atlas_stored) \
+    /* Retained as zero-valued telemetry compatibility fields; the packed
+       text producer and cache have been removed. */ \
     X(gpu_text_atlas_repack_count) \
     X(gpu_text_atlas_upload_count) \
     X(gpu_text_atlas_repack_bytes) \
@@ -127,7 +129,6 @@ namespace chronon3d {
     X(gpu_text_mtsdf_fallback_count) \
     X(gpu_text_fallback_count) \
     X(gpu_text_route_native_mtsdf_count) \
-    X(gpu_text_route_native_packed_count) \
     X(gpu_text_route_software_count) \
     X(gpu_text_route_reject_count) \
     X(gpu_text_instance_upload_count) \

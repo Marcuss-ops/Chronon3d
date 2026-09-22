@@ -83,7 +83,6 @@ SoftwareRenderer* setup_render_graph_context(
     if (ctx.runtime) {
         ctx.gpu_asset_cache = &ctx.runtime->gpu_asset_cache();
         ctx.gpu_glyph_atlas = &ctx.runtime->gpu_glyph_atlas();
-        ctx.gpu_text_atlas_cache = &ctx.runtime->gpu_text_atlas_cache();
         ctx.gpu_styled_glyph_cache = &ctx.runtime->gpu_styled_glyph_cache();
         ctx.gpu_text_prepared_cache = &ctx.runtime->gpu_text_prepared_cache();
         ctx.image_cache = &ctx.runtime->image_cache();

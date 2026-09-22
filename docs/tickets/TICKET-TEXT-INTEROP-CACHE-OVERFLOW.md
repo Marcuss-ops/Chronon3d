@@ -2,20 +2,19 @@
 
 ## Scope
 
-The text execution path keeps the packed-atlas fallback for compatibility,
-while the prepared MTSDF path is the preferred lowering. DirectYUV now consumes
+The text execution path uses the prepared MTSDF lowering as its only native
+route. DirectYUV now consumes
 the same canonical prepared layout and MTSDF generator, then decodes the
 bit-preserving RGBA8 atlas directly in CUDA. Vulkan↔CUDA timeline
 values are owned by one shared `InteropGeneration` per exported physical
-surface.  Prepared text and packed-atlas residency use the canonical bounded
-`cache::LruCache` primitive.
+surface. Prepared text residency uses the canonical bounded `cache::LruCache`
+primitive.
 
-## Demolition Debt — packed atlas fallback
+## Demolition Debt — packed atlas fallback (closed 2026-09-22)
 
 - **Owner:** Text/backend maintainers.
-- **Reason:** the Vulkan compatibility caller still needs the CPU packed atlas
-  while the prepared MTSDF route is being certified across all supported
-  effects and backends.
+- **Reason:** historical Vulkan compatibility caller retained a CPU packed
+  atlas while the prepared MTSDF route was being certified.
 - **Exit condition:** the prepared text program lowers equivalently to Vulkan
   RGBA and DirectYUV for the supported text corpus, with zero production
   callers of `GpuTextAtlasCache`, `PackedGlyphBitmap`, and the packed-atlas
@@ -24,7 +23,9 @@ surface.  Prepared text and packed-atlas residency use the canonical bounded
   fill, stroke, shadow, reveal/typewriter animation, and multi-font spans.
 - **Removal scope:** `GpuTextAtlasCache`, `PackedGlyphBitmap`, packed-atlas
   construction in `gpu_text_run.cpp`, and the compatibility counters/tests.
-- **Status:** `ACTIVE`.
+- **Status:** `CLOSED`. The packed builder, `GpuTextAtlasCache`,
+  `PackedGlyphBitmap`, route counter and compatibility tests were removed after
+  the MTSDF hardware canary and prepared-text corpus were green.
 
 ## Current implementation status
 
@@ -41,9 +42,8 @@ surface.  Prepared text and packed-atlas residency use the canonical bounded
   multi-font layouts before prepare/execute, matching the certified Vulkan
   MTSDF contract; the text rasterizer no longer accepts ignored style/layout
   arguments.
-- A failed drawable glyph is fail-closed in both MTSDF lowerings; the Vulkan
-  compatibility fallback increments `gpu_text_mtsdf_fallback_count` so a
-  successful packed fallback cannot hide a canonical-lowering failure.
+- A failed drawable glyph is fail-closed in both MTSDF lowerings; no packed
+  fallback can hide a canonical-lowering failure.
 - DirectYUV frame/template wrappers use bounded 16-entry reuse pools and the
   resource index is sorted for allocation-free binary lookup.
 - `TextRunLayout::layout_hash()` includes fallback font spans, preventing

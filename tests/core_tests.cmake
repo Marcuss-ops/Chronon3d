@@ -69,7 +69,6 @@ chronon3d_add_test_suite(
     SOURCES registry/test_backend_registry.cpp
         registry/test_backend_registry_vulkan.cpp
         # Split from test_backend_registry_vulkan.cpp (each part ≤ 400 LOC):
-        registry/test_backend_registry_vulkan_text_run.cpp
         registry/test_backend_registry_vulkan_dispatch.cpp
         registry/test_backend_registry_vulkan_surfaces.cpp
         registry/test_backend_registry_vulkan_transforms.cpp

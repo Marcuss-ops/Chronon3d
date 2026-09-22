@@ -6,7 +6,6 @@ const char* text_execution_route_name(
     const TextExecutionRoute route) noexcept {
     switch (route) {
         case TextExecutionRoute::NativeMtsdf: return "native_mtsdf";
-        case TextExecutionRoute::NativePacked: return "native_packed";
         case TextExecutionRoute::Software: return "software";
         case TextExecutionRoute::Reject: return "reject";
     }
@@ -51,7 +50,7 @@ TextRouteDecision resolve_text_execution_route(
         return {TextExecutionRoute::NativeMtsdf,
                 TextRouteReason::NativeResourcesAvailable};
     }
-    return {TextExecutionRoute::NativePacked,
+    return {TextExecutionRoute::Reject,
             TextRouteReason::NativeResourcesUnavailable};
 }
 
