@@ -4,7 +4,8 @@
 #   src/     = 0 handwritten .inc
 #   include/ = 0 handwritten .inc
 #   apps/    = 22 handwritten .inc
-# Current grandfathered debt after daemon migration: apps/ = 19.
+# Current grandfathered debt (2026-09-22, after hotspot wave A): apps/ = 16,
+#   src/ = 6 — every allow-list entry maps to an on-disk fragment.
 #
 # Existing CLI fragments are grandfathered only so this invariant can land
 # before their staged migration. Remove each exact allow-list entry in the same
@@ -27,12 +28,9 @@ allow_list = [
   '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_run\.inc$',
   '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_support\.inc$',
 
-  '^apps/chronon3d_cli/commands/dev/doctor_report_api\.inc$',
   '^apps/chronon3d_cli/commands/dev/doctor_report_checks\.inc$',
   '^apps/chronon3d_cli/commands/dev/doctor_report_helpers\.inc$',
 
-  '^apps/chronon3d_cli/commands/render/command_render_plan_api\.inc$',
-  '^apps/chronon3d_cli/commands/render/command_render_plan_internal\.inc$',
   '^apps/chronon3d_cli/commands/render/register_render_commands_body\.inc$',
   '^apps/chronon3d_cli/commands/render/register_render_commands_support\.inc$',
 
@@ -53,6 +51,5 @@ allow_list = [
   '^src/c_api/log_callback_bridge\.inc$',
   '^src/c_api/plan_compile_api\.inc$',
   '^src/c_api/render_api\.inc$',
-  '^src/render_graph/nodes/text_run/text_run_node_geometry\.inc$',
 ]
 skip_comments = false
