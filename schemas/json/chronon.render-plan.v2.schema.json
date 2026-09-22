@@ -85,6 +85,34 @@
         "selectors": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text_selector" } },
         "properties": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/animator_property_track" } }
       }
+    },
+    "camera": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["perspective", "orthographic"] },
+        "position": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+        "rotation_deg": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+        "fov_deg": { "type": "number", "minimum": 10, "maximum": 120 },
+        "near": { "type": "number", "exclusiveMinimum": 0 },
+        "far": { "type": "number", "exclusiveMinimum": 0 },
+        "zoom": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "camera_track": {
+      "type": "object", "additionalProperties": false,
+      "required": ["property", "keyframes"],
+      "properties": {
+        "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom"] },
+        "easing": { "$ref": "#/$defs/easing" },
+        "keyframes": { "$ref": "#/$defs/keyframe_list" }
+      }
+    },
+    "camera_animation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tracks"],
+      "properties": {
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/camera_track" } }
+      }
     }
   },
   "required": ["schema", "version", "canvas", "layers", "output"],
@@ -92,6 +120,8 @@
     "schema": { "const": "chronon.render-plan.v2" },
     "version": { "const": 2 },
     "job_id": { "type": "string", "minLength": 1 },
+    "camera": { "$ref": "#/$defs/camera" },
+    "camera_animation": { "$ref": "#/$defs/camera_animation" },
     "canvas": {
       "type": "object",
       "additionalProperties": false,
@@ -134,10 +164,13 @@
             "items": { "type": "number" }
           },
           "rotation": {
+            "description": "Euler angles in degrees in [x, y, z] order. Animation-track rotation values use the same degree unit.",
             "type": "array", "minItems": 1, "maxItems": 3,
             "items": { "type": "number" }
           },
           "enable_3d": { "type": "boolean" },
+          "depth_role": { "enum": ["far_background", "background", "midground", "subject", "atmosphere", "foreground", "overlay"] },
+          "depth_offset": { "type": "number" },
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },
@@ -213,6 +246,7 @@
                   "required": ["property", "keyframes"],
                   "properties": {
                     "property": {
+                      "description": "Layer rotation components and vectors are specified in degrees.",
                       "enum": [
                         "position", "position_x", "position_y", "position_z",
                         "scale", "scale_x", "scale_y", "scale_z",
