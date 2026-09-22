@@ -23,7 +23,7 @@
       "id": "shadowed_phrase",
       "type": "text",
       "text": "THIS CHANGES EVERYTHING",
-      "position": [0, -170],
+      "position": [640, 190],
       "style": {
         "font": "assets/fonts/Poppins-Bold.ttf",
         "font_size": 64,
