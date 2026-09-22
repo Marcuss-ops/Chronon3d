@@ -1,0 +1,397 @@
+{
+  "schema": "chronon.3d-trap-corpus.v2",
+  "motion_sample_frames": [
+    4,
+    8,
+    10,
+    96,
+    112
+  ],
+  "render_regression": {
+    "workers": [
+      1,
+      8
+    ],
+    "require_byte_identical": true,
+    "gate": "chronon-3d-delivery-v2"
+  },
+  "cases": [
+    {
+      "id": "A1_dolly_position_z",
+      "class": "primitive_per_layer",
+      "isolates": "projection_z",
+      "clip": "Trap3DDollyPure",
+      "assertion": "ink_bbox(frame=8).height > ink_bbox(frame=0).height and monotone_growth",
+      "catches": [
+        "flat_render",
+        "inverted_z_sign"
+      ],
+      "metric": {
+        "name": "ink_bbox_height_ratio",
+        "frames": [
+          0,
+          8
+        ],
+        "relation": "frame_8_gt_frame_0",
+        "additional": "monotone_growth"
+      },
+      "sample_frames": [
+        0,
+        8
+      ]
+    },
+    {
+      "id": "A2_orbit_rotation_y",
+      "class": "primitive_per_layer",
+      "isolates": "rotation_y",
+      "clip": "Trap3DOrbitY",
+      "assertion": "left_right_ink_widths_are_asymmetric_at_frame=8",
+      "catches": [
+        "degrees_as_radians",
+        "orthographic_fallback"
+      ],
+      "metric": {
+        "name": "left_right_ink_width",
+        "frames": [
+          8
+        ],
+        "relation": "asymmetric",
+        "catches": [
+          "degrees_vs_radians",
+          "orthographic_projection"
+        ]
+      },
+      "sample_frames": [
+        8
+      ]
+    },
+    {
+      "id": "A3_tilt_rotation_x",
+      "class": "primitive_per_layer",
+      "isolates": "rotation_x",
+      "clip": "Trap3DTiltX",
+      "assertion": "top_width != bottom_width_at_frame=8",
+      "catches": [
+        "wrong_rotation_axis"
+      ],
+      "metric": {
+        "name": "vertical_foreshortening",
+        "frames": [
+          8
+        ],
+        "relation": "top_width_not_equal_to_bottom_width"
+      },
+      "sample_frames": [
+        8
+      ]
+    },
+    {
+      "id": "A4_roll_rotation_z",
+      "class": "primitive_per_layer",
+      "isolates": "rotation_z",
+      "clip": "Trap3DRollZ",
+      "assertion": "centroid_trajectory_is_not_collinear",
+      "catches": [
+        "rotation_as_translation"
+      ],
+      "metric": {
+        "name": "ink_centroid_path",
+        "frames": [
+          0,
+          4,
+          8
+        ],
+        "relation": "curved_not_collinear"
+      },
+      "sample_frames": [
+        0,
+        4,
+        8
+      ]
+    },
+    {
+      "id": "A5_z_sign_depth",
+      "class": "primitive_per_layer",
+      "isolates": "depth_convention",
+      "clip": "Trap3DZSign",
+      "assertion": "negative_z_bbox_area > positive_z_bbox_area",
+      "catches": [
+        "silent_z_convention_change"
+      ],
+      "metric": {
+        "name": "ink_bbox_area",
+        "depths": [
+          -200,
+          200
+        ],
+        "relation": "area_at_negative_z_gt_area_at_positive_z"
+      }
+    },
+    {
+      "id": "B1_depth_role_resolution",
+      "class": "depth_composition",
+      "isolates": "DepthRoleResolver",
+      "clip": "Trap3DDepthRolePair",
+      "assertion": "foreground_background_scale_ratio_matches_contract_and_z_order",
+      "catches": [
+        "invented_depth_constants"
+      ],
+      "metric": {
+        "name": "resolved_size_ratio",
+        "expected_ratio": 4.444444444444445,
+        "source": "DepthRoleResolver",
+        "also": "foreground_before_background"
+      }
+    },
+    {
+      "id": "B2_depth_crossing_sort",
+      "class": "depth_composition",
+      "isolates": "z_sorting",
+      "clip": "Trap3DDepthCrossing",
+      "assertion": "render_order_swaps_at_crossing_frame",
+      "catches": [
+        "missing_sort",
+        "wrong_sort_direction"
+      ],
+      "metric": {
+        "name": "depth_order",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "order_swaps_at_z_crossing",
+        "crossing_frame": 8
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "B3_overlap_alpha",
+      "class": "depth_composition",
+      "isolates": "source_over_blending",
+      "clip": "Trap3DOverlapAlpha",
+      "assertion": "overlap_alpha_is_continuous_and_has_no_vertical_seam",
+      "catches": [
+        "global_alpha_cutoff",
+        "stale_alpha"
+      ],
+      "metric": {
+        "name": "overlap_alpha_profile",
+        "relation": "continuous",
+        "also": "no_vertical_seam_in_overlap"
+      }
+    },
+    {
+      "id": "C1_camera_dolly",
+      "class": "camera",
+      "isolates": "camera_position_z",
+      "clip": "Trap3DCameraDolly",
+      "assertion": "all_layer_scale_rates_are_equal_for_stationary_subjects",
+      "catches": [
+        "camera_layer_routing_confusion"
+      ],
+      "metric": {
+        "name": "layer_scale_rates",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "all_stationary_layers_scale_together"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "C2_camera_pan_tilt_degrees",
+      "class": "camera",
+      "isolates": "camera_angle_units",
+      "clip": "Trap3DCameraPanTilt",
+      "assertion": "near_layer_displacement > far_layer_displacement",
+      "catches": [
+        "degrees_radians_mismatch"
+      ],
+      "metric": {
+        "name": "projected_displacement",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "near_layer_gt_far_layer"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "C3_parallax",
+      "class": "camera",
+      "isolates": "depth_parallax",
+      "clip": "Trap3DParallax",
+      "assertion": "scale_rate(foreground) > scale_rate(background)",
+      "catches": [
+        "fake_3d",
+        "flat_projection"
+      ],
+      "metric": {
+        "name": "scale_rate_by_depth",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "foreground_gt_background"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "D1_typewriter_orbit",
+      "class": "text_3d",
+      "isolates": "selector_projection_interaction",
+      "clip": "Trap3DTypewriterOrbit",
+      "assertion": "new_glyphs_share_current_projected_orientation",
+      "catches": [
+        "selector_after_projection"
+      ],
+      "metric": {
+        "name": "new_glyph_projection",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "glyphs_match_current_projected_orientation"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "D2_multi_font_depth",
+      "class": "text_3d",
+      "isolates": "atlas_and_depth",
+      "clip": "Trap3DMultiFontDepth",
+      "assertion": "three_font_coverage_and_bbox_are_valid_at_all_depths",
+      "catches": [
+        "atlas_placement_in_projection"
+      ],
+      "metric": {
+        "name": "glyph_coverage_by_font_and_depth",
+        "frames": [
+          4,
+          8,
+          10
+        ],
+        "relation": "all_three_fonts_visible_and_valid"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10
+      ]
+    },
+    {
+      "id": "D3_mtsdf_edge_stress",
+      "class": "text_3d",
+      "isolates": "mtsdf_raster_stability",
+      "clip": "Trap3DMtsdfEdgeStress",
+      "assertion": "glyph_shape_distance(frame=40,frame=96) <= 0.24",
+      "catches": [
+        "bubble_glyph",
+        "full_stroke_width"
+      ],
+      "metric": {
+        "name": "glyph_shape_distance",
+        "frames": [
+          40,
+          96
+        ],
+        "operator": "<=",
+        "threshold": 0.24
+      },
+      "sample_frames": [
+        40,
+        96
+      ]
+    },
+    {
+      "id": "D4_glow_projection",
+      "class": "text_3d",
+      "isolates": "glow_and_projection",
+      "clip": "Trap3DGlowProjection",
+      "assertion": "glow_is_ink_attached_and_roi_corners_are_transparent",
+      "catches": [
+        "glow_box",
+        "blur_edge_clamp"
+      ],
+      "metric": {
+        "name": "glow_ink_attachment",
+        "frames": [
+          4,
+          8,
+          10,
+          96,
+          112
+        ],
+        "also": "projected_with_ink_and_roi_corners_alpha_zero"
+      },
+      "sample_frames": [
+        4,
+        8,
+        10,
+        96,
+        112
+      ]
+    },
+    {
+      "id": "D5_tight_surface_parity",
+      "class": "text_3d",
+      "isolates": "tight_surface_lifecycle",
+      "clip": "Trap3DTightSurfaceParity",
+      "assertion": "tight_1500x260_output_is_pixel_equal_to_full_canvas_reference",
+      "catches": [
+        "full_canvas_workaround",
+        "source_rect_seam"
+      ],
+      "metric": {
+        "name": "tight_vs_full_canvas_pixels",
+        "operator": "==",
+        "threshold": 0,
+        "expected": "pixel_equal"
+      }
+    }
+  ],
+  "sampling": {
+    "rule": "sample peak-motion frames; never use settle frames to satisfy motion assertions",
+    "entry_peak_frames": [
+      4,
+      8,
+      10
+    ],
+    "exit_peak_frames": [
+      96,
+      112
+    ],
+    "forbidden_settle_frames": [
+      20,
+      48
+    ]
+  },
+  "case_count": 16
+}
