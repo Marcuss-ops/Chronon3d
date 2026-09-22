@@ -14,6 +14,11 @@
 
 namespace chronon3d::cli {
 
+/// Emit the canonical render receipt for a successful composition-bound job.
+/// The plan route owns its richer fingerprinted receipt writer; this helper
+/// closes the composition route without creating a second receipt schema.
+void write_render_job_receipt(const RenderJob& job);
+
 /// Writes a single render frame to disk and records telemetry.
 bool write_render_frame(const CompiledComposition& compiled,
                          SoftwareRenderer & renderer,
