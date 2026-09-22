@@ -375,6 +375,31 @@
         "threshold": 0,
         "expected": "pixel_equal"
       }
+    },
+    {
+      "id": "E1_text_surface_reuse",
+      "class": "text_3d",
+      "isolates": "warm_cold_text_surface_reuse_across_depth",
+      "clip": "Trap3DTextSurfaceReuse",
+      "assertion": "cold_and_warm_frame_pixels_match_at_frames_8_and_48_with_visible_ink",
+      "catches": [
+        "stale_text_surface_content",
+        "projection_state_leakage"
+      ],
+      "metric": {
+        "name": "warm_cold_rgba_mean_absolute_error",
+        "frames": [
+          8,
+          48
+        ],
+        "operator": "<=",
+        "threshold": 0.01,
+        "required_visible_pixels": 1000
+      },
+      "sample_frames": [
+        8,
+        48
+      ]
     }
   ],
   "sampling": {
@@ -393,5 +418,5 @@
       48
     ]
   },
-  "case_count": 16
+  "case_count": 17
 }
