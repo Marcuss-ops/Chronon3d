@@ -42,21 +42,20 @@ invariato.
 - [x] **A5 — Sidecar serializer.** `JobTimings`/le sezioni tipizzate e il
   serializer JSON unico sono coperti dal frozen-key/value/null contract test;
   il test A1 verifica anche l’emissione del sidecar dal route native.
-  `build_summary_and_job_sections()` da
+  `build_summary_and_job_sections()` è stato estratto da
   `pipe_timing_sidecar_summary.cpp` in dati tipizzati + serializer JSON;
-  mantenere lo schema e aggiungere un test di snapshot/contract.
+  lo schema resta coperto dal contract test.
 - [x] **A6 — Encoder open phases.** `NativeAvEncoder::open()` è un
   orchestratore di fasi esplicite (reset, resolve, codec/surface, options,
   codec probe, mux wiring, final validation) con error path conservato.
-  `native_av_encoder_open.cpp` in risoluzione codec/preset, scelta surface,
-  wiring mux e final validation; ogni fase deve restituire la stessa ragione
-  di errore pubblica.
+  Le fasi sono in `native_av_encoder_open.cpp`; ogni fase deve restituire la
+  stessa ragione di errore pubblica.
 - [x] **A7 — Bitstream target contract.** La policy di target è in
   `gop_target_contract.{hpp,cpp}` e i test coprono target encoder materialized,
   remux, incompatibilità e fail-closed splice.
-  `make_bitstream_target_contract()` la policy pura e lasciare nel dispatch
-  solo il wiring job/encoder. Coprire success, incompatibilità e fallback
-  vietati con test di contratto.
+  La policy di `make_bitstream_target_contract()` resta pura; il dispatch
+  conserva solo il wiring job/encoder. Success, incompatibilità e fallback
+  vietati sono coperti dal test di contratto.
 
 ### Wave B — packet/mux boundary
 
@@ -74,12 +73,8 @@ invariato.
   `validate → normalize → execute`, con helper in
   `packet_assembler_segments.{hpp,cpp}`. Il test nativo CPU aggiunto genera due
   segmenti H.264, verifica timestamp monotoni e checksum SHA-256 dell’output.
-  orchestratore sottile; spostare input validation/timestamp normalization in
-  helper puri e conservare i 29 casi di
-  `test_packet_assembler_contract` come gate di equivalenza. La prima
-  estrazione è in `packet_assembler_segments.{hpp,cpp}` per compatibilità
-  codec, durata e normalizzazione timestamp; il test contract native resta
-  subordinato al preset FFmpeg.
+  Il test contract `test_packet_assembler_contract` resta il gate di
+  equivalenza per codec, durata e normalizzazione timestamp.
 
 ### Wave C — render node policies
 
@@ -126,8 +121,10 @@ invariato.
 - [x] **D1 — Vulkan surface API (structural only).** Dividere
   `vulkan_backend_surface_api.cpp` tra Vulkan-native surface/upload/composite
   e CUDA interop, mantenendo un solo `VulkanBackend` authority e gli stessi
-  lock/capability gates. La validazione runtime Vulkan/CUDA non è inclusa
-  nell'evidence CPU.
+  lock/capability gates. Gli adapter pubblici sono in
+  `vulkan_backend_cuda_surface_api_private.cpp`, mentre lo stato `Impl` resta
+  in `vulkan_backend_cuda_export_private.cpp`. La validazione runtime
+  Vulkan/CUDA non è inclusa nell'evidence CPU.
 - [x] **D2 — Fused runner support.** Gli helper del fused runner vivono nel
   detail TU/header privato e `node_runner.cpp` vede una sola entrypoint
   `detail::execute_fused_batch`; non è stata introdotta una seconda authority.

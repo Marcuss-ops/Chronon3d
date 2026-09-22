@@ -81,6 +81,9 @@ scan_paths = ["apps/chronon3d_cli"]
 allow_list = [
   'apps/chronon3d_cli/daemon/daemon_service\.hpp',
   'apps/chronon3d_cli/commands/render/register_render_commands_body\.inc',
+  # The remote cleanup consolidated the registration body back into the
+  # canonical render registration TU; this is its dispatcher boundary.
+  'apps/chronon3d_cli/commands/render/register_render_commands\.cpp',
   'apps/chronon3d_cli/commands/render/command_render_plan_api\.inc',
   # A3: the .inc now compiles as its own TU — same canonical CLI boundary.
   'apps/chronon3d_cli/commands/render/command_render_plan\.cpp',

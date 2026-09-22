@@ -455,13 +455,10 @@ hint = "Canonical immutable executor definition missing."
 name = "canonical_render_command_registration"
 description = "Canonical render command registration"
 file = "apps/chronon3d_cli/commands/render/register_render_commands.cpp"
-# The registration body lives in the textually-included
-# register_render_commands_body.inc (staged .inc debt, TICKET-200); the
-# contract pins the TU to its canonical include pair.
-required_patterns = [
-  '#include\s*"register_render_commands_body\.inc"',
-  '#include\s*"register_render_commands_support\.inc"',
-]
+# The remote cleanup consolidated registration into this canonical TU. Keep
+# the contract on the exported registration symbol rather than retired .inc
+# implementation fragments.
+required_pattern = 'void\s+register_render_commands\s*\('
 hint = "Canonical render command registration missing."
 
 [[contract]]

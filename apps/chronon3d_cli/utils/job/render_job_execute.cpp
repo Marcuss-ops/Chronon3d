@@ -10,6 +10,10 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/tracing/trace_session.hpp>
+#ifdef CHRONON3D_ENABLE_VERIFICATION
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/verification/render_receipt.hpp>
+#endif
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -20,6 +24,41 @@
 #include <filesystem>
 
 namespace chronon3d::cli {
+
+#ifdef CHRONON3D_ENABLE_VERIFICATION
+void write_render_job_receipt(const RenderJob& job) {
+    if (!job.execution.report || job.output.empty() || job.program) return;
+
+    verification::RenderReceiptInput input;
+    input.job_id = job.comp_id;
+    input.git_sha = chronon3d::telemetry::TelemetryManager::get_git_commit();
+    input.backend = job.video_settings.hardware_encoder == "none"
+        ? "software" : "vulkan";
+    input.width = job.metadata.width;
+    input.height = job.metadata.height;
+    input.fps_num = job.video_settings.fps_num;
+    input.fps_den = job.video_settings.fps_den;
+    input.frames = job.mode == RenderMode::Video
+        ? static_cast<std::int64_t>(job.last_frame.integral() -
+                                    job.first_frame.integral() + 1)
+        : static_cast<std::int64_t>(job.frame_count().integral());
+    input.requested_codec = job.video_settings.codec.empty()
+        ? "auto" : job.video_settings.codec;
+    input.has_audio_tracks = false;
+    const auto receipt = verification::build_render_receipt(
+        input, job.output,
+        job.mode == RenderMode::Video);
+    const auto receipt_path = verification::write_render_receipt(
+        receipt, job.output);
+    spdlog::info(
+        "receipt: {} verification={} copy_eligible={}",
+        receipt_path.string(),
+        receipt.verification.resolved_policy,
+        receipt.copy_eligible ? "true" : "false");
+}
+#else
+void write_render_job_receipt(const RenderJob&) {}
+#endif
 
 namespace {
 
@@ -174,6 +213,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.output + "'");
         }
 
+        write_render_job_receipt(job);
         const int frames = static_cast<int>(
             job.last_frame.integral() - job.first_frame.integral() + 1);
         return RenderJobOutput{

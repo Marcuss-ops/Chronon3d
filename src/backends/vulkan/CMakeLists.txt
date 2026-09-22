@@ -88,6 +88,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_lifecycle.cpp
     vulkan_backend_stats.cpp
     vulkan_backend_surface_api.cpp
+    vulkan_backend_cuda_surface_api_private.cpp
     vulkan_backend_lifecycle_private.cpp
     vulkan_descriptor_arena_private.cpp
     vulkan_surface_store_private.cpp

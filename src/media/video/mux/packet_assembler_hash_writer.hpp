@@ -31,9 +31,9 @@ struct MuxAvioHashWriter {
     [[nodiscard]] bool open(const std::string& path,
                              bool request_checksum) noexcept;
 
-    // FFmpeg's callback buffer is read-only for current libavformat; the sink
-    // forwards it without mutation.
-    static int write_packet(void* opaque, const std::uint8_t* buffer,
+    // FFmpeg's avio_alloc_context callback uses a mutable buffer in the
+    // installed libavformat ABI; the sink never mutates it.
+    static int write_packet(void* opaque, std::uint8_t* buffer,
                             int buffer_size) noexcept;
     static std::int64_t seek(void* opaque, std::int64_t offset,
                              int whence) noexcept;
