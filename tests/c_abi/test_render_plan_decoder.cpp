@@ -67,6 +67,44 @@ TEST_CASE("render plan decoder rejects a layer with missing id or type") {
     CHECK_FALSE(decoded.error().message.empty());
 }
 
+TEST_CASE("render plan decoder fails closed when 3D tracks omit enable_3d") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
+                     {"duration_frames", 30}}},
+        {"layers", {{{"id", "title"}, {"type", "text"}, {"text", "Hello"},
+                      {"position", {320.0, 180.0}},
+                      {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 24.0}, {"fill", "#FFFFFF"}}},
+                      {"animation", {{"tracks", {{{"property", "rotation_y"},
+                                                     {"keyframes", {{{"frame", 0}, {"value", -18.0}},
+                                                                     {{"frame", 10}, {"value", 0.0}}}}}}}}}}}},
+        {"output", {{"path", "out.mp4"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE_FALSE(decoded.has_value());
+    CHECK(decoded.error().path == "layers[0].enable_3d");
+    CHECK(decoded.error().code == "3d_requires_explicit_enable");
+}
+
+TEST_CASE("render plan layer rotation contract is expressed in degrees") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan.v2"},
+        {"version", 2},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
+                     {"duration_frames", 30}}},
+        {"layers", {{{"id", "title"}, {"type", "text"}, {"text", "Hello"},
+                      {"position", {320.0, 180.0}}, {"rotation", {0.0, 22.0, 0.0}},
+                      {"enable_3d", true},
+                      {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 24.0},
+                                  {"fill", "#FFFFFF"}}}}}},
+        {"output", {{"path", "out.mp4"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->layers[0].rotation[1] == doctest::Approx(22.0f));
+}
+
 TEST_CASE("render plan decoder returns validation path on malformed plan") {
     const nlohmann::json source = {{"schema", "chronon.render-plan.v2"}};
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
@@ -368,4 +406,71 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
     REQUIRE(layer.animation->tracks.size() == 1);
     CHECK(layer.animation->tracks[0].property == "opacity");
     CHECK(layer.animation->tracks[0].keyframes.size() == 2);
+}
+
+TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 48}}},
+        {"camera", {{"type", "perspective"}, {"position", {0, 0, -1000}},
+                     {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50},
+                     {"near", 1}, {"far", 10000}, {"zoom", 1}}},
+        {"camera_animation", {{"tracks", {{{"property", "camera_position_z"},
+            {"easing", "out_cubic"}, {"keyframes", {{{"frame", 0}, {"value", -600}},
+                                                         {{"frame", 48}, {"value", -1000}}}}}}}}},
+        {"layers", {{{"id", "bg"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}}},
+        {"output", {{"path", "out.png"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    REQUIRE(decoded->camera);
+    CHECK(decoded->camera->position[2] == doctest::Approx(-1000.0f));
+    REQUIRE(decoded->camera_animation);
+    CHECK(decoded->camera_animation->at(0).property ==
+          chronon3d::render_plan::CameraPropertyPlan::PositionZ);
+}
+
+TEST_CASE("render plan decoder rejects invalid camera ranges and unknown tracks") {
+    const nlohmann::json base = {
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 1}}},
+        {"camera", {{"type", "perspective"}, {"fov_deg", 50}, {"near", 1},
+                     {"far", 10000}, {"zoom", 1}}},
+        {"layers", {{{"id", "bg"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}}},
+        {"output", {{"path", "out.png"}}}};
+    auto bad_fov = base;
+    bad_fov["camera"]["fov_deg"] = 121;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_fov));
+
+    auto bad_track = base;
+    bad_track["camera_animation"] = {{"tracks", {{{"property", "camera_focus"},
+        {"keyframes", {{{"frame", 0}, {"value", 1}}}}}}}};
+    const auto error = chronon3d::render_plan::decode_render_plan(bad_track);
+    REQUIRE_FALSE(error);
+    CHECK(error.error().message.find("camera_position_x") != std::string::npos);
+}
+
+TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it") {
+    const nlohmann::json base = {
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 1}}},
+        {"layers", {{{"id", "subject"}, {"type", "color"},
+                      {"color", {1, 1, 1, 1}}, {"enable_3d", true},
+                      {"position", {0, 0, 10}}, {"depth_role", "subject"}}}},
+        {"output", {{"path", "out.png"}}}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(base));
+
+    auto far = base;
+    far["layers"][0].erase("position");
+    far["layers"][0]["depth_role"] = "far_background";
+    auto near = far;
+    near["layers"][0]["depth_role"] = "foreground";
+    const auto far_plan = chronon3d::render_plan::decode_render_plan(far);
+    const auto near_plan = chronon3d::render_plan::decode_render_plan(near);
+    REQUIRE(far_plan);
+    REQUIRE(near_plan);
+    CHECK(far_plan->content_fingerprint != near_plan->content_fingerprint);
 }

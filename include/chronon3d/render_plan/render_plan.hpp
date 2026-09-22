@@ -96,6 +96,30 @@ struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
 
+// Camera values are expressed in world units and degrees. rotation_deg uses
+// the canonical [tilt_x, pan_y, roll_z] order consumed by Camera2_5D.
+struct CameraPlan {
+    std::string type{"perspective"};
+    std::array<float, 3> position{0.0f, 0.0f, -1000.0f};
+    std::array<float, 3> rotation_deg{0.0f, 0.0f, 0.0f};
+    float fov_deg{50.0f};
+    float near{1.0f};
+    float far{10000.0f};
+    float zoom{1.0f};
+};
+
+enum class CameraPropertyPlan : std::uint8_t {
+    PositionX, PositionY, PositionZ,
+    RotationX, RotationY, RotationZ,
+    FovDeg, Zoom
+};
+
+struct CameraTrackPlan {
+    CameraPropertyPlan property{CameraPropertyPlan::PositionZ};
+    std::vector<AnimationKeyframePlan> keyframes;
+    std::string easing{"linear"};
+};
+
 // Generic AE-style text animator contract. Editorial motion ids are lowered
 // into these primitives before Chronon sees the plan.
 struct TextSelectorPlan {
@@ -138,12 +162,15 @@ struct LayerPlan {
     std::size_t position_dimensions{0};
     std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
     std::size_t scale_dimensions{0};
+    // Euler angles in degrees, [x, y, z], for both static and tracked values.
     std::array<float, 3> rotation{0.0f, 0.0f, 0.0f};
     std::size_t rotation_dimensions{0};
     // Route this layer through Chronon's camera-backed 2.5D/3D projection.
     // The flag is explicit so a plan cannot accidentally carry X/Y rotation
     // while still being treated as a flat screen-space overlay.
     bool enable_3d{false};
+    std::optional<std::string> depth_role;
+    float depth_offset{0.0f};
     // Rounded image corner radius, evaluated by the image compositor's
     // analytic/SDF-style mask. Zero keeps the regular image fast path.
     std::optional<float> radius;
@@ -204,6 +231,8 @@ struct RenderPlan {
     std::string job_id{"chronon_plan"};
     std::uint64_t content_fingerprint{0};
     CanvasSpec canvas;
+    std::optional<CameraPlan> camera;
+    std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::vector<LayerPlan> layers;
     std::shared_ptr<const PreparedOverlayPackage> prepared_overlay_package{};
     OutputSpec output;

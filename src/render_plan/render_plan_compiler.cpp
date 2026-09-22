@@ -5,6 +5,7 @@
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
+#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
@@ -127,7 +128,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         const bool has_3d_layer = std::any_of(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
-        definition.scene = [plan, resolved_video_paths, prepared_texts, font_engine, has_3d_layer](
+        const auto plan_camera = detail::make_camera_descriptor(plan);
+        definition.scene = [plan, resolved_video_paths, prepared_texts, font_engine,
+                            has_3d_layer, plan_camera](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             scene.font_engine(font_engine.get());
@@ -137,7 +140,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             // approved GlowBasics camera at that canonical world origin; a
             // second canvas-centre translation here would move the text out
             // of frame.
-            if (has_3d_layer) {
+            if (has_3d_layer && !plan.camera) {
                 Camera2_5D camera;
                 camera.enabled = true;
                 camera.optics_mode = CameraOpticsMode::Zoom;
@@ -147,6 +150,31 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 camera.point_of_interest_enabled = true;
                 camera.is_animated = true;
                 scene.camera().set(camera);
+            }
+            // The canonical CLI executor builds this scene callback directly
+            // and does not pass through Composition::evaluate(), which is the
+            // path that normally applies a composition's default camera. Apply
+            // render-plan cameras here so camera tracks affect the rendered
+            // frame in both execution paths.
+            if (plan_camera) {
+                chronon3d::camera_v1::PoseTracksSource pose;
+                pose.position = chronon3d::AnimatedValue<chronon3d::Vec3>{
+                    plan_camera->base.position};
+                pose.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{
+                    plan_camera->base.rotation};
+                pose.fov_deg = chronon3d::AnimatedValue<float>{
+                    plan.camera->fov_deg};
+                pose.zoom = chronon3d::AnimatedValue<float>{
+                    1000.0f * plan.camera->zoom};
+                if (const auto* authored = std::get_if<
+                        chronon3d::camera_v1::PoseTracksSource>(
+                            &plan_camera->source)) {
+                    pose = *authored;
+                }
+                const auto camera_context = chronon3d::camera_v1::CameraEvalContext::at(
+                    ctx.frame(), ctx.frame_rate(), ctx.width, ctx.height);
+                scene.camera().set(chronon3d::camera_v1::eval_pose_tracks(
+                    plan_camera->base, pose, camera_context));
             }
 
             for (std::size_t index = 0; index < plan.layers.size(); ++index) {
@@ -220,6 +248,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         }
                         case LayerType::Text: {
                             builder.kind(LayerKind::Text);
+                            // Text paint is authored in screen space; it is
+                            // not a lit 3D material. Keeping this semantic
+                            // contract at the layer boundary prevents the
+                            // native GPU path from inserting CPU-only light/
+                            // depth-grade passes between projected text and
+                            // its compositor output.
+                            builder.accepts_lights(false).accepts_shadows(false);
                             if (!prepared_texts[index])
                                 throw std::runtime_error(
                                     "text layer was not prepared");
@@ -255,6 +290,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             }
             return scene.build();
         };
+        definition.camera = detail::make_camera_descriptor(plan);
         definition.scene_content_fingerprint = content_fingerprint;
 
         const auto composition_t0 = chronon3d::profiling::now();

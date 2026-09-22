@@ -3,7 +3,10 @@
 #include <nlohmann/json.hpp>
 
 #include <cmath>
+#include <algorithm>
+#include <array>
 #include <cstdint>
+#include <string_view>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -118,6 +121,18 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             layer.rotation[i] = rotation.at(i).get<float>();
     }
     layer.enable_3d = value.value("enable_3d", false);
+    if (value.contains("depth_role")) {
+        layer.depth_role = value.at("depth_role").get<std::string>();
+        static constexpr std::array<std::string_view, 7> kRoles{
+            "far_background", "background", "midground", "subject",
+            "atmosphere", "foreground", "overlay"};
+        if (std::find(kRoles.begin(), kRoles.end(), *layer.depth_role) == kRoles.end())
+            throw std::runtime_error(
+                "unsupported depth_role '" + *layer.depth_role +
+                "'; valid roles: far_background, background, midground, subject, atmosphere, foreground, overlay");
+    }
+    if (value.contains("depth_offset"))
+        layer.depth_offset = value.at("depth_offset").get<float>();
 
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");

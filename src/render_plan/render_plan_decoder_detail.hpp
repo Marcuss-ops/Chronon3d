@@ -15,6 +15,9 @@ namespace chronon3d::render_plan::detail {
 [[nodiscard]] std::optional<chronon3d::BlendMode> blend_mode(const std::string& value);
 [[nodiscard]] OutputFormat output_format(const std::string& value);
 [[nodiscard]] VideoCodec video_codec(const std::string& value);
+[[nodiscard]] CameraPropertyPlan camera_property(const std::string& value);
+[[nodiscard]] CameraPlan decode_camera(const nlohmann::json& value);
+[[nodiscard]] std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value);
 [[nodiscard]] LayerPlan decode_layer(const nlohmann::json& value);
 
 }  // namespace chronon3d::render_plan::detail

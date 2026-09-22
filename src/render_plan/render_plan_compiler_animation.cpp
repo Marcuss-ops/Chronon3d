@@ -286,6 +286,104 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
 
 }  // namespace
 
+chronon3d::EasingCurve camera_track_easing(std::string_view value) {
+    return track_easing(value);
+}
+
+std::optional<chronon3d::camera_v1::CameraDescriptor>
+make_camera_descriptor(const RenderPlan& plan) {
+    if (!plan.camera) return std::nullopt;
+
+    const auto& source_plan = *plan.camera;
+    chronon3d::camera_v1::CameraDescriptor descriptor;
+    descriptor.id = plan.job_id + "::render-plan-camera";
+    descriptor.base.enabled = true;
+    descriptor.base.position = {source_plan.position[0], source_plan.position[1], source_plan.position[2]};
+    descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
+    descriptor.base.projection = chronon3d::camera_v1::FovProjection{
+        chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    if (source_plan.type == "orthographic") {
+        // Camera2_5D has no second projection implementation: use its existing
+        // zoom optics surface rather than introducing a parallel camera model.
+        descriptor.base.projection = chronon3d::camera_v1::ZoomProjection{
+            chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom}};
+    }
+
+    if (!plan.camera_animation || plan.camera_animation->empty())
+        return descriptor;
+
+    chronon3d::camera_v1::PoseTracksSource tracks;
+    tracks.position = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.position};
+    tracks.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.rotation};
+    tracks.fov_deg = chronon3d::AnimatedValue<float>{source_plan.fov_deg};
+    tracks.zoom = chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom};
+    for (const auto& track : *plan.camera_animation) {
+        for (const auto& key : track.keyframes) {
+            if (key.value.size() != 1)
+                throw std::runtime_error("camera track keyframes require scalar values");
+            const auto value = key.value.front();
+            const auto easing = camera_track_easing(track.easing);
+            switch (track.property) {
+                case CameraPropertyPlan::PositionX: {
+                    auto current = descriptor.base.position;
+                    current.x = value;
+                    tracks.position.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::PositionY: {
+                    auto current = descriptor.base.position;
+                    current.y = value;
+                    tracks.position.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::PositionZ: {
+                    auto current = descriptor.base.position;
+                    current.z = value;
+                    tracks.position.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::RotationX: {
+                    auto current = descriptor.base.rotation;
+                    current.x = value;
+                    tracks.rotation.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::RotationY: {
+                    auto current = descriptor.base.rotation;
+                    current.y = value;
+                    tracks.rotation.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::RotationZ: {
+                    auto current = descriptor.base.rotation;
+                    current.z = value;
+                    tracks.rotation.add_keyframe(key.frame, current, easing);
+                    break;
+                }
+                case CameraPropertyPlan::FovDeg:
+                    tracks.fov_deg.add_keyframe(key.frame, value, easing);
+                    break;
+                case CameraPropertyPlan::Zoom:
+                    tracks.zoom.add_keyframe(key.frame, 1000.0f * value, easing);
+                    break;
+            }
+        }
+    }
+    descriptor.source = std::move(tracks);
+    return descriptor;
+}
+
+chronon3d::DepthRole depth_role_value(std::string_view value) {
+    if (value == "far_background") return chronon3d::DepthRole::FarBackground;
+    if (value == "background") return chronon3d::DepthRole::Background;
+    if (value == "midground") return chronon3d::DepthRole::Midground;
+    if (value == "subject") return chronon3d::DepthRole::Subject;
+    if (value == "atmosphere") return chronon3d::DepthRole::Atmosphere;
+    if (value == "foreground") return chronon3d::DepthRole::Foreground;
+    if (value == "overlay") return chronon3d::DepthRole::Overlay;
+    throw std::runtime_error("unsupported depth role: " + std::string(value));
+}
+
 chronon3d::FitMode fit_mode(FitMode value) {
     switch (value) {
         case FitMode::Contain: return chronon3d::FitMode::Contain;
@@ -306,6 +404,10 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             int canvas_width,
                             int canvas_height) {
     if (layer.enable_3d) builder.enable_3d();
+    if (layer.depth_role) {
+        builder.depth_role(depth_role_value(*layer.depth_role));
+        builder.depth_offset(layer.depth_offset);
+    }
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
     if (layer.position_dimensions >= 2) {

@@ -167,6 +167,27 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
     for (const auto& track : animator.properties) add_track(out, track);
 }
 
+void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
+    out.add_string(camera.type);
+    for (const auto value : camera.position) out.add_float(value);
+    for (const auto value : camera.rotation_deg) out.add_float(value);
+    out.add_float(camera.fov_deg);
+    out.add_float(camera.near);
+    out.add_float(camera.far);
+    out.add_float(camera.zoom);
+}
+
+void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
+    out.add_enum(track.property);
+    out.add_string(track.easing);
+    out.add_size(track.keyframes.size());
+    for (const auto& key : track.keyframes) {
+        out.add_frame(key.frame);
+        out.add_size(key.value.size());
+        for (const auto value : key.value) out.add_float(value);
+    }
+}
+
 void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
@@ -189,6 +210,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     for (const auto value : layer.rotation) out.add_float(value);
     out.add_size(layer.rotation_dimensions);
     out.add_bool(layer.enable_3d);
+    add_optional(out, layer.depth_role,
+                 [](auto& writer, const std::string& value) { writer.add_string(value); });
+    out.add_float(layer.depth_offset);
 
     add_optional(out, layer.radius,
                  [](auto& writer, float value) { writer.add_float(value); });
@@ -234,6 +258,13 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     out.add_i64(plan.canvas.fps.num());
     out.add_i64(plan.canvas.fps.den());
     out.add_frame(plan.canvas.duration);
+    add_optional(out, plan.camera,
+                 [](auto& writer, const CameraPlan& camera) { add_camera(writer, camera); });
+    add_optional(out, plan.camera_animation,
+                 [](auto& writer, const std::vector<CameraTrackPlan>& tracks) {
+                     writer.add_size(tracks.size());
+                     for (const auto& track : tracks) add_camera_track(writer, track);
+                 });
     out.add_uint64(plan.budget.max_temporal_pixels);
     out.add_size(plan.layers.size());
     for (const auto& layer : plan.layers) add_layer(out, layer);
