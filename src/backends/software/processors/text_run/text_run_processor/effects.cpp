@@ -20,7 +20,6 @@
 #include "text_run_stages.hpp"
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/text_material.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <stdexcept>
 
 namespace chronon3d::renderer::text_run_stages {

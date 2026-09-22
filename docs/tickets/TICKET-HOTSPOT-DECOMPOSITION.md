@@ -137,12 +137,14 @@ invariato.
 
 ### Wave E — text header compile-time
 
-- [ ] **E1 — Resource header split.** Ridurre
+- [x] **E1 — Resource header split.** Ridurre
   `text_render_resources.hpp` separando contratti leggeri, FreeType cache,
   Blend2D/Glyph atlas e scratch state in header focalizzati; mantenere
   `TextRenderResources` come facade di compatibilità durante la migrazione.
+  Il fan-out broad è stato ridotto e ratchettato a 22 consumer legittimi; la
+  ownership glyph-atlas/raster-cache resta una sola authority runtime.
 - [x] **E2 — Consumer census.** Il census è registrato in
-  `docs/evidence/CALLER-CENSUS-CPU.md` e il gate stampa i 33 consumer diretti
+  `docs/evidence/CALLER-CENSUS-CPU.md` e il gate stampa i 22 consumer diretti
   dell'aggregator, senza rimuovere include transitivi alla cieca.
 - [x] **E3 — Unicode header split.** UTF-8 e grapheme sono superfici
   focalizzate (`text_unicode_utf8.hpp` e `text_unicode_grapheme.hpp`), con
@@ -251,8 +253,7 @@ invariato.
   hygiene. `docs/evidence/CPU-ONLY-EVIDENCE.md` documenta il perimetro.
 - `docs/evidence/CALLER-CENSUS-CPU.md` fissa il census Camera/RenderPlan e
   conferma che non esiste una seconda authority dimostrata da rimuovere.
-- Restano aperti: completamento definitivo del glyph-atlas fan-out E1,
-  certificazione runtime GPU/MTSDF e same-SHA GitHub CI.
+- Restano aperti: certificazione runtime GPU/MTSDF e same-SHA GitHub CI.
 
 ## Progress snapshot — 2026-09-22 CPU wave 2
 
@@ -260,9 +261,9 @@ invariato.
   harness CUDA di `tools/hwlab/`.
 - Clear, Transform e Temporal hanno TU execution dedicati; C4/C5 conservano
   policy/execution TU separati. Il render-graph suite CPU passa.
-- E2/E3/E4 hanno census, facade Unicode focalizzata e gate fan-out eseguibile;
-  E1 resta aperta perché `TextRenderResources` mantiene ancora il broad
-  glyph-atlas/raster-cache aggregator per compatibilità.
+- E1/E2/E3/E4 hanno ora header focalizzati, census e gate fan-out eseguibile;
+  il broad aggregator resta una facade compatibile con 22 consumer ratchettati,
+  senza introdurre una seconda authority glyph-atlas/raster-cache.
 
 ## Definition of done
 

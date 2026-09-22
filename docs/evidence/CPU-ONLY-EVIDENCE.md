@@ -19,6 +19,12 @@ The script records and verifies:
 - the text-header census/fan-out gate (`text_resource_contracts.hpp`, focused
   Unicode headers, and the compatibility-facade consumer check).
 
+The registry target also compiles after the include census cleanup. Its full
+binary is not a CPU certification gate: on this host it reports 60 passed and
+one expected GPU-only failure (`Vulkan backend creates a persistent headless
+device`, requiring a discrete RTX A4000). That result is kept distinct from
+the CPU evidence below.
+
 GPU/CUDA/MTSDF hardware certification and GitHub same-SHA CI remain explicitly
 `NOT RUN` here. Passing this report is therefore CPU evidence, not a green
 release certification. The script also reports whether the working tree is
