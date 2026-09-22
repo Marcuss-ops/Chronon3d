@@ -10,6 +10,7 @@
 
 #include "gpu_text_run_detail.hpp"
 
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/text/animation/text_animator_properties.hpp>
 #include <chronon3d/text/glyph_selector.hpp>

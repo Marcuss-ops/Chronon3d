@@ -1,11 +1,23 @@
 #include <doctest/doctest.h>
 #include <chronon3d/core/gpu_hot_path_mode.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/media/video/output_contract.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/render_job.hpp>
+#include <chronon3d/verification/render_receipt.hpp>
 #include <array>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
+
+#include <nlohmann/json.hpp>
+
+#include "commands/video/exporters/pipe_timing_sidecar.hpp"
+#include "commands/video/common/pipe_export_pipeline.hpp"
+#include "utils/job/render_job.hpp"
+#include "utils/video/video_export_support.hpp"
 
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/gop_execution_executor.hpp>
@@ -1168,6 +1180,283 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     CHECK_FALSE(
         chronon3d::cli::encoder_reproduces_declared_stream(foreign, contract));
     avformat_close_input(&format);
+    std::filesystem::remove(output, cleanup_error);
+}
+
+TEST_CASE("A1 CPU native export publishes MP4 sidecar receipt and fails closed") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+
+    const auto output = std::filesystem::temp_directory_path() /
+        "chronon3d_a1_cpu_native_export.mp4";
+    const auto sidecar = std::filesystem::path(output.string() + ".timing.json");
+    const auto receipt = std::filesystem::path(output.string() + ".receipt.json");
+    std::error_code cleanup_error;
+    std::filesystem::remove(output, cleanup_error);
+    std::filesystem::remove(sidecar, cleanup_error);
+    std::filesystem::remove(receipt, cleanup_error);
+
+    {
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(p0_5a_pipe_options(output.string())));
+        for (int index = 0; index < 10; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+
+    REQUIRE(std::filesystem::exists(output));
+    auto contract = chronon3d::media::video::resolve_output_contract(
+        "youtube_overlay_v1");
+    REQUIRE(contract.has_value());
+    contract->width = 64;
+    contract->height = 64;
+    contract->fps = chronon3d::FrameRate{10, 1};
+    contract->frame_count = 10;
+    contract->audio_required = false;
+    contract->audio_streams = 0;
+
+    const auto verification = chronon3d::media::video::verify_output_contract(
+        output, *contract);
+    REQUIRE(verification.passed);
+    REQUIRE(verification.copy_eligible);
+    REQUIRE(verification.sha256.size() == 64);
+
+    chronon3d::telemetry::FrameTelemetry frame;
+    frame.frame_number = 0;
+    frame.duration_ms = 1.0;
+    chronon3d::cli::pipe_timing::JobTimings timings;
+    timings.execution_path = "native_cpu";
+    timings.target_fps = 10.0;
+    timings.target_fps_num = 10;
+    timings.target_fps_den = 1;
+    chronon3d::cli::write_frame_timing_sidecar(
+        output.string(), {frame}, {}, 10.0, 10.0, 0.0, timings, true);
+    REQUIRE(std::filesystem::exists(sidecar));
+    {
+        std::ifstream input(sidecar);
+        const auto document = nlohmann::json::parse(input);
+        CHECK(document.at("schema") ==
+              chronon3d::cli::pipe_timing::kTimingSidecarSchema);
+        CHECK(document.at("frames_total") == 1);
+        CHECK(document.at("job").at("execution_path") == "native_cpu");
+    }
+
+    chronon3d::verification::RenderReceiptInput receipt_input;
+    receipt_input.job_id = "a1-cpu-native-export";
+    receipt_input.chronon_version = "a1-test";
+    receipt_input.git_sha = "same-sha-test";
+    receipt_input.backend = "software";
+    receipt_input.width = 64;
+    receipt_input.height = 64;
+    receipt_input.fps_num = 10;
+    receipt_input.fps_den = 1;
+    receipt_input.frames = 10;
+    receipt_input.requested_codec = "h264";
+    receipt_input.has_audio_tracks = false;
+    receipt_input.receipt_verify_policy = "fast";
+    const auto built_receipt = chronon3d::verification::build_render_receipt(
+        receipt_input, output, true);
+    CHECK(built_receipt.verification.ffprobe == "pass");
+    CHECK(built_receipt.verification.frame_count == "pass");
+    CHECK(built_receipt.verification.codec == "pass");
+    CHECK(built_receipt.verification.pixel_format == "pass");
+    CHECK(built_receipt.verification.resolution == "pass");
+    CHECK(built_receipt.verification.fps == "pass");
+    REQUIRE(built_receipt.copy_eligible);
+    CHECK(built_receipt.sha256 == verification.sha256);
+    REQUIRE(chronon3d::verification::write_render_receipt(
+                 built_receipt, output) == receipt);
+    REQUIRE(std::filesystem::exists(receipt));
+
+    // The failure path is part of this same artifact run: a missing output can
+    // never become distributable or acquire a receipt by accident.
+    const auto missing = chronon3d::media::video::verify_output_contract(
+        output.string() + ".missing", *contract);
+    CHECK_FALSE(missing.passed);
+    CHECK_FALSE(missing.copy_eligible);
+
+    std::filesystem::remove(output, cleanup_error);
+    std::filesystem::remove(sidecar, cleanup_error);
+    std::filesystem::remove(receipt, cleanup_error);
+}
+
+TEST_CASE("A1 direct native export route renders a software composition") {
+    chronon3d::CompositionRegistry registry;
+    registry.add(chronon3d::TypedCompositionDescriptor<int>{
+        .id = "a1-native-route",
+        .category = "test",
+        .defaults = 0,
+        .resolve_metadata = [](int) {
+            return chronon3d::CompositionMetadata{
+                64, 64, chronon3d::FrameRate{10, 1}, chronon3d::Frame{10}};
+        },
+        .factory = [](int) {
+            return chronon3d::composition({.name = "a1-native-route",
+                                            .width = 64,
+                                            .height = 64,
+                                            .duration = chronon3d::Frame{10}},
+                                           [](const chronon3d::FrameContext&) {
+                                               return chronon3d::Scene{};
+                                           });
+        }
+    }.to_descriptor());
+
+    const auto output = std::filesystem::temp_directory_path() /
+        "chronon3d_a1_native_route.mp4";
+    const auto sidecar = std::filesystem::path(output.string() + ".timing.json");
+    const auto receipt = std::filesystem::path(output.string() + ".receipt.json");
+    std::error_code cleanup_error;
+    std::filesystem::remove(output, cleanup_error);
+    std::filesystem::remove(sidecar, cleanup_error);
+    std::filesystem::remove(receipt, cleanup_error);
+
+    chronon3d::RenderRequest request;
+    request.comp_id = "a1-native-route";
+    request.mode = chronon3d::RenderMode::Video;
+    request.first_frame = chronon3d::Frame{0};
+    request.last_frame = chronon3d::Frame{9};
+    request.output = output.string();
+    request.video_settings.fps_num = 10;
+    request.video_settings.fps_den = 1;
+    request.video_settings.codec = "h264";
+    request.video_settings.hardware_encoder = "none";
+    request.video_settings.encoder_backend =
+        chronon3d::media::kEncoderTransportNative;
+    request.video_settings.sink_type = "ffmpeg";
+    request.frame_range_explicit = true;
+
+    const auto job = chronon3d::cli::resolve_render_request(
+        registry, std::move(request));
+    REQUIRE(job.has_value());
+    REQUIRE(job->compiled != nullptr);
+    auto options = chronon3d::cli::make_ffmpeg_export_options(*job);
+    options.backend_preference = chronon3d::graph::BackendPreference::Software;
+    options.output.output = output.string();
+    options.output.fps_num = 10;
+    options.output.fps_den = 1;
+    options.encoder.codec = "h264";
+    options.encoder.hardware_encoder = "none";
+    options.encoder.encoder_backend = chronon3d::media::kEncoderTransportNative;
+
+    const auto exported = chronon3d::cli::render_and_encode_native(
+        registry, *job->compiled, job->comp_id, job->settings,
+        chronon3d::Frame{0}, chronon3d::Frame{9}, options,
+        job->execution.cpu_budget,
+        std::make_shared<chronon3d::media::VideoRuntimeRegistry>());
+    REQUIRE(exported.success);
+    REQUIRE(exported.output_published);
+    REQUIRE(exported.copy_eligible);
+    REQUIRE(std::filesystem::exists(output));
+    REQUIRE(std::filesystem::exists(sidecar));
+    REQUIRE(exported.sha256.size() == 64);
+
+    auto route_contract = chronon3d::media::video::resolve_output_contract(
+        "youtube_overlay_v1");
+    REQUIRE(route_contract.has_value());
+    route_contract->width = 64;
+    route_contract->height = 64;
+    route_contract->fps = chronon3d::FrameRate{10, 1};
+    route_contract->audio_required = false;
+    route_contract->audio_streams = 0;
+    const auto route_verification =
+        chronon3d::media::video::verify_output_contract(output, *route_contract);
+    REQUIRE(route_verification.passed);
+    REQUIRE(route_verification.copy_eligible);
+
+    chronon3d::verification::RenderReceiptInput receipt_input;
+    receipt_input.job_id = "a1-native-route";
+    receipt_input.chronon_version = "a1-test";
+    receipt_input.git_sha = "same-tree-test";
+    receipt_input.backend = "software";
+    receipt_input.width = 64;
+    receipt_input.height = 64;
+    receipt_input.fps_num = 10;
+    receipt_input.fps_den = 1;
+    receipt_input.frames = route_verification.frame_count;
+    receipt_input.requested_codec = "h264";
+    receipt_input.receipt_verify_policy = "fast";
+    const auto built_receipt = chronon3d::verification::build_render_receipt(
+        receipt_input, output, true);
+    CHECK(built_receipt.verification.ffprobe == "pass");
+    CHECK(built_receipt.verification.frame_count == "pass");
+    CHECK(built_receipt.verification.codec == "pass");
+    CHECK(built_receipt.verification.pixel_format == "pass");
+    CHECK(built_receipt.verification.resolution == "pass");
+    CHECK(built_receipt.verification.fps == "pass");
+    REQUIRE(built_receipt.copy_eligible);
+    CHECK(built_receipt.sha256 == exported.sha256);
+    REQUIRE(chronon3d::verification::write_render_receipt(
+                 built_receipt, output) == receipt);
+    REQUIRE(std::filesystem::exists(receipt));
+
+    std::filesystem::remove(output, cleanup_error);
+    std::filesystem::remove(sidecar, cleanup_error);
+    std::filesystem::remove(receipt, cleanup_error);
+}
+
+TEST_CASE("B3 CPU native segment assembly normalizes timestamps and checksums output") {
+    const auto directory = std::filesystem::temp_directory_path();
+    const auto first = directory / "chronon3d_b3_segment_first.mp4";
+    const auto second = directory / "chronon3d_b3_segment_second.mp4";
+    const auto output = directory / "chronon3d_b3_segment_assembled.mp4";
+    std::error_code cleanup_error;
+    std::filesystem::remove(first, cleanup_error);
+    std::filesystem::remove(second, cleanup_error);
+    std::filesystem::remove(output, cleanup_error);
+
+    for (const auto& path : {first, second}) {
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(p0_5a_pipe_options(path.string())));
+        for (int index = 0; index < 10; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+
+    const auto result = chronon3d::media::assemble_segments(
+        {{first.string(), second.string()}, output.string()});
+    REQUIRE(result.success);
+    REQUIRE(std::filesystem::exists(output));
+    REQUIRE(result.output_checksum.size() == 64);
+
+    AVFormatContext* format = nullptr;
+    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    int video_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        if (format->streams[index]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video_index = static_cast<int>(index);
+            break;
+        }
+    }
+    REQUIRE(video_index >= 0);
+    CHECK(format->streams[video_index]->codecpar->codec_id == AV_CODEC_ID_H264);
+
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    std::uint64_t video_packets = 0;
+    std::int64_t previous_dts = AV_NOPTS_VALUE;
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == video_index) {
+            ++video_packets;
+            const bool monotonic_dts = previous_dts == AV_NOPTS_VALUE ||
+                packet->dts >= previous_dts;
+            CHECK(monotonic_dts);
+            previous_dts = packet->dts;
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    avformat_close_input(&format);
+    CHECK(video_packets > 0);
+
+    std::filesystem::remove(first, cleanup_error);
+    std::filesystem::remove(second, cleanup_error);
     std::filesystem::remove(output, cleanup_error);
 }
 

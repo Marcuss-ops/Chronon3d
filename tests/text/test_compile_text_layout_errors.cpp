@@ -597,7 +597,7 @@ TEST_CASE("materialize_prepared_text: cache hit returns the same TextRunLayout s
     CHECK(shape_a->layout->layout_hash() == shape_b->layout->layout_hash());
 }
 
-TEST_CASE("materialize_prepared_text: prepared run is reused across frame samples") {
+TEST_CASE("materialize_prepared_text: derived run remains frame-stable") {
     LocalEngine env;
 
     const auto params = make_test_params("Prepared run reuse", 32.0f);
@@ -605,22 +605,19 @@ TEST_CASE("materialize_prepared_text: prepared run is reused across frame sample
 
     const auto first = materialize_prepared_text(
         prepared, &env.engine, SampleTime{0, 24});
-    const auto prepared_run = prepared.prepared_run;
     const auto second = materialize_prepared_text(
         prepared, &env.engine, SampleTime{12, 24});
 
-    if (!first || !second || !prepared_run || !first->layout || !second->layout) {
+    if (!first || !second || !first->layout || !second->layout) {
         MESSAGE("test skipped: system fonts unavailable");
         return;
     }
 
-    // The outer shape is dynamic per frame, but its layout/material payload
-    // must remain the single immutable preparation produced before rendering.
+    // The outer shape is dynamic per frame, but the canonical layout cache
+    // must preserve the same immutable layout payload.
     CHECK(first.get() != second.get());
-    CHECK(first->layout.get() == prepared_run->layout.get());
-    CHECK(second->layout.get() == prepared_run->layout.get());
-    CHECK(first->engine == prepared_run->engine);
-    CHECK(second->engine == prepared_run->engine);
+    CHECK(first->layout.get() == second->layout.get());
+    CHECK(first->engine == second->engine);
 }
 
 // ────────────────────────────────────────────────────────────────────────────

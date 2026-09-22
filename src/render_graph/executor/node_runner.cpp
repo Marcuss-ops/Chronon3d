@@ -18,7 +18,6 @@
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <blend2d.h>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
