@@ -1,3 +1,4 @@
+
 void GraphCompilePipeline::build_compiled_resource_table(
     CompiledFrameGraph& compiled,
     const RenderGraphContext& ctx
@@ -35,6 +36,23 @@ void GraphCompilePipeline::build_compiled_resource_table(
                 runtime::ResourceUsage::ColorAttachment,
                 runtime::LifetimeClass::FrameTransient);
             resource.desc.kind = runtime::ResourceKind::Color;
+            // A projected text layer produces a tight, frame-dependent native
+            // surface, and its Transform/Effect/Composite chain preserves
+            // that native extent until the layer is merged into the canvas.
+            // Keep the whole text-layer pipeline out of transient aliasing;
+            // placement belongs here, in CompiledResourceTable, not in
+            // framebuffer acquire.
+            const auto& layer_id = compiled.nodes[node_id].layer_id;
+            const bool belongs_to_text_layer =
+                !layer_id.empty() && std::any_of(
+                    compiled.nodes.begin(), compiled.nodes.end(),
+                    [&](const auto& candidate) {
+                        return candidate.kind == RenderGraphNodeKind::TextRun &&
+                               candidate.layer_id == layer_id;
+                    });
+            if (belongs_to_text_layer) {
+                resource.desc.residency.domain = runtime::MemoryDomain::External;
+            }
         }
     }
 
@@ -150,6 +168,7 @@ void GraphCompilePipeline::build_compiled_resource_table(
                 static_cast<PhysicalAllocationId>(allocation->physical_slot);
         }
     }
+
 
     for (const auto count : level_live_counts) {
         table.peak_live_resource_count = std::max(

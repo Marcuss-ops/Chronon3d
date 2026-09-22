@@ -2,6 +2,8 @@
 
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 
+#include <functional>
+
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
 #endif
@@ -62,6 +64,7 @@ private:
     CUstream m_stream{nullptr};
     bool m_timeline{false};
     std::shared_ptr<InteropGeneration> m_generation{};
+    std::function<std::uint64_t()> m_wait_vulkan_fence{};
 };
 
 #endif

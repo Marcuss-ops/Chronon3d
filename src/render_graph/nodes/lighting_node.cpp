@@ -33,12 +33,6 @@ NodeExecResult LightingNode::execute(
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend->is_native_surface_valid(inputs[0]->surface_handle());
     if (native_input) {
-        // Projected text is a tight, frame-dependent surface.  The executor's
-        // alias planner may hand this node a physical slot sized for the
-        // previous frame's bbox; resizing that GPU-only external allocation
-        // is intentionally forbidden.  Lighting is a mutating pass, so use a
-        // dedicated native destination for the current input dimensions.
-        ctx.node_exec.planned_physical_slot = nullptr;
         auto result = ctx.acquire_owned_fb(
             inputs[0]->width(), inputs[0]->height(), false,
             input_bboxes.empty() ? std::nullopt : input_bboxes[0]);

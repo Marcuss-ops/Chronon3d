@@ -55,19 +55,6 @@ namespace {
         return false;
     }
 
-    // A region-only upload must still leave a semantically complete source
-    // surface because later native consumers are allowed to sample outside the
-    // current composite clip.  The CPU producer starts transparent, so mirror
-    // that state once on-device instead of transferring the full framebuffer.
-    const auto cleared = backend.fill_rect_surface(
-        framebuffer.surface_handle(),
-        0, 0, framebuffer.width(), framebuffer.height(),
-        Color{0.0f, 0.0f, 0.0f, 0.0f});
-    if (!cleared.ok()) {
-        release_native_surface(ctx, framebuffer);
-        return false;
-    }
-
     if (local_x1 <= local_x0 || local_y1 <= local_y0) {
         return true;  // no visible ink: transparent GPU surface is complete
     }
