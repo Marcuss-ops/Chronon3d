@@ -14,7 +14,6 @@
 #include <cmath>
 #include <optional>
 #include <stdexcept>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -106,20 +105,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         // semantics in LayerBuilder::build().
         std::vector<std::optional<chronon3d::PreparedText>> prepared_texts(
             plan.layers.size());
-        std::unordered_map<std::string, std::string> text_package_key_by_layer;
-        if (plan.prepared_overlay_package) {
-            text_package_key_by_layer.reserve(
-                plan.prepared_overlay_package->overlays.size());
-            for (const auto& overlay : plan.prepared_overlay_package->overlays) {
-                if (overlay.kind == "text") {
-                    text_package_key_by_layer.emplace(overlay.id, overlay.text_key);
-                }
-            }
-        }
-        std::unordered_map<
-            std::string,
-            std::shared_ptr<const chronon3d::PreparedTextRun>>
-            prepared_text_runs_by_key;
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::Text) continue;
@@ -133,45 +118,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             }
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
-#ifdef CHRONON3D_USE_BLEND2D
-            // Cross the prepare barrier only for genuinely static text. The
-            // render-plan scene callback attaches `layer.text_animators`
-            // after this loop, so pre-preparing an animated layer would cache
-            // a layout snapshot with animators=[] and every later shape would
-            // lose its selector before it reaches the renderer. Animated
-            // layers are still shaped through the same canonical path, but
-            // their PreparedTextRun is materialized after the animator stack
-            // has been attached by LayerBuilder::build().
-            if (layer.text_animators.empty()) {
-                std::string package_key;
-                if (const auto it = text_package_key_by_layer.find(layer.id);
-                    it != text_package_key_by_layer.end()) {
-                    package_key = it->second;
-                }
-                if (!package_key.empty()) {
-                    if (const auto cached = prepared_text_runs_by_key.find(package_key);
-                        cached != prepared_text_runs_by_key.end()) {
-                        prepared_texts[index]->prepared_run = cached->second;
-                    } else {
-                        auto prepared_run = chronon3d::prepare_text_run(
-                            *prepared_texts[index], font_engine.get());
-                        prepared_texts[index]->prepared_run = prepared_run;
-                        if (prepared_run) {
-                            prepared_text_runs_by_key.emplace(
-                                package_key, std::move(prepared_run));
-                        }
-                    }
-                } else {
-                    prepared_texts[index]->prepared_run =
-                        chronon3d::prepare_text_run(
-                            *prepared_texts[index], font_engine.get());
-                }
-                if (!prepared_texts[index]->prepared_run) {
-                    throw std::runtime_error(
-                        "text layer could not be prepared");
-                }
-            }
-#endif
         }
         materialize_layout_ms = chronon3d::profiling::duration_ms(
             materialize_t0, chronon3d::profiling::now());

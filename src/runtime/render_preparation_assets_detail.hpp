@@ -1,7 +1,6 @@
 #include "render_preparation_internal.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>

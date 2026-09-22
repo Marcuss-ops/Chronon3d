@@ -16,7 +16,7 @@
 
 #include "gpu_text_run.hpp"
 
-#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <chronon3d/backends/text/text_resource_contracts.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 

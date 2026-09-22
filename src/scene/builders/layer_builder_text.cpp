@@ -160,12 +160,9 @@ Layer LayerBuilder::build() {
             // authoring and compiled construction.
             PreparedText prepared =
                 text_internal::normalize_prepared_text(spec.params);
-            // A prewarmed PreparedTextRun is valid only for the payload it was
-            // prepared from. TextRunBuilder — the canonical text-run factory —
-            // invalidates the inherited run the moment it mutates the
-            // animator/selector stack, so this boundary stays read-only: a
-            // static payload keeps its prewarmed run, and an animated payload
-            // arrives here already invalidated.
+            // PreparedText is the immutable canonical payload. The derived
+            // PreparedTextRun is materialized below by the canonical factory;
+            // it is deliberately not written back into this payload.
             // The resolver owns TextPlacement, anchor, and box-size
             // semantics. Its layout_origin is Canvas-space; only the
             // Canvas → layer basis conversion belongs at this boundary.

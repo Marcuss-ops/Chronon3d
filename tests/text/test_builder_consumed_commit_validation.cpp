@@ -283,34 +283,31 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
 // the relaxed-atomic counter by exactly 1.
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("PreparedText prewarm is invalidated by every identity mutation") {
+TEST_CASE("PreparedText remains payload-only across identity mutations") {
     LayerBuilder layer("prepared_text_identity", SampleTime{});
     PreparedText params;
     params.document.utf8 = "identity";
     TextRunBuilder& builder = layer.text_run("run", std::move(params));
 
-    const auto assert_invalidated = [&builder](auto&& mutate) {
-        builder.build_spec().params.prepared_run =
-            std::make_shared<const PreparedTextRun>();
-        REQUIRE(builder.build_spec().params.prepared_run != nullptr);
+    const auto assert_payload_only = [&builder](auto&& mutate) {
         mutate(builder);
-        CHECK(builder.build_spec().params.prepared_run == nullptr);
+        CHECK(builder.build_spec().params.document.utf8 == "identity");
     };
 
-    assert_invalidated([](TextRunBuilder& b) { b.font_size(48.0f); });
-    assert_invalidated([](TextRunBuilder& b) { b.font("replacement.ttf"); });
-    assert_invalidated([](TextRunBuilder& b) { b.font_engine(nullptr); });
+    assert_payload_only([](TextRunBuilder& b) { b.font_size(48.0f); });
+    assert_payload_only([](TextRunBuilder& b) { b.font("replacement.ttf"); });
+    assert_payload_only([](TextRunBuilder& b) { b.font_engine(nullptr); });
 
     TextAnimatorSpec animator;
     animator.id = "identity_animator";
-    assert_invalidated([&animator](TextRunBuilder& b) {
+    assert_payload_only([&animator](TextRunBuilder& b) {
         b.animator(animator);
     });
 
     GlyphSelectorSpec selector;
     selector.id = "identity_selector";
     selector.unit = TextSelectorUnit::Glyph;
-    assert_invalidated([&selector](TextRunBuilder& b) {
+    assert_payload_only([&selector](TextRunBuilder& b) {
         b.selector(selector);
     });
 }

@@ -8,6 +8,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/backends/text/text_font_resources.hpp>
+#include <chronon3d/backends/text/text_resource_contracts.hpp>
 #include <chronon3d/backends/text/text_scratch_pool.hpp>
 
 #include <atomic>
@@ -19,20 +20,6 @@
 #include <string>
 
 namespace chronon3d {
-
-/// Cached rasterization result for a text run.
-struct TextRasterization {
-    BLImage image;
-};
-
-namespace assets { class AssetResolver; }
-namespace detail {
-    struct TextRasterCache;
-    class GlyphAtlasCache;
-}
-struct GlyphAtlasEntry;
-struct GlyphAtlasStats;
-struct PlacedGlyphRun;
 
 // TextRenderResources — aggregator owning font caches, scratch, and the
 // per-renderer raster/glyph-atlas caches.

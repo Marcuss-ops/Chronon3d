@@ -16,33 +16,44 @@ invariato.
 
 ### Wave A — export, mux e CLI orchestration
 
-- [ ] **A1 — Native export contract tests.** Aggiungere test diretti per
+- [x] **A1 — Native export contract tests.** I test CPU nativi coprono ora la
+  route diretta `render_and_encode_native()` con una composizione software,
+  MP4 pubblicato e sidecar; il test di contratto companion copre receipt/SHA e
+  il failure path fail-closed nello stesso run.
   `render_and_encode_native()` in
   `apps/chronon3d_cli/commands/video/exporters/video_export_native.cpp`:
   MP4 valido, sidecar emesso, errore/exit path fail-closed e checksum/receipt
   coerenti.
-- [ ] **A2 — Split native export.** Spezzare
+- [x] **A2 — Split native export.** `video_export_native.cpp` è ora un
+  orchestratore di 337 righe; setup, warmup, loop, close, finalize e supporto
+  telemetry sono in TU/fasi separate, con il target contract risolto fuori
+  dall’orchestratore.
   `render_and_encode_native()` (804 righe) in unità per target-contract
   resolution, encoder/session setup, render loop e finalize/publish. La
   risoluzione del target contract deve diventare una funzione pura testabile.
-- [ ] **A3 — Split `.inc` production.** Convertire i 26 include `*.inc` in
-  translation unit/header propri, uno alla volta, iniziando da
-  `apps/chronon3d_cli/commands/render/command_render_plan_internal.inc`.
-  Esclusi dal primo pass i quattro `benchmark_saturation_*` salvo necessità
-  del build graph.
+- [x] **A3 — Split `.inc` production.** I 22 frammenti handwritten sotto
+  `apps/` e `src/c_api/` sono stati assorbiti nei TU proprietari e rimossi.
+  Restano soltanto i tre harness CUDA sotto `tools/hwlab/`, fuori dal gate
+  production CPU e subordinati alla certificazione hardware.
 - [x] **A4 — Render-plan command TU.** Portare
   `command_render_plan_internal.inc` a `.cpp` con header privato, mantenendo
   gli stessi simboli CLI, registrazione e receipt JSON. Il nuovo TU è
   `command_render_plan_internal.{hpp,cpp}` e il target CLI attivo compila.
-- [ ] **A5 — Sidecar serializer.** Estrarre
+- [x] **A5 — Sidecar serializer.** `JobTimings`/le sezioni tipizzate e il
+  serializer JSON unico sono coperti dal frozen-key/value/null contract test;
+  il test A1 verifica anche l’emissione del sidecar dal route native.
   `build_summary_and_job_sections()` da
   `pipe_timing_sidecar_summary.cpp` in dati tipizzati + serializer JSON;
   mantenere lo schema e aggiungere un test di snapshot/contract.
-- [ ] **A6 — Encoder open phases.** Spezzare `NativeAvEncoder::open()` in
+- [x] **A6 — Encoder open phases.** `NativeAvEncoder::open()` è un
+  orchestratore di fasi esplicite (reset, resolve, codec/surface, options,
+  codec probe, mux wiring, final validation) con error path conservato.
   `native_av_encoder_open.cpp` in risoluzione codec/preset, scelta surface,
   wiring mux e final validation; ogni fase deve restituire la stessa ragione
   di errore pubblica.
-- [ ] **A7 — Bitstream target contract.** Estrarre da
+- [x] **A7 — Bitstream target contract.** La policy di target è in
+  `gop_target_contract.{hpp,cpp}` e i test coprono target encoder materialized,
+  remux, incompatibilità e fail-closed splice.
   `make_bitstream_target_contract()` la policy pura e lasciare nel dispatch
   solo il wiring job/encoder. Coprire success, incompatibilità e fallback
   vietati con test di contratto.
@@ -59,7 +70,10 @@ invariato.
   sessione. L'implementazione della sessione è ora in
   `packet_assembler_session.cpp`; l'autorità checksum resta nel seam
   `packet_assembler_hash_writer.{hpp,cpp}`.
-- [ ] **B3 — Assemble segments.** Mantenere `assemble_segments()` come
+- [x] **B3 — Assemble segments.** `assemble_segments()` resta l’orchestratore
+  `validate → normalize → execute`, con helper in
+  `packet_assembler_segments.{hpp,cpp}`. Il test nativo CPU aggiunto genera due
+  segmenti H.264, verifica timestamp monotoni e checksum SHA-256 dell’output.
   orchestratore sottile; spostare input validation/timestamp normalization in
   helper puri e conservare i 29 casi di
   `test_packet_assembler_contract` come gate di equivalenza. La prima
@@ -69,50 +83,54 @@ invariato.
 
 ### Wave C — render node policies
 
-- [ ] **C1 — Clear policy.** Estrarre da
+- [x] **C1 — Clear policy.** Estrarre da
   `src/render_graph/nodes/clear_node.cpp::ClearNode::execute()` la decisione
   pura tra native GPU, software e dirty-rect, inclusa la policy strict-mode.
   Il seam native/software è in `clear_policy.{hpp,cpp}` con test per tutte le
   combinazioni di capability; il seam ora espone anche `Reject` per strict
   mode. La policy pura dirty-rect/runtime è ora in `clear_policy.{hpp,cpp}`
-  con test di eleggibilità, clip vuoto, clip grande e costo pixel; il loop
-  di copia/clear e la telemetria restano nel follow-up C1b prima della
-  chiusura completa del nodo.
-- [ ] **C2 — Transform policy.** Spezzare
+  con test di eleggibilità, clip vuoto, clip grande e costo pixel. Il loop
+  CPU di copia/clear e la telemetria vivono ora nel TU dedicato
+  `clear_node_execution.cpp`; il nodo pubblico è solo dispatch.
+- [x] **C2 — Transform policy.** Spezzare
   `src/render_graph/nodes/transform_node.cpp::TransformNode::execute()` in
   normalize/clip, scelta backend e applicazione dell'operazione; aggiungere
   test per foreground scale, affine, clipping e fallback. La scelta backend e
   il contratto puro normalize/clip sono in `transform_policy.{hpp,cpp}` con
-  test native/software/reject e test geometrici; il kernel di rasterizzazione
-  e il canary end-to-end restano nel nodo.
-- [ ] **C3 — Temporal scene pipeline.** Ridurre
+  test native/software/reject e test geometrici. Il kernel di rasterizzazione
+  è nel TU `transform_node_execution.cpp`, mentre il nodo conserva l'authority
+  di stato e il wrapper pubblico.
+- [x] **C3 — Temporal scene pipeline.** Ridurre
   `render_scene_via_graph_temporal()` in `src/render_graph/pipeline/scene.cpp`
   a fasi esplicite: frame parameters, graph execution, output lease e
   publication. Conservare i test pipeline esistenti come gate. La policy di
   isolamento dei temporal sample è ora in
-  `scene_temporal_policy.{hpp,cpp}` con test; le fasi graph/output/lease
-  restano già delegate ma il corpo principale deve ancora essere ridotto.
-- [ ] **C4 — Fused batch policy.** Spezzare
+  `scene_temporal_policy.{hpp,cpp}` con test; le fasi graph/output/lease sono
+  ora nel TU `scene_temporal_execution.cpp` e `scene.cpp` conserva il wrapper.
+- [x] **C4 — Fused batch policy.** Spezzare
   `execute_fused_batch_impl()` in
   `src/render_graph/executor/node_runner_fused_batch.cpp` e separare la policy
   di admission/error reporting dal loop di esecuzione. Proteggere con i
   canary GPU text e i test fused/unfused. La classificazione iniziale è ora in
-  `fused_batch_policy.{hpp,cpp}` con test per skip/text/retired; resta da
-  estrarre la policy di capability/error reporting interna al percorso text.
-- [ ] **C5 — Cached GPU text.** Spezzare `draw_cached_text_run()` in
+  `fused_batch_policy.{hpp,cpp}` con test per skip/text/retired; il loop
+  execution e la telemetria sono nel detail TU separato.
+- [x] **C5 — Cached GPU text.** Spezzare `draw_cached_text_run()` in
   capability/selector decision, atlas lookup, geometry emission e submit;
   nessuna modifica alla compatibilità CPU fallback senza canary equivalente.
   La decisione iniziale è ora in `gpu_text_cached_policy.{hpp,cpp}` con test
-  per rejection, MTSDF e packed fallback; atlas/geometry/submit restano da
-  estrarre.
+  per rejection, MTSDF e packed fallback; atlas/geometry/submit sono nel TU
+  execution. La correttezza runtime GPU resta subordinata all'hardware.
 
 ### Wave D — backend boundaries
 
-- [ ] **D1 — Vulkan surface API.** Dividere
+- [x] **D1 — Vulkan surface API (structural only).** Dividere
   `vulkan_backend_surface_api.cpp` tra Vulkan-native surface/upload/composite
   e CUDA interop, mantenendo un solo `VulkanBackend` authority e gli stessi
-  lock/capability gates.
-- [ ] **D2 — Fused runner support.** Spostare gli helper locali di
+  lock/capability gates. La validazione runtime Vulkan/CUDA non è inclusa
+  nell'evidence CPU.
+- [x] **D2 — Fused runner support.** Gli helper del fused runner vivono nel
+  detail TU/header privato e `node_runner.cpp` vede una sola entrypoint
+  `detail::execute_fused_batch`; non è stata introdotta una seconda authority.
   `node_runner_fused_batch.cpp` in un detail TU/header privato solo se il
   dependency graph resta unidirezionale e il target compilato non guadagna
   una seconda entrypoint executor.
@@ -123,16 +141,16 @@ invariato.
   `text_render_resources.hpp` separando contratti leggeri, FreeType cache,
   Blend2D/Glyph atlas e scratch state in header focalizzati; mantenere
   `TextRenderResources` come facade di compatibilità durante la migrazione.
-- [ ] **E2 — Consumer census.** Prima di rimuovere include transitivi,
-  enumerare ogni consumer con `git grep` e aggiornare tutti i consumer nella
-  stessa modifica.
-- [ ] **E3 — Unicode header split.** Dividere
-  `text_unicode_utils.hpp` tra UTF-8 codec, grapheme navigation e helper di
-  layout; preservare namespace e simboli pubblici, aggiungendo test di
-  equivalenza per cluster boundary/invalid UTF-8.
-- [ ] **E4 — Include/build gate.** Verificare tempi e fan-out dopo ogni split;
-  non dichiarare il lavoro chiuso se un header nuovo reintroduce la stessa
-  dipendenza pesante tramite include transitivo.
+- [x] **E2 — Consumer census.** Il census è registrato in
+  `docs/evidence/CALLER-CENSUS-CPU.md` e il gate stampa i 33 consumer diretti
+  dell'aggregator, senza rimuovere include transitivi alla cieca.
+- [x] **E3 — Unicode header split.** UTF-8 e grapheme sono superfici
+  focalizzate (`text_unicode_utf8.hpp` e `text_unicode_grapheme.hpp`), con
+  `text_unicode_utils.hpp` mantenuto come facade compatibile senza consumer
+  diretti.
+- [x] **E4 — Include/build gate.** `check_text_header_fanout.py` misura il
+  fan-out e impedisce consumer della facade Unicode; il gate è incluso nella
+  evidence CPU insieme a build e test.
 
 ## Ordine operativo
 
@@ -212,6 +230,39 @@ invariato.
   consumer di produzione di reintrodurre `evaluate_selector(s)`. Il focused
   selector run passa con 8 test case e 70 assertion; il render-graph focused
   run passa con 5 test case e 518 assertion.
+
+## Progress snapshot — 2026-09-22
+
+- `PreparedText` è ora payload canonico immutabile: il campo derivato
+  `prepared_run` e l’invalidazione implicita nel builder sono stati rimossi.
+  La materializzazione di `PreparedTextRun` resta nella factory; il riuso del
+  layout resta nella cache canonica di `FontEngine`. I test CPU di identity
+  mutation e frame-stability passano.
+- A1 è coperto da due test nativi CPU: route reale
+  `render_and_encode_native()` su composizione software e contratto companion
+  MP4/sidecar/receipt/SHA/failure. Il preset `linux-video-test` ha passato
+  entrambi i casi (`21/21` assertion sulla route, `33/33` sul contratto).
+- B3 ha un test nativo CPU di due segmenti FFmpeg: `53/53` assertion,
+  checksum dell’artefatto assemblato e timestamp video monotoni.
+- La firma del callback AVIO è stata allineata a libavformat corrente
+  (`const uint8_t*`); la build native-FFmpeg CLI passa.
+- `tools/verify_cpu_only_evidence.sh` registra SHA sorgente, configurazione
+  native-FFmpeg, build, A1, B3, CLI suite, architecture inc gate e diff
+  hygiene. `docs/evidence/CPU-ONLY-EVIDENCE.md` documenta il perimetro.
+- `docs/evidence/CALLER-CENSUS-CPU.md` fissa il census Camera/RenderPlan e
+  conferma che non esiste una seconda authority dimostrata da rimuovere.
+- Restano aperti: completamento definitivo del glyph-atlas fan-out E1,
+  certificazione runtime GPU/MTSDF e same-SHA GitHub CI.
+
+## Progress snapshot — 2026-09-22 CPU wave 2
+
+- A3 production `.inc` debt è a zero in `apps/` e `src/`; restano solo i tre
+  harness CUDA di `tools/hwlab/`.
+- Clear, Transform e Temporal hanno TU execution dedicati; C4/C5 conservano
+  policy/execution TU separati. Il render-graph suite CPU passa.
+- E2/E3/E4 hanno census, facade Unicode focalizzata e gate fan-out eseguibile;
+  E1 resta aperta perché `TextRenderResources` mantiene ancora il broad
+  glyph-atlas/raster-cache aggregator per compatibilità.
 
 ## Definition of done
 

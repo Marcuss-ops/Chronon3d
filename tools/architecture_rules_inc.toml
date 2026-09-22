@@ -3,14 +3,13 @@
 # Baseline 2026-09-04:
 #   src/     = 0 handwritten .inc
 #   include/ = 0 handwritten .inc
-#   apps/    = 22 handwritten .inc
-# Current grandfathered debt (2026-09-22, after hotspot wave A): apps/ = 16,
-#   src/ = 6 — every allow-list entry maps to an on-disk fragment.
+#   apps/    = 16 handwritten .inc
+# Current production debt after the CPU migration:
+#   apps/ = 0, src/ = 0, include/ = 0. CUDA lab fragments under tools/hwlab/
+# are intentionally outside this production rule and require hardware.
 #
-# Existing CLI fragments are grandfathered only so this invariant can land
-# before their staged migration. Remove each exact allow-list entry in the same
-# change that deletes/migrates that fragment. The permanent end state is that
-# .inc files are allowed only below generated/ directories.
+# The permanent end state is that handwritten .inc files are allowed only below
+# generated/ directories in the scanned production trees.
 
 [[occurrence_cap]]
 name = "handwritten_inc_debt_ratchet"
@@ -20,36 +19,5 @@ scan_paths = ["src", "apps", "include"]
 extensions = [".inc"]
 allow_list = [
   '(^|/)generated/',
-
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_finish\.inc$',
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_json\.inc$',
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_measure\.inc$',
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_report\.inc$',
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_run\.inc$',
-  '^apps/chronon3d_cli/commands/basic/command_benchmark_saturation_support\.inc$',
-
-  '^apps/chronon3d_cli/commands/dev/doctor_report_checks\.inc$',
-  '^apps/chronon3d_cli/commands/dev/doctor_report_helpers\.inc$',
-
-  '^apps/chronon3d_cli/commands/render/register_render_commands_body\.inc$',
-  '^apps/chronon3d_cli/commands/render/register_render_commands_support\.inc$',
-
-  '^apps/chronon3d_cli/utils/job/report/render_job_report_diagnostics\.inc$',
-  '^apps/chronon3d_cli/utils/job/report/render_job_report_output\.inc$',
-
-  '^apps/chronon3d_cli/utils/semantic/semantic_script_compile\.inc$',
-  '^apps/chronon3d_cli/utils/semantic/semantic_script_decode\.inc$',
-  '^apps/chronon3d_cli/utils/semantic/semantic_script_serialize\.inc$',
-  '^apps/chronon3d_cli/utils/semantic/semantic_script_support\.inc$',
-
-  # Staged debt (TICKET-200): function-body fragments textually included
-  # inside their consumer TU. Migration to real headers/TUs is owned by the
-  # c-api and text-run refactors; remove each entry in the same change.
-  '^src/c_api/buffer_management\.inc$',
-  '^src/c_api/engine_lifetime\.inc$',
-  '^src/c_api/error_bridge\.inc$',
-  '^src/c_api/log_callback_bridge\.inc$',
-  '^src/c_api/plan_compile_api\.inc$',
-  '^src/c_api/render_api\.inc$',
 ]
 skip_comments = false

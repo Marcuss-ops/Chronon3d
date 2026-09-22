@@ -66,15 +66,8 @@ GlyphSelectorSpec TextRunBuilder::make_global_glyph_selector(std::string id) {
     return sel;
 }
 
-void TextRunBuilder::invalidate_prepared_run() noexcept {
-    m_spec->params.prepared_run.reset();
-}
-
 void TextRunBuilder::append_animator(TextAnimatorSpec spec) {
     m_spec->params.animation.animators.push_back(std::move(spec));
-    // The animation identity changed: a run prepared from the prewarmed,
-    // animator-less snapshot must not be reused for this payload.
-    invalidate_prepared_run();
 }
 
 // ── Per-glyph mutators (inject implicit animator) ───────────────────────
@@ -151,7 +144,6 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // This setter is called at BUILD TIME (once); animation goes through
     // the animator stack, not through this mutator.
     m_spec->params.style.font.font_size = v;
-    invalidate_prepared_run();
     return *this;
 }
 
@@ -159,7 +151,6 @@ TextRunBuilder& TextRunBuilder::font(std::string path) {
     // Font path shorthand — sets the composable TextDefaults's font_path
     // directly.  This triggers font resolution at materialization time.
     m_spec->params.style.font.font_path = std::move(path);
-    invalidate_prepared_run();
     return *this;
 }
 
@@ -239,9 +230,6 @@ TextRunBuilder& TextRunBuilder::selector(GlyphSelectorSpec spec) {
         // new ones from `.selector(...)` calls); safe to push_back here.
         m_spec->params.animation.animators[m_last_explicit_animator_idx]
             .selectors.push_back(std::move(spec));
-        // The bound animator's selector set is part of the animation identity
-        // carried by the prepared run, so this mutation invalidates it too.
-        invalidate_prepared_run();
     } else {
         // Case B: queue for an upcoming `.animator(...)`.
         m_pending_selectors.push_back(std::move(spec));
@@ -258,7 +246,6 @@ TextRunBuilder& TextRunBuilder::font_engine(FontEngine* engine) {
     //   2. LayerBuilder.m_font_engine  (per-layer default)
     //   3. resolve_engine() fallback   (F1.D: process-wide FontEngine + AssetResolver)
     m_spec->font_engine = engine;
-    invalidate_prepared_run();
     return *this;
 }
 
@@ -287,7 +274,6 @@ TextRunBuilder& TextRunBuilder::from_animated_document(
     std::shared_ptr<const AnimatedTextDocument> doc
 ) {
     m_spec->animated_doc = std::move(doc);
-    invalidate_prepared_run();
     return *this;
 }
 
@@ -538,11 +524,12 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc
 ) {
-    auto cached = prepared.prepared_run;
-    if (!cached || (engine != nullptr && cached->engine != engine)) {
-        cached = prepare_text_run(prepared, engine);
-        prepared.prepared_run = cached;
-    }
+    // PreparedText is the immutable canonical payload.  PreparedTextRun is a
+    // derived materialization and must never be stored back into that payload:
+    // authoring mutators may legally change animation/style fields before the
+    // builder is consumed.  Layout reuse remains owned by FontEngine's
+    // canonical compile_text_layout cache.
+    auto cached = prepare_text_run(prepared, engine);
     if (!cached) return nullptr;
     return materialize_prepared_text(*cached, sample_time, std::move(animated_doc));
 }
