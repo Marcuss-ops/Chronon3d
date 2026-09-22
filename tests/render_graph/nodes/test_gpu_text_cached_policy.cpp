@@ -45,15 +45,15 @@ TEST_CASE("Cached GPU text policy hands a non-native-surface lane to software") 
     CHECK(decision.reason == TextRouteReason::NativeSurfacesUnavailable);
 }
 
-TEST_CASE("Cached GPU text policy selects MTSDF only with native resources") {
+TEST_CASE("Cached GPU text policy fails closed without native MTSDF resources") {
     CHECK(resolve_text_execution_route(false, kNativeSurfaces, false, true, true, true)
               .route == TextExecutionRoute::NativeMtsdf);
     CHECK(resolve_text_execution_route(false, kNativeSurfaces, false, false, true, true)
-              .route == TextExecutionRoute::NativePacked);
+              .route == TextExecutionRoute::Reject);
     CHECK(resolve_text_execution_route(false, kNativeSurfaces, false, true, false, true)
-              .route == TextExecutionRoute::NativePacked);
+              .route == TextExecutionRoute::Reject);
     CHECK(resolve_text_execution_route(false, kNativeSurfaces, false, true, true, false)
-              .route == TextExecutionRoute::NativePacked);
+              .route == TextExecutionRoute::Reject);
 }
 
 TEST_CASE("Cached GPU text policy names every route and reason") {
@@ -62,8 +62,6 @@ TEST_CASE("Cached GPU text policy names every route and reason") {
 
     CHECK(std::string(text_execution_route_name(TextExecutionRoute::NativeMtsdf)) ==
           "native_mtsdf");
-    CHECK(std::string(text_execution_route_name(TextExecutionRoute::NativePacked)) ==
-          "native_packed");
     CHECK(std::string(text_execution_route_name(TextExecutionRoute::Software)) ==
           "software");
     CHECK(std::string(text_execution_route_name(TextExecutionRoute::Reject)) == "reject");

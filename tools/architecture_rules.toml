@@ -149,8 +149,8 @@ hint = "Use TextRouteDecision from resolve_text_execution_route()."
 name = "text_route_decision_is_observable"
 description = "Every resolved text route is represented in the canonical telemetry snapshot."
 scan_paths = ["apps/chronon3d_cli/utils/telemetry/telemetry_capture.hpp"]
-pattern = "gpu_text_route_(?:native_mtsdf|native_packed|software|reject)_count"
-min_matches = 4
+pattern = "gpu_text_route_(?:native_mtsdf|software|reject)_count"
+min_matches = 3
 skip_comments = true
 hint = "Add the route counter to telemetry_capture.hpp before introducing a new text route."
 

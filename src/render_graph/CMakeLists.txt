@@ -66,12 +66,10 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/text_run/text_run_execution.cpp
     nodes/text_run/text_run_transform.cpp
     nodes/text_run/text_run_diagnostics.cpp
-    # P2 structure pass: the packed-atlas GPU text path is split across focused
-    # TUs (animation lowering, shared packing helpers, surface draw, MTSDF and
-    # cached bridge). Internal-only; not exposed via include/.
-    nodes/text_run/gpu_text_run.cpp
+    # Canonical GPU text path: animation lowering, MTSDF preparation/dispatch,
+    # and the fail-closed cached bridge. The former packed compatibility route
+    # and its CPU bitmap upload TUs were removed after MTSDF certification.
     nodes/text_run/gpu_text_run_animation.cpp
-    nodes/text_run/gpu_text_run_packed.cpp
     nodes/text_run/gpu_text_run_mtsdf.cpp
     nodes/text_run/gpu_text_run_cached.cpp
     nodes/text_run/gpu_text_cached_policy.cpp

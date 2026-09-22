@@ -291,7 +291,6 @@ void RuntimeContext::attach_backend(
             framebuffer.clear_surface_handle();
         });
     m_caches.gpu_asset_cache.attach(m_asset_services.surface_registry, *m_execution.backend);
-    m_caches.gpu_text_atlas_cache.attach(m_caches.gpu_asset_cache);
     // Gpu styled glyph cache is CPU-only, no backend attachment needed
     (void)m_caches.gpu_asset_cache;
     m_caches.gpu_glyph_atlas.attach(m_asset_services.surface_registry, *m_execution.backend);

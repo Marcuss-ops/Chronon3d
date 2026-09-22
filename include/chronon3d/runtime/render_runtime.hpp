@@ -7,7 +7,6 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
-#include <chronon3d/runtime/gpu_text_atlas_cache.hpp>
 #include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/media_session_pool.hpp>
@@ -171,7 +170,6 @@ struct RuntimeCaches {
     chronon3d::CurveCache curve_cache{};
     GpuAssetCache gpu_asset_cache{};
     GpuGlyphAtlas gpu_glyph_atlas{};
-    GpuTextAtlasCache gpu_text_atlas_cache{};
     GpuStyledGlyphCache gpu_styled_glyph_cache{};
     GpuTextRunPreparedCache gpu_text_prepared_cache{};
     OverlayTemplateCache overlay_template_cache{};
@@ -330,7 +328,6 @@ public:
     [[nodiscard]] const GpuAssetCache&                     gpu_asset_cache() const noexcept { return m_caches.gpu_asset_cache; }
     [[nodiscard]] GpuGlyphAtlas&                           gpu_glyph_atlas() noexcept { return m_caches.gpu_glyph_atlas; }
     [[nodiscard]] const GpuGlyphAtlas&                     gpu_glyph_atlas() const noexcept { return m_caches.gpu_glyph_atlas; }
-    [[nodiscard]] GpuTextAtlasCache&                       gpu_text_atlas_cache() noexcept { return m_caches.gpu_text_atlas_cache; }
     [[nodiscard]] GpuStyledGlyphCache&                     gpu_styled_glyph_cache() noexcept { return m_caches.gpu_styled_glyph_cache; }
     [[nodiscard]] GpuTextRunPreparedCache&                 gpu_text_prepared_cache() noexcept { return m_caches.gpu_text_prepared_cache; }
     [[nodiscard]] const GpuTextRunPreparedCache&           gpu_text_prepared_cache() const noexcept { return m_caches.gpu_text_prepared_cache; }
