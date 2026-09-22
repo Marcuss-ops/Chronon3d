@@ -6,7 +6,7 @@
     {"clip": "C3_parallax", "frame": 8, "image": "C3_frame008.png"},
     {"clip": "D3_mtsdf_edge_stress", "frame": 40, "image": "D3_frame040.png"},
     {"clip": "D4_glow_projection", "frame": 8, "image": "D4_frame008.png"},
-    {"clip": "D5_tight_surface_parity", "frame": 40, "image": "D5_frame040.png"}
+    {"clip": "E1_text_surface_reuse", "frame": 8, "image": "E1_frame008.png"}
   ],
-  "note": "E1 is intentionally not pinned: no E1 case or assertion exists in the current 16-clip corpus."
+  "note": "E1 is checked by warm/cold RGBA comparisons at frames 8 and 48; frame 8 is pinned here."
 }
