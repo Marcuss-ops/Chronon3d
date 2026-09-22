@@ -25,7 +25,11 @@ struct ResourceResidency {
     bool encoder_compatible{false};
 
     [[nodiscard]] constexpr bool requires_dedicated_allocation() const noexcept {
-        return exportable || domain == MemoryDomain::External;
+        // Encoder-facing resources cross an interop boundary even when they
+        // are not otherwise marked exportable. They must never reuse a
+        // transient physical slot whose extent/ownership belongs to a
+        // different producer.
+        return exportable || encoder_compatible || domain == MemoryDomain::External;
     }
 
     [[nodiscard]] constexpr bool allows_transient_aliasing() const noexcept {

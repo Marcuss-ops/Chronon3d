@@ -186,6 +186,70 @@ TEST_CASE("Vulkan native affine transform matches inverse mapping") {
     CHECK(output[(3 * 4 + 3) * 4] == doctest::Approx(0.0f));
 }
 
+TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source as transparent") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc source_desc{
+        2, 2, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const chronon3d::runtime::SurfaceDesc destination_desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f};
+    std::vector<float> output(4, -1.0f);
+    chronon3d::runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 1.0f;
+    transform.source_y[1] = 1.0f;
+    transform.max_x = 2.0f;
+    transform.max_y = 2.0f;
+    transform.opacity = 1.0f;
+    transform.bilinear = 1;
+    transform.source_x[3] = 0.25f;
+    transform.source_y[3] = 0.25f;
+
+    REQUIRE(backend.create_surface(303, source_desc).ok());
+    REQUIRE(backend.create_surface(304, destination_desc).ok());
+    REQUIRE(backend.upload_surface(303, source_desc, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(304).ok());
+    REQUIRE(backend.transform_surface_affine(304, 303, transform).ok());
+    REQUIRE(backend.download_surface(304, output).ok());
+    // Edge clamping would reproduce the opaque source corner at full
+    // strength; transparent OOB taps must reduce the edge sample.
+    CHECK(output[0] < 0.9f);
+    CHECK(output[3] < 0.9f);
+}
+
+TEST_CASE("Vulkan partial upload clears a recycled surface before the first write") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        4, 4, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> opaque(4 * 4 * 4, 1.0f);
+    const std::vector<float> pixel{0.25f, 0.5f, 0.75f, 0.5f};
+    std::vector<float> output(4 * 4 * 4, -1.0f);
+
+    REQUIRE(backend.create_surface(305, desc).ok());
+    REQUIRE(backend.create_surface(306, desc).ok());
+    REQUIRE(backend.upload_surface(305, desc, opaque).ok());
+    REQUIRE(backend.release_surface(305).ok());
+    REQUIRE(backend.upload_surface_region(306, desc, 1, 1, 1, 1, pixel).ok());
+    REQUIRE(backend.download_surface(306, output).ok());
+    for (std::size_t index = 0; index < 16; ++index) {
+        const auto alpha = output[index * 4 + 3];
+        if (index == 5) {
+            CHECK(alpha == doctest::Approx(0.5f));
+        } else {
+            CHECK(alpha == doctest::Approx(0.0f));
+        }
+    }
+}
+
 TEST_CASE("Vulkan separable blur stays on device across two passes") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     constexpr std::uint32_t size = 9;

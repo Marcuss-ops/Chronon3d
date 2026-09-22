@@ -204,8 +204,8 @@ inline bool ensure_native_surface(
 /// Attach a device-local destination whose contents are produced completely
 /// by the next native kernel. Affine image transforms may use a clipped
 /// dispatch and therefore do not necessarily write every destination pixel.
-/// Newly allocated overlay surfaces are initialized to transparent so
-/// untouched pixels preserve source-over composition with layers below.
+/// Clear both newly allocated and reused surfaces so pixels outside the
+/// current dispatch cannot leak from an earlier occupant or frame.
 inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                                         Framebuffer& framebuffer) {
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
@@ -216,6 +216,13 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
         }
         if (ctx.surface_registry->lookup(handle) &&
             ctx.backend->is_native_surface_valid(handle)) {
+            const auto cleared = ctx.backend->initialize_transparent_surface(handle);
+            if (!cleared.ok()) {
+                spdlog::error("[native-surface] reused transparent clear failed for {}x{}: {}",
+                              framebuffer.width(), framebuffer.height(),
+                              cleared.error().message);
+                return false;
+            }
             return true;
         }
         if (ctx.surface_registry->lookup(handle)) {

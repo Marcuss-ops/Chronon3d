@@ -64,11 +64,6 @@ void warmup_pipe_slots(PipeExportSession& session) {
         std::string reason;
         if (session.device_runtime->acquire_slot_surfaces(
                 lease.slot(), registry, backend, width, height, reason)) {
-            static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
-            if (s_trace) {
-                spdlog::info("[interop-trace] WARMUP_SLOT slot_idx={} slot_id={} native_surface={} source_surface={}",
-                             i, lease.slot().slot_id, lease.slot().native_surface, lease.slot().source_surface);
-            }
             session.encoder->prepare_native_surface(backend, lease.slot().native_surface);
         } else {
             spdlog::warn("[pool-warm] Failed to pre-acquire surfaces for slot {}: {}", i, reason);
@@ -103,4 +98,3 @@ void warmup_pipe_pool(PipeExportSession& session) {
 }
 
 } // namespace chronon3d::cli
-

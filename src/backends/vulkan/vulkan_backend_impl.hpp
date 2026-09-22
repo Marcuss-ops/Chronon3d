@@ -121,6 +121,9 @@ struct VulkanBackend::Impl {
         std::shared_ptr<InteropGeneration> interop_generation{};
         VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};
         VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
+        std::uint64_t last_vulkan_to_cuda_value{0};
+        std::optional<std::size_t> cuda_export_fence_slot{};
+        bool cuda_export_standalone_fence{false};
     };
 
     // Compatibility names remain inside Impl, but descriptor allocation and
@@ -679,6 +682,8 @@ struct VulkanBackend::Impl {
                               const raster::BBox& clip,
                               const graph::RenderBackend::UploadRows& rows,
                               bool wait_for_completion);
+    void clear_uninitialized_upload_target(VkCommandBuffer command,
+                                           Image& image);
     void wait_upload_ticket(std::uint64_t ticket);
     void download(runtime::RenderSurfaceHandle handle, std::span<float> rgba);
 

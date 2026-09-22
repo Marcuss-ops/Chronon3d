@@ -146,6 +146,23 @@ TEST_CASE("ResourcePlanner makes exportable residency dedicated and non-aliasabl
     CHECK(plan.telemetry.alias_saved_bytes == 0);
 }
 
+TEST_CASE("ResourcePlanner makes encoder-compatible residency dedicated") {
+    using namespace chronon3d::runtime;
+    ResourcePlanner planner;
+    auto desc = ResourceDesc::make(
+        16, 8, PixelFormat::Rgba16Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 16,
+        ResourceResidency{.domain = MemoryDomain::Vulkan,
+                          .encoder_compatible = true});
+    desc.kind = ResourceKind::Color;
+    planner.add(ResourceRequest{"encoder-a", desc, 0, 0});
+    planner.add(ResourceRequest{"encoder-b", desc, 1, 1});
+    const auto plan = planner.build();
+    REQUIRE(plan.slots.size() == 2);
+    CHECK(plan.slots[0].dedicated);
+    CHECK(plan.slots[1].dedicated);
+}
+
 TEST_CASE("ResourcePlanner only aliases resources with identical residency contracts") {
     using namespace chronon3d::runtime;
     ResourcePlanner planner;

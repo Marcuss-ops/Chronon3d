@@ -29,13 +29,13 @@ NodeExecResult EffectStackNode::execute(
 
         if (gpu_only_input) {
             // Native video execution keeps the producer surface GPU-only.
-            // The CPU crop below is invalid in that mode; the native glow
-            // path consumes the producer handle and renders a full-frame
-            // result instead, which is semantically identical for the
-            // transparent canvas used by text effects.
+            // Native video execution keeps the producer surface GPU-only. Use
+            // a canvas-sized destination so the expanded source has a stable
+            // canvas coordinate system even when the predicted tight bbox is
+            // expressed in a different local space.
             result = ctx.acquire_owned_fb(
-                inputs[0]->width(), inputs[0]->height(), false);
-            result->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+                ctx.frame_input.width, ctx.frame_input.height, false);
+            result->set_origin(0, 0);
         } else {
             result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
         }
@@ -121,7 +121,8 @@ NodeExecResult EffectStackNode::execute(
         }
         if (!native_handled) {
             native_handled = native_effects::try_native_full_frame_glow(
-                ctx, m_effects, *result, native_clip, native_source);
+                ctx, m_effects, *result, native_clip, native_source,
+                gpu_only_input ? inputs[0].get() : nullptr);
         }
         if (!native_handled && !gpu_only_input) {
             native_handled = native_effects::try_native_full_frame_tint(
