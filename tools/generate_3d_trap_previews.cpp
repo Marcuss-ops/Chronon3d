@@ -36,6 +36,7 @@ const std::vector<Case> kCases{
     {"D3_mtsdf_edge_stress", "MTSDF EDGE", "Thin stroke during 40 degree orbit"},
     {"D4_glow_projection", "GLOW / 3D", "Glow follows the projected text"},
     {"D5_tight_surface_parity", "TIGHT / FULL", "Tight surface versus full canvas"},
+    {"E1_text_surface_reuse", "SURFACE REUSE", "Warm and cold frames match across depth"},
 };
 
 json track(const std::string& property,
@@ -129,6 +130,10 @@ void configure(json& plan, const Case& item) {
     const std::vector<std::pair<int, double>> zero{{0, 0.1}, {10, 0.1}, {96, 0.1}, {112, 0.1}, {119, 0.1}};
     if (item.id.starts_with("A1")) {
         set_depth(title, {{0, -600}, {10, 0}, {96, 0}, {112, -600}, {119, -600}});
+        replace_track(title, "rotation_y", "rotation_y", zero);
+    } else if (item.id.starts_with("E1")) {
+        set_text(title, "CHRONON");
+        set_depth(title, {{0, -600}, {10, -200}, {48, 0}, {96, 300}, {112, 600}, {119, 600}});
         replace_track(title, "rotation_y", "rotation_y", zero);
     } else if (item.id.starts_with("A2")) {
         set_depth(title, zero);

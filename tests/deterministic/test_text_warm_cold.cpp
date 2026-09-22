@@ -119,7 +119,7 @@ PixelComparison compare_rgba(const std::vector<unsigned char>& a,
 
 }  // namespace
 
-TEST_CASE("Text surfaces: NVENC frame 48 matches cold and warm renders") {
+TEST_CASE("Text surfaces: E1 frames 8 and 48 match cold and warm renders") {
     const auto cli = cli_path();
     REQUIRE_MESSAGE(cli.has_value(),
                     "chronon3d_cli not found; set CHRONON3D_CLI_BINARY");
@@ -127,7 +127,7 @@ TEST_CASE("Text surfaces: NVENC frame 48 matches cold and warm renders") {
                     "ffmpeg is required to decode the native NVENC frames");
 
     const auto root = std::filesystem::path(CHRONON3D_SOURCE_DIR);
-    const auto plan = root / "tests/fixtures/3d_traps/A1_dolly_position_z.plan.json";
+    const auto plan = root / "tests/fixtures/3d_traps/E1_text_surface_reuse.plan.json";
     REQUIRE(std::filesystem::is_regular_file(plan));
     const auto temp = std::filesystem::temp_directory_path() /
         "chronon3d_text_warm_cold_nvenc";
