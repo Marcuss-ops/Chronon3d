@@ -44,12 +44,14 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node_native_image.cpp
     nodes/multi_source_node.cpp
     nodes/transform_node.cpp
+    nodes/transform_node_execution.cpp
     nodes/transform_policy.cpp
     nodes/transform_kernels.cpp
     nodes/transition_node.cpp
     nodes/clip_transition_node.cpp
     nodes/effect_stack_node.cpp
     nodes/clear_node.cpp
+    nodes/clear_node_execution.cpp
     nodes/clear_policy.cpp
     nodes/composite_node.cpp
     nodes/track_matte_node.cpp
@@ -193,6 +195,7 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
+    pipeline/scene_temporal_execution.cpp
     pipeline/scene_temporal_policy.cpp
     pipeline/scene_native_output.cpp
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
