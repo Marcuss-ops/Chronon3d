@@ -1,0 +1,12 @@
+{
+  "schema": "chronon.3d-trap-goldens.v1",
+  "renderer_sha256": "68346c168c2913b7a08302a6e76007ccc9aa851dd4953eb9334abd143746479c",
+  "samples": [
+    {"clip": "A1_dolly_position_z", "frame": 8, "image": "A1_frame008.png"},
+    {"clip": "C3_parallax", "frame": 8, "image": "C3_frame008.png"},
+    {"clip": "D3_mtsdf_edge_stress", "frame": 40, "image": "D3_frame040.png"},
+    {"clip": "D4_glow_projection", "frame": 8, "image": "D4_frame008.png"},
+    {"clip": "D5_tight_surface_parity", "frame": 40, "image": "D5_frame040.png"}
+  ],
+  "note": "E1 is intentionally not pinned: no E1 case or assertion exists in the current 16-clip corpus."
+}

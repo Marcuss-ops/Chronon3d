@@ -53,6 +53,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
             deterministic/test_determinism_matrix.cpp
             deterministic/test_sequential_graph_cache.cpp
             deterministic/test_brute_determinism.cpp
+            deterministic/test_text_warm_cold.cpp
     )
     target_compile_definitions(chronon3d_deterministic_tests PRIVATE
         CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"

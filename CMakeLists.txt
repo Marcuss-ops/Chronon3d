@@ -221,6 +221,21 @@ if(CHRONON3D_ENABLE_TEXT)
 endif()
 
 find_package(nlohmann_json CONFIG REQUIRED)
+
+# C++-only 3D trap authoring and encoded-delivery gate. These developer tools
+# are separate targets so normal renderer builds do not need to execute them.
+add_executable(chronon3d_3d_trap_generator EXCLUDE_FROM_ALL tools/generate_3d_trap_previews.cpp)
+target_link_libraries(chronon3d_3d_trap_generator PRIVATE nlohmann_json::nlohmann_json)
+target_compile_features(chronon3d_3d_trap_generator PRIVATE cxx_std_20)
+set_target_properties(chronon3d_3d_trap_generator PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(chronon3d_3d_trap_gate EXCLUDE_FROM_ALL tools/verify_3d_trap_delivery.cpp)
+target_include_directories(chronon3d_3d_trap_gate PRIVATE "${CMAKE_SOURCE_DIR}/include")
+target_link_libraries(chronon3d_3d_trap_gate PRIVATE nlohmann_json::nlohmann_json)
+target_compile_features(chronon3d_3d_trap_gate PRIVATE cxx_std_20)
+set_target_properties(chronon3d_3d_trap_gate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 find_package(magic_enum CONFIG REQUIRED)
 if(CHRONON3D_ENABLE_OCIO)
     find_package(OpenColorIO CONFIG REQUIRED)

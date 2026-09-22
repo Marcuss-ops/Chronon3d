@@ -1,0 +1,425 @@
+{
+  "canvas": {
+    "duration_frames": 120,
+    "fps_den": 1,
+    "fps_num": 24,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "chronon_trap_preview_A1_dolly_position_z",
+  "layers": [
+    {
+      "color": [
+        0.005,
+        0.008,
+        0.016,
+        1.0
+      ],
+      "duration_frames": 120,
+      "id": "background",
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "color"
+    },
+    {
+      "animation": {
+        "tracks": [
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -600.0
+              },
+              {
+                "frame": 10,
+                "value": 0.0
+              },
+              {
+                "frame": 96,
+                "value": 0.0
+              },
+              {
+                "frame": 112,
+                "value": -600.0
+              },
+              {
+                "frame": 119,
+                "value": -600.0
+              }
+            ],
+            "property": "position_z"
+          },
+          {
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.1
+              },
+              {
+                "frame": 10,
+                "value": 0.1
+              },
+              {
+                "frame": 96,
+                "value": 0.1
+              },
+              {
+                "frame": 112,
+                "value": 0.1
+              },
+              {
+                "frame": 119,
+                "value": 0.1
+              }
+            ],
+            "property": "rotation_y"
+          },
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.08
+              },
+              {
+                "frame": 20,
+                "value": 1.0
+              },
+              {
+                "frame": 98,
+                "value": 1.0
+              },
+              {
+                "frame": 119,
+                "value": 0.0
+              }
+            ],
+            "property": "opacity"
+          }
+        ]
+      },
+      "duration_frames": 118,
+      "enable_3d": true,
+      "id": "title",
+      "position": [
+        960.0,
+        485.0
+      ],
+      "rotation": [
+        0,
+        0.1,
+        0
+      ],
+      "size": [
+        1700,
+        480
+      ],
+      "start_frame": 1,
+      "style": {
+        "fill": "#FFFFFF",
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 110,
+        "glow": {
+          "aura_strength": 0.16,
+          "bloom_strength": 0.04,
+          "core_strength": 0.32,
+          "falloff": 1.0,
+          "high_quality": true,
+          "intensity": 0.18,
+          "radius": 8.0,
+          "threshold": 0.0
+        },
+        "stroke": {
+          "color": "#C8ECFF",
+          "width": 4.0
+        }
+      },
+      "text": "CHRONON",
+      "text_animators": [
+        {
+          "id": "text_dolly_orbit_glow_title",
+          "properties": [
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 10.0
+                },
+                {
+                  "frame": 34,
+                  "value": 0.0
+                },
+                {
+                  "frame": 98,
+                  "value": 0.0
+                },
+                {
+                  "frame": 119,
+                  "value": 10.0
+                }
+              ],
+              "property": "blur"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.08
+                },
+                {
+                  "frame": 20,
+                  "value": 1.0
+                },
+                {
+                  "frame": 98,
+                  "value": 1.0
+                },
+                {
+                  "frame": 119,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "out_cubic",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100
+                  }
+                ],
+                "property": "end"
+              },
+              "exclude_spaces": true,
+              "id": "text_dolly_orbit_glow_title_selector",
+              "order": "forward",
+              "shape": "smooth",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0
+                  }
+                ],
+                "property": "start"
+              },
+              "unit": "glyph"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "animation": {
+        "tracks": [
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 12,
+                "value": 400.0
+              },
+              {
+                "frame": 58,
+                "value": 0.0
+              },
+              {
+                "frame": 98,
+                "value": 0.0
+              },
+              {
+                "frame": 119,
+                "value": 400.0
+              }
+            ],
+            "property": "position_z"
+          },
+          {
+            "easing": "in_out_sine",
+            "keyframes": [
+              {
+                "frame": 12,
+                "value": 40.0
+              },
+              {
+                "frame": 58,
+                "value": 0.0
+              },
+              {
+                "frame": 98,
+                "value": -1.5
+              },
+              {
+                "frame": 119,
+                "value": -40.0
+              }
+            ],
+            "property": "rotation_y"
+          },
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 12,
+                "value": 0.0
+              },
+              {
+                "frame": 34,
+                "value": 1.0
+              },
+              {
+                "frame": 98,
+                "value": 1.0
+              },
+              {
+                "frame": 119,
+                "value": 0.0
+              }
+            ],
+            "property": "opacity"
+          }
+        ]
+      },
+      "duration_frames": 118,
+      "enable_3d": true,
+      "id": "subtitle",
+      "position": [
+        960.0,
+        930
+      ],
+      "rotation": [
+        0,
+        0.1,
+        0
+      ],
+      "size": [
+        1100.0,
+        150.0
+      ],
+      "start_frame": 1,
+      "style": {
+        "fill": "#B9C7E8",
+        "font": "assets/fonts/Inter-Regular.ttf",
+        "font_size": 64.0,
+        "glow": {
+          "aura_strength": 0.12,
+          "bloom_strength": 0.03,
+          "core_strength": 0.24,
+          "falloff": 1.0,
+          "high_quality": true,
+          "intensity": 0.12,
+          "radius": 4.0,
+          "threshold": 0.0
+        },
+        "stroke": {
+          "color": "#9BCBFF",
+          "width": 2.0
+        }
+      },
+      "text": "A1",
+      "text_animators": [
+        {
+          "id": "text_dolly_orbit_glow_subtitle",
+          "properties": [
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 12,
+                  "value": 7.0
+                },
+                {
+                  "frame": 44,
+                  "value": 0.0
+                },
+                {
+                  "frame": 98,
+                  "value": 0.0
+                },
+                {
+                  "frame": 119,
+                  "value": 7.0
+                }
+              ],
+              "property": "blur"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 12,
+                  "value": 0.0
+                },
+                {
+                  "frame": 34,
+                  "value": 1.0
+                },
+                {
+                  "frame": 98,
+                  "value": 1.0
+                },
+                {
+                  "frame": 119,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "out_cubic",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100
+                  }
+                ],
+                "property": "end"
+              },
+              "exclude_spaces": true,
+              "id": "text_dolly_orbit_glow_subtitle_selector",
+              "order": "forward",
+              "shape": "smooth",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0
+                  }
+                ],
+                "property": "start"
+              },
+              "unit": "glyph"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "A1_dolly_position_z_preview.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}
