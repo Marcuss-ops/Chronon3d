@@ -45,6 +45,105 @@ bool find_streams(InputFile& input, std::string& reason) {
     return true;
 }
 
+void free_codec_context(AVCodecContext* value) noexcept {
+    if (value) avcodec_free_context(&value);
+}
+
+void free_codec_parameters(AVCodecParameters* value) noexcept {
+    if (value) avcodec_parameters_free(&value);
+}
+
+/// Phase 1 — validate. Open every segment and enforce the stream contract the
+/// assembled artifact depends on: one video stream each, matching video/audio
+/// codecs and time bases, and identical audio presence.
+bool open_and_validate_segments(
+    const SegmentAssemblyRequest& request,
+    std::vector<std::unique_ptr<InputFile>>& inputs,
+    SegmentAssemblyResult& result) {
+    inputs.reserve(request.input_paths.size());
+    for (const auto& path : request.input_paths) {
+        auto input = std::make_unique<InputFile>();
+        if (avformat_open_input(&input->format, path.c_str(), nullptr, nullptr) < 0) {
+            result.reason = "failed to open segment: " + path;
+            return false;
+        }
+        if (!find_streams(*input, result.reason)) return false;
+        inputs.push_back(std::move(input));
+    }
+
+    const auto* reference_video =
+        inputs.front()->format->streams[inputs.front()->video_index];
+    const auto* reference_audio = inputs.front()->audio_index >= 0
+        ? inputs.front()->format->streams[inputs.front()->audio_index] : nullptr;
+    for (std::size_t i = 1; i < inputs.size(); ++i) {
+        const auto* video = inputs[i]->format->streams[inputs[i]->video_index];
+        if (!detail::compatible_codec_parameters(
+                reference_video->codecpar, video->codecpar, result.reason)) return false;
+        if (video->time_base.num != reference_video->time_base.num ||
+            video->time_base.den != reference_video->time_base.den) {
+            result.reason = "video time base mismatch";
+            return false;
+        }
+        const auto* audio = inputs[i]->audio_index >= 0
+            ? inputs[i]->format->streams[inputs[i]->audio_index] : nullptr;
+        if ((reference_audio == nullptr) != (audio == nullptr)) {
+            result.reason = "audio stream presence mismatch";
+            return false;
+        }
+        if (reference_audio && !detail::compatible_codec_parameters(
+                reference_audio->codecpar, audio->codecpar, result.reason)) return false;
+        if (reference_audio && (audio->time_base.num != reference_audio->time_base.num ||
+                                audio->time_base.den != reference_audio->time_base.den)) {
+            result.reason = "audio time base mismatch";
+            return false;
+        }
+    }
+    return true;
+}
+
+/// Phase 2 — normalize. Mux stream descriptors derived from the validated
+/// reference segment: one video codec context (owned) plus optional audio
+/// parameters and their borrowed AudioStreamConfig view.
+struct MuxStreamConfig {
+    std::unique_ptr<AVCodecContext, decltype(&free_codec_context)> video{
+        nullptr, &free_codec_context};
+    std::unique_ptr<AVCodecParameters, decltype(&free_codec_parameters)> audio_params{
+        nullptr, &free_codec_parameters};
+    std::optional<AudioStreamConfig> audio{};
+};
+
+bool build_mux_stream_config(
+    const std::vector<std::unique_ptr<InputFile>>& inputs,
+    MuxStreamConfig& out,
+    std::string& reason) {
+    const auto* reference_video =
+        inputs.front()->format->streams[inputs.front()->video_index];
+    const auto* reference_audio = inputs.front()->audio_index >= 0
+        ? inputs.front()->format->streams[inputs.front()->audio_index] : nullptr;
+
+    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
+    if (!video_codec ||
+        avcodec_parameters_to_context(video_codec, reference_video->codecpar) < 0) {
+        if (video_codec) avcodec_free_context(&video_codec);
+        reason = "failed to create video mux context";
+        return false;
+    }
+    video_codec->time_base = reference_video->time_base;
+    out.video.reset(video_codec);
+
+    if (reference_audio) {
+        auto* params = avcodec_parameters_alloc();
+        if (!params || avcodec_parameters_copy(params, reference_audio->codecpar) < 0) {
+            if (params) avcodec_parameters_free(&params);
+            reason = "failed to create audio mux parameters";
+            return false;
+        }
+        out.audio_params.reset(params);
+        out.audio = AudioStreamConfig{out.audio_params.get(), reference_audio->time_base};
+    }
+    return true;
+}
+
 } // namespace
 
 SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
@@ -54,67 +153,15 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         return result;
     }
 
+    // Phase 1 — validate: open the segments and enforce the shared stream
+    // contract before any mux state exists.
     std::vector<std::unique_ptr<InputFile>> inputs;
-    inputs.reserve(request.input_paths.size());
-    for (const auto& path : request.input_paths) {
-        auto input = std::make_unique<InputFile>();
-        if (avformat_open_input(&input->format, path.c_str(), nullptr, nullptr) < 0) {
-            result.reason = "failed to open segment: " + path;
-            return result;
-        }
-        if (!find_streams(*input, result.reason)) return result;
-        inputs.push_back(std::move(input));
-    }
+    if (!open_and_validate_segments(request, inputs, result)) return result;
 
-    const auto* reference_video = inputs.front()->format->streams[inputs.front()->video_index];
-    const auto* reference_audio = inputs.front()->audio_index >= 0
-        ? inputs.front()->format->streams[inputs.front()->audio_index] : nullptr;
-    for (std::size_t i = 1; i < inputs.size(); ++i) {
-        const auto* video = inputs[i]->format->streams[inputs[i]->video_index];
-        if (!detail::compatible_codec_parameters(reference_video->codecpar, video->codecpar, result.reason)) return result;
-        if (video->time_base.num != reference_video->time_base.num ||
-            video->time_base.den != reference_video->time_base.den) {
-            result.reason = "video time base mismatch";
-            return result;
-        }
-        const auto* audio = inputs[i]->audio_index >= 0
-            ? inputs[i]->format->streams[inputs[i]->audio_index] : nullptr;
-        if ((reference_audio == nullptr) != (audio == nullptr)) {
-            result.reason = "audio stream presence mismatch";
-            return result;
-        }
-        if (reference_audio && !detail::compatible_codec_parameters(reference_audio->codecpar,
-                                                                     audio->codecpar, result.reason)) return result;
-        if (reference_audio && (audio->time_base.num != reference_audio->time_base.num ||
-                                audio->time_base.den != reference_audio->time_base.den)) {
-            result.reason = "audio time base mismatch";
-            return result;
-        }
-    }
-
-    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
-    if (!video_codec || avcodec_parameters_to_context(video_codec, reference_video->codecpar) < 0) {
-        avcodec_free_context(&video_codec);
-        result.reason = "failed to create video mux context";
-        return result;
-    }
-    video_codec->time_base = reference_video->time_base;
-    struct CodecContextDeleter { void operator()(AVCodecContext* value) const { if (value) avcodec_free_context(&value); } };
-    std::unique_ptr<AVCodecContext, CodecContextDeleter> video_guard(video_codec);
-
-    struct CodecParametersDeleter { void operator()(AVCodecParameters* value) const { if (value) avcodec_parameters_free(&value); } };
-    std::unique_ptr<AVCodecParameters, CodecParametersDeleter> audio_params(nullptr);
-    std::optional<AudioStreamConfig> audio_config;
-    if (reference_audio) {
-        auto* params = avcodec_parameters_alloc();
-        if (!params || avcodec_parameters_copy(params, reference_audio->codecpar) < 0) {
-            if (params) avcodec_parameters_free(&params);
-            result.reason = "failed to create audio mux parameters";
-            return result;
-        }
-        audio_params.reset(params);
-        audio_config = AudioStreamConfig{audio_params.get(), reference_audio->time_base};
-    }
+    // Phase 2 — normalize: derive the mux stream descriptors from the validated
+    // reference segment.
+    MuxStreamConfig streams;
+    if (!build_mux_stream_config(inputs, streams, result.reason)) return result;
 
     std::error_code ec;
     if (const auto parent = std::filesystem::path(request.output_path).parent_path();
@@ -125,7 +172,9 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     // publishes output_checksum as the concatenated artifact's content address,
     // so it requests the checksum (the exporter lane deliberately does not —
     // see MuxOpenConfig::checksum).
-    if (!mux.open(MuxOpenConfig{request.output_path, video_codec, audio_config,
+    // Phase 3 — execute: copy every segment's packets onto one output timeline
+    // through the caller-owned MuxSession.
+    if (!mux.open(MuxOpenConfig{request.output_path, streams.video.get(), streams.audio,
                                /*video_params=*/nullptr, /*video_time_base=*/AVRational{0, 1},
                                /*checksum=*/true},
                   result.reason)) {

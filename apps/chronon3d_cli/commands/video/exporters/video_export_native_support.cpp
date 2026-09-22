@@ -95,4 +95,472 @@ bool configure_local_device_scheduler(
     return true;
 }
 
+void project_backend_gpu_counters(
+    PipeExportSession& session,
+    pipe_timing::JobTimings& timings) {
+    if (!session.renderer_ptr() ||
+        session.renderer_ptr()->execution_context().backend == nullptr) {
+        return;
+    }
+    std::vector<std::pair<std::string, std::uint64_t>> gpu_counters;
+    session.renderer_ptr()->execution_context().backend
+        ->export_gpu_telemetry_counters(gpu_counters);
+    for (const auto& [name, value] : gpu_counters) {
+        if (name == "gpu_execute_us") {
+            timings.gpu.gpu_execute_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "readback_us") {
+            timings.gpu.gpu_readback_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "gpu_submit_cpu_us") {
+            timings.gpu.gpu_submit_cpu_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "gpu_wait_cpu_us") {
+            timings.gpu.gpu_wait_cpu_ms = static_cast<double>(value) / 1000.0;
+        } else if (name == "standalone_wait_count") {
+            timings.gpu.standalone_wait_count = value;
+        } else if (name == "standalone_wait_us") {
+            timings.gpu.standalone_wait_us = value;
+        } else if (name == "frame_batch_drain_wait_count") {
+            timings.gpu.frame_batch_drain_wait_count = value;
+        } else if (name == "frame_batch_drain_wait_us") {
+            timings.gpu.frame_batch_drain_wait_us = value;
+        } else if (name == "frame_slot_wait_count") {
+            timings.gpu.frame_slot_wait_count = value;
+        } else if (name == "frame_slot_wait_us") {
+            timings.gpu.frame_slot_wait_us = value;
+        } else if (name == "gpu_readback_bytes") {
+            timings.gpu.gpu_readback_bytes = value;
+        } else if (name == "gpu_upload_bytes") {
+            timings.gpu.gpu_upload_bytes = value;
+        } else if (name == "vma_allocation_count") {
+            timings.gpu.vma_allocation_count = value;
+        } else if (name == "vma_usage_bytes") {
+            timings.gpu.vma_usage_bytes = value;
+        } else if (name == "vma_budget_bytes") {
+            timings.gpu.vma_budget_bytes = value;
+        } else if (name == "gpu_upload_full_surface_bytes") {
+            timings.gpu.gpu_upload_full_surface_bytes = value;
+        } else if (name == "gpu_upload_region_bytes") {
+            timings.gpu.gpu_upload_region_bytes = value;
+        } else if (name == "video_surface_upload_bytes") {
+            timings.gpu.video_surface_upload_bytes = value;
+        } else if (name == "native_surface_promotion_count") {
+            timings.gpu.native_surface_promotion_count = value;
+        } else if (name == "native_surface_promotion_bytes") {
+            timings.gpu.native_surface_promotion_bytes = value;
+        } else if (name == "native_surface_promotion_wall_us") {
+            timings.gpu.native_surface_promotion_wall_us = value;
+        } else if (name == "native_surface_empty_create_count") {
+            timings.gpu.native_surface_empty_create_count = value;
+        } else if (name == "native_surface_reuse_count") {
+            timings.gpu.native_surface_reuse_count = value;
+        } else if (name.rfind("gpu_upload_", 0) == 0) {
+            timings.gpu.upload_breakdown[name] = value;
+        } else if (name == "gpu_submissions") {
+            timings.gpu.gpu_submissions = value;
+        } else if (name == "passes_executed") {
+            timings.gpu.passes_executed = value;
+        } else if (name == "gpu_nodes") {
+            timings.gpu.gpu_nodes = value;
+        } else if (name == "gpu_text_fallback_count") {
+            timings.gpu.software_fallback_nodes = value;
+        }
+    }
+}
+
+void account_exclusive_wall_timeline(
+    PipeExportSession& session,
+    const RenderLoopOutput& loop_output,
+    const EncoderCloseResult& close_result,
+    const PipeExportResult& result,
+    double encode_ms,
+    double warmup_ms,
+    bool is_native,
+    pipe_timing::JobTimings& timings) {
+    const double startup_ms = session.startup_ms;
+    const double input_open_ms = session.input_open_ms;
+    const double prepare_exclusive_ms = session.setup_prepare_ms + warmup_ms;
+    const double render_loop_exclusive_ms = loop_output.render_ms;
+    const double mux_finalize_ms = is_native ? close_result.native_trailer_ms : 0.0;
+    const double encoder_drain_exclusive_ms = std::max(0.0, encode_ms - mux_finalize_ms);
+    const double validation_exclusive_ms = std::max(0.0, result.validation_ms - (result.ffprobe_ms + result.sha256_ms));
+    const double ffprobe_exclusive_ms = result.ffprobe_ms;
+    const double sha256_exclusive_ms = result.sha256_ms;
+    const double output_finalize_exclusive_ms = result.output_finalize_ms;
+
+    pipe_timing::ExclusiveWallTimeline tl;
+    tl.startup_ms = startup_ms;
+    tl.input_open_ms = input_open_ms;
+    tl.prepare_ms = prepare_exclusive_ms;
+    tl.render_loop_ms = render_loop_exclusive_ms;
+    tl.encoder_drain_finalize_ms = encoder_drain_exclusive_ms;
+    tl.mux_finalize_ms = mux_finalize_ms;
+    tl.validation_ms = validation_exclusive_ms;
+    tl.ffprobe_ms = ffprobe_exclusive_ms;
+    tl.sha256_ms = sha256_exclusive_ms;
+    tl.output_finalize_ms = output_finalize_exclusive_ms;
+    // sidecar_report_ms is deliberately absent (null on the wire): the
+    // sidecar cannot measure its own write from inside the document it is
+    // writing. The write happens after this snapshot, so its real duration
+    // shows up in unaccounted_ms instead of a fabricated constant.
+
+    const double accounted_sum = startup_ms + input_open_ms + prepare_exclusive_ms +
+        render_loop_exclusive_ms + encoder_drain_exclusive_ms + mux_finalize_ms +
+        validation_exclusive_ms + ffprobe_exclusive_ms + sha256_exclusive_ms +
+        output_finalize_exclusive_ms;
+
+    const double proc_wall_ms =
+        profiling::duration_ms(session.job_started_at, profiling::now());
+    tl.process_wall_ms = proc_wall_ms;
+    tl.unaccounted_ms = std::max(0.0, proc_wall_ms - accounted_sum);
+    tl.accounted_percent = proc_wall_ms > 0.0
+        ? (accounted_sum / proc_wall_ms) * 100.0 : 0.0;
+    timings.exclusive_wall = tl;
+
+    session.startup_breakdown.total_startup_ms = startup_ms;
+    const double startup_accounted = session.startup_breakdown.cli_init_ms +
+        session.startup_breakdown.logger_init_ms +
+        session.startup_breakdown.cli_bootstrap_ms +
+        session.startup_breakdown.cli_parse_ms +
+        session.startup_breakdown.composition_registration_ms +
+        session.startup_breakdown.plan_read_ms +
+        session.startup_breakdown.plan_json_parse_ms +
+        session.startup_breakdown.plan_decode_validate_ms +
+        session.startup_breakdown.plan_asset_resolve_ms +
+        session.startup_breakdown.plan_compile_ms +
+        session.startup_breakdown.plan_prepare_ms +
+        session.startup_breakdown.encoder_create_ms +
+        session.startup_breakdown.encoder_open_hw_ctx_ms +
+        session.startup_breakdown.cuda_compositor_warmup_ms +
+        session.startup_breakdown.encoder_open_nvenc_ms +
+        session.startup_breakdown.encoder_open_mux_header_ms +
+        session.startup_breakdown.vulkan_instance_ms +
+        session.startup_breakdown.vulkan_device_ms +
+        session.startup_breakdown.vulkan_pipelines_ms +
+        session.startup_breakdown.renderer_runtime_init_ms;
+    session.startup_breakdown.accounted_ms = std::min(startup_ms, startup_accounted);
+    session.startup_breakdown.unaccounted_ms = std::max(0.0, startup_ms - startup_accounted);
+    session.startup_breakdown.phases_observed = 0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.logger_init_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.cli_bootstrap_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.cli_parse_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.composition_registration_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_read_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_json_parse_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_decode_validate_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_asset_resolve_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_compile_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_create_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_hw_ctx_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_nvenc_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_mux_header_ms > 0.0;
+    session.startup_breakdown.phases_observed += session.startup_breakdown.renderer_runtime_init_ms > 0.0;
+
+    spdlog::info(
+        "[startup-profile] total={:.2f}ms logger={:.2f}ms cli_bootstrap={:.2f}ms "
+        "cli_parse={:.2f}ms composition={:.2f}ms plan_read={:.2f}ms "
+        "json_parse={:.2f}ms plan_decode_validate={:.2f}ms asset_resolve={:.2f}ms "
+        "plan_compile={:.2f}ms other={:.2f}ms",
+        session.startup_breakdown.total_startup_ms,
+        session.startup_breakdown.logger_init_ms,
+        session.startup_breakdown.cli_bootstrap_ms,
+        session.startup_breakdown.cli_parse_ms,
+        session.startup_breakdown.composition_registration_ms,
+        session.startup_breakdown.plan_read_ms,
+        session.startup_breakdown.plan_json_parse_ms,
+        session.startup_breakdown.plan_decode_validate_ms,
+        session.startup_breakdown.plan_asset_resolve_ms,
+        session.startup_breakdown.plan_compile_ms,
+        session.startup_breakdown.other_startup_ms);
+
+    session.prepare_breakdown.total_prepare_ms = prepare_exclusive_ms;
+    const double prepare_accounted = session.prepare_breakdown.font_preflight_ms +
+        session.prepare_breakdown.pool_warmup_ms +
+        session.prepare_breakdown.triple_arena_alloc_ms +
+        session.prepare_breakdown.writer_thread_spawn_ms;
+    session.prepare_breakdown.other_prepare_ms = std::max(0.0, prepare_exclusive_ms - prepare_accounted);
+
+    timings.startup_breakdown = session.startup_breakdown;
+    timings.prepare_breakdown = session.prepare_breakdown;
+    timings.startup_accounted_ms = session.startup_breakdown.accounted_ms;
+    timings.startup_unaccounted_ms = session.startup_breakdown.unaccounted_ms;
+}
+
+void project_render_counters(
+    PipeExportSession& session,
+    const RenderCounters* counters,
+    pipe_timing::JobTimings& timings) {
+    if (counters) {
+        const auto* c = counters;
+        timings.gpu.gpu_native_surface_frames = c->gpu_native_surface_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_native_encode_frames = c->gpu_native_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.nv12_to_rgba_frames = c->nv12_to_rgba_frames.load(std::memory_order_relaxed);
+        timings.gpu.rgba_to_nv12_frames = c->rgba_to_nv12_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_surface_copy_frames = c->gpu_surface_copy_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_readback_count = c->cpu_pixel_readback_count.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_readback_bytes = c->cpu_pixel_readback_bytes.load(std::memory_order_relaxed);
+        timings.gpu.video_surface_upload_bytes = c->video_surface_upload_bytes.load(std::memory_order_relaxed);
+        timings.gpu.native_surface_promotion_count = c->native_surface_promotion_count.load(std::memory_order_relaxed);
+        timings.gpu.native_surface_promotion_bytes = c->native_surface_promotion_bytes.load(std::memory_order_relaxed);
+        timings.gpu.native_surface_promotion_wall_us = c->native_surface_promotion_wall_us.load(std::memory_order_relaxed);
+        timings.gpu.native_surface_empty_create_count = c->native_surface_empty_create_count.load(std::memory_order_relaxed);
+        timings.gpu.native_surface_reuse_count = c->native_surface_reuse_count.load(std::memory_order_relaxed);
+        timings.gpu.video_pipe_fallback_frames = c->video_pipe_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_native_fallback_frames = c->video_native_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.gpu_surface_create_failures = c->gpu_surface_create_failures.load(std::memory_order_relaxed);
+        timings.gpu.gpu_encode_failures = c->gpu_encode_failures.load(std::memory_order_relaxed);
+        timings.gpu.frame_slot_wait_count = c->frame_slot_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.frame_slot_wait_us = c->frame_slot_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_wait_count = c->cuda_vulkan_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_wait_submit_us = c->cuda_vulkan_wait_submit_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_signal_count = c->cuda_vulkan_signal_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_vulkan_signal_submit_us = c->cuda_vulkan_signal_submit_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_composite_frames = c->cuda_composite_frames.load(std::memory_order_relaxed);
+        timings.gpu.cuda_composite_wall_us = c->cuda_composite_wall_us.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_queue_peak = c->cuda_encode_queue_peak.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_event_wait_count = c->cuda_encode_event_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.cuda_encode_event_wait_us = c->cuda_encode_event_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.encoder_staging_copy_bytes = c->encoder_staging_copy_bytes.load(std::memory_order_relaxed);
+    }
+    if (session.device_runtime) {
+        // CUDA-lane half of zero-copy gate 1 (host uploads): bytes pushed by
+        // the VideoDeviceRuntime image cache (cuMemcpyHtoD). The Vulkan-lane
+        // half is the backend's gpu_upload_bytes above. Device-cumulative;
+        // certification separates the setup/prewarm window from steady state
+        // instead of reclassifying the counters.
+        const auto current = session.device_runtime->cuda_host_upload_bytes();
+        const auto before = session.cuda_host_upload_bytes_before_setup;
+        const auto steady_start = session.cuda_host_upload_steady_window_started
+            ? session.cuda_host_upload_bytes_at_steady_start : current;
+        timings.gpu.cuda_host_upload_bytes = current >= before ? current - before : 0;
+        timings.gpu.cuda_host_upload_bytes_prewarm = steady_start >= before
+            ? steady_start - before : 0;
+        timings.gpu.cuda_host_upload_bytes_steady = current >= steady_start
+            ? current - steady_start : 0;
+    }
+    if (counters) {
+        auto* c = counters;
+        timings.text.prepare_per_frame_ms = static_cast<double>(
+            c->text_prepare_per_frame_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.image_draw_ms = static_cast<double>(
+            c->image_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.image_draw_count = c->image_draw_count.load(std::memory_order_relaxed);
+        timings.text.font_resolve_ms = static_cast<double>(
+            c->font_resolve_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.shaping_ms = static_cast<double>(
+            c->text_shaping_wall_ms.load(std::memory_order_relaxed));
+        timings.text.bidi_ms = static_cast<double>(
+            c->text_bidi_wall_ms.load(std::memory_order_relaxed));
+        timings.text.layout_ms = static_cast<double>(
+            c->text_layout_wall_ms.load(std::memory_order_relaxed));
+        timings.text.glyph_cache_lookup_ms = static_cast<double>(
+            c->glyph_cache_lookup_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.raster_ms = static_cast<double>(
+            c->text_rasterization_wall_ms.load(std::memory_order_relaxed));
+        timings.text.atlas_upload_ms = static_cast<double>(
+            c->glyph_atlas_upload_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.draw_ms = static_cast<double>(
+            c->text_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_cache_hits = c->gpu_text_atlas_cache_hits.load(std::memory_order_relaxed);
+        timings.text.atlas_cache_misses = c->gpu_text_atlas_cache_misses.load(std::memory_order_relaxed);
+        timings.text.atlas_key_bytes_hashed = c->gpu_text_atlas_key_bytes_hashed.load(std::memory_order_relaxed);
+        timings.text.atlas_repack_count = c->gpu_text_atlas_repack_count.load(std::memory_order_relaxed);
+        timings.text.atlas_repack_bytes = c->gpu_text_atlas_repack_bytes.load(std::memory_order_relaxed);
+        timings.text.atlas_upload_count = c->gpu_text_atlas_upload_count.load(std::memory_order_relaxed);
+        timings.text.atlas_upload_bytes = c->gpu_text_atlas_upload_bytes.load(std::memory_order_relaxed);
+        timings.text.instance_upload_count = c->gpu_text_instance_upload_count.load(std::memory_order_relaxed);
+        timings.text.instance_upload_bytes = c->gpu_text_instance_upload_bytes.load(std::memory_order_relaxed);
+        timings.text.styled_glyph_build_ms = static_cast<double>(
+            c->gpu_text_styled_glyph_build_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_pack_ms = static_cast<double>(
+            c->gpu_text_atlas_pack_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_pixel_copy_ms = static_cast<double>(
+            c->gpu_text_atlas_pixel_copy_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_sha256_ms = static_cast<double>(
+            c->gpu_text_atlas_sha256_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.atlas_cache_acquire_ms = static_cast<double>(
+            c->gpu_text_atlas_cache_acquire_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.text.prepared_batch_build_count =
+            c->gpu_text_prepared_batch_build_count.load(std::memory_order_relaxed);
+        timings.text.prepared_batch_reuse_count =
+            c->gpu_text_prepared_batch_reuse_count.load(std::memory_order_relaxed);
+        timings.gpu.vulkan_cuda_export_fence_wait_count =
+            c->vulkan_cuda_export_fence_wait_count.load(std::memory_order_relaxed);
+        timings.gpu.vulkan_cuda_export_fence_wait_us =
+            c->vulkan_cuda_export_fence_wait_us.load(std::memory_order_relaxed);
+        timings.cache.node_lookup_ms = static_cast<double>(
+            c->node_cache_lookup_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cache.node_cache_hits = c->node_cache_hits.load(std::memory_order_relaxed);
+        timings.cache.node_cache_misses = c->node_cache_misses.load(std::memory_order_relaxed);
+        timings.cache.glyph_cache_hits = c->glyph_cache_hits.load(std::memory_order_relaxed);
+        timings.cache.glyph_cache_misses = c->glyph_cache_misses.load(std::memory_order_relaxed);
+        timings.cache.gpu_asset_cache_hits = c->gpu_asset_cache_hits.load(std::memory_order_relaxed);
+        timings.cache.gpu_asset_cache_misses = c->gpu_asset_cache_misses.load(std::memory_order_relaxed);
+        timings.framebuffer_allocations = c->framebuffer_allocations.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_text = c->framebuffer_alloc_text.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_effect = c->framebuffer_alloc_effect.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_glow = c->framebuffer_alloc_glow.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_video = c->framebuffer_alloc_video.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_graph = c->framebuffer_alloc_graph.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_scratch = c->framebuffer_alloc_scratch.load(std::memory_order_relaxed);
+        timings.framebuffer_alloc_unknown = c->framebuffer_alloc_unknown.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_frames = c->video_decode_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_native_surface_frames = c->video_decode_native_surface_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_hw_transfer_frames = c->video_decode_hw_transfer_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_software_frames = c->video_decode_software_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_native_fallback_frames = c->video_decode_native_fallback_frames.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_hits = c->video_prefetch_hits.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_misses = c->video_prefetch_misses.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_wait_us = c->video_prefetch_wait_us.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_queue_clear_count = c->video_prefetch_queue_clear_count.load(std::memory_order_relaxed);
+        timings.gpu.video_prefetch_queue_depth_peak = c->video_prefetch_queue_depth_peak.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_wall_ms = c->video_decode_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_hw_transfer_wall_ms = c->video_decode_hw_transfer_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_sws_wall_ms = c->video_decode_sws_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_decode_framebuffer_wall_ms = c->video_decode_framebuffer_wall_ms.load(std::memory_order_relaxed);
+        timings.gpu.hwframe_transfer_to_cpu_frames = c->hwframe_transfer_to_cpu_frames.load(std::memory_order_relaxed);
+        timings.gpu.software_color_convert_frames = c->software_color_convert_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_full_surface_upload_bytes = c->cpu_full_surface_upload_bytes.load(std::memory_order_relaxed);
+        timings.gpu.gpu_readback_bytes = c->gpu_readback_bytes.load(std::memory_order_relaxed);
+        timings.gpu.nvenc_frames = c->nvenc_frames.load(std::memory_order_relaxed);
+        timings.gpu.software_encode_frames = c->software_encode_frames.load(std::memory_order_relaxed);
+        timings.gpu.bitstream_copy_frames = c->bitstream_copy_frames.load(std::memory_order_relaxed);
+        timings.gpu.vulkan_frames = c->vulkan_frames.load(std::memory_order_relaxed);
+        timings.gpu.cpu_readback_frames = c->cpu_readback_frames.load(std::memory_order_relaxed);
+        timings.gpu.decode_submit_ms = c->decode_submit_ms.load(std::memory_order_relaxed);
+        timings.gpu.decode_wait_ms = c->decode_wait_ms.load(std::memory_order_relaxed);
+        timings.gpu.hwframe_transfer_ms = c->hwframe_transfer_ms.load(std::memory_order_relaxed);
+        timings.gpu.swscale_ms = c->swscale_ms.load(std::memory_order_relaxed);
+        timings.gpu.cpu_pixel_conversion_ms = c->cpu_pixel_conversion_ms.load(std::memory_order_relaxed);
+        timings.gpu.full_surface_upload_ms = c->full_surface_upload_ms.load(std::memory_order_relaxed);
+        timings.gpu.video_composite_ms = c->video_composite_ms.load(std::memory_order_relaxed);
+        timings.gpu.encode_submit_ms = c->encode_submit_ms.load(std::memory_order_relaxed);
+        timings.gpu.encode_wait_ms = c->encode_wait_ms.load(std::memory_order_relaxed);
+
+        timings.cpu_breakdown.timeline_eval_ms = static_cast<double>(c->timeline_eval_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.graph_resolve_layers_ms = static_cast<double>(c->graph_resolve_layers_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.graph_dirty_rect_ms = static_cast<double>(c->graph_dirty_rect_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.graph_build_ms = static_cast<double>(c->graph_build_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.graph_execute_ms = static_cast<double>(c->graph_execute_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.compiled_graph_refresh_ms = static_cast<double>(c->compiled_graph_refresh_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.cache_eval_ms = static_cast<double>(c->cache_eval_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.dirty_eval_ms = static_cast<double>(c->dirty_eval_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.input_resolve_ms = static_cast<double>(c->input_resolve_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.predicted_bbox_ms = static_cast<double>(c->predicted_bbox_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.clone_context_ms = static_cast<double>(c->clone_context_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.state_assign_ms = static_cast<double>(c->state_assign_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.framebuffer_acquire_ms = static_cast<double>(c->framebuffer_acquire_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.framebuffer_clear_ms = static_cast<double>(c->framebuffer_clear_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.framebuffer_lifetime_ms = static_cast<double>(c->framebuffer_lifetime_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.node_schedule_ms = static_cast<double>(c->node_schedule_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.node_dispatch_ms = static_cast<double>(c->node_dispatch_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.node_execute_actual_ms = static_cast<double>(c->node_execute_actual_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.node_overhead_ms = static_cast<double>(c->node_overhead_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.telemetry_emit_ms = static_cast<double>(c->telemetry_emit_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.text_layout_ms = static_cast<double>(c->text_layout_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.text_rasterization_ms = static_cast<double>(c->text_rasterization_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.text_shaping_ms = static_cast<double>(c->text_shaping_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.text_bidi_ms = static_cast<double>(c->text_bidi_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.glyph_cache_lookup_ms = static_cast<double>(c->glyph_cache_lookup_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.glyph_atlas_upload_ms = static_cast<double>(c->glyph_atlas_upload_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.text_draw_ms = static_cast<double>(c->text_draw_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+        timings.cpu_breakdown.clearnode_ms = static_cast<double>(c->clearnode_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.compositenode_blend_ms = static_cast<double>(c->compositenode_blend_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.effect_stack_total_ms = static_cast<double>(c->effect_stack_total_wall_ms.load(std::memory_order_relaxed));
+        timings.cpu_breakdown.graph_executed_frames = c->graph_executed_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.graph_reused_frames = c->graph_reused_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.graph_refresh_scratch_node_builds =
+            c->graph_refresh_scratch_node_builds.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.graph_refresh_scratch_node_reuses =
+            c->graph_refresh_scratch_node_reuses.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.fast_path_reused_frames = c->fast_path_reused_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.video_source_requested_frames = c->video_source_requested_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.video_source_inactive_frames = c->video_source_inactive_frames.load(std::memory_order_relaxed);
+        timings.cpu_breakdown.video_source_repeated_frames = c->video_source_repeated_frames.load(std::memory_order_relaxed);
+    }
+    if (session.renderer_ptr()) {
+        const auto atlas_stats = session.renderer_ptr()->execution_context().runtime
+            ->gpu_glyph_atlas().stats();
+        timings.text.atlas_cache_hits = atlas_stats.hits;
+        timings.text.atlas_cache_misses = atlas_stats.misses;
+        timings.text.atlas_upload_count = atlas_stats.page_count;
+        timings.text.atlas_upload_bytes = atlas_stats.total_glyph_bytes;
+    }
+    timings.cache.image_cache_hits = session.prepare_timings.image_cache_hits;
+    timings.cache.image_cache_misses = session.prepare_timings.image_cache_misses;
+    timings.cache.font_cache_hits = session.prepare_timings.font_cache_hits;
+    timings.cache.font_cache_misses = session.prepare_timings.font_cache_misses;
+
+    if (counters) {
+        auto* c = counters;
+        timings.runtime.video_runtime_created = c->video_runtime_created.load(std::memory_order_relaxed);
+        timings.runtime.video_runtime_reused = c->video_runtime_reused.load(std::memory_order_relaxed);
+        timings.runtime.cuda_hwdevice_created = c->cuda_hwdevice_created.load(std::memory_order_relaxed);
+        timings.runtime.cuda_hwdevice_reused = c->cuda_hwdevice_reused.load(std::memory_order_relaxed);
+        timings.runtime.cuda_frames_cache_hit = c->cuda_frames_cache_hit.load(std::memory_order_relaxed);
+        timings.runtime.cuda_frames_cache_miss = c->cuda_frames_cache_miss.load(std::memory_order_relaxed);
+        timings.runtime.cuda_image_cache_hit = c->cuda_image_cache_hit.load(std::memory_order_relaxed);
+        timings.runtime.cuda_image_cache_miss = c->cuda_image_cache_miss.load(std::memory_order_relaxed);
+        timings.gpu.software_fallback_nodes = c->gpu_text_fallback_count.load(std::memory_order_relaxed);
+    }
+    timings.runtime.encoder_open_nvenc_ms = session.startup_breakdown.encoder_open_nvenc_ms;
+}
+
+void account_internal_profiling(
+    PipeExportSession& session,
+    const EncoderCloseResult& close_result,
+    const media::NativeVideoFrameDecoder::DecodeProfilingStats& decode_stats,
+    const RenderCounters* counters,
+    pipe_timing::JobTimings& timings) {
+    if (decode_stats.decoded_frames > 0) {
+        pipe_timing::InternalDecodeProfiling dec_p;
+        dec_p.decoded_frames = decode_stats.decoded_frames;
+        dec_p.decode_total_ms = decode_stats.decode_total_ms;
+        dec_p.demux_read_packet_ms = decode_stats.demux_read_packet_ms;
+        dec_p.avcodec_send_packet_ms = decode_stats.avcodec_send_packet_ms;
+        dec_p.avcodec_receive_frame_ms = decode_stats.avcodec_receive_frame_ms;
+        dec_p.nvdec_wait_ms = decode_stats.nvdec_wait_ms;
+        dec_p.cpu_active_ms = decode_stats.demux_read_packet_ms + decode_stats.avcodec_send_packet_ms;
+        dec_p.cpu_wait_ms = decode_stats.avcodec_receive_frame_ms;
+        if (!decode_stats.frame_durations_ms.empty()) {
+            std::vector<double> sorted = decode_stats.frame_durations_ms;
+            std::sort(sorted.begin(), sorted.end());
+            double sum = 0.0;
+            for (double d : sorted) sum += d;
+            dec_p.avg_ms_per_frame = sum / sorted.size();
+            dec_p.p50_ms_per_frame = sorted[sorted.size() / 2];
+            dec_p.p95_ms_per_frame = sorted[static_cast<std::size_t>(sorted.size() * 0.95)];
+            dec_p.max_ms_per_frame = sorted.back();
+        }
+        timings.internal_decode = dec_p;
+    }
+
+    pipe_timing::InternalDirectYuvProfiling dyuv_p;
+    if (session.direct_yuv_selected()) {
+        dyuv_p.input_probe_ms = decode_stats.container_open_ms +
+            decode_stats.stream_probe_ms + decode_stats.decoder_open_ms;
+        // DirectYuvSession exposes the prepared media program; its preparation
+        // timings remain part of the session telemetry contract.
+    }
+    dyuv_p.cuda_launch_ms = close_result.direct_yuv_cuda_launch_ms;
+    dyuv_p.cuda_event_wait_ms = close_result.direct_yuv_cuda_wait_ms;
+    if (counters) {
+        dyuv_p.cuda_kernel_total_ms = static_cast<double>(
+            counters->cuda_composite_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+    }
+    timings.internal_direct_yuv = dyuv_p;
+
+    pipe_timing::InternalEncoderProfiling enc_p;
+    enc_p.av_hwframe_get_buffer_ms = close_result.encoder_hwframe_get_buffer_ms;
+    enc_p.surface_acquire_ms = close_result.encoder_surface_acquire_ms;
+    enc_p.nvenc_submit_ms = close_result.encoder_nvenc_submit_ms;
+    enc_p.queue_backpressure_wait_ms = close_result.encoder_queue_backpressure_wait_ms;
+    enc_p.packet_drain_ms = close_result.encoder_packet_drain_ms;
+    enc_p.cpu_active_ms = close_result.encoder_hwframe_get_buffer_ms +
+                          close_result.encoder_surface_acquire_ms +
+                          close_result.encoder_nvenc_submit_ms +
+                          close_result.encoder_packet_drain_ms;
+    enc_p.cpu_wait_ms = close_result.encoder_queue_backpressure_wait_ms +
+                        close_result.direct_yuv_cuda_wait_ms;
+    timings.internal_encoder = enc_p;
+}
+
 } // namespace chronon3d::cli

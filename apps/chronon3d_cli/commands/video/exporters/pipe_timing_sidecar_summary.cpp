@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include "pipe_timing_sidecar_detail.hpp"
+#include "pipe_timing_sidecar_serialize.hpp"
 
 #include "../../../utils/video/encoder_config_resolution.hpp"
 
@@ -20,9 +21,10 @@ namespace chronon3d::cli::pipe_timing_detail {
 
 using chronon3d::telemetry::FrameTelemetry;
 
-void build_summary_and_job_sections(
-    nlohmann::json& out, const SidecarContext& ctx,
-    const std::vector<double>& durations, const pipe_timing::JobTimings& timings) {
+// ── The typed summary section: frames + durations + JobTimings in, JSON out ──
+nlohmann::json build_summary_section(
+    const SidecarContext& ctx, const std::vector<double>& durations,
+    const pipe_timing::JobTimings& timings) {
     const auto& frames = ctx.frames;
     const auto& enc = ctx.enc;
     const bool is_native = ctx.is_native;
@@ -211,11 +213,17 @@ void build_summary_and_job_sections(
         ? nlohmann::json(*timings.target_fps_num) : nlohmann::json(nullptr);
     summary["target_fps_den"] = timings.target_fps_den
         ? nlohmann::json(*timings.target_fps_den) : nlohmann::json(nullptr);
-    out["summary"] = std::move(summary);
+    return summary;
+}
 
-    auto& job = out["job"];
+// ── The typed job section ──────────────────────────────────────────────────
+// `JobTimings` is the typed input; this is the only serializer for it, so the
+// frozen key set asserted in tests/cli/test_timing_sidecar_schema.cpp is a real
+// contract rather than a property of a 600-line function nobody can call.
+void serialize_job_section(nlohmann::json& job,
+                           const pipe_timing::JobTimings& timings) {
     const auto put_ms = [&job](const char* key, const std::optional<double>& value) {
-        if (value) job[key] = *value; else job[key] = nullptr;
+        put_optional(job, key, value);
     };
     put_ms("process_wall_ms", timings.process_wall_ms);
     if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
@@ -299,10 +307,10 @@ void build_summary_and_job_sections(
 
     auto& gpu = job["gpu"];
     const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {
-        if (value) gpu[key] = *value; else gpu[key] = nullptr;
+        put_optional(gpu, key, value);
     };
     const auto put_gpu_u64 = [&gpu](const char* key, const std::optional<uint64_t>& value) {
-        if (value) gpu[key] = *value; else gpu[key] = nullptr;
+        put_optional(gpu, key, value);
     };
     put_gpu("gpu_execute_ms", timings.gpu.gpu_execute_ms);
     put_gpu("gpu_readback_ms", timings.gpu.gpu_readback_ms);
@@ -432,7 +440,7 @@ void build_summary_and_job_sections(
 
     auto& prepare = job["prepare"];
     const auto put_prepare = [&prepare](const char* key, const std::optional<double>& value) {
-        if (value) prepare[key] = *value; else prepare[key] = nullptr;
+        put_optional(prepare, key, value);
     };
     put_prepare("asset_preflight_ms", timings.prepare.asset_preflight_ms);
     put_prepare("asset_resolve_ms", timings.prepare.asset_resolve_ms);
@@ -450,7 +458,7 @@ void build_summary_and_job_sections(
 
     auto& image = job["image"];
     const auto put_image = [&image](const char* key, const std::optional<double>& value) {
-        if (value) image[key] = *value; else image[key] = nullptr;
+        put_optional(image, key, value);
     };
     put_image("resolve_ms", timings.prepare.image_resolve_ms);
     put_image("io_ms", timings.prepare.image_io_ms);
@@ -459,7 +467,7 @@ void build_summary_and_job_sections(
     put_image("upload_ms", timings.prepare.image_upload_ms);
     put_image("draw_ms", timings.image_draw_ms);
     const auto put_image_u64 = [&image](const char* key, const std::optional<uint64_t>& value) {
-        if (value) image[key] = *value; else image[key] = nullptr;
+        put_optional(image, key, value);
     };
     put_image_u64("decode_count", timings.prepare.image_decode_count);
     put_image_u64("upload_count", timings.prepare.image_upload_count);
@@ -467,7 +475,7 @@ void build_summary_and_job_sections(
 
     auto& text = job["text"];
     const auto put_text = [&text](const char* key, const std::optional<double>& value) {
-        if (value) text[key] = *value; else text[key] = nullptr;
+        put_optional(text, key, value);
     };
     put_text("prepare_per_frame_ms", timings.text.prepare_per_frame_ms);
     put_text("font_resolve_ms", timings.text.font_resolve_ms);
@@ -484,7 +492,7 @@ void build_summary_and_job_sections(
     put_text("atlas_sha256_ms", timings.text.atlas_sha256_ms);
     put_text("atlas_cache_acquire_ms", timings.text.atlas_cache_acquire_ms);
     const auto put_text_u64 = [&text](const char* key, const std::optional<uint64_t>& value) {
-        if (value) text[key] = *value; else text[key] = nullptr;
+        put_optional(text, key, value);
     };
     put_text_u64("atlas_cache_hits", timings.text.atlas_cache_hits);
     put_text_u64("atlas_cache_misses", timings.text.atlas_cache_misses);
@@ -501,11 +509,11 @@ void build_summary_and_job_sections(
 
     auto& encoder = job["encoder"];
     const auto put_encoder = [&encoder](const char* key, const std::optional<double>& value) {
-        if (value) encoder[key] = *value; else encoder[key] = nullptr;
+        put_optional(encoder, key, value);
     };
     const auto put_encoder_u64 = [&encoder](const char* key,
                                             const std::optional<uint64_t>& value) {
-        if (value) encoder[key] = *value; else encoder[key] = nullptr;
+        put_optional(encoder, key, value);
     };
     put_encoder("submit_cpu_ms", timings.encoder.submit_cpu_ms);
     put_encoder("backpressure_wait_ms", timings.encoder.backpressure_wait_ms);
@@ -517,6 +525,13 @@ void build_summary_and_job_sections(
     put_encoder("device_ms", timings.encoder.device_ms);
     put_encoder("pipe_write_cpu_ms", timings.encoder.pipe_write_cpu_ms);
     put_encoder("pipe_backpressure_wait_ms", timings.encoder.pipe_backpressure_wait_ms);
+}
+
+void build_summary_and_job_sections(
+    nlohmann::json& out, const SidecarContext& ctx,
+    const std::vector<double>& durations, const pipe_timing::JobTimings& timings) {
+    out["summary"] = build_summary_section(ctx, durations, timings);
+    serialize_job_section(out["job"], timings);
 }
 
 } // namespace chronon3d::cli::pipe_timing_detail

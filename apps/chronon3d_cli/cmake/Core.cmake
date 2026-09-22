@@ -16,6 +16,7 @@ add_library(chronon3d_cli_core STATIC
     utils/common/cli_utils.cpp
     commands/dev/command_doctor_verify.cpp
     commands/dev/doctor_report.cpp
+    commands/dev/doctor_report_internal.cpp
 )
 
 target_include_directories(chronon3d_cli_core PRIVATE
