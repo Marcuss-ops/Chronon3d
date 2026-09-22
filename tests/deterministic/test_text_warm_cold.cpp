@@ -66,7 +66,7 @@ int decode_frame_rgba(const std::filesystem::path& input,
                       int frame_index) {
     std::ostringstream command;
     command << "ffmpeg -v error -i " << shell_quote(input.string())
-            << " -vf 'select=eq(n," << frame_index << ")' -frames:v 1"
+            << " -vf 'select=eq(n\\," << frame_index << ")' -frames:v 1"
             << " -pix_fmt rgba -f rawvideo " << shell_quote(output.string())
             << " -y";
     return std::system(command.str().c_str());
