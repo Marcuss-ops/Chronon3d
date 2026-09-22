@@ -267,14 +267,14 @@ invariato.
 
 ## Definition of done
 
-- [ ] Ogni funzione indicata è sotto la soglia concordata dal reviewer oppure
+- [x] Ogni funzione indicata è sotto la soglia concordata dal reviewer oppure
   documentata come orchestratore sottile.
-- [ ] Nessuna nuova authority, registry, cache o compatibility path.
-- [ ] Ogni split ha test/gate mirato e build del target toccato.
-- [ ] I test falliti preesistenti restano esplicitamente distinti dai
+- [x] Nessuna nuova authority, registry, cache o compatibility path.
+- [x] Ogni split ha test/gate mirato e build del target toccato.
+- [x] I test falliti preesistenti restano esplicitamente distinti dai
   regressi introdotti.
-- [ ] `git diff --check`, architecture gate e consumer census passano.
-- [ ] Il ticket viene chiuso solo dopo build/test same-tree e verifica dei
+- [x] `git diff --check`, architecture gate e consumer census passano.
+- [x] Il ticket viene chiuso solo dopo build/test same-tree e verifica dei
   simboli/caller residui.
 
 ## Demolition debt
