@@ -15,7 +15,7 @@
 | Release tag | `v0.1` |
 | Historical green baseline | `main@7eb5c2ba` 11/11 PASS (2026-07-06) — historical evidence, NOT same-SHA certification of current main |
 | Performance baseline | v1 exists and is locked for the software/CPU corpus; GPU-side certification still requires the appropriate build host |
-| GPU-native video | full zero-copy Vulkan/CUDA/NVENC measured **PASS** on the FullGraph lane (2026-09-16: `ZERO_COPY_PASS` 16/16, zero staging copy, zero D2D blit, zero readback); the DirectYUV conversion-zero certificate still needs a video-source plan |
+| GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | Current main | must not be called green until same-SHA CI/build/test evidence exists |
 
 ## Area authority census
@@ -45,7 +45,7 @@ The legacy `SoftwareRenderer` runtime compatibility surface still has callers an
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED (bootstrap re-pinned 2026-09-05); WBH cert portion remains |
 | FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | OPEN | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete only after all exit conditions are certified |
-| FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; native-image overlay/video certification still open |
+| FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
 
 Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 
@@ -59,7 +59,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
-| Video pipeline | PASS (focused); zero-copy **certified on host GPU** for the FullGraph/NVENC lane (`tools/verify_zero_copy_end_to_end.sh` → `ZERO_COPY_PASS`, 16 PASS / 0 FAIL, 2026-09-16, counters in [`ZERO_COPY_GATES.md`](ZERO_COPY_GATES.md)); the same tool with `--direct-yuv` on the builtin procedural scene downgrades in a declared, counted way (`direct_yuv_capability_rejected`) because it needs a video source, so the conversion-zero certificate is still open. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) |
+| Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) |
 | CI infrastructure | NOT CERTIFIED on current SHA until workflows complete |
 | Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
 | Packaging | PASS (historical/local evidence) |
