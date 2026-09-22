@@ -629,7 +629,6 @@ void VulkanBackend::end_frame_batch_unlocked() {
         return;
     }
     m_impl->submit_batch();
-    m_impl->flush_deferred_surface_releases();
     batch.active = false;
 #endif
 }

@@ -234,6 +234,10 @@ void VulkanBackend::retire_frame_transient_surfaces() noexcept {
         // Audit N4 measurement: the two domains this site
         // still needs, timed (see Impl::DomainLock).
         Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
+        // Keep deferred frame-batch releases alive through the terminal
+        // native-output synchronization. The render pipeline calls this only
+        // after its readback/encode consumer has finished with the output.
+        m_impl->flush_deferred_surface_releases();
         m_impl->retire_completed_frame_transient_surfaces();
     }
 #endif

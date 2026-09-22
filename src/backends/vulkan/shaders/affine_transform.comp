@@ -23,16 +23,21 @@ vec4 sample_nearest(vec2 source, ivec2 size) {
     return imageLoad(src_image, p);
 }
 
+vec4 load_transparent(ivec2 p, ivec2 size) {
+    if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) {
+        return vec4(0.0);
+    }
+    return imageLoad(src_image, p);
+}
+
 vec4 sample_bilinear(vec2 source, ivec2 size) {
     vec2 u = source - vec2(0.5);
     ivec2 p = ivec2(floor(u));
     vec2 f = fract(u);
-    ivec2 p00 = clamp(p, ivec2(0), size - ivec2(1));
-    ivec2 p10 = clamp(p + ivec2(1, 0), ivec2(0), size - ivec2(1));
-    ivec2 p01 = clamp(p + ivec2(0, 1), ivec2(0), size - ivec2(1));
-    ivec2 p11 = clamp(p + ivec2(1), ivec2(0), size - ivec2(1));
-    return mix(mix(imageLoad(src_image, p00), imageLoad(src_image, p10), f.x),
-               mix(imageLoad(src_image, p01), imageLoad(src_image, p11), f.x), f.y);
+    return mix(mix(load_transparent(p, size),
+                   load_transparent(p + ivec2(1, 0), size), f.x),
+               mix(load_transparent(p + ivec2(0, 1), size),
+                   load_transparent(p + ivec2(1), size), f.x), f.y);
 }
 
 void main() {

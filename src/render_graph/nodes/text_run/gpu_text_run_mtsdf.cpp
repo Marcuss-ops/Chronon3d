@@ -335,10 +335,6 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route destination has no native surface"));
     }
-    const auto cleared = ctx.backend->fill_rect_surface(
-        destination.surface_handle(), 0, 0, destination.width(), destination.height(),
-        Color::transparent());
-    if (!cleared.ok()) return cleared;
     std::size_t items_drawn = 0;
     for (const auto& batch : prepared->batches) {
         if (batch.glyphs.empty()) continue;

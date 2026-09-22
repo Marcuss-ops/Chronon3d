@@ -183,32 +183,22 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         signal_values.clear();
         signal_semaphores.push_back(timeline_semaphore);
         signal_values.push_back(signal_value);
-        static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
             const auto it = surfaces.physical_surfaces.find(physical_slot);
             if (it == surfaces.physical_surfaces.end()) continue;
-            wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
+            auto& image = it->second.image;
+            wait_semaphores.push_back(image.cuda_to_vulkan);
             wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-            wait_values.push_back(it->second.image.cuda_timeline
-                ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
-            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-            signal_values.push_back(it->second.image.cuda_timeline
-                ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
-            if (s_trace) {
-                runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
-                for (const auto& [h, s] : surfaces.surface_bindings) {
-                    if (s == physical_slot) { bound_handle = h; break; }
-                }
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_WAIT_C2V handle={} slot={} image={} sem={} value={}",
-                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.cuda_to_vulkan),
-                             it->second.image.cuda_timeline ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (ready) handle={} slot={} image={} sem={} value={}",
-                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.vulkan_to_cuda),
-                             it->second.image.cuda_timeline ? it->second.image.interop_generation->vulkan_to_cuda() : 0);
-            }
+            wait_values.push_back(image.cuda_timeline
+                ? image.interop_generation->cuda_to_vulkan() : 0);
+            signal_semaphores.push_back(image.vulkan_to_cuda);
+            const auto value = image.cuda_timeline
+                ? image.interop_generation->next_vulkan_to_cuda() : 0;
+            signal_values.push_back(value);
+            image.last_vulkan_to_cuda_value = value;
+            image.cuda_export_fence_slot = slot;
+            image.cuda_export_standalone_fence = false;
         }
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
             // A reused surface is already waiting on CUDA completion above;
@@ -217,19 +207,14 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
             const auto it = surfaces.physical_surfaces.find(physical_slot);
             if (it == surfaces.physical_surfaces.end()) continue;
-            signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-            signal_values.push_back(it->second.image.cuda_timeline
-                ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
-            if (s_trace) {
-                runtime::RenderSurfaceHandle bound_handle = runtime::kInvalidRenderSurfaceHandle;
-                for (const auto& [h, s] : surfaces.surface_bindings) {
-                    if (s == physical_slot) { bound_handle = h; break; }
-                }
-                spdlog::info("[interop-trace] SUBMIT_BATCH VK_SIGNAL_V2C (export) handle={} slot={} image={} sem={} value={}",
-                             bound_handle, physical_slot, static_cast<void*>(it->second.image.image),
-                             static_cast<void*>(it->second.image.vulkan_to_cuda),
-                             it->second.image.cuda_timeline ? it->second.image.interop_generation->vulkan_to_cuda() : 0);
-            }
+            auto& image = it->second.image;
+            signal_semaphores.push_back(image.vulkan_to_cuda);
+            const auto value = image.cuda_timeline
+                ? image.interop_generation->next_vulkan_to_cuda() : 0;
+            signal_values.push_back(value);
+            image.last_vulkan_to_cuda_value = value;
+            image.cuda_export_fence_slot = slot;
+            image.cuda_export_standalone_fence = false;
         }
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -255,6 +240,17 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         frame_batch.submitted_submit_end_trace_ns[slot] =
             chronon3d::tracing::TraceTimeNs();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        const auto mark_frame_export = [this, slot](const std::uint64_t physical_slot) {
+            const auto it = surfaces.physical_surfaces.find(physical_slot);
+            if (it == surfaces.physical_surfaces.end()) return;
+            it->second.image.cuda_export_fence_slot = slot;
+            it->second.image.cuda_export_standalone_fence = false;
+        };
+        for (const auto physical_slot : surfaces.cuda_ready_surfaces)
+            mark_frame_export(physical_slot);
+        for (const auto physical_slot : surfaces.cuda_export_ready_surfaces)
+            if (!surfaces.cuda_ready_surfaces.contains(physical_slot))
+                mark_frame_export(physical_slot);
         // Binary CUDA interop used to wait for this fence immediately, which
         // serialized every frame behind CUDA/NVENC.  Reuse is already gated
         // by the next submission's Vulkan wait on C2V; the ring-slot fence is

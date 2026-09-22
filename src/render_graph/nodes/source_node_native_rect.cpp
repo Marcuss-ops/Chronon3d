@@ -87,11 +87,11 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
 
     const bool covers_full_destination =
         x0 <= 0 && y0 <= 0 && x1 >= fb.width() && y1 >= fb.height();
-    // A full-frame solid rect writes every destination pixel.  It therefore
-    // needs no CPU seed: allocate an empty native surface and let the GPU
-    // fill kernel produce the result.  Partial rects retain the legacy
-    // promotion because their untouched pixels still carry source state.
-    if (covers_full_destination) {
+    // A newly acquired native-video framebuffer has no CPU backing and no
+    // source pixels to preserve.  Initialize it transparently on the GPU for
+    // both full and partial fills; only a CPU-backed partial framebuffer needs
+    // promotion because its untouched pixels carry source state.
+    if (covers_full_destination || !fb.data()) {
         if (!ensure_empty_native_surface(ctx, fb)) return false;
     } else if (!ensure_native_surface(ctx, fb, "SourceNode.rect.partial")) {
         return false;

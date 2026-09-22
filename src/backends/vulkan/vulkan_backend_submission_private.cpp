@@ -90,21 +90,31 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
         const auto it = surfaces.physical_surfaces.find(physical_slot);
         if (it == surfaces.physical_surfaces.end()) continue;
-        wait_semaphores.push_back(it->second.image.cuda_to_vulkan);
+        auto& image = it->second.image;
+        wait_semaphores.push_back(image.cuda_to_vulkan);
         wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-        wait_values.push_back(it->second.image.cuda_timeline
-            ? it->second.image.interop_generation->cuda_to_vulkan() : 0);
-        signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-        signal_values.push_back(it->second.image.cuda_timeline
-            ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
+        wait_values.push_back(image.cuda_timeline
+            ? image.interop_generation->cuda_to_vulkan() : 0);
+        signal_semaphores.push_back(image.vulkan_to_cuda);
+        const auto value = image.cuda_timeline
+            ? image.interop_generation->next_vulkan_to_cuda() : 0;
+        signal_values.push_back(value);
+        image.last_vulkan_to_cuda_value = value;
+        image.cuda_export_fence_slot.reset();
+        image.cuda_export_standalone_fence = true;
     }
     for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
         if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
         const auto it = surfaces.physical_surfaces.find(physical_slot);
         if (it == surfaces.physical_surfaces.end()) continue;
-        signal_semaphores.push_back(it->second.image.vulkan_to_cuda);
-        signal_values.push_back(it->second.image.cuda_timeline
-            ? it->second.image.interop_generation->next_vulkan_to_cuda() : 0);
+        auto& image = it->second.image;
+        signal_semaphores.push_back(image.vulkan_to_cuda);
+        const auto value = image.cuda_timeline
+            ? image.interop_generation->next_vulkan_to_cuda() : 0;
+        signal_values.push_back(value);
+        image.last_vulkan_to_cuda_value = value;
+        image.cuda_export_fence_slot.reset();
+        image.cuda_export_standalone_fence = true;
     }
 #endif
     const VkTimelineSemaphoreSubmitInfo timeline_submit{
@@ -125,6 +135,17 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
     ++stats.submissions;
     pending_timeline_value = signal_value;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    const auto mark_standalone_export = [this](const std::uint64_t physical_slot) {
+        const auto it = surfaces.physical_surfaces.find(physical_slot);
+        if (it == surfaces.physical_surfaces.end()) return;
+        it->second.image.cuda_export_fence_slot.reset();
+        it->second.image.cuda_export_standalone_fence = true;
+    };
+    for (const auto physical_slot : surfaces.cuda_ready_surfaces)
+        mark_standalone_export(physical_slot);
+    for (const auto physical_slot : surfaces.cuda_export_ready_surfaces)
+        if (!surfaces.cuda_ready_surfaces.contains(physical_slot))
+            mark_standalone_export(physical_slot);
     surfaces.cuda_ready_surfaces.clear();
     surfaces.cuda_export_ready_surfaces.clear();
 #endif

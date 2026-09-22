@@ -263,18 +263,17 @@ private:
                            const ResourceRequest& request) noexcept {
         const auto& slot_desc = slot.desc;
         const auto& desc = request.desc;
-        const bool format_compatible =
-            desc.format.pixel == PixelFormat::Unknown ||
-            slot_desc.format.pixel == PixelFormat::Unknown ||
-            slot_desc.format == desc.format;
+        // Physical aliasing is keyed by the concrete extent and format. An
+        // unknown descriptor is not a wildcard: allowing it to alias a
+        // concrete native surface is exactly how a tight GPU text view can
+        // later be resized as a canvas-sized view.
+        const bool format_compatible = slot_desc.format == desc.format;
         const bool usage_compatible =
             desc.usage == ResourceUsage::Generic ||
             slot_desc.usage == ResourceUsage::Generic ||
             slot_desc.usage == desc.usage;
         const bool alignment_compatible = desc.alignment != 0;
         const bool dimensions_compatible =
-            desc.width == 0 || desc.height == 0 || slot_desc.width == 0 ||
-            slot_desc.height == 0 ||
             (slot_desc.width == desc.width && slot_desc.height == desc.height);
         const bool residency_compatible = slot_desc.residency == desc.residency;
         return slot_desc.kind == desc.kind &&

@@ -300,6 +300,10 @@ void main() {
 
         vec4 src;
         if (mtsdf) {
+            // The prepared atlas is an MTSDF payload.  The RGB median is the
+            // canonical screen-space signed-distance reconstruction used by
+            // the text profile; the alpha lane is retained for diagnostics and
+            // must not turn the padded glyph plane into fill.
             float msd = median3(sample_value.r, sample_value.g, sample_value.b);
             float distance_range = uintBitsToFloat(run.distance_range_bits);
             if (!(distance_range > 0.0)) distance_range = 8.0;
@@ -367,9 +371,14 @@ void main() {
                 // their own spaces into destination pixels before they are
                 // compared, instead of scaling both by one factor that can
                 // only be right for one of them.
+                // `stroke_width` is the authored OUTLINE width, therefore the
+                // signed field is expanded by its radius, not by the full
+                // diameter.  Expanding by the full width makes every padded
+                // texel of the glyph plane pass the stroke test and produces
+                // the opaque rectangular boxes seen around projected text.
                 float stroke_alpha = clamp(
-                    (sample_value.a - 0.5) * distance_range * texel_to_screen +
-                    run.stroke_width * local_to_screen + 0.5, 0.0, 1.0);
+                    (msd - 0.5) * distance_range * texel_to_screen +
+                    0.5 * run.stroke_width * local_to_screen + 0.5, 0.0, 1.0);
                 vec4 stroke = unpack_color(run.stroke_color) * stroke_alpha;
                 stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);

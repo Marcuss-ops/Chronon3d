@@ -15,7 +15,8 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip,
-                                runtime::RenderSurfaceHandle existing_source) {
+                                runtime::RenderSurfaceHandle existing_source,
+                                const Framebuffer* existing_source_framebuffer) {
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
@@ -51,11 +52,17 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     // check_steady_state_allocations gate is meant to catch.
     const bool source_is_existing =
         existing_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_is_existing &&
+        existing_source_framebuffer &&
+        (existing_source_framebuffer->width() != result.width() ||
+         existing_source_framebuffer->height() != result.height() ||
+         existing_source_framebuffer->origin_x() != result.origin_x() ||
+         existing_source_framebuffer->origin_y() != result.origin_y());
     std::vector<float> packed_rgba;
     const auto rgba = source_is_existing
         ? std::span<const float>{}
         : framebuffer_rgba_view(result, packed_rgba);
-    const auto source = source_is_existing
+    const auto source = source_is_existing && !source_needs_expansion
         ? existing_source
         : ctx.surface_registry->create(desc);
     const auto output = ctx.surface_registry->create(desc);
@@ -65,7 +72,8 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         output == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         vertical == runtime::kInvalidRenderSurfaceHandle) {
-        if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
+        if ((!source_is_existing || source_needs_expansion) &&
+            source != runtime::kInvalidRenderSurfaceHandle)
             ctx.surface_registry->release(source);
         if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
         if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
@@ -73,20 +81,30 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         return false;
     }
     const auto cleanup = [&] {
-        if (!source_is_existing) (void)ctx.backend->release_surface(source);
+        if (!source_is_existing || source_needs_expansion)
+            (void)ctx.backend->release_surface(source);
         (void)ctx.backend->release_surface(output);
         (void)ctx.backend->release_surface(horizontal);
         (void)ctx.backend->release_surface(vertical);
-        if (!source_is_existing) ctx.surface_registry->release(source);
+        if (!source_is_existing || source_needs_expansion)
+            ctx.surface_registry->release(source);
         ctx.surface_registry->release(output);
         ctx.surface_registry->release(horizontal);
         ctx.surface_registry->release(vertical);
     };
-    const auto source_ready = source_is_existing
+    const auto source_ready = source_is_existing && !source_needs_expansion
         ? RenderOpResult(RenderOpOutcome{})
         : ctx.backend->create_surface(source, desc);
     RenderOpResult upload = source_ready;
-    if (!source_is_existing && source_ready.ok()) {
+    if (source_needs_expansion && source_ready.ok()) {
+        upload = ctx.backend->initialize_transparent_surface(source);
+        if (upload.ok()) {
+            const int offset_x = existing_source_framebuffer->origin_x() - result.origin_x();
+            const int offset_y = existing_source_framebuffer->origin_y() - result.origin_y();
+            upload = ctx.backend->transform_surface(
+                source, existing_source, offset_x, offset_y, 1.0f);
+        }
+    } else if (!source_is_existing && source_ready.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
         upload = ctx.backend->upload_surface(source, desc, rgba);
@@ -134,10 +152,12 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         }
     }
 
-    if (!source_is_existing) (void)ctx.backend->release_surface(source);
+    if (!source_is_existing || source_needs_expansion)
+        (void)ctx.backend->release_surface(source);
     (void)ctx.backend->release_surface(horizontal);
     (void)ctx.backend->release_surface(vertical);
-    if (!source_is_existing) ctx.surface_registry->release(source);
+    if (!source_is_existing || source_needs_expansion)
+        ctx.surface_registry->release(source);
     ctx.surface_registry->release(horizontal);
     ctx.surface_registry->release(vertical);
     result.set_surface_handle(output);

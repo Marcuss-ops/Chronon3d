@@ -18,6 +18,7 @@ typedef struct CUctx_st *CUcontext;
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string>
 #include <utility>
@@ -187,6 +188,10 @@ struct CudaExternalMemoryInfo {
     // semaphore compatibility bridge.
     bool timeline_semaphores{false};
     std::shared_ptr<InteropGeneration> generation{};
+    // Host-side wait for the Vulkan frame-batch slot that signaled this
+    // surface. CUDA enqueues its external-semaphore wait only after this
+    // narrow fence confirms the export submit completed.
+    std::function<std::uint64_t()> wait_vulkan_fence{};
 };
 #endif
 

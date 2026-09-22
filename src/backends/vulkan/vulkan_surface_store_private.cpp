@@ -127,6 +127,23 @@ namespace chronon3d::backends::vulkan {
         }
     }
 
+    void VulkanBackend::Impl::clear_uninitialized_upload_target(
+        VkCommandBuffer command, Image& image) {
+        if (image.initialized) return;
+
+        // A retained physical slot can still contain the previous occupant's
+        // pixels when its logical binding is recycled. Partial uploads must
+        // establish transparent contents before copying their first region.
+        transition(command, image.image, VK_IMAGE_LAYOUT_UNDEFINED,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        const VkClearColorValue clear{{0.0f, 0.0f, 0.0f, 0.0f}};
+        const VkImageSubresourceRange range{
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vkCmdClearColorImage(command, image.image,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             &clear, 1, &range);
+    }
+
     void VulkanBackend::Impl::release_surface_now(runtime::RenderSurfaceHandle handle) {
         if (surface_lifecycle_diag_enabled()) {
             spdlog::info("[surface-lifecycle] release-now handle={}", handle);
@@ -338,9 +355,12 @@ namespace chronon3d::backends::vulkan {
               "vkResetCommandBuffer(upload slot)");
         check(vkBeginCommandBuffer(slot.command_buffer, &begin),
               "vkBeginCommandBuffer(upload slot)");
-        transition(slot.command_buffer, image.image,
-                   image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        clear_uninitialized_upload_target(slot.command_buffer, image);
+        if (image.initialized) {
+            transition(slot.command_buffer, image.image,
+                       VK_IMAGE_LAYOUT_GENERAL,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        }
         const VkBufferImageCopy copy{0, desc.width, desc.height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {desc.width, desc.height, 1}};
         vkCmdCopyBufferToImage(slot.command_buffer, slot.buffer_allocation.buffer, image.image,
@@ -403,9 +423,12 @@ namespace chronon3d::backends::vulkan {
             VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
         check(vkResetCommandBuffer(slot.command_buffer, 0), "vkResetCommandBuffer(region upload slot)");
         check(vkBeginCommandBuffer(slot.command_buffer, &begin), "vkBeginCommandBuffer(region upload slot)");
-        transition(slot.command_buffer, image.image,
-                   image.initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
-                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        clear_uninitialized_upload_target(slot.command_buffer, image);
+        if (image.initialized) {
+            transition(slot.command_buffer, image.image,
+                       VK_IMAGE_LAYOUT_GENERAL,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        }
         const VkBufferImageCopy copy{
             0, width, height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},

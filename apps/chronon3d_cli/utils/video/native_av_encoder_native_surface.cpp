@@ -39,15 +39,11 @@ bool NativeAvEncoder::prepare_native_surface(
     }
     const auto key = static_cast<std::uint64_t>(destination);
     auto compositor_it = cuda_nv12_compositors_.find(key);
-    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
     if (compositor_it == cuda_nv12_compositors_.end()) {
         const auto info = vulkan->export_cuda_external_memory(destination);
         auto compositor = std::make_unique<media::video::CudaNv12Compositor>(
             info, reinterpret_cast<CUcontext>(cuda_context_));
         cuda_nv12_compositors_.emplace(key, std::move(compositor));
-        if (s_trace) {
-            spdlog::info("[interop-trace] PREPARE_NATIVE_SURFACE dest={} ctx={}", destination, cuda_context_);
-        }
     }
     // Materialize FFmpeg's CUDA frame pool before the render loop. The frame
     // objects are retained and reused by write_native_surface_impl; this
@@ -104,12 +100,6 @@ bool NativeAvEncoder::write_native_surface_impl(
     if (cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
         spdlog::error("[native_av] failed to activate CUDA context before surface handoff");
         return false;
-    }
-    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
-    if (s_trace) {
-        spdlog::info("[interop-trace] WRITE_NATIVE_SURFACE pts={} src={} dest={} prepared={} ctx={} stream={}",
-                     frames_submitted_, source, destination, surface_already_prepared,
-                     cuda_context_, static_cast<void*>(cuda_stream_));
     }
     auto* vulkan = dynamic_cast<backends::vulkan::VulkanBackend*>(&backend);
     if (!vulkan) return false;

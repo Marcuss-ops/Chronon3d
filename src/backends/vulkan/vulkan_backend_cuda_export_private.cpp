@@ -164,18 +164,33 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
                         fmt == VK_FORMAT_B8G8R8A8_SRGB ||
                         fmt == VK_FORMAT_A8B8G8R8_UNORM_PACK32 ||
                         fmt == VK_FORMAT_A8B8G8R8_SRGB_PACK32);
-    static const bool s_trace = std::getenv("CHRONON_CUDA_INTEROP_TRACE") != nullptr;
-    if (s_trace) {
-        spdlog::info("[interop-trace] EXPORT handle={} slot={} image={} V2C_sem={} (fd={}) C2V_sem={} (fd={})",
-                     handle, binding->second, static_cast<void*>(image.image),
-                     static_cast<void*>(image.vulkan_to_cuda), vulkan_to_cuda_fd,
-                     static_cast<void*>(image.cuda_to_vulkan), cuda_to_vulkan_fd);
-    }
-    return CudaExternalMemoryInfo{
+    CudaExternalMemoryInfo exported{
         fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
         image_it->second.image.width, image_it->second.image.height,
         is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline,
         image_it->second.image.interop_generation};
+    const auto physical_slot = binding->second;
+    exported.wait_vulkan_fence = [impl = const_cast<Impl*>(this), physical_slot] {
+        Impl::DomainLock lock(*impl, Impl::LockDomain::Dual);
+        const auto physical = impl->surfaces.physical_surfaces.find(physical_slot);
+        if (physical == impl->surfaces.physical_surfaces.end()) return std::uint64_t{0};
+        const auto& image = physical->second.image;
+        if (image.cuda_export_standalone_fence) {
+            if (impl->pending_timeline_value == 0) return image.last_vulkan_to_cuda_value;
+            const VkFence fence = impl->fence;
+            check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
+                  "vkWaitForFences(CUDA export standalone)");
+            return image.last_vulkan_to_cuda_value;
+        }
+        const auto slot = image.cuda_export_fence_slot;
+        if (!slot || *slot >= Impl::FrameBatchState::kSlotCount ||
+            !impl->frame_batch.in_flight[*slot]) return image.last_vulkan_to_cuda_value;
+        const VkFence fence = impl->frame_batch.fences[*slot];
+        check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
+              "vkWaitForFences(CUDA export slot)");
+        return image.last_vulkan_to_cuda_value;
+    };
+    return exported;
 }
 
 void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(
