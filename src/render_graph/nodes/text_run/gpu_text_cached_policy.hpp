@@ -4,7 +4,6 @@ namespace chronon3d::graph::text_run::detail {
 
 enum class TextExecutionRoute {
     NativeMtsdf,
-    NativePacked,
     Software,
     Reject,
 };
@@ -34,7 +33,7 @@ struct TextRouteDecision {
 /// silent GPU fallback.
 ///
 /// `native_surfaces_supported` is a lane capability, not a resource: every
-/// native text kernel (MTSDF and packed) needs a resident glyph surface, so a
+/// the canonical MTSDF text kernel needs a resident glyph surface, so a
 /// backend that cannot host one has no GPU text route at all and the canonical
 /// software renderer owns the frame.  Resolving it here keeps that hand-off
 /// explicit instead of paying a failed glyph-surface acquisition every frame.

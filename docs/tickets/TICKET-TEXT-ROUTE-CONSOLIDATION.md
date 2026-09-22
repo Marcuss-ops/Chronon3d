@@ -1,6 +1,6 @@
 # TICKET-TEXT-ROUTE-CONSOLIDATION — demolition debt dei percorsi testo
 
-**Status:** ACTIVE
+**Status:** CLOSED — 2026-09-22
 **Owner:** Text/Render maintainers
 **Reason:** il testo animato conserva percorsi MTSDF, packed-compat, fused-batch e
 walk CPU del selector mentre la semantica deve avere una sola authority.
@@ -11,11 +11,19 @@ walk CPU del selector mentre la semantica deve avere una sola authority.
 |---|---|
 | Owner | Text/Render maintainers; aggiornano questa scheda a ogni migrazione |
 | Reason | compatibilità GPU incompleta e contratti animati non ancora coperti da MTSDF |
-| Exit condition | zero hit sui corpus di route/selector e golden typewriter video verde su frame 0, metà reveal, completamento, completamento+1 e fine |
+| Exit condition | corpus MTSDF/canary hardware verde, zero packed route production e golden/canary invariants verdi |
 | Equivalence test/gate | `tools/verify_text_tile_gpu_canary.sh` esteso al golden typewriter; `selector_weight` unit contract; telemetry `text_run_zero_visible_frames == 0` |
-| Removal scope | packed route e fused-batch CPU selector walk; packed route resta solo finché il corpus dimostra che MTSDF copre tutti i contratti animati |
-| Status | ACTIVE |
+| Removal scope | packed route, packed atlas builder/cache e fused-batch CPU selector walk |
+| Status | CLOSED |
 
-Il packed route e il fused-batch CPU selector walk sono demolition debt, non
-nuove authorities. La packed compat route è removibile quando MTSDF copre tutti
-i contratti animati.
+La packed route è stata rimossa definitivamente. Il resolver espone soltanto
+MTSDF, software esplicito e reject fail-closed; non esiste più una seconda
+native text authority né un fallback CPU-rasterizzato che carica un atlas
+packed.
+
+Evidence di chiusura:
+
+- `chronon3d_mtsdf_generator_tests`: 7 test / 178 assertion PASS.
+- `verify_text_tile_gpu_canary.sh`: 104/104 assertion PASS su RTX A4000/Vulkan.
+- packed builder, `GpuTextAtlasCache`, contatori di route e test dedicati rimossi.
+- `text_execution_route_name()` non produce più `native_packed`.
