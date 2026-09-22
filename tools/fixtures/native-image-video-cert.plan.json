@@ -1,0 +1,38 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "native-image-video-cert",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 16
+  },
+  "layers": [
+    {
+      "id": "video_background",
+      "type": "video",
+      "source": "test_renders/overlay/trump-overlay-fixed-test.mp4",
+      "size": [1280, 720],
+      "fit": "stretch",
+      "start_frame": 0,
+      "duration_frames": 16
+    },
+    {
+      "id": "native_image_overlay",
+      "type": "image",
+      "asset": "assets/test_image.png",
+      "size": [320, 240],
+      "position": [0, 0],
+      "fit": "contain",
+      "start_frame": 0,
+      "duration_frames": 16
+    }
+  ],
+  "output": {
+    "path": ".tmp/native-image-video-cert/output.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}
