@@ -44,13 +44,15 @@ gpu = job.get("gpu", {})
 required = {
     "execution_path": "full_graph_native",
     "surface_handoff_path": "direct",
-    "effective_backend": "vulkan",
-    "encoder_backend": "nvenc",
 }
 for field, expected in required.items():
     actual = job.get(field)
     if actual != expected:
         raise SystemExit(f"NATIVE_IMAGE_FAIL: {field}={actual!r}, expected {expected!r}")
+for field, expected in {"effective_backend": "vulkan", "encoder_backend": "nvenc"}.items():
+    actual = gpu.get(field)
+    if actual != expected:
+        raise SystemExit(f"NATIVE_IMAGE_FAIL: gpu.{field}={actual!r}, expected {expected!r}")
 
 checks = {
     "gpu_native_surface_frames": gpu.get("gpu_native_surface_frames", 0) > 0,
