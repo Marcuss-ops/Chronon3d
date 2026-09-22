@@ -10,6 +10,7 @@ from pathlib import Path
 
 SKIP = {".git", "build", "out", "__pycache__"}
 SUFFIXES = {".h", ".hh", ".hpp", ".cc", ".cpp", ".cxx"}
+MAX_BROAD_CONSUMERS = 22
 
 
 def source_files(root: Path):
@@ -69,6 +70,13 @@ def main() -> int:
         for name in unexpected:
             print(f"  {name}")
         return 1
+    if len(broad) > MAX_BROAD_CONSUMERS:
+        print(
+            "TEXT_HEADER_GATE_FAIL: text_render_resources.hpp fan-out "
+            f"{len(broad)} exceeds ratchet {MAX_BROAD_CONSUMERS}"
+        )
+        return 1
+    print(f"text_render_resources_fanout_ratchet={MAX_BROAD_CONSUMERS}")
     print("TEXT_HEADER_GATE_PASS")
     return 0
 

@@ -40,7 +40,6 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
-#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

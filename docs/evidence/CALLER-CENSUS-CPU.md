@@ -48,10 +48,9 @@ consumer census found no production include of the compatibility facade.
 `text_render_resources.hpp` remains the intentional aggregator/facade. The
 value/forward-declaration contracts now live in
 `text_resource_contracts.hpp`, while font, scratch, UTF-8 and grapheme
-surfaces are focused. The gate records 33 direct aggregator consumers across
-software, registry tests, runtime, and render-graph code. The glyph-atlas /
-raster-cache ownership is deliberately still one `TextRenderResources`
-authority, so E1 is not claimed complete merely because the headers compile.
+surfaces are focused. The gate records 22 direct aggregator consumers after
+removing nine unused registry includes, and ratchets that count at 22. The
+glyph-atlas/raster-cache ownership remains one `TextRenderResources` authority.
 
 ## Reproduction commands
 
@@ -60,3 +59,6 @@ rg -l '#include .*text_render_resources\\.hpp' include src apps tests
 rg -l '#include .*text_unicode_utils\\.hpp' include src apps tests
 rg -l 'decode_render_plan|RenderPlanDecoder|render_plan_decoder' src apps include
 ```
+
+The text header gate also reports
+`text_render_resources_fanout_ratchet=22`.
