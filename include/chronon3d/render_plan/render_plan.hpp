@@ -49,14 +49,9 @@ struct ShadowStyle {
 // Per-text halo parameters. This is distinct from ShadowStyle: shadow is a
 // translated blurred silhouette, while glow is lowered to GlowParams.
 struct GlowStyle {
-    float radius{0.0f};
-    float intensity{0.0f};
-    float threshold{0.0f};
-    float falloff{1.0f};
-    float core_strength{0.0f};
-    float aura_strength{0.0f};
-    float bloom_strength{0.0f};
-    bool high_quality{false};
+    float radius{24.0f};
+    float intensity{0.25f};
+    std::string color{"#FFFFFF"};
 };
 
 struct BackgroundStyle {
@@ -169,6 +164,10 @@ struct LayerPlan {
     // The flag is explicit so a plan cannot accidentally carry X/Y rotation
     // while still being treated as a flat screen-space overlay.
     bool enable_3d{false};
+    // Keep a layer pinned to the output canvas while a scene camera is active.
+    // Render-plan backgrounds commonly need this so transparent projected
+    // layers reveal the authored background instead of the camera clear color.
+    bool screen_space{false};
     std::optional<std::string> depth_role;
     float depth_offset{0.0f};
     // Rounded image corner radius, evaluated by the image compositor's

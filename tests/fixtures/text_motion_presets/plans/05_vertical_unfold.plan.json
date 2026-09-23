@@ -1,0 +1,172 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text_motion_05_vertical_unfold",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 90
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 90
+    },
+    {
+      "id": "first_line",
+      "type": "text",
+      "text": "Text",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        205
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": []
+    },
+    {
+      "id": "unfolding_line",
+      "type": "text",
+      "text": "Animations",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        335
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "line_unfold",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 12,
+                  "value": 1
+                },
+                {
+                  "frame": 71,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "property": "blur",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 8
+                },
+                {
+                  "frame": 18,
+                  "value": 0
+                },
+                {
+                  "frame": 71,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.01
+              },
+              {
+                "frame": 3,
+                "value": 0.08
+              },
+              {
+                "frame": 12,
+                "value": 0.55
+              },
+              {
+                "frame": 20,
+                "value": 1.06
+              },
+              {
+                "frame": 25,
+                "value": 1.0
+              },
+              {
+                "frame": 89,
+                "value": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "05_vertical_unfold.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

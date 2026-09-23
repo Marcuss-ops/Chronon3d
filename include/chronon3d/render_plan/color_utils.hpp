@@ -13,10 +13,24 @@
 #include <chronon3d/math/color.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <string_view>
 
 namespace chronon3d::render_plan {
+
+/// Canonical IEC 61966-2-1 transfer functions for display-referred sRGB data.
+[[nodiscard]] inline float srgb_to_linear(float value) noexcept {
+    return value <= 0.04045f ? value / 12.92f
+                             : std::pow((value + 0.055f) / 1.055f, 2.4f);
+}
+
+[[nodiscard]] inline float linear_to_srgb(float value) noexcept {
+    value = std::max(0.0f, value);
+    return value <= 0.0031308f
+        ? value * 12.92f
+        : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+}
 
 /// Parse a CSS/sRGB "#RRGGBB" (exactly 7 chars) into Chronon's canonical
 /// linear working-domain Color at the given alpha. The conversion happens at
@@ -39,10 +53,10 @@ inline std::optional<chronon3d::Color> parse_hex_color(
     if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0)
         return std::nullopt;
     return chronon3d::Color{
-        static_cast<float>(r1 * 16 + r2) / 255.0f,
-        static_cast<float>(g1 * 16 + g2) / 255.0f,
-        static_cast<float>(b1 * 16 + b2) / 255.0f,
-        std::clamp(alpha, 0.0f, 1.0f)}.to_linear();
+        srgb_to_linear(static_cast<float>(r1 * 16 + r2) / 255.0f),
+        srgb_to_linear(static_cast<float>(g1 * 16 + g2) / 255.0f),
+        srgb_to_linear(static_cast<float>(b1 * 16 + b2) / 255.0f),
+        std::clamp(alpha, 0.0f, 1.0f)};
 }
 
 } // namespace chronon3d::render_plan

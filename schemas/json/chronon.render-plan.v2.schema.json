@@ -169,6 +169,7 @@
             "items": { "type": "number" }
           },
           "enable_3d": { "type": "boolean" },
+          "screen_space": { "type": "boolean" },
           "depth_role": { "enum": ["far_background", "background", "midground", "subject", "atmosphere", "foreground", "overlay"] },
           "depth_offset": { "type": "number" },
           "start_frame": { "type": "integer", "minimum": 0 },
@@ -204,17 +205,19 @@
                 }
               },
               "glow": {
+                "description": "One Gaussian halo controlled by radius, intensity and color. Deprecated legacy fields are accepted only for V2 compatibility and ignored by the decoder/renderer.",
                 "type": "object", "additionalProperties": false,
-                "required": ["radius", "intensity", "threshold", "falloff", "core_strength", "aura_strength", "bloom_strength", "high_quality"],
+                "required": ["radius", "intensity"],
                 "properties": {
                   "radius": { "type": "number", "minimum": 0 },
                   "intensity": { "type": "number", "minimum": 0 },
-                  "threshold": { "type": "number", "minimum": 0 },
-                  "falloff": { "type": "number", "minimum": 1 },
-                  "core_strength": { "type": "number", "minimum": 0 },
-                  "aura_strength": { "type": "number", "minimum": 0 },
-                  "bloom_strength": { "type": "number", "minimum": 0 },
-                  "high_quality": { "type": "boolean" }
+                  "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                  "threshold": { "type": "number", "minimum": 0, "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; Glow only uses radius, intensity and color." },
+                  "falloff": { "type": "number", "minimum": 1, "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; Glow only uses radius, intensity and color." },
+                  "core_strength": { "type": "number", "minimum": 0, "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; Glow only uses radius, intensity and color." },
+                  "aura_strength": { "type": "number", "minimum": 0, "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; Glow only uses radius, intensity and color." },
+                  "bloom_strength": { "type": "number", "minimum": 0, "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; Bloom is a separate effect." },
+                  "high_quality": { "type": "boolean", "deprecated": true, "description": "Legacy render-plan field. Accepted for V2 compatibility and ignored; there is no Glow quality selector." }
                 }
               },
               "background": {
@@ -251,7 +254,7 @@
                         "position", "position_x", "position_y", "position_z",
                         "scale", "scale_x", "scale_y", "scale_z",
                         "rotation", "rotation_x", "rotation_y", "rotation_z",
-                        "opacity"
+                        "opacity", "blur"
                       ]
                     },
                     "easing": {

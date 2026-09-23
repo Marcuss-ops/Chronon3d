@@ -135,6 +135,10 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     options_.fps_num = options.canonical_fps_num();
     options_.fps_den = options.canonical_fps_den();
     frames_written_ = 0;
+    encoder_packets_received_ = 0;
+    mux_packets_written_ = 0;
+    first_encoder_packet_pts_ = -1;
+    last_encoder_packet_pts_ = -1;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
     cuda_pending_peak_ = 0;

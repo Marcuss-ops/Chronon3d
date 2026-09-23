@@ -42,6 +42,7 @@ The legacy `SoftwareRenderer` runtime compatibility surface still has callers an
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
+| VULKAN-ANIMATED-IMAGE-25D-RESIDENCY | Vulkan/video | P1 OPEN | [ticket](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md) — strict-native image 2.5D motions fail closed; pixel-correct Vulkan video fix remains open |
 | TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | P0 VERIFY | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — code/docs closeout landed; same-SHA CI remains the closing gate |
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED (bootstrap re-pinned 2026-09-05); WBH cert portion remains |

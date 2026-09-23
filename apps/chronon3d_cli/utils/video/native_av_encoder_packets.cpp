@@ -49,6 +49,14 @@ bool NativeAvEncoder::drain_packets() {
             return false;
         }
 
+        ++encoder_packets_received_;
+        if (packet_->pts != AV_NOPTS_VALUE) {
+            if (first_encoder_packet_pts_ < 0) {
+                first_encoder_packet_pts_ = packet_->pts;
+            }
+            last_encoder_packet_pts_ = packet_->pts;
+        }
+
         // P0-5E — capture the encoder's OWN output facts from the first packet
         // that publishes them (libx264 and NVENC keep their parameter sets
         // in-band, so the codec context never carries them). This is the
@@ -122,6 +130,7 @@ bool NativeAvEncoder::drain_packets() {
             spdlog::error("[native_av] av_interleaved_write_frame error: {}", ret);
             return false;
         }
+        ++mux_packets_written_;
 
         if (profiling::g_current_counters) {
             profiling::g_current_counters->native_av_receive_packet_wall_ms.fetch_add(

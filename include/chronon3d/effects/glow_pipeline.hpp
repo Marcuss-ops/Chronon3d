@@ -9,10 +9,9 @@
 //   2. text_glow.cpp             (BLImage-based, Glow fields on RenderNode)
 //
 // Both routes share the same conceptual pipeline:
-//   - extract trigger mask (alpha / brightness / text alpha)
-//   - build N concentric colorized blur layers
-//   - accumulate additively into a single buffer
-//   - composite the accumulated buffer with the source
+//   - extract the source coverage mask (or text alpha)
+//   - apply one colorized Gaussian blur
+//   - composite the halo with the source
 //
 // GlowPipeline is a unified config struct that captures every parameter any
 // of the four paths need. The existing param structs (GlowParams,
@@ -35,7 +34,7 @@
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <optional>
 #include <vector>
 #include <algorithm>
@@ -85,131 +84,50 @@ struct GlowPipelineOutput {
 };
 
 struct GlowPipeline {
-    /// Which implementation path to use.
-    /// - Layer:  multi-layer glow (used by software effect processing)
-    /// - Bloom:  bright-pass + blur + additive (used by software effect processing)
-    /// - Shadow: reserved for future apply_shadow_effect routing
-    enum class Mode {
-        Layer,
-        Bloom,
-        Shadow,
-    };
+    // A glow is one tinted Gaussian halo.
+    Color color{1, 1, 1, 1};
+    f32 radius{24.0f};
+    f32 intensity{0.25f};
 
-    Mode mode{Mode::Layer};
-
-    // ── Shared visual params ────────────────────────────────────────
-    Color color{1,1,1,1};
-    f32 radius{15.0f};
-    f32 intensity{0.8f};
-    f32 threshold{0.0f};
-    f32 spread{1.0f};
-    f32 softness{1.0f};
-    f32 falloff{1.0f};
-    f32 core_strength{0.70f};
-    f32 aura_strength{0.35f};
-    f32 bloom_strength{0.18f};
-    f32 outer_downscale{0.25f};
-    bool preserve_source{true};
-    BlendMode blend{BlendMode::Add};
-    GlowQuality quality{GlowQuality::High};
-
-    // ── Per-layer table (empty = use synthetic core/aura/bloom) ────
-    std::vector<GlowLayer> layers;
-
-    // ── Convex converters from existing param structs ───────────────
     static GlowPipeline from(const GlowParams& p);
-    static GlowPipeline from(const BloomParams& p);
-    static GlowPipeline from(const DropShadowParams& p);
 
     /// Unified entry point (Item 17).  Renders glow for a source
     /// framebuffer and returns the composited result (source + glow
     /// already applied).
     ///
-    /// Internally converts GlowParams → GlowPipeline and dispatches
-    /// to the same run_layer_mode / run_bloom_mode paths used by
-    /// software effect processing.
+    /// Internally converts GlowParams → GlowPipeline and runs the same
+    /// single-Gaussian halo used by software effect processing.
     static GlowPipelineOutput render(class graph::RenderGraphContext& ctx,
                                      const GlowPipelineInput& input);
 };
-
-// Shared visual contract for the synthetic core/aura/bloom decomposition.
-// GPU backends consume this table directly so a canary plan cannot degrade
-// into a single blurred shadow.
-struct SyntheticGlowLobe {
-    f32 radius_factor{1.0f};
-    f32 strength{0.0f};
-    f32 buffer_scale{1.0f};
-};
-
-[[nodiscard]] inline std::array<SyntheticGlowLobe, 3>
-synthetic_glow_lobes(const GlowParams& p) noexcept {
-    const f32 outer_scale = p.quality == GlowQuality::High
-        ? 1.0f
-        : std::clamp(p.outer_downscale, 0.05f, 1.0f);
-    return {{{0.10f, std::max(0.0f, p.core_strength), 1.0f},
-             {0.35f, std::max(0.0f, p.aura_strength), 1.0f},
-             {1.00f, std::max(0.0f, p.bloom_strength), outer_scale}}};
-}
 
 /// Compute the maximum spatial extent (in pixels) that a glow effect
 /// can reach beyond its source geometry.  Used for bounding-box prediction
 /// and clipping decisions in the render graph.
 [[nodiscard]] inline f32 glow_effect_extent(const GlowParams& p) {
-    f32 base_radius = std::max(0.0f, p.radius);
-    if (!p.layers.empty()) {
-        f32 max_layer_r = 0.0f;
-        for (const auto& l : p.layers) {
-            max_layer_r = std::max(max_layer_r, l.radius);
-        }
-        base_radius = max_layer_r;
-    }
-    const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return std::ceil(radius * 4.0f) + 4.0f;
+    return effects::spatial_halo_extent(effects::effect_spatial_halo(p));
 }
 
-/// Overload for GlowPipeline (uses the same logic — fields are already
-/// converted from GlowParams via GlowPipeline::from()).
+/// Overload for the single GlowPipeline configuration.
 [[nodiscard]] inline f32 glow_effect_extent(const GlowPipeline& p) {
-    f32 base_radius = std::max(0.0f, p.radius);
-    if (!p.layers.empty()) {
-        f32 max_layer_r = 0.0f;
-        for (const auto& l : p.layers) {
-            max_layer_r = std::max(max_layer_r, l.radius);
-        }
-        base_radius = max_layer_r;
-    }
-    const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return std::ceil(radius * 4.0f) + 4.0f;
+    return effects::spatial_halo_extent(effects::effect_spatial_halo(
+        GlowParams{.radius = p.radius}));
 }
 
 } // namespace chronon3d
 
-// ── Bench/test-exposed glow helpers ───────────────────────────────────────────
-//
-// `accumulate_glow_pass` / `accumulate_scaled_glow_pass` /
-// `build_falloff_lut` / `kFalloffLutSize` live in `chronon3d::renderer`
-// (NOT in an anonymous namespace) so Google benchmarks (`tests/bench/micro_benchmarks.cpp`)
-// and golden tests can call them directly.  Do not use these from production
-// code paths — call `GlowPipeline::render` or `renderer::run_glow_pipeline`
-// instead.
+// ── Bench/test-exposed glow helper ────────────────────────────────────────────
+// Accumulation is exposed for microbenchmarks; production callers use
+// GlowPipeline::render or renderer::run_glow_pipeline.
 namespace chronon3d::renderer {
-inline constexpr int kFalloffLutSize = 257;
-
-void build_falloff_lut(float falloff,
-                              float (&lut)[kFalloffLutSize]) noexcept;
-
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                          const GlowPipeline& p, const float* falloff_lut);
-
-void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                                 const GlowPipeline& p, float scale,
-                                 const float* falloff_lut);
+                          const GlowPipeline& p);
 } // namespace chronon3d::renderer
 
 namespace chronon3d::renderer {
 
-/// Run the glow pipeline. Dispatches on GlowPipeline::mode.
-/// Currently supports Layer and Bloom. Shadow is a no-op placeholder.
+/// Run one single-Gaussian Glow halo. Bloom remains a separate effect and
+/// is handled by the dedicated Bloom processor.
 /// When source_is_alpha_mask is true, the trigger is taken directly
 /// from source alpha (used by text glow).
 /// `debug_cfg` is the per-instance DebugConfig forwarded from the
@@ -222,5 +140,8 @@ void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
                        bool source_is_alpha_mask = false,
                        const chronon3d::DebugConfig* debug_cfg = nullptr);
+
+void run_bloom_effect(Framebuffer& fb, const BloomParams& params,
+                      const std::optional<raster::BBox>& clip);
 
 } // namespace chronon3d::renderer

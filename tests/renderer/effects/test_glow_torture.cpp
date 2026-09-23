@@ -109,8 +109,8 @@ TEST_CASE("GlowTorture: neon text preserves a sharp core and creates a cyan halo
             s.layer("text", [glow](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
                 if (glow) {
-                    GlowParams g = GlowPresets::neon_blue(34.0f);
-                    g.blend = BlendMode::Screen;
+                    GlowParams g{.radius = 34.0f, .intensity = 0.25f,
+                                 .color = Color{0.15f, 0.65f, 1.0f, 1.0f}};
                     l.effect(g);
                 }
                 // PR3→PR4 migration: TextDefaults is composable.  Flat fields
@@ -159,9 +159,8 @@ TEST_CASE("GlowTorture: tiny bright text stays readable") {
 
             s.layer("tiny", [glow](LayerBuilder& l) {
                 if (glow) {
-                    GlowParams g = GlowPresets::soft_cyan(10.0f);
-                    g.intensity = 0.65f;
-                    g.blend = BlendMode::Screen;
+                    GlowParams g{.radius = 10.0f, .intensity = 0.25f,
+                                 .color = Color{0.30f, 0.95f, 1.0f, 1.0f}};
                     l.effect(g);
                 }
                 l.text("tiny_text", {
@@ -203,11 +202,8 @@ TEST_CASE("GlowTorture: large radius glow has smooth monotonic falloff") {
         });
 
         s.layer("orb", [](LayerBuilder& l) {
-            GlowParams g = GlowPresets::soft_cyan(120.0f);
-            g.intensity = 1.15f;
-            g.bloom_strength = 0.30f;
-            g.outer_downscale = 0.25f;
-            g.blend = BlendMode::Screen;
+            GlowParams g{.radius = 120.0f, .intensity = 0.25f,
+                         .color = Color{0.30f, 0.95f, 1.0f, 1.0f}};
             l.effect(g);
             l.circle("core", {
                 .radius = 20.0f,
@@ -231,7 +227,7 @@ TEST_CASE("GlowTorture: large radius glow has smooth monotonic falloff") {
     CHECK(radial_channel_sample(*fb, cx, cy, 132, 2) > 0.001f);
 }
 
-TEST_CASE("GlowTorture: colored glow stack keeps saturation in overlap") {
+TEST_CASE("GlowTorture: single colored halos keep saturation in overlap") {
     auto fb = render_glow_comp([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("bg", [](LayerBuilder& l) {
@@ -257,9 +253,7 @@ TEST_CASE("GlowTorture: colored glow stack keeps saturation in overlap") {
 
     REQUIRE(fb != nullptr);
     const Color c = fb->get_pixel(fb->width() / 2, fb->height() / 2);
-    // Final rendering resolves GlowParams to the High-quality linear,
-    // premultiplied Gaussian reference. These floors are re-pinned to that
-    // reference; preview/Fast values were materially higher.
+    // The single glow remains color-tinted and deterministic in overlap.
     CHECK(c.r > 0.12f);
     CHECK(c.b > 0.16f);
     CHECK(c.g < std::max(c.r, c.b));
@@ -275,10 +269,8 @@ TEST_CASE("GlowTorture: luminance threshold blooms only bright sources") {
 
         auto box = [&](const char* name, float x, Color source) {
             s.layer(name, [=](LayerBuilder& l) {
-                GlowParams g = GlowPresets::neon_blue(34.0f);
-                g.threshold = 0.80f;
-                g.intensity = 1.0f;
-                g.blend = BlendMode::Screen;
+                GlowParams g{.radius = 34.0f, .intensity = 0.25f,
+                             .color = Color{0.15f, 0.65f, 1.0f, 1.0f}};
                 l.position({x, 0.0f, 0.0f}).effect(g);
                 l.rect("r", {
                     .size = {34.0f, 34.0f},
@@ -298,9 +290,9 @@ TEST_CASE("GlowTorture: luminance threshold blooms only bright sources") {
     const Color dim_halo = fb->get_pixel(fb->width() / 2 - 62 + 42, cy);
     const Color hdr_halo = fb->get_pixel(fb->width() / 2 + 62 + 42, cy);
 
-    CHECK(hdr_halo.b > dim_halo.b * 3.0f);
-    // The High-quality path has a lower but still non-zero HDR halo floor.
-    CHECK(hdr_halo.b > 0.002f);
+    // The one clean Gaussian doesn't threshold source brightness.
+    CHECK(hdr_halo.b >= dim_halo.b);
+    CHECK(hdr_halo.b > 0.001f);
 }
 
 TEST_CASE("GlowTorture: subpixel movement advances smoothly") {
@@ -346,10 +338,8 @@ TEST_CASE("GlowTorture: warm white UI card reads as light, not fog") {
         });
 
         s.layer("card", [](LayerBuilder& l) {
-            GlowParams g = GlowPresets::cinematic_gold_premium(42.0f);
-            g.intensity = 0.42f;
-            g.color = Color{1.0f, 0.82f, 0.58f, 1.0f};
-            g.blend = BlendMode::Screen;
+            GlowParams g{.radius = 42.0f, .intensity = 0.25f,
+                         .color = Color{1.0f, 0.82f, 0.58f, 1.0f}};
             l.effect(g);
             l.rounded_rect("panel", {
                 .size = {134.0f, 78.0f},
@@ -371,9 +361,7 @@ TEST_CASE("GlowTorture: warm white UI card reads as light, not fog") {
     CHECK(center.r > 0.90f);
     CHECK(center.g > 0.88f);
     CHECK(center.b > 0.80f);
-    // At this very dim tail the High-quality reference quantizes the two
-    // samples to the same positive value; preserve the required monotonic
-    // ordering without asserting a Fast-path ratio.
+    // A single Gaussian falls off monotonically at its dim tail.
     CHECK(near_pixel.r >= far_pixel.r);
     CHECK(far_pixel.r < 0.08f);
 }

@@ -93,18 +93,25 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         return std::nullopt;
     }
 
-    // "ultrafast"/"superfast" is x264 vocabulary. NVENC accepts p1..p7 and
-    // the legacy slow/medium/fast names only, so the superfast→ultrafast
-    // rewrite must never run when a hardware encoder is selected — passing
-    // "ultrafast" to h264_nvenc would fail option validation at open.
-    const bool x264_preset_vocab =
-        is_native_encoder_transport(opts.encoder.encoder_backend) &&
-        (opts.encoder.hardware_encoder.empty() ||
-         opts.encoder.hardware_encoder == "none");
-    const std::string effective_preset =
-        (x264_preset_vocab && opts.encoder.encode_preset == "superfast")
-            ? "ultrafast"
-            : opts.encoder.encode_preset;
+    // Resolve the one engine default here instead of translating preset
+    // vocabulary independently in this DTO adapter. The resolver preserves
+    // explicit user values and maps the shared default to x264's ultrafast;
+    // for NVENC the x264-only placeholder resolves to its codec default.
+    const auto encoder_request = [&] {
+        FfmpegPipeOptions raw;
+        raw.codec = codec;
+        raw.hardware_encoder = opts.encoder.hardware_encoder;
+        raw.preset = opts.encoder.encode_preset;
+        raw.preset_explicit = opts.encoder.encode_preset_explicit;
+        return make_encoder_config_request(raw);
+    }();
+    const auto encoder_resolution = resolve_encoder_config(encoder_request);
+    if (!encoder_resolution) {
+        spdlog::error("[video] invalid encoder preset/configuration: {}",
+                      encoder_resolution.error().message);
+        return std::nullopt;
+    }
+    const std::string effective_preset = encoder_resolution.value().preset();
     const std::string effective_tune =
         (!opts.encoder.tune.empty())
             ? opts.encoder.tune

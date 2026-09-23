@@ -4,7 +4,7 @@
 #
 # Test 10 — Determinismo brutale (First-Principles Product Check, Test #6).
 #
-# Asserts that the canonical cinematic-glow composition ChrononGlowFinalAE is
+# Asserts that the canonical cinematic-glow composition Motion3DGlowOrbit is
 # BIT-IDENTICAL across 140 renders (7 named configs × 20 sequential runs each),
 # at frame 15 (mid-movie — anti-init-leak: forces the pipeline to actually
 # accumulate opacity / scale / glow rather than allow uninitialized state to
@@ -72,7 +72,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && git rev-parse --show-toplevel)"
 
 RUNS_PER_CONFIG="${RUNS_PER_CONFIG:-20}"
-COMPOSITION="${COMPOSITION:-ChrononGlowFinalAE}"
+COMPOSITION="${COMPOSITION:-Motion3DGlowOrbit}"
 FRAME="${FRAME:-15}"
 
 # ── Precondition: required commands present (per red-flag from thinker) ──

@@ -4,6 +4,9 @@ add_executable(chronon3d_cli
     register_content_compositions.cpp
     register_dev_compositions.cpp
 )
+target_compile_definitions(chronon3d_cli PRIVATE
+    CHRONON3D_CLI_PROJECT_VERSION="${PROJECT_VERSION}"
+)
 
 # The optional canary pack is added by cmake/Canary.cmake, which CMakeLists.txt
 # includes after this file (target_sources() needs the target above).

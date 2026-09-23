@@ -2,6 +2,7 @@
 
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include "bitstream_target_contract.hpp"
+#include "encoder_config_resolution.hpp"
 
 // =============================================================================
 // ffmpeg_pipe_encoder.hpp — Abstract IVideoEncoder interface
@@ -241,7 +242,7 @@ struct FfmpegPipeOptions {
     std::int64_t bitrate{0};
     bool bitrate_explicit{false};
     int async_depth{0};
-    std::string preset{"medium"};
+    std::string preset{std::string(kDefaultEncoderPreset)};
     bool preset_explicit{false};
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};

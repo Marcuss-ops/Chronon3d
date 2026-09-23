@@ -37,8 +37,8 @@ TEST_CASE("render plan decoder decodes concrete primitive layers") {
         {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 30}}},
         {"layers", nlohmann::json::array({
-            {{"id", "bg_color"}, {"type", "color"}, {"color", {0.1, 0.2, 0.3, 1.0}}},
-            {{"id", "img_01"}, {"type", "image"}, {"asset", "portrait.png"}, {"size", {100.0, 100.0}}},
+            {{"id", "bg_color"}, {"type", "color"}, {"color", {0.1, 0.2, 0.3, 1.0}}, {"screen_space", true}},
+            {{"id", "img_01"}, {"type", "image"}, {"asset", "portrait.png"}, {"size", {100.0, 100.0}}, {"enable_3d", true}},
             {{"id", "vid_01"}, {"type", "video"}, {"source", "clips/intro.mp4"}},
             {{"id", "txt_01"}, {"type", "text"}, {"text", "Hello"},
              {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 32.0}, {"fill", "#FFFFFF"}}}}
@@ -46,10 +46,13 @@ TEST_CASE("render plan decoder decodes concrete primitive layers") {
         {"output", {{"path", "out.mp4"}}}};
 
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
     REQUIRE(decoded.has_value());
     CHECK(decoded->layers.size() == 4);
     CHECK(decoded->layers[0].type == chronon3d::render_plan::LayerType::Color);
+    CHECK(decoded->layers[0].screen_space);
     CHECK(decoded->layers[1].type == chronon3d::render_plan::LayerType::Image);
+    CHECK(decoded->layers[1].enable_3d);
     CHECK(decoded->layers[2].type == chronon3d::render_plan::LayerType::Video);
     CHECK(decoded->layers[3].type == chronon3d::render_plan::LayerType::Text);
 }
@@ -355,10 +358,8 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
                 {"stroke", {{"color", "#000000"}, {"width", 2}}},
                 {"shadow", {{"color", "#000000"}, {"opacity", 0.65},
                              {"blur", 16}, {"offset", {0, 6}}}},
-                {"glow", {{"radius", 42}, {"intensity", 0.92},
-                           {"threshold", 0}, {"falloff", 1},
-                           {"core_strength", 0.48}, {"aura_strength", 0.30},
-                           {"bloom_strength", 0.10}, {"high_quality", true}}},
+                {"glow", {{"radius", 42}, {"intensity", 0.25},
+                           {"color", "#FFFFFF"}}},
                 {"background", {{"color", "#050509"}, {"opacity", 0.86},
                                  {"radius", 12}, {"padding", {24, 14}}}}
             }},
@@ -378,6 +379,7 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
         {"output", {{"path", "out.mp4"}}}};
 
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
     REQUIRE(decoded.has_value());
     const auto& layer = decoded->layers[0];
 
@@ -392,12 +394,8 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
     CHECK(layer.style->shadow->offset[1] == doctest::Approx(6.0f));
     REQUIRE(layer.style->glow.has_value());
     CHECK(layer.style->glow->radius == doctest::Approx(42.0f));
-    CHECK(layer.style->glow->intensity == doctest::Approx(0.92f));
-    CHECK(layer.style->glow->falloff == doctest::Approx(1.0f));
-    CHECK(layer.style->glow->core_strength == doctest::Approx(0.48f));
-    CHECK(layer.style->glow->aura_strength == doctest::Approx(0.30f));
-    CHECK(layer.style->glow->bloom_strength == doctest::Approx(0.10f));
-    CHECK(layer.style->glow->high_quality);
+    CHECK(layer.style->glow->intensity == doctest::Approx(0.25f));
+    CHECK(layer.style->glow->color == "#FFFFFF");
     REQUIRE(layer.style->background.has_value());
     CHECK(layer.style->background->radius.value() == doctest::Approx(12.0f));
     CHECK(layer.style->background->padding[0] == doctest::Approx(24.0f));
@@ -406,6 +404,38 @@ TEST_CASE("render plan decoder decodes concrete animation tracks") {
     REQUIRE(layer.animation->tracks.size() == 1);
     CHECK(layer.animation->tracks[0].property == "opacity");
     CHECK(layer.animation->tracks[0].keyframes.size() == 2);
+}
+
+TEST_CASE("render plan decoder ignores legacy glow controls in content and fingerprint") {
+    const nlohmann::json base = {
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 1}}},
+        {"layers", {{{"id", "title"}, {"type", "text"}, {"text", "Glow"},
+                      {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 24.0},
+                                 {"fill", "#FFFFFF"},
+                                 {"glow", {{"radius", 18.0}, {"intensity", 0.4},
+                                            {"color", "#80C0FF"}}}}}}}},
+        {"output", {{"path", "out.png"}}}};
+    auto with_legacy_controls = base;
+    with_legacy_controls["layers"][0]["style"]["glow"].update({
+        {"threshold", 0.7}, {"falloff", 1.8}, {"core_strength", 0.6},
+        {"aura_strength", 0.3}, {"bloom_strength", 0.2}, {"high_quality", true}});
+
+    const auto current = chronon3d::render_plan::decode_render_plan(base);
+    const auto legacy = chronon3d::render_plan::decode_render_plan(with_legacy_controls);
+    if (!current) INFO(current.error().message);
+    if (!legacy) INFO(legacy.error().message);
+    REQUIRE(current);
+    REQUIRE(legacy);
+    REQUIRE(current->layers[0].style);
+    REQUIRE(current->layers[0].style->glow);
+    REQUIRE(legacy->layers[0].style);
+    REQUIRE(legacy->layers[0].style->glow);
+    CHECK(legacy->layers[0].style->glow->radius == doctest::Approx(18.0f));
+    CHECK(legacy->layers[0].style->glow->intensity == doctest::Approx(0.4f));
+    CHECK(legacy->layers[0].style->glow->color == "#80C0FF");
+    CHECK(legacy->content_fingerprint == current->content_fingerprint);
 }
 
 TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
@@ -449,7 +479,7 @@ TEST_CASE("render plan decoder rejects invalid camera ranges and unknown tracks"
         {"keyframes", {{{"frame", 0}, {"value", 1}}}}}}}};
     const auto error = chronon3d::render_plan::decode_render_plan(bad_track);
     REQUIRE_FALSE(error);
-    CHECK(error.error().message.find("camera_position_x") != std::string::npos);
+    CHECK(error.error().message.find("camera_focus") != std::string::npos);
 }
 
 TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it") {
