@@ -24,35 +24,12 @@ struct BrightnessParams    { f32   value{0.0f}; };
 struct ContrastParams      { f32   value{1.0f}; };
 struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 radius{12}; };
 
-struct GlowLayer {
-    f32 radius{0.0f};
-    f32 opacity{1.0f};
-    f32 scale{1.0f};
-    Color color{0, 0, 0, 0};    // per-layer color tint; alpha=0 means "use pipeline color"
-};
-
-enum class GlowQuality : uint8_t {
-    Fast,  // existing box-filter path, intended for interactive previews
-    High,  // separable Gaussian in linear light with premultiplied filtering
-};
-
+// One glow is one Gaussian halo. Radius, intensity and tint are the only
+// author-facing controls; preview/final execution share the same rendering.
 struct GlowParams {
-    f32   radius{15.0f};
-    f32 intensity{0.8f};
-    Color color{1,1,1,1};
-    f32 threshold{0.0f};
-    f32 spread{1.0f};
-    f32 softness{1.0f};    f32   falloff{1.0f};
-    f32 core_strength{0.70f};
-    f32 aura_strength{0.35f};
-    f32 bloom_strength{0.18f};
-    f32 outer_downscale{0.25f};
-    bool preserve_source{true};
-    std::vector<GlowLayer> layers;
-    BlendMode blend{BlendMode::Add};
-    // Preview remains Fast by default; final execution upgrades the
-    // resolved pipeline to High at the effect boundary.
-    GlowQuality quality{GlowQuality::Fast};
+    f32 radius{24.0f};
+    f32 intensity{0.25f};
+    Color color{1, 1, 1, 1};
 };
 
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };

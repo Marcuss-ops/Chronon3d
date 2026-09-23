@@ -147,11 +147,7 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     params.radius = 2.0f;
     params.intensity = 0.5f;
     params.color = Color{0.25f, 0.5f, 1.0f, 1.0f};
-    // The native glow contract (7e6568262) dispatches only High-quality glow
-    // through Vulkan surfaces. Final plans resolve to High at compile time
-    // (render_plan_compiler_text.cpp), so exercise the production contract,
-    // not the GlowParams default (Fast).
-    params.quality = GlowQuality::High;
+    // The native glow path uses the same single-pass contract as software.
     EffectStack effects;
     effects.push_back(effects::EffectInstance{params});
     EffectStackNode node(std::move(effects));
@@ -180,7 +176,7 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     CHECK(surfaces.release(handle));
 }
 
-TEST_CASE("EffectStackNode fails closed for non-native glow quality under Vulkan") {
+TEST_CASE("EffectStackNode dispatches the simple glow contract through Vulkan surfaces") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
 
@@ -196,8 +192,9 @@ TEST_CASE("EffectStackNode fails closed for non-native glow quality under Vulkan
     source->clear(Color::transparent());
     source->set_pixel(4, 4, Color{1.0f, 0.5f, 0.25f, 1.0f});
 
-    GlowParams params;  // default GlowQuality::Fast -> native gate rejects
+    GlowParams params;
     params.radius = 2.0f;
+    params.intensity = 0.5f;
     EffectStack effects;
     effects.push_back(effects::EffectInstance{params});
     EffectStackNode node(std::move(effects));
@@ -205,7 +202,13 @@ TEST_CASE("EffectStackNode fails closed for non-native glow quality under Vulkan
     const std::array<FramebufferRef, 1> inputs{source.get()};
     const std::array<std::optional<raster::BBox>, 1> bboxes{
         raster::BBox{0, 0, 8, 8}};
-    CHECK_THROWS_AS(node.execute(ctx, inputs, bboxes), std::runtime_error);
+    const auto result = node.execute(ctx, inputs, bboxes);
+    REQUIRE(result.ok());
+    REQUIRE(result.value() != nullptr);
+    const auto handle = result.value()->surface_handle();
+    REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.release_surface(handle).ok());
+    CHECK(surfaces.release(handle));
 }
 
 TEST_CASE("EffectStackNode dispatches a full-frame tint through Vulkan surfaces") {

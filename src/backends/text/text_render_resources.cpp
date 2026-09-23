@@ -289,7 +289,6 @@ BLPath GlyphOutlineBuilder::build_path(
     if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return path;
 
     constexpr float kScale = 1.0f / 64.0f;
-    constexpr double kConicWeight = 1.0;
 
     struct DecomposeCtx {
         BLPath* path;
@@ -315,14 +314,26 @@ BLPath GlyphOutlineBuilder::build_path(
             ctx->off_y - static_cast<double>(to->y) * kScale);
         return 0;
     };
+    // FreeType reports every TrueType on/off-curve pair as a conic segment.
+    // Emit it as a quadratic (`quadTo`) rather than `conicTo(..., w=1.0)`:
+    // the two are the SAME curve (a conic with weight 1 is exactly the
+    // polynomial quadratic), but BLPath::conicTo appends a
+    // BL_PATH_CMD_CONIC/BL_PATH_CMD_WEIGHT command pair that this Blend2D
+    // cannot geometric-process.  BLContext::strokePath then fails the WHOLE
+    // path with BL_ERROR_INVALID_GEOMETRY (0x00010034) and rasterizes
+    // nothing — silently, since the caller only checks path.empty().
+    // Effect: the outline stroke vanished for every glyph containing a curve
+    // (B C D G J O P Q R S U, all rounded lowercase, digits 0 2 3 5 6 8 9)
+    // while line-only glyphs (A E F H I K L M N T V W X Y Z k l v w x y z,
+    // digits 1 4 7, em dash) kept it.  Same preference as
+    // blend2d_path_builder.cpp, which already maps QuadraticTo to quadTo.
     funcs.conic_to = [](const FT_Vector* control, const FT_Vector* to, void* user) -> int {
         auto* ctx = static_cast<DecomposeCtx*>(user);
-        ctx->path->conicTo(
+        ctx->path->quadTo(
             ctx->off_x + static_cast<double>(control->x) * kScale,
             ctx->off_y - static_cast<double>(control->y) * kScale,
             ctx->off_x + static_cast<double>(to->x) * kScale,
-            ctx->off_y - static_cast<double>(to->y) * kScale,
-            kConicWeight);
+            ctx->off_y - static_cast<double>(to->y) * kScale);
         return 0;
     };
     funcs.cubic_to = [](const FT_Vector* c1, const FT_Vector* c2, const FT_Vector* to, void* user) -> int {

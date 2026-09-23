@@ -1,0 +1,54 @@
+{
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "job_id": "animated_image_residency_animated",
+  "layers": [
+    {
+      "asset": "bright.png",
+      "duration_frames": 150,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image",
+      "enable_3d": true,
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_z",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0
+              },
+              {
+                "frame": 149,
+                "value": 300
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "animated.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

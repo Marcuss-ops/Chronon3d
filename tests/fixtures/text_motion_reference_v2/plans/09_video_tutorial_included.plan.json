@@ -1,0 +1,335 @@
+{
+  "canvas": {
+    "duration_frames": 96,
+    "fps_den": 1,
+    "fps_num": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "motion_bear_reference_9_video_tutorial_included",
+  "layers": [
+    {
+      "asset": "tests/fixtures/text_motion_reference_v2/motion_bear_stage.png",
+      "duration_frames": 96,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image"
+    },
+    {
+      "duration_frames": 96,
+      "id": "reference_index",
+      "position": [
+        960,
+        108
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#E2EAF4",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 36
+      },
+      "text": "#09",
+      "text_animators": [],
+      "type": "text"
+    },
+    {
+      "duration_frames": 96,
+      "id": "video",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 164,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Video",
+      "text_animators": [
+        {
+          "id": "video_out",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 1.0
+                },
+                {
+                  "frame": 12,
+                  "value": 1.0
+                },
+                {
+                  "frame": 22,
+                  "value": 0.0
+                },
+                {
+                  "frame": 95,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 12,
+                  "value": 0.0
+                },
+                {
+                  "frame": 22,
+                  "value": 28.0
+                },
+                {
+                  "frame": 95,
+                  "value": 28.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "duration_frames": 96,
+      "id": "tutorial",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#B99FFF",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 164,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Tutorial",
+      "text_animators": [
+        {
+          "id": "tutorial_in_out",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 17,
+                  "value": 0.0
+                },
+                {
+                  "frame": 27,
+                  "value": 1.0
+                },
+                {
+                  "frame": 38,
+                  "value": 1.0
+                },
+                {
+                  "frame": 48,
+                  "value": 0.0
+                },
+                {
+                  "frame": 95,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 28.0
+                },
+                {
+                  "frame": 17,
+                  "value": 28.0
+                },
+                {
+                  "frame": 27,
+                  "value": 0.0
+                },
+                {
+                  "frame": 38,
+                  "value": 0.0
+                },
+                {
+                  "frame": 48,
+                  "value": 28.0
+                },
+                {
+                  "frame": 95,
+                  "value": 28.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "duration_frames": 96,
+      "id": "included",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 164,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Included",
+      "text_animators": [
+        {
+          "id": "included_in_out",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 44,
+                  "value": 0.0
+                },
+                {
+                  "frame": 54,
+                  "value": 1.0
+                },
+                {
+                  "frame": 84,
+                  "value": 1.0
+                },
+                {
+                  "frame": 95,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 30.0
+                },
+                {
+                  "frame": 44,
+                  "value": 30.0
+                },
+                {
+                  "frame": 54,
+                  "value": 0.0
+                },
+                {
+                  "frame": 84,
+                  "value": 0.0
+                },
+                {
+                  "frame": 95,
+                  "value": 24.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "video_tutorial_included.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

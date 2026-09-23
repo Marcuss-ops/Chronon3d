@@ -70,6 +70,12 @@ const char* kX264Presets[] = {
     "medium",    "slow",      "slower",   "veryslow", "placebo",
 };
 
+[[nodiscard]] std::string_view normalize_default_preset(
+    std::string_view preset, bool nvenc) noexcept {
+    if (!nvenc && preset == kDefaultEncoderPreset) return "ultrafast";
+    return preset;
+}
+
 const char* kNvencPresets[] = {
     "default", "slow",   "medium",     "fast",    "hp",      "hq",
     "bd",      "ll",     "llhq",       "llhp",    "lossless", "losslesshp",
@@ -455,9 +461,13 @@ EncoderResolution resolve_encoder_config(const EncoderConfigRequest& request) {
         // selected backend; an x264-oriented placeholder (e.g. "superfast")
         // must never be forwarded to NVENC, where it would be rejected deep
         // inside avcodec_open2.
-        const bool valid = nvenc ? is_nvenc_preset(request.preset)
-                                 : is_x264_preset(request.preset);
-        if (valid) resolved_preset = request.preset;
+        const std::string_view candidate =
+            request.preset.empty() ? kDefaultEncoderPreset :
+                                     std::string_view(request.preset);
+        const std::string_view normalized = normalize_default_preset(candidate, nvenc);
+        const bool valid = nvenc ? is_nvenc_preset(normalized)
+                                 : is_x264_preset(normalized);
+        if (valid) resolved_preset = normalized;
     }
 
     // ── 4. Tune per backend ─────────────────────────────────────────────

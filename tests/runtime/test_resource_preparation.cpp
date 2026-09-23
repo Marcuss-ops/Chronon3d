@@ -559,3 +559,33 @@ TEST_CASE("ResourcePreparation — font validation barrier rejects corrupt font 
     CHECK(result.error().code == chronon3d::runtime::PreparationError::Code::CorruptedAsset);
     CHECK(result.error().phase == "font");
 }
+
+TEST_CASE("ResourcePreparation image digest is the canonical SHA-256 of the resolved file") {
+    const auto image_path = write_media_fixture(
+        ".png", {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'},
+                 std::byte{0x0d}, std::byte{0x0a}, std::byte{0x1a}, std::byte{0x0a}});
+    struct TempFileRemover {
+        std::filesystem::path path;
+        ~TempFileRemover() { std::error_code ec; std::filesystem::remove(path, ec); }
+    } remover{image_path};
+
+    chronon3d::assets::AssetManifest manifest;
+    manifest.add_image(image_path.filename().string(), "image/digest");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(image_path.parent_path());
+
+    chronon3d::runtime::PreparationOptions options;
+    options.prepare_fonts = false;
+    options.prepare_video_metadata = false;
+    options.prepare_audio_index = false;
+    options.prepare_layouts = false;
+    options.prepare_meshes = false;
+
+    const auto expected = chronon3d::assets::sha256_file(image_path);
+    REQUIRE(expected.has_value());
+    const auto prepared = chronon3d::runtime::ResourcePreparation::prepare(
+        manifest, resolver, options);
+    REQUIRE(prepared.has_value());
+    REQUIRE(prepared.value().images.count("image/digest") == 1);
+    CHECK(prepared.value().images.at("image/digest").content_digest == *expected);
+}

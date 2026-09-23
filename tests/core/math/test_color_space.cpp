@@ -28,6 +28,15 @@ TEST_CASE("Color: safe hex parsing") {
     }
 }
 
+TEST_CASE("render-plan sRGB transfer helpers are shared and round-trip at gray") {
+    const float gray_linear = chronon3d::render_plan::srgb_to_linear(0.5f);
+    CHECK(gray_linear == doctest::Approx(0.21404114f).epsilon(0.0001f));
+    CHECK(chronon3d::render_plan::linear_to_srgb(gray_linear) ==
+          doctest::Approx(0.5f).epsilon(0.0001f));
+    CHECK(chronon3d::render_plan::srgb_to_linear(0.0f) == doctest::Approx(0.0f));
+    CHECK(chronon3d::render_plan::srgb_to_linear(1.0f) == doctest::Approx(1.0f));
+}
+
 TEST_CASE("Color contract: CSS hex is lowered to canonical linear space") {
     const auto parsed = chronon3d::render_plan::parse_hex_color("#808080", 0.5f);
     REQUIRE(parsed.has_value());

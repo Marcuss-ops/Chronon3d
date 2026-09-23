@@ -164,6 +164,59 @@ NodeExecResult TransformNode::execute(
 
     const glm::mat3 inv_pixel_model_3x3 = glm::inverse(H);
 
+    // ── DEBUG-DIAG for Vulkan 2.5D residency (frame 75 animated) ────────
+    if (result->width() != 1920 || result->height() != 1080 || result->origin_x() != 0 || result->origin_y() != 0) {
+        spdlog::warn("[DIAG-MODEL] frame={} model=[{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}] pixel_model=[{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}][{:.3f},{:.3f},{:.3f},{:.3f}] H=[{:.4f},{:.4f},{:.4f}][{:.4f},{:.4f},{:.4f}][{:.4f},{:.4f},{:.4f}] invH=[{:.4f},{:.4f},{:.4f}][{:.4f},{:.4f},{:.4f}][{:.4f},{:.4f},{:.4f}] out_bounds=({},{},{},{}) dst_origin=({},{}) dst={}x{} src_rect=({:.1f},{:.1f},{:.1f},{:.1f})",
+                     static_cast<int>(ctx.frame_input.frame),
+                     model[0][0], model[0][1], model[0][2], model[0][3],
+                     model[1][0], model[1][1], model[1][2], model[1][3],
+                     model[2][0], model[2][1], model[2][2], model[2][3],
+                     model[3][0], model[3][1], model[3][2], model[3][3],
+                     pixel_model[0][0], pixel_model[0][1], pixel_model[0][2], pixel_model[0][3],
+                     pixel_model[1][0], pixel_model[1][1], pixel_model[1][2], pixel_model[1][3],
+                     pixel_model[2][0], pixel_model[2][1], pixel_model[2][2], pixel_model[2][3],
+                     pixel_model[3][0], pixel_model[3][1], pixel_model[3][2], pixel_model[3][3],
+                     H[0][0], H[0][1], H[0][2],
+                     H[1][0], H[1][1], H[1][2],
+                     H[2][0], H[2][1], H[2][2],
+                     inv_pixel_model_3x3[0][0], inv_pixel_model_3x3[0][1], inv_pixel_model_3x3[0][2],
+                     inv_pixel_model_3x3[1][0], inv_pixel_model_3x3[1][1], inv_pixel_model_3x3[1][2],
+                     inv_pixel_model_3x3[2][0], inv_pixel_model_3x3[2][1], inv_pixel_model_3x3[2][2],
+                     out_bounds.x0, out_bounds.y0, out_bounds.x1, out_bounds.y1,
+                     result->origin_x(), result->origin_y(), result->width(), result->height(),
+                     x_min_src, y_min_src, x_max_src, y_max_src);
+        // Sample centre mapping debug: canvas centre -> source
+        {
+            float cx = 960.0f;
+            float cy = 540.0f;
+            Vec3 canvas_cx(cx, cy, 1.0f);
+            Vec3 src_via_inv = inv_pixel_model_3x3 * canvas_cx;
+            float denom = src_via_inv.z;
+            float sx = src_via_inv.x / (std::abs(denom) < 1e-7f ? 1.0f : denom);
+            float sy = src_via_inv.y / (std::abs(denom) < 1e-7f ? 1.0f : denom);
+            // Also shader-style: source_x = dot(inv00,inv10,inv20) etc.
+            float shader_sx = inv_pixel_model_3x3[0][0]*cx + inv_pixel_model_3x3[1][0]*cy + inv_pixel_model_3x3[2][0];
+            float shader_sy = inv_pixel_model_3x3[0][1]*cx + inv_pixel_model_3x3[1][1]*cy + inv_pixel_model_3x3[2][1];
+            float shader_denom = inv_pixel_model_3x3[0][2]*cx + inv_pixel_model_3x3[1][2]*cy + inv_pixel_model_3x3[2][2];
+            float shader_sx_div = shader_sx / shader_denom;
+            float shader_sy_div = shader_sy / shader_denom;
+            spdlog::warn("[DIAG-MAP] canvas_center=({:.1f},{:.1f}) via_inv=({:.1f},{:.1f},{:.4f}) sx/sy=({:.1f},{:.1f}) shader_sx/sy=({:.1f},{:.1f}) denom={:.4f} div=({:.1f},{:.1f}) is_affine={}",
+                         cx, cy, src_via_inv.x, src_via_inv.y, src_via_inv.z, sx, sy, shader_sx, shader_sy, shader_denom, shader_sx_div, shader_sy_div,
+                         std::abs(H[0][2]) < 1e-9f && std::abs(H[1][2]) < 1e-9f);
+            // Also test top-left of destination quad: canvas 125.5,70.5 and bottom-right 1794.5,1009.5
+            for (int k=0;k<2;++k){
+                float tcx = k==0?125.5f:1794.5f;
+                float tcy = k==0?70.5f:1009.5f;
+                Vec3 tc(tcx,tcy,1.0f);
+                Vec3 tv = inv_pixel_model_3x3 * tc;
+                float d = tv.z;
+                float ssx = d!=0? tv.x/d: 0;
+                float ssy = d!=0? tv.y/d: 0;
+                spdlog::warn("[DIAG-CORNER] canvas=({:.1f},{:.1f}) -> src=({:.1f},{:.1f}) denom={:.4f} in_bounds={}", tcx,tcy,ssx,ssy,d, ssx>=0 && ssx<1920 && ssy>=0 && ssy<1080);
+            }
+        }
+    }
+
     const auto winding = projected_quad_signed_area(pixel_model, w_src, h_src);
     const bool flipped = winding.has_value() && *winding < 0.0f;
     if (ctx.node_exec.counters) {
@@ -403,6 +456,25 @@ NodeExecResult TransformNode::execute(
             const auto transformed = ctx.backend->transform_surface_affine(
                 handle, input->surface_handle(), transform);
             if (cleared.ok() && transformed.ok()) {
+                {
+                    // TEMP-DIAG-TRANSFORM: quantify input/output residency.
+                    const auto ink = [&](runtime::RenderSurfaceHandle h, int w, int hgt) {
+                        auto scratch = ctx.download_scratch(w, hgt);
+                        const auto res = ctx.backend->download_surface(h, scratch);
+                        std::uint64_t n = 0; const std::uint64_t t = scratch.size() / 4;
+                        for (std::size_t i = 0; i < t; ++i) if (scratch[i * 4 + 3] > 0.001f) ++n;
+                        return std::pair{res.ok(), n * 100 / (t ? t : 1)};
+                    };
+                    const auto in_stats = ink(input->surface_handle(),
+                        static_cast<int>(input->width()), static_cast<int>(input->height()));
+                    const auto out_stats = ink(handle,
+                        static_cast<int>(result->width()), static_cast<int>(result->height()));
+                    spdlog::warn("[TEMP-DIAG-TRANSFORM] in_ok={} in_ink={} out_ok={} out_ink={} src_rect=({},{},{},{}) dst_origin=({},{}) dst={}x{}",
+                                 in_stats.first, in_stats.second, out_stats.first, out_stats.second,
+                                 x_min_src, y_min_src, x_max_src, y_max_src,
+                                 result->origin_x(), result->origin_y(),
+                                 result->width(), result->height());
+                }
                 result->set_surface_handle(handle);
                 return NodeExecResult{std::move(result)};
             }
@@ -553,4 +625,3 @@ NodeExecResult TransformNode::execute(
 }
 
 } // namespace chronon3d::graph
-

@@ -43,6 +43,10 @@ namespace chronon3d::cli {
 
 struct FfmpegPipeOptions;
 
+/// The one engine placeholder preset. The resolver only forwards it when it
+/// belongs to the selected backend; its x264 alias is normalized there too.
+inline constexpr std::string_view kDefaultEncoderPreset = "superfast";
+
 // ── Backend semantics ───────────────────────────────────────────────────────
 
 enum class EncoderBackend : std::uint8_t {
@@ -189,8 +193,8 @@ struct EncoderConfigRequest {
     bool bitrate_explicit{false};
     std::int64_t bitrate{0};
 
-    /// Empty = codec/encoder default.
-    std::string preset;
+    /// Empty = codec/encoder default; otherwise defaults to the shared engine preset.
+    std::string preset{std::string(kDefaultEncoderPreset)};
     bool preset_explicit{false};
 
     std::string tune;

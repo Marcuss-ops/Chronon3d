@@ -6,6 +6,7 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
+| Animated 2.5D image texture residency | P1 | OPEN | [VULKAN-ANIMATED-IMAGE-25D-RESIDENCY](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md) — strict-native requests are blocked in RenderingGen until the Vulkan video path preserves animated image textures |
 | Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Stage 1-5 stabilization campaign | P0 | VERIFY | [TICKET-200](tickets/TICKET-200-stage-plan.md) — Stabilize→Certify→Accelerate stages 1-5: build GREEN (756 targets), cache/compositor/render_job_contract/software suites PASS, arch gate 120/120 PASS (all 10 pre-existing fails cleared, see ticket); close after CI green on same SHA |
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |
@@ -62,6 +63,7 @@
 |---|---|---|---|
 | Zero-copy Z-waves | P2 | ACTIVE | [ZERO-COPY-ZWAVES](tickets/TICKET-ZERO-COPY-ZWAVES.md) — Z0 census done; Z1 typed encoder feed capability + Z4 capability matrix + Z6 depth telemetry + Z7 CUDA-lane gate-1 counter landed; Z3/Z4-corpus/Z5 GPU-driven follow-up and depth sweep remain open |
 | Video codec boundary | P2 | PROTOTYPE LANDED | [VIDEO-CODEC-BOUNDARY](tickets/TICKET-VIDEO-CODEC-BOUNDARY.md) — `VideoExecutionPath` (4 stati) + tabella pura + `ChangedInterval` CLI/IPC + ponte GOP-analysis fail-closed; `TrimPackets` ora ha preflight ed executor packet-copy ai confini GOP, mentre l'esecuzione `BoundaryReencode` e la decisione per-layer restano aperte (§5 di `AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY`) |
+| Native MP4 mux frame loss | P1 | OPEN | [NATIVE-MP4-MUX-FRAME-LOSS](tickets/TICKET-NATIVE-MP4-MUX-FRAME-LOSS.md) — riproduzione: 137 frame inviati, 86 nel container con backend nativo (pipe 137/137); suite isolata sul pipe finché il mux non è corretto |
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
 

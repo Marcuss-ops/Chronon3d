@@ -50,8 +50,7 @@ void apply_shadow_effect(
         y_max_src = std::min(h, effect_clip->y1 - oy);
     }
     const i32 blur_pad = static_cast<i32>(
-        effects::drop_shadow_spatial_halo(p).left -
-        std::max({0.0f, -p.offset.x, -p.offset.x * 1.65f}));
+        effects::drop_shadow_blur_padding(p));
     const i32 x_min_pad = std::max(0, x_min_dst - blur_pad);
     const i32 x_max_pad = std::min(w, x_max_dst + blur_pad);
     const i32 y_min_pad = std::max(0, y_min_dst - blur_pad);

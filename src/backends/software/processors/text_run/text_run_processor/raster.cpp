@@ -218,11 +218,17 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 eff_stroke = shape.paint.stroke_color;
                 eff_stroke_w = shape.paint.stroke_width;
             }
-
+            // Stroke (like fill) must be gated by the per-glyph selector
+            // weight encoded in g.opacity.  Without this a typewriter
+            // glyph with opacity 0 still paints its stroke as a solid
+            // navy rectangle that "pops" during the reveal.  The
+            // shadow path uses override_color and is gated via op_alpha,
+            // but the main path left stroke ungated.
+            const float eff_stroke_alpha = eff_stroke.a * g.opacity;
             const float op_alpha = override_color.has_value()
                 ? static_cast<float>(override_color->a) * g.opacity
                 : g.opacity;
-            if (op_alpha <= 0.0f && eff_stroke.a <= 0.0f) continue;
+            if (op_alpha <= 0.0f && eff_stroke_alpha <= 0.0f) continue;
 
             BLMatrix2D glyph_mat = to_surface_matrix(
                 build_glyph_matrix(g), raster_space);
@@ -258,24 +264,23 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                         out_stroke = *override_color;
                         out_stroke.a = eff_stroke.a * g.opacity;
                     }
-                    // GlyphOutlineBuilder emits outlines in FreeType font
-                    // design units (1 unit = 1/units_per_EM of the em
-                    // square), and the glyph matrix scales those units down
-                    // to render pixels.  BLContext::setStrokeWidth operates
-                    // in the same pre-transform user space, so a stroke
-                    // width expressed in pixels must be scaled back up by
-                    // units_per_EM / font_size — otherwise a "2 px" stroke
-                    // becomes ~0.08 px (2 font units) and is invisible.
-                    // span_handle.font_size is the render-pixel font size
-                    // (pre-supersample); the scale factor is invariant to
-                    // supersampling because the glyph matrix and the
-                    // downsampling pass cancel it.
+                    // GlyphOutlineBuilder emits outlines via FT_Load_Glyph
+                    // after FT_Set_Pixel_Sizes(font_size).  The outline is
+                    // therefore already in device pixels at the requested
+                    // size (26.6 fixed-point scaled), not in font design
+                    // units.  BLContext::setStrokeWidth is in the same
+                    // pre-transform user space (pixel space), so the
+                    // authored width is already in the correct units.
+                    // The previous units_per_EM/font_size scaling assumed
+                    // design units and inflated a 3.5 px stroke to ~54 px
+                    // (1000/64) — the "allagato" navy blob.  Keep the
+                    // width in device pixels; scale only by the raster
+                    // supersampling factor so the downsampled result keeps
+                    // the authored width.
                     double stroke_width_user = static_cast<double>(eff_stroke_w);
-                    if (span_handle.ft_face->units_per_EM > 0
-                        && span_handle.font_size > 0.0f) {
+                    if (raster_space.scale > 1) {
                         stroke_width_user *=
-                            static_cast<double>(span_handle.ft_face->units_per_EM)
-                            / static_cast<double>(span_handle.font_size);
+                            static_cast<double>(raster_space.scale);
                     }
                     ctx.setStrokeStyle(to_bl_rgba(out_stroke));
                     ctx.setStrokeWidth(stroke_width_user);

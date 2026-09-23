@@ -1,0 +1,82 @@
+{
+  "canvas": [
+    1920,
+    1080
+  ],
+  "note": "Segment ranges follow the visible #01–#10 reference labels.",
+  "reference": "preview_540p_crf26_lower_quality.mp4",
+  "reference_fps": 30,
+  "reference_frames": 857,
+  "segments": [
+    {
+      "frames": 60,
+      "name": "motion_bear_presents",
+      "number": 1,
+      "source_end_frame_exclusive": 60,
+      "source_start_frame": 0
+    },
+    {
+      "frames": 96,
+      "name": "text_animations_unfold",
+      "number": 2,
+      "source_end_frame_exclusive": 156,
+      "source_start_frame": 60
+    },
+    {
+      "frames": 72,
+      "name": "animate_your_text_effortlessly",
+      "number": 3,
+      "source_end_frame_exclusive": 228,
+      "source_start_frame": 156
+    },
+    {
+      "frames": 108,
+      "name": "save_time_boost_workflow",
+      "number": 4,
+      "source_end_frame_exclusive": 336,
+      "source_start_frame": 228
+    },
+    {
+      "frames": 72,
+      "name": "supports_any_language",
+      "number": 5,
+      "source_end_frame_exclusive": 408,
+      "source_start_frame": 336
+    },
+    {
+      "frames": 72,
+      "name": "random_4k_resolution",
+      "number": 6,
+      "source_end_frame_exclusive": 480,
+      "source_start_frame": 408
+    },
+    {
+      "frames": 72,
+      "name": "random_no_plugins",
+      "number": 7,
+      "source_end_frame_exclusive": 552,
+      "source_start_frame": 480
+    },
+    {
+      "frames": 72,
+      "name": "easily_adjust_duration",
+      "number": 8,
+      "source_end_frame_exclusive": 624,
+      "source_start_frame": 552
+    },
+    {
+      "frames": 96,
+      "name": "video_tutorial_included",
+      "number": 9,
+      "source_end_frame_exclusive": 720,
+      "source_start_frame": 624
+    },
+    {
+      "frames": 137,
+      "name": "thank_you_typewriter",
+      "number": 10,
+      "source_end_frame_exclusive": 857,
+      "source_start_frame": 720
+    }
+  ]
+}

@@ -54,7 +54,7 @@ namespace chronon3d::cli {
 inline void init_compositions(CompositionRegistry& registry, AssetRegistry& /*assets*/) {
     (void)0;  // assets retained for caller-compat; not used by register_*_compositions.
 
-    // Layer 1 — production runtime (ChrononGlowFinalAE + builtins).
+    // Layer 1 — production runtime (builtins).
     register_runtime_compositions(registry);
 
     // Layer 2 — content module bridge (cinematic showcases, examples,

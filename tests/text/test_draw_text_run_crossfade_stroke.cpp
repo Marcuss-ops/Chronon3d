@@ -386,3 +386,66 @@ TEST_CASE("draw_text_run: crossfade + stroke produces successful render (E2E ren
     }
     CHECK(has_non_transparent);
 }
+
+TEST_CASE("draw_text_run: 3.5px outline stays local at 64px and 128px font size") {
+    if (!test_text_fixture::fixture_exists(kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(kInterBoldPath, "stroke-width scale regression");
+        return;
+    }
+
+    auto renderer = test::make_renderer();
+    FontEngine engine{*renderer.execution_context().text.assets};
+
+    for (const float font_size : {64.0f, 128.0f}) {
+        INFO("font_size=" << font_size);
+        FontSpec font = test_text_fixture::inter_bold();
+        font.font_size = font_size;
+        TextLayoutSpec layout;
+        layout.box = {1500.0f, 320.0f};
+        layout.wrap = TextWrap::None;
+        layout.align = TextAlign::Center;
+
+        auto shape = make_real_shape_for_test("APPLE CLEAN", engine, layout, font);
+        REQUIRE(shape != nullptr);
+        REQUIRE(shape->layout != nullptr);
+        REQUIRE_FALSE(shape->glyphs.empty());
+        shape->paint.stroke_enabled = true;
+        shape->paint.stroke_width = 3.5f;
+        shape->paint.stroke_color = Color{0x11, 0x18, 0x27, 0xFF};
+        for (auto& glyph : shape->glyphs) {
+            glyph.fill = Color{0xFF, 0xFF, 0xFF, 0xFF};
+            glyph.stroke = shape->paint.stroke_color;
+            glyph.stroke_width = 3.5f;
+        }
+
+        Framebuffer fb(1920, 1080);
+        const Mat4 model{1.0f};
+        const auto result = renderer.backend().draw_text_run(fb, *shape, model, 1.0f);
+        REQUIRE(result.has_value());
+
+        std::size_t visible = 0;
+        std::size_t navy_outline = 0;
+        std::size_t white_fill = 0;
+        for (int y = 0; y < fb.height(); ++y) {
+            for (int x = 0; x < fb.width(); ++x) {
+                const Color pixel = fb.get_pixel(x, y);
+                if (pixel.a <= 0.05f) continue;
+                ++visible;
+                if (pixel.r < 0.20f && pixel.g < 0.24f && pixel.b < 0.32f) {
+                    ++navy_outline;
+                }
+                if (pixel.r > 0.80f && pixel.g > 0.80f && pixel.b > 0.80f) {
+                    ++white_fill;
+                }
+            }
+        }
+
+        REQUIRE(visible > 0);
+        REQUIRE(white_fill > 0);
+        INFO("navy_outline=" << navy_outline << " white_fill=" << white_fill);
+        // A 3.5px outline contributes a thin edge around each glyph. If the
+        // design-unit/em scaling regression returns, the outline expands to
+        // dozens of pixels and its area overtakes the white glyph fill.
+        CHECK(navy_outline < white_fill);
+    }
+}

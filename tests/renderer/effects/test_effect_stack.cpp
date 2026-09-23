@@ -6,6 +6,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
@@ -91,9 +92,9 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     CHECK(holds_effect<GlowParams>(layer.effects()[1]));
 }
 
-TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
+TEST_CASE("EffectStack: canonical black glow preset sets its documented controls") {
     LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
-    lb.effect(GlowPresets::neon_blue(55.0f));
+    lb.effect(GlowPresets::canary_black(55.0f));
 
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 1);
@@ -101,9 +102,8 @@ TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
 
     const auto& glow = get_effect<GlowParams>(layer.effects()[0]);
     CHECK(glow.radius == doctest::Approx(55.0f));
-    CHECK(glow.intensity == doctest::Approx(1.25f));
-    CHECK(glow.blend == BlendMode::Add);
-    CHECK(glow.core_strength > glow.bloom_strength);
+    CHECK(glow.intensity == doctest::Approx(0.25f));
+    CHECK(glow.color.r == doctest::Approx(1.0f));
 }
 
 TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {

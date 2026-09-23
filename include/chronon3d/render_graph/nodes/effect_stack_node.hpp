@@ -66,13 +66,14 @@ private:
             switch (inst.effect_type) {
             case Blur: {
                 if (auto* p = std::get_if<BlurParams>(&inst.params))
-                    max_spread = std::max(max_spread, p->radius);
+                    max_spread = std::max(max_spread,
+                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
                 break;
             }
             case DropShadow: {
                 if (auto* p = std::get_if<DropShadowParams>(&inst.params))
                     {
-                        const auto halo = effects::drop_shadow_spatial_halo(*p);
+                        const auto halo = effects::effect_spatial_halo(*p);
                         max_spread = std::max(max_spread,
                             std::max({halo.left, halo.top, halo.right, halo.bottom}));
                     }
@@ -96,12 +97,14 @@ private:
             }
             case Glow: {
                 if (auto* p = std::get_if<GlowParams>(&inst.params))
-                    max_spread = std::max(max_spread, glow_effect_extent(*p));
+                    max_spread = std::max(max_spread,
+                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
                 break;
             }
             case Bloom: {
                 if (auto* p = std::get_if<BloomParams>(&inst.params))
-                    max_spread = std::max(max_spread, p->radius);
+                    max_spread = std::max(max_spread,
+                        effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
                 break;
             }
             case Fake3DWave: {
@@ -120,8 +123,7 @@ private:
             default: break;
             }
         }
-        // Add 2px safety margin for anti-aliasing fringes
-        return max_spread > 0.0f ? max_spread + 2.0f : 0.0f;
+        return max_spread;
     }
 
     EffectStack m_effects;

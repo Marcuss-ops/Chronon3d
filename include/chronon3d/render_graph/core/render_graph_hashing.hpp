@@ -118,23 +118,6 @@ template <typename T>
     u64 seed = hash_value(p.radius);
     seed = hash_combine(seed, hash_value(p.intensity));
     seed = hash_combine(seed, hash_color(p.color));
-    seed = hash_combine(seed, hash_value(p.threshold));
-    seed = hash_combine(seed, hash_value(p.spread));
-    seed = hash_combine(seed, hash_value(p.softness));
-    seed = hash_combine(seed, hash_value(p.falloff));
-    seed = hash_combine(seed, hash_value(p.core_strength));
-    seed = hash_combine(seed, hash_value(p.aura_strength));
-    seed = hash_combine(seed, hash_value(p.bloom_strength));
-    seed = hash_combine(seed, hash_value(p.outer_downscale));
-    seed = hash_combine(seed, hash_value(p.preserve_source));
-    seed = hash_combine(seed, hash_value(p.blend));
-    seed = hash_combine(seed, hash_value(static_cast<u64>(p.layers.size())));
-    for (const auto& layer : p.layers) {
-        seed = hash_combine(seed, hash_value(layer.radius));
-        seed = hash_combine(seed, hash_value(layer.opacity));
-        seed = hash_combine(seed, hash_value(layer.scale));
-        seed = hash_combine(seed, hash_color(layer.color));
-    }
     return seed;
 }
 

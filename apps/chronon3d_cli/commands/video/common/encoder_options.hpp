@@ -35,7 +35,7 @@ struct EncoderOptions {
     std::string hardware_encoder{"none"};
 
     /// Encoder preset (e.g. "superfast", "ultrafast", "medium", "slow").
-    std::string encode_preset{"superfast"};
+    std::string encode_preset{std::string(kDefaultEncoderPreset)};
     bool encode_preset_explicit{false};
 
     /// Encoder tune parameter (e.g. "zerolatency", "film", "grain").

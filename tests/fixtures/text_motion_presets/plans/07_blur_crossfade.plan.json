@@ -1,0 +1,304 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text_motion_07_blur_crossfade",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 90
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 90
+    },
+    {
+      "id": "save_time",
+      "type": "text",
+      "text": "Save time",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        250
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 100,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "blur_fade_out",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 1
+                },
+                {
+                  "frame": 12,
+                  "value": 1
+                },
+                {
+                  "frame": 20,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "property": "blur",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 12,
+                  "value": 0
+                },
+                {
+                  "frame": 20,
+                  "value": 14
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boost_your",
+      "type": "text",
+      "text": "boost your",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        250
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 100,
+        "fill": "#D2B1FF",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "middle_blur_out",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 20,
+                  "value": 1
+                },
+                {
+                  "frame": 40,
+                  "value": 1
+                },
+                {
+                  "frame": 48,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "property": "blur",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 14
+                },
+                {
+                  "frame": 20,
+                  "value": 0
+                },
+                {
+                  "frame": 40,
+                  "value": 0
+                },
+                {
+                  "frame": 48,
+                  "value": 14
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workflow",
+      "type": "text",
+      "text": "workflow",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        250
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 112,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "workflow_grow_in",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 48,
+                  "value": 0
+                },
+                {
+                  "frame": 56,
+                  "value": 1
+                },
+                {
+                  "frame": 89,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "property": "blur",
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 14
+                },
+                {
+                  "frame": 48,
+                  "value": 14
+                },
+                {
+                  "frame": 56,
+                  "value": 0
+                },
+                {
+                  "frame": 89,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "property": "scale",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.92
+                },
+                {
+                  "frame": 54,
+                  "value": 1.08
+                },
+                {
+                  "frame": 64,
+                  "value": 1.0
+                },
+                {
+                  "frame": 89,
+                  "value": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "07_blur_crossfade.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

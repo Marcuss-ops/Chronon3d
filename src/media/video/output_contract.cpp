@@ -222,6 +222,7 @@ OutputVerificationResult verify_output_contract(
     result.sha256 = digest->hex();
 
     bool contract_ok = true;
+    bool frame_count_mismatch = false;
     if (result.video_codec != contract.video_codec) {
         contract_ok = false;
         result.failure = "codec mismatch: got " + result.video_codec +
@@ -237,8 +238,9 @@ OutputVerificationResult verify_output_contract(
                          std::to_string(audio_streams) + ", expected " +
                          std::to_string(contract.audio_streams);
     } else if (contract.frame_count > 0 &&
-               std::abs(result.frame_count - contract.frame_count) > 1) {
+               result.frame_count != contract.frame_count) {
         contract_ok = false;
+        frame_count_mismatch = true;
         result.failure = "frame count mismatch: got " +
                          std::to_string(result.frame_count) + ", expected " +
                          std::to_string(contract.frame_count);
@@ -250,7 +252,11 @@ OutputVerificationResult verify_output_contract(
     }
 
     if (!contract_ok) {
-        return result;  // passed=true, copy_eligible=false, sha256 populated
+        // A decodable but truncated render is still a failed render. Other
+        // media profile mismatches may remain inspectable/non-copy-eligible,
+        // but frame loss must never produce a success receipt.
+        if (frame_count_mismatch) result.passed = false;
+        return result;  // digest remains available for diagnosis
     }
 
     result.copy_eligible = true;

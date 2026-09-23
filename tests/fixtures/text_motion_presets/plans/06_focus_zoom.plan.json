@@ -1,0 +1,142 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text_motion_06_focus_zoom",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 90
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 90
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "Included",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        270
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 136,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "focus_zoom",
+          "selectors": [
+            {
+              "unit": "line",
+              "shape": "square",
+              "order": "forward",
+              "combine": "replace",
+              "exclude_spaces": true
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 10,
+                  "value": 1
+                },
+                {
+                  "frame": 54,
+                  "value": 1
+                },
+                {
+                  "frame": 66,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "property": "blur",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 15
+                },
+                {
+                  "frame": 10,
+                  "value": 0
+                },
+                {
+                  "frame": 54,
+                  "value": 0
+                },
+                {
+                  "frame": 66,
+                  "value": 12
+                }
+              ]
+            },
+            {
+              "property": "scale",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.82
+                },
+                {
+                  "frame": 13,
+                  "value": 1
+                },
+                {
+                  "frame": 54,
+                  "value": 1
+                },
+                {
+                  "frame": 66,
+                  "value": 0.94
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "06_focus_zoom.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

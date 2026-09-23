@@ -30,23 +30,26 @@ namespace chronon3d::graph::detail {
         switch (inst.effect_type) {
         case Blur: {
             if (auto* p = std::get_if<BlurParams>(&inst.params))
-                max_spread = std::max(max_spread, p->radius);
+                max_spread = std::max(max_spread,
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
         case DropShadow: {
             if (auto* p = std::get_if<DropShadowParams>(&inst.params))
                 max_spread = std::max(max_spread,
-                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&inst.params))
-                max_spread = std::max(max_spread, glow_effect_extent(*p));
+                max_spread = std::max(max_spread,
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
         case Bloom: {
             if (auto* p = std::get_if<BloomParams>(&inst.params))
-                max_spread = std::max(max_spread, p->radius);
+                max_spread = std::max(max_spread,
+                    effects::spatial_halo_extent(effects::effect_spatial_halo(*p)));
             break;
         }
         case Fake3DWave: {
@@ -65,8 +68,7 @@ namespace chronon3d::graph::detail {
         default: break;
         }
     }
-    // 2px safety margin for anti-aliasing fringes (matches EffectStackNode)
-    return max_spread > 0.0f ? max_spread + 2.0f : 0.0f;
+    return max_spread;
 }
 
 LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
@@ -77,15 +79,16 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
         switch (inst.effect_type) {
         case Blur:
             if (const auto* p = std::get_if<BlurParams>(&inst.params)) {
-                halo.left = std::max(halo.left, p->radius);
-                halo.top = std::max(halo.top, p->radius);
-                halo.right = std::max(halo.right, p->radius);
-                halo.bottom = std::max(halo.bottom, p->radius);
+                const auto effect_halo = effects::effect_spatial_halo(*p);
+                halo.left = std::max(halo.left, effect_halo.left);
+                halo.top = std::max(halo.top, effect_halo.top);
+                halo.right = std::max(halo.right, effect_halo.right);
+                halo.bottom = std::max(halo.bottom, effect_halo.bottom);
             }
             break;
         case DropShadow:
             if (const auto* p = std::get_if<DropShadowParams>(&inst.params)) {
-                const auto effect_halo = effects::drop_shadow_spatial_halo(*p);
+                const auto effect_halo = effects::effect_spatial_halo(*p);
                 halo.left = std::max(halo.left, effect_halo.left);
                 halo.top = std::max(halo.top, effect_halo.top);
                 halo.right = std::max(halo.right, effect_halo.right);
@@ -112,19 +115,20 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
             break;
         case Glow:
             if (const auto* p = std::get_if<GlowParams>(&inst.params)) {
-                const auto extent = glow_effect_extent(*p);
-                halo.left = std::max(halo.left, extent);
-                halo.top = std::max(halo.top, extent);
-                halo.right = std::max(halo.right, extent);
-                halo.bottom = std::max(halo.bottom, extent);
+                const auto effect_halo = effects::effect_spatial_halo(*p);
+                halo.left = std::max(halo.left, effect_halo.left);
+                halo.top = std::max(halo.top, effect_halo.top);
+                halo.right = std::max(halo.right, effect_halo.right);
+                halo.bottom = std::max(halo.bottom, effect_halo.bottom);
             }
             break;
         case Bloom:
             if (const auto* p = std::get_if<BloomParams>(&inst.params)) {
-                halo.left = std::max(halo.left, p->radius);
-                halo.top = std::max(halo.top, p->radius);
-                halo.right = std::max(halo.right, p->radius);
-                halo.bottom = std::max(halo.bottom, p->radius);
+                const auto effect_halo = effects::effect_spatial_halo(*p);
+                halo.left = std::max(halo.left, effect_halo.left);
+                halo.top = std::max(halo.top, effect_halo.top);
+                halo.right = std::max(halo.right, effect_halo.right);
+                halo.bottom = std::max(halo.bottom, effect_halo.bottom);
             }
             break;
         case Fake3DWave:
@@ -153,13 +157,6 @@ LayerSpatialHalo compute_layer_spatial_halo(const Layer& layer) {
         default:
             break;
         }
-    }
-    if (halo.left > 0.0f || halo.top > 0.0f ||
-        halo.right > 0.0f || halo.bottom > 0.0f) {
-        halo.left += 2.0f;
-        halo.top += 2.0f;
-        halo.right += 2.0f;
-        halo.bottom += 2.0f;
     }
     return halo;
 }

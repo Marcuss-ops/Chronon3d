@@ -121,6 +121,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             layer.rotation[i] = rotation.at(i).get<float>();
     }
     layer.enable_3d = value.value("enable_3d", false);
+    layer.screen_space = value.value("screen_space", false);
     if (value.contains("depth_role")) {
         layer.depth_role = value.at("depth_role").get<std::string>();
         static constexpr std::array<std::string_view, 7> kRoles{
@@ -167,23 +168,21 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (style.contains("glow")) {
             const auto& glow = style.at("glow");
             GlowStyle glow_plan;
-            glow_plan.radius = glow.at("radius").get<float>();
-            glow_plan.intensity = glow.at("intensity").get<float>();
-            glow_plan.threshold = glow.at("threshold").get<float>();
-            glow_plan.falloff = glow.at("falloff").get<float>();
-            glow_plan.core_strength = glow.at("core_strength").get<float>();
-            glow_plan.aura_strength = glow.at("aura_strength").get<float>();
-            glow_plan.bloom_strength = glow.at("bloom_strength").get<float>();
-            glow_plan.high_quality = glow.at("high_quality").get<bool>();
+            if (glow.contains("radius"))
+                glow_plan.radius = glow.at("radius").get<float>();
+            if (glow.contains("intensity"))
+                glow_plan.intensity = glow.at("intensity").get<float>();
+            if (glow.contains("color")) {
+                glow_plan.color = glow.at("color").get<std::string>();
+            } else {
+                // Legacy plans declared the glow tint implicitly as white.
+                // Old lobe and quality knobs are accepted but ignored.
+                glow_plan.color = "#FFFFFF";
+            }
             if (!std::isfinite(glow_plan.radius) || glow_plan.radius < 0.0f ||
-                !std::isfinite(glow_plan.intensity) || glow_plan.intensity < 0.0f ||
-                !std::isfinite(glow_plan.threshold) || glow_plan.threshold < 0.0f ||
-                !std::isfinite(glow_plan.falloff) || glow_plan.falloff < 1.0f ||
-                !std::isfinite(glow_plan.core_strength) || glow_plan.core_strength < 0.0f ||
-                !std::isfinite(glow_plan.aura_strength) || glow_plan.aura_strength < 0.0f ||
-                !std::isfinite(glow_plan.bloom_strength) || glow_plan.bloom_strength < 0.0f) {
+                !std::isfinite(glow_plan.intensity) || glow_plan.intensity < 0.0f) {
                 throw std::runtime_error(
-                    "style.glow values must be finite, non-negative, with falloff >= 1");
+                    "style.glow radius and intensity must be finite and non-negative");
             }
             style_plan.glow = std::move(glow_plan);
         }

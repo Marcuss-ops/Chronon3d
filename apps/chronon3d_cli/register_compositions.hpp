@@ -8,7 +8,6 @@
 //   1. register_runtime_compositions(CompositionRegistry&)
 //      Production runtime surface.  Always called.  Registers:
 //        - register_builtin_compositions (DarkGridBackground, CameraImageClip)
-//        - ChrononGlowFinalAE (the canonical user-spec cinematic-glow)
 //      Does NOT include any test/golden/dev header.
 //
 //   2. register_content_compositions(CompositionRegistry&)
@@ -21,8 +20,8 @@
 //   3. register_dev_compositions(CompositionRegistry&)
 //      DEV/test compositions.  ONLY called when CHRONON3D_BUILD_CLI_DEV=ON.
 //      Registers: PipelineParityCanary, AnimTypewriterGlowNoGlow,
-//      CameraTruthTest, CameraTruthOrbit, AE_CAM_01..10,
-//      ChrononGlowFinalAEPortrait, ChrononGlowFinalAE_NoGlow,
+//      CameraTruthTest, CameraTruthOrbit, AE_CAM_01..10; retired cinematic-
+//      glow families are not registered.
 //      ae_08_glow_pulse / ae_10_scale_pop / ae_12 / ae_14 / motion_blur_text,
 //      AECameraTextParity (DIAGNOSTICS gated).
 //
@@ -34,8 +33,7 @@ namespace chronon3d {
 class CompositionRegistry;
 
 /// Register production runtime compositions (always called).
-/// Registers: builtin compositions (DarkGridBackground, CameraImageClip) +
-/// ChrononGlowFinalAE (the canonical user-spec cinematic-glow landscape).
+/// Registers builtin compositions (DarkGridBackground, CameraImageClip).
 void register_runtime_compositions(CompositionRegistry& registry);
 
 /// Register content-module compositions (always called when content

@@ -343,7 +343,7 @@ TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
 }
 
 // §7 Glow ──────────────────────────────────────────────────────────────────
-TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
+TEST_CASE("VisualRegression/Glow — single Gaussian glow via l.glow") {
     auto renderer = make_renderer();
     auto spec = make_opts("GLOW", 96.0f, Color::white());
     auto comp = composition(
@@ -352,10 +352,7 @@ TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
             SceneBuilder s(ctx);
             s.layer("hero", [spec](LayerBuilder& l) {
                 l.text("k", spec);
-                // PR-A3 fix B4: canonical GlowParams has only {radius, intensity, color}.
-                // The 4 AE-grade pass fields (inner_radius/bloom_radius/inner_intensity/bloom_intensity)
-                // do NOT exist on the layer-engine GlowParams aggregator: the
-                // multi-layer contract is expressed through GlowParams::layers.
+                // The canonical glow is one Gaussian halo with three controls.
                 l.effect(GlowParams{
                     .radius    = 24.0f,
                     .intensity = 0.85f,

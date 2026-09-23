@@ -1,7 +1,7 @@
 #include "render_plan_compiler_detail.hpp"
 
 #include <chronon3d/render_plan/color_utils.hpp>
-#include <chronon3d/effects/presets/glow_presets.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 
 #include <stdexcept>
 #include <string>
@@ -13,19 +13,14 @@ void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
     if (!layer.style || !layer.style->glow) return;
 
     const auto& spec = *layer.style->glow;
-    // Keep the verified black-canary colour/spread/softness/blend contract;
-    // the plan controls the explicitly declared per-item glow knobs.
-    auto glow = chronon3d::GlowPresets::canary_black(spec.radius);
-    glow.intensity = spec.intensity;
-    glow.threshold = spec.threshold;
-    glow.falloff = spec.falloff;
-    glow.core_strength = spec.core_strength;
-    glow.aura_strength = spec.aura_strength;
-    glow.bloom_strength = spec.bloom_strength;
-    glow.quality = spec.high_quality
-        ? chronon3d::GlowQuality::High
-        : chronon3d::GlowQuality::Fast;
-    builder.effect(std::move(glow));
+    const auto color = parse_hex_color(spec.color);
+    if (!color)
+        throw std::runtime_error("text layer '" + layer.id + "' has invalid glow color");
+    builder.effect(chronon3d::GlowParams{
+        .radius = spec.radius,
+        .intensity = spec.intensity,
+        .color = *color,
+    });
 }
 
 chronon3d::TextDefinition materialize_text(

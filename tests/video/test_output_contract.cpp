@@ -346,3 +346,35 @@ TEST_CASE("verify_output_contract: pix_fmt mismatch passes but not copy_eligible
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
 }
+
+TEST_CASE("verify_output_contract: frame loss fails render verification") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+    const auto artifact = temp_path("truncated_frame_count.mp4");
+    const std::string make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=black:s=1920x1080:r=24 "
+        "-frames:v 3 -c:v libx264 -pix_fmt yuv420p " + artifact;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    OutputContract contract;
+    contract.width = 1920;
+    contract.height = 1080;
+    contract.fps = chronon3d::FrameRate{24, 1};
+    contract.video_codec = "h264";
+    contract.pixel_format = "yuv420p";
+    contract.audio_required = false;
+    contract.audio_streams = 0;
+    contract.frame_count = 4;
+
+    const auto result = verify_output_contract(artifact, contract);
+    CHECK_FALSE(result.passed);
+    CHECK_FALSE(result.copy_eligible);
+    CHECK(result.failure.find("frame count mismatch") != std::string::npos);
+    CHECK_FALSE(result.sha256.empty());
+
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}

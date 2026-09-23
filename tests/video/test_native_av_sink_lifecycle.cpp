@@ -210,3 +210,52 @@ TEST_CASE("NativeAvSink: the cadence authority is the shared encoder helper") {
     CHECK(keyframe_interval_frames(24, 1) == 48);
     CHECK(keyframe_interval_frames(30, 1) == 60);
 }
+
+TEST_CASE("NativeAvSink: duration boundary matrix retains every submitted packet") {
+    // Regression matrix around the previously observed 86/137-frame output.
+    // Use the canonical native sink and inspect the packets in the finalized
+    // MP4, rather than trusting the producer's submitted-frame counter.
+    const int durations[] = {60, 86, 87, 96, 120, 137, 150, 180, 300};
+    for (const int frame_count : durations) {
+        const auto output_path = std::filesystem::path(
+            "native-av-frame-matrix-" + std::to_string(frame_count) + ".mp4");
+        std::error_code ec;
+        std::filesystem::remove(output_path, ec);
+
+        VideoSinkConfig config;
+        config.stream.width = 64;
+        config.stream.height = 64;
+        config.stream.frame_rate_num = 30;
+        config.stream.frame_rate_den = 1;
+        config.stream.submitted_format = PixelFormat::RGBA8;
+        config.encoder.codec = VideoCodec::H264;
+        config.encoder.encoded_pixel_format = PixelFormat::YUV420P;
+        config.output.container = VideoContainer::Mp4;
+        config.output.output_path = output_path;
+        config.output.overwrite = true;
+
+        auto sink = create_video_sink(config);
+        REQUIRE(sink != nullptr);
+        REQUIRE(sink->open(config));
+        std::vector<std::uint8_t> pixels(64U * 64U * 4U, 0x40U);
+        for (int index = 0; index < frame_count; ++index) {
+            const VideoFrameView frame{
+                .data = pixels.data(),
+                .stride_bytes = 64U * 4U,
+                .width = 64,
+                .height = 64,
+                .pixel_format = PixelFormat::RGBA8,
+                .pts = index,
+            };
+            REQUIRE(sink->submit(frame));
+        }
+        CHECK(sink->frames_submitted() == static_cast<std::uint64_t>(frame_count));
+        REQUIRE(sink->flush());
+        REQUIRE(sink->close());
+
+        KeyframeSpacing observed;
+        REQUIRE(read_keyframe_spacing(output_path, observed));
+        CHECK(observed.packet_count == frame_count);
+        std::filesystem::remove(output_path, ec);
+    }
+}

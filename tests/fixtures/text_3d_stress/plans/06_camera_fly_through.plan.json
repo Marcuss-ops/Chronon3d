@@ -1,0 +1,103 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text3d_stress_06_camera_fly_through",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 72
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "color",
+      "color": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "size": [
+        960,
+        540
+      ],
+      "start_frame": 0,
+      "duration_frames": 72
+    },
+    {
+      "id": "layer_1",
+      "type": "text",
+      "text": "O",
+      "size": [
+        500,
+        440
+      ],
+      "position": [
+        480,
+        270
+      ],
+      "depth_offset": 0,
+      "enable_3d": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 360,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 72
+    }
+  ],
+  "output": {
+    "path": "06_camera_fly_through.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 45,
+    "near": 0.1,
+    "far": 10000
+  },
+  "camera_animation": {
+    "tracks": [
+      {
+        "property": "camera_position_z",
+        "easing": "in_out_cubic",
+        "keyframes": [
+          {
+            "frame": 0,
+            "value": -1150
+          },
+          {
+            "frame": 30,
+            "value": -160
+          },
+          {
+            "frame": 42,
+            "value": -0.2
+          },
+          {
+            "frame": 55,
+            "value": 180
+          },
+          {
+            "frame": 71,
+            "value": -1100
+          }
+        ]
+      }
+    ]
+  }
+}

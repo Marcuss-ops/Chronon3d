@@ -3,7 +3,7 @@
 // ── Glow presets — reusable GlowParams constructors ────────────────────────
 //
 /// @file    glow_presets.hpp
-/// @brief   Pre-built GlowParams configurations (neon, cinematic, etc.).
+/// @brief   The single restrained GlowParams default.
 ///
 /// Extracted from effect_stack.hpp to keep effect type mapping separate from
 /// creative preset definitions.
@@ -15,158 +15,13 @@
 
 namespace chronon3d {
 
-// ── GlowPresets ─────────────────────────────────────────────────────────────
-//
-/// Factory functions returning pre-configured GlowParams for common glow styles.
+// One restrained, neutral Gaussian halo used by the canonical black-backdrop
+// canaries. Callers can override the radius or the three GlowParams directly.
 namespace GlowPresets {
 
-[[nodiscard]] inline GlowParams neon_blue(f32 radius = 45.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 1.25f,
-        .color = Color{0.15f, 0.65f, 1.0f, 1.0f},
-        .threshold = 0.0f,
-        .spread = 1.0f,
-        .softness = 1.0f,
-        .falloff = 1.0f,
-        .core_strength = 0.85f,
-        .aura_strength = 0.42f,
-        .bloom_strength = 0.20f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Add
-    };
-}
-
-[[nodiscard]] inline GlowParams cinematic_gold(f32 radius = 55.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 1.10f,
-        .color = Color{1.0f, 0.72f, 0.22f, 1.0f},
-        .threshold = 0.0f,
-        .spread = 1.0f,
-        .softness = 1.0f,
-        .falloff = 1.0f,
-        .core_strength = 0.70f,
-        .aura_strength = 0.35f,
-        .bloom_strength = 0.16f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Add
-    };
-}
-
-[[nodiscard]] inline GlowParams soft_cyan(f32 radius = 38.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 0.90f,
-        .color = Color{0.30f, 0.95f, 1.0f, 1.0f},
-        .threshold = 0.0f,
-        .spread = 1.0f,
-        .softness = 1.0f,
-        .falloff = 1.0f,
-        .core_strength = 0.60f,
-        .aura_strength = 0.38f,
-        .bloom_strength = 0.22f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Add
-    };
-}
-
-[[nodiscard]] inline GlowParams soft_premium(f32 radius = 34.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 0.72f,
-        .color = Color{0.46f, 0.82f, 1.0f, 1.0f},
-        .threshold = 0.03f,
-        .spread = 0.96f,
-        .softness = 1.18f,
-        .falloff = 1.08f,
-        .core_strength = 0.50f,
-        .aura_strength = 0.24f,
-        .bloom_strength = 0.08f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Screen
-    };
-}
-
-[[nodiscard]] inline GlowParams cinematic_gold_premium(f32 radius = 58.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 0.95f,
-        .color = Color{1.0f, 0.80f, 0.30f, 1.0f},
-        .threshold = 0.06f,
-        .spread = 1.00f,
-        .softness = 1.12f,
-        .falloff = 1.05f,
-        .core_strength = 0.56f,
-        .aura_strength = 0.30f,
-        .bloom_strength = 0.10f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Screen
-    };
-}
-
-[[nodiscard]] inline GlowParams neon_sign(f32 radius = 44.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 1.12f,
-        .color = Color{0.16f, 0.68f, 1.0f, 1.0f},
-        .threshold = 0.0f,
-        .spread = 1.05f,
-        .softness = 0.88f,
-        .falloff = 1.0f,
-        .core_strength = 0.80f,
-        .aura_strength = 0.32f,
-        .bloom_strength = 0.12f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Add
-    };
-}
-
-[[nodiscard]] inline GlowParams editorial_highlight(f32 radius = 28.0f) {
-    return GlowParams{
-        .radius = radius,
-        .intensity = 0.60f,
-        .color = Color{0.95f, 0.98f, 1.0f, 1.0f},
-        .threshold = 0.14f,
-        .spread = 0.90f,
-        .softness = 1.30f,
-        .falloff = 1.12f,
-        .core_strength = 0.38f,
-        .aura_strength = 0.18f,
-        .bloom_strength = 0.05f,
-        .outer_downscale = 0.25f,
-        .preserve_source = true,
-        .blend = BlendMode::Screen
-    };
-}
-
-/// White halo for white text on a pure-black backdrop, tuned against the
-/// canary clips (H.264 survives the encode; the halo does not disappear).
-///
-/// Lineage: `editorial_highlight` geometry with the threshold forced to 0 and
-/// a tighter core/aura/bloom split.  The editorial preset alone was authored
-/// for pale backgrounds and nearly vanished on black, so the black-backdrop
-/// tuning lives here instead of being restated at each authoring site.
-/// Rendered at High quality: these are final-quality visual probes.
-[[nodiscard]] inline GlowParams canary_black(f32 radius = 42.0f) {
-    GlowParams p = editorial_highlight(radius);
-    p.quality = GlowQuality::High;
-    p.intensity = 0.92f;
-    p.threshold = 0.0f;
-    p.spread = 1.0f;
-    p.softness = 1.0f;
-    p.falloff = 1.0f;
-    p.core_strength = 0.48f;
-    p.aura_strength = 0.30f;
-    p.bloom_strength = 0.10f;
-    p.blend = BlendMode::Add;
-    return p;
+[[nodiscard]] inline GlowParams canary_black(f32 radius = 24.0f) {
+    return GlowParams{.radius = radius, .intensity = 0.25f,
+                      .color = Color{1.0f, 1.0f, 1.0f, 1.0f}};
 }
 
 } // namespace GlowPresets

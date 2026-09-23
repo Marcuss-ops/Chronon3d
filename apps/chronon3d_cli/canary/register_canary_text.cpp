@@ -43,7 +43,7 @@ namespace {
                         l.rotate({0.0f, canary_lerp(-8.0f, 8.0f,
                                                     canary_progress(ctx)), 0.0f});
                     }
-                    l.effect(canary_glow(GlowPresets::editorial_highlight(30.0f)));
+                    l.effect(GlowParams{.radius = 30.0f, .intensity = 0.25f, .color = Color::white()});
                     l.text("text", canary_element_text("CHRONON", mode));
                 });
 
@@ -65,7 +65,7 @@ namespace {
 
                 scene.layer("CHRONON_TEXT_FULL_STATIC", [&](LayerBuilder &l) {
                     l.enable_3d(true);
-                    l.effect(canary_glow(GlowPresets::editorial_highlight(30.0f)));
+                    l.effect(GlowParams{.radius = 30.0f, .intensity = 0.25f, .color = Color::white()});
                     l.text("text", canary_text(
                         "CHRONON", kCanaryFontBold, 180.0f, 700,
                         Color{1.0f, 0.86f, 0.86f, 1.0f}, Vec2{1600.0f, 360.0f}));

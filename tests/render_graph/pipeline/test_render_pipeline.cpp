@@ -277,9 +277,7 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
     Color far_edge = fb->get_pixel(80, 256);
 
     CHECK(center.a > 0.8f);
-    // Final software rendering uses the certified High glow path (linear,
-    // premultiplied Gaussian). Re-pinned against that reference rather than
-    // the older Fast box-filter output.
+    // The single Gaussian glow uses linear-light premultiplied filtering.
     CHECK(near_edge.b > 0.018f);
     CHECK(far_edge.b < near_edge.b);
 }
@@ -482,8 +480,7 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
     CHECK(center.g > 0.8f);
     CHECK(center.b > 0.8f);
 
-    // Final software rendering uses the certified High glow path; this is the
-    // measured near-edge floor for the current canonical reference.
+    // This is the measured near-edge floor for the single Gaussian glow.
     CHECK(near_edge.b > 0.009f);
     CHECK(far_edge.b < near_edge.b);
 }

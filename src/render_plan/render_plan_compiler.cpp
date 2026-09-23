@@ -179,8 +179,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
 
             for (std::size_t index = 0; index < plan.layers.size(); ++index) {
                 const auto& layer = plan.layers[index];
-                scene.layer(layer.id, [&](LayerBuilder& builder) {
+                const auto author_layer = [&](LayerBuilder& builder) {
                     builder.font_engine(font_engine.get());
+                    // Image textures carry their own color.  2.5D projection
+                    // changes their pose, not their albedo, so keep them out
+                    // of the scene lighting pass (which otherwise grays light
+                    // product imagery and its transparent edge pixels).
+                    if (layer.type == LayerType::Image && layer.enable_3d)
+                        builder.accepts_lights(false).accepts_shadows(false);
                     switch (layer.type) {
                         case LayerType::Image: {
                             ImageParams params;
@@ -286,7 +292,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 static_cast<float>(plan.canvas.height) * 0.5f,
                             layer.position[2]});
                     }
-                });
+                };
+                if (layer.screen_space) scene.screen_layer(layer.id, author_layer);
+                else scene.layer(layer.id, author_layer);
             }
             return scene.build();
         };

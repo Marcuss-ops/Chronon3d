@@ -125,14 +125,9 @@
         "font": "assets/fonts/Inter-Bold.ttf",
         "font_size": 110,
         "glow": {
-          "aura_strength": 0.16,
-          "bloom_strength": 0.04,
-          "core_strength": 0.32,
-          "falloff": 1.0,
-          "high_quality": true,
-          "intensity": 0.18,
-          "radius": 8.0,
-          "threshold": 0.0
+          "color": "#FFFFFF",
+          "intensity": 0.25,
+          "radius": 8.0
         },
         "stroke": {
           "color": "#C8ECFF",
@@ -316,14 +311,9 @@
         "font": "assets/fonts/Inter-Regular.ttf",
         "font_size": 64.0,
         "glow": {
-          "aura_strength": 0.12,
-          "bloom_strength": 0.03,
-          "core_strength": 0.24,
-          "falloff": 1.0,
-          "high_quality": true,
-          "intensity": 0.12,
-          "radius": 4.0,
-          "threshold": 0.0
+          "color": "#FFFFFF",
+          "intensity": 0.25,
+          "radius": 4.0
         },
         "stroke": {
           "color": "#9BCBFF",

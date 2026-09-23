@@ -12,6 +12,7 @@
 
 #include "render_effects_processor.hpp"
 #include "effects_internal.hpp"
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <tbb/parallel_for.h>
@@ -235,9 +236,9 @@ static void apply_downsample_blur(Framebuffer& fb, f32 radius,
     const i32 sh = std::max(1, (h + downsample_factor - 1) / downsample_factor);
 
     i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
-    const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
     if (clip) {
-        const i32 margin = passes * r + 2;
+        const i32 margin = static_cast<i32>(std::ceil(
+            effects::spatial_halo_extent(effects::blur_spatial_halo(radius, passes))));
         x0 = std::clamp(clip->x0 - margin, 0, w);
         x1 = std::clamp(clip->x1 + margin, 0, w);
         y0 = std::clamp(clip->y0 - margin, 0, h);
@@ -309,7 +310,9 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
         const i32 w = fb.width(), h = fb.height();
         i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
         if (clip) {
-            const i32 margin = blur_passes * r + 2;
+            const i32 margin = static_cast<i32>(std::ceil(
+                effects::spatial_halo_extent(
+                    effects::blur_spatial_halo(radius, blur_passes))));
             x0 = std::clamp(clip->x0 - margin, 0, w);
             x1 = std::clamp(clip->x1 + margin, 0, w);
             y0 = std::clamp(clip->y0 - margin, 0, h);

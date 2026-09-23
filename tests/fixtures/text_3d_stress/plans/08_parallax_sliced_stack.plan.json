@@ -1,0 +1,183 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text3d_stress_08_parallax_sliced_stack",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 72
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "color",
+      "color": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "size": [
+        960,
+        540
+      ],
+      "start_frame": 0,
+      "duration_frames": 72
+    },
+    {
+      "id": "layer_1",
+      "type": "text",
+      "text": "DEPTH",
+      "size": [
+        860,
+        300
+      ],
+      "position": [
+        360,
+        270
+      ],
+      "depth_offset": -130,
+      "enable_3d": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 144,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 72,
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": -120
+              },
+              {
+                "frame": 48,
+                "value": 0
+              },
+              {
+                "frame": 71,
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "layer_2",
+      "type": "text",
+      "text": "DEPTH",
+      "size": [
+        860,
+        300
+      ],
+      "position": [
+        480,
+        270
+      ],
+      "depth_offset": 0,
+      "enable_3d": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 144,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 72,
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0
+              },
+              {
+                "frame": 48,
+                "value": 0
+              },
+              {
+                "frame": 71,
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "layer_3",
+      "type": "text",
+      "text": "DEPTH",
+      "size": [
+        860,
+        300
+      ],
+      "position": [
+        600,
+        270
+      ],
+      "depth_offset": 130,
+      "enable_3d": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 144,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 72,
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "in_out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 120
+              },
+              {
+                "frame": 48,
+                "value": 0
+              },
+              {
+                "frame": 71,
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "output": {
+    "path": "08_parallax_sliced_stack.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 45,
+    "near": 0.1,
+    "far": 10000
+  }
+}

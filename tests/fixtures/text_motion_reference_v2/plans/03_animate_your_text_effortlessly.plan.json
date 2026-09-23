@@ -1,0 +1,225 @@
+{
+  "canvas": {
+    "duration_frames": 72,
+    "fps_den": 1,
+    "fps_num": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "motion_bear_reference_3_animate_your_text_effortlessly",
+  "layers": [
+    {
+      "asset": "tests/fixtures/text_motion_reference_v2/motion_bear_stage.png",
+      "duration_frames": 72,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image"
+    },
+    {
+      "duration_frames": 72,
+      "id": "reference_index",
+      "position": [
+        960,
+        108
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#E2EAF4",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 36
+      },
+      "text": "#03",
+      "text_animators": [],
+      "type": "text"
+    },
+    {
+      "duration_frames": 72,
+      "id": "phrase",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 126,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Animate your text effortlessly",
+      "text_animators": [
+        {
+          "id": "reveal",
+          "properties": [
+            {
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 71,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 32.0
+                },
+                {
+                  "frame": 10,
+                  "value": 18.0
+                },
+                {
+                  "frame": 25,
+                  "value": 0.0
+                },
+                {
+                  "frame": 71,
+                  "value": 0.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 71,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0.0
+                  },
+                  {
+                    "frame": 20,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 71,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "unit": "word"
+            }
+          ]
+        },
+        {
+          "id": "erase_from_right",
+          "properties": [
+            {
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 71,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 71,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 49,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 67,
+                    "value": 0.0
+                  },
+                  {
+                    "frame": 71,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "unit": "grapheme"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "animate_your_text_effortlessly.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

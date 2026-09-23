@@ -8,7 +8,7 @@
 //
 // The visual/golden demo composition fleet (PipelineParityCanary,
 // CameraTruth*, AE_CAM_01..10, ae_08..ae_14, glow A/B siblings,
-// ChrononGlowFinalAE_NoGlow, AECameraTextParity) was retired together with
+// retired cinematic-glow variants, AECameraTextParity) was retired together with
 // the tests/visual + tests/golden + content-pack removal.  The file is kept
 // as an (empty) hook point for future DEV-only compositions.
 // ============================================================================

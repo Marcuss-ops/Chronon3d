@@ -127,12 +127,7 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     add_optional(out, style.glow, [](auto& writer, const GlowStyle& glow) {
         writer.add_float(glow.radius);
         writer.add_float(glow.intensity);
-        writer.add_float(glow.threshold);
-        writer.add_float(glow.falloff);
-        writer.add_float(glow.core_strength);
-        writer.add_float(glow.aura_strength);
-        writer.add_float(glow.bloom_strength);
-        writer.add_bool(glow.high_quality);
+        writer.add_string(glow.color);
     });
     add_optional(out, style.background,
                  [](auto& writer, const BackgroundStyle& background) {
@@ -210,6 +205,7 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     for (const auto value : layer.rotation) out.add_float(value);
     out.add_size(layer.rotation_dimensions);
     out.add_bool(layer.enable_3d);
+    out.add_bool(layer.screen_space);
     add_optional(out, layer.depth_role,
                  [](auto& writer, const std::string& value) { writer.add_string(value); });
     out.add_float(layer.depth_offset);
@@ -251,7 +247,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v4");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v5");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

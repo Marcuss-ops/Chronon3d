@@ -1,0 +1,129 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text3d_stress_07_whip_pan_fov",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 72
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "color",
+      "color": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "size": [
+        960,
+        540
+      ],
+      "start_frame": 0,
+      "duration_frames": 72
+    },
+    {
+      "id": "layer_1",
+      "type": "text",
+      "text": "MOTION",
+      "size": [
+        860,
+        300
+      ],
+      "position": [
+        480,
+        270
+      ],
+      "depth_offset": 0,
+      "enable_3d": true,
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 148,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 72
+    }
+  ],
+  "output": {
+    "path": "07_whip_pan_fov.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 45,
+    "near": 0.1,
+    "far": 10000
+  },
+  "camera_animation": {
+    "tracks": [
+      {
+        "property": "camera_rotation_y",
+        "easing": "linear",
+        "keyframes": [
+          {
+            "frame": 0,
+            "value": -10
+          },
+          {
+            "frame": 22,
+            "value": 0
+          },
+          {
+            "frame": 35,
+            "value": 180
+          },
+          {
+            "frame": 49,
+            "value": 360
+          },
+          {
+            "frame": 71,
+            "value": 370
+          }
+        ]
+      },
+      {
+        "property": "camera_fov_deg",
+        "easing": "in_out_cubic",
+        "keyframes": [
+          {
+            "frame": 0,
+            "value": 42
+          },
+          {
+            "frame": 30,
+            "value": 42
+          },
+          {
+            "frame": 38,
+            "value": 88
+          },
+          {
+            "frame": 50,
+            "value": 88
+          },
+          {
+            "frame": 71,
+            "value": 42
+          }
+        ]
+      }
+    ]
+  }
+}

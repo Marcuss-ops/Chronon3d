@@ -9,16 +9,13 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
 
 namespace chronon3d::renderer {
-
-[[nodiscard]] static inline i32 blur_padding_for_radius(float radius) {
-    return std::max(1, static_cast<i32>(std::ceil(std::max(0.0f, radius))) + 2);
-}
 
 [[nodiscard]] static inline std::optional<raster::BBox> expand_effect_clip(
     const std::optional<raster::BBox>& clip,
@@ -30,7 +27,7 @@ namespace chronon3d::renderer {
         return std::nullopt;
     }
 
-    const int margin = static_cast<int>(std::ceil(std::max(0.0f, spread))) + 2;
+    const int margin = static_cast<int>(std::ceil(std::max(0.0f, spread)));
 
     raster::BBox out = *clip;
     out.x0 -= margin;

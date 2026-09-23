@@ -188,6 +188,10 @@ private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
     uint64_t frames_written_{0};
+    uint64_t encoder_packets_received_{0};
+    uint64_t mux_packets_written_{0};
+    int64_t first_encoder_packet_pts_{-1};
+    int64_t last_encoder_packet_pts_{-1};
     double open_hw_ctx_ms_{0.0};
     double cuda_compositor_warmup_ms_{0.0};
     double open_nvenc_ms_{0.0};

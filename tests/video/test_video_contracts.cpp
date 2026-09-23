@@ -143,7 +143,7 @@ std::string cli_video_cmd(const std::string& cli_bin,
 std::string write_portrait_sidecar(const std::string& out_path) {
     const std::string sidecar = "/tmp/chronon_video_contracts_portrait.json";
     std::ofstream sf(sidecar);
-    sf << "{\"id\":\"ChrononGlowFinalAE\","
+    sf << "{\"id\":\"Motion3DGlowOrbit\","
           "\"props\":{\"format\":\"portrait\",\"width\":1080,\"height\":1920,"
                        "\"fps\":30,\"duration\":60},"
           "\"output\":\"" << out_path << "\"}";
@@ -207,7 +207,7 @@ TEST_CASE("VideoContracts_§14.StartEnd_Frame_Count_And_Order") {
     SUBCASE("A: --start 15 --end 30 → 15 frames, duration 0.5s") {
         const std::string out = "/tmp/chronon_video_contracts_14a.mp4";
         TempPath tmp(out);
-        auto r = cli_invoke(cli_video_cmd(cli_bin, "ProductLaunch",
+        auto r = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
                                           15, 30, 30, out));
         REQUIRE(r.exit_code == 0);
         REQUIRE(fs::exists(out));
@@ -223,7 +223,7 @@ TEST_CASE("VideoContracts_§14.StartEnd_Frame_Count_And_Order") {
     SUBCASE("B: --start 30 --end 15 → exit != 0, no MP4") {
         const std::string out = "/tmp/chronon_video_contracts_14b.mp4";
         TempPath tmp(out);
-        auto r = cli_invoke(cli_video_cmd(cli_bin, "ProductLaunch",
+        auto r = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
                                           30, 15, 30, out));
         CHECK(r.exit_code != 0);
         CHECK_FALSE(fs::exists(out));
@@ -287,11 +287,11 @@ TEST_CASE("VideoContracts_§17.Serial_vs_Parallel_60RawPNG_ByteExact") {
     fs::remove_all(dir1, ec); fs::remove_all(dir2, ec);
     fs::create_directories(dir1); fs::create_directories(dir2);
 
-    auto r1 = cli_invoke(cli_video_cmd(cli_bin, "ProductLaunch",
+    auto r1 = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
                                        0, 60, 30, dir1 + "/video.mp4",
                                        "CHRONON3D_THREADS=1"));
     REQUIRE(r1.exit_code == 0);
-    auto r2 = cli_invoke(cli_video_cmd(cli_bin, "ProductLaunch",
+    auto r2 = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
                                        0, 60, 30, dir2 + "/video.mp4",
                                        "CHRONON3D_THREADS=8"));
     REQUIRE(r2.exit_code == 0);
@@ -322,7 +322,7 @@ TEST_CASE("VideoContracts_§18.EncoderFailure_NoMP4_NoPartialLeftover") {
     TempPath tmp(out);
     std::ostringstream cmd;
     cmd << "PATH=/nonexistent " << cli_bin
-        << " video ProductLaunch --start 0 --end 60 --fps 30"
+        << " video Motion3DGlowOrbit --start 0 --end 60 --fps 30"
         << " --output " << out << " 2>&1";
     auto r = cli_invoke(cmd.str());
     CHECK(r.exit_code  != 0);
@@ -347,7 +347,7 @@ TEST_CASE("VideoContracts_§19.Long_900Frame_NoLeak_NoSlowdown_NoBlack") {
 
     std::ostringstream cmd;
     cmd << "/usr/bin/time -v -o " << time_log << " "
-        << cli_bin << " video AnimTypewriterGlow"
+        << cli_bin << " video Motion3DGlowOrbit"
         << " --start 0 --end 900 --fps 30 --output " << out
         << " --ffmpeg-mode png --keep-frames 2>&1";
     auto r = cli_invoke(cmd.str());

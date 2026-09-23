@@ -142,14 +142,8 @@ Composition build_comp(const CompSpec& spec) {
                     // graph, producing a distinct cache key and framebuffer
                     // hash. Mirrors the cert_*.cpp pattern of layer-level
                     // glow after a primary shape.
-                    GlowParams g;
-                    g.color     = Color{1.0f, 0.9f, 0.4f, 1.0f};
-                    g.radius    = 8.0f;
-                    g.intensity = 0.6f;
-                    g.threshold = 0.0f;
-                    g.spread    = 1.0f;
-                    g.softness  = 1.0f;
-                    g.falloff   = 0.85f;
+                    GlowParams g{.radius = 8.0f, .intensity = 0.25f,
+                                 .color = Color{1.0f, 0.9f, 0.4f, 1.0f}};
                     l.effect(g);
                 }
                 if (spec.rotation_z != 0.0f) {

@@ -26,7 +26,7 @@ TEST_CASE("FfmpegExportOptions: default-constructed sub-structs have correct def
     // EncoderOptions defaults
     CHECK(opts.encoder.codec == "auto");
     CHECK(opts.encoder.hardware_encoder == "none");
-    CHECK(opts.encoder.encode_preset == "superfast");
+    CHECK(opts.encoder.encode_preset == kDefaultEncoderPreset);
     CHECK(opts.encoder.tune.empty());
     CHECK(opts.encoder.crf == 23);
     CHECK(opts.encoder.encoder_backend == "native");
@@ -135,7 +135,7 @@ TEST_CASE("EncoderOptions: standalone defaults are correct") {
     EncoderOptions e;
     CHECK(e.codec == "auto");
     CHECK(e.hardware_encoder == "none");
-    CHECK(e.encode_preset == "superfast");
+    CHECK(e.encode_preset == kDefaultEncoderPreset);
     CHECK(e.tune.empty());
     CHECK(e.crf == 23);
     CHECK(e.encoder_backend == "native");

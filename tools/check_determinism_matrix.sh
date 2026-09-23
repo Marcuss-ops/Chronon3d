@@ -14,7 +14,7 @@ GATE_NAME=check_determinism_matrix
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-COMPOSITION="${CHRONON_COMPOSITION:-ProductLaunch}"
+COMPOSITION="${CHRONON_COMPOSITION:-Motion3DGlowOrbit}"
 FRAME="${CHRONON_FRAME:-60}"
 OUT_DIR="${CHRONON_DETERMINISM_OUT:-/tmp/chronon-determinism-matrix}"
 NPROC_VAL="$(nproc 2>/dev/null || echo 1)"

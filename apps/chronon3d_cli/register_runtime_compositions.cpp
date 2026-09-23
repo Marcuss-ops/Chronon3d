@@ -9,9 +9,7 @@
 //      CameraImageClip (the canonical "always available" production surfaces).
 //
 // The ChrononGlowFinalAE / GlowCameraProductV1 families were removed with the
-// content-pack externalization cleanup: the content/ compositions tree left
-// the core repo and the tests/helpers glow factory was retired with the
-// visual/golden test fleet.
+// content-pack externalization cleanup; they are not registered in this CLI.
 //
 // The PhraseTitlePop composition left with the preset/template recipe layer:
 // composition recipes and their timing now live in the sibling ChrononTemplate

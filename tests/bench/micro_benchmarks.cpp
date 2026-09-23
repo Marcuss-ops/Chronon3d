@@ -63,8 +63,7 @@ void populate_text_shaped_alpha_mask(Framebuffer& fb) {
             }
         }
     }
-    // Sprinkle in some sparse periphery "anti-aliased edge" pixels at low alpha
-    // to exercise the LUT at the bottom entries as well.
+    // Sprinkle sparse low-alpha edge pixels to cover the halo's faint tail.
     for (int i = 0; i < kBenchRoiW * 4; ++i) {
         const int x = (i * 7) % kBenchRoiW;
         const int y = (i * 11) % kBenchRoiH;
@@ -92,9 +91,8 @@ std::shared_ptr<Framebuffer> acquire_pooled(int w, int h) {
 
 } // namespace glow_bench
 
-// BENCHMARK_CAPTURE picks the falloff value at registration time so we can
-// compare LUT-path vs identity-skip-path on the same machine.
-static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
+// Benchmark the single-halo alpha accumulation hot loop.
+static void BM_GlowLayerPass(benchmark::State& state) {
     using namespace chronon3d::renderer;
     using namespace glow_bench;
 
@@ -107,11 +105,6 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     auto dst_fb  = acquire_pooled(kBenchRoiW, kBenchRoiH);
     populate_text_shaped_alpha_mask(*src_fb);
 
-    // ── Build the falloff LUT once per benchmark instance (per the patched
-    // glow pipeline: build_falloff_lut is called inside build_glow_accumulator).
-    float falloff_lut[kFalloffLutSize];
-    build_falloff_lut(falloff, falloff_lut);
-
     // ── GlowPipeline params matching the SpecialName default (radius=18,
     // color=white-blue, intensity=0.25).  We don't need the blur stage —
     // accumulate_glow_pass is the inner hot loop we're benching.
@@ -119,11 +112,6 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     p.color = {0.80f, 0.85f, 1.0f, 1.0f};
     p.radius = 18.0f;
     p.intensity = 0.25f;
-    p.falloff = falloff;
-    p.softness = 1.0f;
-    p.core_strength = 0.70f;
-    p.aura_strength = 0.35f;
-    p.bloom_strength = 0.18f;
 
     // Discard warmup result (first TBB partition may pre-allocate worker
     // structures; we don't want that cost in the timed loop).
@@ -131,26 +119,19 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
 
     for (auto _ : state) {
         dst_fb->clear(Color::transparent());
-        accumulate_glow_pass(*dst_fb, *src_fb, p, falloff_lut);
+        accumulate_glow_pass(*dst_fb, *src_fb, p);
         benchmark::DoNotOptimize(dst_fb->get_pixel(0, 0));
     }
 
     state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kBenchPxCount);
     state.counters["roi_w"] = kBenchRoiW;
     state.counters["roi_h"] = kBenchRoiH;
-    state.counters["falloff"] = falloff;
     state.counters["pool_capacity"] = static_cast<double>(pool.use_count());
 
     profiling::g_current_framebuffer_pool = nullptr;
 }
 
-    // Only the 2 BENCHMARK_CAPTURE(BM_GlowLayerPass) registrations are exposed (visible
-    // to google-benchmark's static-init registration machinery inside this anonymous
-    // namespace).
-    BENCHMARK_CAPTURE(BM_GlowLayerPass, Falloff085, 0.85f)
-        ->Unit(benchmark::kMillisecond);
-    BENCHMARK_CAPTURE(BM_GlowLayerPass, Falloff100, 1.0f)
-        ->Unit(benchmark::kMillisecond);
+    BENCHMARK(BM_GlowLayerPass)->Unit(benchmark::kMillisecond);
 
     // ----------------------------------------------------------------------
     // TICKET-O(n)-audit — micro-benchmarks (before vs after) for the three

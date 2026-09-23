@@ -68,15 +68,7 @@ public:
         const auto* p = std::get_if<GlowParams>(&params);
         if (!p) throw std::runtime_error("Glow processor received invalid parameters");
         if (p->intensity > 0.0f) {
-            // Final renders must use the High-quality path; preview keeps the
-            // authored Fast default for interactive latency. Keep this
-            // resolution at the effect boundary so every final caller,
-            // including legacy GlowParams presets, gets the same contract.
-            GlowParams resolved = *p;
-            if (context.quality == effects::RenderQuality::Final) {
-                resolved.quality = GlowQuality::High;
-            }
-            run_glow_pipeline(fb, GlowPipeline::from(resolved), context.clip,
+            run_glow_pipeline(fb, GlowPipeline::from(*p), context.clip,
                               /*source_is_alpha_mask=*/false, context.debug_cfg);
         }
     }
@@ -138,7 +130,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         const auto* p = std::get_if<BloomParams>(&params);
         if (!p) throw std::runtime_error("Bloom processor received invalid parameters");
-        run_glow_pipeline(fb, GlowPipeline::from(*p), context.clip);
+        run_bloom_effect(fb, *p, context.clip);
     }
 };
 

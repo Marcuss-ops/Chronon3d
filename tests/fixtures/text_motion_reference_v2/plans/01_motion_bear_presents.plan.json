@@ -1,0 +1,310 @@
+{
+  "canvas": {
+    "duration_frames": 60,
+    "fps_den": 1,
+    "fps_num": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "motion_bear_reference_1_motion_bear_presents",
+  "layers": [
+    {
+      "asset": "tests/fixtures/text_motion_reference_v2/motion_bear_stage.png",
+      "duration_frames": 60,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image"
+    },
+    {
+      "duration_frames": 60,
+      "id": "reference_index",
+      "position": [
+        960,
+        108
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#E2EAF4",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 36
+      },
+      "text": "#01",
+      "text_animators": [],
+      "type": "text"
+    },
+    {
+      "duration_frames": 60,
+      "id": "motion_bear",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 236,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Motion Bear",
+      "text_animators": [
+        {
+          "id": "reveal",
+          "properties": [
+            {
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 59,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 32.0
+                },
+                {
+                  "frame": 6,
+                  "value": 18.0
+                },
+                {
+                  "frame": 18,
+                  "value": 0.0
+                },
+                {
+                  "frame": 59,
+                  "value": 0.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 59,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0.0
+                  },
+                  {
+                    "frame": 13,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 59,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "unit": "grapheme"
+            }
+          ]
+        },
+        {
+          "id": "erase_from_right",
+          "properties": [
+            {
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 59,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "end": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 59,
+                    "value": 100.0
+                  }
+                ]
+              },
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "start": {
+                "easing": "linear",
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 27,
+                    "value": 100.0
+                  },
+                  {
+                    "frame": 45,
+                    "value": 0.0
+                  },
+                  {
+                    "frame": 59,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "unit": "grapheme"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "duration_frames": 60,
+      "id": "presents",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#BDA7FF",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 152,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Presents",
+      "text_animators": [
+        {
+          "id": "presents_focus",
+          "properties": [
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 29,
+                  "value": 0.0
+                },
+                {
+                  "frame": 39,
+                  "value": 1.0
+                },
+                {
+                  "frame": 59,
+                  "value": 1.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 32.0
+                },
+                {
+                  "frame": 29,
+                  "value": 32.0
+                },
+                {
+                  "frame": 39,
+                  "value": 0.0
+                },
+                {
+                  "frame": 59,
+                  "value": 0.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "motion_bear_presents.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

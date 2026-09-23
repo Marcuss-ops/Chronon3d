@@ -145,7 +145,24 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     }
     const auto result = ctx.backend->composite_surfaces(
         destination.surface_handle(), source.surface_handle(), mode, op, clip);
-    if (result.ok()) return true;
+    if (result.ok()) {
+        {
+            // TEMP-DIAG-COMPOSITE: quantify source/destination residency.
+            const auto ink = [&](runtime::RenderSurfaceHandle h) {
+                auto scratch = ctx.download_scratch(destination.width(), destination.height());
+                const auto res = ctx.backend->download_surface(h, scratch);
+                std::uint64_t n = 0; const std::uint64_t t = scratch.size() / 4;
+                for (std::size_t i = 0; i < t; ++i) if (scratch[i * 4 + 3] > 0.001f) ++n;
+                return std::pair{res.ok(), n * 100 / (t ? t : 1)};
+            };
+            const auto dst_stats = ink(destination.surface_handle());
+            const auto src_stats = ink(source.surface_handle());
+            spdlog::warn("[TEMP-DIAG-COMPOSITE] dst_ok={} dst_ink={} src_ok={} src_ink={} dst_handle={} src_handle={}",
+                         dst_stats.first, dst_stats.second, src_stats.first, src_stats.second,
+                         destination.surface_handle(), source.surface_handle());
+        }
+        return true;
+    }
     if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
         release_native_surface(ctx, destination);
     }
