@@ -374,8 +374,6 @@ NodeExecResult TransformNode::execute(
             transform.padding[2] = std::bit_cast<std::uint32_t>(inv_H_corrected[2][2]);
         }
         transform.destination_origin_x = result->origin_x();
-        spdlog::warn("[SHADER-PARAM] frame={} src_x=({:.6f},{:.6f},{:.6f},{:.6f}) src_y=({:.6f},{:.6f},{:.6f},{:.6f}) max=({:.1f},{:.1f}) op={:.3f} bilin={} pad=({} {} {}) dst_origin=({},{}) clip={} is_affine={} H=({:.1f},{:.1f},{:.1f})",
-            static_cast<int>(ctx.frame_input.frame), transform.source_x[0],transform.source_x[1],transform.source_x[2],transform.source_x[3], transform.source_y[0],transform.source_y[1],transform.source_y[2],transform.source_y[3], transform.max_x, transform.max_y, transform.opacity, transform.bilinear, transform.padding[0],transform.padding[1],transform.padding[2], transform.destination_origin_x, transform.destination_origin_y, transform.clip_enabled, (std::abs(H[0][2])<1e-9f && std::abs(H[1][2])<1e-9f), H[0][0],H[2][0],H[2][2]);
         transform.destination_origin_y = result->origin_y();
         if (ctx.node_exec.clip_rect) {
             transform.clip_enabled = 1u;
