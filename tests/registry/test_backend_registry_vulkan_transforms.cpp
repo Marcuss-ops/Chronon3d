@@ -6,6 +6,7 @@
 
 #include <array>
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -209,8 +210,11 @@ TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source a
     transform.max_y = 2.0f;
     transform.opacity = 1.0f;
     transform.bilinear = 1;
-    transform.source_x[3] = 0.25f;
-    transform.source_y[3] = 0.25f;
+    // The destination pixel centre is (0.5, 0.5); offset the mapped source
+    // coordinate to 0.25 so bilinear taps cross the tight surface boundary.
+    // source_[xy][3] stores the lower bounds, not the mapping offset.
+    transform.source_x[2] = -0.25f;
+    transform.source_y[2] = -0.25f;
 
     REQUIRE(backend.create_surface(303, source_desc).ok());
     REQUIRE(backend.create_surface(304, destination_desc).ok());
@@ -222,6 +226,46 @@ TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source a
     // strength; transparent OOB taps must reduce the edge sample.
     CHECK(output[0] < 0.9f);
     CHECK(output[3] < 0.9f);
+}
+
+TEST_CASE("Vulkan affine transform applies an unnormalized 2.5D denominator") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc source_desc{
+        2, 2, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const chronon3d::runtime::SurfaceDesc destination_desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{
+        1.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 1.0f};
+    std::vector<float> output(4, 0.0f);
+    chronon3d::runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 0.001f;
+    transform.source_x[2] = -0.125066f;
+    transform.source_y[1] = 0.001f;
+    transform.source_y[2] = -0.070066f;
+    transform.max_x = 2.0f;
+    transform.max_y = 2.0f;
+    transform.bilinear = 1;
+    transform.destination_origin_x = 125;
+    transform.destination_origin_y = 70;
+    transform.padding[2] = std::bit_cast<std::uint32_t>(0.000868f);
+
+    REQUIRE(backend.create_surface(305, source_desc).ok());
+    REQUIRE(backend.create_surface(306, destination_desc).ok());
+    REQUIRE(backend.upload_surface(305, source_desc, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(306).ok());
+    REQUIRE(backend.transform_surface_affine(306, 305, transform).ok());
+    REQUIRE(backend.download_surface(306, output).ok());
+    CHECK(output[0] == doctest::Approx(1.0f));
+    CHECK(output[1] == doctest::Approx(1.0f));
+    CHECK(output[2] == doctest::Approx(0.0f));
+    CHECK(output[3] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("Vulkan partial upload clears a recycled surface before the first write") {

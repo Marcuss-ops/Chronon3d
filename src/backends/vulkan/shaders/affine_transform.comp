@@ -7,7 +7,10 @@ layout(binding = 1, rgba32f) uniform readonly image2D src_image;
 layout(push_constant) uniform AffineParams {
     vec4 source_x;
     vec4 source_y;
-    vec4 limits; // max x, max y, opacity, bilinear flag
+    float max_x;
+    float max_y;
+    float opacity;
+    uint bilinear;
     ivec2 destination_origin;
     ivec2 dispatch_origin;
     ivec4 clip_rect;
@@ -64,12 +67,12 @@ void main() {
         source /= denominator;
     }
     vec4 value = vec4(0.0);
-    if (source.x >= params.source_x.w && source.x < params.limits.x &&
-        source.y >= params.source_y.w && source.y < params.limits.y) {
-        value = params.limits.w > 0.5
+    if (source.x >= params.source_x.w && source.x < params.max_x &&
+        source.y >= params.source_y.w && source.y < params.max_y) {
+        value = params.bilinear != 0u
             ? sample_bilinear(source, imageSize(src_image))
             : sample_nearest(source, imageSize(src_image));
-        value *= params.limits.z;
+        value *= params.opacity;
     }
     imageStore(dst_image, destination, value);
 }
