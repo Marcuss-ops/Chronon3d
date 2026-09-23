@@ -66,23 +66,22 @@ Added `tests/fixtures/animated_image_residency/` with static, animated
 `4fd74d76c27af19c46b1e835eab508132302eea9fa6c14f2d5ed7f1c8225bff8`; the
 animated plan SHA-256 is
 `b1dc823782d33ecf9da32bf7f8c40cc3cb7a6fe8dc14fc471b52c5afb00e510c`.
-The probe ran on an NVIDIA RTX A4000 and extracted source frame 75. Both
-software controls returned center RGB `[248, 233, 39]` (expected yellow,
-maximum channel error 2); static Vulkan returned `[16, 21, 38]` (background,
-maximum error 234), so the probe script fails as intended. Temporary transform
-instrumentation also measured nonzero alpha coverage at the animated transform
-input and zero coverage at its output. The visible content disappears at the
-transform stage in this reproduction; a corrective Vulkan fix and passing
-pixel regression are still required. The camera-only plan is included in the
-fixture, but a passing Vulkan control result has not yet been recorded.
+The initial probe ran on an NVIDIA RTX A4000 and extracted source frame 75.
+Static Vulkan returned `[16, 21, 38]` (background); that failure was fixed in
+the subsequent iteration below.
 
 ## Follow-up hardware verification 2026-09-23
 
-On the same RTX A4000, the single-frame-at-source-frame-75 probe was rerun
-against the current release CLI. Static and camera-only controls returned
-center RGB `[248, 233, 39]` on both software and Vulkan. Animated software also
-returned `[248, 233, 39]`; permissive Vulkan returned `[23, 112, 243]`, so the
-animated image still fails the pixel contract. The asset SHA-512 is
+On the same RTX A4000, the release probe was expanded to static, animated, and
+camera-only plans at source frames 75 and 149, on software and Vulkan (12
+renders total). Static and camera-only controls returned center RGB
+`[248, 233, 39]` on both backends at both frames. Animated software returned
+`[248, 233, 39]` at both frames. Animated Vulkan returned `[23, 112, 243]` at
+frame 75 and `[5, 118, 208]` at frame 149. Both fail the center-pixel
+acceptance (maximum channel error 225 and 243); software-vs-Vulkan full-frame
+maximum channel delta was 255 for both animated frames. Static full-frame
+deltas were 0; camera-only maximum deltas were 32 and 30 respectively.
+The asset SHA-512 is
 `e5fa4af38769d1141bb1a21710619cc29cfadd5a2c74089738b5d1a4e51bc4130ec62e2bdbcd51a9af93b968cb884062b37fbf819ca8ad21c2b9bf245652dd0d`.
 
 The no-camera `enable_3d` plan does get a camera: `render_plan_compiler.cpp`
@@ -98,7 +97,24 @@ The strict CLI route was also exercised with
 `--gpu-hot-path-mode require_gpu_native`: an animated `position_z` plan exits
 1 with `refusing require_gpu_native: animated 2.5D image texture residency is
 unsupported (stage:position_z)` before encoder setup or MP4 creation. A static
-plan on this host also fails closed because the resolved required GPU
-capability is unavailable (`native_surface=false` at the encoder feed). This
-confirms the delivery guard, but does not satisfy the residency fix or make the
-permissive Vulkan render correct; status remains `OPEN`.
+plan on this host also exits 1 before encoder setup with
+`required_gpu_capability_unavailable`; the permissive lane reports
+`native_surface=false` at the encoder feed. No artifact is created. This is
+consistent with this build/runtime lacking the Vulkan-to-CUDA native video
+surface interop capability, but it means the strict static-render acceptance
+is not met on this host.
+
+The instrumented frame-75 transform confirmed an opaque native input
+(`in_ink=100%`, center RGBA approximately `[0.956, 0.831, 0.021, 1]`),
+`opacity=1`, valid in-bounds projective mapping parameters, and zero alpha
+coverage at the transform output. This rules out a missing/empty upload and
+zero opacity. The animated transform output remains the failing stage; its
+coordinate/surface mapping is unresolved. The temporary diagnostics were
+removed after collection. Status remains `OPEN`.
+
+The investigation also found and corrected an independent affine shader ABI
+mismatch: C++ stores `bilinear` as a `uint32_t`, while GLSL had interpreted the
+same four bytes as a float in a `vec4 limits`; the float comparison always
+selected nearest sampling. GLSL now declares the matching scalar fields, and a
+Vulkan-gated boundary-sampling regression passes. This correction does not
+resolve the animated frame-75/149 failure above.
