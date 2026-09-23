@@ -15,7 +15,7 @@ for plan in "$PLAN_DIR"/*.plan.json; do
   name="$(basename "$plan" .plan.json)"
   frames="$(jq -r '.canvas.duration_frames' "$plan")"
   "$CLI" render --plan "$plan" --assets-root "$ROOT/Chronon3d" --dry-run --backend software --profile draft >"$OUT/$name.validate.json"
-  "$CLI" render --plan "$plan" --assets-root "$ROOT/Chronon3d" --output "$OUT/$name.mp4" --backend software --encoder-backend pipe --profile draft --report >"$OUT/$name.log" 2>&1
+  "$CLI" render --plan "$plan" --assets-root "$ROOT/Chronon3d" --output "$OUT/$name.mp4" --backend software --encoder-backend native --profile draft --report >"$OUT/$name.log" 2>&1
   actual="$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate -of csv=p=0 "$OUT/$name.mp4")"
   [[ "$actual" == "30/1,$frames" ]] || { echo "FAIL $name: expected $frames frames @ 30 fps, got $actual" >&2; exit 1; }
   echo "PASS $name: $actual"

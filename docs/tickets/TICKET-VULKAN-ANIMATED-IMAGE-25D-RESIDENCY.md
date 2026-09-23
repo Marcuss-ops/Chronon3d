@@ -75,3 +75,30 @@ input and zero coverage at its output. The visible content disappears at the
 transform stage in this reproduction; a corrective Vulkan fix and passing
 pixel regression are still required. The camera-only plan is included in the
 fixture, but a passing Vulkan control result has not yet been recorded.
+
+## Follow-up hardware verification 2026-09-23
+
+On the same RTX A4000, the single-frame-at-source-frame-75 probe was rerun
+against the current release CLI. Static and camera-only controls returned
+center RGB `[248, 233, 39]` on both software and Vulkan. Animated software also
+returned `[248, 233, 39]`; permissive Vulkan returned `[23, 112, 243]`, so the
+animated image still fails the pixel contract. The asset SHA-512 is
+`e5fa4af38769d1141bb1a21710619cc29cfadd5a2c74089738b5d1a4e51bc4130ec62e2bdbcd51a9af93b968cb884062b37fbf819ca8ad21c2b9bf245652dd0d`.
+
+The no-camera `enable_3d` plan does get a camera: `render_plan_compiler.cpp`
+creates the default 2.5D camera whenever any layer has `enable_3d` and the plan
+does not define a camera. `scene_context_setup.cpp` then sets
+`has_camera_2_5d=true`; the graph takes the projected TransformNode path. This
+rules out the assumption that `enable_3d` alone leaves `has_camera_2_5d` false.
+Static and explicit camera-only controls pass on the current Vulkan run, while
+the animated image still fails, narrowing the remaining defect to the moving
+image's prepared/projected surface or its transform output.
+
+The strict CLI route was also exercised with
+`--gpu-hot-path-mode require_gpu_native`: an animated `position_z` plan exits
+1 with `refusing require_gpu_native: animated 2.5D image texture residency is
+unsupported (stage:position_z)` before encoder setup or MP4 creation. A static
+plan on this host also fails closed because the resolved required GPU
+capability is unavailable (`native_surface=false` at the encoder feed). This
+confirms the delivery guard, but does not satisfy the residency fix or make the
+permissive Vulkan render correct; status remains `OPEN`.

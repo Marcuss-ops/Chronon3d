@@ -1,6 +1,6 @@
 # TICKET — Native MP4 mux drops encoded frames
 
-**Status**: IN PROGRESS — native flush loss fixed; cross-backend matrix and default policy pending  
+**Status**: FIXED — native flush loss fixed and cross-backend CLI matrix verified on 2026-09-23
 **Priority**: P1 — silent output corruption  
 **Area**: CLI video export / native encoder backend
 
@@ -44,14 +44,18 @@ native CLI wrapper ignoring `avcodec_send_frame(codec, nullptr)` returning
 `EAGAIN`: it drained once but never retried the flush, so buffered frames were
 left out. Close now drains and retries before finalizing.
 
-The same 137-frame fixture now passes on native and pipe: both report
-137/137 at 30 fps, exit 0, and have successful copy-eligible verification.
-The native sink packet test passes for 60, 86, 87, 96, 120, 137, 150, 180,
-and 300 frames. A permanent CLI-wrapper test exercises those same counts at
-1920x1080 and passes (1 test case, 1280 assertions). The exact 137-frame
-fixture passes through both CLI backends, but the complete duration matrix has
-not yet been run through the pipe CLI backend, and the suite's pipe-default
-workaround remains in place pending that parity check.
+The same 137-frame fixture passes on native and pipe: both report 137/137 at
+30 fps, exit 0, and have successful copy-eligible verification. The native
+sink packet test passes for 60, 86, 87, 96, 120, 137, 150, 180, and 300
+frames. A permanent CLI-wrapper test exercises those counts at 1920x1080 and
+passes (1 test case, 1280 assertions).
+
+On 2026-09-23, the complete CLI matrix was run at 1920x1080 and 30 fps through
+both `--encoder-backend native` and `--encoder-backend pipe`, for 60, 86, 87,
+96, 120, 137, 150, 180, and 300 frames. All 18 outputs passed `ffprobe`
+frame-count/fps checks and receipt verification (`status=pass`,
+`copy_eligible=true`). Native is restored in the text-motion reference runner;
+pipe remains available for explicit diagnostics.
 
 ## Acceptance
 
