@@ -240,9 +240,8 @@ void configure(json& plan, const Case& item) {
         title["style"]["stroke"]["width"] = 0.5;
         set_rotation(title, "rotation_y", {{0, -45}, {10, -40}, {96, 40}, {112, 45}, {119, 45}});
     } else if (item.id.starts_with("D4")) {
-        title["style"]["glow"] = {{"radius", 8}, {"intensity", 0.18}, {"threshold", 0},
-            {"falloff", 1}, {"core_strength", 0.32}, {"aura_strength", 0.16},
-            {"bloom_strength", 0.04}, {"high_quality", true}};
+        title["style"]["glow"] = {{"radius", 8}, {"intensity", 0.25},
+                                    {"color", "#FFFFFF"}};
         set_rotation(title, "rotation_y", {{0, -25}, {10, 0.1}, {96, 0.1}, {112, 25}, {119, 25}});
     } else if (item.id.starts_with("D5")) {
         title["size"] = {1500, 260};

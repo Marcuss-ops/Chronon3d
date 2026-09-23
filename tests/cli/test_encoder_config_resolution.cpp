@@ -162,17 +162,22 @@ TEST_CASE("NVENC + HEVC codec resolves to hevc_nvenc with the same policy") {
     CHECK(resolved.is_driver_default());
 }
 
-TEST_CASE("NVENC + engine-default preset placeholder from x264 vocabulary") {
-    // EncoderOptions defaults encode_preset="superfast" — an x264-oriented
-    // placeholder that must never be forwarded to NVENC (it would previously
-    // be rejected deep inside avcodec_open2). Resolution drops it to the
-    // deterministic codec default instead of failing the whole job.
+TEST_CASE("NVENC + shared engine-default preset resolves to codec default") {
     auto r = nv_request();
-    r.preset = "superfast";
+    r.preset = std::string(kDefaultEncoderPreset);
     r.preset_explicit = false;
     const auto resolved = require_ok(r);
     CHECK(resolved.preset().empty());
     CHECK(resolved.preset_label() == "ffmpeg-nvenc-default");
+}
+
+TEST_CASE("software + shared engine-default preset resolves to ultrafast") {
+    auto r = sw_request();
+    r.preset = std::string(kDefaultEncoderPreset);
+    r.preset_explicit = false;
+    const auto resolved = require_ok(r);
+    CHECK(resolved.preset() == "ultrafast");
+    CHECK_FALSE(resolved.preset_explicit());
 }
 
 TEST_CASE("NVENC + engine-default valid NVENC preset is retained") {
@@ -578,22 +583,22 @@ TEST_CASE("make_encoder_config_request preserves explicitness markers") {
     CHECK_FALSE(request.tune_explicit);
 }
 
-TEST_CASE("FfmpegPipeOptions default NVENC config resolves to driver default") {
-    // The struct defaults that historically produced the silent-ignore bug:
-    // rate_control_mode="crf", crf=18, qp=-1, preset="medium", hardware nvenc.
+TEST_CASE("FfmpegPipeOptions shared preset default resolves consistently by backend") {
     FfmpegPipeOptions options;
     options.codec = "h264";
-    options.hardware_encoder = "nvenc";
-    options.rate_control_mode = "crf";   // engine default, not explicit
-    options.crf = 18;
-    options.preset = "medium";
+    options.preset = std::string(kDefaultEncoderPreset);
+    CHECK(options.preset == kDefaultEncoderPreset);
 
-    const auto resolution = resolve_encoder_config(make_encoder_config_request(options));
-    REQUIRE(resolution.has_value());
-    const auto& resolved = resolution.value();
-    CHECK(resolved.backend() == EncoderBackend::Nvenc);
-    CHECK(resolved.rate_control() == ResolvedEncoderRateControl::DriverDefault);
-    CHECK(resolved.preset() == "medium");   // valid NVENC legacy preset
+    options.hardware_encoder = "nvenc";
+    const auto nvenc = resolve_encoder_config(make_encoder_config_request(options));
+    REQUIRE(nvenc.has_value());
+    CHECK(nvenc.value().rate_control() == ResolvedEncoderRateControl::DriverDefault);
+    CHECK(nvenc.value().preset().empty());
+
+    options.hardware_encoder = "none";
+    const auto software = resolve_encoder_config(make_encoder_config_request(options));
+    REQUIRE(software.has_value());
+    CHECK(software.value().preset() == "ultrafast");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

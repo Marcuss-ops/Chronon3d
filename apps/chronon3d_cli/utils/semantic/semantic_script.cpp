@@ -315,12 +315,7 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
                 style["glow"] = {
                     {"radius", glow.radius},
                     {"intensity", glow.intensity},
-                    {"threshold", glow.threshold},
-                    {"falloff", glow.falloff},
-                    {"core_strength", glow.core_strength},
-                    {"aura_strength", glow.aura_strength},
-                    {"bloom_strength", glow.bloom_strength},
-                    {"high_quality", glow.high_quality},
+                    {"color", glow.color},
                 };
             }
             value["style"] = std::move(style);

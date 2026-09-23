@@ -1,0 +1,190 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "text_motion_03_word_focus_reverse",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 90
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 90
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "Supports any language.",
+      "size": [
+        860,
+        280
+      ],
+      "position": [
+        480,
+        270
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 76,
+        "fill": "#F4F5F7",
+        "glow": {
+          "radius": 12.0,
+          "intensity": 0.72,
+          "color": "#91CFFF"
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 90,
+      "text_animators": [
+        {
+          "id": "hide_unrevealed",
+          "selectors": [
+            {
+              "unit": "word",
+              "shape": "square",
+              "order": "reverse",
+              "combine": "replace",
+              "exclude_spaces": true,
+              "start": {
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0
+                  },
+                  {
+                    "frame": 14,
+                    "value": 100
+                  },
+                  {
+                    "frame": 89,
+                    "value": 100
+                  }
+                ],
+                "easing": "linear"
+              },
+              "end": {
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 100
+                  },
+                  {
+                    "frame": 89,
+                    "value": 100
+                  }
+                ],
+                "easing": "linear"
+              }
+            }
+          ],
+          "properties": [
+            {
+              "property": "opacity",
+              "easing": "linear",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0
+                },
+                {
+                  "frame": 89,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "soft_frontier",
+          "selectors": [
+            {
+              "unit": "word",
+              "shape": "smooth",
+              "order": "reverse",
+              "combine": "replace",
+              "exclude_spaces": true,
+              "start": {
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 0
+                  },
+                  {
+                    "frame": 11,
+                    "value": 82
+                  },
+                  {
+                    "frame": 89,
+                    "value": 100
+                  }
+                ],
+                "easing": "linear"
+              },
+              "end": {
+                "keyframes": [
+                  {
+                    "frame": 0,
+                    "value": 16
+                  },
+                  {
+                    "frame": 11,
+                    "value": 100
+                  },
+                  {
+                    "frame": 89,
+                    "value": 100
+                  }
+                ],
+                "easing": "linear"
+              }
+            }
+          ],
+          "properties": [
+            {
+              "property": "blur",
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 18
+                },
+                {
+                  "frame": 7,
+                  "value": 12
+                },
+                {
+                  "frame": 14,
+                  "value": 0
+                },
+                {
+                  "frame": 89,
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "output": {
+    "path": "03_word_focus_reverse.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "job_id": "animated_image_residency_camera-only",
+  "layers": [
+    {
+      "asset": "bright.png",
+      "duration_frames": 150,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image",
+      "enable_3d": true
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "camera-only.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50,
+    "near": 1,
+    "far": 10000
+  },
+  "camera_animation": {
+    "tracks": [
+      {
+        "property": "camera_position_z",
+        "easing": "linear",
+        "keyframes": [
+          {
+            "frame": 0,
+            "value": -1000
+          },
+          {
+            "frame": 149,
+            "value": -700
+          }
+        ]
+      }
+    ]
+  }
+}

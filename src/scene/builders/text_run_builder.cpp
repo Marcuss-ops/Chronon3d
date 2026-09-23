@@ -4,14 +4,7 @@
 
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
-// TICKET-100 — route the legacy text-run materialization through
-// compile_text_layout.  Single canonical TextRunLayout compiler lives in
-// this directory (text_run_builder.cpp implementation TU); we include it here
-// so the materializer
-// can delegate to it instead of duplicating cache/shape/place/build/store
-// inline.  TextDocument + split_paragraphs are also required to build
-// the per-shape document compile_text_layout consumes.
-#include <chronon3d/text/text_run_builder.hpp>
+// Scene input adapter for the canonical text compiler in src/text.
 #include <chronon3d/text/text_document.hpp>
 // TICKET-104 -- internal consumed-decrement helper mirrors the include
 // pattern used by the LayerBuilder implementation TU (this file's

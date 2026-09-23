@@ -213,22 +213,11 @@ namespace {
             });
     }
 
-    struct AppleV3Font {
-        const char *suffix;
-        const char *path;
-    };
     struct AppleV3MotionEntry {
         const char *suffix;
         AppleV3Motion motion;
     };
 
-    constexpr std::array<AppleV3Font, 5> kAppleV3Fonts{{
-        {"inter", "assets/fonts/Inter-Bold.ttf"},
-        {"poppins", "assets/fonts/Poppins-Bold.ttf"},
-        {"dmsans", "assets/fonts/DMSans-Bold.ttf"},
-        {"georgia", "assets/fonts/Georgia_Bold.ttf"},
-        {"freeserif", "assets/fonts/FreeSerif.ttf"},
-    }};
     constexpr std::array<AppleV3MotionEntry, 5> kAppleV3Motions{{
         {"premium_soft_reveal", AppleV3Motion::PremiumSoftReveal},
         {"precision_word_stagger", AppleV3Motion::PrecisionWordStagger},

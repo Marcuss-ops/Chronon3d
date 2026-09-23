@@ -1,10 +1,8 @@
 // ---------------------------------------------------------------------------
-// glow_pipeline.cpp — Unified glow/bloom pipeline
+// glow_pipeline.cpp — single Gaussian Glow plus separate Bloom effect
 //
-// This file is the single home for the Layer and Bloom mode implementations.
-// Glow and bloom are rendered exclusively by the blur/accumulation pipeline
-// implemented here: run_layer_mode and run_bloom_mode both live in this
-// translation unit.
+// Glow has one implementation and no quality or lobe variants. Bloom remains
+// a distinct bright-pass effect with its own threshold and blur behavior.
 // ---------------------------------------------------------------------------
 
 #include "render_effects_processor.hpp"
@@ -15,7 +13,9 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/effects/spatial_bounds.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <algorithm>
@@ -32,64 +32,12 @@ namespace chronon3d::renderer {
 // to keep every TBB worker busy on the typical SpecialName ROI.
 static constexpr int kGlowTbbGrain = 32;
 
-// Falloff LUT.  The single `inline constexpr int kFalloffLutSize = 257;`
-// definition lives in include/chronon3d/effects/glow_pipeline.hpp
-// (included above). build_glow_accumulator populates one per call (the
-// falloff exponent is parameter-dependent) and passes its address into
-// accumulate_glow_pass / accumulate_scaled_glow_pass.  256+1 entries
-// give full 8-bit quantization of the trigger alpha (indices 0..255),
-// plus the endpoint 256 used when we accidentally look at the top bit.
-// (Redundant cpp-side definition removed — fc5db7e7 + PR1 824652a4 both
-// dropped it as part of separate ODR-purpose refactors.)
-// Build the per-call falloff LUT.  `falloff = 1.0f` is an identity map
-// (the trigger is unchanged), and `falloff != 1.0f` produces the shaped
-// alpha lookup we use inside the per-pixel accumulation loop.
-//
-// Exposed at namespace `chronon3d::renderer` scope (NOT anon) so benchmarks
-// and golden tests can call it directly.  Do not use from production code.
-void build_falloff_lut(float falloff, float (&lut)[kFalloffLutSize]) noexcept {
-    // Exponents below one amplify low-alpha noise and turn the outer halo
-    // into fog. Canonical glow falloff is monotonic and never boosts
-    // coverage, so values below one resolve to the neutral exponent.
-    const float safe_falloff = std::max(1.0f, falloff);
-    for (int i = 0; i < kFalloffLutSize; ++i) {
-        // Index 256 stays at 1.0 regardless, so a strict >255.0 packed alpha
-        // can't accidentally index a different shape.
-        lut[i] = std::pow(static_cast<float>(i) / 255.0f, safe_falloff);
-    }
-}
-
-
-
 namespace {
-
-[[nodiscard]] inline float lookup_shaped(float alpha, const float* lut) noexcept {
-    if (alpha >= 1.0f) return 1.0f;
-    if (alpha <= 0.0f) return 0.0f;
-    return lut[static_cast<int>(alpha * 255.0f)];
-}
 
 // ── Layer-mode helpers ──────────────────────────────────────────────
 
-[[nodiscard]] BlendMode glow_blend_mode(const GlowPipeline& p) {
-    return p.blend;
-}
-
-[[nodiscard]] float glow_trigger_from_pixel(const Color& c, const GlowPipeline& p) {
-    if (c.a <= 0.0f) return 0.0f;
-
-    float trigger = c.a;
-    if (p.threshold > 0.0f) {
-        const float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-        const float denom = std::max(1e-4f, 1.0f - p.threshold);
-        trigger = (lum - p.threshold) / denom;
-    }
-
-    trigger = std::clamp(trigger, 0.0f, 1.0f);
-    if (p.softness != 1.0f) {
-        trigger = std::pow(trigger, std::max(0.01f, p.softness));
-    }
-    return trigger;
+[[nodiscard]] float glow_trigger_from_pixel(const Color& c, const GlowPipeline&) {
+    return std::clamp(c.a, 0.0f, 1.0f);
 }
 
 [[nodiscard]] Color glow_color_from_trigger(float trigger, const GlowPipeline& p, float intensity_scale, const Color& tint = {0,0,0,0}) {
@@ -103,14 +51,7 @@ namespace {
     };
 }
 
-struct GlowLayerPass {
-    float radius_scale;
-    float intensity_scale;
-    float buffer_scale;
-    Color  tint{0, 0, 0, 0};  // per-layer color override (alpha > 0 means use this)
-};
-
-// High-quality glow blur. Framebuffer pixels use premultiplied RGB, so the
+// The single Gaussian glow blur. Framebuffer pixels use premultiplied RGB, so the
 // filter first unpremultiplies only to perform the sRGB -> linear conversion,
 // filters premultiplied linear RGB, then converts back to premultiplied sRGB.
 // Keeping the result premultiplied is essential: transparent glyph edges must
@@ -154,13 +95,9 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
                     const float srgb_r = std::max(0.0f, c.r * inv_alpha);
                     const float srgb_g = std::max(0.0f, c.g * inv_alpha);
                     const float srgb_b = std::max(0.0f, c.b * inv_alpha);
-                    const auto srgb_to_linear = [](float v) {
-                        return v <= 0.04045f ? v / 12.92f
-                                             : std::pow((v + 0.055f) / 1.055f, 2.4f);
-                    };
-                    r += srgb_to_linear(srgb_r) * alpha * weight;
-                    g += srgb_to_linear(srgb_g) * alpha * weight;
-                    b += srgb_to_linear(srgb_b) * alpha * weight;
+                    r += render_plan::srgb_to_linear(srgb_r) * alpha * weight;
+                    g += render_plan::srgb_to_linear(srgb_g) * alpha * weight;
+                    b += render_plan::srgb_to_linear(srgb_b) * alpha * weight;
                     a += alpha * weight;
                 }
                 dst[x] = {r, g, b, a};
@@ -189,19 +126,13 @@ void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
                     continue;
                 }
                 const float inv_alpha = 1.0f / a;
-                const auto linear_to_srgb = [](float value) {
-                    value = std::max(0.0f, value);
-                    return value <= 0.0031308f
-                        ? value * 12.92f
-                        : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
-                };
                 const float out_a = std::clamp(a, 0.0f, 1.0f);
                 // Convert the filtered premultiplied linear values back to
                 // premultiplied sRGB, not straight RGB.
                 dst[x] = {
-                    linear_to_srgb(r * inv_alpha) * out_a,
-                    linear_to_srgb(g * inv_alpha) * out_a,
-                    linear_to_srgb(b * inv_alpha) * out_a,
+                    render_plan::linear_to_srgb(r * inv_alpha) * out_a,
+                    render_plan::linear_to_srgb(g * inv_alpha) * out_a,
+                    render_plan::linear_to_srgb(b * inv_alpha) * out_a,
                     out_a
                 };
             }
@@ -231,7 +162,8 @@ struct GlowAccumResult {
     const chronon3d::DebugConfig* debug_cfg = nullptr) {
     const i32 w = fb.width(), h = fb.height();
     int debug_pass_counter = 0;
-    const float extent = glow_effect_extent(p);
+    const float extent = effects::spatial_halo_extent(
+        effects::effect_spatial_halo(GlowParams{.radius = p.radius}));
     auto effect_clip = expand_effect_clip(clip, w, h, extent);
 
     i32 x_min = 0, x_max = w;
@@ -242,21 +174,10 @@ struct GlowAccumResult {
         y_min = std::max(0, effect_clip->y0);
         y_max = std::min(h, effect_clip->y1);
     }
-    float authored_radius = std::max(0.0f, p.radius);
-    if (!p.layers.empty()) {
-        for (const auto& layer : p.layers) {
-            authored_radius = std::max(authored_radius, std::max(0.0f, layer.radius));
-        }
-    }
-    const float base_radius = authored_radius * std::max(0.0f, p.spread);
-    // Generous padding = ceil(radius * 4) to avoid rectangular clipping of the
-    // glow blur at the framebuffer boundary. The old helper blur_padding_for_radius
-    // returns only ceil(radius)+2, which is insufficient for multi-layer glow and
-    // produces a visible rectangular cutoff (the #1 cause of the "fog box" look).
-    const i32 blur_pad = std::max(
-        blur_padding_for_radius(base_radius),
-        static_cast<i32>(std::ceil(base_radius * 4.0f)) + 4
-    );
+    const float base_radius = std::max(0.0f, p.radius);
+    const i32 blur_pad = static_cast<i32>(std::ceil(
+        effects::spatial_halo_extent(
+            effects::effect_spatial_halo(GlowParams{.radius = base_radius}))));
     const i32 x_min_pad = std::max(0, x_min - blur_pad);
     const i32 x_max_pad = std::min(w, x_max + blur_pad);
     const i32 y_min_pad = std::max(0, y_min - blur_pad);
@@ -285,11 +206,6 @@ struct GlowAccumResult {
         }
     });
 
-    // ── Build per-call falloff LUT once.  Used by both accumulate_glow_pass
-    // and accumulate_scaled_glow_pass to replace std::pow per pixel.
-    float falloff_lut[kFalloffLutSize];
-    build_falloff_lut(p.falloff, falloff_lut);
-
     // ── Debug: save source framebuffer (per-instance debug_cfg — TICKET-007) ──
     if (debug_cfg && debug_cfg->glow()) {
         save_png(*source_fb, "output/debug_glow_source.png");
@@ -300,95 +216,33 @@ struct GlowAccumResult {
     auto pass_fb = acquire_temp_framebuffer(roi_w, roi_h);
     pass_fb->clear({0,0,0,0});
 
-    std::vector<GlowLayerPass> passes;
-    if (!p.layers.empty()) {
-        for (const auto& layer : p.layers) {
-            passes.push_back({layer.radius, layer.opacity, std::clamp(layer.scale, 0.05f, 1.0f), layer.color});
-        }
-    } else {
-        const float outer_downscale = p.quality == GlowQuality::High
-            ? 1.0f
-            : std::clamp(p.outer_downscale, 0.05f, 1.0f);
-        passes.push_back({0.10f * base_radius, std::max(0.0f, p.core_strength), 1.0f});
-        passes.push_back({0.35f * base_radius, std::max(0.0f, p.aura_strength), 1.0f});
-        passes.push_back({1.00f * base_radius, std::max(0.0f, p.bloom_strength), outer_downscale});
-    }
-
-    for (const auto& pass : passes) {
-        const float r = (!p.layers.empty()) ? pass.radius_scale * std::max(0.0f, p.spread) : pass.radius_scale;
-        if (r < 0.5f || pass.intensity_scale <= 0.0f) continue;
-
-        if (pass.buffer_scale >= 0.999f) {
-            pass_fb->clear({0,0,0,0});
-            tbb::parallel_for(tbb::blocked_range<int>(0, roi_h, kGlowTbbGrain),
-                              [&](const tbb::blocked_range<int>& range) {
-                for (int y = range.begin(); y < range.end(); ++y) {
-                    Color* pass_row = pass_fb->pixels_row(y);
-                    const Color* source_row = source_fb->pixels_row(y);
-                    for (int x = 0; x < roi_w; ++x) {
-                        const float trigger = source_is_alpha_mask
-                                ? source_row[x].a
-                                : glow_trigger_from_pixel(source_row[x], p);
-                        if (trigger > 0.0f) {
-                            pass_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale, pass.tint);
-                        }
+    const float r = base_radius;
+    if (r >= 0.5f && p.intensity > 0.0f) {
+        pass_fb->clear({0,0,0,0});
+        tbb::parallel_for(tbb::blocked_range<int>(0, roi_h, kGlowTbbGrain),
+                          [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                Color* pass_row = pass_fb->pixels_row(y);
+                const Color* source_row = source_fb->pixels_row(y);
+                for (int x = 0; x < roi_w; ++x) {
+                    const float trigger = source_is_alpha_mask
+                            ? source_row[x].a
+                            : glow_trigger_from_pixel(source_row[x], p);
+                    if (trigger > 0.0f) {
+                        pass_row[x] = glow_color_from_trigger(trigger, p, 1.0f);
                     }
                 }
-            });
-
-            // 2-pass box filter is ~33% cheaper than 3-pass with the same
-            // effective sigma, since two_pass_equivalent_radius already
-            // rescales the kernel radius to compensate.  Visually identical
-            // to within 1-2/255 per pixel for typical SpecialName-style
-            // glow radii (18-100px).
-            if (p.quality == GlowQuality::High) {
-                // Radius is the visual lobe extent; 3 sigma covers the
-                // Gaussian contribution without a hard rectangular edge.
-                apply_gaussian_blur_linear_premultiplied(*pass_fb,
-                                                         std::max(0.5f, r / 3.0f));
-            } else {
-                apply_blur(*pass_fb, r, std::nullopt, 2);
             }
-            accumulate_glow_pass(*glow_acc_fb, *pass_fb, p, falloff_lut);
+        });
 
-            // Debug: save each glow pass before accumulation (per-instance debug_cfg — TICKET-007)
-            if (debug_cfg && debug_cfg->glow()) {
-                save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(debug_pass_counter++) + ".png");
-            }
-        } else {
-            const i32 small_w = std::max(1, static_cast<i32>(std::ceil(static_cast<float>(roi_w) * pass.buffer_scale)));
-            const i32 small_h = std::max(1, static_cast<i32>(std::ceil(static_cast<float>(roi_h) * pass.buffer_scale)));
-            auto small_fb = acquire_temp_framebuffer(small_w, small_h);
-            small_fb->clear({0,0,0,0});
-            const float inv_buffer_scale = 1.0f / pass.buffer_scale;
+        // One separable Gaussian creates a clean halo without layered
+        // lobes or preview/final quality variants.
+        apply_gaussian_blur_linear_premultiplied(*pass_fb,
+                                                 std::max(0.5f, r / 3.0f));
+        accumulate_glow_pass(*glow_acc_fb, *pass_fb, p);
 
-            tbb::parallel_for(tbb::blocked_range<int>(0, small_h, kGlowTbbGrain),
-                              [&](const tbb::blocked_range<int>& range) {
-                for (int y = range.begin(); y < range.end(); ++y) {
-                    Color* small_row = small_fb->pixels_row(y);
-                    const float sy = (static_cast<float>(y) + 0.5f) * inv_buffer_scale;
-                    for (int x = 0; x < small_w; ++x) {
-                        const float sx = (static_cast<float>(x) + 0.5f) * inv_buffer_scale;
-                        const Color c = source_fb->sample(sx, sy, SamplingMode::Bilinear);
-                        const float trigger = source_is_alpha_mask
-                                ? c.a
-                                : glow_trigger_from_pixel(c, p);
-                        if (trigger > 0.0f) {
-                            small_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale, pass.tint);
-                        }
-                    }
-                }
-            });
-
-            if (p.quality == GlowQuality::High) {
-                apply_gaussian_blur_linear_premultiplied(
-                    *small_fb,
-                    std::max(0.5f, r * pass.buffer_scale / 3.0f));
-            } else {
-                apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale),
-                           std::nullopt, 2);
-            }
-            accumulate_scaled_glow_pass(*glow_acc_fb, *small_fb, p, pass.buffer_scale, falloff_lut);
+        if (debug_cfg && debug_cfg->glow()) {
+            save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(debug_pass_counter++) + ".png");
         }
     }
 
@@ -430,32 +284,26 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
             if (dx < 0 || dx >= w) continue;
             const Color src_c = dst_row[dx];
             const Color glow_c = glow_row[x];
-            if (p.preserve_source) {
-                // glow behind source: source OVER glow, in premultiplied
-                // form. Opaque glyph cores therefore remain unchanged.
-                const float inv_source_a = 1.0f - std::clamp(src_c.a, 0.0f, 1.0f);
-                dst_row[dx] = {
-                    src_c.r + glow_c.r * inv_source_a,
-                    src_c.g + glow_c.g * inv_source_a,
-                    src_c.b + glow_c.b * inv_source_a,
-                    src_c.a + glow_c.a * inv_source_a
-                };
-            } else {
-                dst_row[dx] = compositor::blend(glow_c, src_c, glow_blend_mode(p));
-            }
+            // Place the glow behind the source: source OVER glow, in
+            // premultiplied form, keeping opaque cores unchanged.
+            const float inv_source_a = 1.0f - std::clamp(src_c.a, 0.0f, 1.0f);
+            dst_row[dx] = {
+                src_c.r + glow_c.r * inv_source_a,
+                src_c.g + glow_c.g * inv_source_a,
+                src_c.b + glow_c.b * inv_source_a,
+                src_c.a + glow_c.a * inv_source_a
+            };
         }
     }
 }
 
-// ── run_bloom_mode (re-merged from glow_bloom.cpp) ──────────────────────
-//
-// FASE 7 gave this function its own translation unit and header; it has a
-// single caller (run_glow_pipeline below), so it lives beside run_layer_mode
-// again and keeps internal linkage.  Behaviour is unchanged.
-void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
-                    const std::optional<raster::BBox>& clip) {
+// ── Separate Bloom effect ───────────────────────────────────────────────
+void run_bloom_effect_impl(Framebuffer& fb, const BloomParams& p,
+                           const std::optional<raster::BBox>& clip) {
     const i32 w = fb.width(), h = fb.height();
-    auto effect_clip = expand_effect_clip(clip, w, h, p.radius);
+    const f32 bloom_extent = effects::spatial_halo_extent(
+        effects::effect_spatial_halo(p));
+    auto effect_clip = expand_effect_clip(clip, w, h, bloom_extent);
     i32 x_min = 0, x_max = w;
     i32 y_min = 0, y_max = h;
     if (effect_clip) {
@@ -464,7 +312,8 @@ void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
         y_min = std::max(0, effect_clip->y0);
         y_max = std::min(h, effect_clip->y1);
     }
-    const i32 blur_pad = blur_padding_for_radius(p.radius);
+    const i32 blur_pad = static_cast<i32>(std::ceil(
+        effects::spatial_halo_extent(effects::effect_spatial_halo(p))));
     const i32 x_min_pad = std::max(0, x_min - blur_pad);
     const i32 x_max_pad = std::min(w, x_max + blur_pad);
     const i32 y_min_pad = std::max(0, y_min - blur_pad);
@@ -528,21 +377,11 @@ void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
 
 } // anonymous namespace
 
-// ── Public per-pass accumulate helpers (renderer-ns scope) ────────────────
-//
-// These are exposed at chronon3d::renderer scope so external callers
-// (Google Benchmarks, golden tests) can call them directly.  Anonymous-
-// namespace callers (build_glow_accumulator) now find these via enclosing
-// namespace lookup (deduplicated in FASE 7 Step 3).
-// Do not use from production code — call GlowPipeline::render or
-// renderer::run_glow_pipeline instead.
-
+// ── Public accumulation helper used by the pipeline and microbenchmark ────
 void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                          const GlowPipeline& p, const float* falloff_lut) {
-    const float falloff = std::max(1.0f, p.falloff);
+                          const GlowPipeline& /*p*/) {
     const int w = dst.width();
     const int h = dst.height();
-    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
     tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
                       [&](const tbb::blocked_range<int>& range) {
         for (int y = range.begin(); y < range.end(); ++y) {
@@ -552,71 +391,11 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src,
                 Color g = src_row[x];
                 if (g.a <= 0.0f) continue;
 
-                float shaped;
-                if (use_lut) {
-                    shaped = lookup_shaped(g.a, falloff_lut);
-                } else {
-                    shaped = g.a;
-                }
-                if (g.a > 0.0f) {
-                    const float ratio = shaped / g.a;
-                    g.r *= ratio;
-                    g.g *= ratio;
-                    g.b *= ratio;
-                }
-                g.a = shaped;
-
                 Color& acc = dst_row[x];
                 acc.r += g.r;
                 acc.g += g.g;
                 acc.b += g.b;
-                // RGB is accumulated additively for HDR glow energy. Coverage
-                // follows a bounded union, not max(alpha), so separate lobes
-                // do not leave a flat outer alpha skirt.
-                acc.a = std::clamp(acc.a + g.a, 0.0f, 1.0f);
-            }
-        }
-    });
-}
-
-void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src,
-                                 const GlowPipeline& p, float scale,
-                                 const float* falloff_lut) {
-    const float falloff = std::max(1.0f, p.falloff);
-    const int w = dst.width();
-    const int h = dst.height();
-    const bool use_lut = (falloff != 1.0f) && (falloff_lut != nullptr);
-    tbb::parallel_for(tbb::blocked_range<int>(0, h, kGlowTbbGrain),
-                      [&](const tbb::blocked_range<int>& range) {
-        for (int y = range.begin(); y < range.end(); ++y) {
-            Color* dst_row = dst.pixels_row(y);
-            const float sy = (static_cast<float>(y) + 0.5f) * scale;
-            for (int x = 0; x < w; ++x) {
-                const float sx = (static_cast<float>(x) + 0.5f) * scale;
-                Color g = src.sample(sx, sy, SamplingMode::Bilinear);
-                if (g.a <= 0.0f) continue;
-
-                float shaped;
-                if (use_lut) {
-                    shaped = lookup_shaped(g.a, falloff_lut);
-                } else {
-                    shaped = g.a;
-                }
-                if (g.a > 0.0f) {
-                    const float ratio = shaped / g.a;
-                    g.r *= ratio;
-                    g.g *= ratio;
-                    g.b *= ratio;
-                }
-                g.a = shaped;
-
-                Color& acc = dst_row[x];
-                acc.r += g.r;
-                acc.g += g.g;
-                acc.b += g.b;
-                // RGB is accumulated additively for HDR glow energy. Coverage
-                // follows a bounded union, not max(alpha), so separate lobes
-                // do not leave a flat outer alpha skirt.
+                // RGB and coverage accumulate additively for the single halo.
                 acc.a = std::clamp(acc.a + g.a, 0.0f, 1.0f);
             }
         }
@@ -668,7 +447,8 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     work_fb->clear(Color::transparent());
 
     // Compute affected bounds from clip + glow extent.
-    const f32 extent = glow_effect_extent(p);
+    const f32 extent = effects::spatial_halo_extent(
+        effects::effect_spatial_halo(GlowParams{.radius = p.radius}));
     auto effect_clip = renderer::expand_effect_clip(input.clip, w, h, extent);
     raster::BBox bbox = effect_clip.value_or(raster::BBox{0, 0, w, h});
     // Clamp to source dimensions
@@ -708,18 +488,12 @@ void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
                        bool source_is_alpha_mask,
                        const chronon3d::DebugConfig* debug_cfg) {
-    switch (p.mode) {
-    case GlowPipeline::Mode::Layer:
-        run_layer_mode(fb, p, clip, source_is_alpha_mask, debug_cfg);
-        break;
-    case GlowPipeline::Mode::Bloom:
-        run_bloom_mode(fb, p, clip);
-        break;
-    case GlowPipeline::Mode::Shadow:
-        // Reserved for future apply_shadow_effect routing. For now
-        // apply_shadow_effect remains in effect_shadow_impl.cpp.
-        break;
-    }
+    run_layer_mode(fb, p, clip, source_is_alpha_mask, debug_cfg);
+}
+
+void run_bloom_effect(Framebuffer& fb, const BloomParams& params,
+                      const std::optional<raster::BBox>& clip) {
+    run_bloom_effect_impl(fb, params, clip);
 }
 
 /// Build glow-only accumulator into a clean framebuffer (no source compositing).

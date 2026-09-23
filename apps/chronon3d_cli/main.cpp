@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <algorithm>
+#include <iostream>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include <CLI/App.hpp>
@@ -23,6 +25,19 @@
 #endif
 
 int main(int argc, char** argv) {
+    // Keep build identity queryable without booting registries, telemetry or
+    // render backends. Batch renderers use this to pin the executable whose
+    // schema they compiled against.
+    if (argc == 2 && std::string_view(argv[1]) == "--version") {
+#ifdef CHRONON3D_CLI_PROJECT_VERSION
+        std::cout << "Chronon3d " << CHRONON3D_CLI_PROJECT_VERSION;
+#else
+        std::cout << "Chronon3d unknown-version";
+#endif
+        std::cout << " (chronon.render-plan.v2)\n";
+        return 0;
+    }
+
     chronon3d::cli::record_process_start();
     chronon3d::cli::reset_startup_trace();
 

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "01_wave_cascade_flip",
+    "requested": "per-glyph X/Y flip with stagger",
+    "implemented_in_probe": "per-glyph vertical scale collapse on the text selector; no glyph rotation",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 13.87337144444444,
+    "measured_fps": 37.86268745219037,
+    "render_loop_fps": 72.02715567823381
+  },
+  {
+    "id": "02_explosion_reassembly",
+    "requested": "random 3D scatter and reassembly",
+    "implemented_in_probe": "deterministically ordered per-glyph XY offsets; no depth scatter or chaotic rotation",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 13.513082611111109,
+    "measured_fps": 41.53562949546536,
+    "render_loop_fps": 73.95110981203662
+  },
+  {
+    "id": "03_per_glyph_twist_proxy",
+    "requested": "per-glyph Z corkscrew",
+    "implemented_in_probe": "per-glyph XY displacement and tracking; no glyph Z or Z rotation",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 13.605161347222221,
+    "measured_fps": 40.652404329201914,
+    "render_loop_fps": 73.4477044188782
+  },
+  {
+    "id": "04_sine_ripple_glyph_proxy",
+    "requested": "continuous mesh sine ripple",
+    "implemented_in_probe": "selector-driven per-glyph Y displacement; no mesh deformation or normals",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 13.54506961111111,
+    "measured_fps": 36.944106588451724,
+    "render_loop_fps": 73.7733487820327
+  },
+  {
+    "id": "05_page_flip_line_proxy",
+    "requested": "page/sheet peel",
+    "implemented_in_probe": "line selector with X scale and opacity; no bent sheet geometry",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 12.813470277777776,
+    "measured_fps": 44.03047664351019,
+    "render_loop_fps": 77.97914794045714
+  },
+  {
+    "id": "06_camera_fly_through",
+    "requested": "camera passes through a glyph counter",
+    "implemented_in_probe": "near-plane camera dolly across a flat text plane; exercises clipping, not volumetric glyph holes",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 17.79187870833333,
+    "measured_fps": 29.67117168764336,
+    "render_loop_fps": 56.165631717782524
+  },
+  {
+    "id": "07_whip_pan_fov",
+    "requested": "180-degree whip pan with depth blur",
+    "implemented_in_probe": "camera rotation and FOV track; no focus-distance or DoF control",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 15.141763569444443,
+    "measured_fps": 35.7045843749092,
+    "render_loop_fps": 66.00700796953672
+  },
+  {
+    "id": "08_parallax_sliced_stack",
+    "requested": "sliced depth parallax",
+    "implemented_in_probe": "three independently transformed text layers; not slices of one text mesh",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 12.084838722222216,
+    "measured_fps": 38.33004601017345,
+    "render_loop_fps": 82.69722750366215
+  },
+  {
+    "id": "09_extrusion_pop_proxy",
+    "requested": "animated extrusion and bevel",
+    "implemented_in_probe": "layer Z/scale pop; no extrusion or bevel material properties",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 10.884362569444443,
+    "measured_fps": 42.82068532565659,
+    "render_loop_fps": 91.7902816695069
+  },
+  {
+    "id": "10_light_sweep_reveal_proxy",
+    "requested": "3D point/spot light sweep",
+    "implemented_in_probe": "text selector opacity/tracking reveal; no animated scene light or anisotropic shading",
+    "coverage": "PARTIAL",
+    "export": "PASS",
+    "frames": 72,
+    "avg_frame_ms": 18.165455791666663,
+    "measured_fps": 31.299313766936255,
+    "render_loop_fps": 55.015703858253914
+  }
+]

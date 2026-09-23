@@ -1,0 +1,353 @@
+{
+  "canvas": {
+    "duration_frames": 108,
+    "fps_den": 1,
+    "fps_num": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "motion_bear_reference_4_save_time_boost_workflow",
+  "layers": [
+    {
+      "asset": "tests/fixtures/text_motion_reference_v2/motion_bear_stage.png",
+      "duration_frames": 108,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image"
+    },
+    {
+      "duration_frames": 108,
+      "id": "reference_index",
+      "position": [
+        960,
+        108
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#E2EAF4",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 36
+      },
+      "text": "#04",
+      "text_animators": [],
+      "type": "text"
+    },
+    {
+      "duration_frames": 108,
+      "id": "save",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 164,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Save time,",
+      "text_animators": [
+        {
+          "id": "save_out",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 1.0
+                },
+                {
+                  "frame": 12,
+                  "value": 1.0
+                },
+                {
+                  "frame": 21,
+                  "value": 0.0
+                },
+                {
+                  "frame": 107,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 12,
+                  "value": 0.0
+                },
+                {
+                  "frame": 21,
+                  "value": 28.0
+                },
+                {
+                  "frame": 107,
+                  "value": 28.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "duration_frames": 108,
+      "id": "boost",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#BBA3FF",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 164,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "boost your",
+      "text_animators": [
+        {
+          "id": "boost_in_out",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 15,
+                  "value": 0.0
+                },
+                {
+                  "frame": 24,
+                  "value": 1.0
+                },
+                {
+                  "frame": 42,
+                  "value": 1.0
+                },
+                {
+                  "frame": 51,
+                  "value": 0.0
+                },
+                {
+                  "frame": 107,
+                  "value": 0.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 28.0
+                },
+                {
+                  "frame": 15,
+                  "value": 28.0
+                },
+                {
+                  "frame": 24,
+                  "value": 0.0
+                },
+                {
+                  "frame": 42,
+                  "value": 0.0
+                },
+                {
+                  "frame": 51,
+                  "value": 28.0
+                },
+                {
+                  "frame": 107,
+                  "value": 28.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "animation": {
+        "tracks": [
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.86
+              },
+              {
+                "frame": 56,
+                "value": 1.08
+              },
+              {
+                "frame": 66,
+                "value": 1.0
+              },
+              {
+                "frame": 107,
+                "value": 1.0
+              }
+            ],
+            "property": "scale"
+          }
+        ]
+      },
+      "duration_frames": 108,
+      "id": "workflow",
+      "position": [
+        960,
+        540
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 188,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "workflow",
+      "text_animators": [
+        {
+          "id": "workflow_in",
+          "properties": [
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 47,
+                  "value": 0.0
+                },
+                {
+                  "frame": 57,
+                  "value": 1.0
+                },
+                {
+                  "frame": 107,
+                  "value": 1.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "in_out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 28.0
+                },
+                {
+                  "frame": 47,
+                  "value": 28.0
+                },
+                {
+                  "frame": 57,
+                  "value": 0.0
+                },
+                {
+                  "frame": 107,
+                  "value": 0.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "save_time_boost_workflow.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

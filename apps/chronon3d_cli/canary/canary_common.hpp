@@ -14,6 +14,7 @@
 // ============================================================================
 
 #include <algorithm>
+#include <array>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/effects/presets/glow_presets.hpp>
 #include <chronon3d/math/color.hpp>
@@ -41,6 +42,18 @@ namespace chronon3d::canary_detail {
     constexpr const char *kCanaryFontRegular = "tests/fixtures/Inter-Bold.ttf";
     constexpr const char *kCanaryImageCard = "assets/images/checker.png";
 
+    struct AppleV3Font {
+        const char *suffix;
+        const char *path;
+    };
+    inline constexpr std::array<AppleV3Font, 5> kAppleV3Fonts{{
+        {"inter", "assets/fonts/Inter-Bold.ttf"},
+        {"poppins", "assets/fonts/Poppins-Bold.ttf"},
+        {"dmsans", "assets/fonts/DMSans-Bold.ttf"},
+        {"georgia", "assets/fonts/Georgia_Bold.ttf"},
+        {"freeserif", "assets/fonts/FreeSerif.ttf"},
+    }};
+
     constexpr Color kCanaryVoid{0.035f, 0.043f, 0.075f, 1.0f};
 
     /// Sub-frame progress in [0,1] over the composition's own duration.  Keyed off
@@ -63,15 +76,6 @@ namespace chronon3d::canary_detail {
 
         const f32 u = std::clamp(t, 0.0f, 1.0f);
         return u * u * (3.0f - 2.0f * u);
-    }
-
-    // Canary renders are final-quality visual probes, not preview probes.
-    // Keep GlowParams::Fast as the interactive default elsewhere, but
-    // make the canary's quality choice explicit at the authoring site.
-    [[nodiscard]] inline GlowParams canary_glow(GlowParams params) {
-        params.quality = GlowQuality::High;
-        params.falloff = std::max(1.0f, params.falloff);
-        return params;
     }
 
     /// A centred text run in the composition's own font: the one place a text

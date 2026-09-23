@@ -31,6 +31,19 @@ namespace {
 
 namespace chronon3d::test {
 
+TEST_CASE("RuntimeContext::create preserves the structured asset mount failure") {
+    chronon3d::Config config;
+    auto result = chronon3d::runtime::RuntimeContext::create(
+        chronon3d::runtime::RuntimeConfig{
+            std::move(config), std::filesystem::path{"relative/assets"}});
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code ==
+          chronon3d::runtime::RuntimeBuildError::Code::AssetMountFailed);
+    CHECK(result.error().message.find("asset mount failed") != std::string::npos);
+    CHECK(result.error().message.find("absolute path") != std::string::npos);
+}
+
 TEST_CASE("RuntimeContext isolation: two runtimes do not share state") {
     namespace fs = std::filesystem;
 

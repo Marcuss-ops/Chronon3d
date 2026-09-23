@@ -208,6 +208,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     bool scale_claimed = false;
     bool rotation_claimed = false;
     bool opacity_claimed = false;
+    bool blur_claimed = false;
 
     for (const auto& track : layer.animation->tracks) {
         const auto easing = track_easing(track.easing);
@@ -276,6 +277,14 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             opacity_claimed = true;
             auto& animated = builder.opacity_anim();
             animated.set(layer.opacity.value_or(1.0f));
+            for (const auto& key : track.keyframes)
+                animated.add_keyframe(key.frame, scalar_value(key, track.property), easing);
+        } else if (track.property == "blur") {
+            if (blur_claimed)
+                throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
+            blur_claimed = true;
+            auto& animated = builder.blur_anim();
+            animated.set(0.0f);
             for (const auto& key : track.keyframes)
                 animated.add_keyframe(key.frame, scalar_value(key, track.property), easing);
         } else {

@@ -11,33 +11,28 @@ bool clip_covers_result(const std::optional<raster::BBox>& clip,
            clip->x1 >= bounds.x1 && clip->y1 >= bounds.y1;
 }
 
+// Native and software paths implement the same one-Gaussian Glow contract;
+// this optimization has no quality-mode gate.
 bool try_native_full_frame_glow(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip,
                                 runtime::RenderSurfaceHandle existing_source,
                                 const Framebuffer* existing_source_framebuffer) {
-    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
+    if (!clip_covers_result(clip, result) || !ctx.backend ||
+        !ctx.backend->supports_native_surfaces() || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
     }
     const auto& instance = effect_stack[0];
     if (!instance.enabled || instance.effect_type != effects::EffectType::Glow) return false;
     const auto* params = std::get_if<GlowParams>(&instance.params);
-    const bool valid_glow = params && params->layers.empty() && params->preserve_source &&
-        params->blend == BlendMode::Add && params->threshold == 0.0f &&
-        params->spread == 1.0f && params->softness == 1.0f &&
-        params->falloff == 1.0f && params->quality == GlowQuality::High &&
-        std::isfinite(params->radius) && std::isfinite(params->intensity) &&
-        std::isfinite(params->outer_downscale) &&
-        std::isfinite(params->core_strength) &&
-        std::isfinite(params->aura_strength) &&
-        std::isfinite(params->bloom_strength) &&
+    const bool valid_glow = params && std::isfinite(params->radius) &&
+        std::isfinite(params->intensity) &&
         std::isfinite(params->color.r) && std::isfinite(params->color.g) &&
         std::isfinite(params->color.b) && std::isfinite(params->color.a) &&
         params->radius >= 0.0f && params->radius <= 64.0f &&
-        params->intensity >= 0.0f && params->core_strength >= 0.0f &&
-        params->aura_strength >= 0.0f && params->bloom_strength >= 0.0f;
+        params->intensity >= 0.0f;
     if (!valid_glow) {
         return false;
     }
@@ -135,21 +130,15 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         return false;
     }
 
-    // Keep source immutable and accumulate the three separable Gaussian
-    // lobes into the already-uploaded output. Each pass reads the original
-    // source, so the lobes do not blur one another recursively.
-    for (const auto& lobe : synthetic_glow_lobes(*params)) {
-        const float lobe_radius = params->radius * lobe.radius_factor;
-        if (lobe_radius < 0.5f || lobe.strength <= 0.0f) continue;
-        const auto glow = ctx.backend->glow_surfaces(
-            output, source, horizontal, vertical, lobe_radius,
-            params->intensity * lobe.strength, params->color);
-        if (!glow.ok()) {
-            spdlog::error("[native-glow] lobe radius={} failed: {}",
-                          lobe_radius, glow.error().message);
-            cleanup();
-            return false;
-        }
+    // A single native Gaussian pass matches the software glow contract.
+    const auto glow = ctx.backend->glow_surfaces(
+        output, source, horizontal, vertical, params->radius,
+        params->intensity, params->color);
+    if (!glow.ok()) {
+        spdlog::error("[native-glow] radius={} failed: {}",
+                      params->radius, glow.error().message);
+        cleanup();
+        return false;
     }
 
     if (!source_is_existing || source_needs_expansion)
@@ -160,6 +149,23 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         ctx.surface_registry->release(source);
     ctx.surface_registry->release(horizontal);
     ctx.surface_registry->release(vertical);
+    {
+        // TEMP-DIAG-GLOW: quantify source/output residency.
+        const auto src_handle = (source_is_existing && !source_needs_expansion)
+            ? existing_source : source;
+        const auto ink = [&](runtime::RenderSurfaceHandle h) {
+            auto scratch = ctx.download_scratch(result.width(), result.height());
+            const auto res = ctx.backend->download_surface(h, scratch);
+            std::uint64_t n = 0; const std::uint64_t t = scratch.size() / 4;
+            for (std::size_t i = 0; i < t; ++i) if (scratch[i * 4 + 3] > 0.001f) ++n;
+            return std::pair{res.ok(), n * 100 / (t ? t : 1)};
+        };
+        const auto src_stats = ink(src_handle);
+        const auto out_stats = ink(output);
+        spdlog::warn("[TEMP-DIAG-GLOW] src_ok={} src_ink={} out_ok={} out_ink={} existing={} expand={}",
+                     src_stats.first, src_stats.second, out_stats.first, out_stats.second,
+                     source_is_existing, source_needs_expansion);
+    }
     result.set_surface_handle(output);
     return true;
 }

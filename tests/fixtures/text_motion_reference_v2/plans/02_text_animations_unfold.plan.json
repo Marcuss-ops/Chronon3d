@@ -1,0 +1,197 @@
+{
+  "canvas": {
+    "duration_frames": 96,
+    "fps_den": 1,
+    "fps_num": 30,
+    "height": 1080,
+    "width": 1920
+  },
+  "job_id": "motion_bear_reference_2_text_animations_unfold",
+  "layers": [
+    {
+      "asset": "tests/fixtures/text_motion_reference_v2/motion_bear_stage.png",
+      "duration_frames": 96,
+      "fit": "stretch",
+      "id": "stage",
+      "position": [
+        0,
+        0
+      ],
+      "size": [
+        1920,
+        1080
+      ],
+      "start_frame": 0,
+      "type": "image"
+    },
+    {
+      "duration_frames": 96,
+      "id": "reference_index",
+      "position": [
+        960,
+        108
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#E2EAF4",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 36
+      },
+      "text": "#02",
+      "text_animators": [],
+      "type": "text"
+    },
+    {
+      "duration_frames": 96,
+      "id": "text_line",
+      "position": [
+        960,
+        428
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 156,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Text",
+      "text_animators": [
+        {
+          "id": "text_focus",
+          "properties": [
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 0.0
+                },
+                {
+                  "frame": 8,
+                  "value": 1.0
+                },
+                {
+                  "frame": 95,
+                  "value": 1.0
+                }
+              ],
+              "property": "opacity"
+            },
+            {
+              "easing": "out_cubic",
+              "keyframes": [
+                {
+                  "frame": 0,
+                  "value": 24.0
+                },
+                {
+                  "frame": 11,
+                  "value": 0.0
+                },
+                {
+                  "frame": 95,
+                  "value": 0.0
+                }
+              ],
+              "property": "blur"
+            }
+          ],
+          "selectors": [
+            {
+              "combine": "replace",
+              "exclude_spaces": true,
+              "order": "forward",
+              "shape": "square",
+              "unit": "line"
+            }
+          ]
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "animation": {
+        "tracks": [
+          {
+            "easing": "out_cubic",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.01
+              },
+              {
+                "frame": 3,
+                "value": 0.06
+              },
+              {
+                "frame": 13,
+                "value": 0.55
+              },
+              {
+                "frame": 22,
+                "value": 1.06
+              },
+              {
+                "frame": 28,
+                "value": 1.0
+              },
+              {
+                "frame": 78,
+                "value": 0.72
+              },
+              {
+                "frame": 95,
+                "value": 0.72
+              }
+            ],
+            "property": "scale_y"
+          }
+        ]
+      },
+      "duration_frames": 96,
+      "id": "animations_line",
+      "position": [
+        960,
+        652
+      ],
+      "size": [
+        1800,
+        560
+      ],
+      "start_frame": 0,
+      "style": {
+        "fill": "#F4F5F7",
+        "font": "assets/fonts/DMSans-Regular.ttf",
+        "font_size": 156,
+        "glow": {
+          "color": "#91CFFF",
+          "intensity": 0.72,
+          "radius": 24
+        }
+      },
+      "text": "Animations",
+      "text_animators": [],
+      "type": "text"
+    }
+  ],
+  "output": {
+    "codec": "h264",
+    "format": "mp4",
+    "path": "text_animations_unfold.mp4"
+  },
+  "schema": "chronon.render-plan.v2",
+  "version": 2
+}

@@ -1284,6 +1284,60 @@ TEST_CASE("A1 CPU native export publishes MP4 sidecar receipt and fails closed")
     std::filesystem::remove(receipt, cleanup_error);
 }
 
+TEST_CASE("NativeAvEncoder: EAGAIN flush drains every accepted frame at production dimensions") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+
+    // Exercise the CLI's NativeAvEncoder (including its frame-threaded x264
+    // flush protocol), not only the lower-level NativeAvSink. The old close
+    // path ignored a null-frame EAGAIN and silently left buffered frames out.
+    const int durations[] = {60, 86, 87, 96, 120, 137, 150, 180, 300};
+    const auto dir = std::filesystem::temp_directory_path() /
+        "chronon3d_native_encoder_frame_loss_matrix";
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+    REQUIRE_FALSE(ec);
+
+    auto options = p0_5a_pipe_options((dir / "unused.mp4").string());
+    options.width = 1920;
+    options.height = 1080;
+    options.fps_num = 30;
+    options.fps_den = 1;
+
+    for (const int count : durations) {
+        const auto output = dir / ("frames-" + std::to_string(count) + ".mp4");
+        options.output_path = output.string();
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < count; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        CHECK(encoder.frames_written() == static_cast<std::uint64_t>(count));
+        REQUIRE(encoder.close());
+
+        auto contract = chronon3d::media::video::resolve_output_contract(
+            "youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = options.width;
+        contract->height = options.height;
+        contract->fps = chronon3d::FrameRate{30, 1};
+        contract->frame_count = count;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(output, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == count);
+        std::filesystem::remove(output, ec);
+        REQUIRE_FALSE(ec);
+    }
+    std::filesystem::remove_all(dir, ec);
+}
+
 TEST_CASE("A1 direct native export route renders a software composition") {
     chronon3d::CompositionRegistry registry;
     registry.add(chronon3d::TypedCompositionDescriptor<int>{

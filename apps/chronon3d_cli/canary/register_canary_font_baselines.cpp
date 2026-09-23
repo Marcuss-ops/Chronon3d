@@ -15,6 +15,7 @@
 #include "register_canary.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <string>
 
 namespace chronon3d {
 namespace {
@@ -51,27 +52,14 @@ namespace {
 } // namespace
 
 void register_canary_font_baseline_compositions(CompositionRegistry &registry) {
-
-    registry.add(make_composition_descriptor(
-        "black_glow_inter",
-        [] { return make_black_glow_static("black_glow_inter",
-                                           "assets/fonts/Inter-Bold.ttf", 190.0f); }));
-    registry.add(make_composition_descriptor(
-        "black_glow_poppins",
-        [] { return make_black_glow_static("black_glow_poppins",
-                                           "assets/fonts/Poppins-Bold.ttf", 190.0f); }));
-    registry.add(make_composition_descriptor(
-        "black_glow_dmsans",
-        [] { return make_black_glow_static("black_glow_dmsans",
-                                           "assets/fonts/DMSans-Bold.ttf", 190.0f); }));
-    registry.add(make_composition_descriptor(
-        "black_glow_georgia",
-        [] { return make_black_glow_static("black_glow_georgia",
-                                           "assets/fonts/Georgia_Bold.ttf", 190.0f); }));
-    registry.add(make_composition_descriptor(
-        "black_glow_freeserif",
-        [] { return make_black_glow_static("black_glow_freeserif",
-                                           "assets/fonts/FreeSerif.ttf", 190.0f); }));
+    for (const auto &font : kAppleV3Fonts) {
+        const std::string id = std::string{"black_glow_"} + font.suffix;
+        registry.add(make_composition_descriptor(
+            id,
+            [id, font_path = font.path] {
+                return make_black_glow_static(id.c_str(), font_path, 190.0f);
+            }));
+    }
 }
 
 } // namespace chronon3d

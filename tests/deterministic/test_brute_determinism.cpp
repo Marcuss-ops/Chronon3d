@@ -1,7 +1,7 @@
 // tests/deterministic/test_brute_determinism.cpp
 // ─────────────────────────────────────────────────────────────────────
 // Test 17 / First-Principles Product Check — Brute-force determinism
-// for the canonical cinematic-glow composition `ChrononGlowFinalAE`.
+// for the canonical canary composition `Motion3DGlowOrbit`.
 //
 // Created 2026-07-12 (commit 4c3687b5) — Test 17.a/17.b/17.c with frame-15-only hash.
 // Extended 2026-07-12 (this atomic chore commit `test(determinism): §16
@@ -275,7 +275,7 @@ struct FrameMetrics {
 
 struct RenderMetrics {
     std::array<FrameMetrics, kFrameCount> frames{};
-    std::string composition_id_canonical = "ChrononGlowFinalAE";
+    std::string composition_id_canonical = "Motion3DGlowOrbit";
 
     std::string unified_hexdigest() const {
         std::vector<std::uint8_t> blob;
@@ -326,7 +326,7 @@ static std::string canonical_rect(float x0, float y0, float x1, float y1) {
 
 // ───────────────────────── single-frame render helper (legacy 17.a) ─────
 // Preserved for forward-compat with commit 4c3687b5's Test 17.a (frame-15-only).
-static FrameMetrics render_chronon_glow_final_one_frame(int frame_index) {
+static FrameMetrics render_motion3d_glow_orbit_one_frame(int frame_index) {
     FrameMetrics m;
 #if CHRONON3D_RENDER_ENGINE_AVAILABLE
     std::vector<std::uint8_t> raw_rgba;
@@ -349,12 +349,12 @@ static FrameMetrics render_chronon_glow_final_one_frame(int frame_index) {
 
 // ───────────────────────── 60-frame render helper (new 17.e) ─────────────
 // Used by Test 17.e (3×2×60 matrix + self-reference baseline). Same stub
-// semantics as `render_chronon_glow_final_one_frame()` but iterates the
-// canonical 60-frame ChrononGlowFinalAE sequence.
-static RenderMetrics render_chronon_glow_final_60_frames() {
+// semantics as `render_motion3d_glow_orbit_one_frame()` but iterates the
+// canonical 60-frame Motion3DGlowOrbit sequence.
+static RenderMetrics render_motion3d_glow_orbit_60_frames() {
     RenderMetrics m;
     for (int f = 0; f < kFrameCount; ++f) {
-        m.frames[f] = render_chronon_glow_final_one_frame(f);
+        m.frames[f] = render_motion3d_glow_orbit_one_frame(f);
     }
     return m;
 }
@@ -392,11 +392,11 @@ TEST_CASE("BruteDeterm-17.a: 20 consecutive renders == baseline hash") {
     REQUIRE(BRUTE_TEST_BUILD_CONFIG != nullptr);
     MESSAGE("build_config = " << BRUTE_TEST_BUILD_CONFIG);
 
-    auto baseline = render_chronon_glow_final_one_frame(kFrameIndex);
+    auto baseline = render_motion3d_glow_orbit_one_frame(kFrameIndex);
     const std::string baseline_digest = SHA256::hexdigest({});
 
     for (int rep = 0; rep < kRepetitions; ++rep) {
-        auto fm = render_chronon_glow_final_one_frame(kFrameIndex);
+        auto fm = render_motion3d_glow_orbit_one_frame(kFrameIndex);
         INFO("rep = " << rep);
         CHECK(fm.alpha_bbox_canonical == baseline.alpha_bbox_canonical);
         CHECK(fm.predicted_bbox_canonical == baseline.predicted_bbox_canonical);
@@ -409,12 +409,12 @@ TEST_CASE("BruteDeterm-17.a: 20 consecutive renders == baseline hash") {
 // Preserved verbatim from commit 4c3687b5 for forward-compat.
 
 TEST_CASE("BruteDeterm-17.b: thread×cache matrix (20×3×2 = 120 permutations)") {
-    auto baseline = render_chronon_glow_final_one_frame(kFrameIndex);
+    auto baseline = render_motion3d_glow_orbit_one_frame(kFrameIndex);
     for (int threads : kThreadCounts) {
         for (const char* cache : {"cold", "warm"}) {
             ScopedParallelism par(threads);
             for (int rep = 0; rep < kRepetitions; ++rep) {
-                auto fm = render_chronon_glow_final_one_frame(kFrameIndex);
+                auto fm = render_motion3d_glow_orbit_one_frame(kFrameIndex);
                 INFO("threads=" << threads << " cache=" << cache << " rep=" << rep);
                 CHECK(fm.alpha_bbox_canonical == baseline.alpha_bbox_canonical);
             }
@@ -425,8 +425,8 @@ TEST_CASE("BruteDeterm-17.b: thread×cache matrix (20×3×2 = 120 permutations)"
 // ── Test 17.c — Debug/Release build-config ─────────────────────────────
 
 TEST_CASE("BruteDeterm-17.c: this binary is " BRUTE_TEST_BUILD_CONFIG " — runs identically under its own build") {
-    auto baseline = render_chronon_glow_final_one_frame(kFrameIndex);
-    auto m = render_chronon_glow_final_one_frame(kFrameIndex);
+    auto baseline = render_motion3d_glow_orbit_one_frame(kFrameIndex);
+    auto m = render_motion3d_glow_orbit_one_frame(kFrameIndex);
     CHECK(m.alpha_bbox_canonical == baseline.alpha_bbox_canonical);
     SUBCASE("build label present") {
         CHECK(std::string(BRUTE_TEST_BUILD_CONFIG).size() > 0);
@@ -434,7 +434,7 @@ TEST_CASE("BruteDeterm-17.c: this binary is " BRUTE_TEST_BUILD_CONFIG " — runs
 }
 
 // ── Test 17.d — §16 REPEATABILITY (NEW this chore commit) ──────────────
-// 3 consecutive `chronon3d_cli render` video exports of ChrononGlowFinalAE
+// 3 consecutive `chronon3d_cli render` video exports of Motion3DGlowOrbit
 // --frames 0-60 -o output/repeat_<i>.mp4 --keep-frames
 // --frames-dir output/repeat_<i> for i=1,2,3.
 // Emit `sha256sum` over all 60 raw PNG per run. Pair-wise `cmp` must PASS.
@@ -444,8 +444,8 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
     BRUTE_FAIL_LOUD_PRECONDITION(
         cli.has_value(),
         "chronon3d_cli not discoverable \u2014 invoke on working build host or set CHRONON3D_CLI_BINARY env var");
-    if (!cli_has_composition(*cli, "ChrononGlowFinalAE")) {
-        MESSAGE("ChrononGlowFinalAE is outside this preset's registered content corpus; "
+    if (!cli_has_composition(*cli, "Motion3DGlowOrbit")) {
+        MESSAGE("Motion3DGlowOrbit is outside this preset's registered content corpus; "
                 "BruteDeterm-17.d is not applicable with CHRONON3D_BUILD_CONTENT=OFF");
         return;
     }
@@ -463,7 +463,7 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
         const auto output = output_root / ("repeat_" + std::to_string(run) + ".mp4");
         std::ostringstream cmd;
         cmd << cli.value().string()
-            << " render ChrononGlowFinalAE"
+            << " render Motion3DGlowOrbit"
             << " --frames 0-60 -o " << output.string()
             << " --ffmpeg-mode png"
             << " --keep-frames --frames-dir " << frames_dir.string();
@@ -495,7 +495,7 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
 }
 
 // ── Test 17.e — §17 MATRIX full-frame extension (NEW this chore commit) ──
-// CHRONON3D_THREADS {1,2,8} × cache_state {cold,warm} × 60-frame ChrononGlowFinalAE
+// CHRONON3D_THREADS {1,2,8} × cache_state {cold,warm} × 60-frame Motion3DGlowOrbit
 // raw PNGS. Digests must match per ADR-018 §Decision 2 self-reference baseline
 // pattern (first render = baseline, all subsequent permutations same digest).
 //
@@ -507,7 +507,7 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
 
 TEST_CASE("BruteDeterm-17.e: §17 3×2×60 thread×cache×frame matrix (ADR-018 Decision 2 self-ref)") {
     // In-process self-reference baseline (frame-15-only, for warm cache + default threads).
-    auto warm_default_baseline = render_chronon_glow_final_one_frame(kFrameIndex);
+    auto warm_default_baseline = render_motion3d_glow_orbit_one_frame(kFrameIndex);
     const std::string warm_default_alpha = warm_default_baseline.alpha_bbox_canonical;
 
     constexpr bool kUseHardcodedBaselines = false;  // TODO(working-build-host): flip to true after TICKET-VIDEO-REPEATABILITY-BASELINE closes
@@ -529,12 +529,12 @@ TEST_CASE("BruteDeterm-17.e: §17 3×2×60 thread×cache×frame matrix (ADR-018 
             const bool is_cold = (std::string(cache) == "cold");
             // TODO(working-build-host): if (is_cold) engine.clear_caches();
 
-            const auto baseline_metrics = render_chronon_glow_final_60_frames();
+            const auto baseline_metrics = render_motion3d_glow_orbit_60_frames();
             const auto baseline_per_frame = baseline_metrics.per_frame_digests();
             const std::string baseline_unified = baseline_metrics.unified_hexdigest();
 
             for (int rep = 0; rep < kRepetitions; ++rep) {
-                auto metrics = render_chronon_glow_final_60_frames();
+                auto metrics = render_motion3d_glow_orbit_60_frames();
                 const auto per_frame = metrics.per_frame_digests();
                 INFO("threads=" << threads << " cache=" << cache << " rep=" << rep);
 

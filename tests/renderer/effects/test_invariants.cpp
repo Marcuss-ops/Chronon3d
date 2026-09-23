@@ -281,35 +281,33 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     CHECK(hash_base != hash_color);
 }
 
-// 8b. cache_key_changes_when_glow_quality_params_change
-TEST_CASE("Invariants: cache_key_changes_when_glow_quality_params_change") {
+// 8b. The cache identity contains only the three authoring controls.
+TEST_CASE("Invariants: glow cache identity contains only the simple glow controls") {
     using namespace chronon3d::graph;
 
-    LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
-    lb_base.effect(GlowPresets::neon_blue(40.0f));
-    u64 hash_base = hash_effect_stack(lb_base.build().effects());
+    LayerBuilder base_builder("l", SampleTime{}, std::pmr::get_default_resource());
+    base_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.25f,
+                                   .color = Color::white()});
+    const u64 base_hash = hash_effect_stack(base_builder.build().effects());
 
-    LayerBuilder lb_falloff("l", SampleTime{}, std::pmr::get_default_resource());
-    GlowParams falloff = GlowPresets::neon_blue(40.0f);
-    falloff.falloff = 1.20f;
-    lb_falloff.effect(falloff);
-    u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects());
+    LayerBuilder radius_builder("l", SampleTime{}, std::pmr::get_default_resource());
+    radius_builder.effect(GlowParams{.radius = 42.0f, .intensity = 0.25f,
+                                     .color = Color::white()});
+    const u64 radius_hash = hash_effect_stack(radius_builder.build().effects());
 
-    LayerBuilder lb_core("l", SampleTime{}, std::pmr::get_default_resource());
-    GlowParams core = GlowPresets::neon_blue(40.0f);
-    core.core_strength = 0.95f;
-    lb_core.effect(core);
-    u64 hash_core = hash_effect_stack(lb_core.build().effects());
+    LayerBuilder intensity_builder("l", SampleTime{}, std::pmr::get_default_resource());
+    intensity_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.5f,
+                                        .color = Color::white()});
+    const u64 intensity_hash = hash_effect_stack(intensity_builder.build().effects());
 
-    LayerBuilder lb_screen("l", SampleTime{}, std::pmr::get_default_resource());
-    GlowParams screen = GlowPresets::neon_blue(40.0f);
-    screen.blend = BlendMode::Screen;
-    lb_screen.effect(screen);
-    u64 hash_screen = hash_effect_stack(lb_screen.build().effects());
+    LayerBuilder color_builder("l", SampleTime{}, std::pmr::get_default_resource());
+    color_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.25f,
+                                    .color = Color::red()});
+    const u64 color_hash = hash_effect_stack(color_builder.build().effects());
 
-    CHECK(hash_base != hash_falloff);
-    CHECK(hash_base != hash_core);
-    CHECK(hash_base != hash_screen);
+    CHECK(base_hash != radius_hash);
+    CHECK(base_hash != intensity_hash);
+    CHECK(base_hash != color_hash);
 }
 
 // 9. dirty_rect_contains_glow_spread

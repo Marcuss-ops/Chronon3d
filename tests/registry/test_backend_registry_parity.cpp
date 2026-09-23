@@ -550,7 +550,7 @@ TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
     CHECK_FALSE(out[1].has_value());
 }
 
-TEST_CASE("MTSDF glyph identity ignores runtime font size") {
+TEST_CASE("MTSDF glyph identity ignores runtime font size and has one canonical hash") {
     using chronon3d::runtime::GlyphRepresentation;
     using chronon3d::runtime::GpuGlyphKey;
 
@@ -560,6 +560,15 @@ TEST_CASE("MTSDF glyph identity ignores runtime font size") {
     CHECK(mtsdf_a == mtsdf_b);
     CHECK(chronon3d::runtime::GpuGlyphKeyHash{}(mtsdf_a) ==
           chronon3d::runtime::GpuGlyphKeyHash{}(mtsdf_b));
+    CHECK(chronon3d::runtime::glyph_key_hash64(mtsdf_a) ==
+          chronon3d::runtime::glyph_key_hash64(mtsdf_b));
+
+    const auto normalized = GpuGlyphKey::make(
+        "font.ttf", 65, 0x1234, GlyphRepresentation::Mtsdf, 7, 96);
+    CHECK(normalized.font_size == 0);
+    CHECK(normalized == mtsdf_a);
+    CHECK(chronon3d::runtime::glyph_key_hash64(normalized) ==
+          chronon3d::runtime::glyph_key_hash64(mtsdf_a));
 
     GpuGlyphKey coverage_b = mtsdf_b;
     coverage_b.representation = GlyphRepresentation::Coverage;
@@ -568,8 +577,17 @@ TEST_CASE("MTSDF glyph identity ignores runtime font size") {
     GpuGlyphKey coverage_a = mtsdf_a;
     coverage_a.representation = GlyphRepresentation::Coverage;
     CHECK(coverage_a == coverage_b);
+    CHECK(chronon3d::runtime::glyph_key_hash64(coverage_a) ==
+          chronon3d::runtime::glyph_key_hash64(coverage_b));
     coverage_b.font_size = 128;
     CHECK_FALSE(coverage_a == coverage_b);
+
+    const auto coverage_normalized = GpuGlyphKey::make(
+        "font.ttf", 65, 0x1234, GlyphRepresentation::Coverage, 7, 128);
+    CHECK(coverage_normalized.font_size == 128);
+    CHECK(coverage_normalized == coverage_b);
+    CHECK(chronon3d::runtime::glyph_key_hash64(coverage_normalized) ==
+          chronon3d::runtime::glyph_key_hash64(coverage_b));
 }
 
 TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pixel error") {

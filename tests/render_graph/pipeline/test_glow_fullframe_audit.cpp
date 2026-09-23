@@ -128,14 +128,14 @@ TEST_CASE("contract: per-frame rate derivation matches graph_total_ms / graph_ex
     CHECK(true);
 }
 
-TEST_CASE("gate: F3.2 B03 gate 1 — avoidable full-frame copies == 0 per frame (CinematicGlow1080p)") {
+TEST_CASE("gate: F3.2 B03 gate 1 — avoidable full-frame copies == 0 per frame (GaussianGlow1080p)") {
     // User spec verbatim: "Zero copie full-frame evitabili"
     //
     // Theoretical B03 90-frame model (frame 0 = cold start, frame >= 2 = steady
     // state with prev FB available). After frame 2 every composite handoff is a
     // zero-copy swap_contents transfer via the FramebufferPool acquire_owned_fb
-    // zero-copy path; the EffectStackNode spread==0 path triggers ONLY when no
-    // glow falloff is active (CinematicGlowPreset always has glow_strength > 0).
+    // zero-copy path; the single-Gaussian Glow uses the same effect-stack
+    // handoff as every other glow radius/intensity/color configuration.
     constexpr std::uint64_t kFrameCount = 90;
 
     GlowFullframeCounters counters;

@@ -34,11 +34,35 @@ bool NativeAvEncoder::close() {
 
     const auto t_flush0 = Clock::now();
     spdlog::info("[native_av] close: sending encoder flush");
-    avcodec_send_frame(codec_, nullptr);
-    spdlog::info("[native_av] close: encoder flush sent");
-
-    drain_packets();
-    spdlog::info("[native_av] close: packets drained");
+    bool flush_ok = false;
+    int flush_result = AVERROR(EAGAIN);
+    // A frame threaded encoder can have more work in flight than the CLI
+    // wrapper's old single send/drain sequence assumed. EAGAIN means output
+    // must be received before the null frame can enter the codec; retry after
+    // draining or delayed frames stay permanently unencoded in the MP4.
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        flush_result = avcodec_send_frame(codec_, nullptr);
+        if (flush_result == 0 || flush_result == AVERROR_EOF) {
+            flush_ok = true;
+            break;
+        }
+        if (flush_result != AVERROR(EAGAIN)) {
+            spdlog::error("[native_av] encoder flush submit failed: {}", flush_result);
+            break;
+        }
+        if (!drain_packets()) {
+            spdlog::error("[native_av] packet drain failed while entering flush mode");
+            break;
+        }
+    }
+    if (!flush_ok && flush_result == AVERROR(EAGAIN)) {
+        spdlog::error("[native_av] encoder flush remained EAGAIN after draining packets");
+    }
+    if (flush_ok && flush_result != AVERROR_EOF) {
+        spdlog::info("[native_av] close: encoder flush accepted");
+        flush_ok = drain_packets();
+    }
+    spdlog::info("[native_av] close: packets drained={}", flush_ok);
     double trailer_ms = 0.0;
     if (borrows_mux_) {
         // Caller-owned container: audio and the trailer belong to the caller
@@ -106,7 +130,7 @@ bool NativeAvEncoder::close() {
         const auto t_trailer0 = Clock::now();
         if (mux_) {
             spdlog::info("[native_av] close: finalizing mux session");
-            (void)mux_->finalize();
+            if (!mux_->finalize()) flush_ok = false;
             spdlog::info("[native_av] close: mux session finalized");
         }
         trailer_ms = elapsed_ms(t_trailer0);
@@ -122,8 +146,12 @@ bool NativeAvEncoder::close() {
             static_cast<uint64_t>(trailer_ms), std::memory_order_relaxed);
     }
 
-    spdlog::info("[native_av] Closed native encoder — {} frames written, YUV cache: {} hits / {} misses",
-                 frames_written_, cache_hits_, cache_misses_);
+    spdlog::info(
+        "[native_av] Closed native encoder — {} frames accepted, encoder_packets={} "
+        "mux_packets={} packet_pts={}..{}, YUV cache: {} hits / {} misses",
+        frames_written_, encoder_packets_received_, mux_packets_written_,
+        first_encoder_packet_pts_, last_encoder_packet_pts_,
+        cache_hits_, cache_misses_);
     // The encoder-owned bitstream contract describes a live session only; a
     // closed (or pooled) instance must not leak it into the next job.
     bitstream_contract_ = BitstreamTargetContract{};
@@ -132,7 +160,7 @@ bool NativeAvEncoder::close() {
     // close() so the hash/checksum telemetry remains readable until the
     // encoder is torn down (abort_open releases it). A borrowed container was
     // already detached above.
-    return true;
+    return flush_ok;
 }
 
 NativeAvEncoder::~NativeAvEncoder() {

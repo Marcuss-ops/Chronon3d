@@ -88,9 +88,8 @@ Composition make_glow_layer_scene() {
             });
             s.layer("glow_circle", [](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
-                GlowParams g = GlowPresets::neon_blue(28.0f);
-                g.intensity = 0.9f;
-                g.blend = BlendMode::Screen;
+                GlowParams g{.radius = 28.0f, .intensity = 0.25f,
+                             .color = Color{0.15f, 0.65f, 1.0f, 1.0f}};
                 l.effect(g);
                 l.circle("core", {
                     .radius = 18.0f,
@@ -137,8 +136,8 @@ Composition make_centered_glow_centroid_scene(bool glow) {
             });
             s.layer("source", [glow](LayerBuilder& l) {
                 if (glow) {
-                    GlowParams params = GlowPresets::neon_blue(34.0f);
-                    params.blend = BlendMode::Screen;
+                    GlowParams params{.radius = 34.0f, .intensity = 0.25f,
+                                      .color = Color{0.15f, 0.65f, 1.0f, 1.0f}};
                     l.effect(params);
                 }
                 l.rounded_rect("card", {
@@ -151,6 +150,7 @@ Composition make_centered_glow_centroid_scene(bool glow) {
             return s.build();
         });
 }
+
 }  // namespace
 
 TEST_CASE("PR2-RG-Glow: layer-mode glow creates a halo around bright source") {
