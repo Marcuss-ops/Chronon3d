@@ -149,23 +149,6 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         ctx.surface_registry->release(source);
     ctx.surface_registry->release(horizontal);
     ctx.surface_registry->release(vertical);
-    {
-        // TEMP-DIAG-GLOW: quantify source/output residency.
-        const auto src_handle = (source_is_existing && !source_needs_expansion)
-            ? existing_source : source;
-        const auto ink = [&](runtime::RenderSurfaceHandle h) {
-            auto scratch = ctx.download_scratch(result.width(), result.height());
-            const auto res = ctx.backend->download_surface(h, scratch);
-            std::uint64_t n = 0; const std::uint64_t t = scratch.size() / 4;
-            for (std::size_t i = 0; i < t; ++i) if (scratch[i * 4 + 3] > 0.001f) ++n;
-            return std::pair{res.ok(), n * 100 / (t ? t : 1)};
-        };
-        const auto src_stats = ink(src_handle);
-        const auto out_stats = ink(output);
-        spdlog::warn("[TEMP-DIAG-GLOW] src_ok={} src_ink={} out_ok={} out_ink={} existing={} expand={}",
-                     src_stats.first, src_stats.second, out_stats.first, out_stats.second,
-                     source_is_existing, source_needs_expansion);
-    }
     result.set_surface_handle(output);
     return true;
 }
