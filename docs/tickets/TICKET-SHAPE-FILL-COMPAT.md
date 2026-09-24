@@ -41,6 +41,53 @@ those legacy declarations/usages, excluding this ticket and the retirement gate.
    production materializers/rasterizers.
 3. Test and fixture call sites using the retired scene `Fill` surface.
 
+## Migration inventory — census 2026-09-24 (`main@10843eb12`)
+
+Pattern scanned: `\b(FillType|GradientFill|fill_type_for_gradient)\b` plus the
+scene `Fill` type. **15 files, ~80 references.** Grouped by migration order:
+
+**A. Storage / scene model (source of truth to switch first)**
+1. `include/chronon3d/scene/model/render/render_node.hpp:44` — `Fill fill{...}` member.
+2. `include/chronon3d/scene/model/shape/path.hpp:65,71` — `std::optional<GradientFill> gradient` + `Fill fill`.
+3. `include/chronon3d/scene/model/shape/shape_stroke.hpp:42` — `std::optional<GradientFill> gradient`.
+4. `include/chronon3d/graphics/shape_style/fill_style.hpp` — the bridge itself:
+   `to_fill()` / `FillStyle::to_fill()` (keep as the *last* thing to delete, or
+   move the conversion into the compatibility header).
+
+**B. Production consumers (behaviour-affecting — migrate with pixel gates)**
+5. `src/backends/software/blend2d/blend2d_paint.cpp` — `FillType::Solid/Linear/Radial/Conic` switch.
+6. `src/backends/software/blend2d/blend2d_path_stroker.cpp:108-115` — stroke gradient → `FillType`.
+7. `src/backends/software/rasterizers/shape_rasterizer_helpers.hpp:23,129,147`.
+8. `src/backends/software/rasterizers/shape_rasterizer.cpp`.
+9. `src/backends/software/rasterizers/path/path_rasterizer.cpp:171,232,356`.
+10. `src/backends/software/processors/software_shape_processor.cpp:18`.
+11. `src/backends/vulkan/vulkan_native_shape_dispatch.cpp:22,251`.
+12. `src/compiler/scene_materializer.cpp`.
+13. `src/render_graph/nodes/source_node_execute.cpp`.
+14. `src/render_plan/render_plan_compiler.cpp:346` — `fill_type_for_gradient(...)`.
+15. `tests/` and fixtures using the retired surface.
+
+### Ordered, verifiable execution
+
+1. Add `graphics::FillStyle` storage alongside the legacy members (no removal yet);
+   keep `to_fill()` as the one conversion so both models agree byte-for-byte.
+2. Migrate group **B** one file per commit, running after each:
+   `chronon3d_render_plan_shape_tests`, `chronon3d_deterministic_tests`,
+   `chronon3d_backends_software_tests`, `chronon3d_scene_tests`. Any pixel
+   drift means the site still reads the legacy derivation.
+3. Migrate group **A**, then delete `to_fill()` and the legacy declarations in
+   `include/chronon3d/scene/model/shape/fill.hpp`.
+4. Update the architecture contract in `tools/architecture_rules_shape.toml`
+   (`legacy_scene_fill_api_is_scoped_to_compatibility_boundary` requires the
+   legacy patterns to exist) and remove `fill.hpp` from
+   `cmake/Chronon3DPublicHeaders.cmake` if the header is dropped.
+5. Exit check: zero-match scan of `include/`, `src/`, `apps/` for
+   `FillType`, `GradientFill`, `fill_type_for_gradient`, scene `Fill`.
+
+Note: `include/chronon3d/scene/model/shape/fill.hpp` is a **public installed
+header** (`cmake/Chronon3DPublicHeaders.cmake`), so removing it is an SDK surface
+change and needs its own ABI window — factor that into the schedule.
+
 ## Status
 
 ACTIVE. The render-plan Tier 1 closeout retains this compatibility API because

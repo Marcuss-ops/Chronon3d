@@ -156,6 +156,18 @@ compile_text_layout(
     return text_layout;
 }
 
+// X2 core dispatch (defined below): compile a PreparedText WITHOUT re-entering
+// the auto-fit entry point.  The ADR-018 probe loop must call this, not
+// compile_text_layout(PreparedText): a probe inherits the Clip overflow policy,
+// so routing probes through the auto-fit entry would recurse until stack
+// overflow.
+static Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
+compile_prepared_text_core(
+    const PreparedText& effective,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved
+);
+
 Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
 compile_text_layout(
     const PreparedText& prepared,
@@ -165,8 +177,15 @@ compile_text_layout(
     // Keep authoring auto-fit on the canonical PreparedText path as well as
     // the compatibility PreparedText path.  Probe through the same
     // compiler with auto-fit disabled, then compile the selected size once.
+    //
+    // Clipping controls which glyph pixels are visible; it does not authorize
+    // changing the authored font size.  Auto-fit remains opt-in through the
+    // explicit frame flag.  Treating every positive Clip box as auto-fit can
+    // shrink ordinary overlay titles to min_font_size when layout bounds
+    // include box metrics instead of ink bounds.
+    const bool auto_fit_required = prepared.frame.auto_fit;
     PreparedText effective = prepared;
-    if (prepared.frame.auto_fit) {
+    if (auto_fit_required) {
         const f32 min_fs = prepared.frame.min_font_size;
         const f32 max_fs = std::min(prepared.style.font.font_size,
                                     prepared.frame.max_font_size);
@@ -175,7 +194,7 @@ compile_text_layout(
                 PreparedText probe = prepared;
                 probe.frame.auto_fit = false;
                 probe.style.font.font_size = size;
-                auto result = compile_text_layout(probe, services, pre_resolved);
+                auto result = compile_prepared_text_core(probe, services, pre_resolved);
                 // Font metrics exclude part of the raster ink (notably
                 // ascender/descender overshoot), so reserve a small
                 // deterministic vertical safety margin before accepting a
@@ -207,10 +226,19 @@ compile_text_layout(
         }
     }
 
-    // X2 canonical path: synthesise a transient TextLayoutSpec from the
-    // canonical TextFrame and dispatch to the existing request-based
-    // implementation.  This keeps the compiler's internal logic unchanged
-    // while exposing the canonical PreparedText API to callers.
+    return compile_prepared_text_core(effective, services, pre_resolved);
+}
+
+// X2 canonical path: synthesise a transient TextLayoutSpec from the
+// canonical TextFrame and dispatch to the existing request-based
+// implementation.  This keeps the compiler's internal logic unchanged
+// while exposing the canonical PreparedText API to callers.
+static Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
+compile_prepared_text_core(
+    const PreparedText& effective,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved
+) {
     TextLayoutSpec layout;
     layout.box = effective.frame.size;
     layout.anchor = effective.frame.anchor;

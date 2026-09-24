@@ -219,7 +219,8 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip,
-                                runtime::RenderSurfaceHandle borrowed_source) {
+                                runtime::RenderSurfaceHandle borrowed_source,
+                                const Framebuffer* borrowed_source_framebuffer) {
     if (!ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
@@ -234,8 +235,13 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const auto desc = native_surface_desc(result.width(), result.height());
     const bool source_is_borrowed =
         borrowed_source != runtime::kInvalidRenderSurfaceHandle;
-    const bool source_is_existing = source_is_borrowed ||
-        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_is_borrowed && borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y());
+    const bool source_is_existing = !source_needs_expansion &&
+        (source_is_borrowed || result.surface_handle() != runtime::kInvalidRenderSurfaceHandle);
     const auto source = source_is_existing
         ? (source_is_borrowed ? borrowed_source : result.surface_handle())
         : ctx.surface_registry->create(desc);
@@ -244,14 +250,14 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
         output == runtime::kInvalidRenderSurfaceHandle) {
-        if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
+        if ((!source_is_existing || source_needs_expansion) && source != runtime::kInvalidRenderSurfaceHandle)
             ctx.surface_registry->release(source);
         if (horizontal != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(horizontal);
         if (output != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(output);
         return false;
     }
     const auto cleanup = [&] {
-        if (!source_is_existing) {
+        if (!source_is_existing || source_needs_expansion) {
             (void)ctx.backend->release_surface(source);
             ctx.surface_registry->release(source);
         }
@@ -264,7 +270,14 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         ? RenderOpResult(RenderOpOutcome{})
         : ctx.backend->create_surface(source, desc);
     RenderOpResult uploaded = source_ready;
-    if (source_ready.ok() && !source_is_existing) {
+    if (source_ready.ok() && source_needs_expansion) {
+        uploaded = ctx.backend->initialize_transparent_surface(source);
+        if (uploaded.ok()) {
+            const int offset_x = borrowed_source_framebuffer->origin_x() - result.origin_x();
+            const int offset_y = borrowed_source_framebuffer->origin_y() - result.origin_y();
+            uploaded = ctx.backend->transform_surface(source, borrowed_source, offset_x, offset_y, 1.0f);
+        }
+    } else if (source_ready.ok() && !source_is_existing) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
         // AUDIT F10 — zero-copy tight-storage path (see the glow fast-path).
@@ -306,7 +319,7 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         ctx.surface_registry->release(output);
         result.set_surface_handle(source);
     } else {
-        if (!source_is_borrowed) {
+        if (!source_is_borrowed || source_needs_expansion) {
             (void)ctx.backend->release_surface(source);
             ctx.surface_registry->release(source);
         }

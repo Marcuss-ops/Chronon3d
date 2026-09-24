@@ -1,70 +1,97 @@
 # TICKET-CLI-STRICT-GPU-NATIVE-MAPPING — derive canonical strict parameters from `require_gpu_native`
 
-**Status**: `OPEN`
+**Status**: `CODE LANDED` — derivation, parity and explicit-override confirmed locally; same-SHA GPU-host verification of the strict lane still open
 **Priority**: `P2` (non-blocking; contract completeness)
 **Area**: CLI render/video job normalization (Phase 9 CLI/IPC parity)
 
-## Problem
+## Resolution — landed in `eae160fe7`
 
-`chronon3d_cli render ... --gpu-hot-path-mode require_gpu_native` **without**
-`--encoder-backend native --hardware nvenc` cannot reach the GPU-native full
-graph even on a capable host. The CLI requirement normalization keeps
-`cpu_fallback_allowed = true`, and the canonical parameter resolver maps that
-shape to the pipe transport (`hardware_encoder=none`,
-`encoder_backend=pipe`), so `cli_effective_capabilities` reports
-`native_nvenc=false` and the media resolver answers
-`required_gpu_capability_unavailable`; the CLI fails closed before setup with
-no artifact.
+The "one intent, two spellings" defect is fixed. The CLI entry mapping
+(`apps/chronon3d_cli/commands/render/register_render_commands.cpp`) now derives
+the semantic requirements from the hot-path selection itself:
 
-The positive strict route only opens when the caller repeats the strict
-intent as raw encoder flags (`--encoder-backend native --hardware nvenc`), or
-when RenderingGen sets `execution_requirements` explicitly on the IPC wire
-(`cpu_fallback_allowed=false`), which
-`resolve_canonical_execution_parameters` already maps to nvenc + native
-transport. The strict hot-path mode is therefore advisory instead of
-authoritative: one intent, two spellings, and the short spelling silently
-fail-closes.
+```cpp
+const bool strict_gpu_hot_path =
+    render_args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+    render_args.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
+if (explicit_flag("--hardware") || !strict_gpu_hot_path)
+    request.output.hardware_encoder = render_args.video_settings.hardware_encoder;
+if (explicit_flag("--encoder-backend") || !strict_gpu_hot_path)
+    request.output.encoder_backend = render_args.video_settings.encoder_backend;
+...
+request.requirements.gpu_required =
+    hardware_nvenc_requested(...) || strict_gpu_hot_path;
+request.requirements.cpu_fallback_allowed = !strict_gpu_hot_path;
+```
 
-Evidence: the 2026-09-24 closeout runs in
-[`TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY`](TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md)
-(bare strict → `required_gpu_capability_unavailable`, no artifact; strict +
-native/nvenc → `required_gpu_native_full_graph`, `native_surface=true`,
-`gpu_native_surface_frames=1`, `cpu_pixel_readback_bytes=0`, pixel
-max_error 0).
+Consequences that close the original problem:
 
-## Required behavior
+- `--gpu-hot-path-mode require_gpu_native` **alone** sets
+  `gpu_required=true` and `cpu_fallback_allowed=false`, and leaves
+  `hardware_encoder` / `encoder_backend` empty when the caller did not pass
+  `--hardware` / `--encoder-backend`.
+- `resolve_canonical_execution_parameters`
+  (`src/media/video/video_execution_resolver.cpp`) then derives the canonical
+  strict lane from that shape (`gpu_required=true` + `cpu_fallback_allowed=false`
+  → `hardware_encoder=nvenc`, `encoder_backend=native`,
+  `gpu_hot_path_mode=require_gpu_native` for a composition). No second mapping
+  table was introduced; the resolver remains the single authority.
+- An **explicit** `--hardware` / `--encoder-backend` still travels and wins over
+  the derivation.
+- CLI and IPC keep one typed dispatcher over `normalize_render_job`; the IPC
+  wire vocabulary (`execution_requirements`) is unchanged.
 
-- `require_gpu_native` (and `require_direct_yuv`) alone derive the canonical
-  strict parameters through the single authority
-  `resolve_canonical_execution_parameters` (nvenc + native transport for a
-  strict GPU request); no second mapping table, no new resolver.
-- On a capable host the bare strict request resolves
-  `required_gpu_native_full_graph` and feeds `native_surface=true` with zero
-  CPU readback; the rendered artifact is pixel-correct.
-- On an incapable host the bare strict request still fails closed with
-  `required_gpu_capability_unavailable` before setup; no artifact is created.
-- Explicit `--encoder-backend` / `--hardware` keep overriding the derivation.
+The historical `Problem` text (bare strict kept `cpu_fallback_allowed = true`,
+normalized onto the pipe transport and fail-closed) described the pre-`eae160fe7`
+behaviour and no longer applies.
 
-## Constraint — Phase 9 CLI/IPC parity
+## Evidence — local (this checkout)
 
-The current CLI→requirements mapping is codified as expected JSON in
-`tests/cli/test_render_job_planning.cpp` (e.g. `require_gpu_native`
-normalizes to `"cpu_fallback_allowed":true`). Changing the derivation is a
-contract change: update those parity expectations deliberately in the same
-change, and keep CLI and IPC normalization identical (one typed dispatcher
-over `normalize_render_job`). RenderingGen's wire behavior must not change
-underneath — the daemon contract consumes the same
-`execution_requirements` vocabulary.
+`tests/cli/test_render_job_planning.cpp`:
 
-## Acceptance
+- `strict hot-path derives the canonical native lane unless explicit` — bare
+  `require_gpu_native` derives the canonical native lane; an explicit
+  `encoder_backend = "pipe"` override still wins.
+- `CLI and IPC boundary map identical semantics to one normalized job` — the
+  CLI↔IPC parity expectations for the strict axis were updated deliberately in
+  the same change.
+- `cli_request_for()` mirrors the CLI mapping (`cpu_fallback_allowed =
+  !strict_hot_path`) so the parity fixture cannot silently drift from the entry
+  point.
+
+Suite: `chronon3d_cli_tests` **82/82 cases, 1084/1084 assertions** on the
+`linux-fast-dev` tree (2026-09-24).
+
+The former hardware evidence (the 2026-09-24 runs recorded in the now-purged
+`TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY`) shows the **pre-fix** bare-strict
+fail-closed, so it is no longer valid evidence for the derived behaviour and is
+superseded by the checks above.
+
+## Remaining — same-SHA GPU-host verification
+
+Only the two on-device items cannot be checked in this checkout (no native
+video feed here):
 
 - [ ] Bare `--gpu-hot-path-mode require_gpu_native` renders through
       `execution_path=full_graph_native` / `surface_handoff_path=direct` with
       `gpu_native_surface_frames > 0` and `cpu_pixel_readback_bytes == 0` on a
       capable host (same telemetry shape as `tools/verify_native_image_video.sh`).
-- [ ] The same request fail-closes with `required_gpu_capability_unavailable`
-      before setup on a host without the native feed.
-- [ ] Explicit encoder flags still override the derivation, in both CLI and
-      IPC normalization.
-- [ ] CLI/IPC parity expectations updated deliberately and green; no second
-      parameter/mapping authority introduced.
+- [ ] The same bare request fail-closes with
+      `required_gpu_capability_unavailable` before setup on a host without the
+      native feed.
+
+## Acceptance
+
+- [x] Explicit encoder flags still override the derivation, in both CLI and
+      IPC normalization (`strict hot-path derives ... unless explicit`).
+- [x] CLI/IPC parity expectations updated deliberately and green; no second
+      parameter/mapping authority introduced (`chronon3d_cli_tests` 82/82).
+- [ ] Bare strict → `full_graph_native`, zero readback (capable host).
+- [ ] Bare strict → `required_gpu_capability_unavailable`, no artifact
+      (incapable host).
+
+## Close rule
+
+Close when the two host items are recorded on the same SHA (either as PASS on a
+capable host, or as the explicit fail-closed rejection on an incapable one); the
+scheda then becomes purge-eligible like the other terminal tickets.
