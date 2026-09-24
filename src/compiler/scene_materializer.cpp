@@ -1,3 +1,6 @@
+#include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <cmath>
+#include <string>
 #include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
@@ -165,7 +168,35 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             if (shape.type == render_plan::ShapeContentTypePlan::Line &&
                                 params.stroke.width <= 1.0f) params.stroke.width = 1.0f;
                             params.pos = {0.0f, 0.0f, 0.0f};
-                            builder.path("shape", std::move(params));
+                            if (shape.repeaters.empty()) {
+                                builder.path("shape", std::move(params));
+                            } else {
+                                PathShape source_path;
+                                source_path.commands = params.commands;
+                                source_path.stroke = params.stroke;
+                                source_path.fill = params.fill;
+                                source_path.closed = params.closed;
+                                std::vector<PathOperatorSpec> specs;
+                                for (const auto& repeater : shape.repeaters) {
+                                    RepeaterParams rp;
+                                    rp.copies = repeater.copies;
+                                    rp.position = {repeater.position[0], repeater.position[1]};
+                                    rp.scale = {repeater.scale[0], repeater.scale[1]};
+                                    rp.rotation_degrees = repeater.rotation_degrees;
+                                    rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
+                                    rp.opacity_decay = repeater.opacity_decay;
+                                    specs.push_back({PathOperatorKind::Repeater, rp, 0});
+                                }
+                                auto expanded = apply_path_operators(source_path, specs);
+                                for (std::size_t i = 0; i < expanded.size(); ++i) {
+                                    PathParams copy = params;
+                                    copy.commands = std::move(expanded[i].commands);
+                                    copy.stroke = std::move(expanded[i].stroke);
+                                    copy.fill = std::move(expanded[i].fill);
+                                    copy.color.a *= expanded[i].opacity;
+                                    builder.path("shape_repeater_" + std::to_string(i), std::move(copy));
+                                }
+                            }
                             break;
                         }
                     }

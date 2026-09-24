@@ -103,6 +103,22 @@ TEST_CASE("Shape fill, rounded radius, gradient stops, stroke, and path affect f
     CHECK(changed_path->content_fingerprint != path_hash);
 }
 
+TEST_CASE("Repeater parameters affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "path"},
+        {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                   {{"type", "line_to"}, {"point", {8, 0}}}}},
+        {"operators", {{{"kind", "repeater"},
+                        {"params", {{"copies", 3}, {"position", {4, 0}}}}}}}})});
+    const auto decoded = render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    const auto fingerprint = decoded->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["copies"] = 4;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
     // Pin the canonical pre-shape writer output so shape support cannot shift
     // the cache identity of an old V2 plan with no optional shape payload.

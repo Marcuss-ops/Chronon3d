@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
+#include <chronon3d/scene/model/shape/path_operator.hpp>
 #include <vector>
 
 namespace chronon3d {
@@ -70,6 +71,8 @@ struct PathShape {
     PathStroke stroke{};
     Fill fill{};
     bool closed{false};
+    std::vector<PathOperatorSpec> operators{};
+    f32 opacity{1.0f};
 };
 
 } // namespace chronon3d

@@ -15,6 +15,7 @@ add_library(chronon3d_scene OBJECT
     layout_solver.cpp
     overlay_layout_resolver.cpp
     path_utils.cpp
+    path_operators.cpp
     media_placement.cpp
     path_factories.cpp
     presets/camera_motion_clip.cpp

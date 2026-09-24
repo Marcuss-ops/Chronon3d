@@ -201,6 +201,40 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if ((shape.type == ShapeContentTypePlan::Line ||
              shape.type == ShapeContentTypePlan::Path) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");
+        if (raw_shape.contains("operators")) {
+            const auto& raw_ops = raw_shape.at("operators");
+            if (!raw_ops.is_array() || raw_ops.size() > 16)
+                throw std::runtime_error("shape.operators must be an array with at most 16 entries");
+            for (const auto& raw_op : raw_ops) {
+                if (!raw_op.is_object() || raw_op.value("kind", std::string{}) != "repeater" ||
+                    !raw_op.contains("params"))
+                    throw std::runtime_error("unsupported path operator");
+                const auto& p = raw_op.at("params");
+                if (!p.is_object()) throw std::runtime_error("repeater params must be an object");
+                PathRepeaterPlan r;
+                r.copies = p.at("copies").get<std::uint32_t>();
+                const auto read2 = [&](const char* key, std::array<float, 2>& out) {
+                    if (!p.contains(key)) return;
+                    const auto& a = p.at(key);
+                    if (!a.is_array() || a.size() != 2)
+                        throw std::runtime_error(std::string("repeater ") + key + " requires two values");
+                    out = {a[0].get<float>(), a[1].get<float>()};
+                };
+                read2("position", r.position);
+                read2("scale", r.scale);
+                read2("anchor", r.anchor);
+                r.rotation_degrees = p.value("rotation_degrees", 0.0f);
+                r.opacity_decay = p.value("opacity_decay", 1.0f);
+                if (r.copies == 0 || r.copies > 10000 ||
+                    !std::isfinite(r.rotation_degrees) || !std::isfinite(r.opacity_decay) ||
+                    r.opacity_decay < 0.0f || r.opacity_decay > 1.0f ||
+                    !std::isfinite(r.position[0]) || !std::isfinite(r.position[1]) ||
+                    !std::isfinite(r.scale[0]) || !std::isfinite(r.scale[1]) ||
+                    !std::isfinite(r.anchor[0]) || !std::isfinite(r.anchor[1]))
+                    throw std::runtime_error("invalid repeater parameters");
+                shape.repeaters.push_back(r);
+            }
+        }
         for (const auto& command : shape.path) {
             const bool needs_point = command.type != ShapePathCommandTypePlan::Close;
             if ((needs_point && !finite_point(command.point)) ||

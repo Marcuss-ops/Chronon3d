@@ -60,6 +60,27 @@ TEST_CASE("render plan decoder decodes concrete primitive layers") {
     CHECK(decoded->layers[3].type == chronon3d::render_plan::LayerType::Text);
 }
 
+TEST_CASE("render plan decoder accepts bounded repeater operators and rejects unknown kinds") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"path","type":"shape","size":[64,64],"shape":{
+        "type":"path","path":[{"type":"move_to","point":[0,0]},
+                                  {"type":"line_to","point":[8,0]}],
+        "operators":[{"kind":"repeater","params":{"copies":3,
+          "position":[4,0],"opacity_decay":0.5}}]}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].shape->repeaters.size() == 1);
+    CHECK(decoded->layers[0].shape->repeaters[0].copies == 3);
+    CHECK(decoded->layers[0].shape->repeaters[0].position[0] == doctest::Approx(4));
+    source["layers"][0]["shape"]["operators"][0]["kind"] = "future_operator";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan decoder rejects a layer with missing id or type") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan.v2"},

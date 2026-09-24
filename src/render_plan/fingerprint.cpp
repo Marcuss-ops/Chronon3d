@@ -267,6 +267,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control1) out.add_float(value);
             for (const auto value : command.control2) out.add_float(value);
         }
+        out.add_size(shape.repeaters.size());
+        for (const auto& repeater : shape.repeaters) {
+            out.add_size(repeater.copies);
+            for (const auto value : repeater.position) out.add_float(value);
+            for (const auto value : repeater.scale) out.add_float(value);
+            out.add_float(repeater.rotation_degrees);
+            for (const auto value : repeater.anchor) out.add_float(value);
+            out.add_float(repeater.opacity_decay);
+        }
     }
 
     for (const auto value : layer.size) out.add_float(value);
