@@ -14,7 +14,9 @@ namespace native_effects {
 
 bool try_native_full_frame_blur(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
-    const std::optional<raster::BBox>&);
+    const std::optional<raster::BBox>&,
+    runtime::RenderSurfaceHandle borrowed_source =
+        runtime::kInvalidRenderSurfaceHandle);
 bool try_native_full_frame_glow(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&,
