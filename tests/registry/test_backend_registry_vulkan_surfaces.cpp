@@ -176,6 +176,65 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     CHECK(surfaces.release(handle));
 }
 
+TEST_CASE("EffectStackNode glow reads an available native surface when CPU mirror is stale") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 8;
+    ctx.frame_input.height = 8;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+
+    const runtime::SurfaceDesc desc{
+        2, 2, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const auto source_handle = surfaces.create(desc);
+    REQUIRE(source_handle != runtime::kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(source_handle, desc).ok());
+    std::vector<float> pixels(2 * 2 * 4, 0.0f);
+    const auto center = static_cast<std::size_t>((1 * 2 + 1) * 4);
+    pixels[center + 0] = 1.0f;
+    pixels[center + 3] = 1.0f;
+    REQUIRE(backend.upload_surface(source_handle, desc, pixels).ok());
+
+    auto source = std::make_shared<Framebuffer>(2, 2);
+    source->set_origin(3, 3);
+    source->clear(Color::transparent()); // deliberately stale CPU mirror
+    source->set_surface_handle(source_handle);
+    GlowParams params{.radius = 1.5f, .intensity = 0.5f};
+    EffectStack effects;
+    effects.push_back(effects::EffectInstance{params});
+    EffectStackNode node(std::move(effects));
+    const std::array<FramebufferRef, 1> inputs{source.get()};
+    const std::array<std::optional<raster::BBox>, 1> bboxes{
+        raster::BBox{3, 3, 5, 5}};
+
+    const auto result = node.execute(ctx, inputs, bboxes);
+    REQUIRE(result.ok());
+    const auto output_handle = result.value()->surface_handle();
+    REQUIRE(output_handle != runtime::kInvalidRenderSurfaceHandle);
+    CHECK(result.value()->width() > source->width());
+    CHECK(result.value()->height() > source->height());
+    const auto output_x = 4 - result.value()->origin_x();
+    const auto output_y = 4 - result.value()->origin_y();
+    const auto output_center = static_cast<std::size_t>(
+        (output_y * result.value()->width() + output_x) * 4);
+    std::vector<float> output(static_cast<std::size_t>(
+        result.value()->width() * result.value()->height() * 4), 0.0f);
+    REQUIRE(backend.download_surface(output_handle, output).ok());
+    CHECK(output[output_center] > 1.0f);
+    CHECK(output[output_center + 3] > 0.0f);
+
+    REQUIRE(backend.release_surface(output_handle).ok());
+    CHECK(surfaces.release(output_handle));
+    REQUIRE(backend.release_surface(source_handle).ok());
+    CHECK(surfaces.release(source_handle));
+}
+
 TEST_CASE("EffectStackNode blurs a GPU-only input without uploading a CPU framebuffer") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
