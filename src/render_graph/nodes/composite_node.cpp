@@ -74,6 +74,9 @@ bool try_native_affine_composite(
         runtime::RectF{0.0f, 0.0f, src_w, src_h});
     transform.opacity = 1.0f;
     transform.bilinear = 0u; // Direct 1:1 pixel sampling
+    // The destination is seeded with the canvas background. Preserve those
+    // pixels where the projected source has no coverage (fit=contain bars).
+    transform.blend_source_over = 1u;
     transform.destination_origin_x = destination.origin_x();
     transform.destination_origin_y = destination.origin_y();
 

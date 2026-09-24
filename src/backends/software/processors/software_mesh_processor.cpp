@@ -18,8 +18,7 @@ public:
               const Camera& camera, i32 width, i32 height) override {
         const auto& mesh_shape = node.shape.mesh_shape();
         const auto source = mesh_shape.prepared;
-        const auto legacy_mesh = mesh_shape.mesh;
-        if (!source && !legacy_mesh) return;
+        if (!source) return;
 
         Color node_color = node.color.to_linear();
         node_color.a *= state.opacity;
@@ -40,38 +39,29 @@ public:
             depth_buffer = fallback_vec;
         }
 
-        if (source) {
-            for (const auto& part : source->parts) {
-                if (!part.geometry) continue;
-                Color color = node_color;
-                if (part.material_index &&
-                    *part.material_index < source->materials.size()) {
-                    const Color material =
-                        source->materials[*part.material_index].base_color_factor.to_linear();
-                    color = Color{
-                        node_color.r * material.r,
-                        node_color.g * material.g,
-                        node_color.b * material.b,
-                        node_color.a * material.a};
-                }
-                chronon3d::renderer::render_mesh_filled(
-                    fb, *part.geometry, state.matrix, view, projection, color,
-                    depth_buffer, camera.near_plane, camera.far_plane);
+        // Meshes are always prepared sources: the in-memory `Mesh` escape hatch
+        // was demolished (TICKET-DEMOLITION-MESH-SHAPE-COMPAT).
+        for (const auto& part : source->parts) {
+            if (!part.geometry) continue;
+            Color color = node_color;
+            if (part.material_index &&
+                *part.material_index < source->materials.size()) {
+                const Color material =
+                    source->materials[*part.material_index].base_color_factor.to_linear();
+                color = Color{
+                    node_color.r * material.r,
+                    node_color.g * material.g,
+                    node_color.b * material.b,
+                    node_color.a * material.a};
             }
-            return;
+            chronon3d::renderer::render_mesh_filled(
+                fb, *part.geometry, state.matrix, view, projection, color,
+                depth_buffer, camera.near_plane, camera.far_plane);
         }
-
-        // Compatibility for callers that provide an in-memory Mesh directly.
-        chronon3d::renderer::render_mesh_filled(
-            fb, *legacy_mesh, state.matrix, view, projection, node_color,
-            depth_buffer, camera.near_plane, camera.far_plane);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         const auto& mesh_shape = shape.mesh_shape();
-        if (mesh_shape.mesh) {
-            return bbox_for_mesh(*mesh_shape.mesh, model, spread);
-        }
         if (!mesh_shape.prepared) return {0, 0, 0, 0};
 
         raster::BBox result{0, 0, 0, 0};

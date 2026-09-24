@@ -159,6 +159,25 @@ remediation ticket is closed — its record lives in git history).
 Built on this host: `linux-video-test` (Vulkan ON) and `linux-fast-dev`
 (Vulkan OFF), `-j12`, 0 errors. `compositor`, `render_job_contract` and
 `render_graph` PASS; `vulkan_surface_materializer` 11/13 (2 pre-existing
-failures, unchanged from `HEAD`); `backend_registry` 46/59 with the 13 failures
-documented as pre-existing in `TICKET-AUDIT-2026-09-12-REMEDIATION.md §7`.
+failures, unchanged from `HEAD`);`backend_registry` 46/59 with the 13 failures documented as pre-existing in `TICKET-AUDIT-2026-09-12-REMEDIATION.md §7`.
 `tools/check_architecture.py` NOT RUN (no `tomllib` in this environment).
+
+### Re-verified 2026-09-24 (working session)
+
+The stale `backend_registry` failure count above is superseded. On the
+`linux-video-test` lane (Vulkan ON) with the current tree:
+
+- `chronon3d_backend_registry_tests` — **62/62 cases, 920/920 assertions,
+  PASS** (rebuilt `-j12`, 417 edges, 0 errors). The earlier 46/59 attributed
+  the 13 failures to a hand-built `RenderGraphContext` in the canary harness
+  that never wired `ctx.gpu_styled_glyph_cache` (production wires it in
+  `scene_context_setup.cpp`); with the runtime wiring in place the suite is
+  fully green. The two placement defects of §7 no longer reproduce here.
+- Host note: this run logged `[Vulkan] CUDA interop extensions unavailable;
+  native video surface interop disabled` — the Vulkan device path executes, but
+  Vulkan↔CUDA native-surface interop is not exercised on this host.
+
+The **Demolition Debt** row (legacy per-op `run_batched_surface_op`) stays
+`ACTIVE`: its exit condition (`legacy_frame_batch_op_count()` zero across
+backend_registry / render_job_contract / render_graph) is not closed by this
+run, and it is not a lock-sharding defect — see the row above.

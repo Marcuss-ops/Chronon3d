@@ -191,7 +191,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 camera.zoom = 1000.0f;
                 camera.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};
                 camera.point_of_interest_enabled = true;
-                camera.is_animated = true;
+                // The implicit camera has a fixed pose. Layer motion is
+                // tracked on the layers themselves and must not keep the
+                // camera in the per-frame animated-camera path.
+                camera.is_animated = false;
                 scene.camera().set(camera);
             }
             // The canonical CLI executor builds this scene callback directly
@@ -532,13 +535,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             layer.position[2]});
                     }
                 };
-                const bool canvas_color_background =
-                    has_3d_layer && layer.type == LayerType::Color &&
+                const bool full_canvas_backdrop = has_3d_layer &&
+                    layer.type != LayerType::Text &&
+                    layer.type != LayerType::Shape &&
                     layer.position_dimensions == 0 &&
                     (layer.size_dimensions != 2 ||
                      (layer.size[0] >= static_cast<float>(plan.canvas.width) &&
                       layer.size[1] >= static_cast<float>(plan.canvas.height)));
-                if (layer.screen_space || canvas_color_background)
+                // Full-canvas color, image and video plates are backdrops, not
+                // camera-facing cards. Keep them in screen space around any
+                // projected 3D content, independent of the concrete media type.
+                if (layer.screen_space || full_canvas_backdrop)
                     scene.screen_layer(layer.id, author_layer);
                 else scene.layer(layer.id, author_layer);
             }

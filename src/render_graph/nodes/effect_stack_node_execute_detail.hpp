@@ -153,7 +153,8 @@ NodeExecResult EffectStackNode::execute(
         native_handled = native_effects::try_native_full_frame_blur(
             ctx, m_effects, *result, local_clip,
             gpu_only_input ? inputs[0]->surface_handle()
-                           : runtime::kInvalidRenderSurfaceHandle);
+                           : runtime::kInvalidRenderSurfaceHandle,
+            gpu_only_input ? inputs[0].get() : nullptr);
         // The native glow entry point owns its capability guard. Unsupported
         // backends fall through to their registered software processor.
         if (!native_handled) {
@@ -167,6 +168,12 @@ NodeExecResult EffectStackNode::execute(
         }
         if (!native_handled && !gpu_only_input) {
             ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
+        }
+        if (gpu_only_input && !native_handled) {
+            return NodeExecResult{NodeExecutionError{
+                RenderBackendErrorCode::UnsupportedCapability,
+                "EffectStackNode",
+                "strict native GPU effect could not be executed; refusing to return an uninitialized frame"}};
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

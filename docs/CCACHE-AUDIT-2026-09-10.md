@@ -156,3 +156,23 @@ e `CMAKE_C_COMPILER_LAUNCHER:UNINITIALIZED=ccache` in `CMakeCache.txt`, e
 `-fuse-ld=mold` nelle regole di link generate in `build.ninja`. `CMakeLists.txt`
 resta l'unica autorità del linker; i preset restano l'unica autorità del
 launcher ccache.
+
+### 2026-09-24 — verifica funzionale + split del cache (host 24 core / 29 GiB)
+
+Entrambi gli strumenti sono stati verificati **funzionalmente** (non solo
+«presenti»):
+
+- **ccache 4.5.1** — test isolato su due compilazioni identiche: run 1 `MISS`,
+  run 2 `HIT`. La cache conteneva 2.05 GB / 5.00 GB nel percorso di default.
+- **mold 1.0.3** — `-fuse-ld=mold` presente nelle regole di link; il linker
+  effettivamente usato è `/usr/bin/ld.mold`; il binario compilato viene eseguito
+  correttamente.
+
+**Finding operativo (non corruzione):** `CCACHE_DIR` è *unset* nella shell di
+questo host. `build-fast.sh` lo esporta verso `<repo>/.ccache` (20 GiB), ma una
+chiamata diretta `ninja` (senza lo script) eredita l'ambiente senza
+`CCACHE_DIR`: ccache ricade sul default `~/.cache/ccache` (5 GiB). Risultato: il
+cache **project-local resta a 12 KB (mai popolato)** mentre i build usano quello
+di default — due cache che non si parlano e hit-rate dimezzato. Per usare il
+budget da 20 GiB previsto: compilare via `./build-fast.sh` oppure esportare
+`CCACHE_DIR=<repo>/.ccache` prima di `ninja`.

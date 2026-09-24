@@ -33,8 +33,10 @@ CLI args / daemon IPC / render-plan JSON
 A new encoder knob must be wired along the whole chain, in this order, and each hop
 must be covered by the wire-fidelity test before it counts as landed:
 
-1. **CLI option** — `commands/render/register_render_commands_support.inc` (with a
-   `CLI::IsMember` gate generated from a canonical vocabulary where one exists).
+1. **CLI option** — `commands/render/register_render_commands.cpp` (the `.inc`
+   support fragment was absorbed into the owning TU in the Hotspot Wave A
+   decomposition), with a `CLI::IsMember` gate generated from a canonical
+   vocabulary where one exists.
 2. **Job contract** — `RenderVideoOptions` in `include/chronon3d/timeline/render_job.hpp`
    (this is the CLI/IPC parity surface; a field missing here desynchronises the two
    transports and their fingerprints).
@@ -45,8 +47,9 @@ must be covered by the wire-fidelity test before it counts as landed:
    `encoder_config_resolution.cpp` when the knob changes *encoder policy* (rate
    control, preset, tune, async depth). Encoders apply `ResolvedEncoderConfig`
    verbatim and never reinterpret policy themselves.
-5. **Sink projection** — `build_sink_config()` in `utils/video/video_sink_adapter.hpp`
-   when the knob reaches the sink/pipe boundary.
+5. **Sink projection** — `build_sink_config()` declared in
+   `utils/video/video_sink_adapter.hpp` (defined in
+   `video_sink_adapter_config.cpp`) when the knob reaches the sink/pipe boundary.
 6. **Wire fidelity test** — `tests/cli/test_render_job_planning.cpp`
    (CLI/IPC parity) and `tests/cli/test_encoder_config_resolution.cpp`
    (resolution matrix). A new field is not "landed" until one of them observes it.

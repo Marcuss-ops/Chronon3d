@@ -228,6 +228,35 @@ TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source a
     CHECK(output[3] < 0.9f);
 }
 
+TEST_CASE("Vulkan affine SourceOver preserves seeded destination outside projected source") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{0.0f, 0.0f, 0.0f, 0.0f};
+    const std::vector<float> seeded{0.4f, 0.5f, 0.6f, 1.0f};
+    std::vector<float> output(4, -1.0f);
+    chronon3d::runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 1.0f;
+    transform.source_x[2] = -4.0f; // Outside source bounds: zero coverage.
+    transform.source_y[1] = 1.0f;
+    transform.max_x = 1.0f;
+    transform.max_y = 1.0f;
+    transform.bilinear = 0;
+    transform.blend_source_over = 1;
+
+    REQUIRE(backend.create_surface(305, desc).ok());
+    REQUIRE(backend.create_surface(306, desc).ok());
+    REQUIRE(backend.upload_surface(305, desc, source).ok());
+    REQUIRE(backend.upload_surface(306, desc, seeded).ok());
+    REQUIRE(backend.transform_surface_affine(306, 305, transform).ok());
+    REQUIRE(backend.download_surface(306, output).ok());
+    for (std::size_t channel = 0; channel < 4; ++channel) {
+        CHECK(output[channel] == doctest::Approx(seeded[channel]));
+    }
+}
+
 TEST_CASE("Vulkan affine transform applies an unnormalized 2.5D denominator") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc source_desc{

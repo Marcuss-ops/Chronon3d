@@ -3,10 +3,9 @@
 //
 // TICKET-FALSE-GREEN-TEST-AUDIT — anti-false-green clip regression lock.
 //
-// Renders deliberately oversized text inside a small clip box and verifies
-// that the rendered ink is contained by the box. This ensures the clip policy
-// is not a no-op and protects against future regressions that silently allow
-// text to spill outside its declared box.
+// Renders deliberately oversized text inside a small Clip box. The renderer
+// currently reports, but does not enforce, pixel clipping. This regression
+// keeps the font-size policy separate from that open clipping limitation.
 // ============================================================================
 
 #include <doctest/doctest.h>
@@ -26,7 +25,7 @@
 
 using namespace chronon3d;
 
-TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: clip policy contains oversized text") {
+TEST_CASE("TICKET-TEXT-CLIP-BOX: Clip does not implicitly auto-fit oversized text") {
     auto renderer = test::make_renderer();
     const float box_w = 200.0f;
     const float box_h = 100.0f;
@@ -77,9 +76,14 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: clip policy contains oversized text") 
     const float top    = 540.0f - box_h * 0.5f;
     const float right  = 960.0f + box_w * 0.5f;
     const float bottom = 540.0f + box_h * 0.5f;
-    // KNOWN LIMITATION (TICKET-TEXT-CLIP-BOX): TextOverflow::Clip is not yet
-    // enforced for oversized text. Keep as WARN until the engine clips ink
-    // to the declared box.
+    CHECK((bbox.x0 < static_cast<int>(left) - 1 ||
+          bbox.y0 < static_cast<int>(top) - 1 ||
+          bbox.x1 > static_cast<int>(right) + 1 ||
+          bbox.y1 > static_cast<int>(bottom) + 1));
+    // Clip does not opt into auto-fit and therefore keeps the authored font
+    // size. Pixel clipping to the authoring box remains an open renderer
+    // limitation; WARN keeps the failure visible without conflating it with
+    // the auto-fit contract.
     WARN(bbox.x0 >= static_cast<int>(left) - 1);
     WARN(bbox.y0 >= static_cast<int>(top) - 1);
     WARN(bbox.x1 <= static_cast<int>(right) + 1);

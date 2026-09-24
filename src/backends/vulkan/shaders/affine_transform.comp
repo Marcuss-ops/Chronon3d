@@ -1,7 +1,7 @@
 #version 450
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-layout(binding = 0, rgba32f) uniform writeonly image2D dst_image;
+layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(binding = 1, rgba32f) uniform readonly image2D src_image;
 
 layout(push_constant) uniform AffineParams {
@@ -18,6 +18,7 @@ layout(push_constant) uniform AffineParams {
     uint padding0;
     uint padding1;
     uint padding2;
+    uint blend_source_over;
 } params;
 
 vec4 sample_nearest(vec2 source, ivec2 size) {
@@ -74,5 +75,10 @@ void main() {
             : sample_nearest(source, imageSize(src_image));
         value *= params.opacity;
     }
-    imageStore(dst_image, destination, value);
+    if (params.blend_source_over != 0u) {
+        vec4 dst = imageLoad(dst_image, destination);
+        imageStore(dst_image, destination, value + dst * (1.0 - value.a));
+    } else {
+        imageStore(dst_image, destination, value);
+    }
 }
