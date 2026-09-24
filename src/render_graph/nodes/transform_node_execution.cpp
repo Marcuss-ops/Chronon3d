@@ -54,7 +54,8 @@ NodeExecResult TransformNode::execute(
         input->surface_handle() == runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend && ctx.surface_registry &&
         ctx.backend->supports_native_surfaces() &&
-        !ensure_native_surface(ctx, *input, "TransformNode.input")) {
+        !ensure_native_surface(ctx, *input, "TransformNode.input",
+                               /*synchronous_upload=*/true)) {
         return NodeExecResult(NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             std::string(name()),

@@ -75,12 +75,20 @@ public:
         }
 
         if (!m_grade.enabled || !m_accepts_lights) {
-            return ctx.acquire_owned_fb(*inputs[0]);
+            auto passthrough = ctx.acquire_owned_fb(*inputs[0]);
+            if (inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+                passthrough->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+            }
+            return passthrough;
         }
 
         const float t = m_grade.normalized_depth(m_layer_world_z);
         if (t <= 0.001f) {
-            return ctx.acquire_owned_fb(*inputs[0]); // near: no grading
+            auto passthrough = ctx.acquire_owned_fb(*inputs[0]);
+            if (inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+                passthrough->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+            }
+            return passthrough; // near: no grading
         }
 
         // DepthGrade is still the CPU reference implementation.  Never call
@@ -94,6 +102,9 @@ public:
         }
 
         auto result = ctx.acquire_owned_fb(*inputs[0]);
+        if (inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+            result->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+        }
 
         for (i32 y = 0; y < result->height(); ++y) {
             Color* row = result->pixels_row(y);

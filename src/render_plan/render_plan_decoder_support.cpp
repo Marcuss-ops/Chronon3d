@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 
@@ -20,11 +21,60 @@ bool invalid_logical_path(const std::string& value) {
     return false;
 }
 
+graphics::GradientDefinition decode_gradient_definition(
+    const nlohmann::json& raw_gradient) {
+    graphics::GradientDefinition gradient;
+    const auto kind = raw_gradient.at("type").get<std::string>();
+    if (kind == "linear") gradient.type = graphics::GradientType::Linear;
+    else if (kind == "radial") gradient.type = graphics::GradientType::Radial;
+    else if (kind == "conic") gradient.type = graphics::GradientType::Conic;
+    else throw std::runtime_error("unsupported gradient.type: " + kind);
+
+    const auto read_vec2 = [](const nlohmann::json& object,
+                              const char* key, Vec2& output) {
+        if (!object.contains(key)) return;
+        const auto& raw = object.at(key);
+        if (!raw.is_array() || raw.size() != 2)
+            throw std::runtime_error(std::string("gradient.") + key + " must have two numbers");
+        output = {raw[0].get<float>(), raw[1].get<float>()};
+    };
+    read_vec2(raw_gradient, "start", gradient.start);
+    read_vec2(raw_gradient, "end", gradient.end);
+    read_vec2(raw_gradient, "center", gradient.center);
+    gradient.radius = raw_gradient.value("radius", gradient.radius);
+    gradient.angle = raw_gradient.value("angle", gradient.angle);
+
+    const auto spread = raw_gradient.value("spread", std::string{"pad"});
+    if (spread == "repeat") gradient.spread = graphics::GradientSpread::Repeat;
+    else if (spread == "reflect") gradient.spread = graphics::GradientSpread::Reflect;
+    else if (spread != "pad") throw std::runtime_error("unsupported gradient spread: " + spread);
+
+    for (const auto& raw_stop : raw_gradient.at("color_stops")) {
+        const auto& color = raw_stop.at("color");
+        if (!color.is_array() || color.size() != 4)
+            throw std::runtime_error("gradient color stop must have RGBA");
+        gradient.color_stops.push_back({raw_stop.at("position").get<float>(),
+            Color{color[0].get<float>(), color[1].get<float>(),
+                  color[2].get<float>(), color[3].get<float>()}});
+    }
+    std::stable_sort(gradient.color_stops.begin(), gradient.color_stops.end(),
+        [](const auto& a, const auto& b) { return a.position < b.position; });
+    if (raw_gradient.contains("opacity_stops")) {
+        for (const auto& stop : raw_gradient.at("opacity_stops"))
+            gradient.opacity_stops.push_back({stop.at("position").get<float>(),
+                                               stop.at("opacity").get<float>()});
+            std::stable_sort(gradient.opacity_stops.begin(), gradient.opacity_stops.end(),
+            [](const auto& a, const auto& b) { return a.position < b.position; });
+    }
+    return gradient;
+}
+
 LayerType layer_type(const std::string& value) {
     if (value == "image") return LayerType::Image;
     if (value == "video") return LayerType::Video;
     if (value == "text") return LayerType::Text;
     if (value == "color") return LayerType::Color;
+    if (value == "shape") return LayerType::Shape;
     throw std::runtime_error("unsupported primitive layer type: " + value);
 }
 

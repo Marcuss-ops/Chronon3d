@@ -1,8 +1,12 @@
 #pragma once
 
+#include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+
+#include <cmath>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -14,84 +18,88 @@ enum class FillType {
     ConicGradient,
 };
 
-struct GradientStop {
-    f32   offset{0.0f};   // normalised [0..1]
-    Color color{1, 1, 1, 1};
-};
+using GradientStop = graphics::GradientStop;
+using GradientFill = graphics::GradientDefinition;
 
-struct GradientFill {
-    FillType type{FillType::LinearGradient};
-    std::vector<GradientStop> stops;
-    Vec2 from{0.0f, 0.0f};  // in shape-local normalised coords [0..1]
-    Vec2 to{1.0f, 0.0f};
-};
+[[nodiscard]] inline constexpr FillType fill_type_for_gradient(
+    graphics::GradientType type) {
+    switch (type) {
+        case graphics::GradientType::Linear: return FillType::LinearGradient;
+        case graphics::GradientType::Radial: return FillType::RadialGradient;
+        case graphics::GradientType::Conic: return FillType::ConicGradient;
+    }
+    return FillType::LinearGradient;
+}
+
+[[nodiscard]] inline Color sample_gradient(const GradientFill& gradient, f32 t) {
+    return graphics::sample_gradient(gradient, t);
+}
+
+[[nodiscard]] inline Color sample_gradient_radial(
+    const GradientFill& gradient, const Vec2& point) {
+    return graphics::sample_gradient_radial(gradient, point);
+}
+
+[[nodiscard]] inline Color sample_gradient_at(
+    const GradientFill& gradient, const Vec2& point) {
+    switch (gradient.type) {
+        case graphics::GradientType::Linear: {
+            const Vec2 direction = gradient.end - gradient.start;
+            const f32 length_squared = glm::dot(direction, direction);
+            const f32 t = length_squared > 1e-6f
+                ? glm::dot(point - gradient.start, direction) / length_squared
+                : 0.0f;
+            return graphics::sample_gradient(gradient, t);
+        }
+        case graphics::GradientType::Radial:
+            return graphics::sample_gradient_radial(gradient, point);
+        case graphics::GradientType::Conic: {
+            const Vec2 delta = point - gradient.center;
+            f32 angle = std::atan2(delta.y, delta.x) - gradient.angle;
+            constexpr f32 tau = 6.2831853071795864769f;
+            angle -= tau * std::floor(angle / tau);
+            return graphics::sample_gradient(gradient, angle / tau);
+        }
+    }
+    return Color{1, 1, 1, 1};
+}
 
 struct Fill {
-    bool        enabled{true};
-    FillType    type{FillType::Solid};
+    bool enabled{true};
+    FillType type{FillType::Solid};
 
-    // Forward-protection: lock `type` as a public field (not a method).
-    // `Shape::type()` IS a method (variant getter), but `Fill::type` is
-    // a plain field. This static_assert makes a future regression a
-    // compile-time error rather than a silent rot cleanup.
     static_assert(std::is_member_object_pointer_v<decltype(&Fill::type)>,
         "Fill::type must remain a public data member (field).");
-    Color       solid{1, 1, 1, 1};
-    GradientFill gradient;
+    Color solid{1, 1, 1, 1};
+    GradientFill gradient{};
 
-    static Fill solid_color(Color c) {
-        return Fill{true, FillType::Solid, c, {}};
+    static Fill solid_color(Color color) {
+        return Fill{true, FillType::Solid, color, {}};
     }
 
     static Fill linear(Vec2 from, Vec2 to, std::vector<GradientStop> stops) {
-        Fill f;
-        f.type = FillType::LinearGradient;
-        f.gradient.type = FillType::LinearGradient;
-        f.gradient.from  = from;
-        f.gradient.to    = to;
-        f.gradient.stops = std::move(stops);
-        return f;
+        Fill fill;
+        fill.type = FillType::LinearGradient;
+        fill.gradient = graphics::GradientDefinition::linear(
+            from, to, std::move(stops));
+        return fill;
     }
 
-    static Fill radial(Vec2 center, f32 radius_norm, std::vector<GradientStop> stops) {
-        Fill f;
-        f.type = FillType::RadialGradient;
-        f.gradient.type = FillType::RadialGradient;
-        f.gradient.from  = center;
-        f.gradient.to    = {center.x + radius_norm, center.y};
-        f.gradient.stops = std::move(stops);
-        return f;
+    static Fill radial(Vec2 center, f32 radius, std::vector<GradientStop> stops) {
+        Fill fill;
+        fill.type = FillType::RadialGradient;
+        fill.gradient = graphics::GradientDefinition::radial(
+            center, radius, std::move(stops));
+        return fill;
     }
 
-    static Fill conic(Vec2 center, f32 angle_rad, std::vector<GradientStop> stops) {
-        Fill f;
-        f.type = FillType::ConicGradient;
-        f.gradient.type = FillType::ConicGradient;
-        f.gradient.from  = center;
-        f.gradient.to    = {center.x + std::cos(angle_rad), center.y + std::sin(angle_rad)};
-        f.gradient.stops = std::move(stops);
-        return f;
+    static Fill conic(Vec2 center, f32 angle, std::vector<GradientStop> stops) {
+        Fill fill;
+        fill.type = FillType::ConicGradient;
+        fill.gradient = graphics::GradientDefinition::conic(
+            center, angle, std::move(stops));
+        return fill;
     }
 };
-
-// Sample gradient stops at normalised t [0..1] in linear space.
-inline Color sample_gradient(const GradientFill& g, f32 t) {
-    if (g.stops.empty()) return {1, 1, 1, 1};
-    if (t <= g.stops.front().offset) return g.stops.front().color.to_linear();
-    if (t >= g.stops.back().offset)  return g.stops.back().color.to_linear();
-
-    for (std::size_t i = 1; i < g.stops.size(); ++i) {
-        const auto& a = g.stops[i - 1];
-        const auto& b = g.stops[i];
-        if (t >= a.offset && t <= b.offset) {
-            const f32 range = b.offset - a.offset;
-            const f32 local = (range > 1e-6f) ? (t - a.offset) / range : 0.0f;
-            Color c_a = a.color.to_linear();
-            Color c_b = b.color.to_linear();
-            return c_a + (c_b - c_a) * local;
-        }
-    }
-    return g.stops.back().color.to_linear();
-}
 
 } // namespace chronon3d

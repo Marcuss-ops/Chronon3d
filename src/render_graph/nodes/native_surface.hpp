@@ -91,7 +91,8 @@ inline std::span<const float> framebuffer_rgba_view(
 /// already carries a handle.
 inline bool ensure_native_surface(
     RenderGraphContext& ctx, Framebuffer& framebuffer,
-    std::string_view promotion_reason = "unspecified") {
+    std::string_view promotion_reason = "unspecified",
+    bool synchronous_upload = false) {
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -106,7 +107,8 @@ inline bool ensure_native_surface(
             std::vector<float> packed;
             const auto pixels = framebuffer_rgba_view(framebuffer, packed);
             runtime::UploadTicket upload_ticket{};
-            const auto uploaded = ctx.policy.retain_native_surface_for_video
+            const auto uploaded = ctx.policy.retain_native_surface_for_video &&
+                                          !synchronous_upload
                 ? ctx.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
                 : ctx.backend->upload_surface(handle, desc, pixels);
             if (uploaded.ok()) {
@@ -168,7 +170,8 @@ inline bool ensure_native_surface(
     const auto pixels = framebuffer_rgba_view(framebuffer, packed);
     runtime::UploadTicket upload_ticket{};
     const auto promotion_t0 = profiling::now();
-    const auto uploaded = ctx.policy.retain_native_surface_for_video
+    const auto uploaded = ctx.policy.retain_native_surface_for_video &&
+                                  !synchronous_upload
         ? ctx.backend->upload_surface_async(handle, desc, pixels, upload_ticket)
         : ctx.backend->upload_surface(handle, desc, pixels);
     if (!uploaded.ok()) {

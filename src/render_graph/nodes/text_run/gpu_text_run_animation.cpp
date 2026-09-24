@@ -12,6 +12,7 @@
 #include <chronon3d/text/animation/text_animator_properties.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
+#include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -154,10 +155,15 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // run remains resident; only this small dynamic record changes per frame.
     if ((selector.unit != TextSelectorUnit::Glyph &&
          selector.unit != TextSelectorUnit::Character &&
-         selector.unit != TextSelectorUnit::Grapheme) ||
+         selector.unit != TextSelectorUnit::Grapheme &&
+         selector.unit != TextSelectorUnit::Word &&
+         selector.unit != TextSelectorUnit::Line) ||
         (selector.shape != TextSelectorShape::Square &&
          selector.shape != TextSelectorShape::Smooth) ||
-        selector.order != TextSelectorOrder::Forward ||
+        (selector.order != TextSelectorOrder::Forward &&
+         selector.order != TextSelectorOrder::Reverse &&
+         selector.order != TextSelectorOrder::FromCenter &&
+         selector.order != TextSelectorOrder::ToCenter) ||
         selector.combine != SelectorCombineMode::Replace ||
         selector.randomize_order || selector.offset.is_time_dependent() ||
         std::abs(selector.ease_low) > 1e-6f ||
@@ -168,6 +174,14 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         std::abs(bind_selector_runtime(
                      selector, shape.layout->units.unit_count(selector.unit),
                      SampleTime::from_frame(0.0, FrameRate{30, 1})).amount - 100.0f) > 1e-6f) {
+        return false;
+    }
+    // Word and line indexes share the reserved upper bits of each prepared
+    // MTSDF glyph flag. Keep the sentinel outside the valid unit range.
+    if ((selector.unit == TextSelectorUnit::Word &&
+         shape.layout->units.word_count > runtime::kMtsdfGlyphWordIndexMask) ||
+        (selector.unit == TextSelectorUnit::Line &&
+         shape.layout->units.line_count > runtime::kMtsdfGlyphWordIndexMask)) {
         return false;
     }
     bool saw_supported_property = false;
@@ -186,7 +200,8 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
             if (scale->value.has_expression()) return false;
             saw_supported_property = true;
         } else if (const auto* tracking = std::get_if<TrackingProperty>(&property)) {
-            if (tracking->pixels.has_expression()) return false;
+            if (tracking->pixels.has_expression() ||
+                selector.unit == TextSelectorUnit::Word) return false;
             saw_supported_property = true;
         } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
             if (blur->radius.has_expression()) return false;
@@ -209,12 +224,18 @@ void sample_gpu_text_animation(
     const auto& selector = animator.selectors.front();
     if (selector.unit != TextSelectorUnit::Glyph &&
         selector.unit != TextSelectorUnit::Character &&
-        selector.unit != TextSelectorUnit::Grapheme) return;
+        selector.unit != TextSelectorUnit::Grapheme &&
+        selector.unit != TextSelectorUnit::Word &&
+        selector.unit != TextSelectorUnit::Line) return;
+    if (can_lower_gpu_run_level_animation(shape)) return;
 
     // flags bit 0 is shaped-plane placement; bits 1/2 are selector metadata.
     // Bit 3 is a host-resolved completed-window flag. The shaders consume the
     // resulting per-glyph weights and never recalculate selector semantics.
     run.flags |= 2u;
+    run.flags = runtime::pack_text_selector_metadata(
+        run.flags, static_cast<std::uint32_t>(selector.unit),
+        static_cast<std::uint32_t>(selector.order));
     const auto bound = bind_selector_runtime(
         selector, shape.layout->units.unit_count(selector.unit), sample_time);
     if (bound.shape == TextSelectorShape::Smooth) run.flags |= 4u;
