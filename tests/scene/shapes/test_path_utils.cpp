@@ -1,3 +1,4 @@
+#include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <doctest/doctest.h>
@@ -110,4 +111,21 @@ TEST_CASE("Arrow factory emits a closed polygon and clamps malformed dimensions"
     // remains exactly at the requested destination rather than overshooting.
     CHECK(arrow.commands[3].p0.x == doctest::Approx(100.0f));
     CHECK(arrow.commands[3].p0.y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Path repeater expands deterministic copies with opacity decay") {
+    PathShape path;
+    path.commands = {PathCommand::move_to({1, 2}), PathCommand::line_to({3, 2})};
+    path.fill = Fill::solid_color({1, 0, 0, 1});
+    PathOperatorSpec spec;
+    spec.kind = PathOperatorKind::Repeater;
+    spec.params = RepeaterParams{3, {10, 0}, {1, 1}, 0, {0, 0}, 0.5f};
+    const auto copies = apply_path_operators(path, {spec});
+    REQUIRE(copies.size() == 3);
+    CHECK(copies[0].commands[0].p0.x == doctest::Approx(1));
+    CHECK(copies[1].commands[0].p0.x == doctest::Approx(11));
+    CHECK(copies[2].commands[1].p0.x == doctest::Approx(23));
+    CHECK(copies[0].fill.solid.a == doctest::Approx(1));
+    CHECK(copies[1].fill.solid.a == doctest::Approx(0.5));
+    CHECK(copies[2].fill.solid.a == doctest::Approx(0.25));
 }
