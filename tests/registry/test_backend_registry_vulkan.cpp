@@ -79,8 +79,10 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     const auto* vulkan = dynamic_cast<chronon3d::backends::vulkan::VulkanBackend*>(backend.get());
     REQUIRE(vulkan != nullptr);
     const auto device_stats = vulkan->stats();
-    CHECK(device_stats.discrete_gpu);
-    CHECK(device_stats.device_name.find("RTX A4000") != std::string::npos);
+    // The generic registry test can run on any Vulkan implementation. Keep
+    // device model and discrete-GPU selection in the hardware-specific probe,
+    // rather than making fallback-capable CI depend on this host's board.
+    CHECK_FALSE(device_stats.device_name.empty());
     CHECK(vulkan->kernel_registry().size() == 12);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::Composite));
