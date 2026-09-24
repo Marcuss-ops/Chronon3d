@@ -223,10 +223,8 @@ void decode_render_job_payload(const std::string& payload) {
 }
 EOF
     write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service_ipc_dispatch.cpp" <<'EOF'
-void decode_segment_payload(const std::string& payload) {
-    const auto request = nlohmann::json::parse(payload.begin(), payload.end());
-    (void)request;
-}
+// Typed dispatch receives the decoded segment request from the protocol codec.
+void dispatch_segment_request() {}
 EOF
     write_file "$dir" "apps/chronon3d_cli/daemon/daemon_service.hpp" <<'EOF'
 #pragma once
