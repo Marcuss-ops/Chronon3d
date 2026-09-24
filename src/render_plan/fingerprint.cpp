@@ -280,6 +280,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_bool(op.smooth);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::OffsetPath) {
+                out.add_float(op.amount);
+                out.add_float(op.miter_limit);
+                continue;
+            }
             const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);

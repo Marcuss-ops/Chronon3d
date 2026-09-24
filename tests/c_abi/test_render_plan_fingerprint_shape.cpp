@@ -137,6 +137,16 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     const auto larger_zigzag = render_plan::decode_render_plan(plan);
     REQUIRE(larger_zigzag);
     CHECK(larger_zigzag->content_fingerprint != zigzag_fingerprint);
+
+    plan["layers"][0]["shape"]["operators"] =
+        {{{"kind", "offset_path"}, {"params", {{"amount", 2.0}, {"miter_limit", 3.0}}}}};
+    const auto offset = render_plan::decode_render_plan(plan);
+    REQUIRE(offset);
+    const auto offset_fingerprint = offset->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["amount"] = 4.0;
+    const auto wider_offset = render_plan::decode_render_plan(plan);
+    REQUIRE(wider_offset);
+    CHECK(wider_offset->content_fingerprint != offset_fingerprint);
 }
 
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {

@@ -167,3 +167,18 @@ TEST_CASE("Zig-zag offsets a deterministic polyline by its local normal") {
     CHECK(result[0].commands[1].p0.y ==
           apply_path_operators(line, {op})[0].commands[1].p0.y);
 }
+
+TEST_CASE("Offset path applies signed normal displacement and preserves closure") {
+    PathShape line;
+    line.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({10, 0})};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::OffsetPath;
+    op.params = OffsetPathParams{2.0f, 4.0f};
+    const auto result = apply_path_operators(line, {op});
+    REQUIRE(result.size() == 1);
+    REQUIRE(result[0].commands.size() == 2);
+    CHECK(result[0].commands[0].p0.x == doctest::Approx(0));
+    CHECK(result[0].commands[0].p0.y == doctest::Approx(2));
+    CHECK(result[0].commands[1].p0.x == doctest::Approx(10));
+    CHECK(result[0].commands[1].p0.y == doctest::Approx(2));
+}
