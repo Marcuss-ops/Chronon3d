@@ -240,6 +240,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     decoded_op.radius = p.at("radius").get<float>();
                     if (!std::isfinite(decoded_op.radius) || decoded_op.radius < 0.0f)
                         throw std::runtime_error("round-corners radius must be finite and non-negative");
+                } else if (kind == "zig_zag") {
+                    decoded_op.kind = PathOperatorKindPlan::ZigZag;
+                    decoded_op.size = p.at("size").get<float>();
+                    decoded_op.points_per_unit = p.value("points_per_unit", 0.1f);
+                    decoded_op.smooth = p.value("smooth", false);
+                    if (!std::isfinite(decoded_op.size) || decoded_op.size < 0.0f ||
+                        !std::isfinite(decoded_op.points_per_unit) ||
+                        decoded_op.points_per_unit <= 0.0f || decoded_op.points_per_unit > 1000.0f)
+                        throw std::runtime_error("invalid zig-zag parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }

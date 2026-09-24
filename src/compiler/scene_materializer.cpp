@@ -181,6 +181,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     if (op.kind == render_plan::PathOperatorKindPlan::RoundCorners) {
                                         specs.push_back({PathOperatorKind::RoundCorners,
                                             RoundCornersParams{op.radius}, 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::ZigZag) {
+                                        specs.push_back({PathOperatorKind::ZigZag,
+                                            ZigZagParams{op.size, op.points_per_unit, op.smooth}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

@@ -76,6 +76,61 @@ PathShape round_corners(const PathShape& source, float radius) {
     output.closed = closed;
     return output;
 }
+PathShape zig_zag(const PathShape& source, const ZigZagParams& params) {
+    if (!std::isfinite(params.size) || params.size < 0.0f ||
+        !std::isfinite(params.points_per_unit) || params.points_per_unit <= 0.0f)
+        throw std::invalid_argument("zig-zag size and points_per_unit must be finite and valid");
+    if (params.size == 0.0f) return source;
+    std::vector<Vec2> points;
+    bool closed = false;
+    std::size_t subpaths = 0;
+    for (const auto& command : source.commands) {
+        if (command.type == PathCommandType::MoveTo) {
+            if (++subpaths > 1) throw std::invalid_argument("zig-zag currently requires a single subpath");
+            points.push_back(command.p0);
+        } else if (command.type == PathCommandType::LineTo) points.push_back(command.p0);
+        else if (command.type == PathCommandType::Close) closed = true;
+        else throw std::invalid_argument("zig-zag currently requires a polyline path");
+    }
+    if (points.size() < 2) return source;
+    const std::size_t segment_count = points.size() - 1 + (closed ? 1U : 0U);
+    PathShape output = source;
+    output.commands.clear();
+    output.commands.push_back(PathCommand::move_to(points.front()));
+    for (std::size_t i = 0; i < segment_count; ++i) {
+        const Vec2 a = points[i];
+        const Vec2 b = points[(i + 1) % points.size()];
+        const Vec2 delta = b - a;
+        const float length = glm::length(delta);
+        if (length <= 1e-6f) continue;
+        const Vec2 normal{-delta.y / length, delta.x / length};
+        const float requested_peaks = std::ceil(length * params.points_per_unit);
+        if (!std::isfinite(requested_peaks) || requested_peaks > 250000.0f)
+            throw std::invalid_argument("zig-zag expansion exceeds the geometry limit");
+        const auto peaks = static_cast<std::size_t>(std::max(1.0f, requested_peaks));
+        const std::size_t steps = peaks * 4;
+        for (std::size_t j = 1; j <= steps; ++j) {
+            if (closed && i + 1 == segment_count && j == steps) continue;
+            const float t = static_cast<float>(j) / static_cast<float>(steps);
+            const float phase = static_cast<float>(peaks) * t;
+            float wave = 0.0f;
+            if (params.smooth) {
+                wave = std::sin(6.2831853071795864769f * phase);
+            } else {
+                float fractional = phase - std::floor(phase);
+                fractional = fractional - std::floor(fractional + 0.25f) + 0.25f;
+                wave = 1.0f - 4.0f * std::abs(fractional - 0.5f);
+            }
+            const Vec2 point = a + delta * t + normal * (params.size * wave);
+            output.commands.push_back(PathCommand::line_to(point));
+            if (output.commands.size() > 1000000)
+                throw std::invalid_argument("zig-zag expansion exceeds the geometry limit");
+        }
+    }
+    if (closed) output.commands.push_back(PathCommand::close());
+    output.closed = closed;
+    return output;
+}
 }
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
@@ -86,6 +141,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
                 throw std::invalid_argument("round-corners parameters do not match operator kind");
             for (auto& path : paths)
                 path = round_corners(path, std::get<RoundCornersParams>(op.params).radius);
+        } else if (op.kind == PathOperatorKind::ZigZag) {
+            if (!std::holds_alternative<ZigZagParams>(op.params))
+                throw std::invalid_argument("zig-zag parameters do not match operator kind");
+            for (auto& path : paths) path = zig_zag(path, std::get<ZigZagParams>(op.params));
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");
