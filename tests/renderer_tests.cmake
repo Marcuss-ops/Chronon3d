@@ -140,6 +140,7 @@ chronon3d_add_test_suite(
         effects/test_effect_execution_context.cpp
         effects/test_exposure_levels.cpp
         effects/test_fill_noise_offset.cpp
+        effects/test_fractal_noise.cpp
         effects/test_radial_blur.cpp
         effects/test_stroke.cpp
         renderer/effects/test_adjustment_layer.cpp

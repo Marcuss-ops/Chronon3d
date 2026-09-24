@@ -40,6 +40,10 @@ enum class EffectType : uint8_t {
     DirectionalBlur = 19,
     RadialBlur      = 20,
     Stroke          = 21,
+    FractalNoise    = 22,
+    Checkerboard    = 23,
+    FourColorGradient = 24,
+    LightRays       = 25,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────
