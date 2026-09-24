@@ -44,6 +44,15 @@ struct StrokeStyle {
     std::optional<graphics::GradientDefinition> gradient;
 };
 
+struct PathRepeaterPlan {
+    std::uint32_t copies{1};
+    std::array<float, 2> position{0.0f, 0.0f};
+    std::array<float, 2> scale{1.0f, 1.0f};
+    float rotation_degrees{0.0f};
+    std::array<float, 2> anchor{0.0f, 0.0f};
+    float opacity_decay{1.0f};
+};
+
 struct ShapeContentPlan {
     ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
     float radius{0.0f};
@@ -51,6 +60,7 @@ struct ShapeContentPlan {
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
+    std::vector<PathRepeaterPlan> repeaters;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
