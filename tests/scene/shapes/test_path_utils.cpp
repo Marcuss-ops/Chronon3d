@@ -182,3 +182,18 @@ TEST_CASE("Offset path applies signed normal displacement and preserves closure"
     CHECK(result[0].commands[1].p0.x == doctest::Approx(10));
     CHECK(result[0].commands[1].p0.y == doctest::Approx(2));
 }
+
+TEST_CASE("Pucker-bloat transforms curve points and controls around its anchor") {
+    PathShape curve;
+    curve.commands = {PathCommand::move_to({0, 0}),
+                      PathCommand::cubic_to({1, 0}, {1, 1}, {2, 1})};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::PuckerBloat;
+    op.params = PuckerBloatParams{0.5f, {1, 0}};
+    const auto result = apply_path_operators(curve, {op});
+    REQUIRE(result.size() == 1);
+    CHECK(result[0].commands[0].p0.x == doctest::Approx(-0.5));
+    CHECK(result[0].commands[1].p1.x == doctest::Approx(1));
+    CHECK(result[0].commands[1].p2.y == doctest::Approx(1.5));
+    CHECK(result[0].commands[1].p0.x == doctest::Approx(2.5));
+}

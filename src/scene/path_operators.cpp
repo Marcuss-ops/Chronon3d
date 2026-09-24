@@ -184,6 +184,22 @@ PathShape offset_path(const PathShape& source, const OffsetPathParams& params) {
     output.closed = closed;
     return output;
 }
+PathShape pucker_bloat(const PathShape& source, const PuckerBloatParams& params) {
+    if (!std::isfinite(params.amount) || params.amount < -1.0f || params.amount > 1.0f ||
+        !std::isfinite(params.anchor.x) || !std::isfinite(params.anchor.y))
+        throw std::invalid_argument("pucker-bloat amount must be in [-1, 1] and anchor finite");
+    PathShape output = source;
+    const float scale = 1.0f + params.amount;
+    const auto deform = [&](Vec2& point) { point = params.anchor + (point - params.anchor) * scale; };
+    for (auto& command : output.commands) {
+        if (command.type == PathCommandType::Close) continue;
+        deform(command.p0);
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+            deform(command.p1);
+        if (command.type == PathCommandType::CubicTo) deform(command.p2);
+    }
+    return output;
+}
 }
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
@@ -202,6 +218,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
             if (!std::holds_alternative<OffsetPathParams>(op.params))
                 throw std::invalid_argument("offset-path parameters do not match operator kind");
             for (auto& path : paths) path = offset_path(path, std::get<OffsetPathParams>(op.params));
+        } else if (op.kind == PathOperatorKind::PuckerBloat) {
+            if (!std::holds_alternative<PuckerBloatParams>(op.params))
+                throw std::invalid_argument("pucker-bloat parameters do not match operator kind");
+            for (auto& path : paths) path = pucker_bloat(path, std::get<PuckerBloatParams>(op.params));
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");
