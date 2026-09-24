@@ -196,6 +196,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::WigglePath) {
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Merge) {
+                                        MergeParams merge;
+                                        for (const auto& planned_path : op.paths) {
+                                            std::vector<PathCommand> subpath;
+                                            for (const auto& command : planned_path) {
+                                                const Vec2 point{command.point[0], command.point[1]};
+                                                const Vec2 c1{command.control1[0], command.control1[1]};
+                                                const Vec2 c2{command.control2[0], command.control2[1]};
+                                                switch (command.type) {
+                                                    case render_plan::ShapePathCommandTypePlan::MoveTo: subpath.push_back(PathCommand::move_to(point)); break;
+                                                    case render_plan::ShapePathCommandTypePlan::LineTo: subpath.push_back(PathCommand::line_to(point)); break;
+                                                    case render_plan::ShapePathCommandTypePlan::QuadraticTo: subpath.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                                    case render_plan::ShapePathCommandTypePlan::CubicTo: subpath.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                                    case render_plan::ShapePathCommandTypePlan::Close: subpath.push_back(PathCommand::close()); break;
+                                                }
+                                            }
+                                            merge.paths.push_back(std::move(subpath));
+                                        }
+                                        specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

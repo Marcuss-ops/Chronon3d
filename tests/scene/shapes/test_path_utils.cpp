@@ -228,3 +228,21 @@ TEST_CASE("Wiggle path is deterministic for a fixed seed and varies by seed") {
     const auto other_seed = apply_path_operators(line, {op});
     CHECK(first[0].commands[0].p0.x != doctest::Approx(other_seed[0].commands[0].p0.x));
 }
+
+TEST_CASE("Merge combines paths as independent subpaths without boolean operations") {
+    PathShape base;
+    base.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({4, 0})};
+    MergeParams merge;
+    merge.paths.push_back({PathCommand::move_to({10, 10}),
+                           PathCommand::quadratic_to({12, 10}, {12, 12}),
+                           PathCommand::close()});
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::Merge;
+    op.params = std::move(merge);
+    const auto result = apply_path_operators(base, {op});
+    REQUIRE(result.size() == 1);
+    REQUIRE(result[0].commands.size() == 5);
+    CHECK(result[0].commands[2].type == PathCommandType::MoveTo);
+    CHECK(result[0].commands[3].type == PathCommandType::QuadraticTo);
+    CHECK(result[0].commands[4].type == PathCommandType::Close);
+}

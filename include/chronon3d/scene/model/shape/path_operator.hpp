@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/model/shape/path_commands.hpp>
 #include <cstdint>
 #include <variant>
 #include <vector>
@@ -23,7 +24,7 @@ struct OffsetPathParams { float amount{0.0f}; float miter_limit{4.0f}; };
 struct PuckerBloatParams { float amount{0.0f}; Vec2 anchor{0.0f}; };
 struct TwistParams { float degrees{0.0f}; Vec2 center{0.0f}; };
 struct WigglePathParams { float amount{0.0f}; float frequency{1.0f}; };
-struct MergeParams {};
+struct MergeParams { std::vector<std::vector<PathCommand>> paths; };
 using PathOperatorParams = std::variant<RepeaterParams, RoundCornersParams, ZigZagParams, OffsetPathParams, PuckerBloatParams, TwistParams, WigglePathParams, MergeParams>;
 struct PathOperatorSpec {
     PathOperatorKind kind{PathOperatorKind::Repeater};

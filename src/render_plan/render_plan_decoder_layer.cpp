@@ -290,6 +290,64 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         !std::isfinite(decoded_op.frequency) || decoded_op.frequency <= 0.0f ||
                         decoded_op.frequency > 1000.0f)
                         throw std::runtime_error("invalid wiggle-path parameters");
+                } else if (kind == "merge") {
+                    decoded_op.kind = PathOperatorKindPlan::Merge;
+                    const auto& raw_paths = p.at("paths");
+                    if (!raw_paths.is_array() || raw_paths.size() > 1024)
+                        throw std::runtime_error("merge paths must contain at most 1024 subpaths");
+                    std::size_t total_commands = 0;
+                    for (const auto& raw_subpath : raw_paths) {
+                        if (!raw_subpath.is_array() || raw_subpath.empty() ||
+                            raw_subpath.size() > 65536 || total_commands + raw_subpath.size() > 1000000)
+                            throw std::runtime_error("merge subpath has invalid command count");
+                        std::vector<ShapePathCommandPlan> subpath;
+                        for (const auto& raw_command : raw_subpath) {
+                            ShapePathCommandPlan command;
+                            const auto type = raw_command.at("type").get<std::string>();
+                            if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+                            else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+                            else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+                            else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+                            else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+                            else throw std::runtime_error("unsupported merge path command: " + type);
+                            const auto read_point = [](const nlohmann::json& value,
+                                                       std::array<float, 2>& out) {
+                                if (!value.is_array() || value.size() != 2)
+                                    throw std::runtime_error("merge path point must contain two values");
+                                out = {value[0].get<float>(), value[1].get<float>()};
+                            };
+                            if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
+                            if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
+                            if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
+                            const bool has_point = raw_command.contains("point");
+                            const bool has_c1 = raw_command.contains("control1");
+                            const bool has_c2 = raw_command.contains("control2");
+                            if ((command.type == ShapePathCommandTypePlan::MoveTo ||
+                                 command.type == ShapePathCommandTypePlan::LineTo) &&
+                                (!has_point || has_c1 || has_c2))
+                                throw std::runtime_error("merge move_to/line_to require point only");
+                            if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
+                                (!has_point || !has_c1 || has_c2))
+                                throw std::runtime_error("merge quadratic_to requires point and control1");
+                            if (command.type == ShapePathCommandTypePlan::CubicTo &&
+                                (!has_point || !has_c1 || !has_c2))
+                                throw std::runtime_error("merge cubic_to requires point and both controls");
+                            if (command.type == ShapePathCommandTypePlan::Close &&
+                                (has_point || has_c1 || has_c2))
+                                throw std::runtime_error("merge close accepts no coordinates");
+                            const auto finite = [](const auto& v) {
+                                return std::isfinite(v[0]) && std::isfinite(v[1]);
+                            };
+                            if ((command.type != ShapePathCommandTypePlan::Close && !finite(command.point)) ||
+                                !finite(command.control1) || !finite(command.control2))
+                                throw std::runtime_error("merge command coordinates must be finite");
+                            subpath.push_back(command);
+                        }
+                        if (subpath.front().type != ShapePathCommandTypePlan::MoveTo)
+                            throw std::runtime_error("each merged subpath must begin with move_to");
+                        total_commands += subpath.size();
+                        decoded_op.paths.push_back(std::move(subpath));
+                    }
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }
