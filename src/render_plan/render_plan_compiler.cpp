@@ -128,17 +128,39 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
         }
-        std::vector<std::vector<Lut3DParams>> prepared_luts(plan.layers.size());
+        std::vector<std::vector<EffectParams>> prepared_effects(plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
-            for (const auto& effect : plan.layers[index].lut_effects) {
-                const auto resolved = resolver.resolve_logical(std::filesystem::path(effect.asset));
-                if (!resolved) throw std::runtime_error("3D LUT asset was not prepared: " + effect.asset);
-                std::ifstream file(*resolved, std::ios::binary);
-                if (!file) throw std::runtime_error("failed to open 3D LUT asset: " + effect.asset);
-                std::string contents((std::istreambuf_iterator<char>(file)), {});
-                if (contents.size() > 8U * 1024U * 1024U)
-                    throw std::runtime_error("3D LUT asset exceeds the 8 MiB parser limit: " + effect.asset);
-                prepared_luts[index].push_back(effects::parse_cube_lut(contents, effect.amount));
+            for (const auto& effect : plan.layers[index].effects) {
+                if (effect.kind == LayerPlan::EffectKindPlan::Lut3D) {
+                    const auto resolved = resolver.resolve_logical(std::filesystem::path(effect.asset));
+                    if (!resolved) throw std::runtime_error("3D LUT asset was not prepared: " + effect.asset);
+                    std::ifstream file(*resolved, std::ios::binary);
+                    if (!file) throw std::runtime_error("failed to open 3D LUT asset: " + effect.asset);
+                    std::string contents((std::istreambuf_iterator<char>(file)), {});
+                    if (contents.size() > 8U * 1024U * 1024U)
+                        throw std::runtime_error("3D LUT asset exceeds the 8 MiB parser limit: " + effect.asset);
+                    prepared_effects[index].emplace_back(effects::parse_cube_lut(contents, effect.amount));
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Echo) {
+                    prepared_effects[index].emplace_back(EchoParams{
+                        .echoes = effect.echoes, .decay = effect.decay,
+                        .time_offset_frames = effect.time_offset_frames});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Keying) {
+                    KeyingParams keying;
+                    keying.mode = effect.keying_mode == LayerPlan::KeyingModePlan::Luma
+                        ? KeyingMode::Luma : KeyingMode::Chroma;
+                    keying.key_color = Color{effect.key_color[0], effect.key_color[1], effect.key_color[2], 1.0f};
+                    keying.threshold = effect.threshold;
+                    keying.softness = effect.softness;
+                    keying.spill = effect.spill;
+                    prepared_effects[index].emplace_back(keying);
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
+                    prepared_effects[index].emplace_back(ThresholdParams{
+                        .threshold = effect.threshold,
+                        .softness = effect.threshold_softness});
+                } else {
+                    prepared_effects[index].emplace_back(MosaicParams{
+                        .block_size = effect.block_size});
+                }
             }
         }
         materialize_layout_ms = chronon3d::profiling::duration_ms(
@@ -150,7 +172,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
-        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_luts, font_engine,
+        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_effects, font_engine,
                             has_3d_layer, plan_camera](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
@@ -468,8 +490,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
-                    for (const auto& lut : prepared_luts[index])
-                        builder.effect(lut);
+                    for (const auto& effect : prepared_effects[index])
+                        std::visit([&](const auto& params) {
+                            using T = std::decay_t<decltype(params)>;
+                            if constexpr (!std::is_same_v<T, std::monostate>) builder.effect(params);
+                        }, effect);
                     if (layer.path_mask) {
                         PathMaskParams params;
                         params.feather = layer.path_mask->feather;

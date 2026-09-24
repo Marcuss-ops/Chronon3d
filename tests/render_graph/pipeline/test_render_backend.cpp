@@ -1,11 +1,13 @@
 #include <doctest/doctest.h>
 #include <cstring>
 #include <type_traits>
+#include <string>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include "../compiler/graph_compile_test_compat.hpp"
@@ -25,6 +27,9 @@ public:
     int apply_effect_stack_called{0};
     int composite_layer_called{0};
     int apply_blur_called{0};
+    std::string temporal_history_key;
+    int temporal_width{0};
+    int temporal_height{0};
 
     RenderOpResult draw_node(Framebuffer&, const RenderNode&, const RenderState&,
                              const Camera&, int, int) override {
@@ -32,9 +37,12 @@ public:
         return RenderOpResult{RenderOpOutcome{1}};
     }
 
-    void apply_effect_stack(Framebuffer&, const EffectStack&,
-                            const effects::EffectExecutionContext&) override {
+    void apply_effect_stack(Framebuffer& fb, const EffectStack&,
+                            const effects::EffectExecutionContext& context) override {
         apply_effect_stack_called++;
+        temporal_history_key = std::string(context.temporal_history_key);
+        temporal_width = fb.width();
+        temporal_height = fb.height();
     }
 
     void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,
@@ -166,6 +174,49 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
 
     REQUIRE(out.has_framebuffer());
     CHECK(backend.apply_effect_stack_called >= 1);
+}
+
+TEST_CASE("RenderBackend - Echo reaches software dispatch with stable key and full canvas") {
+    EffectStack echo_params;
+    echo_params.emplace_back(EchoParams{.echoes = 2, .decay = 0.5f, .time_offset_frames = 1});
+    EffectStackNode echo_a(echo_params, Frame{-1}, frame_variant_cache("echo"));
+    EffectStackNode echo_b(echo_params, Frame{-1}, frame_variant_cache("echo"));
+    echo_a.set_temporal_history_key("trail-a/echo/0");
+    echo_b.set_temporal_history_key("trail-b/echo/0");
+    RenderGraphContext cache_context{.frame_input = {.width = 64, .height = 48}};
+    CHECK(echo_a.cache_key(cache_context).params_hash != echo_b.cache_key(cache_context).params_hash);
+
+    FakeBackend backend;
+    cache::NodeCache cache;
+
+    SceneBuilder builder;
+    builder.layer("trail", [](LayerBuilder& layer) {
+        layer.rect("rect", {.size = {20.0f, 20.0f}, .color = Color::white()});
+        layer.effect(EchoParams{.echoes = 2, .decay = 0.5f, .time_offset_frames = 1});
+    });
+    Scene scene = builder.build();
+
+    RenderGraphContext ctx{
+        .frame_input = {.width = 64, .height = 48},
+        .backend = &backend, .node_cache = &cache
+    };
+    compiler::CompilerPassPipeline graph_builder;
+    graph_builder.add_default_passes();
+    RenderGraph graph = graph_builder.build(scene, ctx);
+    auto compiled = FrameGraphCompiler{}.compile(std::move(graph), ctx,
+        FrameGraphCompileOptions{ .run_optimizer = false });
+
+    GraphExecutor executor;
+    runtime::JobSession session;
+    ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
+    auto scope = ExecutionScope::make_root(session, session.root_arena(), compiled.graph_instance_id);
+    auto out = executor.execute(compiled, ctx, scope, scheduler);
+
+    REQUIRE(out.has_framebuffer());
+    REQUIRE(backend.apply_effect_stack_called == 1);
+    CHECK(backend.temporal_history_key == "trail/echo/0");
+    CHECK(backend.temporal_width == 64);
+    CHECK(backend.temporal_height == 48);
 }
 
 TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on backend") {

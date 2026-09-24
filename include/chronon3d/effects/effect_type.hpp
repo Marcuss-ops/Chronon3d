@@ -45,6 +45,10 @@ enum class EffectType : uint8_t {
     FourColorGradient = 24,
     LightRays       = 25,
     Lut3D           = 26,
+    Echo            = 27,
+    Keying          = 28,
+    Threshold       = 29,
+    Mosaic          = 30,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

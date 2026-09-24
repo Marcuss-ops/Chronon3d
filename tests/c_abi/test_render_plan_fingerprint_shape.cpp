@@ -226,6 +226,37 @@ TEST_CASE("LUT asset and amount affect render plan fingerprint") {
     CHECK(changed->content_fingerprint != fingerprint);
 }
 
+TEST_CASE("Keying controls affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "keyed"}, {"type", "color"}, {"color", {0.2, 0.7, 0.1, 1.0}},
+         {"effects", {{{"type", "keying"}, {"mode", "chroma"},
+                       {"key_color", {0.0, 1.0, 0.0}}, {"threshold", 0.22},
+                       {"softness", 0.1}, {"spill", 0.8}}}}}
+    }));
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    const auto fingerprint = first->content_fingerprint;
+    plan["layers"][0]["effects"][0]["threshold"] = 0.25;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
+TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "styled"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "threshold"}, {"threshold", 0.4}},
+                       {{"type", "mosaic"}, {"block_size", 8}}}}}
+    }));
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    const auto fingerprint = first->content_fingerprint;
+    plan["layers"][0]["effects"][1]["block_size"] = 9;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
     // Pin the canonical pre-shape writer output so shape support cannot shift
     // the cache identity of an old V2 plan with no optional shape payload.

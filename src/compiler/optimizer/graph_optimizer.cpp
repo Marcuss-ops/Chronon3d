@@ -141,6 +141,8 @@ size_t fuse_effect_stacks(RenderGraph& graph) {
 
         auto* child_effect = effect_stack_mut(child_node);
         if (!child_effect) continue;
+        if (const auto* stack = dynamic_cast<const EffectStackNode*>(&child_node);
+            stack && stack->has_temporal_effect()) continue;
 
         const auto& inputs = graph.inputs(child_id);
         if (inputs.size() != 1) continue;
@@ -154,6 +156,8 @@ size_t fuse_effect_stacks(RenderGraph& graph) {
 
         auto* parent_effect = effect_stack_mut(parent_node);
         if (!parent_effect) continue;
+        if (const auto* stack = dynamic_cast<const EffectStackNode*>(&parent_node);
+            stack && stack->has_temporal_effect()) continue;
 
         // Must share the same frame_dependent policy
         if (parent_node.cache_policy().frame_dependent() != child_node.cache_policy().frame_dependent()) continue;
