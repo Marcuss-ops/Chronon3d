@@ -180,6 +180,18 @@
         "properties": {
           "type": { "enum": ["image", "video", "text", "color", "shape"] },
           "shape": { "$ref": "#/$defs/shape" },
+          "mask": {
+            "type": "object", "additionalProperties": false,
+            "required": ["type", "path"],
+            "properties": {
+              "type": { "const": "path" },
+              "path": { "type": "array", "minItems": 1, "maxItems": 65536,
+                        "items": { "$ref": "#/$defs/path_command" } },
+              "feather": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "expansion": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+              "inverted": { "type": "boolean" }
+            }
+          },
           "style": {
             "type": "object",
             "properties": {

@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <tests/helpers/test_utils.hpp>
@@ -122,4 +123,46 @@ TEST_CASE("Test 12.6 — LayerBuilder sets mask struct fields correctly") {
     CHECK(layer.mask.pos.x == 5.0f);
     CHECK(layer.mask.pos.y == 10.0f);
     CHECK(layer.mask.inverted == true);
+}
+
+TEST_CASE("Path mask supports compound closed geometry, feather, and expansion") {
+    Mask mask;
+    mask.type = MaskType::Path;
+    mask.path = {PathCommand::move_to({-10, -10}), PathCommand::line_to({10, -10}),
+                 PathCommand::line_to({10, 10}), PathCommand::line_to({-10, 10}),
+                 PathCommand::close()};
+    mask.feather = 4.0f;
+    mask.expansion = 2.0f;
+    CHECK(mask_alpha_at_local_point(mask, {0, 0}) == doctest::Approx(1.0f));
+    CHECK(mask_alpha_at_local_point(mask, {12, 0}) == doctest::Approx(0.5f));
+    CHECK(mask_alpha_at_local_point(mask, {14, 0}) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Path mask clips rendered layer pixels") {
+    auto fb = render_masked_layer([](LayerBuilder& layer) {
+        layer.mask_path({.commands = {PathCommand::move_to({-10, -10}),
+                                      PathCommand::line_to({10, -10}),
+                                      PathCommand::line_to({10, 10}),
+                                      PathCommand::line_to({-10, 10}),
+                                      PathCommand::close()}});
+    });
+    REQUIRE(fb != nullptr);
+    CHECK(fb->get_pixel(50, 50).a > 0.9f);
+    CHECK(fb->get_pixel(70, 50).a == 0.0f);
+}
+
+TEST_CASE("LayerBuilder stores and recenters path mask geometry") {
+    auto scene = SceneBuilder{}.layer("path_mask", [](LayerBuilder& layer) {
+        layer.mask_path({.commands = {PathCommand::move_to({10, 20}),
+                                      PathCommand::line_to({30, 20}),
+                                      PathCommand::line_to({30, 40}),
+                                      PathCommand::close()},
+                          .feather = 2.0f, .expansion = 1.0f});
+    }).build();
+    const auto& mask = scene.layers()[0].mask;
+    REQUIRE(mask.type == MaskType::Path);
+    CHECK(mask.size.x == doctest::Approx(20.0f));
+    CHECK(mask.pos.x == doctest::Approx(20.0f));
+    CHECK(mask.pos.y == doctest::Approx(30.0f));
+    CHECK(mask.path[0].p0.x == doctest::Approx(-10.0f));
 }

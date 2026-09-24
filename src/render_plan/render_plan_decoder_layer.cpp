@@ -482,6 +482,69 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         }
         layer.shape = std::move(shape);
     }
+    if (value.contains("mask")) {
+        const auto& raw_mask = value.at("mask");
+        if (raw_mask.value("type", std::string{}) != "path")
+            throw std::runtime_error("only path masks are supported by this render-plan extension");
+        LayerPlan::PathMaskPlan mask;
+        mask.feather = raw_mask.value("feather", 0.0f);
+        mask.expansion = raw_mask.value("expansion", 0.0f);
+        mask.inverted = raw_mask.value("inverted", false);
+        if (!std::isfinite(mask.feather) || mask.feather < 0.0f || mask.feather > 1000000.0f ||
+            !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f)
+            throw std::runtime_error("path mask feather and expansion must be finite and bounded");
+        const auto& raw_path = raw_mask.at("path");
+        if (!raw_path.is_array() || raw_path.empty() || raw_path.size() > 65536)
+            throw std::runtime_error("path mask requires between 1 and 65536 commands");
+        bool has_open_subpath = false;
+        std::size_t closed_subpaths = 0;
+        for (const auto& raw_command : raw_path) {
+            ShapePathCommandPlan command;
+            const auto type = raw_command.at("type").get<std::string>();
+            if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+            else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+            else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+            else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+            else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+            else throw std::runtime_error("unsupported path mask command: " + type);
+            const auto read_point = [](const nlohmann::json& point, std::array<float, 2>& out) {
+                if (!point.is_array() || point.size() != 2)
+                    throw std::runtime_error("path mask coordinates require two values");
+                out = {point[0].get<float>(), point[1].get<float>()};
+            };
+            const bool has_point = raw_command.contains("point");
+            const bool has_c1 = raw_command.contains("control1");
+            const bool has_c2 = raw_command.contains("control2");
+            if (has_point) read_point(raw_command.at("point"), command.point);
+            if (has_c1) read_point(raw_command.at("control1"), command.control1);
+            if (has_c2) read_point(raw_command.at("control2"), command.control2);
+            if ((command.type == ShapePathCommandTypePlan::MoveTo ||
+                 command.type == ShapePathCommandTypePlan::LineTo) && (!has_point || has_c1 || has_c2))
+                throw std::runtime_error("path mask move_to/line_to require point only");
+            if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!has_point || !has_c1 || has_c2))
+                throw std::runtime_error("path mask quadratic_to requires point and control1");
+            if (command.type == ShapePathCommandTypePlan::CubicTo && (!has_point || !has_c1 || !has_c2))
+                throw std::runtime_error("path mask cubic_to requires point and both controls");
+            if (command.type == ShapePathCommandTypePlan::Close && (has_point || has_c1 || has_c2))
+                throw std::runtime_error("path mask close accepts no coordinates");
+            for (const auto* pair : {&command.point, &command.control1, &command.control2})
+                if (!std::isfinite((*pair)[0]) || !std::isfinite((*pair)[1]))
+                    throw std::runtime_error("path mask coordinates must be finite");
+            if (command.type == ShapePathCommandTypePlan::MoveTo) {
+                if (has_open_subpath) throw std::runtime_error("path mask subpaths must close before move_to");
+                has_open_subpath = true;
+            }
+            if (command.type == ShapePathCommandTypePlan::Close) {
+                if (!has_open_subpath) throw std::runtime_error("path mask close has no open subpath");
+                has_open_subpath = false;
+                ++closed_subpaths;
+            }
+            mask.path.push_back(command);
+        }
+        if (has_open_subpath || closed_subpaths == 0)
+            throw std::runtime_error("path mask subpaths must be closed");
+        layer.path_mask = std::move(mask);
+    }
     if (value.contains("position")) {
         const auto& position = value.at("position");
         layer.position_dimensions = position.size();

@@ -1,7 +1,10 @@
 #include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/path_utils.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d {
 
@@ -35,13 +38,13 @@ bool point_in_rounded_rect_mask(Vec2 local, const Mask& mask) {
 
 } // namespace detail
 
-bool mask_contains_local_point(const Mask& mask, Vec2 local) {
-    if (!mask.enabled()) return true;
-
+f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local) {
+    if (!mask.enabled()) return 1.0f;
     local.x -= mask.pos.x;
     local.y -= mask.pos.y;
 
     bool inside = false;
+    f32 distance = std::numeric_limits<f32>::max();
     switch (mask.type) {
         case MaskType::Rect:
             inside = detail::point_in_rect_mask(local, mask);
@@ -52,11 +55,49 @@ bool mask_contains_local_point(const Mask& mask, Vec2 local) {
         case MaskType::Circle:
             inside = detail::point_in_circle_mask(local, mask);
             break;
+        case MaskType::Path: {
+            PathShape path;
+            path.commands = mask.path;
+            path.closed = true;
+            for (const auto& polyline : math::flatten_path(path, 24)) {
+                if (polyline.size() < 2) continue;
+                for (std::size_t i = 0; i + 1 < polyline.size(); ++i) {
+                    const Vec2 a = polyline[i], b = polyline[i + 1];
+                    const Vec2 ab = b - a;
+                    const f32 len2 = glm::dot(ab, ab);
+                    const f32 t = len2 > 1e-12f
+                        ? std::clamp(glm::dot(local - a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+                    distance = std::min(distance, glm::length(local - (a + t * ab)));
+                    if ((a.y > local.y) != (b.y > local.y)) {
+                        const f32 crossing_x = a.x + (local.y - a.y) * (b.x - a.x) / (b.y - a.y);
+                        if (local.x < crossing_x) inside = !inside;
+                    }
+                }
+            }
+            if (!std::isfinite(distance) || distance == std::numeric_limits<f32>::max())
+                inside = false;
+            else {
+                const f32 signed_distance = (inside ? distance : -distance) + mask.expansion;
+                if (mask.feather <= 1e-6f) inside = signed_distance >= 0.0f;
+                else {
+                    const f32 t = std::clamp((signed_distance + mask.feather * 0.5f) / mask.feather,
+                                             0.0f, 1.0f);
+                    const f32 alpha = t * t * (3.0f - 2.0f * t);
+                    return mask.inverted ? 1.0f - alpha : alpha;
+                }
+            }
+            break;
+        }
         default:
             inside = true;
             break;
     }
-    return mask.inverted ? !inside : inside;
+    const f32 alpha = inside ? 1.0f : 0.0f;
+    return mask.inverted ? 1.0f - alpha : alpha;
+}
+
+bool mask_contains_local_point(const Mask& mask, Vec2 local) {
+    return mask_alpha_at_local_point(mask, local) >= 0.5f;
 }
 
 std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix, i32 width, i32 height) {
@@ -76,7 +117,15 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
     seed = mix(seed, hv(mask.size.x));
     seed = mix(seed, hv(mask.size.y));
     seed = mix(seed, hv(mask.radius));
+    seed = mix(seed, hv(mask.feather));
+    seed = mix(seed, hv(mask.expansion));
     seed = mix(seed, static_cast<std::uint64_t>(mask.inverted));
+    for (const auto& command : mask.path) {
+        seed = mix(seed, static_cast<std::uint64_t>(command.type));
+        seed = mix(seed, hv(command.p0.x)); seed = mix(seed, hv(command.p0.y));
+        seed = mix(seed, hv(command.p1.x)); seed = mix(seed, hv(command.p1.y));
+        seed = mix(seed, hv(command.p2.x)); seed = mix(seed, hv(command.p2.y));
+    }
     seed = mix(seed, static_cast<std::uint64_t>(width));
     seed = mix(seed, static_cast<std::uint64_t>(height));
     for (int i = 0; i < 4; ++i) {
@@ -95,8 +144,10 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
     }
 
     const Mat4 screen_from_local = glm::inverse(layer_inv_matrix);
-    const f32 hw = (mask.type == MaskType::Circle) ? mask.radius : mask.size.x * 0.5f;
-    const f32 hh = (mask.type == MaskType::Circle) ? mask.radius : mask.size.y * 0.5f;
+    const f32 path_pad = mask.type == MaskType::Path
+        ? std::max(0.0f, mask.expansion) + std::max(0.0f, mask.feather) * 0.5f : 0.0f;
+    const f32 hw = (mask.type == MaskType::Circle) ? mask.radius : mask.size.x * 0.5f + path_pad;
+    const f32 hh = (mask.type == MaskType::Circle) ? mask.radius : mask.size.y * 0.5f + path_pad;
 
     const Vec4 corners[4] = {
         screen_from_local * Vec4{-hw + mask.pos.x, -hh + mask.pos.y, 0.0f, 1.0f},
@@ -134,9 +185,8 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
         Color* row = fb->pixels_row(y);
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             Vec4 local = layer_inv_matrix * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
-            if (mask_contains_local_point(mask, Vec2{local.x, local.y})) {
-                row[x] = {1.0f, 1.0f, 1.0f, 1.0f};
-            }
+            const f32 alpha = mask_alpha_at_local_point(mask, Vec2{local.x, local.y});
+            if (alpha > 0.0f) row[x] = {1.0f, 1.0f, 1.0f, alpha};
         }
     }
 
