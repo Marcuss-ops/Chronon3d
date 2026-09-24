@@ -355,7 +355,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     }
                                     params.stroke = stroke.to_path_stroke();
                                     params.pos = {0.0f, 0.0f, 0.0f};
-                                    if (shape.repeaters.empty()) {
+                                    if (shape.operators.empty()) {
                                 builder.path("shape", std::move(params));
                             } else {
                                 PathShape source_path;
@@ -364,15 +364,21 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 source_path.fill = params.fill;
                                 source_path.closed = params.closed;
                                 std::vector<PathOperatorSpec> specs;
-                                for (const auto& repeater : shape.repeaters) {
-                                    RepeaterParams rp;
-                                    rp.copies = repeater.copies;
-                                    rp.position = {repeater.position[0], repeater.position[1]};
-                                    rp.scale = {repeater.scale[0], repeater.scale[1]};
-                                    rp.rotation_degrees = repeater.rotation_degrees;
-                                    rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
-                                    rp.opacity_decay = repeater.opacity_decay;
-                                    specs.push_back({PathOperatorKind::Repeater, rp, 0});
+                                for (const auto& op : shape.operators) {
+                                    if (op.kind == PathOperatorKindPlan::RoundCorners) {
+                                        specs.push_back({PathOperatorKind::RoundCorners,
+                                            RoundCornersParams{op.radius}, 0});
+                                    } else {
+                                        const auto& repeater = op.repeater;
+                                        RepeaterParams rp;
+                                        rp.copies = repeater.copies;
+                                        rp.position = {repeater.position[0], repeater.position[1]};
+                                        rp.scale = {repeater.scale[0], repeater.scale[1]};
+                                        rp.rotation_degrees = repeater.rotation_degrees;
+                                        rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
+                                        rp.opacity_decay = repeater.opacity_decay;
+                                        specs.push_back({PathOperatorKind::Repeater, rp, 0});
+                                    }
                                 }
                                 auto expanded = apply_path_operators(source_path, specs);
                                 for (std::size_t i = 0; i < expanded.size(); ++i) {

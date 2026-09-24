@@ -80,8 +80,10 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "const": "repeater" },
+              "kind": { "enum": ["repeater", "round_corners"] },
               "params": {
+                "oneOf": [
+                  {
                 "type": "object", "additionalProperties": false,
                 "required": ["copies"],
                 "properties": {
@@ -92,6 +94,13 @@
                   "rotation_degrees": { "type": "number" },
                   "opacity_decay": { "type": "number", "minimum": 0, "maximum": 1 }
                 }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["radius"],
+                    "properties": { "radius": { "type": "number", "minimum": 0 } }
+                  }
+                ]
               }
             }
           }

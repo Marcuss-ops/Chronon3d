@@ -117,6 +117,16 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     const auto changed = render_plan::decode_render_plan(plan);
     REQUIRE(changed);
     CHECK(changed->content_fingerprint != fingerprint);
+
+    plan["layers"][0]["shape"]["operators"] =
+        {{{"kind", "round_corners"}, {"params", {{"radius", 2.0}}}}};
+    const auto rounded = render_plan::decode_render_plan(plan);
+    REQUIRE(rounded);
+    const auto rounded_fingerprint = rounded->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["radius"] = 3.0;
+    const auto larger_radius = render_plan::decode_render_plan(plan);
+    REQUIRE(larger_radius);
+    CHECK(larger_radius->content_fingerprint != rounded_fingerprint);
 }
 
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
