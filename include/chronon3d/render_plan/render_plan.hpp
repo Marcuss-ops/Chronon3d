@@ -210,11 +210,24 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    struct LutEffectPlan {
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic };
+    enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
+    struct EffectPlan {
+        EffectKindPlan kind{EffectKindPlan::Lut3D};
         std::string asset;
         float amount{1.0f};
+        std::uint32_t echoes{3};
+        float decay{0.5f};
+        std::uint32_t time_offset_frames{1};
+        KeyingModePlan keying_mode{KeyingModePlan::Chroma};
+        std::array<float, 3> key_color{0.0f, 1.0f, 0.0f};
+        float threshold{0.20f};
+        float softness{0.08f};
+        float spill{0.75f};
+        float threshold_softness{0.0f};
+        std::uint32_t block_size{8};
     };
-    std::vector<LutEffectPlan> lut_effects;
+    std::vector<EffectPlan> effects;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};

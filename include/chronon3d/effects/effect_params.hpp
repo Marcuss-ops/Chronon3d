@@ -165,6 +165,31 @@ struct Lut3DParams {
     float amount{1.0f};
 };
 
+struct EchoParams {
+    uint32_t echoes{3};
+    float decay{0.5f};
+    uint32_t time_offset_frames{1};
+};
+
+enum class KeyingMode : std::uint8_t { Luma, Chroma };
+
+struct KeyingParams {
+    KeyingMode mode{KeyingMode::Chroma};
+    Color key_color{0.0f, 1.0f, 0.0f, 1.0f};
+    float threshold{0.20f};
+    float softness{0.08f};
+    float spill{0.75f};
+};
+
+struct ThresholdParams {
+    float threshold{0.5f};
+    float softness{0.0f};
+};
+
+struct MosaicParams {
+    std::uint32_t block_size{8};
+};
+
 struct LightRaysParams {
     Vec2 origin{0.5f, 0.5f};
     float length{320.0f};
@@ -234,6 +259,10 @@ using EffectParams = std::variant<
     CheckerboardParams,
     FourColorGradientParams,
     Lut3DParams,
+    EchoParams,
+    KeyingParams,
+    ThresholdParams,
+    MosaicParams,
     LightRaysParams,
     OffsetParams,
     DirectionalBlurParams,

@@ -260,6 +260,42 @@ CHRONON_EFFECT(
     false, true
 )
 
+CHRONON_EFFECT(
+    27, Echo, EchoParams, ids::TemporalEcho,
+    "Echo",
+    EffectCategory::Temporal, EffectStage::Temporal,
+    EffectDomain::Composite, AlphaPolicy::MayModify,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    true, false
+)
+
+CHRONON_EFFECT(
+    28, Keying, KeyingParams, ids::MatteKeying,
+    "Luma/Chroma Key",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    29, Threshold, ThresholdParams, ids::StylizeThreshold,
+    "Threshold",
+    EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    30, Mosaic, MosaicParams, ids::StylizeMosaic,
+    "Mosaic",
+    EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Spatial, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
 // ── A3: Curves (fusable in color pipeline) ──
 
 CHRONON_EFFECT(

@@ -194,15 +194,52 @@
           },
           "effects": {
             "type": "array", "maxItems": 64,
-            "items": {
-              "type": "object", "additionalProperties": false,
-              "required": ["type", "asset"],
-              "properties": {
-                "type": { "const": "lut_3d" },
-                "asset": { "type": "string", "minLength": 1, "maxLength": 4096 },
-                "amount": { "type": "number", "minimum": 0, "maximum": 1 }
+            "items": { "oneOf": [
+              { "type": "object", "additionalProperties": false,
+                "required": ["type", "asset"],
+                "properties": {
+                  "type": { "const": "lut_3d" },
+                  "asset": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "echo" },
+                  "echoes": { "type": "integer", "minimum": 1, "maximum": 8 },
+                  "decay": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "time_offset_frames": { "type": "integer", "minimum": 1, "maximum": 120 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "keying" },
+                  "mode": { "enum": ["luma", "chroma"] },
+                  "key_color": { "type": "array", "minItems": 3, "maxItems": 4,
+                                 "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+                  "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "softness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "spill": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "threshold" },
+                  "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "softness": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "mosaic" },
+                  "block_size": { "type": "integer", "minimum": 1, "maximum": 512 }
+                }
               }
-            }
+            ] }
           },
           "style": {
             "type": "object",

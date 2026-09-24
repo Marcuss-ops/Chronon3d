@@ -550,15 +550,61 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (!effects.is_array() || effects.size() > 64)
             throw std::runtime_error("layer.effects must be an array of at most 64 entries");
         for (const auto& raw_effect : effects) {
-            if (raw_effect.value("type", std::string{}) != "lut_3d")
-                throw std::runtime_error("unsupported layer effect type");
-            LayerPlan::LutEffectPlan effect;
-            effect.asset = raw_effect.at("asset").get<std::string>();
-            effect.amount = raw_effect.value("amount", 1.0f);
-            if (effect.asset.empty() || effect.asset.size() > 4096 ||
-                !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
-                throw std::runtime_error("3D LUT effect requires an asset and amount in [0, 1]");
-            layer.lut_effects.push_back(std::move(effect));
+            LayerPlan::EffectPlan effect;
+            const auto kind = raw_effect.value("type", std::string{});
+            if (kind == "lut_3d") {
+                effect.kind = LayerPlan::EffectKindPlan::Lut3D;
+                effect.asset = raw_effect.at("asset").get<std::string>();
+                effect.amount = raw_effect.value("amount", 1.0f);
+                if (effect.asset.empty() || effect.asset.size() > 4096 ||
+                    !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
+                    throw std::runtime_error("3D LUT effect requires an asset and amount in [0, 1]");
+            } else if (kind == "echo") {
+                effect.kind = LayerPlan::EffectKindPlan::Echo;
+                effect.echoes = raw_effect.value("echoes", 3u);
+                effect.decay = raw_effect.value("decay", 0.5f);
+                effect.time_offset_frames = raw_effect.value("time_offset_frames", 1u);
+                if (effect.echoes == 0 || effect.echoes > 8 || !std::isfinite(effect.decay) ||
+                    effect.decay < 0.0f || effect.decay > 1.0f ||
+                    effect.time_offset_frames == 0 || effect.time_offset_frames > 120)
+                    throw std::runtime_error("Echo requires echoes in [1, 8], decay in [0, 1], and time_offset_frames in [1, 120]");
+            } else if (kind == "keying") {
+                effect.kind = LayerPlan::EffectKindPlan::Keying;
+                const auto mode = raw_effect.value("mode", std::string("chroma"));
+                if (mode == "luma") effect.keying_mode = LayerPlan::KeyingModePlan::Luma;
+                else if (mode == "chroma") effect.keying_mode = LayerPlan::KeyingModePlan::Chroma;
+                else throw std::runtime_error("Keying mode must be 'luma' or 'chroma'");
+                if (raw_effect.contains("key_color")) {
+                    const auto& color = raw_effect.at("key_color");
+                    if (!color.is_array() || (color.size() != 3 && color.size() != 4))
+                        throw std::runtime_error("Keying key_color must contain RGB or RGBA");
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        effect.key_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.key_color[i]) || effect.key_color[i] < 0.0f || effect.key_color[i] > 1.0f)
+                            throw std::runtime_error("Keying key_color components must be in [0, 1]");
+                    }
+                }
+                effect.threshold = raw_effect.value("threshold", 0.20f);
+                effect.softness = raw_effect.value("softness", 0.08f);
+                effect.spill = raw_effect.value("spill", 0.75f);
+                if (!std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f ||
+                    !std::isfinite(effect.softness) || effect.softness < 0.0f || effect.softness > 1.0f ||
+                    !std::isfinite(effect.spill) || effect.spill < 0.0f || effect.spill > 1.0f)
+                    throw std::runtime_error("Keying threshold, softness, and spill must be in [0, 1]");
+            } else if (kind == "threshold") {
+                effect.kind = LayerPlan::EffectKindPlan::Threshold;
+                effect.threshold = raw_effect.value("threshold", 0.5f);
+                effect.threshold_softness = raw_effect.value("softness", 0.0f);
+                if (!std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f ||
+                    !std::isfinite(effect.threshold_softness) || effect.threshold_softness < 0.0f || effect.threshold_softness > 1.0f)
+                    throw std::runtime_error("Threshold and softness must be in [0, 1]");
+            } else if (kind == "mosaic") {
+                effect.kind = LayerPlan::EffectKindPlan::Mosaic;
+                effect.block_size = raw_effect.value("block_size", 8u);
+                if (effect.block_size == 0 || effect.block_size > 512)
+                    throw std::runtime_error("Mosaic block_size must be in [1, 512]");
+            } else throw std::runtime_error("unsupported layer effect type");
+            layer.effects.push_back(std::move(effect));
         }
     }
     if (value.contains("position")) {

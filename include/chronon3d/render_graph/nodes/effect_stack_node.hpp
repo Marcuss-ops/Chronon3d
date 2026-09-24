@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
+#include <string>
 
 namespace chronon3d::graph {
 
@@ -24,13 +25,17 @@ public:
     bool has_compiled_recorder() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
+        const auto effect_hash = hash_effect_stack(m_effects);
+        const auto params_hash = m_temporal_history_key.empty()
+            ? effect_hash
+            : hash_combine(effect_hash, hash_string(m_temporal_history_key));
         return cache::NodeCacheKey{
             .scope = "effect_stack",
             .frame = cache_frame_for_policy(
                 cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_effect_stack(m_effects)
+            .params_hash = params_hash
         };
     }
 
@@ -48,12 +53,27 @@ public:
     /// Returns true if the effect stack contains only color/tonal effects
     /// (no blur, glow, shadow, bloom, or other spatially-expanding effects).
     /// Used by the graph builder for skip-when-opaque analysis.
-    [[nodiscard]] bool is_color_only() const { return compute_max_effect_spread() <= 0.0f; }
+    [[nodiscard]] bool is_color_only() const {
+        for (const auto& effect : m_effects)
+            if (effect.enabled && (effect.effect_type == effects::EffectType::Echo ||
+                                   effect.effect_type == effects::EffectType::Mosaic)) return false;
+        return compute_max_effect_spread() <= 0.0f;
+    }
+
+    [[nodiscard]] bool has_temporal_effect() const {
+        for (const auto& effect : m_effects)
+            if (effect.enabled && effect.effect_type == effects::EffectType::Echo) return true;
+        return false;
+    }
 
     /// Prepend `prefix` effects before this node's own effects.
     /// Used by the optimizer to merge an upstream EffectStackNode into this one.
     void prepend_effects(const EffectStack& prefix) {
         m_effects.insert(m_effects.begin(), prefix.begin(), prefix.end());
+    }
+
+    void set_temporal_history_key(std::string key) {
+        m_temporal_history_key = std::move(key);
     }
 
 private:
@@ -127,6 +147,7 @@ private:
     }
 
     EffectStack m_effects;
+    std::string m_temporal_history_key;
     Frame m_cache_frame{-1};
 };
 

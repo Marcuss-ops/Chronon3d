@@ -14,6 +14,9 @@ namespace {
 std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInstance& effect) {
     chronon3d::EffectStack stack;
     stack.push_back(effect);
+    if (effect.effect_type == EffectType::Echo)
+        return std::make_unique<graph::EffectStackNode>(
+            std::move(stack), Frame{-1}, graph::frame_variant_cache("echo"));
     return std::make_unique<graph::EffectStackNode>(std::move(stack));
 }
 

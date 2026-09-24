@@ -1,0 +1,9 @@
+CHRONON FRAMEHASH v1
+engine_sha=unknown
+plan_digest=keying-canary-v1
+pixel_format=rgba8
+width=32
+height=32
+frame_bytes=4096
+frames=1
+frame=0 sha256=0cb534be932e34a6ed476e2edc4a961b520ffe7fb645cd6bbf1ac408f61d5790

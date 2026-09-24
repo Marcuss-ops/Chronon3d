@@ -50,11 +50,19 @@ TEST_CASE("EffectCatalog: EffectType numeric values are stable") {
     static_assert(static_cast<uint8_t>(EffectType::FourColorGradient) == 24);
     static_assert(static_cast<uint8_t>(EffectType::LightRays)       == 25);
     static_assert(static_cast<uint8_t>(EffectType::Lut3D)           == 26);
+    static_assert(static_cast<uint8_t>(EffectType::Echo)             == 27);
+    static_assert(static_cast<uint8_t>(EffectType::Keying)           == 28);
+    static_assert(static_cast<uint8_t>(EffectType::Threshold)         == 29);
+    static_assert(static_cast<uint8_t>(EffectType::Mosaic)            == 30);
 
     // Verify that the enum values we use in code match the expected numeric range
     CHECK(static_cast<uint8_t>(EffectType::Unknown) == 0);
     CHECK(static_cast<uint8_t>(EffectType::Stroke) == 21);
     CHECK(static_cast<uint8_t>(EffectType::Lut3D) == 26);
+    CHECK(static_cast<uint8_t>(EffectType::Echo) == 27);
+    CHECK(static_cast<uint8_t>(EffectType::Keying) == 28);
+    CHECK(static_cast<uint8_t>(EffectType::Threshold) == 29);
+    CHECK(static_cast<uint8_t>(EffectType::Mosaic) == 30);
 }
 
 // =============================================================================
@@ -80,6 +88,10 @@ TEST_CASE("EffectCatalog: effect_type_for maps param type to EffectType") {
     CHECK(effect_type_for<NoiseParams>::value         == EffectType::Noise);
     CHECK(effect_type_for<OffsetParams>::value        == EffectType::Offset);
     CHECK(effect_type_for<Lut3DParams>::value          == EffectType::Lut3D);
+    CHECK(effect_type_for<EchoParams>::value            == EffectType::Echo);
+    CHECK(effect_type_for<KeyingParams>::value          == EffectType::Keying);
+    CHECK(effect_type_for<ThresholdParams>::value        == EffectType::Threshold);
+    CHECK(effect_type_for<MosaicParams>::value           == EffectType::Mosaic);
 }
 
 // =============================================================================

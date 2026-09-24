@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <memory>
 #include <atomic>
@@ -73,12 +74,20 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
     // Layer effects — the EffectCatalog factory bakes cache policy into
     // the constructed node; in-place mutation was removed. Single id.
+    std::size_t effect_index = 0;
     for (const auto& effect : layer.effects()) {
+        const auto current_effect_index = effect_index++;
         if (!effect.enabled) continue;
         const auto* ec = ctx.build_dependencies
             ? ctx.build_dependencies->effect_catalog : nullptr;
         if (!ec) throw std::logic_error("effect catalog not wired for graph build");
-        GraphNodeId effect_id = graph.add_node(ec->create_node(effect), node_ctx);
+        auto effect_node = ec->create_node(effect);
+        if (effect.effect_type == effects::EffectType::Echo) {
+            if (auto* stack = dynamic_cast<EffectStackNode*>(effect_node.get()))
+                stack->set_temporal_history_key(
+                    std::string(layer.name) + "/echo/" + std::to_string(current_effect_index));
+        }
+        GraphNodeId effect_id = graph.add_node(std::move(effect_node), node_ctx);
         graph.connect(layer_output, effect_id);
         layer_output = effect_id;
     }
