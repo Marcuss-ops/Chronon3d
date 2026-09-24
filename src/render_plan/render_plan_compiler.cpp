@@ -532,7 +532,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             layer.position[2]});
                     }
                 };
-                if (layer.screen_space) scene.screen_layer(layer.id, author_layer);
+                const bool canvas_color_background =
+                    has_3d_layer && layer.type == LayerType::Color &&
+                    layer.position_dimensions == 0 &&
+                    (layer.size_dimensions != 2 ||
+                     (layer.size[0] >= static_cast<float>(plan.canvas.width) &&
+                      layer.size[1] >= static_cast<float>(plan.canvas.height)));
+                if (layer.screen_space || canvas_color_background)
+                    scene.screen_layer(layer.id, author_layer);
                 else scene.layer(layer.id, author_layer);
             }
             return scene.build();
