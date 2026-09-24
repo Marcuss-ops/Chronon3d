@@ -148,3 +148,22 @@ TEST_CASE("Round corners replaces polyline vertices with quadratic corners") {
     CHECK(result[0].commands[1].p1.y == doctest::Approx(0));
     CHECK(result[0].commands.back().type == PathCommandType::Close);
 }
+
+TEST_CASE("Zig-zag offsets a deterministic polyline by its local normal") {
+    PathShape line;
+    line.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({10, 0})};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::ZigZag;
+    op.params = ZigZagParams{2.0f, 0.2f, false};
+    const auto result = apply_path_operators(line, {op});
+    REQUIRE(result.size() == 1);
+    REQUIRE(result[0].commands.size() == 9);
+    CHECK(result[0].commands[0].p0.x == doctest::Approx(0));
+    CHECK(result[0].commands[0].p0.y == doctest::Approx(0));
+    CHECK(result[0].commands[1].p0.x == doctest::Approx(1.25));
+    CHECK(result[0].commands[1].p0.y == doctest::Approx(2));
+    CHECK(result[0].commands.back().p0.x == doctest::Approx(10));
+    CHECK(result[0].commands.back().p0.y == doctest::Approx(0));
+    CHECK(result[0].commands[1].p0.y ==
+          apply_path_operators(line, {op})[0].commands[1].p0.y);
+}
