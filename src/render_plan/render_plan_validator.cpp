@@ -1,6 +1,7 @@
-// Structural render-plan validation backed by the canonical JSON Schema.
+// Structural render-plan validation backed by the canonical JSON Schemas.
 
 #include <chronon3d/render_plan/render_plan_validator.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
 
 #include "generated_render_plan_schema.hpp"
 #include "validation/json_schema_diagnostic_adapter.hpp"
@@ -25,6 +26,62 @@ struct ErrorHandler final : nlohmann::json_schema::basic_error_handler {
         errors.push_back({pointer.to_string(), detail});
     }
 };
+
+std::vector<validation::RawSchemaError> validate_against(
+    const nlohmann::json& instance, const nlohmann::json& schema) {
+    nlohmann::json_schema::json_validator validator(schema);
+    ErrorHandler handler;
+    validator.validate(instance, handler);
+    return std::move(handler.errors);
+}
+
+nlohmann::json v2_projection(const nlohmann::json& root) {
+    nlohmann::json projected = root;
+    projected["schema"] = kRenderPlanSchemaV2;
+    projected["version"] = 2;
+    if (!projected.contains("layers") || !projected["layers"].is_array())
+        return projected;
+
+    for (auto& layer : projected["layers"]) {
+        if (!layer.is_object()) continue;
+        const bool shape_layer = layer.value("type", std::string{}) == "shape";
+        if (shape_layer) {
+            // The base V2 validator is authoritative for every common field;
+            // supply only the neutral V2 layer discriminator/payload needed
+            // to pass V2's closed enum and required-color condition.
+            layer["type"] = "color";
+            if (!layer.contains("color")) layer["color"] = {1.0, 1.0, 1.0, 1.0};
+        }
+        if (layer.contains("shape") && layer["shape"].is_object()) {
+            auto& shape = layer["shape"];
+            if (shape.contains("fill") && shape["fill"].is_array())
+                layer["color"] = shape["fill"];
+            if (shape.contains("fill")) shape.erase("fill");
+            if (shape.contains("stroke") && shape["stroke"].is_object()) {
+                auto& stroke = shape["stroke"];
+                if (stroke.contains("color") && stroke["color"].is_array())
+                    stroke["color"] = "#FFFFFF";
+            }
+        }
+        if (layer.contains("style") && layer["style"].is_object()) {
+            if (layer["style"].contains("gradient")) layer["style"].erase("gradient");
+            if (layer["style"].contains("stroke") && layer["style"]["stroke"].is_object()) {
+                auto& stroke = layer["style"]["stroke"];
+                if (stroke.contains("gradient")) stroke.erase("gradient");
+                if (!stroke.contains("color")) stroke["color"] = "#FFFFFF";
+                if (!stroke.contains("width")) stroke["width"] = 0.0;
+            }
+        }
+        layer.erase("shape");
+        if (layer.contains("style") && layer["style"].is_object()) {
+            layer["style"].erase("gradient");
+            if (layer["style"].contains("stroke") &&
+                layer["style"]["stroke"].is_object())
+                layer["style"]["stroke"].erase("gradient");
+        }
+    }
+    return projected;
+}
 
 }  // namespace
 
@@ -61,11 +118,19 @@ std::string ValidationResult::format() const {
 ValidationResult validate_render_plan(const nlohmann::json& root) {
     ValidationResult result;
     try {
-        const auto& schema = render_plan_schema();
-        nlohmann::json_schema::json_validator validator(schema);
-        ErrorHandler handler;
-        validator.validate(root, handler);
-        result.issues = validation::adapt_json_schema_diagnostics(root, handler.errors);
+        std::vector<validation::RawSchemaError> errors;
+        const auto schema_id = root.is_object()
+            ? root.value("schema", std::string{}) : std::string{};
+        if (schema_id == kRenderPlanSchemaV3) {
+            errors = validate_against(root, render_plan_v3_extensions_schema());
+            auto base_errors = validate_against(v2_projection(root), render_plan_v2_schema());
+            errors.insert(errors.end(),
+                          std::make_move_iterator(base_errors.begin()),
+                          std::make_move_iterator(base_errors.end()));
+        } else {
+            errors = validate_against(root, render_plan_v2_schema());
+        }
+        result.issues = validation::adapt_json_schema_diagnostics(root, errors);
     } catch (const std::exception& error) {
         result.issues.push_back(make_validation_issue(
             "<root>", ValidationIssueKind::SchemaViolation,

@@ -23,8 +23,12 @@ set_source_files_properties(
 
 set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v2.schema.json)
+set(CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE
+    ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v3.extensions.schema.json)
 file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
      CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
+file(READ "${CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE}"
+     CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_JSON)
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/render_plan_schema.hpp.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated_render_plan_schema.hpp

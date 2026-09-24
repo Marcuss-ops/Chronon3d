@@ -195,6 +195,18 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
             const bool gpu_frame = slot &&
                 slot->native_surface != runtime::kInvalidRenderSurfaceHandle &&
                 slot->backend != nullptr;
+            if (!gpu_frame && !fb_ref.data()) {
+                spdlog::error(
+                    "[video] CPU export requested for framebuffer without host pixels at frame {}; refusing invalid surface fallback",
+                    full->frame_number);
+                if (ctx.counters) {
+                    ctx.counters->gpu_encode_failures.fetch_add(
+                        1, std::memory_order_relaxed);
+                }
+                ctx.writer_failed.store(true);
+                ctx.queue.fail();
+                return;
+            }
             if (gpu_frame && ctx.counters) {
                 ctx.counters->gpu_native_surface_frames.fetch_add(
                     1, std::memory_order_relaxed);

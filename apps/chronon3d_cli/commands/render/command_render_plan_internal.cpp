@@ -131,9 +131,10 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         }
         auto context = std::move(preparation).value();
 
-        // Animated 2.5D image textures are not certified resident on the
-        // Vulkan video path yet. Reject the strict native request before any
-        // frame is rendered or output is opened; never publish a black image.
+        // Pixel-correct Vulkan composition is verified, but animated 2.5D
+        // image plans still have no certified Vulkan-to-CUDA/NVENC native
+        // surface feed. Fail strict native requests before opening output;
+        // do not confuse the composition fix with encoder interop support.
         const auto requested_output = normalized_job.output_path.empty()
             ? context.decoded.output.path : normalized_job.output_path.string();
         const bool strict_vulkan_native = video_output(requested_output) &&
@@ -144,7 +145,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                     unsupported_animated_vulkan_image(context.decoded)) {
                 spdlog::error(
                     "[video] refusing require_gpu_native: animated 2.5D image "
-                    "texture residency is unsupported ({})",
+                    "native video-surface capability is not certified ({})",
                     *unsupported);
                 return 1;
             }

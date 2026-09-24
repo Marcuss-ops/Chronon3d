@@ -173,5 +173,15 @@ ad ADR.**
 
 ## Stato
 
-`PARTIAL` — wave P1 implementata (A2, A2b, A3, A9, A10); D1-D3 differite con
-piano. Test `NOT RUN`.
+`VERIFY` — wave P1 implementata (A2, A2b, A3, A9, A10); D1-D3 restano
+intenzionalmente differite. La build e la suite richieste non sono ancora state
+eseguite, quindi il ticket non può essere dichiarato `DONE`.
+
+## Stato di chiusura
+
+- **Stato:** `VERIFY` (non `DONE`).
+- **Prerequisiti:** eseguire il preset `linux-fast-dev` e verificare i target
+  `backend_registry`, `compositor`, `render_job_contract`, `render_graph`,
+  `test_node_memory_tracker` e `test_motion_blur_integration` sullo stesso SHA.
+- **Criterio di uscita:** tutti i test sopra devono essere `PASS`; il solo
+  review statico non è sufficiente per chiudere la wave.

@@ -31,80 +31,10 @@ namespace chronon3d::renderer {
     const f32 sx = std::max(sz.x, 1.0f);
     const f32 sy = std::max(sz.y, 1.0f);
 
-    f32 t = 0.0f;
-    if (fill.type == FillType::LinearGradient) {
-        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        const f32 len_sq = dir.x * dir.x + dir.y * dir.y;
-        if (len_sq > 1e-6f) {
-            const Vec2 rel = norm - fill.gradient.from;
-            t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
-        }
-    } else if (fill.type == FillType::RadialGradient) {
-        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
-        const Vec2 d = norm - fill.gradient.from;
-        const Vec2 rv = fill.gradient.to - fill.gradient.from;
-        const f32 r = glm::length(rv);
-        t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
-    } else if (fill.type == FillType::ConicGradient) {
-        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
-        const Vec2 d = norm - fill.gradient.from;
-        float angle = std::atan2(d.y, d.x);
-        if (angle < 0.0f) {
-            angle += 2.0f * 3.14159265f;
-        }
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        float start_angle = std::atan2(dir.y, dir.x);
-        if (start_angle < 0.0f) {
-            start_angle += 2.0f * 3.14159265f;
-        }
-        float relative_angle = angle - start_angle;
-        if (relative_angle < 0.0f) {
-            relative_angle += 2.0f * 3.14159265f;
-        }
-        t = relative_angle / (2.0f * 3.14159265f);
-    } else {
-        Color c = fill.solid.to_linear();
-        c.a *= opacity;
-        return c;
-    }
-
-    t = std::clamp(t, 0.0f, 1.0f);
-
-    if (fill.gradient.stops.empty()) {
-        Color c = fill.solid.to_linear();
-        c.a *= opacity;
-        return c;
-    }
-
-    Color c;
-    if (t <= fill.gradient.stops.front().offset) {
-        c = fill.gradient.stops.front().color.to_linear();
-    } else if (t >= fill.gradient.stops.back().offset) {
-        c = fill.gradient.stops.back().color.to_linear();
-    } else {
-        for (size_t i = 0; i < fill.gradient.stops.size() - 1; ++i) {
-            const auto& a = fill.gradient.stops[i];
-            const auto& b = fill.gradient.stops[i+1];
-            if (t >= a.offset && t <= b.offset) {
-                const f32 range = b.offset - a.offset;
-                const f32 local_t = (range < 1e-6f) ? 0.0f : (t - a.offset) / range;
-                // Authoring stops are sRGB values, but gradients are sampled
-                // in the renderer's linear working space.  Interpolating in
-                // sRGB would make a 50% red/blue stop roughly 21% linear and
-                // violate the canonical GradientDefinition contract (see
-                // sample_color_stops in graphics/gradient.hpp).  Match it by
-                // converting both stops to linear first, then interpolating.
-                const Color c_a = a.color.to_linear();
-                const Color c_b = b.color.to_linear();
-                c = c_a + (c_b - c_a) * local_t;
-                break;
-            }
-        }
-    }
-
-    c.a *= opacity;
-    return c;
+    const Vec2 normalized{lp.x / sx, lp.y / sy};
+    Color color = sample_gradient_at(fill.gradient, normalized);
+    color.a *= opacity;
+    return color;
 }
 
 // ── Shape property queries ─────────────────────────────────────────
@@ -214,7 +144,7 @@ namespace chronon3d::renderer {
         return Color{0.0f, 0.0f, 0.0f, 0.0f};
     }
     Fill fake_fill;
-    fake_fill.type = g->value().type;
+    fake_fill.type = fill_type_for_gradient(g->value().type);
     fake_fill.gradient = g->value();
     return resolve_gradient_color(fake_fill, lp, sz, 1.0f);
 }

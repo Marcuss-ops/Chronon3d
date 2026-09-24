@@ -1,6 +1,9 @@
 # TICKET-P1E-CPU-BUDGET-MEASUREMENT — CpuBudget render/encode timing measurement
 
-## Stato: MEASURED / EXISTING BOUNDED PIPELINE RETAINED (2026-09-11)
+## Stato: DONE — MISURATO / BOUNDED PIPELINE RETENUTO (2026-09-11)
+
+La misurazione ha deciso di mantenere la pipeline bounded esistente: non è
+stato autorizzato alcun pool, scheduler o writer separato.
 
 ## Contesto
 
@@ -106,7 +109,8 @@ implemented; no new pool or scheduler is authorized by this measurement.
 - [x] Baseline same-SHA salvata in `docs/baselines/cpu-budget-a16c86de2-run2.txt`
 - [x] Decisione documentata: encode significativo; il pipe bounded esistente
   resta l'unica pipeline e ogni estensione passa da `CpuBudget`
-- [ ] Se estensione: implementata nello stesso CpuBudget (no pool separati)
+- [x] Se estensione: non applicabile — la misurazione ha deciso di mantenere
+  la pipeline bounded esistente; nessuna nuova pool/scheduler è autorizzata.
 
 ## Cross-link
 

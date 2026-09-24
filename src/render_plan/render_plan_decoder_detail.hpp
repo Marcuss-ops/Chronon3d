@@ -10,6 +10,8 @@
 namespace chronon3d::render_plan::detail {
 
 [[nodiscard]] bool invalid_logical_path(const std::string& value);
+[[nodiscard]] graphics::GradientDefinition decode_gradient_definition(
+    const nlohmann::json& raw_gradient);
 [[nodiscard]] LayerType layer_type(const std::string& value);
 [[nodiscard]] FitMode fit_mode(const std::string& value);
 [[nodiscard]] std::optional<chronon3d::BlendMode> blend_mode(const std::string& value);

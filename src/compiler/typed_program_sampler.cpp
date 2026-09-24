@@ -82,6 +82,10 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 sampled.payload = SampledTextParameters{sampled.text_index};
                 break;
             }
+            case NodeKind::Shape:
+                sampled.payload = SampledShapeParameters{
+                    layer.size, layer.color, layer.opacity};
+                break;
             case NodeKind::Unknown:
                 break;
         }

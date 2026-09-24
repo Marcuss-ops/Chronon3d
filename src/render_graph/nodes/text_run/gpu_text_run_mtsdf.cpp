@@ -13,6 +13,7 @@
 #include "../native_surface.hpp"
 
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
 #include <chronon3d/text/mtsdf_preparation.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
@@ -212,7 +213,19 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         const auto& location = resident->location;
         runtime::GlyphStatic glyph{};
         glyph.atlas_page = 0;
-        glyph.flags = 1u;
+        std::uint32_t unit_index = std::numeric_limits<std::uint32_t>::max();
+        if (!shape.animators.empty() && !shape.animators.front().selectors.empty()) {
+            const auto selector_unit = shape.animators.front().selectors.front().unit;
+            if (selector_unit == TextSelectorUnit::Word &&
+                layout_index < layout.units.glyph_to_word.size()) {
+                unit_index = layout.units.glyph_to_word[layout_index];
+            } else if (selector_unit == TextSelectorUnit::Line &&
+                       layout_index < layout.units.glyph_to_line.size()) {
+                unit_index = layout.units.glyph_to_line[layout_index];
+            }
+        }
+        glyph.flags = static_cast<std::uint16_t>(
+            runtime::pack_mtsdf_glyph_unit_flags(1u, unit_index));
         glyph.atlas_x = location.atlas_x;
         glyph.atlas_y = location.atlas_y;
         glyph.atlas_w = location.width;

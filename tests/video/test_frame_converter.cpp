@@ -147,6 +147,42 @@ TEST_CASE("frame_converter: even 1278x718 succeeds without crash") {
     // (actual kernel correctness covered by 4x4 tests above)
 }
 
+TEST_CASE("frame_converter: source without CPU pixels is rejected before conversion") {
+    constexpr int w = 4, h = 4;
+    Framebuffer gpu_only(w, h, static_cast<Color*>(nullptr));
+    std::vector<uint8_t> y(w * h, 0), u(w * h / 4, 0), v(w * h / 4, 0);
+
+    ConvertFrameRequest req{
+        .src = gpu_only,
+        .planes = FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        .width = w,
+        .height = h,
+        .format = EncoderPixelFormat::YUV420P,
+    };
+
+    const auto result = convert_frame(req);
+    CHECK_FALSE(result.success);
+    CHECK(result.error == ConversionError::NullPointer);
+}
+
+TEST_CASE("frame_converter: source smaller than requested output is rejected") {
+    constexpr int w = 8, h = 4;
+    auto small = make_solid(4, 4, Color{1, 0, 0, 1});
+    std::vector<uint8_t> y(w * h, 0), u(w * h / 4, 0), v(w * h / 4, 0);
+
+    ConvertFrameRequest req{
+        .src = small,
+        .planes = FramePlanes{.y = y.data(), .u = u.data(), .v = v.data()},
+        .width = w,
+        .height = h,
+        .format = EncoderPixelFormat::YUV420P,
+    };
+
+    const auto result = convert_frame(req);
+    CHECK_FALSE(result.success);
+    CHECK(result.error == ConversionError::InvalidSource);
+}
+
 TEST_CASE("frame_converter: odd dimensions are rejected cleanly for YUV420P") {
     // Can't open an odd Framebuffer (YUV needs even), but we can test the gate
     // logic using convert_frame directly with a padded even framebuffer but

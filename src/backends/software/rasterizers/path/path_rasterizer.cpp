@@ -50,33 +50,6 @@ namespace {
 }
 } // anonymous namespace
 
-[[nodiscard]] graphics::CompiledGradient compile_legacy_gradient(
-    const GradientFill& legacy)
-{
-    graphics::GradientDefinition definition;
-    definition.type = legacy.type == FillType::LinearGradient
-        ? graphics::GradientType::Linear
-        : legacy.type == FillType::ConicGradient
-            ? graphics::GradientType::Conic
-            : graphics::GradientType::Radial;
-    definition.start = legacy.from;
-    definition.end = legacy.to;
-    definition.center = legacy.from;
-    definition.radius = glm::length(legacy.to - legacy.from);
-    definition.angle = std::atan2(
-        legacy.to.y - legacy.from.y, legacy.to.x - legacy.from.x);
-    definition.color_stops.reserve(legacy.stops.size());
-    for (const auto& stop : legacy.stops) {
-        definition.color_stops.push_back({stop.offset, stop.color});
-    }
-    std::stable_sort(definition.color_stops.begin(), definition.color_stops.end(),
-                     [](const graphics::GradientStop& a,
-                        const graphics::GradientStop& b) {
-                         return a.position < b.position;
-                     });
-    return graphics::compile_gradient(definition);
-}
-
 [[nodiscard]] Color resolve_compiled_gradient_color(
     const graphics::CompiledGradient& gradient, Vec2 p,
     const raster::BBox& bbox, f32 opacity)
@@ -89,16 +62,16 @@ namespace {
 
     f32 t = 0.0f;
     if (gradient.type == graphics::GradientType::Linear) {
-        const Vec2 dir = gradient.end - gradient.start;
-        const f32 len2 = glm::dot(dir, dir);
-        if (len2 > kPathEpsilon) {
-            t = glm::dot(local - gradient.start, dir) / len2;
-        }
+        const Vec2 direction = gradient.end - gradient.start;
+        const f32 length_squared = glm::dot(direction, direction);
+        if (length_squared > kPathEpsilon)
+            t = glm::dot(local - gradient.start, direction) / length_squared;
     } else if (gradient.type == graphics::GradientType::Conic) {
-        const Vec2 d = local - gradient.center;
-        f32 angle = std::atan2(d.y, d.x) - gradient.angle;
-        if (angle < 0.0f) angle += 2.0f * 3.14159265f;
-        t = angle / (2.0f * 3.14159265f);
+        const Vec2 delta = local - gradient.center;
+        f32 angle = std::atan2(delta.y, delta.x) - gradient.angle;
+        constexpr f32 tau = 6.2831853071795864769f;
+        angle -= tau * std::floor(angle / tau);
+        t = angle / tau;
     } else {
         const f32 distance = glm::length(local - gradient.center);
         t = gradient.radius > kPathEpsilon ? distance / gradient.radius : 0.0f;
@@ -196,7 +169,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
 
     std::optional<graphics::CompiledGradient> compiled_fill;
     if (use_custom_fill && path.fill.type != FillType::Solid) {
-        compiled_fill = compile_legacy_gradient(path.fill.gradient);
+        compiled_fill = graphics::compile_gradient(path.fill.gradient);
     }
 
     // PR1: prepare trim + dash once outside the per-pixel loop.
@@ -214,7 +187,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
         (vec_mode == VectorRasterizerDebugMode::Custom) && path.stroke.enabled;
     std::optional<graphics::CompiledGradient> compiled_stroke;
     if (use_custom_stroke && path.stroke.gradient.has_value()) {
-        compiled_stroke = compile_legacy_gradient(*path.stroke.gradient);
+        compiled_stroke = graphics::compile_gradient(*path.stroke.gradient);
     }
     if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
         rasterize_path_stroke_blend2d(
@@ -388,44 +361,10 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
 
     const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
     const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
-    const Vec2 local{
+    const Vec2 normalized{
         (p.x - static_cast<f32>(bbox.x0)) / w,
-        (p.y - static_cast<f32>(bbox.y0)) / h
-    };
-
-    f32 t = 0.0f;
-    if (fill.type == FillType::LinearGradient) {
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        const f32 len2 = glm::dot(dir, dir);
-        if (len2 > kPathEpsilon) {
-            const Vec2 d = local - fill.gradient.from;
-            t = glm::dot(d, dir) / len2;
-        }
-    } else if (fill.type == FillType::ConicGradient) {
-        const Vec2 d = local - fill.gradient.from;
-        float angle = std::atan2(d.y, d.x);
-        if (angle < 0.0f) {
-            angle += 2.0f * 3.14159265f;
-        }
-        const Vec2 dir = fill.gradient.to - fill.gradient.from;
-        float start_angle = std::atan2(dir.y, dir.x);
-        if (start_angle < 0.0f) {
-            start_angle += 2.0f * 3.14159265f;
-        }
-        float relative_angle = angle - start_angle;
-        if (relative_angle < 0.0f) {
-            relative_angle += 2.0f * 3.14159265f;
-        }
-        t = relative_angle / (2.0f * 3.14159265f);
-    } else {
-        const Vec2 d = local - fill.gradient.from;
-        const Vec2 rv = fill.gradient.to - fill.gradient.from;
-        const f32 r = glm::length(rv);
-        t = (r > kPathEpsilon) ? glm::length(d) / r : 0.0f;
-    }
-
-    t = std::clamp(t, 0.0f, 1.0f);
-    Color c = sample_gradient(fill.gradient, t);
+        (p.y - static_cast<f32>(bbox.y0)) / h};
+    Color c = sample_gradient_at(fill.gradient, normalized);
     c.a *= opacity;
     return c;
 }

@@ -1,6 +1,6 @@
 # TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY — preserve animated image textures
 
-**Status**: `OPEN` — strict delivery guard verified; Vulkan transform/residency defect reproduced
+**Status**: `OPEN` — Vulkan pixel regression fixed and hardware probe passes; strict capability routing remains open
 **Priority**: `P1`
 **Area**: Vulkan video render path / 2.5D image layer residency
 
@@ -107,14 +107,42 @@ is not met on this host.
 The instrumented frame-75 transform confirmed an opaque native input
 (`in_ink=100%`, center RGBA approximately `[0.956, 0.831, 0.021, 1]`),
 `opacity=1`, valid in-bounds projective mapping parameters, and zero alpha
-coverage at the transform output. This rules out a missing/empty upload and
-zero opacity. The animated transform output remains the failing stage; its
-coordinate/surface mapping is unresolved. The temporary diagnostics were
-removed after collection. Status remains `OPEN`.
+coverage at the transform output. The failure was downstream of that input:
+the projected transform produced a tight surface with a non-zero origin, and
+the following DepthGrade pass-through lost that origin when copying the
+framebuffer. Composite then selected its equal-size native fast path, which
+does not apply the affine origin mapping. The fix preserves origin metadata
+for native surfaces through DepthGrade and permits the equal-size fast path
+only when source and destination origins also match; mismatched origins use
+the affine path. Strict transform input promotion now performs a synchronous
+upload when the same frame consumes the promoted surface.
+
+## Hardware verification after origin/mapping fix — 2026-09-23
+
+On the RTX A4000, `run_pixel_probe.sh` passed all 12 renders (static,
+animated `position_z`, and camera-only; software and Vulkan; frames 75 and
+149). Every center pixel was `[248, 233, 39]` with max error 0. Full-frame
+software/Vulkan maximum channel deltas were 0/0 for static, 25/30 for
+animated, and 32/30 for camera-only at frames 75/149 respectively. The probe
+also ffprobes each output. The permanent Vulkan affine projective regression
+test passes (10 assertions), covering the clipped dispatch and canvas-center
+sample used by the animated transform.
+
+The strict capability item is still open. Animated `require_gpu_native` is
+rejected before encoder setup by the existing unsupported-motion guard. On
+this host, static strict routing resolves no Vulkan-to-CUDA native-surface
+feed (`native_surface=false`) and rejects before creating an artifact. An
+experimental VulkanGraph+pipe route reached the encoder but crashed because
+the pipe conversion received a GPU-only framebuffer with no CPU readback;
+that experimental route was removed. Do not mark this ticket FIXED until
+strict static capability is correctly resolved (or explicitly rejected as
+unsupported before mux) and the supported-plan acceptance is met. Temporary
+diagnostic code was removed.
 
 The investigation also found and corrected an independent affine shader ABI
 mismatch: C++ stores `bilinear` as a `uint32_t`, while GLSL had interpreted the
 same four bytes as a float in a `vec4 limits`; the float comparison always
 selected nearest sampling. GLSL now declares the matching scalar fields, and a
-Vulkan-gated boundary-sampling regression passes. This correction does not
-resolve the animated frame-75/149 failure above.
+Vulkan-gated boundary-sampling regression passes. Combined with origin
+preservation and affine-path selection, the complete animated pixel probe now
+passes at both sampled frames.

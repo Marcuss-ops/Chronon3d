@@ -4,12 +4,19 @@
 
 namespace chronon3d::render_plan {
 
-// Generated from schemas/chronon.render-plan.v2.schema.json at configure time.
-// Keep the JSON schema as the only editable source of validator structure.
-inline const nlohmann::json& render_plan_schema() {
-    static const nlohmann::json schema = nlohmann::json::parse(R"CHRONON3D_SCHEMA(
+// Generated from the V2 base contract and additive V3 extension contract.
+// Keep schemas/json as the only editable source of validator structure.
+inline const nlohmann::json& render_plan_v2_schema() {
+    static const nlohmann::json schema = nlohmann::json::parse(R"C3V2(
 @CHRONON3D_RENDER_PLAN_SCHEMA_JSON@
-)CHRONON3D_SCHEMA");
+)C3V2");
+    return schema;
+}
+
+inline const nlohmann::json& render_plan_v3_extensions_schema() {
+    static const nlohmann::json schema = nlohmann::json::parse(R"C3V3(
+@CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_JSON@
+)C3V3");
     return schema;
 }
 

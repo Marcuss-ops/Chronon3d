@@ -28,6 +28,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_draw_text_run_crossfade_stroke.cpp
         text/test_draw_text_run_scratch_state.cpp
         text/test_glyph_atlas_metadata.cpp
+        text/test_gpu_text_selector_metadata.cpp
         text/test_compile_text_layout_errors.cpp
         text/test_auto_fit_font_size.cpp
         text/test_rich_text_paragraph_preservation.cpp

@@ -36,11 +36,12 @@ enum class FrameConversionBackend {
 enum class ConversionError {
     None,
     OddDims,            ///< width or height is odd (4:2:0 requires even).
-    NullPointer,        ///< A required plane pointer is null for the target format.
+    NullPointer,        ///< Source pixels or a required target plane are null.
     UnsupportedMatrix,  ///< Backend cannot encode the requested ColorMatrix.
     UnsupportedRange,   ///< Backend cannot encode the requested ColorRange.
     UnsupportedFormat,  ///< Target PixelFormat is not handled.
     BackendError,       ///< Backend runtime failure (e.g., swscale returned 0).
+    InvalidSource,      ///< Source framebuffer does not cover the requested extent.
 };
 
 /// Aggregated YUV plane pointers and per-plane byte strides. Iteration

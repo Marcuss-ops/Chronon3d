@@ -1,9 +1,24 @@
 # TICKET-AUDIT-2026-09-12-REMEDIATION — Bonifica dell'action list "Technical Audit Report"
 
-> **Stato:** CODE DONE — build verde su `linux-video-test`; 1 blocker pre-esistente emerso (§7).
+> **Stato:** VERIFY — il codice dello scope audit è done e il build locale è verde; il blocker Vulkan storico di §7 non appartiene a questo scope, ma la chiusura same-SHA resta da certificare.
 > **Origine:** `Chronon3D Technical Audit Report` (2026-09-12), action list ordinata.
 > **Scope:** P0-1, P0-2, P1-1, P1-3, P2-1, P2-2, P2-3, P2-4, P2-5.
 > **Vedi anche:** `docs/AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md` (audit diverso, stesso giorno).
+
+## Stato di chiusura
+
+- **Stato:** `VERIFY`, non ancora `DONE`.
+- **Fatto:** feature-gated TU, fallback GPU→CPU del testo, osservabilità di
+  `fallback_session` e la bonifica P2 sono implementate; il build locale
+  `linux-video-test` è verde.
+- **Blocco storico fuori scope:** la suite Vulkan-gated è arrivata a
+  `59/59 PASS (847/847 assertion)` nel follow-up del 2026-09-16. I due problemi
+  di placement descritti in §7 restano tracciati separatamente e non devono
+  essere usati per dichiarare verde questa bonifica.
+- **Prerequisiti di chiusura:** eseguire la lane `linux-ci-full-validation` e
+  la suite canonica sullo stesso SHA del commit di closeout; riconciliare la
+  snapshot storica `50/59` con l'evidenza `59/59`; poi sostituire `VERIFY`
+  con `DONE` e citare lo SHA certificato.
 
 Ground truth dichiarata dall'audit: `build/chronon/linux-video-test/compile_commands.json`
 (1.040 TU) incrociata con i 489 `src/**/*.cpp` su disco. Stato vocabolario:

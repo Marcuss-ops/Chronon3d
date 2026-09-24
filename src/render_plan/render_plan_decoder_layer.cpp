@@ -102,6 +102,79 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (std::size_t i = 0; i < color.size() && i < layer.color.size(); ++i)
             layer.color[i] = color.at(i).get<float>();
     }
+
+    if (value.contains("shape")) {
+        const auto& raw_shape = value.at("shape");
+        ShapeContentPlan shape;
+        const auto shape_type = raw_shape.at("type").get<std::string>();
+        if (shape_type == "rect") shape.type = ShapeContentTypePlan::Rect;
+        else if (shape_type == "rounded_rect") shape.type = ShapeContentTypePlan::RoundedRect;
+        else if (shape_type == "ellipse") shape.type = ShapeContentTypePlan::Ellipse;
+        else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
+        else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
+        else throw std::runtime_error("unsupported shape.type: " + shape_type);
+        shape.radius = raw_shape.value("radius", 0.0f);
+        if (raw_shape.contains("path")) {
+            for (const auto& raw_command : raw_shape.at("path")) {
+                ShapePathCommandPlan command;
+                const auto kind = raw_command.at("type").get<std::string>();
+                if (kind == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+                else if (kind == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+                else if (kind == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+                else if (kind == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+                else if (kind == "close") command.type = ShapePathCommandTypePlan::Close;
+                else throw std::runtime_error("unsupported shape path command type: " + kind);
+                const auto read_point = [](const nlohmann::json& point,
+                                           std::array<float, 2>& output) {
+                    if (!point.is_array() || point.size() != 2)
+                        throw std::runtime_error("shape path points must have exactly two numbers");
+                    output = {point[0].get<float>(), point[1].get<float>()};
+                };
+                if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
+                if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
+                if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
+                shape.path.push_back(command);
+            }
+        }
+        if (raw_shape.contains("fill")) {
+            const auto& fill = raw_shape.at("fill");
+            if (fill.is_array()) {
+                if (fill.size() != 4)
+                    throw std::runtime_error("shape.fill must contain RGBA");
+                shape.fill_color = std::array<float, 4>{
+                    fill[0].get<float>(), fill[1].get<float>(),
+                    fill[2].get<float>(), fill[3].get<float>()};
+            } else if (fill.is_object()) {
+                shape.gradient = decode_gradient_definition(fill);
+            }
+        }
+        if (raw_shape.contains("stroke")) {
+            const auto& stroke = raw_shape.at("stroke");
+            StrokeStyle decoded_stroke;
+            decoded_stroke.color = "#FFFFFF";
+            if (stroke.contains("color")) {
+                const auto& stroke_color = stroke.at("color");
+                if (stroke_color.is_array()) {
+                    if (stroke_color.size() != 4)
+                        throw std::runtime_error("shape.stroke.color must contain RGBA");
+                    decoded_stroke.solid_color = std::array<float, 4>{
+                        stroke_color[0].get<float>(), stroke_color[1].get<float>(),
+                        stroke_color[2].get<float>(), stroke_color[3].get<float>()};
+                } else if (stroke_color.is_string()) {
+                    decoded_stroke.color = stroke_color.get<std::string>();
+                } else if (stroke_color.is_object()) {
+                    decoded_stroke.gradient = decode_gradient_definition(stroke_color);
+                }
+            }
+            if (stroke.contains("width")) decoded_stroke.width = stroke.at("width").get<float>();
+            if (stroke.contains("trim_start")) decoded_stroke.trim_start = stroke.at("trim_start").get<float>();
+            if (stroke.contains("trim_end")) decoded_stroke.trim_end = stroke.at("trim_end").get<float>();
+            if (stroke.contains("gradient"))
+                decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
+            shape.stroke = std::move(decoded_stroke);
+        }
+        layer.shape = std::move(shape);
+    }
     if (value.contains("position")) {
         const auto& position = value.at("position");
         layer.position_dimensions = position.size();
@@ -149,7 +222,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (style.contains("stroke")) {
             const auto& stroke = style.at("stroke");
             style_plan.stroke = StrokeStyle{stroke.value("color", std::string{}),
-                                            optional_value<float>(stroke, "width")};
+                                            optional_value<float>(stroke, "width"),
+                                            std::nullopt, std::nullopt, std::nullopt};
         }
         if (style.contains("shadow")) {
             const auto& shadow = style.at("shadow");

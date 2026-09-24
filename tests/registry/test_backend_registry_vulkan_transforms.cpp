@@ -268,6 +268,69 @@ TEST_CASE("Vulkan affine transform applies an unnormalized 2.5D denominator") {
     CHECK(output[3] == doctest::Approx(1.0f));
 }
 
+TEST_CASE("Vulkan affine projective transform samples the animated 2.5D canvas centre with a clipped dispatch") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    constexpr std::uint32_t source_width = 1920;
+    constexpr std::uint32_t source_height = 1080;
+    constexpr std::uint32_t destination_width = 1670;
+    constexpr std::uint32_t destination_height = 940;
+    const runtime::SurfaceDesc source_desc{
+        source_width, source_height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    const runtime::SurfaceDesc destination_desc{
+        destination_width, destination_height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> source(static_cast<std::size_t>(source_width) * source_height * 4);
+    for (std::size_t pixel = 0; pixel < source.size() / 4; ++pixel) {
+        source[pixel * 4 + 0] = 0.02f;
+        source[pixel * 4 + 1] = 0.03f;
+        source[pixel * 4 + 2] = 0.95f;
+        source[pixel * 4 + 3] = 1.0f;
+    }
+    for (std::uint32_t y = 0; y < source_height; ++y) {
+        for (std::uint32_t x = 920; x < 1000; ++x) {
+            const auto pixel = (static_cast<std::size_t>(y) * source_width + x) * 4;
+            source[pixel + 0] = 0.956f;
+            source[pixel + 1] = 0.831f;
+            source[pixel + 2] = 0.021f;
+        }
+    }
+    std::vector<float> output(static_cast<std::size_t>(destination_width) * destination_height * 4);
+    runtime::SurfaceAffineTransform transform{};
+    runtime::set_canvas_source_mapping(
+        transform,
+        0.001f, 0.0f, -0.12594755f,
+        0.0f, 0.001f, -0.070845529f,
+        runtime::RectF{0.0f, 0.0f, static_cast<float>(source_width),
+                       static_cast<float>(source_height)});
+    transform.opacity = 1.0f;
+    transform.bilinear = 1u;
+    transform.destination_origin_x = 125;
+    transform.destination_origin_y = 70;
+    transform.clip_enabled = 1u;
+    transform.clip_rect[0] = 0;
+    transform.clip_rect[1] = 0;
+    transform.clip_rect[2] = static_cast<std::int32_t>(destination_width);
+    transform.clip_rect[3] = static_cast<std::int32_t>(destination_height);
+    transform.padding[2] = std::bit_cast<std::uint32_t>(0.00086880458f);
+
+    REQUIRE(backend.create_surface(307, source_desc).ok());
+    REQUIRE(backend.create_surface(308, destination_desc).ok());
+    REQUIRE(backend.upload_surface(307, source_desc, source).ok());
+    backend.begin_frame_batch();
+    REQUIRE(backend.initialize_transparent_surface(308).ok());
+    REQUIRE(backend.transform_surface_affine(308, 307, transform).ok());
+    backend.end_frame_batch();
+    REQUIRE(backend.download_surface(308, output).ok());
+    const auto center = (static_cast<std::size_t>(destination_height / 2) *
+                         destination_width + destination_width / 2) * 4;
+    CHECK(output[center + 0] == doctest::Approx(0.956f).epsilon(0.01f));
+    CHECK(output[center + 1] == doctest::Approx(0.831f).epsilon(0.01f));
+    CHECK(output[center + 2] == doctest::Approx(0.021f).epsilon(0.01f));
+    CHECK(output[center + 3] == doctest::Approx(1.0f).epsilon(0.01f));
+}
+
 TEST_CASE("Vulkan partial upload clears a recycled surface before the first write") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc desc{

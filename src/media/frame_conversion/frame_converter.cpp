@@ -50,6 +50,7 @@ const char* conversion_error_to_string(ConversionError err) {
         case ConversionError::UnsupportedRange:  return "Color range not supported by selected backend";
         case ConversionError::UnsupportedFormat: return "Target EncoderPixelFormat not handled";
         case ConversionError::BackendError:      return "Conversion backend runtime failure";
+        case ConversionError::InvalidSource:     return "Source framebuffer is smaller than the requested extent";
     }
     return "Unknown";
 }
@@ -70,6 +71,12 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
 
 ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
     if (req.width <= 0 || req.height <= 0) return ConversionError::OddDims;
+    if (!req.src.data()) return ConversionError::NullPointer;
+    if (req.src.width() < req.width || req.src.height() < req.height ||
+        req.src.allocated_width() < req.width ||
+        req.src.allocated_height() < req.height) {
+        return ConversionError::InvalidSource;
+    }
     const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
                          req.format == EncoderPixelFormat::NV12 ||
                          req.format == EncoderPixelFormat::P010);

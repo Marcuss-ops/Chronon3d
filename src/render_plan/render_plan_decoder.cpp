@@ -65,7 +65,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
 
     try {
         RenderPlan plan;
-        plan.schema = kRenderPlanSchemaV2;
+        plan.schema = root.at("schema").get<std::string>();
         plan.job_id = root.value("job_id", std::string{"chronon_plan"});
         const auto& canvas = root.at("canvas");
         plan.canvas = CanvasSpec{

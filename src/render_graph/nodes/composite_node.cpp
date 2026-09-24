@@ -36,7 +36,9 @@ bool try_native_affine_composite(
     const Framebuffer& source, const std::optional<raster::BBox>& clip) {
     if (!ctx.backend || !ctx.surface_registry ||
         (source.width() == destination.width() &&
-         source.height() == destination.height())) {
+         source.height() == destination.height() &&
+         source.origin_x() == destination.origin_x() &&
+         source.origin_y() == destination.origin_y())) {
         return false;
     }
     const auto original_destination = destination.surface_handle();
@@ -128,7 +130,11 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     // path and additive overlays. Keeping Add on the CPU fallback would call
     // composite_layer(), whose legacy contract intentionally rejects it.
     if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
-        op != CompositeOperator::SourceOver) {
+        op != CompositeOperator::SourceOver ||
+        source.width() != destination.width() ||
+        source.height() != destination.height() ||
+        source.origin_x() != destination.origin_x() ||
+        source.origin_y() != destination.origin_y()) {
         return false;
     }
     const auto original_handle = destination.surface_handle();

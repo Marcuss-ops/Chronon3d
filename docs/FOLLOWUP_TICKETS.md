@@ -6,7 +6,7 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| Animated 2.5D image texture residency | P1 | OPEN | [VULKAN-ANIMATED-IMAGE-25D-RESIDENCY](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md) — strict-native requests are blocked in RenderingGen until the Vulkan video path preserves animated image textures |
+| Animated 2.5D image texture residency | P1 | OPEN | [VULKAN-ANIMATED-IMAGE-25D-RESIDENCY](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md) — pixel-correct Vulkan composition and RTX A4000 probe pass; strict-native Vulkan→CUDA/NVENC surface capability remains uncertified |
 | Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Stage 1-5 stabilization campaign | P0 | VERIFY | [TICKET-200](tickets/TICKET-200-stage-plan.md) — Stabilize→Certify→Accelerate stages 1-5: build GREEN (756 targets), cache/compositor/render_job_contract/software suites PASS, arch gate 120/120 PASS (all 10 pre-existing fails cleared, see ticket); close after CI green on same SHA |
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |

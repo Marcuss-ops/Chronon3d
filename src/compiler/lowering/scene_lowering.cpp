@@ -14,6 +14,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Video: kind = NodeKind::Video; break;
             case render_plan::LayerType::Text: kind = NodeKind::Text; break;
             case render_plan::LayerType::Color: kind = NodeKind::Color; break;
+            case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
@@ -45,6 +46,12 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.duration_frames = layer.duration_frames.value_or(plan.canvas.duration).integral();
         lowered.opacity = layer.opacity.value_or(1.0f);
         lowered.radius = layer.radius.value_or(0.0f);
+        lowered.shape = layer.shape;
+        if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {
+            lowered.size = {static_cast<float>(plan.canvas.width),
+                            static_cast<float>(plan.canvas.height)};
+            lowered.size_dimensions = 2;
+        }
         lowered.loop = layer.loop;
         if (layer.fit.has_value()) {
             lowered.fit = static_cast<LayerFitMode>(static_cast<std::uint8_t>(*layer.fit));

@@ -4,6 +4,8 @@
 
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
+#include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
@@ -250,6 +252,108 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
                             }
                             builder.rect("color", std::move(params));
+                            break;
+                        }
+                        case LayerType::Shape: {
+                            if (!layer.shape)
+                                throw std::runtime_error("shape layer '" + layer.id + "' has no shape payload");
+                            const auto& shape = *layer.shape;
+                            const Vec2 size = layer.size_dimensions == 2
+                                ? Vec2{layer.size[0], layer.size[1]}
+                                : Vec2{static_cast<float>(plan.canvas.width),
+                                       static_cast<float>(plan.canvas.height)};
+                            std::optional<graphics::FillStyle> fill;
+                            if (shape.gradient) {
+                                fill = graphics::FillStyle::solid(layer.color);
+                                fill->gradient = shape.gradient;
+                            } else if (shape.fill_color) {
+                                fill = graphics::FillStyle::solid(Color{
+                                    (*shape.fill_color)[0], (*shape.fill_color)[1],
+                                    (*shape.fill_color)[2], (*shape.fill_color)[3]});
+                            }
+                            graphics::StrokeStyle stroke;
+                            if (shape.stroke) {
+                                stroke.enabled = true;
+                                stroke.width = shape.stroke->width.value_or(1.0f);
+                                if (shape.stroke->solid_color) {
+                                    const auto& rgba = *shape.stroke->solid_color;
+                                    stroke.color = Color{rgba[0], rgba[1], rgba[2], rgba[3]};
+                                }
+                                stroke.gradient = shape.stroke->gradient;
+                                stroke.trim_start = shape.stroke->trim_start.value_or(0.0f);
+                                stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
+                            }
+                            if (layer.position_dimensions < 2 &&
+                                shape.type != ShapeContentTypePlan::Line &&
+                                shape.type != ShapeContentTypePlan::Path) {
+                                builder.pin_to(Anchor::Center);
+                            }
+                            switch (shape.type) {
+                                case ShapeContentTypePlan::Rect: {
+                                    RectParams params;
+                                    params.size = size;
+                                    params.color = layer.color;
+                                    params.fill = fill;
+                                    params.stroke = stroke;
+                                    builder.rect("shape", std::move(params));
+                                    break;
+                                }
+                                case ShapeContentTypePlan::RoundedRect: {
+                                    RoundedRectParams params;
+                                    params.size = size;
+                                    params.radius = shape.radius;
+                                    params.color = layer.color;
+                                    params.fill = fill;
+                                    params.stroke = stroke;
+                                    builder.rounded_rect("shape", std::move(params));
+                                    break;
+                                }
+                                case ShapeContentTypePlan::Ellipse: {
+                                    CircleParams params;
+                                    params.radius = std::min(size.x, size.y) * 0.5f;
+                                    params.color = layer.color;
+                                    params.fill = fill;
+                                    params.stroke = stroke;
+                                    builder.circle("shape", std::move(params));
+                                    break;
+                                }
+                                case ShapeContentTypePlan::Line:
+                                case ShapeContentTypePlan::Path: {
+                                    PathParams params;
+                                    for (const auto& command : shape.path) {
+                                        const Vec2 point{command.point[0], command.point[1]};
+                                        const Vec2 control1{command.control1[0], command.control1[1]};
+                                        const Vec2 control2{command.control2[0], command.control2[1]};
+                                        switch (command.type) {
+                                            case ShapePathCommandTypePlan::MoveTo:
+                                                params.commands.push_back(PathCommand::move_to(point)); break;
+                                            case ShapePathCommandTypePlan::LineTo:
+                                                params.commands.push_back(PathCommand::line_to(point)); break;
+                                            case ShapePathCommandTypePlan::QuadraticTo:
+                                                params.commands.push_back(PathCommand::quadratic_to(control1, point)); break;
+                                            case ShapePathCommandTypePlan::CubicTo:
+                                                params.commands.push_back(PathCommand::cubic_to(control1, control2, point)); break;
+                                            case ShapePathCommandTypePlan::Close:
+                                                params.commands.push_back(PathCommand::close());
+                                                params.closed = true;
+                                                break;
+                                        }
+                                    }
+                                    if (shape.gradient) {
+                                        params.fill.enabled = true;
+                                        params.fill.type = fill_type_for_gradient(shape.gradient->type);
+                                        params.fill.gradient = *shape.gradient;
+                                    } else if (shape.fill_color) {
+                                        params.fill = Fill::solid_color(Color{
+                                            (*shape.fill_color)[0], (*shape.fill_color)[1],
+                                            (*shape.fill_color)[2], (*shape.fill_color)[3]});
+                                    }
+                                    params.stroke = stroke.to_path_stroke();
+                                    params.pos = {0.0f, 0.0f, 0.0f};
+                                    builder.path("shape", std::move(params));
+                                    break;
+                                }
+                            }
                             break;
                         }
                         case LayerType::Text: {
