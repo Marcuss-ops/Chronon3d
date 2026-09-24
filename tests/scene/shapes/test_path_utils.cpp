@@ -211,3 +211,20 @@ TEST_CASE("Twist rotates farther points more while keeping its center fixed") {
     CHECK(result[0].commands[1].p0.x == doctest::Approx(0).epsilon(1e-5));
     CHECK(result[0].commands[1].p0.y == doctest::Approx(10));
 }
+
+TEST_CASE("Wiggle path is deterministic for a fixed seed and varies by seed") {
+    PathShape line;
+    line.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({10, 0})};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::WigglePath;
+    op.params = WigglePathParams{2.0f, 0.75f};
+    op.seed = 1234;
+    const auto first = apply_path_operators(line, {op});
+    const auto repeated = apply_path_operators(line, {op});
+    REQUIRE(first.size() == 1);
+    CHECK(first[0].commands[0].p0.x == repeated[0].commands[0].p0.x);
+    CHECK(first[0].commands[0].p0.y == repeated[0].commands[0].p0.y);
+    op.seed = 5678;
+    const auto other_seed = apply_path_operators(line, {op});
+    CHECK(first[0].commands[0].p0.x != doctest::Approx(other_seed[0].commands[0].p0.x));
+}

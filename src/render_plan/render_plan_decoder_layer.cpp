@@ -281,6 +281,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     if (!std::isfinite(decoded_op.degrees) || !std::isfinite(decoded_op.center[0]) ||
                         !std::isfinite(decoded_op.center[1]))
                         throw std::runtime_error("invalid twist parameters");
+                } else if (kind == "wiggle_path") {
+                    decoded_op.kind = PathOperatorKindPlan::WigglePath;
+                    decoded_op.amount = p.at("amount").get<float>();
+                    decoded_op.frequency = p.value("frequency", 1.0f);
+                    decoded_op.seed = p.value("seed", 0u);
+                    if (!std::isfinite(decoded_op.amount) || decoded_op.amount < 0.0f ||
+                        !std::isfinite(decoded_op.frequency) || decoded_op.frequency <= 0.0f ||
+                        decoded_op.frequency > 1000.0f)
+                        throw std::runtime_error("invalid wiggle-path parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }

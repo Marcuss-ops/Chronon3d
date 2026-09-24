@@ -1,4 +1,5 @@
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/animation/effects/wiggle.hpp>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -232,6 +233,27 @@ PathShape twist_path(const PathShape& source, const TwistParams& params) {
     }
     return output;
 }
+PathShape wiggle_path(const PathShape& source, const WigglePathParams& params,
+                      std::uint32_t seed) {
+    if (!std::isfinite(params.amount) || params.amount < 0.0f ||
+        !std::isfinite(params.frequency) || params.frequency <= 0.0f)
+        throw std::invalid_argument("wiggle-path amount and frequency must be finite and valid");
+    PathShape output = source;
+    std::uint32_t vertex_index = 0;
+    const auto displace = [&](Vec2& point, std::uint32_t index) {
+        const float coordinate = static_cast<float>(index) * params.frequency;
+        point.x += detail::smooth_noise(coordinate, seed) * params.amount;
+        point.y += detail::smooth_noise(coordinate, seed + 0x9e3779b9u) * params.amount;
+    };
+    for (auto& command : output.commands) {
+        if (command.type == PathCommandType::Close) continue;
+        displace(command.p0, vertex_index++);
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+            displace(command.p1, vertex_index++);
+        if (command.type == PathCommandType::CubicTo) displace(command.p2, vertex_index++);
+    }
+    return output;
+}
 }
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
@@ -258,6 +280,11 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
             if (!std::holds_alternative<TwistParams>(op.params))
                 throw std::invalid_argument("twist parameters do not match operator kind");
             for (auto& path : paths) path = twist_path(path, std::get<TwistParams>(op.params));
+        } else if (op.kind == PathOperatorKind::WigglePath) {
+            if (!std::holds_alternative<WigglePathParams>(op.params))
+                throw std::invalid_argument("wiggle-path parameters do not match operator kind");
+            for (auto& path : paths)
+                path = wiggle_path(path, std::get<WigglePathParams>(op.params), op.seed);
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");

@@ -167,6 +167,16 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     const auto stronger_twist = render_plan::decode_render_plan(plan);
     REQUIRE(stronger_twist);
     CHECK(stronger_twist->content_fingerprint != twist_fingerprint);
+
+    plan["layers"][0]["shape"]["operators"] =
+        {{{"kind", "wiggle_path"}, {"params", {{"amount", 2.0}, {"frequency", 0.75}, {"seed", 1234}}}}};
+    const auto wiggle = render_plan::decode_render_plan(plan);
+    REQUIRE(wiggle);
+    const auto wiggle_fingerprint = wiggle->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["seed"] = 4321;
+    const auto other_seed = render_plan::decode_render_plan(plan);
+    REQUIRE(other_seed);
+    CHECK(other_seed->content_fingerprint != wiggle_fingerprint);
 }
 
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {

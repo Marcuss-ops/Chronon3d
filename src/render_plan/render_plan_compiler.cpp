@@ -380,6 +380,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     } else if (op.kind == PathOperatorKindPlan::Twist) {
                                         specs.push_back({PathOperatorKind::Twist,
                                             TwistParams{op.degrees, {op.center[0], op.center[1]}}, 0});
+                                    } else if (op.kind == PathOperatorKindPlan::WigglePath) {
+                                        specs.push_back({PathOperatorKind::WigglePath,
+                                            WigglePathParams{op.amount, op.frequency}, op.seed});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
