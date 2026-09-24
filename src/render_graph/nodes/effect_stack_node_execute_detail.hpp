@@ -115,10 +115,10 @@ NodeExecResult EffectStackNode::execute(
             ? std::optional<raster::BBox>{}
             : local_clip;
         bool native_handled = false;
-        if (!gpu_only_input) {
-            native_handled = native_effects::try_native_full_frame_blur(
-                ctx, m_effects, *result, local_clip);
-        }
+        native_handled = native_effects::try_native_full_frame_blur(
+            ctx, m_effects, *result, local_clip,
+            gpu_only_input ? inputs[0]->surface_handle()
+                           : runtime::kInvalidRenderSurfaceHandle);
         // The native glow entry point owns its capability guard. Unsupported
         // backends fall through to their registered software processor.
         if (!native_handled) {

@@ -218,7 +218,8 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
 bool try_native_full_frame_blur(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
-                                const std::optional<raster::BBox>& clip) {
+                                const std::optional<raster::BBox>& clip,
+                                runtime::RenderSurfaceHandle borrowed_source) {
     if (!ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
@@ -231,10 +232,12 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         return false;
     }
     const auto desc = native_surface_desc(result.width(), result.height());
-    const bool source_is_existing =
+    const bool source_is_borrowed =
+        borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_is_existing = source_is_borrowed ||
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
     const auto source = source_is_existing
-        ? result.surface_handle()
+        ? (source_is_borrowed ? borrowed_source : result.surface_handle())
         : ctx.surface_registry->create(desc);
     const auto horizontal = ctx.surface_registry->create(desc);
     const auto output = ctx.surface_registry->create(desc);
@@ -303,8 +306,10 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         ctx.surface_registry->release(output);
         result.set_surface_handle(source);
     } else {
-        (void)ctx.backend->release_surface(source);
-        ctx.surface_registry->release(source);
+        if (!source_is_borrowed) {
+            (void)ctx.backend->release_surface(source);
+            ctx.surface_registry->release(source);
+        }
         result.set_surface_handle(output);
     }
     return true;
