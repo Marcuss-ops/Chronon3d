@@ -301,6 +301,19 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_uint64(op.seed);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::Merge) {
+                out.add_size(op.paths.size());
+                for (const auto& subpath : op.paths) {
+                    out.add_size(subpath.size());
+                    for (const auto& command : subpath) {
+                        out.add_enum(command.type);
+                        for (const auto value : command.point) out.add_float(value);
+                        for (const auto value : command.control1) out.add_float(value);
+                        for (const auto value : command.control2) out.add_float(value);
+                    }
+                }
+                continue;
+            }
             const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);

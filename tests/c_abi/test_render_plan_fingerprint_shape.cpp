@@ -177,6 +177,20 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     const auto other_seed = render_plan::decode_render_plan(plan);
     REQUIRE(other_seed);
     CHECK(other_seed->content_fingerprint != wiggle_fingerprint);
+
+    plan["layers"][0]["shape"]["operators"] = nlohmann::json::parse(R"JSON([
+      {"kind":"merge","params":{"paths":[[
+        {"type":"move_to","point":[10,10]},
+        {"type":"line_to","point":[12,12]}
+      ]]}}
+    ])JSON");
+    const auto compound = render_plan::decode_render_plan(plan);
+    REQUIRE(compound);
+    const auto compound_fingerprint = compound->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["paths"][0][1]["point"][0] = 13.0;
+    const auto changed_compound = render_plan::decode_render_plan(plan);
+    REQUIRE(changed_compound);
+    CHECK(changed_compound->content_fingerprint != compound_fingerprint);
 }
 
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
