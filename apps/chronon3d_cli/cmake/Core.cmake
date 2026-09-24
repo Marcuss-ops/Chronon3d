@@ -11,6 +11,7 @@ add_library(chronon3d_cli_core STATIC
     daemon/daemon_service_commands.cpp
     daemon/daemon_service_ipc.cpp
     daemon/daemon_service_ipc_dispatch.cpp
+    daemon/daemon_service_ipc_render_job.cpp
     daemon/daemon_service_ipc_protocol.cpp
     daemon/daemon_service_job_admission.cpp
     utils/common/cli_utils.cpp

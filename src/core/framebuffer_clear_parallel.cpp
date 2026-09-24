@@ -54,6 +54,9 @@ void framebuffer_clear_parallel(
     // Track decision: used_parallel_clear vs skipped_clear_small
     auto* decision_cnt = profiling::g_current_counters;
     if (use_parallel) {
+        profiling::record_node_memory_event(
+            profiling::NodeMemoryEvent::Clear,
+            static_cast<std::uint64_t>(w) * static_cast<std::uint64_t>(h) * sizeof(Color));
         if (decision_cnt) {
             decision_cnt->used_parallel_clear.fetch_add(1, std::memory_order_relaxed);
         }

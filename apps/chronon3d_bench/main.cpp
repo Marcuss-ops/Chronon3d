@@ -25,9 +25,12 @@
 
 #include "cli_context.hpp"
 #include "registry.hpp"
+#include "../chronon3d_cli/register_compositions.hpp"
 
 int main(int argc, char** argv) {
     chronon3d::CompositionRegistry registry;
+    chronon3d::register_runtime_compositions(registry);
+    registry.freeze();
     chronon3d::AssetRegistry assets;
 
     // Single CPU budget default — bench binary is single-purpose and does

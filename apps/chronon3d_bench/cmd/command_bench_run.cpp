@@ -123,6 +123,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     context.frames = args.frames;
     context.warmup = args.warmup;
     context.no_dirty_rects = args.no_dirty_rects;
+    context.renderer->session().memory_aggregate().reset();
     g_bench_context = &context;
 
     benchmark::AddCustomContext("comp_id", args.comp_id);
@@ -228,6 +229,50 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
             }
         } else {
             spdlog::error("Failed to open F3.1 --stats-json output file: {}", args.stats_json_file);
+        }
+    }
+
+    if (!args.node_memory_json_file.empty() && context.renderer) {
+        const auto report = context.renderer->session().memory_aggregate().snapshot();
+        nlohmann::json memory_js;
+        memory_js["schema"] = "chronon3d.stats.v1";
+        memory_js["session_id"] = fmt::format("bench-{}", chronon3d::profiling::timestamp_ns());
+        memory_js["scene_id"] = args.comp_id;
+        memory_js["frame_count"] = context.frames_rendered.load(std::memory_order_relaxed);
+        memory_js["nodes"] = nlohmann::json::array();
+        for (const auto& node : report.nodes) {
+            memory_js["nodes"].push_back({
+                {"node_id", node.node_id},
+                {"node_type", node.node_type},
+                {"pixels_read", node.pixels_read},
+                {"pixels_written", node.pixels_written},
+                {"bytes_read", node.bytes_read},
+                {"bytes_written", node.bytes_written},
+                {"framebuffer_copies", node.framebuffer_copies},
+                {"framebuffer_clears", node.framebuffer_clears},
+                {"allocations", node.allocations},
+                {"allocated_bytes", node.allocated_bytes},
+                {"temporary_buffers", node.temporary_buffers},
+                {"live_bytes", node.live_bytes},
+                {"peak_live_bytes", node.peak_live_bytes},
+            });
+        }
+
+        std::ofstream memory_out(args.node_memory_json_file);
+        if (!memory_out.is_open()) {
+            spdlog::error("Failed to open node memory JSON output file: {}", args.node_memory_json_file);
+            exit_code = 1;
+        } else {
+            memory_out << memory_js.dump(2) << '\n';
+            memory_out.close();
+            if (!memory_out) {
+                spdlog::error("Failed while writing node memory JSON output file: {}", args.node_memory_json_file);
+                exit_code = 1;
+            } else if (!args.quiet) {
+                spdlog::info("Node memory JSON written to {} ({} nodes, {} measured frames)",
+                             args.node_memory_json_file, report.nodes.size(),
+                             context.frames_rendered.load(std::memory_order_relaxed));
+            }
         }
     }
 

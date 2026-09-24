@@ -123,6 +123,7 @@ private:
     ipc::Reply ipc_prefetch_asset(const std::string& path);
     ipc::Reply ipc_prepare_plan(const std::string& comp_id);
     ipc::Reply ipc_render_overlay(const std::string& args);
+    ipc::Reply handle_render_job_payload(const std::string& payload);
     ipc::Reply ipc_status();
     ipc::Reply ipc_assemble_segments(const std::string& payload);
     [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(

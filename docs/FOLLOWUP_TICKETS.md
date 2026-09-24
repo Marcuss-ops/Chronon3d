@@ -20,11 +20,22 @@
 | Native decoder — heap corruption in teardown | P0 | **RISOLTO 2026-09-17 — ASan/UBSan PASS** | Il percorso `frame_to_framebuffer` ora riserva 64 byte di padding SIMD per l'output RGBA di libswscale, mantenendo l'allineamento a 32 byte. Lane `linux-asan-native`, filtro `-tc='decoder*'`: **9/9 casi, 222/222 assertion, 0 leak**, exit 0. Evidenza: [`native-decoder-asan-2026-09-17`](evidence/native-decoder-asan-2026-09-17.md) |
 | Framework compiler layer-batch: 3 rossi con 2 cause distinte | P0 | RESOLVED (contratto ri-pinnato) | [SCALE-P0](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — causa #1+#2 (invariante `100 Image layers → 1 batch` + golden): gate `frame_bound_image_source` di `00be928ab`, troppo ampio perché `binding_meta.has_binding()` è vero per **ogni** Source raggiungibile → nessuna immagine poteva più essere fusa, mentre il commento dichiarava il contrario. Causa #3 (TextRun `lowered_into_batch`): `members.size() < 2` di `a78a8a29e` sopprime il batch di un solo membro. Decisione (immagini native-only) applicata: invariante riscritta al nuovo contratto, golden rigenerato (`0x65304b41dbf40d8f`) come cambio contrattuale esplicito, proxy del test TextRun sostituito con l'intento reale. Scoperta collaterale: la suite era **troncata** — la `CHECK` su `layer_batches[0]` vuoto faceva SIGSEGV e solo 31/378 casi giravano → ora `REQUIRE`, `chronon3d_render_graph_tests` **378/378 PASS** (era 29/31 su 31 eseguiti) |
 | Lane `linux-video-test` (GPU/video) | P1 | **LANDED** | Lane configurata e costruita (648/648, EXIT 0) dopo aver liberato i due alberi `.tmp/chronon-builds/*` (33 GB). I due vuoti video-gated ora girano: `chronon3d_cache_tests` include `test_direct_yuv_text_cache.cpp` (997596 assertion) e `chronon3d_cli_tests` include `test_packet_assembler_contract.cpp` (GOP executor). Il parity gate della demolition hybrid è **eseguito e verde**: `tests/cli/test_gop_direct_mux_parity.cpp` confronta i due percorsi sul corpus congelato e, per la lane copy, l'SHA-256 dell'intero file è **byte-identico** (oltre a payload/PTS/DTS/flags, frame decodificati, durata e audio). **2026-09-16:** la lane è stata **ri-creata** dopo la liberazione degli alberi (era rimasto il solo symlink pendente `build/chronon/linux-video-fast-dev`, ora rimosso): `build/chronon/linux-video-test` → `.tmp/chronon-builds/linux-video-test`, ed è il primo candidato CLI nella discovery di `tools/verify_zero_copy_end_to_end.sh`. Vedi [`CCACHE-AUDIT-2026-09-10.md`](CCACHE-AUDIT-2026-09-10.md) per il rimedio `.ninja_deps` che ha reso incrementali i build |
-| Skip-rot registry | P2 | OPEN | [DOCTEST-SKIP-ROT](tickets/TICKET-DOCTEST-SKIP-ROT.md) — single authority for every `doctest::skip` (7 rows, deadline 2026-09-30); skip senza riga = lint failure, riga scaduta = CI FAIL |
 | Benchmark + CPU budget | P1 | MEASURED / HOST CERT PENDING | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) + [P1E-CPU-BUDGET](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) — B00 smoke and same-SHA CPU measurement landed; full corpus still needs the external content pack |
 | OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
-| CLI project UX | P2 | OPEN | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
-| Node memory metrics | P1 | OPEN | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
+| CLI project UX | P2 | P1 CODE LANDED (CLI fixture E2E PASS; generated-template host verification pending) | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
+| Node memory metrics | P1 | OPEN (instrumentation, per-node events and gate landed; representative corpus certification pending) | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
+
+### Cross-checkout contract sign-offs
+
+- **`scale_out` catalog (2026-09-24):** the user approved retiring the
+  wire-visible ID and using the compiler-synthesized exit. The catalog and its
+  consumers are not present in this checkout; implementation and compatibility
+  verification remain pending in the checkout that owns them. Do not add a
+  per-motion exit-track schema.
+- **I1-CHUNK / DURABLE-DAG:** this checkout has `frame_range` and
+  `parallel_disjoint` runtime fields, but no `plan_sha256`, `parent_job_id`,
+  `chunk_index`, or producer that submits children. The producer and its
+  identical-plan-hash integration test remain pending in the separate checkout.
 
 ## Deferred by certification precondition
 
@@ -77,7 +88,13 @@
 |---|---|---|---|
 | Hotspot decomposition: export, mux, render policies, Vulkan e text headers | P1 | ACTIVE | [HOTSPOT-DECOMPOSITION](tickets/TICKET-HOTSPOT-DECOMPOSITION.md) — Wave A–E: contract tests native export, `.inc` production TU, MuxSession/hash seam, node policy seams, Vulkan/CUDA split e header fan-out reduction; primo seam GOP target estratto e build CLI verde |
 
-## Recently Closed (ultimi 4)
+## Recently Closed and Historical Notes
+
+- **2026-09-24 — DOCTEST-SKIP-ROT risolto:** registry bidirezionale vuoto e
+  lint/self-test verdi. `SKIP-007` è stato rimosso insieme al placeholder; il
+  test di cancellazione C ABI passa nel build video (1 caso / 7 asserzioni;
+  cancellazione prima del rendering, senza uso GPU). Il file ticket resta
+  l'autorità per nuovi skip.
 
 - **2026-09-23 — purga ticket a chiusura terminale**: rimossi `TICKET-GLOW-QUALITY-2026-09-18`
   (CLOSED), `TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT` (RESOLVED 2026-09-21),

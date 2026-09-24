@@ -30,10 +30,9 @@
 //     scheduler-induced reordering), the hash would flip and the test
 //     would loudly fail — that is the regression signal we want.
 //
-// Test lattice: 5 active scenes × 5 scheduler configurations
-// (Sequential + TbbFixed 1/2/4 + TbbAutomatic) → bit-for-bit hash
-// equality across the lattice.  Tile execution remains SKIPPED
-// until TICKET-012.
+// The GraphExecutor matrix covers Sequential + TbbFixed 1/2/4 +
+// TbbAutomatic. Tile execution is checked separately through
+// SoftwareRenderer, which owns the dirty-tile coordinator.
 //
 // Hash strategy (Q6 hybrid, per reviewer round 2):
 //   * Self-consistency: `CHECK(seq == tbb1 == tbb2 == tbb4 == tbbAuto)` —
@@ -52,6 +51,7 @@
 
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
@@ -61,6 +61,7 @@
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
 #include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
 #include "../compiler/graph_compile_test_compat.hpp"
@@ -71,12 +72,17 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 
 #include <memory>
 #include <optional>
 #include <cstdint>
+#include <algorithm>
+#include <cstdlib>
+#include <string>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -157,15 +163,19 @@ public:
         apply_effect_stack_called++;
     }
 
-    void composite_layer(Framebuffer& dst, const Framebuffer& /*src*/, BlendMode,
-                         const std::optional<raster::BBox>& = std::nullopt,
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode,
+                         const std::optional<raster::BBox>& clip = std::nullopt,
                          CompositeOperator = CompositeOperator::SourceOver) override {
         composite_layer_called++;
-        // No-op blend: leaves dst unchanged but the call exists for
-        // parity with how real backends composite.  Backend call counts
-        // are scheduler-invariant (the executor visits each
-        // CompositeNode once per pass regardless of mode) so any
-        // asymmetric count here would itself be a regression.
+        const int x0 = clip ? std::max(0, clip->x0) : 0;
+        const int y0 = clip ? std::max(0, clip->y0) : 0;
+        const int x1 = std::min(dst.width(), clip ? clip->x1 : dst.width());
+        const int y1 = std::min(dst.height(), clip ? clip->y1 : dst.height());
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                dst.set_pixel(x, y, compositor::blend(src.get_pixel(x, y), dst.get_pixel(x, y), mode));
+            }
+        }
     }
 
     void apply_blur(Framebuffer&, float,
@@ -199,6 +209,62 @@ inline ExecutionScheduler build_scheduler(
         .pin_calling_thread = false,
     });
 }
+
+class ScopedSchedulerModeEnv {
+public:
+    explicit ScopedSchedulerModeEnv(const char* mode)
+        : old_mode_(read("CHRONON3D_SCHEDULER_MODE")),
+          old_workers_(read("CHRONON3D_SCHEDULER_WORKERS")) {
+        write("CHRONON3D_SCHEDULER_MODE", mode);
+        write("CHRONON3D_SCHEDULER_WORKERS", "4");
+    }
+    ~ScopedSchedulerModeEnv() {
+        restore("CHRONON3D_SCHEDULER_MODE", old_mode_);
+        restore("CHRONON3D_SCHEDULER_WORKERS", old_workers_);
+    }
+    ScopedSchedulerModeEnv(const ScopedSchedulerModeEnv&) = delete;
+    ScopedSchedulerModeEnv& operator=(const ScopedSchedulerModeEnv&) = delete;
+
+private:
+    static std::optional<std::string> read(const char* name) {
+        const char* value = std::getenv(name);
+        return value ? std::optional<std::string>{value} : std::nullopt;
+    }
+    static void write(const char* name, const char* value) {
+#if defined(_WIN32)
+        (void)_putenv_s(name, value);
+#else
+        (void)setenv(name, value, 1);
+#endif
+    }
+    static void restore(const char* name, const std::optional<std::string>& value) {
+#if defined(_WIN32)
+        (void)_putenv_s(name, value ? value->c_str() : "");
+#else
+        if (value) (void)setenv(name, value->c_str(), 1);
+        else (void)unsetenv(name);
+#endif
+    }
+    std::optional<std::string> old_mode_;
+    std::optional<std::string> old_workers_;
+};
+
+class ScopedDetailedTelemetry {
+public:
+    ScopedDetailedTelemetry()
+        : previous_(telemetry::telemetry_capture_level()) {
+        telemetry::clear_telemetry_stores();
+        telemetry::set_telemetry_capture_level(telemetry::TelemetryLevel::Detailed);
+    }
+    ~ScopedDetailedTelemetry() {
+        telemetry::clear_telemetry_stores();
+        telemetry::set_telemetry_capture_level(previous_);
+    }
+    ScopedDetailedTelemetry(const ScopedDetailedTelemetry&) = delete;
+    ScopedDetailedTelemetry& operator=(const ScopedDetailedTelemetry&) = delete;
+private:
+    telemetry::TelemetryLevel previous_;
+};
 
 // ── TestFixture: minimal in-test scaffolding ──────────────────────────────
 //
@@ -339,6 +405,36 @@ Scene make_static_scene() {
     return s.build();
 }
 
+Scene make_composite_scene() {
+    FrameContextParams fc_params{
+        .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+        .width = 320,
+        .height = 180,
+    };
+    SceneBuilder s(make_frame_context(fc_params));
+    s.layer("red_layer", [](LayerBuilder& l) {
+        l.rect("red", {.size = {150.0f, 100.0f}, .color = Color{1, 0, 0, 0.65f}});
+    });
+    s.layer("blue_layer", [](LayerBuilder& l) {
+        l.rect("blue", {.size = {150.0f, 100.0f}, .color = Color{0, 0, 1, 0.65f}});
+    });
+    return s.build();
+}
+
+Scene make_blur_scene() {
+    FrameContextParams fc_params{
+        .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+        .width = 320,
+        .height = 180,
+    };
+    SceneBuilder s(make_frame_context(fc_params));
+    s.layer("blur_layer", [](LayerBuilder& l) {
+        l.rect("shape", {.size = {150.0f, 100.0f}, .color = Color::green()});
+        l.blur(8.0f);
+    });
+    return s.build();
+}
+
 // ── per-scene reference hashes (Q6 hybrid strategy, reviewer round 2) ─────
 //
 // These were captured by running the Sequential mode of each scene
@@ -432,14 +528,14 @@ TEST_CASE(
 //               whose composite_layer performs a deterministic blit) lands.
 //   Data introduzione: 2026-06-21.  Deadline rimozione: 2026-09-30.
 // ===========================================================================
-TEST_CASE(
-    "WP1 PR 1.4 — composite scene (2 overlapping layers): bit-for-bit — deferred TICKET-013"
-    * doctest::skip(
-        "TICKET-013: layer-mode composite-node path SIGSEGVs under FakeBackend's "
-        "no-op composite_layer.  Deferred until FakeBackend blits src onto dst "
-        "OR a real SoftwareBackend fixture is wired up.")  // TICKET-DOCTEST-SKIP-ROT SKIP-001
-) {
-    CHECK(true);
+TEST_CASE("WP1 PR 1.4 — composite scene (2 overlapping layers): scheduler hashes match") {
+    TestFixture fix(make_composite_scene());
+    const auto m = render_all_modes(fix);
+    CHECK(m.seq == m.t1);
+    CHECK(m.seq == m.t2);
+    CHECK(m.seq == m.t4);
+    CHECK(m.seq == m.auto_);
+    CHECK(fix.backend.composite_layer_called > 0);
 }
 
 // ===========================================================================
@@ -448,14 +544,14 @@ TEST_CASE(
 // Same TICKET-013 rationale as composite: layer-mode paths (blur, layer
 // composite) under FakeBackend::apply_blur no-op are not yet safe.
 // ===========================================================================
-TEST_CASE(
-    "WP1 PR 1.4 — one effect stack (blur): bit-for-bit — deferred TICKET-013"
-    * doctest::skip(
-        "TICKET-013: layer-mode blur path lands in apply_blur no-op under "
-        "FakeBackend; same fix path as composite (deterministic blit OR real "
-        "SoftwareBackend fixture).")  // TICKET-DOCTEST-SKIP-ROT SKIP-002
-) {
-    CHECK(true);
+TEST_CASE("WP1 PR 1.4 — one effect stack (blur): scheduler hashes match") {
+    TestFixture fix(make_blur_scene());
+    const auto m = render_all_modes(fix);
+    CHECK(m.seq == m.t1);
+    CHECK(m.seq == m.t2);
+    CHECK(m.seq == m.t4);
+    CHECK(m.seq == m.auto_);
+    CHECK(fix.backend.apply_effect_stack_called > 0);
 }
 
 // ===========================================================================
@@ -519,28 +615,92 @@ TEST_CASE(
     }
 }
 
-// ===========================================================================
-// WP1 PR 1.4 — tile execution (Sequential vs TbbAutomatic)
-//
-// Follow-up scope per docs/FOLLOWUP_TICKETS.md rationale: tile path
-// stability under scheduler swap requires the dirty-rect machinery + the
-// SoftwareRenderer's tile coordinator.  A complete tile-test fixture
-// is TICKET-012.
-//
-// TICKET-012 (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: tile execution determinism requires a higher-level fixture
-//               that drives the SoftwareRenderer's tile path with
-//               `settings.dirty.tile_execution_enabled = true` AND a
-//               scene where dirty rects are populated.
-//   Data introduzione: 2026-06-21.  Deadline rimozione: 2026-09-30.
-// ===========================================================================
-TEST_CASE(
-    "WP1 PR 1.4 — tile execution: Sequential == TbbAutomatic (bit-for-bit) — deferred to TICKET-012"
-    * doctest::skip(
-        "TICKET-012 follow-up: tile-execution determinism needs a higher-level "
-        "fixture (dirty rects + tile-enabled settings); out of scope for this PR.")  // TICKET-DOCTEST-SKIP-ROT SKIP-003
-) {
-    // Stub kept so the test lattice remains complete once the fixture lands.
-    CHECK(true);
+// Tile coordination sits above GraphExecutor, so exercise this path through
+// SoftwareRenderer with a moving scene that produces dirty rectangles.
+TEST_CASE("WP1 PR 1.4 — tile execution: Sequential == TbbAutomatic pixels") {
+    constexpr int width = 160;
+    constexpr int height = 120;
+    constexpr int frame_count = 6;
+    Composition scene(CompositionSpec{
+        .name = "SchedulerTileDeterminism",
+        .width = width,
+        .height = height,
+        .duration = frame_count,
+    }, [](const FrameContext& frame) {
+        SceneBuilder builder(frame);
+        builder.rect("background", {
+            .size = {160.0f, 120.0f},
+            .color = Color{0.05f, 0.1f, 0.15f, 1.0f},
+            .pos = {80.0f, 60.0f, 0.0f},
+        });
+        builder.circle("moving", {
+            .radius = 9.0f,
+            .color = Color::red(),
+            .pos = {24.0f + static_cast<float>(frame.frame()) * 4.0f, 32.0f, 0.0f},
+        });
+        return builder.build();
+    });
+
+    const auto render_hashes = [&](const char* mode) {
+        ScopedSchedulerModeEnv scheduler_env(mode);
+        auto renderer = test::make_renderer();
+        RenderSettings settings;
+        settings.dirty.enabled = true;
+        settings.dirty.use_bitmask = true;
+        settings.dirty.tile_size = 16;
+        renderer.set_settings(settings);
+
+        std::vector<std::uint64_t> hashes;
+        for (int frame = 0; frame < frame_count; ++frame) {
+            auto output = renderer.render(scene, Frame{frame});
+            REQUIRE(output != nullptr);
+            hashes.push_back(framebuffer_hash(*output));
+            if (frame > 0) CHECK(renderer.last_tile_execution_used());
+        }
+        CHECK(renderer.counters()->tile_dirty_count.load() > 0);
+        return hashes;
+    };
+
+    const auto sequential = render_hashes("sequential");
+    const auto automatic = render_hashes("automatic");
+    REQUIRE(sequential.size() == frame_count);
+    REQUIRE(automatic.size() == frame_count);
+    CHECK(sequential == automatic);
+}
+
+TEST_CASE("NodeMemoryMetrics are emitted on detailed node telemetry events") {
+    ScopedDetailedTelemetry detailed_telemetry;
+    TestFixture clear_fixture(make_static_scene());
+    REQUIRE(render_with_mode(clear_fixture, SchedulerMode::Sequential, 0) != nullptr);
+    TestFixture copy_fixture(make_composite_scene());
+    REQUIRE(render_with_mode(copy_fixture, SchedulerMode::Sequential, 0) != nullptr);
+
+    const auto events = telemetry::collect_node_telemetry();
+    REQUIRE_FALSE(events.empty());
+    std::uint64_t pixels_read = 0;
+    std::uint64_t pixels_written = 0;
+    std::uint64_t bytes_read = 0;
+    std::uint64_t bytes_written = 0;
+    std::uint64_t framebuffer_copies = 0;
+    std::uint64_t framebuffer_clears = 0;
+    std::uint64_t allocations = 0;
+    std::uint64_t temporary_buffers = 0;
+    for (const auto& event : events) {
+        pixels_read += event.pixels_read;
+        pixels_written += event.pixels_written;
+        bytes_read += event.bytes_read;
+        bytes_written += event.bytes_written;
+        framebuffer_copies += event.framebuffer_copies;
+        framebuffer_clears += event.framebuffer_clears;
+        allocations += event.allocations;
+        temporary_buffers += event.temporary_buffers;
+    }
+    CHECK(pixels_read > 0);
+    CHECK(pixels_written > 0);
+    CHECK(bytes_read > 0);
+    CHECK(bytes_written > 0);
+    CHECK(framebuffer_copies > 0);
+    CHECK(framebuffer_clears > 0);
+    CHECK(allocations > 0);
+    CHECK(temporary_buffers > 0);
 }
