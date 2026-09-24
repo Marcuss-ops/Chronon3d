@@ -23,6 +23,9 @@
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>     // Canonical TextRun placement resolver
+
+#include <algorithm>
+#include <variant>
 #include <chronon3d/layout/layout_solver.hpp>              // Layer pin → Canvas conversion
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
@@ -105,15 +108,19 @@ Layer LayerBuilder::build() {
     if (m_layer.anim_transform.blur.is_time_dependent()) {
         const SampleTime local_time = m_layer.local_time(m_current_time);
         f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
+        // A zero-radius animated blur is an identity operation. Disable the
+        // stack entry instead of sending projected image layers through the
+        // native blur surface path, which can produce an empty Vulkan surface.
         bool found = false;
         for (auto& effect : m_layer.effects()) {
             if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
                 blur->radius = blur_radius;
+                effect.enabled = blur_radius > 0.0f;
                 found = true;
                 break;
             }
         }
-        if (!found) {
+        if (!found && blur_radius > 0.0f) {
             m_layer.effects().push_back(EffectInstance{
                 effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
                 BlurParams{blur_radius}
