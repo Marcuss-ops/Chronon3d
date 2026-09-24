@@ -16,6 +16,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 namespace chronon3d {
 
@@ -155,6 +156,15 @@ struct FourColorGradientParams {
     float blend_smoothness{0.15f};
 };
 
+// A parsed 3D color lookup table. Entries use .cube's red-fastest ordering.
+struct Lut3DParams {
+    uint32_t dimension{0};
+    std::shared_ptr<const std::vector<std::array<float, 3>>> values;
+    std::array<float, 3> domain_min{0.0f, 0.0f, 0.0f};
+    std::array<float, 3> domain_max{1.0f, 1.0f, 1.0f};
+    float amount{1.0f};
+};
+
 struct LightRaysParams {
     Vec2 origin{0.5f, 0.5f};
     float length{320.0f};
@@ -223,6 +233,7 @@ using EffectParams = std::variant<
     FractalNoiseParams,
     CheckerboardParams,
     FourColorGradientParams,
+    Lut3DParams,
     LightRaysParams,
     OffsetParams,
     DirectionalBlurParams,

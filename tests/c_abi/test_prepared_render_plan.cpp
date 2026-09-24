@@ -5,6 +5,7 @@
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/subtitle_style.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
@@ -120,6 +121,40 @@ TEST_CASE("prepared render plan owns the canonical compiled composition") {
           prepared.compiled_composition.fingerprint);
     CHECK(repeated->fingerprint.content_digest == prepared.fingerprint.content_digest);
     CHECK(repeated->fingerprint.request_digest == prepared.fingerprint.request_digest);
+}
+
+TEST_CASE("render plan prepares and lowers content-addressed 3D LUT assets") {
+    FingerprintTempDir temp;
+    std::filesystem::create_directories(temp.path / "looks");
+    {
+        std::ofstream cube(temp.path / "looks/invert.cube");
+        cube << "LUT_3D_SIZE 2\n"
+             << "1 1 1\n0 1 1\n1 0 1\n0 0 1\n"
+             << "1 1 0\n0 1 0\n1 0 0\n0 0 0\n";
+    }
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "lut-plan";
+    plan.canvas = {.width = 16, .height = 16,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{1}};
+    chronon3d::render_plan::LayerPlan color;
+    color.id = "graded";
+    color.type = chronon3d::render_plan::LayerType::Color;
+    color.color = {0.2f, 0.3f, 0.4f, 1.0f};
+    color.lut_effects.push_back({"looks/invert.cube", 1.0f});
+    plan.layers.push_back(std::move(color));
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(temp.path);
+    const auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    REQUIRE(prepared->compiled_composition.asset_manifest);
+    CHECK(prepared->compiled_composition.asset_manifest->assets().size() == 1);
+    const auto evaluated = chronon3d::evaluate(
+        prepared->compiled_composition,
+        chronon3d::CompositionEvaluateContext{}, chronon3d::Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    CHECK(evaluated->scene.layers()[0].effects().size() == 1);
 }
 
 TEST_CASE("compiled composition preserves fractional evaluation time") {
@@ -503,5 +538,3 @@ TEST_CASE("render_plan_compiler: animation tracks map to animated transforms") {
     REQUIRE(evaluated.value().scene.layers().size() == 1u);
     CHECK(evaluated.value().scene.layers().front().anim_transform.opacity.is_animated());
 }
-
-

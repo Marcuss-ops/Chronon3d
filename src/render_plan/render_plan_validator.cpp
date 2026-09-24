@@ -80,6 +80,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.
         layer.erase("mask");
+        layer.erase("effects");
         if (layer.contains("style") && layer["style"].is_object()) {
             layer["style"].erase("gradient");
             if (layer["style"].contains("stroke") &&

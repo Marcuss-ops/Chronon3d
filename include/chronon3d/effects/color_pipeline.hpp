@@ -20,6 +20,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/compose_color_op.hpp>
 #include <memory>
 #include <optional>
@@ -65,6 +66,7 @@ using ColorStage = std::variant<
     ExposureStage,
     LevelsStage,
     CurvesStage,
+    Lut3DParams,
     ComposeStage
 >;
 

@@ -212,6 +212,20 @@ TEST_CASE("Path mask geometry and softness affect render plan fingerprint") {
     CHECK(changed->content_fingerprint != fingerprint);
 }
 
+TEST_CASE("LUT asset and amount affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "graded"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "lut_3d"}, {"asset", "looks/cinema.cube"}, {"amount", 1.0}}}}}
+    }));
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first.has_value());
+    const auto fingerprint = first->content_fingerprint;
+    plan["layers"][0]["effects"][0]["amount"] = 0.5;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
     // Pin the canonical pre-shape writer output so shape support cannot shift
     // the cache identity of an old V2 plan with no optional shape payload.

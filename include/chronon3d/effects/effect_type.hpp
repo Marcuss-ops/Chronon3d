@@ -44,6 +44,7 @@ enum class EffectType : uint8_t {
     Checkerboard    = 23,
     FourColorGradient = 24,
     LightRays       = 25,
+    Lut3D           = 26,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────
