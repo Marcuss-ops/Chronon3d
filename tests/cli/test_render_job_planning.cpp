@@ -331,7 +331,15 @@ JobRequest cli_request_for(
     request.output.hardware_encoder = hardware;
     request.output.encoder_backend = encoder_backend;
     request.output.gpu_hot_path_mode = hot_path;
-    request.requirements.gpu_required = (hardware == "nvenc");
+    // Mirror of the CLI entry mapping (register_render_commands.cpp): a
+    // strict hot-path request is a GPU-native contract and forbids CPU
+    // fallback (TICKET-CLI-STRICT-GPU-NATIVE-MAPPING), so the semantic
+    // requirements derive from the hot-path selection as well as the
+    // hardware spelling.
+    const bool strict_hot_path = hot_path == "require_gpu_native" ||
+        hot_path == "require_direct_yuv";
+    request.requirements.gpu_required = (hardware == "nvenc") || strict_hot_path;
+    request.requirements.cpu_fallback_allowed = !strict_hot_path;
     return request;
 }
 
@@ -555,6 +563,51 @@ TEST_CASE("CLI and IPC boundary map identical semantics to one normalized job") 
             R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","backend":"vulkan","codec":"h264","hardware_encoder":"nvenc","encoder_backend":"native","ffmpeg_mode":"native","gpu_hot_path_mode":"require_gpu_native","encode_preset":"p2","receipt_verify":"fast","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":true,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{}})",
             vulkan_host);
     }
+}
+
+TEST_CASE("strict hot-path derives the canonical native lane unless explicit") {
+    const JobCaps vulkan_host{"vulkan"};
+
+    // Bare strict request (no --hardware/--encoder-backend): the semantic
+    // requirements carry the strict contract and BOTH transports derive the
+    // canonical native lane from resolve_canonical_execution_parameters
+    // (TICKET-CLI-STRICT-GPU-NATIVE-MAPPING).
+    JobRequest cli;
+    cli.plan_path = "plan.json";
+    cli.output_path = "hero.mp4";
+    cli.assets_root = "assets";
+    cli.backend = "vulkan";
+    cli.output.gpu_hot_path_mode = "require_gpu_native";
+    // Model the CLI request after it has elided implicit VideoSettings
+    // defaults: normalizer defaults must derive from semantic requirements.
+    cli.output.hardware_encoder.clear();
+    cli.output.encoder_backend.clear();
+    cli.requirements.gpu_required = true;
+    cli.requirements.cpu_fallback_allowed = false;
+    check_normalized_parity(cli,
+        R"({"plan_path":"plan.json","assets_root":"assets","output":"hero.mp4","execution_requirements":{"gpu_required":true,"cpu_fallback_allowed":false,"composition_required":true,"video_source_required":true,"packet_copy_allowed":true},"output_spec":{"gpu_hot_path_mode":"require_gpu_native"}})",
+        vulkan_host);
+
+    const auto derived =
+        c3d::runtime::job::normalize_render_job(cli, vulkan_host);
+    REQUIRE(derived.has_value());
+#if defined(CHRONON3D_ENABLE_VIDEO)
+    CHECK(derived->output.hardware_encoder == "nvenc");
+    CHECK(derived->output.encoder_backend == "native");
+#else
+    // Video-disabled matrix builds preserve semantic strictness but cannot
+    // resolve a hardware encoder lane.
+    CHECK(derived->output.hardware_encoder == "none");
+    CHECK(derived->output.encoder_backend == "pipe");
+#endif
+
+    // An explicit transport selection travels and wins over the derivation.
+    JobRequest explicit_pipe = cli;
+    explicit_pipe.output.encoder_backend = "pipe";
+    const auto pinned =
+        c3d::runtime::job::normalize_render_job(explicit_pipe, vulkan_host);
+    REQUIRE(pinned.has_value());
+    CHECK(pinned->output.encoder_backend == "pipe");
 }
 
 TEST_CASE("render_job_fingerprint discriminates semantic axes") {

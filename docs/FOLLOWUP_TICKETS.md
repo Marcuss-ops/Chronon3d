@@ -7,7 +7,6 @@
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
 | Daemon IPC rejection resilience | P1 | OPEN | [DAEMON-IPC-REJECTION-RESILIENCE](tickets/TICKET-DAEMON-IPC-REJECTION-RESILIENCE.md) — `UnsupportedCapability` must return a typed failed-job envelope and leave the socket, daemon health and subsequent valid renders alive |
-| Animated 2.5D image texture residency | P1 | OPEN | [VULKAN-ANIMATED-IMAGE-25D-RESIDENCY](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md) — pixel-correct Vulkan composition and RTX A4000 probe pass; strict-native Vulkan→CUDA/NVENC surface capability remains uncertified |
 | Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Stage 1-5 stabilization campaign | P0 | VERIFY | [TICKET-200](tickets/TICKET-200-stage-plan.md) — Stabilize→Certify→Accelerate stages 1-5: build GREEN (756 targets), cache/compositor/render_job_contract/software suites PASS, arch gate 120/120 PASS (all 10 pre-existing fails cleared, see ticket); close after CI green on same SHA |
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |
@@ -76,6 +75,7 @@
 | Native MP4 mux frame loss | P1 | FIXED | [NATIVE-MP4-MUX-FRAME-LOSS](tickets/TICKET-NATIVE-MP4-MUX-FRAME-LOSS.md) — EAGAIN flush risolto; matrice CLI native/pipe 9 durate a 1920×1080, 30fps, receipt copy-eligible |
 | Video compiler arch | P2 | PLANNED | ROADMAP M7 — Video Compiler Architecture (`SceneIR → CompiledTemplateProgram → hot loop`); scheda da aprire all'avvio milestone |
 | Text clip warn/regression | P3 | OPEN | [TEXT-OVERSIZED-CLIP-WARN](tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md) |
+| CLI strict `require_gpu_native` → parametri canonici | P2 | OPEN | [CLI-STRICT-GPU-NATIVE-MAPPING](tickets/TICKET-CLI-STRICT-GPU-NATIVE-MAPPING.md) — il solo flag strict normalizza sul transport pipe e fail-closa; derivare nvenc+native da `resolve_canonical_execution_parameters` senza spezzare la parità Phase 9 |
 
 ## Audit roadmap waves 1-6 (working session)
 
@@ -97,6 +97,12 @@
   cancellazione prima del rendering, senza uso GPU). Il file ticket resta
   l'autorità per nuovi skip.
 
+- **2026-09-24 — VULKAN-ANIMATED-IMAGE-25D-RESIDENCY CHIUSO**: pixel probe
+  12/12 su RTX A4000 e strict capability routing certificati
+  (`full_graph_native` + `native_surface`, zero readback; animated strict
+  respinto esplicito pre-encoder). Fix compilatorio residuo di `d08958efa`
+  (Shape lowering) atterrato contestualmente. Ticket purge-eligible:
+  [scheda](tickets/TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY.md).
 - **2026-09-23 — purga ticket a chiusura terminale**: rimossi `TICKET-GLOW-QUALITY-2026-09-18`
   (CLOSED), `TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT` (RESOLVED 2026-09-21),
   `TICKET-TEXT-INTEROP-CACHE-OVERFLOW` (CLOSED) e `TICKET-TEXT-ROUTE-CONSOLIDATION`

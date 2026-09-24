@@ -37,33 +37,53 @@ graphics::GradientDefinition decode_gradient_definition(
         if (!raw.is_array() || raw.size() != 2)
             throw std::runtime_error(std::string("gradient.") + key + " must have two numbers");
         output = {raw[0].get<float>(), raw[1].get<float>()};
+        if (!std::isfinite(output.x) || !std::isfinite(output.y))
+            throw std::runtime_error(std::string("gradient.") + key + " must be finite");
     };
     read_vec2(raw_gradient, "start", gradient.start);
     read_vec2(raw_gradient, "end", gradient.end);
     read_vec2(raw_gradient, "center", gradient.center);
     gradient.radius = raw_gradient.value("radius", gradient.radius);
     gradient.angle = raw_gradient.value("angle", gradient.angle);
+    if (!std::isfinite(gradient.radius) || gradient.radius <= 0.0f ||
+        !std::isfinite(gradient.angle))
+        throw std::runtime_error("gradient radius and angle must be finite; radius must be positive");
 
     const auto spread = raw_gradient.value("spread", std::string{"pad"});
     if (spread == "repeat") gradient.spread = graphics::GradientSpread::Repeat;
     else if (spread == "reflect") gradient.spread = graphics::GradientSpread::Reflect;
     else if (spread != "pad") throw std::runtime_error("unsupported gradient spread: " + spread);
 
+    if (raw_gradient.at("color_stops").size() < 2)
+        throw std::runtime_error("gradient requires at least two color stops");
     for (const auto& raw_stop : raw_gradient.at("color_stops")) {
         const auto& color = raw_stop.at("color");
         if (!color.is_array() || color.size() != 4)
             throw std::runtime_error("gradient color stop must have RGBA");
-        gradient.color_stops.push_back({raw_stop.at("position").get<float>(),
-            Color{color[0].get<float>(), color[1].get<float>(),
-                  color[2].get<float>(), color[3].get<float>()}});
+        const auto position = raw_stop.at("position").get<float>();
+        const Color decoded_color{color[0].get<float>(), color[1].get<float>(),
+                                  color[2].get<float>(), color[3].get<float>()};
+        const auto in_unit_range = [](float component) {
+            return std::isfinite(component) && component >= 0.0f && component <= 1.0f;
+        };
+        if (!in_unit_range(position) || !in_unit_range(decoded_color.r) ||
+            !in_unit_range(decoded_color.g) || !in_unit_range(decoded_color.b) ||
+            !in_unit_range(decoded_color.a))
+            throw std::runtime_error("gradient color stops must be finite and in [0, 1]");
+        gradient.color_stops.push_back({position, decoded_color});
     }
     std::stable_sort(gradient.color_stops.begin(), gradient.color_stops.end(),
         [](const auto& a, const auto& b) { return a.position < b.position; });
     if (raw_gradient.contains("opacity_stops")) {
-        for (const auto& stop : raw_gradient.at("opacity_stops"))
-            gradient.opacity_stops.push_back({stop.at("position").get<float>(),
-                                               stop.at("opacity").get<float>()});
-            std::stable_sort(gradient.opacity_stops.begin(), gradient.opacity_stops.end(),
+        for (const auto& stop : raw_gradient.at("opacity_stops")) {
+            const auto position = stop.at("position").get<float>();
+            const auto opacity = stop.at("opacity").get<float>();
+            if (!std::isfinite(position) || position < 0.0f || position > 1.0f ||
+                !std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+                throw std::runtime_error("gradient opacity stops must be finite and in [0, 1]");
+            gradient.opacity_stops.push_back({position, opacity});
+        }
+        std::stable_sort(gradient.opacity_stops.begin(), gradient.opacity_stops.end(),
             [](const auto& a, const auto& b) { return a.position < b.position; });
     }
     return gradient;

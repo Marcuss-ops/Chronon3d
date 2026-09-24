@@ -94,13 +94,21 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (value.contains("size")) {
         const auto& size = value.at("size");
         layer.size_dimensions = size.size();
-        for (std::size_t i = 0; i < size.size() && i < layer.size.size(); ++i)
+        for (std::size_t i = 0; i < size.size() && i < layer.size.size(); ++i) {
             layer.size[i] = size.at(i).get<float>();
+            if (!std::isfinite(layer.size[i]))
+                throw std::runtime_error("layer.size components must be finite");
+        }
     }
     if (value.contains("color")) {
         const auto& color = value.at("color");
-        for (std::size_t i = 0; i < color.size() && i < layer.color.size(); ++i)
+        if (!color.is_array() || color.size() != 4)
+            throw std::runtime_error("layer.color must contain RGBA");
+        for (std::size_t i = 0; i < layer.color.size(); ++i) {
             layer.color[i] = color.at(i).get<float>();
+            if (!std::isfinite(layer.color[i]))
+                throw std::runtime_error("layer.color components must be finite");
+        }
     }
 
     if (value.contains("shape")) {
@@ -113,7 +121,39 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
         else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
+        if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
+            !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
+            throw std::runtime_error("shape layers require positive two-dimensional size");
         shape.radius = raw_shape.value("radius", 0.0f);
+        if (!std::isfinite(shape.radius) || shape.radius < 0.0f)
+            throw std::runtime_error("shape.radius must be finite and non-negative");
+        if (shape.type == ShapeContentTypePlan::RoundedRect) {
+            const float max_radius = std::min(layer.size[0], layer.size[1]) * 0.5f;
+            if (shape.radius > max_radius)
+                throw std::runtime_error(
+                    "rounded_rect radius must not exceed half the smaller size dimension");
+        }
+        if (shape.type == ShapeContentTypePlan::Line && !raw_shape.contains("stroke"))
+            throw std::runtime_error("line shapes require a stroke");
+        if (raw_shape.contains("fill") && raw_shape.at("fill").is_array()) {
+            // Shape-local fill is canonical. Legacy layer.color is only an alias
+            // for plans that omit shape.fill; it never overrides explicit fill.
+        } else if (raw_shape.contains("fill") && raw_shape.at("fill").is_object()) {
+            // Gradient payload is decoded below.
+        } else if (value.contains("color") && value.at("color").is_array()) {
+            const auto& alias = value.at("color");
+            if (alias.size() != 4)
+                throw std::runtime_error("legacy layer.color shape alias must contain RGBA");
+            shape.fill_color = std::array<float, 4>{
+                alias[0].get<float>(), alias[1].get<float>(),
+                alias[2].get<float>(), alias[3].get<float>()};
+        }
+        const auto finite_point = [](const std::array<float, 2>& point) {
+            return std::isfinite(point[0]) && std::isfinite(point[1]);
+        };
+        const auto finite_vec2 = [](const Vec2& point) {
+            return std::isfinite(point.x) && std::isfinite(point.y);
+        };
         if (raw_shape.contains("path")) {
             for (const auto& raw_command : raw_shape.at("path")) {
                 ShapePathCommandPlan command;
@@ -133,8 +173,39 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
                 if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
                 if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
+                const bool has_point = raw_command.contains("point");
+                const bool has_control1 = raw_command.contains("control1");
+                const bool has_control2 = raw_command.contains("control2");
+                switch (command.type) {
+                    case ShapePathCommandTypePlan::MoveTo:
+                    case ShapePathCommandTypePlan::LineTo:
+                        if (!has_point || has_control1 || has_control2)
+                            throw std::runtime_error("move_to/line_to require point only");
+                        break;
+                    case ShapePathCommandTypePlan::QuadraticTo:
+                        if (!has_point || !has_control1 || has_control2)
+                            throw std::runtime_error("quadratic_to requires point and control1 only");
+                        break;
+                    case ShapePathCommandTypePlan::CubicTo:
+                        if (!has_point || !has_control1 || !has_control2)
+                            throw std::runtime_error("cubic_to requires point, control1, and control2");
+                        break;
+                    case ShapePathCommandTypePlan::Close:
+                        if (has_point || has_control1 || has_control2)
+                            throw std::runtime_error("close accepts no coordinates");
+                        break;
+                }
                 shape.path.push_back(command);
             }
+        }
+        if ((shape.type == ShapeContentTypePlan::Line ||
+             shape.type == ShapeContentTypePlan::Path) && shape.path.empty())
+            throw std::runtime_error("line and path shapes require path commands");
+        for (const auto& command : shape.path) {
+            const bool needs_point = command.type != ShapePathCommandTypePlan::Close;
+            if ((needs_point && !finite_point(command.point)) ||
+                !finite_point(command.control1) || !finite_point(command.control2))
+                throw std::runtime_error("shape path coordinates must be finite");
         }
         if (raw_shape.contains("fill")) {
             const auto& fill = raw_shape.at("fill");
@@ -147,6 +218,31 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             } else if (fill.is_object()) {
                 shape.gradient = decode_gradient_definition(fill);
             }
+        }
+        if (shape.gradient) {
+            const auto valid_stop = [](float position, float alpha) {
+                return std::isfinite(position) && position >= 0.0f && position <= 1.0f &&
+                       std::isfinite(alpha) && alpha >= 0.0f && alpha <= 1.0f;
+            };
+            if (shape.gradient->color_stops.size() < 2)
+                throw std::runtime_error("gradient requires at least two color stops");
+            for (const auto& stop : shape.gradient->color_stops) {
+                if (!valid_stop(stop.position, stop.color.a) ||
+                    !std::isfinite(stop.color.r) || !std::isfinite(stop.color.g) ||
+                    !std::isfinite(stop.color.b) || stop.color.r < 0.0f || stop.color.r > 1.0f ||
+                    stop.color.g < 0.0f || stop.color.g > 1.0f ||
+                    stop.color.b < 0.0f || stop.color.b > 1.0f)
+                    throw std::runtime_error("gradient color stops must be finite and in [0, 1]");
+            }
+            for (const auto& stop : shape.gradient->opacity_stops) {
+                if (!valid_stop(stop.position, stop.opacity))
+                    throw std::runtime_error("gradient opacity stops must be finite and in [0, 1]");
+            }
+            const auto& gradient = *shape.gradient;
+            if (!finite_vec2(gradient.start) || !finite_vec2(gradient.end) ||
+                !finite_vec2(gradient.center) || !std::isfinite(gradient.radius) ||
+                gradient.radius <= 0.0f || !std::isfinite(gradient.angle))
+                throw std::runtime_error("gradient geometry must be finite with positive radius");
         }
         if (raw_shape.contains("stroke")) {
             const auto& stroke = raw_shape.at("stroke");
@@ -171,16 +267,78 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             if (stroke.contains("trim_end")) decoded_stroke.trim_end = stroke.at("trim_end").get<float>();
             if (stroke.contains("gradient"))
                 decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
+            if (decoded_stroke.gradient) {
+                const auto& gradient = *decoded_stroke.gradient;
+                if (gradient.color_stops.size() < 2)
+                    throw std::runtime_error("stroke gradient requires at least two color stops");
+                for (const auto& stop : gradient.color_stops) {
+                    if (!std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
+                        !std::isfinite(stop.color.r) || !std::isfinite(stop.color.g) ||
+                        !std::isfinite(stop.color.b) || !std::isfinite(stop.color.a) ||
+                        stop.color.r < 0.0f || stop.color.r > 1.0f ||
+                        stop.color.g < 0.0f || stop.color.g > 1.0f ||
+                        stop.color.b < 0.0f || stop.color.b > 1.0f ||
+                        stop.color.a < 0.0f || stop.color.a > 1.0f)
+                        throw std::runtime_error("stroke gradient color stops must be finite and in [0, 1]");
+                }
+                for (const auto& stop : gradient.opacity_stops) {
+                    if (!std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
+                        !std::isfinite(stop.opacity) || stop.opacity < 0.0f || stop.opacity > 1.0f)
+                        throw std::runtime_error("stroke gradient opacity stops must be finite and in [0, 1]");
+                }
+                if (!finite_vec2(gradient.start) || !finite_vec2(gradient.end) ||
+                    !finite_vec2(gradient.center) || !std::isfinite(gradient.radius) ||
+                    gradient.radius <= 0.0f || !std::isfinite(gradient.angle))
+                    throw std::runtime_error("stroke gradient geometry must be finite with positive radius");
+            }
             shape.stroke = std::move(decoded_stroke);
+        }
+        if (shape.fill_color) {
+            for (const auto component : *shape.fill_color) {
+                if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
+                    throw std::runtime_error("shape fill RGBA must be finite and in [0, 1]");
+            }
+            // Normalize both names to the same solid paint value. The explicit
+            // shape-local fill wins over the legacy layer.color alias above.
+            layer.color = *shape.fill_color;
+        }
+        if (shape.stroke) {
+            if (shape.stroke->color.empty() && shape.stroke->solid_color)
+                shape.stroke->color = "#FFFFFF";
+            if (shape.stroke->solid_color && shape.stroke->gradient)
+                throw std::runtime_error("shape stroke cannot specify both solid color and gradient");
+            if (shape.stroke->color.empty() && shape.stroke->gradient)
+                shape.stroke->color = "#FFFFFF";
+            if (shape.stroke->width &&
+                (!std::isfinite(*shape.stroke->width) || *shape.stroke->width < 0.0f))
+                throw std::runtime_error("shape stroke width must be finite and non-negative");
+            if (shape.stroke->trim_start &&
+                (!std::isfinite(*shape.stroke->trim_start) || *shape.stroke->trim_start < 0.0f ||
+                 *shape.stroke->trim_start > 1.0f))
+                throw std::runtime_error("shape stroke trim_start must be finite and in [0, 1]");
+            if (shape.stroke->trim_end &&
+                (!std::isfinite(*shape.stroke->trim_end) || *shape.stroke->trim_end < 0.0f ||
+                 *shape.stroke->trim_end > 1.0f))
+                throw std::runtime_error("shape stroke trim_end must be finite and in [0, 1]");
+            if (shape.stroke->solid_color) {
+                for (const auto component : *shape.stroke->solid_color) {
+                    if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
+                        throw std::runtime_error("shape stroke RGBA must be finite and in [0, 1]");
+                }
+            }
         }
         layer.shape = std::move(shape);
     }
     if (value.contains("position")) {
         const auto& position = value.at("position");
         layer.position_dimensions = position.size();
-        for (std::size_t i = 0; i < position.size() && i < layer.position.size(); ++i)
+        for (std::size_t i = 0; i < position.size() && i < layer.position.size(); ++i) {
             layer.position[i] = position.at(i).get<float>();
+            if (!std::isfinite(layer.position[i]))
+                throw std::runtime_error("layer.position components must be finite");
+        }
     }
+
     if (value.contains("scale")) {
         const auto& scale = value.at("scale");
         layer.scale_dimensions = scale.size();

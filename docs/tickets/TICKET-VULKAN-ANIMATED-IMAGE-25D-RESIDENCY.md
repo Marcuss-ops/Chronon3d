@@ -1,6 +1,6 @@
 # TICKET-VULKAN-ANIMATED-IMAGE-25D-RESIDENCY — preserve animated image textures
 
-**Status**: `OPEN` — Vulkan pixel regression fixed and hardware probe passes; strict capability routing remains open
+**Status**: `CLOSED` — pixel residency and strict capability routing certified on the RTX A4000 lane (2026-09-24); see the closeout section
 **Priority**: `P1`
 **Area**: Vulkan video render path / 2.5D image layer residency
 
@@ -37,15 +37,15 @@ requested.
 
 ## Acceptance
 
-- [ ] Animated 2.5D image texture remains resident and visible in Vulkan video
+- [x] Animated 2.5D image texture remains resident and visible in Vulkan video
       output for the complete clip.
-- [ ] A regression test compares content pixels for static and animated image
+- [x] A regression test compares content pixels for static and animated image
       plans on software and Vulkan, including a mid-animation frame.
-- [ ] Camera-only and image-layer-only animation controls both pass.
-- [ ] `require_gpu_native` either renders the correct image or rejects the
+- [x] Camera-only and image-layer-only animation controls both pass.
+- [x] `require_gpu_native` either renders the correct image or rejects the
       unsupported image-motion combination before encoding; it never publishes
       a successful black-texture artifact.
-- [ ] Verify on the Vulkan-enabled build and hardware lane; record plan, asset
+- [x] Verify on the Vulkan-enabled build and hardware lane; record plan, asset
       SHA, backend, sampled frame, and pixel-probe result.
 
 ## Delivery guard verified 2026-09-23
@@ -146,3 +146,46 @@ selected nearest sampling. GLSL now declares the matching scalar fields, and a
 Vulkan-gated boundary-sampling regression passes. Combined with origin
 preservation and affine-path selection, the complete animated pixel probe now
 passes at both sampled frames.
+
+## Closeout — 2026-09-24 (CLOSED)
+
+Eseguito sulla lane `linux-video-release` (RTX A4000) sull'albero di lavoro
+sopra `d08958efa`, dopo un fix compilatorio residuo dello stesso commit: il
+nuovo case `LayerType::Shape` di `render_plan_compiler.cpp` e il blocco shape
+di `fingerprint.cpp` non compilavano (conversione `std::array<float,4>` →
+`Color` mancante e nome writer→out disallineato nel blocco shape).
+
+- **Pixel probe 12/12 PASS** (`tests/fixtures/animated_image_residency/`):
+  static/animated/camera-only × software/vulkan × frame 75/149, centro
+  `[248,233,39]` max_error 0 ovunque; full-frame software↔Vulkan max delta
+  0/0 (static), 25/30 (animated), 32/30 (camera-only) ai frame 75/149.
+- **Strict static risolto**: piano statico con richiesta strict canonica
+  (`--gpu-hot-path-mode require_gpu_native --encoder-backend native
+  --hardware nvenc`) → `required_gpu_native_full_graph`, encoder feed
+  `native_surface=true`, `execution_path=full_graph_native`,
+  `surface_handoff_path=direct`, `gpu_native_surface_frames=1`,
+  `gpu_native_encode_frames=1`, `cpu_pixel_readback_bytes=0`,
+  `cpu_full_surface_upload_bytes=0`, `video_surface_upload_bytes=0`,
+  `software_fallback_nodes=0`, pixel centro max_error 0.
+- **Animated strict respinto esplicito** prima dell'encoder setup
+  (`refusing require_gpu_native: animated 2.5D image native video-surface
+  capability is not certified (stage:position_z)`), exit 1, nessun artefatto.
+- **Strict senza transport nativo → fail-closed**: `require_gpu_native` senza
+  `--encoder-backend native --hardware nvenc` normalizza i requisiti sul
+  transport pipe, il resolver risponde `required_gpu_capability_unavailable`
+  e il CLI abortisce prima del setup (`FAIL_CLOSED`), nessun artefatto. È il
+  ramo "respinto esplicito prima del mux" del contratto. Derivare
+  automaticamente i parametri canonici dal solo flag strict è un'estensione
+  del mapping CLI/IPC tracciata in
+  [TICKET-CLI-STRICT-GPU-NATIVE-MAPPING](TICKET-CLI-STRICT-GPU-NATIVE-MAPPING.md)
+  (tocca la parità Phase 9 codificata in `test_render_job_planning`).
+
+Regression permanenti del contratto:
+`tests/fixtures/animated_image_residency/run_pixel_probe.sh` (confronto pixel
+static/animated/camera-only software↔Vulkan con frame mid-animazione) e il
+test Vulkan-gated affine projective di
+`tests/backends/test_backend_registry_vulkan_transforms.cpp`.
+
+Nessun ramo pubblica artefatti neri/corrotti: capability strict static
+certificata positivamente, motion animata 2.5D strict respinta esplicitamente
+prima dell'encoder.

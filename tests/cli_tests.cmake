@@ -28,6 +28,7 @@ set(_cli_test_sources
     cli/test_render_job_write_frame_sanity.cpp
     cli/test_nvml_sampler_lifecycle.cpp
     cli/test_semantic_script.cpp
+    cli/test_daemon_ipc_exception_boundary.cpp
 )
 
 # Video exporter tests are appended only when the implementation target exists.

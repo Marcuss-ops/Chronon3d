@@ -121,6 +121,50 @@ TEST_CASE("render_plan: non-object root is rejected without crashing") {
     check_schema_violation(validate_render_plan(array_root));
 }
 
+TEST_CASE("render_plan V3 shape fill is accepted as an extension and checked by base projection") {
+    auto plan = json{
+        {"schema", "chronon.render-plan.v3"}, {"version", 3},
+        {"canvas", {{"width", 40}, {"height", 30}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 2}}},
+        {"layers", json::array({
+            {{"id", "shape"}, {"type", "shape"}, {"size", {20, 10}},
+             {"color", {0.1, 0.2, 0.3, 1.0}},
+             {"shape", {{"type", "rect"}, {"fill", {0.8, 0.7, 0.6, 1.0}}}}}
+        })},
+        {"output", {{"path", "out.png"}}}
+    };
+    const auto result = validate_render_plan(plan);
+    INFO(result.format());
+    CHECK(result.ok());
+
+    // validate_render_plan is a pure validator over const JSON. Its V2
+    // projection copies shape.fill into layer.color and erases shape.fill on a
+    // private copy only; the producer JSON must remain untouched.
+    CHECK(plan["layers"][0]["color"][0] == 0.1);
+    CHECK(plan["layers"][0]["shape"].contains("fill"));
+}
+
+TEST_CASE("render_plan V3 schema rejects malformed path fields and gradient stops") {
+    auto plan = json{
+        {"schema", "chronon.render-plan.v3"}, {"version", 3},
+        {"canvas", {{"width", 40}, {"height", 30}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 2}}},
+        {"layers", json::array({
+            {{"id", "shape"}, {"type", "shape"}, {"size", {20, 10}},
+             {"shape", {{"type", "path"}, {"path", {{{"type", "move_to"}, {"point", {0}}}}}}}}
+        })},
+        {"output", {{"path", "out.png"}}}
+    };
+    check_schema_violation(validate_render_plan(plan));
+
+    plan["layers"][0]["shape"] = {
+        {"type", "rect"},
+        {"fill", {{"type", "linear"},
+                  {"color_stops", {{{"position", 0.5}, {"color", {1, 0, 0, 1}}}}}}}
+    };
+    check_schema_violation(validate_render_plan(plan));
+}
+
 TEST_CASE("render_plan: validator instance pointers are converted but never inferred") {
     auto plan = make_minimal_valid_plan();
     plan["layers"][0]["animation"] = {

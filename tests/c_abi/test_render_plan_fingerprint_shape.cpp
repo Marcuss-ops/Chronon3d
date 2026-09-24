@@ -1,0 +1,110 @@
+#include "test_render_plan_shape_helpers.hpp"
+
+#include <doctest/doctest.h>
+
+#include <chronon3d/render_plan/render_plan.hpp>
+
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <utility>
+
+using namespace chronon3d;
+
+namespace {
+
+std::uint64_t legacy_fingerprint() {
+    auto decoded = render_plan::decode_render_plan(render_plan_test::v2_legacy_plan());
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded);
+    return decoded->content_fingerprint;
+}
+
+}  // namespace
+
+TEST_CASE("V3 shape fingerprint is stable and changes when a shape is added") {
+    auto empty_result = render_plan::decode_render_plan(render_plan_test::base_plan());
+    REQUIRE(empty_result);
+    auto empty = std::move(empty_result).value();
+    auto with_shape_json = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    auto with_shape_result = render_plan::decode_render_plan(with_shape_json);
+    REQUIRE(with_shape_result);
+    auto with_shape = std::move(with_shape_result).value();
+    CHECK(empty.content_fingerprint ==
+          render_plan::compute_render_plan_content_fingerprint(empty));
+    CHECK(with_shape.content_fingerprint ==
+          render_plan::compute_render_plan_content_fingerprint(with_shape));
+    CHECK(with_shape.content_fingerprint != empty.content_fingerprint);
+    const auto repeated = render_plan::decode_render_plan(with_shape_json);
+    REQUIRE(repeated);
+    CHECK(with_shape.content_fingerprint == repeated->content_fingerprint);
+}
+
+TEST_CASE("Shape fill, rounded radius, gradient stops, stroke, and path affect fingerprint") {
+    auto baseline = render_plan_test::base_plan({
+        render_plan_test::shape_layer({
+            {"type", "rounded_rect"}, {"radius", 6.0},
+            {"fill", {0.1, 0.2, 0.3, 1.0}},
+            {"stroke", {{"color", {1.0, 1.0, 1.0, 1.0}}, {"width", 2.0},
+                         {"trim_start", 0.1}, {"trim_end", 0.9}}}})});
+    const auto decoded_baseline = render_plan::decode_render_plan(baseline);
+    REQUIRE(decoded_baseline);
+    const auto hash = decoded_baseline->content_fingerprint;
+    const std::vector<std::pair<std::string, nlohmann::json>> changes{
+        {"shape type", [](auto value) { value["layers"][0]["shape"]["type"] = "rect"; return value; }(baseline)},
+        {"radius", [](auto value) { value["layers"][0]["shape"]["radius"] = 7.0; return value; }(baseline)},
+        {"fill", [](auto value) { value["layers"][0]["shape"]["fill"][0] = 0.11; return value; }(baseline)},
+        {"stroke width", [](auto value) { value["layers"][0]["shape"]["stroke"]["width"] = 3.0; return value; }(baseline)},
+        {"stroke trim", [](auto value) { value["layers"][0]["shape"]["stroke"]["trim_end"] = 0.8; return value; }(baseline)}
+    };
+    for (const auto& [field, changed] : changes) {
+        INFO("changed field: " << field);
+        const auto decoded = render_plan::decode_render_plan(changed);
+        REQUIRE(decoded);
+        CHECK(decoded->content_fingerprint != hash);
+    }
+
+    auto gradient = render_plan_test::base_plan({
+        render_plan_test::shape_layer({
+            {"type", "rect"}, {"fill", render_plan_test::gradient()}})});
+    const auto decoded_gradient = render_plan::decode_render_plan(gradient);
+    REQUIRE(decoded_gradient);
+    const auto gradient_hash = decoded_gradient->content_fingerprint;
+    gradient["layers"][0]["shape"]["fill"]["color_stops"][0]["color"][0] = 0.4;
+    auto changed_stop = render_plan::decode_render_plan(gradient);
+    REQUIRE(changed_stop);
+    CHECK(changed_stop->content_fingerprint != gradient_hash);
+
+    gradient = render_plan_test::base_plan({
+        render_plan_test::shape_layer({
+            {"type", "rect"}, {"fill", render_plan_test::gradient()}})});
+    gradient["layers"][0]["shape"]["fill"]["spread"] = "repeat";
+    const auto spread_changed = render_plan::decode_render_plan(gradient);
+    REQUIRE(spread_changed);
+    CHECK(spread_changed->content_fingerprint != gradient_hash);
+    gradient["layers"][0]["shape"]["fill"]["spread"] = "reflect";
+    gradient["layers"][0]["shape"]["fill"]["opacity_stops"][1]["opacity"] = 0.7;
+    const auto opacity_changed = render_plan::decode_render_plan(gradient);
+    REQUIRE(opacity_changed);
+    CHECK(opacity_changed->content_fingerprint != gradient_hash);
+
+    auto path = render_plan_test::base_plan({
+        render_plan_test::shape_layer({
+            {"type", "path"},
+            {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                       {{"type", "line_to"}, {"point", {20, 20}}}}}})});
+    const auto decoded_path = render_plan::decode_render_plan(path);
+    REQUIRE(decoded_path);
+    const auto path_hash = decoded_path->content_fingerprint;
+    path["layers"][0]["shape"]["path"][1]["point"][0] = 21;
+    const auto changed_path = render_plan::decode_render_plan(path);
+    REQUIRE(changed_path);
+    CHECK(changed_path->content_fingerprint != path_hash);
+}
+
+TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
+    // Pin the canonical pre-shape writer output so shape support cannot shift
+    // the cache identity of an old V2 plan with no optional shape payload.
+    CHECK(legacy_fingerprint() == 165749878620098252ULL);
+}

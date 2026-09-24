@@ -18,6 +18,10 @@ enum class FillType {
     ConicGradient,
 };
 
+// Compatibility bridge for scene/path paint consumers. Do not add new
+// references outside the legacy scene fill implementation and consumers that
+// are covered by TICKET-SHAPE-FILL-COMPAT; migrate those sites to
+// graphics::FillStyle/GradientDefinition before removing this alias.
 using GradientStop = graphics::GradientStop;
 using GradientFill = graphics::GradientDefinition;
 

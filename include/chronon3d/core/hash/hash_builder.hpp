@@ -23,6 +23,28 @@
 
 namespace chronon3d::core::hash {
 
+// ── Canonical digest primitives (Cat-3 single seat) ──────────────────────
+// The mixing formula and the XXH64 byte/string digests are defined ONCE,
+// here.  Domain spellings (graph::hash_combine/hash_bytes/hash_string in
+// render_graph_hashing.hpp, text::detail::hcombine/hbytes/hstring in
+// src/text/hash_helpers.hpp) delegate to these, so every cache-key digest
+// shares one primitive implementation.
+
+/// Standard boost::hash_combine mixing formula.
+[[nodiscard]] inline uint64_t hash_combine(uint64_t seed, uint64_t value) {
+    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
+}
+
+/// Deterministic raw-bytes digest (XXH64).
+[[nodiscard]] inline uint64_t hash_bytes(const void* data, std::size_t size) {
+    return XXH64(data, size, 0);
+}
+
+/// Deterministic string digest (XXH64).
+[[nodiscard]] inline uint64_t hash_string(std::string_view value) {
+    return XXH64(value.data(), value.size(), 0);
+}
+
 /// Fluent hash builder for cache-key digests.
 ///
 /// Usage:
@@ -38,7 +60,7 @@ class HashBuilder {
 public:
     /// Hash a string_view via XXH64 (deterministic across runs).
     HashBuilder& add(std::string_view value) {
-        mix(XXH64(value.data(), value.size(), 0));
+        mix(hash_string(value));
         return *this;
     }
 
@@ -97,13 +119,8 @@ public:
     [[nodiscard]] uint64_t finish() const noexcept { return state_; }
 
 private:
-    /// Standard boost::hash_combine.
-    static uint64_t hash_combine(uint64_t seed, uint64_t value) {
-        return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
-    }
-
     void mix(uint64_t value) {
-        state_ = hash_combine(state_, value);
+        state_ = hash_combine(state_, value);  // canonical free function above
     }
 
     uint64_t state_{0x9e3779b97f4a7c15ULL}; // golden-ratio seed

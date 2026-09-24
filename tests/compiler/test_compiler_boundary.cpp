@@ -7,6 +7,13 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/graphics/gradient.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <array>
 
 #include <doctest/doctest.h>
 
@@ -176,6 +183,97 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
 
     const auto scene = chronon3d::compiler::SceneMaterializer{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
+}
+
+TEST_CASE("Shape plans lower, sample and materialize all five shape contents") {
+    using namespace chronon3d;
+    using render_plan::ShapeContentTypePlan;
+
+    render_plan::RenderPlan plan;
+    plan.schema = render_plan::kRenderPlanSchemaV3;
+    plan.job_id = "shape-roundtrip";
+    plan.canvas.width = 320;
+    plan.canvas.height = 180;
+    plan.canvas.duration = Frame{12};
+
+    const auto make_layer = [](std::string id, ShapeContentTypePlan type) {
+        render_plan::LayerPlan layer;
+        layer.id = std::move(id);
+        layer.type = render_plan::LayerType::Shape;
+        layer.size = {40.0f, 30.0f};
+        layer.size_dimensions = 2;
+        layer.color = {0.2f, 0.3f, 0.4f, 1.0f};
+        layer.shape = render_plan::ShapeContentPlan{};
+        layer.shape->type = type;
+        layer.shape->fill_color = layer.color;
+        return layer;
+    };
+
+    auto rect = make_layer("rect", ShapeContentTypePlan::Rect);
+    auto rounded = make_layer("rounded", ShapeContentTypePlan::RoundedRect);
+    rounded.shape->radius = 6.0f;
+    auto ellipse = make_layer("ellipse", ShapeContentTypePlan::Ellipse);
+    auto line = make_layer("line", ShapeContentTypePlan::Line);
+    line.shape->stroke = render_plan::StrokeStyle{
+        .color = "#FFFFFF", .width = 2.0f};
+    line.shape->path = {
+        {render_plan::ShapePathCommandTypePlan::MoveTo, {0.0f, 0.0f}},
+        {render_plan::ShapePathCommandTypePlan::LineTo, {20.0f, 10.0f}}};
+    auto path = make_layer("path", ShapeContentTypePlan::Path);
+    path.shape->path = {
+        {render_plan::ShapePathCommandTypePlan::MoveTo, {0.0f, 0.0f}},
+        {render_plan::ShapePathCommandTypePlan::LineTo, {10.0f, 15.0f}},
+        {render_plan::ShapePathCommandTypePlan::Close}};
+    plan.layers = {rect, rounded, ellipse, line, path};
+
+    assets::AssetResolver resolver;
+    auto compiled_result = compiler::compile(plan, resolver);
+    REQUIRE(compiled_result);
+    auto program = std::move(compiled_result).value();
+    REQUIRE(program.nodes().size() == 5);
+    for (const auto& node : program.nodes())
+        CHECK(node.kind == compiler::NodeKind::Shape);
+
+    const auto sampled = compiler::TypedProgramSampler{}.sample(program, Frame{0});
+    REQUIRE(sampled.layers.size() == 5);
+    for (std::size_t i = 0; i < sampled.layers.size(); ++i) {
+        CHECK(sampled.layers[i].kind == compiler::NodeKind::Shape);
+        const auto* shape = std::get_if<compiler::SampledShapeParameters>(
+            &sampled.layers[i].payload);
+        REQUIRE(shape != nullptr);
+        CHECK(shape->size[0] == doctest::Approx(40.0f));
+        CHECK(shape->size[1] == doctest::Approx(30.0f));
+        CHECK(shape->color[0] == doctest::Approx(0.2f));
+        CHECK(shape->opacity == doctest::Approx(1.0f));
+    }
+
+    const auto scene = compiler::SceneMaterializer{}.materialize_scene(program);
+    REQUIRE(scene.layers().size() == 5);
+    const std::array<ShapeType, 5> expected{
+        ShapeType::Rect, ShapeType::RoundedRect, ShapeType::Circle,
+        ShapeType::Path, ShapeType::Path};
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        INFO("materialized shape layer " << i);
+        REQUIRE(scene.layers()[i].nodes.size() == 1);
+        const auto& node = scene.layers()[i].nodes.front();
+        CHECK(node.shape.type() == expected[i]);
+        CHECK(node.color.r == doctest::Approx(0.2f));
+        if (i == 0) {
+            CHECK(node.shape.rect().size.x == doctest::Approx(40.0f));
+            CHECK(node.shape.rect().size.y == doctest::Approx(30.0f));
+        } else if (i == 1) {
+            CHECK(node.shape.rounded_rect().radius == doctest::Approx(6.0f));
+        } else if (i == 2) {
+            CHECK(node.shape.circle().radius == doctest::Approx(15.0f));
+        } else {
+            REQUIRE(node.shape.path().commands.size() == (i == 3 ? 2u : 3u));
+            CHECK(node.shape.path().commands.front().type == PathCommandType::MoveTo);
+            if (i == 3)
+                CHECK(node.shape.path().stroke.width == doctest::Approx(2.0f));
+            else
+                CHECK(node.shape.path().commands.back().type == PathCommandType::Close);
+        }
+    }
 }
 
 TEST_CASE("JobSession and FrameExecution enforce job and frame lifetimes") {

@@ -2,8 +2,11 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 
+#include "test_render_plan_shape_helpers.hpp"
+
 #include <utility>
 #include <limits>
+#include <type_traits>
 #include <nlohmann/json.hpp>
 
 TEST_CASE("render plan decoder constructs typed V2 plan") {
@@ -503,4 +506,170 @@ TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it"
     REQUIRE(far_plan);
     REQUIRE(near_plan);
     CHECK(far_plan->content_fingerprint != near_plan->content_fingerprint);
+}
+
+TEST_CASE("V3 render-plan decoder accepts all five concrete shape contents") {
+    using namespace chronon3d;
+    struct ShapeCase {
+        const char* name;
+        nlohmann::json shape;
+        render_plan::ShapeContentTypePlan expected;
+    };
+    const std::vector<ShapeCase> cases{
+        {"rect", {{"type", "rect"}, {"fill", {0.2, 0.3, 0.4, 1.0}}},
+         render_plan::ShapeContentTypePlan::Rect},
+        {"rounded_rect", {{"type", "rounded_rect"}, {"radius", 8.0}},
+         render_plan::ShapeContentTypePlan::RoundedRect},
+        {"ellipse", {{"type", "ellipse"}},
+         render_plan::ShapeContentTypePlan::Ellipse},
+        {"line", {{"type", "line"},
+                   {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                             {{"type", "line_to"}, {"point", {20, 10}}}}},
+                   {"stroke", {{"color", "#FFFFFF"}, {"width", 2.0}}}},
+         render_plan::ShapeContentTypePlan::Line},
+        {"path", {{"type", "path"},
+                   {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                             {{"type", "quadratic_to"}, {"control1", {10, 20}}, {"point", {20, 0}}},
+                             {{"type", "cubic_to"}, {"control1", {25, -5}}, {"control2", {35, 5}}, {"point", {40, 0}}},
+                             {{"type", "close"}}}}},
+         render_plan::ShapeContentTypePlan::Path}
+    };
+    for (const auto& test : cases) {
+        INFO("shape content: " << test.name);
+        auto layer = render_plan_test::shape_layer(test.shape);
+        auto input = render_plan_test::base_plan({layer});
+        const auto decoded = render_plan::decode_render_plan(input);
+        if (!decoded) INFO(decoded.error().message);
+        REQUIRE(decoded);
+        REQUIRE(decoded->layers.size() == 1);
+        REQUIRE(decoded->layers[0].shape);
+        CHECK(decoded->layers[0].shape->type == test.expected);
+        if (test.expected == render_plan::ShapeContentTypePlan::RoundedRect)
+            CHECK(decoded->layers[0].shape->radius == doctest::Approx(8.0f));
+        if (test.expected == render_plan::ShapeContentTypePlan::Rect)
+            CHECK(decoded->layers[0].shape->fill_color->at(0) == doctest::Approx(0.2f));
+        if (test.expected == render_plan::ShapeContentTypePlan::Line) {
+            REQUIRE(decoded->layers[0].shape->stroke);
+            CHECK(decoded->layers[0].shape->stroke->width == doctest::Approx(2.0f));
+        }
+    }
+
+    auto unsupported = render_plan_test::shape_layer({{"type", "hexagon"}});
+    const auto unknown = render_plan::decode_render_plan(
+        render_plan_test::base_plan({unsupported}));
+    REQUIRE_FALSE(unknown);
+    CHECK(unknown.error().message.find("layers[0].shape.type") != std::string::npos);
+    CHECK(unknown.error().message.find("required enum") != std::string::npos);
+}
+
+TEST_CASE("V3 shape path commands decode in order and malformed commands fail closed") {
+    using namespace chronon3d;
+    auto layer = render_plan_test::shape_layer({
+        {"type", "path"},
+        {"path", nlohmann::json::array({
+            {{"type", "move_to"}, {"point", {0, 0}}},
+            {{"type", "line_to"}, {"point", {1, 1}}},
+            {{"type", "quadratic_to"}, {"control1", {2, 3}}, {"point", {4, 4}}},
+            {{"type", "cubic_to"}, {"control1", {5, 6}}, {"control2", {7, 8}}, {"point", {9, 9}}},
+            {{"type", "close"}}
+        })}
+    });
+    auto input = render_plan_test::base_plan({layer});
+    auto decoded = render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    const auto& commands = decoded->layers[0].shape->path;
+    REQUIRE(commands.size() == 5);
+    CHECK(commands[0].type == render_plan::ShapePathCommandTypePlan::MoveTo);
+    CHECK(commands[1].type == render_plan::ShapePathCommandTypePlan::LineTo);
+    CHECK(commands[2].type == render_plan::ShapePathCommandTypePlan::QuadraticTo);
+    CHECK(commands[3].type == render_plan::ShapePathCommandTypePlan::CubicTo);
+    CHECK(commands[4].type == render_plan::ShapePathCommandTypePlan::Close);
+
+    auto unknown = input;
+    unknown["layers"][0]["shape"]["path"][1]["type"] = "arc_to";
+    const auto unknown_error = render_plan::decode_render_plan(unknown);
+    REQUIRE_FALSE(unknown_error);
+    CHECK(unknown_error.error().message.find("layers[0].shape.path[1].type") != std::string::npos);
+    CHECK(unknown_error.error().message.find("required enum") != std::string::npos);
+
+    auto wrong_arity = input;
+    wrong_arity["layers"][0]["shape"]["path"][1]["type"] = "line_to";
+    wrong_arity["layers"][0]["shape"]["path"][1]["point"] = {1};
+    const auto arity_error = render_plan::decode_render_plan(wrong_arity);
+    REQUIRE_FALSE(arity_error);
+    CHECK(arity_error.error().message.find("layers[0].shape.path[1].point") != std::string::npos);
+    CHECK(arity_error.error().message.find("array has too few items") != std::string::npos);
+}
+
+TEST_CASE("V3 shape decoding rejects non-finite geometry and oversized rounded corners") {
+    using namespace chronon3d;
+    auto point_shape = nlohmann::json{
+        {"type", "path"},
+        {"path", nlohmann::json::array({
+            {{"type", "move_to"}, {"point", {0.0, 0.0}}},
+            {{"type", "line_to"}, {"point", {std::numeric_limits<double>::infinity(), 1.0}}}
+        })}
+    };
+    auto point_layer = render_plan_test::shape_layer(std::move(point_shape));
+    auto input = render_plan_test::base_plan({point_layer});
+    CHECK_FALSE(render_plan::decode_render_plan(input));
+
+    auto rounded = render_plan_test::shape_layer({{"type", "rounded_rect"}, {"radius", 15.0}});
+    input = render_plan_test::base_plan({rounded});
+    REQUIRE(render_plan::decode_render_plan(input));
+    input["layers"][0]["shape"]["radius"] = 15.01;
+    const auto radius_error = render_plan::decode_render_plan(input);
+    REQUIRE_FALSE(radius_error);
+    CHECK(radius_error.error().message.find("rounded_rect radius") != std::string::npos);
+
+    auto bad_size = render_plan_test::shape_layer({{"type", "rect"}});
+    bad_size["size"][0] = std::numeric_limits<double>::infinity();
+    CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({bad_size})));
+}
+
+TEST_CASE("V3 color alias normalizes to shape.fill with explicit fill precedence") {
+    using namespace chronon3d;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["color"] = {0.2, 0.3, 0.4, 1.0};
+    auto input = render_plan_test::base_plan({layer});
+    auto alias = render_plan::decode_render_plan(input);
+    REQUIRE(alias);
+    REQUIRE(alias->layers[0].shape->fill_color);
+    CHECK(alias->layers[0].shape->fill_color->at(0) == doctest::Approx(0.2f));
+    CHECK(alias->layers[0].color[0] == doctest::Approx(0.2f));
+
+    input["layers"][0]["shape"]["fill"] = {0.8, 0.7, 0.6, 1.0};
+    const auto both = render_plan::decode_render_plan(input);
+    REQUIRE(both);
+    CHECK(both->layers[0].shape->fill_color->at(0) == doctest::Approx(0.8f));
+    CHECK(both->layers[0].color[0] == doctest::Approx(0.8f));
+
+    const auto legacy = render_plan::decode_render_plan(render_plan_test::v2_legacy_plan());
+    REQUIRE(legacy);
+    CHECK(legacy->layers[0].type == render_plan::LayerType::Color);
+    CHECK(legacy->layers[0].color[0] == doctest::Approx(0.1f));
+    CHECK_FALSE(legacy->layers[0].shape);
+}
+
+TEST_CASE("V3 gradient decoding requires two stops and preserves spread and opacity stops") {
+    using namespace chronon3d;
+    const auto gradient = render_plan_test::gradient();
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}, {"fill", gradient}});
+    auto input = render_plan_test::base_plan({layer});
+    const auto decoded = render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].shape->gradient);
+    CHECK(decoded->layers[0].shape->gradient->spread == graphics::GradientSpread::Reflect);
+    CHECK(decoded->layers[0].shape->gradient->opacity_stops.size() == 2);
+    auto fewer_stops = input;
+    fewer_stops["layers"][0]["shape"]["fill"]["color_stops"].erase(1);
+    CHECK_FALSE(render_plan::decode_render_plan(fewer_stops));
+
+    auto solid_or_gradient = render_plan_test::shape_layer({
+        {"type", "rect"}, {"fill", gradient}});
+    const auto gradient_plan = render_plan::decode_render_plan(
+        render_plan_test::base_plan({solid_or_gradient}));
+    REQUIRE(gradient_plan);
+    REQUIRE(gradient_plan->layers[0].shape->gradient);
+    CHECK_FALSE(gradient_plan->layers[0].shape->fill_color);
 }

@@ -2,6 +2,10 @@
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/graphics/gradient.hpp>
+
+#include <array>
+#include <vector>
 using namespace chronon3d;
 
 TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
@@ -117,6 +121,56 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
     // into the `when engine supplied` materialization-success suite.
     CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
     CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
+}
+
+TEST_CASE("RenderNode shape content hash tracks fill, stroke gradients and path geometry") {
+    auto* res = std::pmr::get_default_resource();
+    const auto gradient = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f}, {
+            {0.0f, Color{1.0f, 0.0f, 0.0f, 1.0f}},
+            {1.0f, Color{0.0f, 0.0f, 1.0f, 1.0f}}});
+    RoundedRectParams params;
+    params.size = {80.0f, 40.0f};
+    params.radius = 8.0f;
+    params.stroke.enabled = true;
+    params.stroke.width = 2.0f;
+    params.stroke.gradient = gradient;
+    auto baseline = RenderNodeFactory::rounded_rect(res, "shape", params);
+    baseline.fill = Fill::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
+        {0.0f, Color{1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, Color{0.0f, 0.0f, 1.0f, 1.0f}}});
+    const auto original = graph::hash_render_node_content_only(baseline);
+
+    auto changed = baseline;
+    changed.shape.rounded_rect().radius += 1.0f;
+    CHECK(graph::hash_render_node_content_only(changed) != original);
+
+    changed = baseline;
+    changed.fill.gradient.color_stops[0].color.r = 0.5f;
+    CHECK(graph::hash_render_node_content_only(changed) != original);
+
+    changed = baseline;
+    changed.shape.rounded_rect().stroke.width += 1.0f;
+    CHECK(graph::hash_render_node_content_only(changed) != original);
+
+    changed = baseline;
+    changed.shape.rounded_rect().stroke.gradient->color_stops[0].color.g = 0.25f;
+    CHECK(graph::hash_render_node_content_only(changed) != original);
+
+    changed = baseline;
+    changed.shape.set_type(ShapeType::Rect);
+    CHECK(graph::hash_render_node_content_only(changed) != original);
+
+    PathParams path_params;
+    path_params.commands = {
+        PathCommand::move_to({0.0f, 0.0f}),
+        PathCommand::line_to({10.0f, 10.0f})};
+    path_params.stroke.enabled = true;
+    path_params.stroke.width = 2.0f;
+    auto path = RenderNodeFactory::path(res, "path", std::move(path_params));
+    const auto path_hash = graph::hash_render_node_content_only(path);
+    path.shape.path().commands[1].p0.x += 1.0f;
+    CHECK(graph::hash_render_node_content_only(path) != path_hash);
 }
 
 TEST_CASE("RenderNode content hash ignores placement but honors policy") {

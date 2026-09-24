@@ -1,0 +1,70 @@
+# Render-plan shape compatibility rules. Loaded only from the canonical root
+# architecture registry; the generic scene Fill migration remains scoped by its
+# active demolition-debt ticket.
+
+[[required_path]]
+name = "shape_fill_compat_demolition_ticket"
+paths = ["docs/tickets/TICKET-SHAPE-FILL-COMPAT.md"]
+
+[[contract]]
+name = "shape_fill_compat_demolition_card"
+file = "docs/tickets/TICKET-SHAPE-FILL-COMPAT.md"
+required_patterns = [
+  "Owner:",
+  "Exit condition",
+  "Equivalence test/gate",
+  "Removal scope",
+  "Status",
+  "ACTIVE",
+  "graphics::GradientDefinition",
+]
+
+[[contract]]
+name = "legacy_scene_fill_api_is_scoped_to_compatibility_boundary"
+description = "The old scene Fill is only a compatibility representation and has an active measurable removal ticket."
+file = "include/chronon3d/scene/model/shape/fill.hpp"
+required_patterns = [
+  "enum class FillType",
+  "using GradientFill = graphics::GradientDefinition",
+  "struct Fill",
+]
+
+[[scan]]
+name = "no_new_scene_fill_compat_api_consumers"
+description = "Legacy scene fill aliases remain available only to the already-migrating compatibility boundary."
+scan_paths = ["include/chronon3d", "src", "apps", "tests"]
+patterns = [
+  "\\bFillType\\b",
+  "\\bGradientFill\\b",
+  "\\bfill_type_for_gradient\\s*\\(",
+]
+allow_list = [
+  "include/chronon3d/scene/model/shape/fill.hpp",
+  "include/chronon3d/scene/model/shape/path.hpp",
+  "include/chronon3d/scene/model/shape/shape_stroke.hpp",
+  "include/chronon3d/scene/model/render/render_node.hpp",
+  "include/chronon3d/graphics/shape_style/fill_style.hpp",
+  "src/backends/software/rasterizers/shape_rasterizer.cpp",
+  "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp",
+  "src/backends/software/rasterizers/path/path_rasterizer.cpp",
+  "src/backends/software/blend2d/blend2d_path_stroker.cpp",
+  "src/backends/software/blend2d/blend2d_paint.cpp",
+  "src/backends/software/processors/software_shape_processor.cpp",
+  "src/backends/vulkan/vulkan_native_shape_dispatch.cpp",
+  "src/render_plan/render_plan_compiler.cpp",
+  "src/compiler/scene_materializer.cpp",
+  "src/render_graph/nodes/source_node_execute.cpp",
+  "tests/renderer/helpers/test_stroke_gradient_helpers.cpp",
+]
+skip_comments = true
+hint = "Do not add new scene FillType/GradientFill consumers; migrate existing sites under TICKET-SHAPE-FILL-COMPAT."
+
+[[contract]]
+name = "render_plan_shape_fill_alias_precedence"
+description = "Canonical shape.fill wins over legacy layer.color; the alias only supplies a missing fill."
+file = "src/render_plan/render_plan_decoder_layer.cpp"
+required_patterns = [
+  "Shape-local fill is canonical",
+  "legacy layer.color",
+  "shape-local fill wins over the legacy layer.color alias",
+]

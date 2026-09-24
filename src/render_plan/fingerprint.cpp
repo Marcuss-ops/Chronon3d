@@ -1,4 +1,5 @@
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/graphics/gradient.hpp>
 
 #include <array>
 #include <cmath>
@@ -104,6 +105,36 @@ void add_optional(CanonicalPlanWriter& out, const std::optional<T>& value, Add a
     if (value) add(out, *value);
 }
 
+// Cat-3 — the gradient identity field selection/order has ONE seat
+// (graphics::write_gradient_identity in <chronon3d/graphics/gradient.hpp>).
+// This sink only encodes that sequence into the canonical byte stream; the
+// stream is byte-identical to the historical inline lambdas, so the
+// "chronon.render-plan.content-fingerprint.v5" contract is unchanged.
+struct CanonicalGradientSink {
+    CanonicalPlanWriter& out;
+
+    template <typename T>
+    void operator()(const T& value) {
+        if constexpr (std::is_enum_v<T>) {
+            out.add_enum(value);
+        } else if constexpr (std::is_same_v<T, chronon3d::Color>) {
+            out.add_float(value.r); out.add_float(value.g);
+            out.add_float(value.b); out.add_float(value.a);
+        } else if constexpr (std::is_same_v<T, chronon3d::Vec2>) {
+            out.add_float(value.x); out.add_float(value.y);
+        } else {
+            out.add_float(value);
+        }
+    }
+
+    void count(std::size_t size) { out.add_size(size); }
+};
+
+void add_gradient(CanonicalPlanWriter& out, const graphics::GradientDefinition& value) {
+    CanonicalGradientSink sink{out};
+    graphics::write_gradient_identity(value, sink);
+}
+
 void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     out.add_string(style.font);
     add_optional(out, style.font_size,
@@ -120,21 +151,7 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
                      [](auto& nested, float value) { nested.add_float(value); });
         add_optional(writer, stroke.gradient,
                      [](auto& nested, const graphics::GradientDefinition& value) {
-            nested.add_enum(value.type);
-            nested.add_enum(value.spread);
-            for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
-                                        value.center.x, value.center.y, value.radius, value.angle})
-                nested.add_float(component);
-            nested.add_size(value.color_stops.size());
-            for (const auto& stop : value.color_stops) {
-                nested.add_float(stop.position);
-                nested.add_float(stop.color.r); nested.add_float(stop.color.g);
-                nested.add_float(stop.color.b); nested.add_float(stop.color.a);
-            }
-            nested.add_size(value.opacity_stops.size());
-            for (const auto& stop : value.opacity_stops) {
-                nested.add_float(stop.position); nested.add_float(stop.opacity);
-            }
+            add_gradient(nested, value);
         });
     });
     add_optional(out, style.shadow, [](auto& writer, const ShadowStyle& shadow) {
@@ -216,30 +233,21 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                  [](auto& writer, const LayerStylePlan& value) {
                      add_style(writer, value);
                  });
-    add_optional(out, layer.shape, [](auto& writer, const ShapeContentPlan& shape) {
-        writer.add_enum(shape.type);
-        writer.add_float(shape.radius);
-        add_optional(writer, shape.fill_color, [](auto& nested, const auto& color) {
+    // Preserve the historical optional-presence byte for every layer; only
+    // present shape payloads append the additive shape contract fields.
+    out.add_bool(layer.shape.has_value());
+    if (layer.shape) {
+        const auto& shape = *layer.shape;
+        out.add_enum(shape.type);
+        out.add_float(shape.radius);
+        add_optional(out, shape.fill_color, [](auto& nested, const auto& color) {
             for (const auto component : color) nested.add_float(component);
         });
-        add_optional(writer, shape.gradient, [](auto& nested,
+        add_optional(out, shape.gradient, [](auto& nested,
                                                  const graphics::GradientDefinition& value) {
-            nested.add_enum(value.type); nested.add_enum(value.spread);
-            for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
-                                        value.center.x, value.center.y, value.radius, value.angle})
-                nested.add_float(component);
-            nested.add_size(value.color_stops.size());
-            for (const auto& stop : value.color_stops) {
-                nested.add_float(stop.position);
-                nested.add_float(stop.color.r); nested.add_float(stop.color.g);
-                nested.add_float(stop.color.b); nested.add_float(stop.color.a);
-            }
-            nested.add_size(value.opacity_stops.size());
-            for (const auto& stop : value.opacity_stops) {
-                nested.add_float(stop.position); nested.add_float(stop.opacity);
-            }
+            add_gradient(nested, value);
         });
-        add_optional(writer, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
+        add_optional(out, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
             nested.add_string(stroke.color);
             add_optional(nested, stroke.width, [](auto& w, float v) { w.add_float(v); });
             add_optional(nested, stroke.solid_color, [](auto& w, const auto& color) {
@@ -249,30 +257,17 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             add_optional(nested, stroke.trim_end, [](auto& w, float v) { w.add_float(v); });
             add_optional(nested, stroke.gradient, [](auto& w,
                     const graphics::GradientDefinition& value) {
-                w.add_enum(value.type); w.add_enum(value.spread);
-                for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
-                                            value.center.x, value.center.y, value.radius, value.angle})
-                    w.add_float(component);
-                w.add_size(value.color_stops.size());
-                for (const auto& stop : value.color_stops) {
-                    w.add_float(stop.position);
-                    w.add_float(stop.color.r); w.add_float(stop.color.g);
-                    w.add_float(stop.color.b); w.add_float(stop.color.a);
-                }
-                w.add_size(value.opacity_stops.size());
-                for (const auto& stop : value.opacity_stops) {
-                    w.add_float(stop.position); w.add_float(stop.opacity);
-                }
+                add_gradient(w, value);
             });
         });
-        writer.add_size(shape.path.size());
+        out.add_size(shape.path.size());
         for (const auto& command : shape.path) {
-            writer.add_enum(command.type);
-            for (const auto value : command.point) writer.add_float(value);
-            for (const auto value : command.control1) writer.add_float(value);
-            for (const auto value : command.control2) writer.add_float(value);
+            out.add_enum(command.type);
+            for (const auto value : command.point) out.add_float(value);
+            for (const auto value : command.control1) out.add_float(value);
+            for (const auto value : command.control2) out.add_float(value);
         }
-    });
+    }
 
     for (const auto value : layer.size) out.add_float(value);
     out.add_size(layer.size_dimensions);

@@ -11,6 +11,8 @@
 // Determinism: pure, no threads, no time, no PRNG.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/core/hash/hash_builder.hpp>
+
 #include <xxhash.h>
 #include <string_view>
 #include <cstddef>
@@ -20,21 +22,22 @@ namespace chronon3d {
 namespace text {
 namespace detail {
 
-/// Combine two u64 hashes (boost::hash_combine-style, matching the
-/// codebase convention from render_graph_hashing.hpp).
+/// Combine two u64 hashes.  Cat-3: delegates to the canonical digest
+/// primitive (core/hash/hash_builder.hpp) shared with the render-graph and
+/// cache-key hashing; the formula is unchanged, so digest values are
+/// bit-identical to the historical inline versions.
 [[nodiscard]] inline u64 hcombine(u64 seed, u64 value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
+    return core::hash::hash_combine(seed, value);
 }
 
 /// Hash raw bytes via XXH64.
 [[nodiscard]] inline u64 hbytes(const void* data, size_t size) {
-    return XXH64(data, size, 0);
+    return core::hash::hash_bytes(data, size);
 }
 
 /// Hash a string_view via XXH64.
 [[nodiscard]] inline u64 hstring(std::string_view sv) {
-    return XXH64(sv.data(), sv.size(), 0);
+    return core::hash::hash_string(sv);
 }
 
 /// Hash a trivially-copyable value via its byte representation.

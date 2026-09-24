@@ -160,6 +160,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     (*shape.fill_color)[0], (*shape.fill_color)[1],
                                     (*shape.fill_color)[2], (*shape.fill_color)[3]});
                             }
+                            params.color = layer_color;
                             params.stroke = stroke.to_path_stroke();
                             if (shape.type == render_plan::ShapeContentTypePlan::Line &&
                                 params.stroke.width <= 1.0f) params.stroke.width = 1.0f;

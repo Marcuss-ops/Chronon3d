@@ -33,7 +33,7 @@
         "radius": { "type": "number", "exclusiveMinimum": 0 },
         "angle": { "type": "number" },
         "spread": { "enum": ["pad", "repeat", "reflect"] },
-        "color_stops": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/color_stop" } },
+        "color_stops": { "type": "array", "minItems": 2, "maxItems": 256, "items": { "$ref": "#/$defs/color_stop" } },
         "opacity_stops": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/opacity_stop" } }
       }
     },
@@ -48,8 +48,10 @@
       },
       "allOf": [
         { "if": { "properties": { "type": { "enum": ["move_to", "line_to", "quadratic_to", "cubic_to"] } }, "required": ["type"] }, "then": { "required": ["point"] } },
+        { "if": { "properties": { "type": { "enum": ["move_to", "line_to"] } }, "required": ["type"] }, "then": { "not": { "anyOf": [{ "required": ["control1"] }, { "required": ["control2"] }] } } },
         { "if": { "properties": { "type": { "const": "cubic_to" } }, "required": ["type"] }, "then": { "required": ["control1", "control2"] } },
-        { "if": { "properties": { "type": { "const": "quadratic_to" } }, "required": ["type"] }, "then": { "required": ["control1"] } }
+        { "if": { "properties": { "type": { "const": "quadratic_to" } }, "required": ["type"] }, "then": { "required": ["control1"], "not": { "required": ["control2"] } } },
+        { "if": { "properties": { "type": { "const": "close" } }, "required": ["type"] }, "then": { "not": { "anyOf": [{ "required": ["point"] }, { "required": ["control1"] }, { "required": ["control2"] }] } } }
       ]
     },
     "stroke": {
