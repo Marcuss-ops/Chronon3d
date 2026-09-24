@@ -193,6 +193,25 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     CHECK(changed_compound->content_fingerprint != compound_fingerprint);
 }
 
+TEST_CASE("Path mask geometry and softness affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::parse(R"JSON([
+      {"id":"masked","type":"color","color":[1,1,1,1],"mask":{
+        "type":"path","path":[{"type":"move_to","point":[-4,-4]},
+          {"type":"line_to","point":[4,-4]},{"type":"line_to","point":[4,4]},
+          {"type":"line_to","point":[-4,4]},{"type":"close"}],
+        "feather":2,"expansion":1}}
+    ])JSON"));
+    const auto decoded = render_plan::decode_render_plan(plan);
+    const std::string decode_error = decoded.has_value() ? std::string{} : decoded.error().message;
+    INFO(decode_error);
+    REQUIRE(decoded);
+    const auto fingerprint = decoded->content_fingerprint;
+    plan["layers"][0]["mask"]["feather"] = 3.0;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
     // Pin the canonical pre-shape writer output so shape support cannot shift
     // the cache identity of an old V2 plan with no optional shape payload.

@@ -7,6 +7,8 @@
 #include <chronon3d/scene/model/layer/track_matte.hpp>
 
 #include <memory_resource>
+#include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace chronon3d {
@@ -36,6 +38,47 @@ LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
     m_layer.mask.radius = p.radius;
     m_layer.mask.pos = p.pos;
     m_layer.mask.inverted = p.inverted;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::mask_path(PathMaskParams p) {
+    m_layer.mask.type = MaskType::Path;
+    m_layer.mask.path = std::move(p.commands);
+    m_layer.mask.pos = p.pos;
+    m_layer.mask.feather = p.feather;
+    m_layer.mask.expansion = p.expansion;
+    m_layer.mask.inverted = p.inverted;
+    if (m_layer.mask.path.empty()) {
+        m_layer.mask.type = MaskType::None;
+        return *this;
+    }
+    f32 min_x = std::numeric_limits<f32>::max();
+    f32 min_y = std::numeric_limits<f32>::max();
+    f32 max_x = std::numeric_limits<f32>::lowest();
+    f32 max_y = std::numeric_limits<f32>::lowest();
+    for (const auto& command : m_layer.mask.path) {
+        if (command.type == PathCommandType::Close) continue;
+        min_x = std::min(min_x, command.p0.x); min_y = std::min(min_y, command.p0.y);
+        max_x = std::max(max_x, command.p0.x); max_y = std::max(max_y, command.p0.y);
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo) {
+            min_x = std::min(min_x, command.p1.x); min_y = std::min(min_y, command.p1.y);
+            max_x = std::max(max_x, command.p1.x); max_y = std::max(max_y, command.p1.y);
+        }
+        if (command.type == PathCommandType::CubicTo) {
+            min_x = std::min(min_x, command.p2.x); min_y = std::min(min_y, command.p2.y);
+            max_x = std::max(max_x, command.p2.x); max_y = std::max(max_y, command.p2.y);
+        }
+    }
+    const Vec2 center{(min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f};
+    for (auto& command : m_layer.mask.path) {
+        if (command.type == PathCommandType::Close) continue;
+        command.p0 -= center;
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+            command.p1 -= center;
+        if (command.type == PathCommandType::CubicTo) command.p2 -= center;
+    }
+    m_layer.mask.pos += Vec3{center, 0.0f};
+    m_layer.mask.size = {max_x - min_x, max_y - min_y};
     return *this;
 }
 
