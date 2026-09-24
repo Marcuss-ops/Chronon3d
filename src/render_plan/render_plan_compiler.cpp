@@ -262,9 +262,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 ? Vec2{layer.size[0], layer.size[1]}
                                 : Vec2{static_cast<float>(plan.canvas.width),
                                        static_cast<float>(plan.canvas.height)};
+                            const Color base_color{layer.color[0], layer.color[1],
+                                                   layer.color[2], layer.color[3]};
                             std::optional<graphics::FillStyle> fill;
                             if (shape.gradient) {
-                                fill = graphics::FillStyle::solid(layer.color);
+                                fill = graphics::FillStyle::solid(base_color);
                                 fill->gradient = shape.gradient;
                             } else if (shape.fill_color) {
                                 fill = graphics::FillStyle::solid(Color{
@@ -292,7 +294,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 case ShapeContentTypePlan::Rect: {
                                     RectParams params;
                                     params.size = size;
-                                    params.color = layer.color;
+                                    params.color = base_color;
                                     params.fill = fill;
                                     params.stroke = stroke;
                                     builder.rect("shape", std::move(params));
@@ -302,7 +304,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     RoundedRectParams params;
                                     params.size = size;
                                     params.radius = shape.radius;
-                                    params.color = layer.color;
+                                    params.color = base_color;
                                     params.fill = fill;
                                     params.stroke = stroke;
                                     builder.rounded_rect("shape", std::move(params));
@@ -311,7 +313,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 case ShapeContentTypePlan::Ellipse: {
                                     CircleParams params;
                                     params.radius = std::min(size.x, size.y) * 0.5f;
-                                    params.color = layer.color;
+                                    params.color = base_color;
                                     params.fill = fill;
                                     params.stroke = stroke;
                                     builder.circle("shape", std::move(params));

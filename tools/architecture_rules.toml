@@ -13,6 +13,7 @@ includes = [
   "architecture_rules_wave9.toml",
   "architecture_rules_wave12.toml",
   "architecture_rules_wave1.toml",
+  "architecture_rules_shape.toml",
 ]
 
 # -----------------------------------------------------------------------------
