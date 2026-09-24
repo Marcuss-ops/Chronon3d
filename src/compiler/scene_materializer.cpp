@@ -187,6 +187,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::OffsetPath) {
                                         specs.push_back({PathOperatorKind::OffsetPath,
                                             OffsetPathParams{op.amount, op.miter_limit}, 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::PuckerBloat) {
+                                        specs.push_back({PathOperatorKind::PuckerBloat,
+                                            PuckerBloatParams{op.amount, {op.anchor[0], op.anchor[1]}}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
