@@ -5,6 +5,7 @@
 
 DEVELOPER_GATES=(
     check_test_hygiene.sh
+    check_test_hygiene_registry_selftest.sh
     check_cli_tests.sh
     check_frame_value_convention.sh
     check_conflict_markers.sh
@@ -14,6 +15,7 @@ DEVELOPER_GATES=(
     check_architecture.py
     architecture_gate_selftest.sh
     check_steady_state_allocations.sh
+    node_memory_metrics_selftest.sh
     verify_registry_render_graph_cache.sh
 )
 

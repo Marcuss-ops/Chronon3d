@@ -194,3 +194,22 @@ Resta aperto, e sono i criteri di accettazione della decisione:
 > Le vecchie istruzioni indicavano `RenderingGen/multilingual_overlays_v1/scripts/vram_probe.py`:
 > quel file non esiste in questo checkout (la directory `scripts/` non c'è). Gli entry
 > point reali sono quelli sopra.
+
+## Checkout update — 2026-09-24
+
+- RENDER_JOB JSON decode remains in `daemon_service_ipc_protocol.cpp`; the
+  full admission/execution handler was extracted from the IPC switch into
+  `daemon_service_ipc_render_job.cpp`. The switch now delegates by payload and
+  does not own render-job policy. `ASSEMBLE_SEGMENTS` JSON ingress is also in
+  the protocol codec, and Wave9 pins normalization to the new canonical IPC
+  boundary while pinning JSON parse sites to the codec.
+- `RenderJobAdmissionContext` releases the execution lock and device reservation
+  on unwind. Its CLI test transfers the reservation into the same
+  `VideoJobExecutionContext` passed by production, throws from a by-value
+  dispatcher test double, and checks the moved-from caller, device credits, and
+  subsequent lock acquisition afterward.
+- The rebuilt CLI suites pass (79/79 CLI cases; 20/20 render-job contract
+  cases), including the throwing-dispatcher reservation test. The 197-rule
+  architecture gate passes against this extraction, including Wave9's canonical
+  decode/normalization boundaries. This is host-free code verification only;
+  allocator calibration and the 3–5 GPU shape suite in §5 remain NOT RUN here.

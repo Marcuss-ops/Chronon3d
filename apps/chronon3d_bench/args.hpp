@@ -20,6 +20,7 @@ struct BenchArgs {
     std::string json_file;
     std::string compare_file;
     std::string stats_json_file;
+    std::string node_memory_json_file;
 
     bool quiet{false};
     bool include_frame_times{false};

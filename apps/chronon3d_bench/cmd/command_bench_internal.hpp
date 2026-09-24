@@ -6,6 +6,8 @@
 
 #include <benchmark/benchmark.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <atomic>
+#include <cstdint>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <spdlog/spdlog.h>
 
@@ -33,6 +35,7 @@ struct BenchRuntimeContext {
     int frames{0};
     int warmup{0};
     bool no_dirty_rects{false};
+    std::atomic<std::uint64_t> frames_rendered{0};
 };
 
 struct BenchmarkSummary {

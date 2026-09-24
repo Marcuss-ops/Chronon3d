@@ -1,12 +1,15 @@
 #include "daemon_service_ipc_protocol.hpp"
 #include "daemon_render_job_payload.hpp"
+#include "daemon_service.hpp"
 
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/media/video/packet_assembler.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <fstream>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -289,6 +292,26 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     job_request.requirements = exec_reqs;
     job_request.backend = request.value("backend", job_request.backend);
     return job_request;
+}
+
+ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
+#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    try {
+        const auto request = nlohmann::json::parse(payload.begin(), payload.end());
+        const auto paths = request.value("input_paths", std::vector<std::string>{});
+        const auto output = request.value("output_path", std::string{});
+        const auto result = media::assemble_segments(media::SegmentAssemblyRequest{paths, output});
+        if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
+        return ipc::Reply{ipc::Status::Ok, output};
+    } catch (const std::exception& e) {
+        return ipc::Reply{ipc::Status::BadRequest,
+                          std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};
+    }
+#else
+    (void)payload;
+    return ipc::Reply{ipc::Status::Error,
+                      "ASSEMBLE_SEGMENTS unavailable: built without native FFmpeg mux"};
+#endif
 }
 
 } // namespace chronon3d::cli

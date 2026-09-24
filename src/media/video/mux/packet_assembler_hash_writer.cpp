@@ -79,7 +79,11 @@ bool MuxAvioHashWriter::open(const std::string& path,
 }
 
 int MuxAvioHashWriter::write_packet(void* opaque,
+#if LIBAVFORMAT_VERSION_MAJOR >= 60
+                                    const std::uint8_t* buffer,
+#else
                                     std::uint8_t* buffer,
+#endif
                                     int buffer_size) noexcept {
     auto* self = static_cast<MuxAvioHashWriter*>(opaque);
     if (!self || !self->sink || !buffer || buffer_size < 0) return AVERROR(EINVAL);

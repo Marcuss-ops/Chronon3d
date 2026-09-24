@@ -10,6 +10,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
 #include <chronon3d/runtime/job/render_job_request.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 
 #include <cstdint>
 #include <array>
@@ -20,6 +21,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -800,17 +802,33 @@ TEST_CASE("RenderJobAdmissionContext releases lock and reservation on scope exit
     std::condition_variable admission_cv;
     std::atomic<bool> running{true};
 
-    {
+    bool dispatcher_entered = false;
+    std::shared_ptr<c3d::media::VideoJobExecutionContext> video_execution;
+    CHECK_THROWS_AS(([&]() {
         cli::RenderJobAdmissionContext context(
             false, 512, render_mutex, admission_mutex, admission_cv,
             running, scheduler, requirements);
         REQUIRE(context.admitted());
+        dispatcher_entered = true;
         const auto state = scheduler.resource_state(0);
         REQUIRE(state.has_value());
         CHECK(state->reserved.vram_bytes == 512);
-        // The context retains the token; its destructor must release it even
-        // when the render body exits normally.
-    }
+        video_execution =
+            std::make_shared<c3d::media::VideoJobExecutionContext>();
+        video_execution->device_scheduler = &scheduler;
+        video_execution->reservation.emplace(context.take_reservation());
+        CHECK_FALSE(context.take_reservation().valid());
+        const auto test_dispatcher = [](
+            std::shared_ptr<c3d::media::VideoJobExecutionContext> execution) -> void {
+            REQUIRE(execution != nullptr);
+            REQUIRE(execution->reservation.has_value());
+            CHECK(execution->reservation->valid());
+            throw std::runtime_error("dispatcher fixture failure");
+        };
+        test_dispatcher(std::move(video_execution));
+    }()), std::runtime_error);
+    CHECK(dispatcher_entered);
+    CHECK(video_execution == nullptr);
 
     const auto released = scheduler.resource_state(0);
     REQUIRE(released.has_value());

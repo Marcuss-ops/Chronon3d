@@ -8,6 +8,8 @@
 // ── Allocation tracking ────────────────────────────────────────────
 
 inline void framebuffer_increment_allocations(size_t bytes) {
+    profiling::record_node_memory_event(
+        profiling::NodeMemoryEvent::Allocation, bytes);
     uint64_t current = profiling::g_live_framebuffer_bytes.fetch_add(bytes, std::memory_order_relaxed) + bytes;
     uint64_t peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
     while (current > peak && !profiling::g_peak_live_framebuffer_bytes.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}

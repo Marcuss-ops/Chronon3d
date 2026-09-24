@@ -27,9 +27,10 @@ struct NodeMemoryMetrics {
     std::atomic<std::uint64_t> bytes_written{0};
     std::atomic<std::uint64_t> framebuffer_copies{0};
     std::atomic<std::uint64_t> framebuffer_clears{0};
-    /// Number of distinct heap allocation events observed for this node.
+    /// Number of framebuffer backing-store allocation events observed while
+    /// this node is executing, plus explicit record_allocation() events.
     std::atomic<std::uint64_t> allocations{0};
-    /// Sum of bytes associated with those allocation events.
+    /// Sum of framebuffer backing-store bytes and explicit allocation bytes.
     std::atomic<std::uint64_t> allocated_bytes{0};
     /// Number of temporary buffers acquired, independent of heap allocations.
     std::atomic<std::uint64_t> temporary_buffers{0};
@@ -64,6 +65,7 @@ private:
 /// Value snapshot of one node's accumulated counters.
 struct NodeStatsSnapshot {
     std::string node_id{};
+    std::string node_type{};
     std::uint64_t pixels_read{0};
     std::uint64_t pixels_written{0};
     std::uint64_t bytes_read{0};

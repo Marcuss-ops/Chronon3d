@@ -3,9 +3,6 @@
 
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/media/video/packet_assembler.hpp>
-
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
@@ -107,26 +104,6 @@ ipc::Reply DaemonService::ipc_render_overlay(const std::string& args) {
     }
     m_render_count.fetch_add(1, std::memory_order_relaxed);
     return ipc::Reply{ipc::Status::Ok, output};
-}
-
-ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
-#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    try {
-        const auto request = nlohmann::json::parse(payload.begin(), payload.end());
-        const auto paths = request.value("input_paths", std::vector<std::string>{});
-        const auto output = request.value("output_path", std::string{});
-        const auto result = media::assemble_segments(media::SegmentAssemblyRequest{paths, output});
-        if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
-        return ipc::Reply{ipc::Status::Ok, output};
-    } catch (const std::exception& e) {
-        return ipc::Reply{ipc::Status::BadRequest,
-                          std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};
-    }
-#else
-    (void)payload;
-    return ipc::Reply{ipc::Status::Error,
-                      "ASSEMBLE_SEGMENTS unavailable: built without native FFmpeg mux"};
-#endif
 }
 
 ipc::Reply DaemonService::ipc_status() {
