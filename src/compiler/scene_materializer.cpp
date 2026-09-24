@@ -193,6 +193,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Twist) {
                                         specs.push_back({PathOperatorKind::Twist,
                                             TwistParams{op.degrees, {op.center[0], op.center[1]}}, 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::WigglePath) {
+                                        specs.push_back({PathOperatorKind::WigglePath,
+                                            WigglePathParams{op.amount, op.frequency}, op.seed});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
