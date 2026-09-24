@@ -143,8 +143,17 @@ NodeExecResult EffectStackNode::execute(
                 .temporal_history_key = m_temporal_history_key
 
         };
-        const auto native_source = gpu_only_input
-            ? inputs[0]->surface_handle()
+        // A producer may already have an authoritative native surface even
+        // when strict native-GPU policy is disabled. Prefer that surface for
+        // native effects too: its CPU mirror can be absent or stale (notably
+        // for cropped MTSDF text), and copying the mirror would erase it.
+        const auto input_surface = inputs[0]->surface_handle();
+        const bool native_source_available =
+            input_surface != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.backend->supports_native_surfaces() &&
+            ctx.backend->is_native_surface_valid(input_surface);
+        const auto native_source = native_source_available
+            ? input_surface
             : runtime::kInvalidRenderSurfaceHandle;
         const auto native_clip = gpu_only_input
             ? std::optional<raster::BBox>{}
@@ -159,8 +168,8 @@ NodeExecResult EffectStackNode::execute(
         // backends fall through to their registered software processor.
         if (!native_handled) {
             native_handled = native_effects::try_native_full_frame_glow(
-                ctx, m_effects, *result, native_clip, native_source,
-                gpu_only_input ? inputs[0].get() : nullptr);
+            ctx, m_effects, *result, native_clip, native_source,
+                native_source_available ? inputs[0].get() : nullptr);
         }
         if (!native_handled && !gpu_only_input) {
             native_handled = native_effects::try_native_full_frame_tint(
