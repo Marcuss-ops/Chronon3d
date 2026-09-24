@@ -44,5 +44,9 @@ inline constexpr std::string_view ColorHueRotate   = "color.hue_rotate";
 inline constexpr std::string_view ColorInvert      = "color.invert";
 inline constexpr std::string_view ColorVignette    = "color.vignette";
 inline constexpr std::string_view ColorLut3D       = "color.lut_3d";
+inline constexpr std::string_view TemporalEcho     = "temporal.echo";
+inline constexpr std::string_view MatteKeying      = "matte.luma_chroma_key";
+inline constexpr std::string_view StylizeThreshold = "stylize.threshold";
+inline constexpr std::string_view StylizeMosaic    = "stylize.mosaic";
 
 } // namespace chronon3d::effects::ids

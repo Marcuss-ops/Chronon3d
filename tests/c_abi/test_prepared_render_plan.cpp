@@ -141,7 +141,8 @@ TEST_CASE("render plan prepares and lowers content-addressed 3D LUT assets") {
     color.id = "graded";
     color.type = chronon3d::render_plan::LayerType::Color;
     color.color = {0.2f, 0.3f, 0.4f, 1.0f};
-    color.lut_effects.push_back({"looks/invert.cube", 1.0f});
+    color.effects.push_back({.kind = chronon3d::render_plan::LayerPlan::EffectKindPlan::Lut3D,
+                             .asset = "looks/invert.cube", .amount = 1.0f});
     plan.layers.push_back(std::move(color));
     chronon3d::assets::AssetResolver resolver;
     resolver.mount(temp.path);
@@ -155,6 +156,40 @@ TEST_CASE("render plan prepares and lowers content-addressed 3D LUT assets") {
     REQUIRE(evaluated);
     REQUIRE(evaluated->scene.layers().size() == 1);
     CHECK(evaluated->scene.layers()[0].effects().size() == 1);
+}
+
+TEST_CASE("render plan lowers luma/chroma key parameters into the effect stack") {
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "keying-plan";
+    plan.canvas = {.width = 16, .height = 16,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{1}};
+    chronon3d::render_plan::LayerPlan color;
+    color.id = "keyed";
+    color.type = chronon3d::render_plan::LayerType::Color;
+    color.color = {0.2f, 0.7f, 0.1f, 1.0f};
+    color.effects.push_back({
+        .kind = chronon3d::render_plan::LayerPlan::EffectKindPlan::Keying,
+        .keying_mode = chronon3d::render_plan::LayerPlan::KeyingModePlan::Chroma,
+        .key_color = {0.0f, 0.75f, 0.0f}, .threshold = 0.18f,
+        .softness = 0.12f, .spill = 0.6f});
+    plan.layers.push_back(std::move(color));
+    chronon3d::assets::AssetResolver resolver;
+    const auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = chronon3d::evaluate(
+        prepared->compiled_composition,
+        chronon3d::CompositionEvaluateContext{}, chronon3d::Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* keying = std::get_if<chronon3d::KeyingParams>(&effects[0].params);
+    REQUIRE(keying);
+    CHECK(keying->mode == chronon3d::KeyingMode::Chroma);
+    CHECK(keying->threshold == doctest::Approx(0.18f));
+    CHECK(keying->softness == doctest::Approx(0.12f));
+    CHECK(keying->spill == doctest::Approx(0.6f));
 }
 
 TEST_CASE("compiled composition preserves fractional evaluation time") {

@@ -10,6 +10,14 @@ NodeExecResult EffectStackNode::execute(
     }
 
     const f32 spread = compute_max_effect_spread();
+    const bool has_echo = std::any_of(m_effects.begin(), m_effects.end(),
+        [](const EffectInstance& effect) {
+            return effect.enabled && effect.effect_type == effects::EffectType::Echo;
+        });
+    const bool has_keying = std::any_of(m_effects.begin(), m_effects.end(),
+        [](const EffectInstance& effect) {
+            return effect.enabled && effect.effect_type == effects::EffectType::Keying;
+        });
     auto pred_bbox = predicted_bbox(ctx, input_bboxes);
     // A strict native export may carry a stale CPU-side allocation from a
     // reused physical slot while the Vulkan surface is already authoritative.
@@ -22,7 +30,32 @@ NodeExecResult EffectStackNode::execute(
         (!ctx.backend || ctx.backend->is_native_surface_valid(
             inputs[0]->surface_handle()));
     OwnedFB result;
-    if (spread > 0.0f && pred_bbox) {
+    if ((has_echo || has_keying) && gpu_only_input) {
+        throw std::runtime_error("Echo and Luma/Chroma Key require the software renderer for GPU-only surfaces");
+    }
+    if (has_echo) {
+        // Echo needs a stable canvas coordinate system: tight per-frame layer
+        // bounds move as the source animates, while its history is sampled by
+        // frame. Expand the source into a transparent canvas before recording
+        // or compositing temporal samples so trails survive those bound shifts.
+        result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
+        result->set_origin(0, 0);
+        result->clear(Color::transparent());
+        const auto& source = *inputs[0];
+        const i32 dst_x0 = std::max(0, source.origin_x());
+        const i32 dst_y0 = std::max(0, source.origin_y());
+        const i32 dst_x1 = std::min(ctx.frame_input.width, source.origin_x() + source.width());
+        const i32 dst_y1 = std::min(ctx.frame_input.height, source.origin_y() + source.height());
+        if (dst_x1 > dst_x0 && dst_y1 > dst_y0) {
+            for (i32 y = dst_y0; y < dst_y1; ++y) {
+                const Color* src = source.pixels_row(y - source.origin_y()) + (dst_x0 - source.origin_x());
+                Color* dst = result->pixels_row(y) + dst_x0;
+                std::copy_n(src, dst_x1 - dst_x0, dst);
+            }
+        }
+        result->set_opaque(false);
+        result->set_key_digest(source.key_digest());
+    } else if (spread > 0.0f && pred_bbox) {
         const raster::BBox out_bounds = *pred_bbox;
         const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
         const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
@@ -77,7 +110,7 @@ NodeExecResult EffectStackNode::execute(
     }
 
     if (ctx.backend) {
-        std::optional<raster::BBox> local_clip = ctx.node_exec.clip_rect;
+        std::optional<raster::BBox> local_clip = has_echo ? std::nullopt : ctx.node_exec.clip_rect;
         if (pred_bbox) {
             if (local_clip) {
                 local_clip->x0 = std::max(local_clip->x0, pred_bbox->x0);
@@ -103,9 +136,11 @@ NodeExecResult EffectStackNode::execute(
             .frame = ctx.frame_input.frame,
             .clip = local_clip,
             .quality = effects::RenderQuality::Final,
-            .diagnostics_enabled = ctx.policy.diagnostics_enabled,                .effect_processors = ctx.node_exec.current_effect_processors,
+            .diagnostics_enabled = ctx.policy.diagnostics_enabled,
+            .effect_processors = ctx.node_exec.current_effect_processors,
                 .processor_snapshot = ctx.node_exec.processor_snapshot,
-                .processors_resolved = ctx.node_exec.processor_bindings_compiled
+                .processors_resolved = ctx.node_exec.processor_bindings_compiled,
+                .temporal_history_key = m_temporal_history_key
 
         };
         const auto native_source = gpu_only_input

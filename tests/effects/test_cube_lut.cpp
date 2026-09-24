@@ -4,6 +4,7 @@
 #include <chronon3d/effects/cube_lut.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include "src/backends/software/effects/render_effects_processor.hpp"
@@ -86,4 +87,41 @@ TEST_CASE("LutCubeFramehashCanary") {
         REQUIRE(raw.good());
     }
     CHECK(fb.get_pixel(16, 16).r == doctest::Approx(1.0f - 16.0f / 31.0f));
+}
+
+TEST_CASE("EchoFramehashCanary") {
+    constexpr int width = 32, height = 32;
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    EffectStack stack;
+    stack.push_back(EffectInstance{EchoParams{.echoes = 3, .decay = 0.55f,
+                                                .time_offset_frames = 1}});
+    EffectScratchResources scratch;
+    Framebuffer fb(width, height);
+    for (int frame = 0; frame < 4; ++frame) {
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x)
+                fb.set_pixel(x, y, Color{static_cast<float>((x + frame * 7) % width) / 31.0f,
+                    static_cast<float>((y + frame * 5) % height) / 31.0f,
+                    static_cast<float>((x + y + frame * 9) % 63) / 62.0f, 1.0f});
+        effects::EffectExecutionContext context;
+        context.frame = Frame{frame};
+        context.effect_scratch = &scratch;
+        context.temporal_history_key = "echo-canary";
+        apply_effect_stack(fb, stack, context, registry);
+    }
+    const char* raw_path = std::getenv("CHRONON_ECHO_RAW");
+    if (raw_path && *raw_path) {
+        std::ofstream raw(raw_path, std::ios::binary | std::ios::trunc);
+        REQUIRE(raw.good());
+        for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) {
+            const auto pixel = fb.get_pixel(x, y);
+            const std::uint8_t rgba[] = {Color::linear_to_srgb8(pixel.r), Color::linear_to_srgb8(pixel.g),
+                Color::linear_to_srgb8(pixel.b), static_cast<std::uint8_t>(pixel.a * 255.0f + 0.5f)};
+            raw.write(reinterpret_cast<const char*>(rgba), sizeof(rgba));
+        }
+        REQUIRE(raw.good());
+    }
+    CHECK(fb.get_pixel(16, 16).a == doctest::Approx(1.0f));
+    CHECK(scratch.echo_history.at("echo-canary").size() == 4);
 }

@@ -40,6 +40,9 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <deque>
+#include <unordered_map>
+#include <mutex>
 #include <spdlog/spdlog.h>
 
 // M1.5#7 — `TextRenderResources` is the per-session aggregator of
@@ -65,6 +68,73 @@ struct CompiledComposition;
 /// One shared transient workspace for scalar effect processors. Sequential
 /// effects reuse these buffers; no effect-specific pool is introduced.
 struct EffectScratchResources {
+    struct EchoFrame {
+        std::int64_t frame{0};
+        std::shared_ptr<const Framebuffer> surface;
+    };
+    std::unordered_map<std::string, std::deque<EchoFrame>> echo_history;
+    std::size_t echo_history_bytes{0};
+    std::shared_ptr<std::mutex> echo_history_mutex{std::make_shared<std::mutex>()};
+    static constexpr std::size_t kEchoHistoryByteBudget = 512ULL * 1024ULL * 1024ULL;
+
+    [[nodiscard]] std::vector<std::shared_ptr<const Framebuffer>> echo_frames(
+        std::string_view key, std::int64_t current_frame,
+        std::uint32_t echoes, std::uint32_t offset) const {
+        std::lock_guard lock(*echo_history_mutex);
+        std::vector<std::shared_ptr<const Framebuffer>> result(echoes);
+        const auto found = echo_history.find(std::string(key));
+        if (found == echo_history.end() || offset == 0) return result;
+        const auto& frames = found->second;
+        for (std::uint32_t i = 1; i <= echoes; ++i) {
+            const auto target = current_frame - static_cast<std::int64_t>(i) * offset;
+            const auto entry = std::lower_bound(frames.begin(), frames.end(), target,
+                [](const EchoFrame& candidate, std::int64_t frame) {
+                    return candidate.frame < frame;
+                });
+            if (entry != frames.end() && entry->frame == target)
+                result[i - 1] = entry->surface;
+        }
+        return result;
+    }
+
+    void record_echo_frame(std::string_view key, std::int64_t frame,
+                           const Framebuffer& source, std::size_t keep_frames) {
+        if (key.empty() || keep_frames == 0) return;
+        const auto bytes = source.size_bytes();
+        if (bytes > kEchoHistoryByteBudget) return;
+        auto surface = std::make_shared<const Framebuffer>(source);
+        std::lock_guard lock(*echo_history_mutex);
+        auto& frames = echo_history[std::string(key)];
+        const auto position = std::lower_bound(frames.begin(), frames.end(), frame,
+            [](const EchoFrame& candidate, std::int64_t target) {
+                return candidate.frame < target;
+            });
+        if (position != frames.end() && position->frame == frame) {
+            echo_history_bytes -= position->surface->size_bytes();
+            *position = EchoFrame{frame, std::move(surface)};
+            echo_history_bytes += bytes;
+        } else {
+            frames.insert(position, EchoFrame{frame, std::move(surface)});
+            echo_history_bytes += bytes;
+        }
+        while (frames.size() > keep_frames) {
+            echo_history_bytes -= frames.front().surface->size_bytes();
+            frames.pop_front();
+        }
+        while (echo_history_bytes > kEchoHistoryByteBudget) {
+            auto oldest_map = echo_history.end();
+            for (auto it = echo_history.begin(); it != echo_history.end(); ++it) {
+                if (!it->second.empty() && (oldest_map == echo_history.end() ||
+                    it->second.front().frame < oldest_map->second.front().frame))
+                    oldest_map = it;
+            }
+            if (oldest_map == echo_history.end()) break;
+            echo_history_bytes -= oldest_map->second.front().surface->size_bytes();
+            oldest_map->second.pop_front();
+            if (oldest_map->second.empty()) echo_history.erase(oldest_map);
+        }
+    }
+
     std::unique_ptr<Framebuffer> framebuffer;
     std::unique_ptr<Framebuffer> framebuffer_b;
     std::vector<float> original_alpha;
@@ -115,6 +185,11 @@ struct EffectScratchResources {
         row_src.clear(); row_dst.clear(); col_src.clear(); col_dst.clear();
         directional_taps.clear();
         radial_taps.clear();
+        {
+            std::lock_guard lock(*echo_history_mutex);
+            echo_history.clear();
+            echo_history_bytes = 0;
+        }
         radial_samples = 0;
         radial_amount = 0.0f;
         width = 0; height = 0;

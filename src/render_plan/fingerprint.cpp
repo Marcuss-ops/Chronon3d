@@ -336,12 +336,30 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control2) out.add_float(value);
         }
     }
-    if (!layer.lut_effects.empty()) {
+    if (!layer.effects.empty()) {
         out.add_bool(true);
-        out.add_size(layer.lut_effects.size());
-        for (const auto& effect : layer.lut_effects) {
-            out.add_string(effect.asset);
-            out.add_float(effect.amount);
+        out.add_size(layer.effects.size());
+        for (const auto& effect : layer.effects) {
+            out.add_enum(effect.kind);
+            if (effect.kind == LayerPlan::EffectKindPlan::Lut3D) {
+                out.add_string(effect.asset);
+                out.add_float(effect.amount);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Echo) {
+                out.add_size(effect.echoes);
+                out.add_float(effect.decay);
+                out.add_size(effect.time_offset_frames);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Keying) {
+                out.add_enum(effect.keying_mode);
+                for (const auto value : effect.key_color) out.add_float(value);
+                out.add_float(effect.threshold);
+                out.add_float(effect.softness);
+                out.add_float(effect.spill);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
+                out.add_float(effect.threshold);
+                out.add_float(effect.threshold_softness);
+            } else {
+                out.add_size(effect.block_size);
+            }
         }
     }
 

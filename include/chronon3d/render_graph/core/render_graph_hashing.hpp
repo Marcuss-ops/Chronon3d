@@ -256,6 +256,38 @@ private:
             }
             break;
         }
+        case Echo: {
+            if (auto* p = std::get_if<EchoParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->echoes));
+                seed = hash_combine(seed, hash_value(p->decay));
+                seed = hash_combine(seed, hash_value(p->time_offset_frames));
+            }
+            break;
+        }
+        case Keying: {
+            if (auto* p = std::get_if<KeyingParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->mode));
+                seed = hash_combine(seed, hash_value(p->key_color.r));
+                seed = hash_combine(seed, hash_value(p->key_color.g));
+                seed = hash_combine(seed, hash_value(p->key_color.b));
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->spill));
+            }
+            break;
+        }
+        case Threshold: {
+            if (auto* p = std::get_if<ThresholdParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+            }
+            break;
+        }
+        case Mosaic: {
+            if (auto* p = std::get_if<MosaicParams>(&e.params))
+                seed = hash_combine(seed, hash_value(p->block_size));
+            break;
+        }
         case Unknown:
             break;
         }

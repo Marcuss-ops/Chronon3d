@@ -65,8 +65,9 @@ struct RequestedAsset {
         } else if (layer.type == render_plan::LayerType::Text) {
             add(layer.font, PreparedAssetKind::Font);
         }
-        for (const auto& effect : layer.lut_effects)
-            add(effect.asset, PreparedAssetKind::Data);
+        for (const auto& effect : layer.effects)
+            if (effect.kind == render_plan::LayerPlan::EffectKindPlan::Lut3D)
+                add(effect.asset, PreparedAssetKind::Data);
     }
     std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {
         if (left.logical_path != right.logical_path)

@@ -6,6 +6,9 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
+| Intermittent renderer-core mask SIGSEGV | P1 | OPEN | [RENDERER-CORE-MASK-SEGV](tickets/TICKET-RENDERER-CORE-MASK-SEGV.md) — reproduced on the clean repository baseline; failing mask varies, isolated cases pass; root-cause backtrace still needed |
+| Luma/Chroma Key native GPU dispatch | P1 | OPEN | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) — software keyer is certified; native shader/capability gate remains |
+| Echo native GPU dispatch | P1 | OPEN | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) — local software processor is certified; GPU-only surfaces fail explicitly until native frame-history storage and dispatch land |
 | Daemon IPC rejection resilience | P1 | OPEN | [DAEMON-IPC-REJECTION-RESILIENCE](tickets/TICKET-DAEMON-IPC-REJECTION-RESILIENCE.md) — `UnsupportedCapability` must return a typed failed-job envelope and leave the socket, daemon health and subsequent valid renders alive |
 | Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Stage 1-5 stabilization campaign | P0 | VERIFY | [TICKET-200](tickets/TICKET-200-stage-plan.md) — Stabilize→Certify→Accelerate stages 1-5: build GREEN (756 targets), cache/compositor/render_job_contract/software suites PASS, arch gate 120/120 PASS (all 10 pre-existing fails cleared, see ticket); close after CI green on same SHA |

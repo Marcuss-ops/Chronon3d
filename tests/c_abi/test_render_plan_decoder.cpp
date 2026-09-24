@@ -127,11 +127,62 @@ TEST_CASE("render plan decodes LUT assets and fails closed on unsupported effect
     }));
     const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
     REQUIRE(decoded.has_value());
-    REQUIRE(decoded->layers[0].lut_effects.size() == 1);
-    CHECK(decoded->layers[0].lut_effects[0].asset == "looks/cinema.cube");
-    CHECK(decoded->layers[0].lut_effects[0].amount == doctest::Approx(0.75f));
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    CHECK(decoded->layers[0].effects[0].asset == "looks/cinema.cube");
+    CHECK(decoded->layers[0].effects[0].amount == doctest::Approx(0.75f));
     plan["layers"][0]["effects"][0]["type"] = "unknown";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan).has_value());
+}
+
+TEST_CASE("render plan decodes bounded Echo parameters") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "trail"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "echo"}, {"echoes", 4}, {"decay", 0.6}, {"time_offset_frames", 2}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    CHECK(decoded->layers[0].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Echo);
+    CHECK(decoded->layers[0].effects[0].echoes == 4);
+    plan["layers"][0]["effects"][0]["echoes"] = 9;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("render plan decodes bounded luma and chroma key parameters") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "keyed"}, {"type", "color"}, {"color", {0.2, 0.7, 0.1, 1.0}},
+         {"effects", {{{"type", "keying"}, {"mode", "chroma"},
+                       {"key_color", {0.0, 1.0, 0.0}}, {"threshold", 0.22},
+                       {"softness", 0.1}, {"spill", 0.8}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    const auto& effect = decoded->layers[0].effects[0];
+    CHECK(effect.kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Keying);
+    CHECK(effect.keying_mode == chronon3d::render_plan::LayerPlan::KeyingModePlan::Chroma);
+    CHECK(effect.threshold == doctest::Approx(0.22f));
+    plan["layers"][0]["effects"][0]["mode"] = "future";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+    plan["layers"][0]["effects"][0]["mode"] = "luma";
+    plan["layers"][0]["effects"][0]["spill"] = 2.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("render plan decodes bounded Threshold and Mosaic parameters") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "styled"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "threshold"}, {"threshold", 0.4}, {"softness", 0.15}},
+                       {{"type", "mosaic"}, {"block_size", 12}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 2);
+    CHECK(decoded->layers[0].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Threshold);
+    CHECK(decoded->layers[0].effects[0].threshold_softness == doctest::Approx(0.15f));
+    CHECK(decoded->layers[0].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Mosaic);
+    CHECK(decoded->layers[0].effects[1].block_size == 12);
+    plan["layers"][0]["effects"][1]["block_size"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
 }
 
 TEST_CASE("render plan decoder rejects a layer with missing id or type") {

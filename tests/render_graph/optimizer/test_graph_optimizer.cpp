@@ -412,6 +412,23 @@ TEST_CASE("Effect fusion - two adjacent EffectStackNodes are fused") {
     CHECK(fused_node.effects().size() == 2);
 }
 
+TEST_CASE("Effect fusion - temporal Echo stacks stay separate to preserve history key") {
+    RenderGraph graph;
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));
+    EffectStack echo_stack;
+    echo_stack.emplace_back(EchoParams{});
+    GraphNodeId echo = graph.add_node(std::make_unique<EffectStackNode>(
+        std::move(echo_stack), frame_variant_cache("echo")));
+    GraphNodeId blur = graph.add_node(make_effect_node(true));
+    graph.connect(root, echo);
+    graph.connect(echo, blur);
+    graph.set_output(blur);
+
+    CHECK(fuse_effect_stacks(graph) == 0);
+    CHECK(graph.live_count() == 3);
+    CHECK(dynamic_cast<EffectStackNode&>(graph.node(echo)).has_temporal_effect());
+}
+
 TEST_CASE("Effect fusion - no fusion when parent has multiple consumers") {
     RenderGraph graph;
     GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", no_cache("test")));

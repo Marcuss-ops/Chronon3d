@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace chronon3d::renderer {
 class EffectProcessor;
@@ -53,6 +54,9 @@ struct EffectExecutionContext {
     std::shared_ptr<const chronon3d::renderer::ProcessorRegistrySnapshot>
         processor_snapshot;
     bool processors_resolved{false};
+    // Stable per-layer/per-effect key for temporal processors. Empty on
+    // legacy direct dispatch means the effect can render but cannot retain history.
+    std::string_view temporal_history_key{};
 };
 
 } // namespace chronon3d::effects
