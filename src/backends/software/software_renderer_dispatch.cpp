@@ -120,6 +120,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
     const CompiledComposition& compiled, Frame frame) {
     m_session.common.clear_last_frame_error();
+    // Node-memory attribution is scoped to one graph-node invocation. A
+    // top-level render is a hard request boundary, so discard any stale
+    // thread-local sink left by a worker that completed an earlier request.
+    profiling::g_node_memory_event_sink = nullptr;
     if (m_session.software.prepared_composition != &compiled) {
         const auto preparation = runtime::prepare_render(
             this, compiled,
