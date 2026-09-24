@@ -52,6 +52,12 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners };
+struct PathOperatorPlan {
+    PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
+    PathRepeaterPlan repeater{};
+    float radius{0.0f};
+};
 
 struct ShapeContentPlan {
     ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
@@ -60,7 +66,7 @@ struct ShapeContentPlan {
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
-    std::vector<PathRepeaterPlan> repeaters;
+    std::vector<PathOperatorPlan> operators;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };

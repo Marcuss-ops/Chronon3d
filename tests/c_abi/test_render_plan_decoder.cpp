@@ -68,16 +68,20 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
         "type":"path","path":[{"type":"move_to","point":[0,0]},
                                   {"type":"line_to","point":[8,0]}],
         "operators":[{"kind":"repeater","params":{"copies":3,
-          "position":[4,0],"opacity_decay":0.5}}]}}],
+          "position":[4,0],"opacity_decay":0.5}},
+          {"kind":"round_corners","params":{"radius":2}}]}}],
       "output":{"path":"out.png"}
     })JSON");
     auto decoded = chronon3d::render_plan::decode_render_plan(source);
     if (!decoded) INFO(decoded.error().message);
     REQUIRE(decoded.has_value());
-    REQUIRE(decoded->layers[0].shape->repeaters.size() == 1);
-    CHECK(decoded->layers[0].shape->repeaters[0].copies == 3);
-    CHECK(decoded->layers[0].shape->repeaters[0].position[0] == doctest::Approx(4));
-    source["layers"][0]["shape"]["operators"][0]["kind"] = "future_operator";
+    REQUIRE(decoded->layers[0].shape->operators.size() == 2);
+    CHECK(decoded->layers[0].shape->operators[0].repeater.copies == 3);
+    CHECK(decoded->layers[0].shape->operators[0].repeater.position[0] == doctest::Approx(4));
+    CHECK(decoded->layers[0].shape->operators[1].kind ==
+          chronon3d::render_plan::PathOperatorKindPlan::RoundCorners);
+    CHECK(decoded->layers[0].shape->operators[1].radius == doctest::Approx(2));
+    source["layers"][0]["shape"]["operators"][1]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
