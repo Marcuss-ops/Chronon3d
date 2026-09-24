@@ -11,6 +11,8 @@
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/text/text_run_hash.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
+#include <chronon3d/graphics/gradient.hpp>
 #include <xxhash.h>
 
 #include <bit>
@@ -20,17 +22,21 @@
 
 namespace chronon3d::graph {
 
+// Cat-3 — the digest primitive (mixing formula + XXH64 byte/string
+// digests) has ONE seat: core/hash/hash_builder.hpp.  These graph-domain
+// names delegate to it so every cache-key digest shares one implementation;
+// the formula is unchanged, so digest values are bit-identical to the
+// historical inline versions.
 [[nodiscard]] inline u64 hash_combine(u64 seed, u64 value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
+    return core::hash::hash_combine(seed, value);
 }
 
 [[nodiscard]] inline u64 hash_bytes(const void* data, usize size) {
-    return XXH64(data, size, 0);
+    return core::hash::hash_bytes(data, size);
 }
 
 [[nodiscard]] inline u64 hash_string(std::string_view value) {
-    return XXH64(value.data(), value.size(), 0);
+    return core::hash::hash_string(value);
 }
 
 template <typename T>
@@ -79,25 +85,46 @@ template <typename T>
     return seed;
 }
 
+namespace detail {
+
+// Digest sink for graphics::write_gradient_identity — the Cat-3 single seat
+// for the gradient identity field selection/order (graphics/gradient.hpp).
+// Only the encoding lives here; the digest is bit-identical to the
+// historical inline hash_gradient: the first field seeds the digest
+// directly, every later field folds in with hash_combine.
+struct GradientIdentityHashSink {
+    u64 seed{0};
+
+    template <typename T>
+    void operator()(const T& value) {
+        if constexpr (std::is_enum_v<T>) {
+            fold(hash_value(static_cast<int>(value)));
+        } else if constexpr (std::is_same_v<T, Color>) {
+            fold(hash_color(value));
+        } else if constexpr (std::is_same_v<T, Vec2>) {
+            fold(hash_vec2(value));
+        } else {
+            fold(hash_value(value));
+        }
+    }
+
+    void count(usize size) { fold(hash_value(size)); }
+
+private:
+    void fold(u64 value) {
+        seed = m_first ? value : hash_combine(seed, value);
+        m_first = false;
+    }
+
+    bool m_first{true};
+};
+
+} // namespace detail
+
 [[nodiscard]] inline u64 hash_gradient(const graphics::GradientDefinition& gradient) {
-    u64 seed = hash_value(static_cast<int>(gradient.type));
-    seed = hash_combine(seed, hash_value(static_cast<int>(gradient.spread)));
-    seed = hash_combine(seed, hash_vec2(gradient.start));
-    seed = hash_combine(seed, hash_vec2(gradient.end));
-    seed = hash_combine(seed, hash_vec2(gradient.center));
-    seed = hash_combine(seed, hash_value(gradient.radius));
-    seed = hash_combine(seed, hash_value(gradient.angle));
-    seed = hash_combine(seed, hash_value(gradient.color_stops.size()));
-    for (const auto& stop : gradient.color_stops) {
-        seed = hash_combine(seed, hash_value(stop.position));
-        seed = hash_combine(seed, hash_color(stop.color));
-    }
-    seed = hash_combine(seed, hash_value(gradient.opacity_stops.size()));
-    for (const auto& stop : gradient.opacity_stops) {
-        seed = hash_combine(seed, hash_value(stop.position));
-        seed = hash_combine(seed, hash_value(stop.opacity));
-    }
-    return seed;
+    detail::GradientIdentityHashSink sink;
+    graphics::write_gradient_identity(gradient, sink);
+    return sink.seed;
 }
 
 [[nodiscard]] inline u64 hash_fill(const Fill& f) {
@@ -248,20 +275,32 @@ template <typename T>
             seed = hash_combine(seed, hash_value(s.rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rect().stroke.width));
-            return hash_combine(seed, hash_bytes(&s.rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_bytes(&s.rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_value(s.rect().stroke.gradient.has_value()));
+            if (s.rect().stroke.gradient)
+                seed = hash_combine(seed, hash_gradient(*s.rect().stroke.gradient));
+            return seed;
         case ShapeType::RoundedRect:
             seed = hash_combine(seed, hash_vec2(s.rounded_rect().size));
             seed = hash_combine(seed, hash_bytes(&s.rounded_rect().radius, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rounded_rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.width));
-            return hash_combine(seed, hash_bytes(&s.rounded_rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_bytes(&s.rounded_rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.gradient.has_value()));
+            if (s.rounded_rect().stroke.gradient)
+                seed = hash_combine(seed, hash_gradient(*s.rounded_rect().stroke.gradient));
+            return seed;
         case ShapeType::Circle:
             seed = hash_combine(seed, hash_bytes(&s.circle().radius, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.circle().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.circle().stroke.color));
             seed = hash_combine(seed, hash_value(s.circle().stroke.width));
-            return hash_combine(seed, hash_bytes(&s.circle().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_bytes(&s.circle().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_value(s.circle().stroke.gradient.has_value()));
+            if (s.circle().stroke.gradient)
+                seed = hash_combine(seed, hash_gradient(*s.circle().stroke.gradient));
+            return seed;
         case ShapeType::Line:
             seed = hash_combine(seed, hash_vec3(s.line().to));
             seed = hash_combine(seed, hash_bytes(&s.line().thickness, sizeof(f32)));

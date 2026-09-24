@@ -182,6 +182,41 @@ struct CompiledGradient {
     return compiled;
 }
 
+// ── Identity field sequence (Cat-3 single seat) ─────────────────────────
+//
+// The ordered list of GradientDefinition fields that participate in identity
+// (cache keys, content fingerprints) is written ONCE, here.  Both identity
+// encodings consume this sequence through their own sink:
+//   - graph cache-key digest:  render_graph_hashing.hpp::hash_gradient
+//   - render-plan content fingerprint:  src/render_plan/fingerprint.cpp
+//
+// Field selection AND order are part of the published fingerprint contract
+// ("chronon.render-plan.content-fingerprint.v5"): never reorder or extend
+// this sequence without bumping that version token in fingerprint.cpp.
+//
+// Sink contract: `sink(field)` accepts GradientType, GradientSpread, Vec2,
+// f32 and Color values; each container size goes through `sink.count(n)`.
+template <typename Sink>
+void write_gradient_identity(const GradientDefinition& gradient, Sink& sink) {
+    sink(gradient.type);
+    sink(gradient.spread);
+    sink(gradient.start);
+    sink(gradient.end);
+    sink(gradient.center);
+    sink(gradient.radius);
+    sink(gradient.angle);
+    sink.count(gradient.color_stops.size());
+    for (const auto& stop : gradient.color_stops) {
+        sink(stop.position);
+        sink(stop.color);
+    }
+    sink.count(gradient.opacity_stops.size());
+    for (const auto& stop : gradient.opacity_stops) {
+        sink(stop.position);
+        sink(stop.opacity);
+    }
+}
+
 // ── Sampling helpers (header-only for inlining) ────────────────────────
 
 namespace detail {

@@ -48,6 +48,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -217,6 +218,23 @@ inline std::optional<Reply> decode_reply(const std::uint8_t* data,
 
 using RequestHandler = std::function<Reply(const Request&)>;
 
+namespace detail {
+
+inline Reply dispatch_request_safely(const RequestHandler& handler,
+                                     const Request& request) {
+    try {
+        return handler(request);
+    } catch (const std::exception& exception) {
+        return Reply{Status::Error,
+                     std::string{"IPC request failed: "} + exception.what()};
+    } catch (...) {
+        return Reply{Status::Error,
+                     "IPC request failed with a non-standard exception"};
+    }
+}
+
+} // namespace detail
+
 /// Blocking UNIX-domain socket server.  Binds + listens on a filesystem
 /// path, then serves clients one connection at a time until a handler
 /// returns `Status::Shutdown` (or a transport error occurs).
@@ -370,7 +388,7 @@ private:
             return false;
         }
         Request req{static_cast<Command>(cmd), std::move(payload)};
-        const Reply rep = handler(req);
+        const Reply rep = detail::dispatch_request_safely(handler, req);
         const auto bytes = encode_reply(rep.status, rep.message);
         if (!detail::write_exact(client_fd, bytes.data(), bytes.size())) return false;
         // On shutdown, stop reading further frames from this client so the

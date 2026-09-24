@@ -418,8 +418,26 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             request.trace.output = render_args.trace_output;
             request.trace.level = render_args.trace_level;
             request.output.codec = render_args.video_settings.codec;
-            request.output.hardware_encoder = render_args.video_settings.hardware_encoder;
-            request.output.encoder_backend = render_args.video_settings.encoder_backend;
+            // USER INTENT vs CHRONON DEFAULTS (the --end-frame count pattern).
+            // A strict hot-path request is a GPU-native execution contract: an
+            // explicit encoder transport/hardware selection always travels and
+            // wins, while an unmentioned pair stays empty so normalization
+            // back-fills the canonical derivation instead of letting the
+            // VideoSettings defaults pin "none" over a strict request
+            // (TICKET-CLI-STRICT-GPU-NATIVE-MAPPING).
+            const auto explicit_flag = [&cmd](const char* name) {
+                const auto* option = cmd->get_option(name);
+                return option != nullptr && option->count() > 0;
+            };
+            const bool strict_gpu_hot_path =
+                render_args.gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
+                render_args.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
+            if (explicit_flag("--hardware") || !strict_gpu_hot_path)
+                request.output.hardware_encoder =
+                    render_args.video_settings.hardware_encoder;
+            if (explicit_flag("--encoder-backend") || !strict_gpu_hot_path)
+                request.output.encoder_backend =
+                    render_args.video_settings.encoder_backend;
             request.output.ffmpeg_mode = render_args.video_settings.ffmpeg_mode;
             request.output.gpu_hot_path_mode =
                 std::string(chronon3d::to_string(render_args.gpu_hot_path_mode));
@@ -450,8 +468,16 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     static_cast<std::int64_t>(state->start_frame),
                     static_cast<std::int64_t>(state->end_frame)};
             }
+            // The semantic requirements derive from the hot-path selection as
+            // well as the hardware spelling, and a strict request forbids CPU
+            // fallback: that is the shape resolve_canonical_execution_parameters
+            // needs to derive the canonical native lane for CLI and IPC jobs
+            // alike (TICKET-CLI-STRICT-GPU-NATIVE-MAPPING).
             request.requirements.gpu_required =
-                hardware_nvenc_requested(request.output.hardware_encoder);
+                hardware_nvenc_requested(
+                    render_args.video_settings.hardware_encoder) ||
+                strict_gpu_hot_path;
+            request.requirements.cpu_fallback_allowed = !strict_gpu_hot_path;
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
             video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(
