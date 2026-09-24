@@ -27,6 +27,30 @@ namespace profiling {
 
     extern thread_local FramebufferAllocationCategory g_framebuffer_allocation_category;
 
+    // Node-memory events are attributed by a stack-scoped sink installed
+    // around one graph-node execution. The callback keeps the framebuffer
+    // layer independent of render-graph tracker types and does no work when
+    // no node scope is active.
+    enum class NodeMemoryEvent : std::uint8_t {
+        Allocation,
+        Copy,
+        Clear,
+    };
+
+    struct NodeMemoryEventSink {
+        void* context{nullptr};
+        void (*record)(void*, NodeMemoryEvent, std::uint64_t) noexcept{nullptr};
+    };
+
+    extern thread_local NodeMemoryEventSink* g_node_memory_event_sink;
+
+    inline void record_node_memory_event(
+        NodeMemoryEvent event, std::uint64_t bytes = 0) noexcept {
+        if (auto* sink = g_node_memory_event_sink; sink && sink->record) {
+            sink->record(sink->context, event, bytes);
+        }
+    }
+
     enum class GpuUploadProducer : std::uint8_t {
         Unknown,
         Video,

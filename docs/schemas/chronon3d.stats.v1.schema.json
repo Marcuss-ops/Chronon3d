@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://chronon3d.dev/schemas/stats_report.v1.json",
   "title": "Chronon3D Per-Node Stats Report v1",
-  "description": "Canonical schema for the --stats-json output of `chronon3d_cli render` and `chronon3d_cli bench` (parallel precedent: docs/schemas/chronon3d.bench.v3.schema.json). Emitted by NodeStatsReporter per the spec of TICKET-PERF-COUNTERS-NODE-MEMORY-V1; structured as a per-session aggregate of per-node NodeMemoryMetrics snapshots.",
+  "description": "Canonical schema for the per-session --node-memory-json report emitted by chronon3d_bench. It serializes NodeMemoryTracker snapshots after warmup; it is separate from the fusion-oriented --stats-json output.",
   "type": "object",
   "required": [
     "schema",
@@ -28,12 +28,12 @@
     "frame_count": {
       "type": "integer",
       "minimum": 1,
-      "description": "Number of frames aggregated into this report (the per-node totals span frame_count sessions of execute_single_node())."
+      "description": "Number of measured post-warmup render frames included in this report."
     },
     "timestamp_utc": {
       "type": "string",
       "format": "date-time",
-      "description": "ISO 8601 UTC timestamp at the moment the NodeStatsReporter was snapshotted (i.e. session end for serialize-to-file mode)."
+      "description": "ISO 8601 UTC timestamp at the moment the NodeMemoryTracker was snapshotted (i.e. session end for serialize-to-file mode)."
     },
     "machine_class": {
       "type": "string",
@@ -42,12 +42,13 @@
     },
     "nodes": {
       "type": "array",
-      "minItems": 0,
-      "description": "Per-node aggregate of NodeMemoryMetrics.  Each entry is identified by node_id (the node name as exposed by chronon3d::graph::RenderGraphNode::name()).",
+      "minItems": 1,
+      "description": "Per-node aggregate of NodeMemoryMetrics. node_id is the stable graph/node id (g<n>:n<m>) when available, otherwise the node name.",
       "items": {
         "type": "object",
         "required": [
           "node_id",
+          "node_type",
           "pixels_read",
           "pixels_written",
           "bytes_read",
@@ -58,15 +59,16 @@
           "temporary_buffers"
         ],
         "properties": {
-          "node_id":           { "type": "string", "description": "Node identifier (matches RenderGraphNode::name())." },
+          "node_id":           { "type": "string", "description": "Stable graph/node id (g<n>:n<m>) when available, otherwise RenderGraphNode::name()." },
+          "node_type":         { "type": "string", "description": "RenderGraphNodeKind string, used to scope the hot-node allocation gate. ClearNode is reported as Output in this checkout." },
           "pixels_read":       { "type": "integer", "minimum": 0, "description": "Total pixels read by this node across the session (frame_count frames)." },
           "pixels_written":    { "type": "integer", "minimum": 0, "description": "Total pixels written by this node across the session." },
           "bytes_read":        { "type": "integer", "minimum": 0, "description": "Total bytes read by this node across the session." },
           "bytes_written":     { "type": "integer", "minimum": 0, "description": "Total bytes written by this node across the session." },
           "framebuffer_copies":{ "type": "integer", "minimum": 0, "description": "Total framebuffer copy operations (incl. partial-tile copies) emitted by this node." },
           "framebuffer_clears":{ "type": "integer", "minimum": 0, "description": "Total framebuffer clear operations emitted by this node." },
-          "allocations":       { "type": "integer", "minimum": 0, "description": "Number of heap allocation events observed for this node." },
-          "allocated_bytes":   { "type": "integer", "minimum": 0, "description": "Total bytes associated with this node's heap allocation events." },
+          "allocations":       { "type": "integer", "minimum": 0, "description": "Framebuffer backing-store allocation events observed for this node, plus explicit allocation events." },
+          "allocated_bytes":   { "type": "integer", "minimum": 0, "description": "Bytes associated with instrumented framebuffer backing-store and explicit allocation events." },
           "temporary_buffers": { "type": "integer", "minimum": 0, "description": "Total temporary framebuffer-shaped buffers acquired by this node." },
           "live_bytes":        { "type": "integer", "minimum": 0, "description": "Current live temporary workspace bytes held by this node." },
           "peak_live_bytes":   { "type": "integer", "minimum": 0, "description": "High-water mark of live temporary workspace bytes held by this node." }

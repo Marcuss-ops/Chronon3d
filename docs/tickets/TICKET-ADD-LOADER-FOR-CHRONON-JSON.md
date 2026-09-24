@@ -2,6 +2,11 @@
 
 Stato: OPEN (forward-point of TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE / Blocco 4.2)
 
+P1 implementation: **LANDED and CLI-fixture E2E verified**. The real generated
+standalone template and its host verification remain pending because the
+template was removed before it acquired the subprocess argument/output
+contract.
+
 ## Problema
 
 `Blocco 4.2` (`chronon create <name>`) fornisce un template versionato
@@ -62,14 +67,14 @@ Aggiungere un loader per `chronon.json` che:
 
 ## Criteri accettazione (per chiusura, P1)
 
-- [ ] `chronon render HelloWorld -o hello.mp4` in CWD con `chronon.json` →
+- [x] `chronon render HelloWorld -o hello.mp4` in CWD con `chronon.json` →
       delega a `./build/<name> --render HelloWorld -o hello.mp4` (subprocess).
-- [ ] Se `./build/<name>` manca → errore user-friendly: "Build the project
+- [x] Se `./build/<name>` manca → errore user-friendly: "Build the project
       first: `cmake -B build && cmake --build build`".
-- [ ] ZERO nuove dipendenze (no shared library loader, no in-process compiler).
-- [ ] ZERO nuovi SDK symbol; ZERO nuovi singleton/registry/resolver/cache
+- [x] ZERO nuove dipendenze (no shared library loader, no in-process compiler).
+- [x] ZERO nuovi SDK symbol; ZERO nuovi singleton/registry/resolver/cache
       (eccezione: il dispatcher stesso, già parte di `command_render`).
-- [ ] macchina-verifica REAL-GREEN-PASS su TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX-clean host.
+- [ ] macchina-verifica REAL-GREEN-PASS su TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX-clean host, con il renderer standalone prodotto dal template.
 
 ## Cross-link
 
@@ -83,3 +88,35 @@ Aggiungere un loader per `chronon.json` che:
   Cat-3 minimal-surface per future aggiunte di CLI ergonomics.
 - AGENTS.md §regole "Fare PR piccole e mirate" (P1 + P2 + P3 ciascuno
   atomic-scope).
+
+## Checkout audit — 2026-09-24
+
+- The referenced `templates/basic/chronon.json` and `templates/basic/src/root.cpp`
+  are absent from this checkout. Their removal is recorded by
+  `537081224 cleanup(cli): delete obsolete project scaffolding`.
+- The deleted source is recoverable from Git history, but its `main()` takes no
+  arguments: it renders only the hard-coded `HelloWorld` frame to stdout and
+  documents PNG output as future work. It cannot implement the ticket's
+  `--render <composition> -o <output>` child contract. Restoring those files
+  unchanged would therefore leave the wrapper apparently integrated but
+  functionally unable to honor composition/output arguments.
+- No `chronon.json` exists in the tracked workspace. The proposed subprocess
+  contract has no production template/binary to target, so host verification
+  of the generated standalone project remains pending.
+- P1 now parses the project manifest, validates `name`, resolves
+  `build/<name>`, and dispatches `--render <composition> -o <output>` without
+  a shell. `tests/cli/test_chronon_project_render_dispatch.cpp` verifies argv
+  preservation (including spaces), child exit propagation, project-root working
+  directory, unsafe names, and the missing-build diagnostic using a temporary
+  executable.
+- End-to-end invocation of the built `chronon3d_cli render` command was checked
+  against a temporary project directory. It exited 0; the child received, as
+  separate argv entries, `--render`, `Hello World`, `-o`, `output file.mp4`,
+  and its working directory was the project root. A second invocation with no
+  child exited nonzero and printed the required build-first instruction. This
+  verifies the CLI callback and process boundary, but not the absent production
+  template binary.
+- The ticket remains OPEN for real template integration: the referenced
+  standalone template/binary contract is absent, so the build-produced project
+  executable cannot be tested from this checkout. No external render or GPU
+  certification is claimed.

@@ -1,6 +1,7 @@
 # TICKET-NODE-MEMORY-METRICS — Per-nodo memory accounting + gate CI
 
-**Stato**: TODO OPEN (2026-07-13)
+**Stato**: OPEN — implementation and local CPU gates landed; representative
+corpus and 11/11 baseline certification pending
 **Priorità**: P1 (audit gap: nessun tracking per-nodo di memory hot-path metrics nei
 5 nodi più caldi; gate CI inesistente)
 
@@ -162,59 +163,56 @@ Senza questo accounting:
 
 ## Criteri di accettazione
 
-- [ ] `include/chronon3d/render_graph/core/node_memory_metrics.hpp`
-      esiste, compila in modo standalone, namespace
-      `chronon3d::graph::NodeMemoryMetrics` documentato in commento.
-- [ ] `src/render_graph/executor/node_runner.cpp` popola i 8 campi nei
-      5 siti `emit_node_records` (Composite, Clear, TextRun, Effect,
-      Transform — chiamate distinte, NON un singolo helper).
-- [ ] `include/chronon3d/runtime/telemetry/render_telemetry_record.hpp::NodeTelemetryRecord`
-      esteso con 8 nuovi campi backward-compat (pre-esistenti non rimossi).
-- [ ] `tools/check_node_memory_metrics.sh` esiste, `bash -e` passa, fa
-      PASS su mock-empty-allocs + FAIL con mock-allocs>0.
-- [ ] `tests/ci/test_check_node_memory_metrics_selftest.sh` attesta
-      PASS + FAIL path con mock fixtures (cat-3 sibling self-test pattern).
-- [ ] ADR-026 approvato e linkato sia dal che verso questo ticket
-      (`docs/adr/ADR-026-node-memory-metrics.md`).
-- [ ] Subject envelope commit principale ≤72 char (canonical
-      `chore(...)` o `feat(...)`).
-- [ ] `git diff origin/main..HEAD -- docs/CURRENT_STATUS.md docs/FOLLOWUP_TICKETS.md docs/CHANGELOG.md docs/ROADMAP.md`
-      rispetta `Docs canonical update discipline` rule (cronaca estesa SOLO
-      nel ticket, canonici ≤1 riga sintetica con link al ticket).
-- [ ] 11/11 baseline suite verde post-merge (gate `tools/wrap_push.sh
-      origin main` + tools/check_main_clean.sh + final SHA-triple equality
-      verificato).
+- [x] `NodeMemoryMetrics` compila standalone e resta documentato in
+      `include/chronon3d/render_graph/executor/node_memory_metrics.hpp`.
+      Il path originale `render_graph/core/` era stato sostituito dalla
+      struttura executor già canonica nel checkout.
+- [x] L’executor popola gli otto campi nel singolo scope per nodo in
+      `node_runner_single_node_detail.hpp`, incluso dai runner canonici;
+      la refactor dell’executor ha sostituito i cinque call site distinti
+      `emit_node_records` dello sketch storico. Il test telemetry attraversa
+      nodi clear e copy e verifica tutti gli otto contatori.
+- [x] `NodeTelemetryRecord` ha gli otto campi additivi e conserva i campi
+      preesistenti.
+- [x] `tools/check_node_memory_metrics.sh` passa su report pulito e fallisce
+      su allocazioni hot-node; `bash -e` è verificato sul report CPU locale.
+- [x] `tests/ci/test_check_node_memory_metrics_selftest.sh` copre report
+      pulito, allocating e mancante.
+- [x] ADR-026 è ACCEPTED e collegato da entrambi i documenti.
+- [ ] Representative B00-B11 corpus report and 11/11 baseline suite pass on
+      the integration SHA (`tools/wrap_push.sh origin main`,
+      `tools/check_main_clean.sh`, and final SHA-triple equality).
+
+Implementation, ADR, local report validation, and gate self-test are complete
+in this checkout. The remaining acceptance item is corpus/integration
+certification; it cannot be claimed from the available CPU smoke. The B00-B11
+runner and content pack are absent from this checkout. Commit subject and
+post-merge SHA checks are integration workflow checks, not implementation gaps.
 
 ## Forward-points
 
-1. **TICKET-NODE-MEMORY-METRICS-IMPLEMENTATION** (next chord): implementa
-   `node_memory_metrics.hpp` + population-in `node_runner.cpp` +
-   extension `NodeTelemetryRecord` + ADR-026 + tools/check_node_memory_metrics.sh
-   + tests/ci/test_check_node_memory_metrics_selftest.sh. Subject
-   envelope tipico: `feat(render_graph): per-nodo memory metrics
-   (5 hot + fail-loud gate)`.
-2. **TICKET-NODE-MEMORY-METRICS-MACHINE-VERIFY**: run `bench_corpus B00-B11`
+1. **TICKET-NODE-MEMORY-METRICS-MACHINE-VERIFY**: run `bench_corpus B00-B11`
    (configs/corpus/b*yaml + examples/bench_corpus/run_corpus_v1.sh) per
    produrre json records per-node; fixture per
    tools/check_node_memory_metrics.sh (PASS + FAIL scenarios); target:
    `docs/baselines/bench-corpus-v1-p50p95.csv` come documentazione di
    baseline per-node memory budget.
-3. **TICKET-EXPAND-NODE-METRICS**: applica la stessa population
+2. **TICKET-EXPAND-NODE-METRICS**: applica la stessa population
    pattern (5 nodi → 15+ nodi: SourceNode, PrecompNode, TransitionNode,
    VideoNode, AdjustmentNode, MotionBlurNode, ColorConvertNode,
    TrackMatteNode, MultiSourceNode, MaskNode, OutputNode, Output-related
    nodes). Wire nel gate CI come `strict-mode` (FAIL su QUALSIASI
    allocations > 0 su QUALSIASI nodo).
-4. **TICKET-ALLOCATIONS-FAIL-LOUD-CI**: promuove
+3. **TICKET-ALLOCATIONS-FAIL-LOUD-CI**: promuove
    `tools/check_node_memory_metrics.sh` a blocco del 11/11 baseline gate
    (attualmente advisory). Pre-requisito: machine-verify di tutti i
    15+ nodi su `bench_corpus B00-B11` con fragments = 0 allocazioni.
-5. **TICKET-PMR-HOOKS-PER-NODE**: allocazione-tracking via `std::pmr`
+4. **TICKET-PMR-HOOKS-PER-NODE**: allocazione-tracking via `std::pmr`
    hooks più invasivo (cat-5 deferred); quando i `framebuffer_pool.cpp`
    ed `arena.hpp` instrumented hops potranno popolare
    `NodeMemoryMetrics.allocations` da un raw counter (no proxy da
    `thread_local_counters().framebuffer_allocations`).
-6. **TICKET-INFO-DIAGNOSTIC-LINT** (cross-link AGENTS.md §"INFO-level
+5. **TICKET-INFO-DIAGNOSTIC-LINT** (cross-link AGENTS.md §"INFO-level
    diagnostic style"): forward-point per lint tooling che verifica
    `tools/check_*.sh` emission pattern (`[INFO] ${GATE_NAME}: ...`
    su PASS addizionale al canonico `GATE_PASS`); questo ticket è uno
@@ -238,6 +236,102 @@ su allocations_per_node>0 nei kernel steady-state."
   una suite che restituisce failure" → questo ticket chiude un audit
   gap strutturale (5 hottest nodes senza alloc tracking observable).
 - AGENTS.md §"No nuovi singleton/registry/resolver/cache senza ADR"
+
+## Checkout audit — 2026-09-24 (`187c22f3b`)
+
+The original implementation sketch is stale and must not be applied literally:
+
+- The canonical types already live in
+  `include/chronon3d/render_graph/executor/node_memory_metrics.hpp`; runtime
+  accumulation is in `include/chronon3d/internal/render_graph/node_memory_tracker.hpp`.
+- The active execution scope is in
+  `src/render_graph/executor/node_runner_single_node_detail.hpp` (included by
+  `node_runner.cpp`), not in five `emit_node_records()` call sites. That helper
+  records temporary-buffer/live-byte lifetimes and the output framebuffer's
+  live size; the requested pixel, byte, copy, clear, and allocation counters
+  are not fed into it.
+- `NodeStatsReporter*` is only a nullable context field; there are no runtime
+  callers. `benchmark_args.hpp` declares `stats_json_file`, but the checkout
+  has no writer using it. The `NodeSummaryTelemetryRecord` has memory fields,
+  but there is no producer that fills or persists those rows from the session
+  tracker. `NodeTelemetryRecord` is consumed by detailed telemetry stores, so
+  it is the supported per-frame event surface.
+- `tools/check_node_memory_metrics.sh` and its self-test do not exist.
+
+The old checklist's `tools/check_doc_sync.sh`, `docs/CHANGELOG.md`, and
+`examples/bench_corpus/run_corpus_v1.sh` are absent from this checkout. Gate
+registration now belongs to `tools/gates/manifest.sh`; the full B00-B11
+machine-verification input is unavailable here, so the historical baseline
+acceptance remains explicitly pending rather than inferred from the CPU smoke.
+
+The existing structs/schema/tests proved the **data shape**, not the requested
+runtime metrics. A local implementation increment now wires input/output pixel
+and byte volumes into `ScopedNodeMemory`, and observes framebuffer backing-store
+allocations, copies, and clears through a stack-scoped profiling sink. The
+allocation fields deliberately describe these instrumented events plus explicit
+`record_allocation()` calls; they are not general heap counters. The change is
+covered by `tests/perf/test_node_memory_tracker.cpp`; an active-scope framebuffer
+test exercises all eight reported counters (read/write pixels and bytes, copy,
+clear, backing-store allocation, and temporary buffers). The memory suite
+passes 12/12 cases and 111/111 assertions on this checkout.
+`NodeTelemetryRecord` now has the eight additive counters and the executor
+emits them only at Detailed/Trace capture level; a graph executor integration
+test drains the actual event store from clear-producing and copy-producing
+graphs and verifies that all eight additive counters are nonzero across the
+captured events.
+
+The session stats path is now exposed by the benchmark CLI as the separate
+`--node-memory-json` output; the existing fusion-only `--stats-json` output is
+unchanged. The report contains post-warmup measured frame count and the
+`NodeMemoryReport` per-node counters. `tools/check_node_memory_metrics.sh`
+validates report completeness and fails on nonzero post-warmup allocations;
+`tests/ci/test_check_node_memory_metrics_selftest.sh` covers clean, allocating,
+and missing-report cases.
+
+The ticket remains OPEN pending a representative corpus run. A local CPU
+smoke run used `DarkGridBackground` (`--frames 2 --warmup 1`; the benchmark
+framework executed 11 measured iterations), emitted 22 measured frames and
+two node rows (`Composite`, `Source`), and passed the gate with zero hot-node
+allocations. The report at `.tmp/node-memory.json` was inspected; no GPU or
+external host certification is implied. The existing summary persistence
+projection still has no producer for `NodeSummaryTelemetryRecord` rows; the
+new CLI report is the verified aggregate output path, while detailed per-frame
+events are available through the existing node telemetry store. Do not infer
+framebuffer copies or heap allocations from `shared_ptr::use_count()` or a
+device/global counter.
+
+An additional `CameraImageClip` CPU run needed the explicit asset root:
+without `CHRONON3D_CLI_ASSETS_ROOT`, preparation reported the generated asset
+`output/cache/dark_grid_background/ecd437cfe1127908.png` missing even though it
+exists under the checkout. With the root mounted, the run emitted two measured
+frames and two node rows (`Composite`, `Source`) and passed the gate with zero
+hot-node allocations. This is a second runnable built-in scene, not a
+multi-shape proxy for the absent B00-B11 corpus.
+
+### Refreshed CPU evidence — 2026-09-24
+
+Re-ran both built-in shapes with the current `linux-fast-bench` binary,
+`--frames 10 --warmup 3`, and `--node-memory-json`:
+
+| Scene | Measured frames in report | Rows | Composite allocations | Source allocations | Gate |
+|---|---:|---:|---:|---:|---|
+| `DarkGridBackground` | 110 | Composite, Source | 0 | 0 | PASS |
+| `CameraImageClip` | 10 | Composite, Source | 0 | 10 | PASS |
+
+Both reports were written under ignored `.tmp/` paths and passed
+`tools/check_node_memory_metrics.sh`. The gate intentionally enforces the
+zero-allocation rule for hot node types (Composite, Output, TextRun, Effect,
+Transform); Source allocations are visible in the report but outside that
+current gate contract. These CPU built-ins still do not cover the B00-B11
+representative corpus or certify GPU behavior.
+
+The current `linux-fast-dev` test binaries were rebuilt and run for the
+instrumentation paths: `chronon3d_memory_tests` passed 12/12 cases and 111/111
+assertions; the detailed telemetry integration test passed 1/1 case and 11/11
+assertions. It reads actual emitted node records for clear and copy graphs and
+checks all eight additive fields. This verifies local counter/event wiring,
+not corpus coverage.
+
   → ADR-026 forward-point come pre-requisito impegment di implementation.
 - AGENTS.md §"INFO-level diagnostic style" → il nuovo gate deve
   seguire `[INFO] check_node_memory_metrics: ...` su PASS addizionale

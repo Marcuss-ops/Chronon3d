@@ -12,6 +12,7 @@ namespace profiling {
     thread_local cache::FramebufferPool* g_current_framebuffer_pool = nullptr;
     thread_local FramebufferAllocationCategory g_framebuffer_allocation_category =
         FramebufferAllocationCategory::Unknown;
+    thread_local NodeMemoryEventSink* g_node_memory_event_sink = nullptr;
     thread_local GpuUploadProducer g_gpu_upload_producer = GpuUploadProducer::Unknown;
 }
 

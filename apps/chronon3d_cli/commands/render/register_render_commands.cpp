@@ -8,6 +8,7 @@
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
 #include "command_render_plan.hpp"
+#include "../../utils/project/chronon_project_render.hpp"
 #include "render_plan_preparation.hpp"
 #include "../video/common/pipe_pixfmt_vocabulary.hpp"
 // ONE sink vocabulary for the --video-sink option checker (sink_options.hpp).
@@ -492,6 +493,18 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             spdlog::info("No output path specified, defaulting to {}", render_args.output);
         }
         set_log_level(render_args.log_level);
+
+        std::string project_dispatch_diagnostic;
+        const auto project_dispatch = dispatch_project_render(
+            std::filesystem::current_path(), render_args.comp_id,
+            render_args.output, project_dispatch_diagnostic);
+        if (project_dispatch) {
+            if (!project_dispatch_diagnostic.empty()) {
+                spdlog::error("{}", project_dispatch_diagnostic);
+            }
+            ctx.exit_code = *project_dispatch;
+            return;
+        }
 
         auto job = make_render_job(ctx.registry, render_args, loaded.props);
         if (!job) {

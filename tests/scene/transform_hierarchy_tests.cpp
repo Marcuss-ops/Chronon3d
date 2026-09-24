@@ -157,14 +157,7 @@ TEST_CASE("HierarchyResolver: selective inheritance") {
     CHECK(p_no_rot.y == doctest::Approx(0.0f));
 }
 
-// TICKET-007.c (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; underlying HierarchyResolver cycle-detection bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — cycle_detected returns false for A⇄B cycle.
-// TODO(chronon3d): fix HierarchyResolver cycle detection and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("HierarchyResolver: cycle detection" * doctest::skip("TICKET-DOCTEST-SKIP-ROT SKIP-004: pre-existing cycle-detection rot (was TICKET-007.c)")) {
+TEST_CASE("HierarchyResolver: cycle detection") {
     std::vector<TestNode> nodes;
     Transform3D a;
     a.parent_name = "b";

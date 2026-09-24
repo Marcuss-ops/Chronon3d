@@ -486,6 +486,17 @@ struct NodeTelemetryRecord {
     uint64_t pixels_composited{0};
     uint64_t pixels_transformed{0};
     uint64_t pixels_blurred{0};
+
+    // Additive per-node memory counters. Allocation counts cover instrumented
+    // framebuffer backing-store events; they do not claim general heap coverage.
+    uint64_t pixels_read{0};
+    uint64_t pixels_written{0};
+    uint64_t bytes_read{0};
+    uint64_t bytes_written{0};
+    uint64_t framebuffer_copies{0};
+    uint64_t framebuffer_clears{0};
+    uint64_t allocations{0};
+    uint64_t temporary_buffers{0};
 };
 
 // ── Per-layer telemetry (aggregated from scene/layer pipeline) ─────────────────

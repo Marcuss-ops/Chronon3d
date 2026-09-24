@@ -20,6 +20,8 @@ add_executable(chronon3d_bench
     cmd/command_bench_support.cpp
     cmd/command_bench_run.cpp
     cmd/register_bench_commands.cpp
+    ../chronon3d_cli/utils/job/cli_render_utils.cpp
+    ../chronon3d_cli/register_runtime_compositions.cpp
 )
 
 target_include_directories(chronon3d_bench PRIVATE

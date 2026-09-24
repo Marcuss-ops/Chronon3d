@@ -92,6 +92,17 @@ public:
     NodeMemoryTracker(const NodeMemoryTracker&) = delete;
     NodeMemoryTracker& operator=(const NodeMemoryTracker&) = delete;
 
+    /// Reserve the per-node aggregate before the execution scope enters its
+    /// noexcept destructor path. Subsequent observations for this key update
+    /// the existing row without allocating.
+    void ensure_node(std::string_view node_id, std::string_view node_type = {}) {
+        const MeteredLock lock(m_mutex);
+        NodeLiveState& node = find_or_emplace(node_id);
+        if (node.node_type.empty() && !node_type.empty()) {
+            node.node_type.assign(node_type);
+        }
+    }
+
     void observe_node(std::string_view node_id, const NodeMemoryMetrics& metrics) {
         const MeteredLock lock(m_mutex);
         NodeLiveState& node = find_or_emplace(node_id);
@@ -187,6 +198,7 @@ public:
         const MeteredLock lock(m_mutex);
         for (const auto& node : report.nodes) {
             NodeLiveState& dst = find_or_emplace(node.node_id);
+            if (dst.node_type.empty()) dst.node_type = node.node_type;
             dst.metrics.pixels_read.fetch_add(node.pixels_read, std::memory_order_relaxed);
             dst.metrics.pixels_written.fetch_add(node.pixels_written, std::memory_order_relaxed);
             dst.metrics.bytes_read.fetch_add(node.bytes_read, std::memory_order_relaxed);
@@ -226,6 +238,7 @@ public:
         for (const auto& [node_id, node] : m_nodes) {
             NodeStatsSnapshot snap{};
             snap.node_id = node_id;
+            snap.node_type = node->node_type;
             snap.pixels_read = node->metrics.pixels_read.load(std::memory_order_relaxed);
             snap.pixels_written = node->metrics.pixels_written.load(std::memory_order_relaxed);
             snap.bytes_read = node->metrics.bytes_read.load(std::memory_order_relaxed);
@@ -334,6 +347,7 @@ private:
     /// move-relocatable. One allocation per DISTINCT node id, never per call.
     struct NodeLiveState {
         NodeMemoryMetrics metrics{};
+        std::string node_type;
         std::uint64_t live_bytes{0};
         std::uint64_t peak_live_bytes{0};
     };
@@ -387,13 +401,23 @@ public:
         NodeMemoryTracker& tracker,
         std::string_view node_id,
         std::optional<TemporalSampleKey> sample_key,
-        std::uint64_t bytes)
+        std::uint64_t bytes,
+        std::string_view node_type = {})
         : m_tracker(&tracker), m_node_id(node_id), m_sample_key(sample_key), m_bytes(bytes)
     {
+        m_tracker->ensure_node(m_node_id, node_type);
         if (m_bytes != 0) m_tracker->acquire_temporary(m_node_id, m_sample_key, m_bytes);
+        m_previous_sink = profiling::g_node_memory_event_sink;
+        m_event_sink = profiling::NodeMemoryEventSink{
+            .context = this,
+            .record = &ScopedNodeMemory::record_event,
+        };
+        profiling::g_node_memory_event_sink = &m_event_sink;
     }
 
     ~ScopedNodeMemory() {
+        profiling::g_node_memory_event_sink = m_previous_sink;
+        if (m_tracker) m_tracker->observe_node(m_node_id, m_metrics);
         if (m_tracker && m_bytes != 0) {
             m_tracker->release_temporary(m_node_id, m_sample_key, m_bytes);
         }
@@ -406,18 +430,57 @@ public:
         if (!m_tracker || bytes == m_bytes) return;
         if (m_bytes != 0) m_tracker->release_temporary(m_node_id, m_sample_key, m_bytes);
         m_bytes = bytes;
-        if (m_bytes != 0) m_tracker->acquire_temporary(m_node_id, m_sample_key, m_bytes);
+        if (m_bytes != 0) {
+            m_tracker->acquire_temporary(m_node_id, m_sample_key, m_bytes);
+            m_metrics.temporary_buffers.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     void record_allocation(std::uint64_t bytes) {
         if (m_tracker) m_tracker->record_allocation(m_node_id, bytes);
     }
 
+    void record_read(std::uint64_t pixels, std::uint64_t bytes) noexcept {
+        m_metrics.pixels_read.fetch_add(pixels, std::memory_order_relaxed);
+        m_metrics.bytes_read.fetch_add(bytes, std::memory_order_relaxed);
+    }
+
+    void record_write(std::uint64_t pixels, std::uint64_t bytes) noexcept {
+        m_metrics.pixels_written.fetch_add(pixels, std::memory_order_relaxed);
+        m_metrics.bytes_written.fetch_add(bytes, std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] NodeMemoryMetrics metrics_snapshot() const noexcept {
+        return m_metrics;
+    }
+
 private:
+    static void record_event(
+        void* context,
+        profiling::NodeMemoryEvent event,
+        std::uint64_t bytes) noexcept {
+        auto& metrics = static_cast<ScopedNodeMemory*>(context)->m_metrics;
+        switch (event) {
+        case profiling::NodeMemoryEvent::Allocation:
+            metrics.allocations.fetch_add(1, std::memory_order_relaxed);
+            metrics.allocated_bytes.fetch_add(bytes, std::memory_order_relaxed);
+            break;
+        case profiling::NodeMemoryEvent::Copy:
+            metrics.framebuffer_copies.fetch_add(1, std::memory_order_relaxed);
+            break;
+        case profiling::NodeMemoryEvent::Clear:
+            metrics.framebuffer_clears.fetch_add(1, std::memory_order_relaxed);
+            break;
+        }
+    }
+
     NodeMemoryTracker* m_tracker;
     std::string m_node_id;
     std::optional<TemporalSampleKey> m_sample_key;
     std::uint64_t m_bytes{0};
+    NodeMemoryMetrics m_metrics{};
+    profiling::NodeMemoryEventSink m_event_sink{};
+    profiling::NodeMemoryEventSink* m_previous_sink{nullptr};
 };
 
 } // namespace chronon3d::graph

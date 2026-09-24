@@ -15,7 +15,9 @@ grep() { command grep --exclude-dir=vcpkg_installed --exclude-dir=build --exclud
 #      The detector is comment-aware (// line + /* */ block) and helper-aware
 #      (tests/helpers/ is excluded — those are utilities, not tests). This
 #      prevents false positives on SKIP macros documented inside docblocks.
-#   3. Every .cpp file with TEST_CASE must have at least one CHECK/REQUIRE.
+#   3. Every doctest::skip maps to one live registry row, source file, and
+#      enclosing TEST_CASE; malformed rows and duplicate ids fail.
+#   4. Every .cpp file with TEST_CASE must have at least one CHECK/REQUIRE.
 #      (empty test cases that pass vacuously are a false-positive risk.)
 #
 # Exit codes:
@@ -37,12 +39,12 @@ bad="$(grep -R "DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN\|DOCTEST_CONFIG_IMPLEMENT" \
     | grep -v "tests/sdk/" || true)"
 
 if [ -n "$bad" ]; then
-    echo "HYGIENE_FAIL [1/3]: DOCTEST main must live only in tests/test_main.cpp"
+    echo "HYGIENE_FAIL [1/4]: DOCTEST main must live only in tests/test_main.cpp"
     echo "$bad"
     echo "Fix: remove #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN from the files above."
     fail=1
 else
-    echo "HYGIENE_PASS [1/3]: no duplicate doctest main definitions found"
+    echo "HYGIENE_PASS [1/4]: no duplicate doctest main definitions found"
 fi
 
 # ── Check 2: real skip calls must reference a ticket ──────────────────────
@@ -159,20 +161,178 @@ for path in sorted(tests_root.rglob("*")):
 print("\n".join(violations))
 PY
 )" || {
-    echo "HYGIENE_INTERNAL_ERROR [2/3]: python3 parser failed (see stderr above)"
+    echo "HYGIENE_INTERNAL_ERROR [2/4]: python3 parser failed (see stderr above)"
     fail=1
 }
 
 if [ -n "$skips_without_ticket" ]; then
-    echo "HYGIENE_FAIL [2/3]: real test skip without nearby TICKET reference:"
+    echo "HYGIENE_FAIL [2/4]: real test skip without nearby TICKET reference:"
     echo "$skips_without_ticket"
     echo "Fix: associate every real skip with an existing tracked ticket."
     fail=1
 else
-    echo "HYGIENE_PASS [2/3]: all real test skips have a tracked ticket"
+    echo "HYGIENE_PASS [2/4]: all real test skips have a tracked ticket"
 fi
 
-# ── Check 3: empty test cases (TEST_CASE without CHECK/REQUIRE) ────────────
+# ── Check 3: doctest skip registry is bidirectionally complete ────────────
+# Ticket references alone are not enough: each executable doctest::skip
+# must name a registry row, every row must still point at a live skip, and
+# the registry must not contain duplicate ids.
+if registry_result="$(python3 - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from datetime import date
+import re
+import sys
+
+root = Path(sys.argv[1])
+registry = root / "docs/tickets/TICKET-DOCTEST-SKIP-ROT.md"
+registry_text = registry.read_text(encoding="utf-8")
+errors = []
+registry_section = registry_text.split("## Registry", 1)[-1].split("## Rules", 1)[0]
+rows = []
+table_started = False
+for line_number, line in enumerate(registry_section.splitlines(), 1):
+    stripped = line.strip()
+    if stripped.startswith("| Row |"):
+        table_started = True
+        continue
+    if not table_started or not stripped.startswith("|"):
+        continue
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+        continue
+    if len(cells) != 6 or not re.fullmatch(r"SKIP-\d{3}", cells[0]):
+        errors.append(f"registry line {line_number}: malformed SKIP row")
+        continue
+    location = re.fullmatch(r"`([^`]+)`\s*::\s*\"([^\"]+)\"", cells[1])
+    if not location or any(not cell for cell in cells[2:]):
+        errors.append(f"{cells[0]}: missing test, reason, owner, deadline, or reactivation condition")
+        continue
+    try:
+        deadline = date.fromisoformat(cells[4])
+    except ValueError:
+        errors.append(f"{cells[0]}: deadline must use YYYY-MM-DD")
+        continue
+    if deadline < date.today():
+        errors.append(f"{cells[0]}: registry deadline {deadline.isoformat()} has passed")
+        continue
+    rows.append((cells[0], location.group(1), location.group(2), line_number))
+
+row_ids = [row_id for row_id, _, _, _ in rows]
+if len(row_ids) != len(set(row_ids)):
+    errors.append("duplicate SKIP ids in registry")
+registered = set(row_ids)
+seen = set()
+row_specs = {row_id: (path, test_name) for row_id, path, test_name, _ in rows}
+skip_call = re.compile(r"\bdoctest::skip\s*\(")
+row_ref = re.compile(r"\bSKIP-\d{3}\b")
+test_case = re.compile(r"\bTEST_CASE\s*\(")
+
+
+def mask_cpp_comments_and_literals(text):
+    """Blank comments and literals while preserving offsets and newlines."""
+    chars = list(text)
+    index = 0
+    while index < len(text):
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            end = len(text) if end < 0 else end
+        elif text.startswith("/*", index):
+            close = text.find("*/", index + 2)
+            end = len(text) if close < 0 else close + 2
+        elif text.startswith('R"', index):
+            open_paren = text.find("(", index + 2, min(len(text), index + 20))
+            if open_paren < 0:
+                index += 1
+                continue
+            delimiter = text[index + 2:open_paren]
+            close = text.find(")" + delimiter + '"', open_paren + 1)
+            end = len(text) if close < 0 else close + len(delimiter) + 2
+        elif text[index] in {'"', "'"}:
+            quote = text[index]
+            end = index + 1
+            while end < len(text):
+                if text[end] == "\\":
+                    end += 2
+                    continue
+                if text[end] == quote:
+                    end += 1
+                    break
+                end += 1
+        else:
+            index += 1
+            continue
+
+        for cursor in range(index, min(end, len(text))):
+            if chars[cursor] != "\n":
+                chars[cursor] = " "
+        index = end
+    return "".join(chars)
+
+
+def test_declarations(text, code):
+    """Return (source offset, title) pairs for real TEST_CASE declarations."""
+    declarations = []
+    for match in test_case.finditer(code):
+        literal = re.match(r'\s*"((?:\\.|[^"\\])*)"', text[match.end():])
+        if literal:
+            declarations.append((match.start(), literal.group(1)))
+    return declarations
+
+for path in sorted((root / "tests").rglob("*")):
+    if path.suffix not in {".cpp", ".hpp", ".h"} or "helpers" in path.parts:
+        continue
+    text = path.read_text(encoding="utf-8")
+    # Keep offsets stable while masking comments/literals. This ignores fake
+    # calls in comments/strings and makes parenthesis matching insensitive to
+    # punctuation in skip-reason text.
+    code = mask_cpp_comments_and_literals(text)
+    declarations = test_declarations(text, code)
+    for match in skip_call.finditer(code):
+        depth = 1
+        end = match.end()
+        while end < len(code) and depth:
+            if code[end] == "(": depth += 1
+            elif code[end] == ")": depth -= 1
+            end += 1
+        call = code[match.start():end]
+        ids = row_ref.findall(text[match.start():end])
+        rel = path.relative_to(root)
+        if len(ids) != 1:
+            errors.append(f"{rel}: doctest::skip must cite exactly one SKIP-NNN row")
+            continue
+        row_id = ids[0]
+        seen.add(row_id)
+        if row_id not in registered:
+            errors.append(f"{rel}: {row_id} has no registry row")
+        else:
+            expected_path, expected_test = row_specs[row_id]
+            if str(rel) != expected_path:
+                errors.append(f"{rel}: {row_id} registry path is {expected_path}")
+            if not any(title == expected_test for _, title in declarations):
+                errors.append(f"{row_id}: registered TEST_CASE {expected_test!r} not found in {expected_path}")
+            enclosing = [title for position, title in declarations if position <= match.start()]
+            if not enclosing or enclosing[-1] != expected_test:
+                actual = enclosing[-1] if enclosing else "<no enclosing TEST_CASE>"
+                errors.append(f"{rel}: {row_id} skip is under {actual!r}, expected {expected_test!r}")
+
+for row_id in sorted(registered - seen):
+    errors.append(f"{row_id}: registry row has no live doctest::skip")
+
+if errors:
+    print("\n".join(errors))
+    sys.exit(1)
+print(f"{len(registered)} registry rows match live doctest::skip calls")
+PY
+)"; then
+    echo "HYGIENE_PASS [3/4]: $registry_result"
+else
+    echo "HYGIENE_FAIL [3/4]: doctest skip registry does not match live calls"
+    echo "$registry_result"
+    fail=1
+fi
+
+# ── Check 4: empty test cases (TEST_CASE without CHECK/REQUIRE) ────────────
 # Every .cpp file that defines at least one TEST_CASE must also contain at
 # least one CHECK or REQUIRE assertion.  A test case that runs zero assertions
 # passes vacuously — which is a false-positive risk.
@@ -189,12 +349,12 @@ while IFS= read -r f; do
 done < <(find "$REPO_ROOT/tests" -name '*.cpp' -not -path '*/sdk/*' -not -name 'test_main.cpp')
 
 if [ -n "$empty_suites" ]; then
-    echo "HYGIENE_FAIL [3/3]: TEST_CASE files with zero assertions (vacuous pass):"
+    echo "HYGIENE_FAIL [4/4]: TEST_CASE files with zero assertions (vacuous pass):"
     echo "$empty_suites"
     echo "Fix: add at least one CHECK/REQUIRE to each test file."
     fail=1
 else
-    echo "HYGIENE_PASS [3/3]: all TEST_CASE files have at least one assertion"
+    echo "HYGIENE_PASS [4/4]: all TEST_CASE files have at least one assertion"
 fi
 
 # ── Final verdict ──────────────────────────────────────────────────────────
@@ -205,5 +365,5 @@ if [ "$fail" -ne 0 ]; then
 fi
 
 echo ""
-echo "HYGIENE_PASS: all 3 test hygiene checks passed."
+echo "HYGIENE_PASS: all 4 test hygiene checks passed."
 exit 0

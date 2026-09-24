@@ -148,6 +148,7 @@ public:
     // pass color.premultiplied(); opaque (a==1) and transparent (a==0) colors
     // are identical in both representations and may be passed as-is.
     void clear(const Color& color) {
+        profiling::record_node_memory_event(profiling::NodeMemoryEvent::Clear);
         Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
         if (m_allocated_width == m_width) {
             framebuffer_clear_contiguous(ptr, pixel_count(), color);
@@ -177,6 +178,8 @@ public:
             clear(color);
             return;
         }
+
+        profiling::record_node_memory_event(profiling::NodeMemoryEvent::Clear);
 
         Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
         framebuffer_clear_strided(ptr, m_allocated_width, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, color);
@@ -417,6 +420,8 @@ private:
         if (m_owns_pixels) {
             m_pixels = other.m_pixels;
             framebuffer_increment_allocations(size_bytes());
+            profiling::record_node_memory_event(
+                profiling::NodeMemoryEvent::Copy, size_bytes());
             m_external_pixels = nullptr;
         } else {
             m_external_pixels = other.m_external_pixels;

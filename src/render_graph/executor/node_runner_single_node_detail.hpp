@@ -300,7 +300,16 @@ void execute_single_node(
             *state.node_memory_tracker,
             memory_node_id(compiled, id, node.name()),
             sample_key,
-            0);
+            0,
+            to_string(node.kind()));
+        if (cache_eval.cache_status != CacheEvaluationStatus::Hit) {
+            for (const FramebufferRef& input : pr.inputs) {
+                if (!input) continue;
+                node_memory_scope->record_read(
+                    static_cast<std::uint64_t>(input->pixel_count()),
+                    static_cast<std::uint64_t>(input->size_bytes()));
+            }
+        }
     }
 
     run_node(
@@ -315,6 +324,35 @@ void execute_single_node(
     );
     if (state.node_memory_tracker && cache_eval.result) {
         node_memory_scope->set_live_bytes(cache_eval.result->size_bytes());
+        if (cache_eval.cache_status != CacheEvaluationStatus::Hit) {
+            node_memory_scope->record_write(
+                static_cast<std::uint64_t>(cache_eval.result->pixel_count()),
+                static_cast<std::uint64_t>(cache_eval.result->size_bytes()));
+        }
+    }
+
+    if (node_memory_scope &&
+        telemetry::telemetry_capture_level() >= telemetry::TelemetryLevel::Detailed) {
+        const auto memory = node_memory_scope->metrics_snapshot();
+        telemetry::NodeTelemetryRecord record{};
+        record.frame_number = static_cast<int>(ctx.frame_input.frame);
+        record.node_name = node.name();
+        record.node_type = to_string(node.kind());
+        record.cache_status = std::string(cache_status_name(cache_eval.cache_status));
+        if (cache_eval.result) {
+            record.output_width = cache_eval.result->width();
+            record.output_height = cache_eval.result->height();
+            record.output_bytes = cache_eval.result->size_bytes();
+        }
+        record.pixels_read = memory.pixels_read.load(std::memory_order_relaxed);
+        record.pixels_written = memory.pixels_written.load(std::memory_order_relaxed);
+        record.bytes_read = memory.bytes_read.load(std::memory_order_relaxed);
+        record.bytes_written = memory.bytes_written.load(std::memory_order_relaxed);
+        record.framebuffer_copies = memory.framebuffer_copies.load(std::memory_order_relaxed);
+        record.framebuffer_clears = memory.framebuffer_clears.load(std::memory_order_relaxed);
+        record.allocations = memory.allocations.load(std::memory_order_relaxed);
+        record.temporary_buffers = memory.temporary_buffers.load(std::memory_order_relaxed);
+        telemetry::record_node_telemetry(record);
     }
 
     if (node.kind() == RenderGraphNodeKind::TextRun &&

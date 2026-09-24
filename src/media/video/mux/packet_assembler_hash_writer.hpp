@@ -3,6 +3,7 @@
 #include <chronon3d/media/video/packet_assembler.hpp>
 
 extern "C" {
+#include <libavformat/version_major.h>
 #include <libavutil/hash.h>
 }
 
@@ -31,10 +32,15 @@ struct MuxAvioHashWriter {
     [[nodiscard]] bool open(const std::string& path,
                              bool request_checksum) noexcept;
 
-    // FFmpeg's avio_alloc_context callback uses a mutable buffer in the
-    // installed libavformat ABI; the sink never mutates it.
+    // FFmpeg 6.1+ marks the write callback buffer const; older supported
+    // libavformat ABIs use a mutable pointer. The sink never mutates it.
+#if LIBAVFORMAT_VERSION_MAJOR >= 60
+    static int write_packet(void* opaque, const std::uint8_t* buffer,
+                            int buffer_size) noexcept;
+#else
     static int write_packet(void* opaque, std::uint8_t* buffer,
                             int buffer_size) noexcept;
+#endif
     static std::int64_t seek(void* opaque, std::int64_t offset,
                              int whence) noexcept;
 

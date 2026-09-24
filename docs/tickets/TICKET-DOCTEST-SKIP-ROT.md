@@ -1,6 +1,6 @@
 # TICKET-DOCTEST-SKIP-ROT — Skip registry (single authority for doctest::skip)
 
-Status: OPEN (registry authority)
+Status: RESOLVED (registry authority landed; all 10 original rows retired, 2026-09-24)
 Owner: testing-infra
 Created: 2026-09-07
 
@@ -10,25 +10,15 @@ Every `doctest::skip(...)` in `tests/` must cite this ticket plus the row id
 below. The archive folder was removed on 2026-09-05 ("git history is the only
 archive"), which orphaned the ticket references inside skip reasons
 (TICKET-013, TICKET-012, TICKET-120, TICKET-007.i, TICKET-CABI-V2-VIDEO-CERT).
-This file is the single live authority for skip rot: one row per skipped test,
-with owner, deadline and reactivation condition. A skip without a row here is
-a lint failure; a row past its deadline blocks the certification gate (CI FAIL,
-not a warning).
+This file is the single live authority for skip rot: one row per intentionally
+skipped test, with owner, deadline and reactivation condition. The registry is
+currently empty. A skip without a row here is a lint failure; a row past its
+deadline blocks the certification gate (CI FAIL, not a warning).
 
 ## Registry
 
 | Row | Test (file :: TEST_CASE prefix) | Reason | Owner | Deadline | Reactivation condition |
 |---|---|---|---|---|---|
-| SKIP-001 | `tests/render_graph/executor/test_scheduler_determinism.cpp` :: "WP1 PR 1.4 — composite scene (2 overlapping layers)" | FakeBackend `composite_layer` is a no-op; latent executor SIGSEGV on next-stage `dst` read under no-op blend. Needs deterministic blit in FakeBackend OR a real SoftwareBackend fixture. | chronon3d-owners | 2026-09-30 | FakeBackend::composite_layer performs a deterministic blit, or fixture wires SoftwareBackend |
-| SKIP-002 | `tests/render_graph/executor/test_scheduler_determinism.cpp` :: "WP1 PR 1.4 — one effect stack (blur)" | Same root as SKIP-001: `FakeBackend::apply_blur` no-op makes the layer-mode blur path unsafe. | chronon3d-owners | 2026-09-30 | Same as SKIP-001 |
-| SKIP-003 | `tests/render_graph/executor/test_scheduler_determinism.cpp` :: "WP1 PR 1.4 — tile execution" | Tile-execution determinism needs a higher-level fixture (dirty rects + tile-enabled settings) — TICKET-012 scope. | chronon3d-owners | 2026-09-30 | Tile fixture lands (dirty rects populated + `tile_execution_enabled`) |
-| SKIP-004 | `tests/scene/transform_hierarchy_tests.cpp` :: "HierarchyResolver: cycle detection" | Cycle-detection path not yet implemented/locked; see test body. | scene-core | 2026-09-30 | HierarchyResolver cycle detection implemented + test enabled |
-| SKIP-005 | `tests/scene/camera/test_orient_along_path.cpp` :: 3 cases (tangent warning / keep-rotation) | Orphaned TICKET-120 scope: OrientAlongPath warning semantics not yet locked. | camera-v1 | 2026-09-30 | OrientAlongPath warning contract implemented |
-| SKIP-006 | `tests/scene/camera/test_temporal_samples_pr1.cpp` :: "PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" | Orphaned TICKET-007.i: frame-keyed jitter determinism check deferred. | temporal-core | 2026-09-30 | Jitter sampling contract implemented |
-| SKIP-007 | `tests/c_abi/test_c_api_v2.cpp` :: "C ABI v2 cancellation certification requires video support" | Orphaned TICKET-CABI-V2-VIDEO-CERT: C ABI cancellation certification requires the video-enabled build host. | sdk-abi | 2026-09-30 | Video-enabled certification host available in CI |
-| SKIP-008 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: single paragraph produces single layout" | Orphaned TICKET-007.m: pre-existing TextRunBuilder wrap-mode/paragraph-count rot (wrap != TextWrap::None contract assertion fails). | text-core | 2026-09-30 | TextRunBuilder single-paragraph contract implemented + test enabled |
-| SKIP-009 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: multiple paragraphs produce multiple layouts" | Orphaned TICKET-007.n: pre-existing multi-paragraph routing rot (paragraph-count assertion fails). | text-core | 2026-09-30 | TextRunBuilder multi-paragraph contract implemented + test enabled |
-| SKIP-010 | `tests/text/test_text_run_builder.cpp` :: "TextRunBuilder: empty paragraph produced by consecutive newlines" | Orphaned TICKET-007.o: pre-existing consecutive-newline handling rot (empty-paragraph count assertion fails). | text-core | 2026-09-30 | TextRunBuilder consecutive-newline contract implemented + test enabled |
 
 ## Rules
 
@@ -37,6 +27,47 @@ not a warning).
 2. Rows past their deadline fail the certification aggregator (P0 blocker,
    not a warning).
 3. Removing a skip = delete the row + enable the test in the same commit.
-4. The historical per-skip ticket files (TICKET-013, TICKET-012, TICKET-120,
-   TICKET-007.i, TICKET-CABI-V2-VIDEO-CERT) are NOT re-materialized; their
-   content is subsumed by the rows above (git history remains the archive).
+4. The registry is audited bidirectionally by `tools/check_test_hygiene.sh`:
+   every executable `doctest::skip` cites one registered row, and every
+   registered row has at least one live skip call.
+5. The historical per-skip ticket files (TICKET-013, TICKET-012, TICKET-120,
+   TICKET-007.i, TICKET-CABI-V2-VIDEO-CERT) are NOT re-materialized; git history
+   remains the archive.
+
+## Checkout update — 2026-09-24
+
+- `tools/check_test_hygiene.sh` now checks the registry in both directions:
+  every executable `doctest::skip` names exactly one registered id in the
+  registered source file and declared `TEST_CASE`, each row has required
+  fields and a live skip, deadlines must be ISO dates that have not passed,
+  and duplicate/malformed rows fail. The registered self-test exercises
+  valid, unregistered, stale, mismatched, malformed, duplicate, and expired
+  rows.
+- `SKIP-004` was retired with its test enabled. `HierarchyResolver::compute_depths`
+  already marks every node in a parent cycle; the skip described code that had
+  since landed.
+- `SKIP-008/009/010` were retired with their tests enabled. The canonical text
+  document compiler already handles single paragraphs, multiple paragraphs,
+  and explicit empty ranges from consecutive newlines.
+- `SKIP-005` was retired with its three tests enabled. The compiler now accepts
+  static sources with `OrientAlongPath`; the existing evaluator emits the
+  fallback warnings for previous tangent, point-of-interest, and base rotation.
+- `SKIP-006` was retired with its test enabled. `stratified_jitter` hashes the
+  center frame into its stateless seed, so repeated calls on one frame match
+  and adjacent frames vary.
+- `SKIP-007` is now retired with the test enabled in the video build and omitted
+  entirely when video support is disabled. The video-enabled C ABI test passed
+  locally (1 case / 7 assertions); its cancellation callback fires before
+  rendering or output creation, so this verification did not use a GPU.
+- `SKIP-001/002` were retired with actual overlapping-layer and blur-layer scenes.
+  The determinism fixture's composite backend now performs a deterministic
+  source-over blend; the blur scene exercises the effect-stack route and compares
+  all five scheduler modes. The targeted tests pass locally.
+- `SKIP-003` was retired with a SoftwareRenderer fixture: moving content creates
+  dirty rectangles, 16-pixel tiles are asserted active, and six frame hashes
+  match between Sequential and TbbAutomatic schedulers (27 assertions pass).
+- Rebuilt `chronon3d_scene_tests` from the current tree and reran the enabled
+  cycle-detection, five OrientAlongPath, frame-keyed temporal-jitter, and three
+  TextRunBuilder paragraph cases: 10 cases / 72 assertions passed. The only
+  CPU-side cases: 10 cases / 72 assertions passed. The registry is now empty;
+  `tools/check_test_hygiene.sh` and its registered self-test pass.

@@ -30,12 +30,15 @@ commit (atomic-replace pattern).  The canonical surface:
   (`pixels_read`, `pixels_written`, `bytes_read`, `bytes_written`,
   `framebuffer_copies`, `framebuffer_clears`, `allocations`,
   `allocated_bytes`, `temporary_buffers`, `live_bytes`, `peak_live_bytes`).
-  `allocations` counts heap events; `allocated_bytes` sums their byte volume;
+  `allocations` counts instrumented framebuffer backing-store events plus
+  explicit `record_allocation()` events; `allocated_bytes` sums their byte
+  volume. This is not a process-wide or general-purpose heap counter;
   `temporary_buffers` counts acquisitions; live fields report current and
   peak temporary workspace residency. The accounting contract is more
   important than the former cache-line-size assumption.
 - `chronon3d::graph::NodeStatsSnapshot` — value-typed `Id + memory counts`
-  read-out of a single node's accumulator state.
+  read-out of a single node's accumulator state, with the observed graph node
+  kind attached for report filtering.
 - `chronon3d::graph::NodeStatsReporter` — per-session `std::map<std::string,
   NodeMemoryMetrics>` aggregator.  Default-constructible; copy DELETED
   (lifetime invariant).  Methods: `observe_node`, `snapshot`, `reset`.
@@ -114,7 +117,18 @@ NEG:
   executor/node_memory_metrics.hpp` ~120 LoC header-only inline).  No
   `.cpp` impl = no link-time change to existing translation units.
 
+The runtime instrumentation also adds `profiling::NodeMemoryEvent` and a
+thread-local `NodeMemoryEventSink` callback seam in
+`profiling_context.hpp`. This seam is for internal attribution from framebuffer
+operations into the active `ScopedNodeMemory`; it is not part of the neutral
+SDK facade or a supported consumer extension point. It has no effect when no
+node scope is active. The public-header placement is required because the
+framebuffer implementation is header-defined and must not depend on graph
+tracker internals.
+
 ## Cross-references
+- [TICKET-NODE-MEMORY-METRICS](../tickets/TICKET-NODE-MEMORY-METRICS.md):
+  implementation and certification tracking.
 - AGENTS.md: §Regole permanenti "ogni nuovo simbolo in `include/chronon3d/`
   va giustificato" + §Fare PR piccole e mirate.
 - TICKET-PERF-COUNTERS-NODE-MEMORY-V1: §forward-point `<a>`.
