@@ -147,6 +147,16 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     const auto wider_offset = render_plan::decode_render_plan(plan);
     REQUIRE(wider_offset);
     CHECK(wider_offset->content_fingerprint != offset_fingerprint);
+
+    plan["layers"][0]["shape"]["operators"] =
+        {{{"kind", "pucker_bloat"}, {"params", {{"amount", 0.5}, {"anchor", {1.0, 2.0}}}}}};
+    const auto pucker = render_plan::decode_render_plan(plan);
+    REQUIRE(pucker);
+    const auto pucker_fingerprint = pucker->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["anchor"][1] = 3.0;
+    const auto shifted_anchor = render_plan::decode_render_plan(plan);
+    REQUIRE(shifted_anchor);
+    CHECK(shifted_anchor->content_fingerprint != pucker_fingerprint);
 }
 
 TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {

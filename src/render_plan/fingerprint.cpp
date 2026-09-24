@@ -285,6 +285,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(op.miter_limit);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::PuckerBloat) {
+                out.add_float(op.amount);
+                for (const auto value : op.anchor) out.add_float(value);
+                continue;
+            }
             const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);

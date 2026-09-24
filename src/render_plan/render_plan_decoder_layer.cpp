@@ -256,6 +256,19 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     if (!std::isfinite(decoded_op.amount) || !std::isfinite(decoded_op.miter_limit) ||
                         decoded_op.miter_limit < 1.0f || decoded_op.miter_limit > 1000.0f)
                         throw std::runtime_error("invalid offset-path parameters");
+                } else if (kind == "pucker_bloat") {
+                    decoded_op.kind = PathOperatorKindPlan::PuckerBloat;
+                    decoded_op.amount = p.at("amount").get<float>();
+                    if (p.contains("anchor")) {
+                        const auto& anchor = p.at("anchor");
+                        if (!anchor.is_array() || anchor.size() != 2)
+                            throw std::runtime_error("pucker-bloat anchor requires two values");
+                        decoded_op.anchor = {anchor[0].get<float>(), anchor[1].get<float>()};
+                    }
+                    if (!std::isfinite(decoded_op.amount) || decoded_op.amount < -1.0f ||
+                        decoded_op.amount > 1.0f || !std::isfinite(decoded_op.anchor[0]) ||
+                        !std::isfinite(decoded_op.anchor[1]))
+                        throw std::runtime_error("invalid pucker-bloat parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }
