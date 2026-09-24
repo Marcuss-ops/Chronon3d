@@ -44,12 +44,19 @@ struct SampledTextParameters {
     std::uint32_t text_index{0};
 };
 
+struct SampledShapeParameters {
+    std::array<float, 2> size{0.0f, 0.0f};
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    float opacity{1.0f};
+};
+
 using SampledLayerPayload = std::variant<
     std::monostate,
     SampledColorParameters,
     SampledImageParameters,
     SampledVideoParameters,
-    SampledTextParameters>;
+    SampledTextParameters,
+    SampledShapeParameters>;
 
 /// Frame-local values produced by the compiler IR sampler. This is
 /// deliberately CPU-only data: backend resources are resolved later by graph

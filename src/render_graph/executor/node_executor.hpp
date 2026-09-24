@@ -31,6 +31,7 @@
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>     // GraphNodeId
 #include <chronon3d/core/memory/framebuffer_handle.hpp>        // CachedFB, FramebufferRef, PoolFbDeleter, OwnedFB
+#include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/cache/node_cache.hpp>                      // NodeCacheKey
 #include <chronon3d/math/raster_utils.hpp>                     // raster::BBox full def (std::optional<raster::BBox> in signature — explicit dependency, not transitive-resolved)
 #include <chronon3d/render_graph/render_graph_context.hpp>     // RenderGraphContext full def (param)
@@ -47,9 +48,22 @@ namespace chronon3d::graph {
 
 class RenderGraphNode;       // forward decl: <chronon3d/render_graph/nodes/render_graph_node.hpp>
 struct StableNodeId;         // forward decl: <chronon3d/render_graph/core/node_identity.hpp> (trace annotation)
-using FramebufferPool = ::chronon3d::cache::FramebufferPool;
+using FramebufferPool = ::chronon3d::cache::FramebufferPool;// A framebuffer may only outlive the current graph execution in NodeCache if
+// its pixel storage does not depend on a frame-scoped owner. In particular,
+// arena-backed buffers are external views into a rotating export arena; the
+// wrapper can stay alive after that arena is reset, but its pixels cannot.
+[[nodiscard]] inline bool node_output_is_persistently_cacheable(
+    const Framebuffer& framebuffer,
+    const PoolFbDeleter& deleter) noexcept {
+    return !framebuffer.is_arena_allocated() &&
+           !std::holds_alternative<ReturnToScratch>(deleter.policy) &&
+           !std::holds_alternative<RendererOwned>(deleter.policy) &&
+           framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle;
+}
 
 // run_node — execute node and adopt the returned OwnedFB into a CachedFB.
+
+
 //
 // Returns elapsed milliseconds for the execute() call (profiling purpose).
 // Public surface for the orchestrator (`node_runner.cpp::execute_single_node`);

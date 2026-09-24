@@ -12,6 +12,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
 using namespace chronon3d;
 
@@ -21,28 +22,20 @@ using namespace chronon3d::renderer;
 
 /// Build a simple red→blue linear gradient fill for a shape stroke.
 static GradientFill make_linear_rb_gradient() {
-    GradientFill g;
-    g.type = FillType::LinearGradient;
-    g.from  = {0.0f, 0.5f};
-    g.to    = {1.0f, 0.5f};
-    g.stops = {
-        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},  // red at 0
-        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},  // blue at 1
-    };
-    return g;
+    return graphics::GradientDefinition::linear(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, {
+            {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+        });
 }
 
 /// Build a white→black radial gradient fill for a shape stroke.
 static GradientFill make_radial_wb_gradient() {
-    GradientFill g;
-    g.type = FillType::RadialGradient;
-    g.from  = {0.5f, 0.5f};
-    g.to    = {1.0f, 0.5f}; // radius = 0.5
-    g.stops = {
-        {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},  // white at centre
-        {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},  // black at edge
-    };
-    return g;
+    return graphics::GradientDefinition::radial(
+        {0.5f, 0.5f}, 0.5f, {
+            {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+            {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},
+        });
 }
 
 /// Build a Shape with the given type and an optional gradient on the stroke.
@@ -275,11 +268,8 @@ TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
 }
 
 TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that color") {
-    GradientFill g;
-    g.type = FillType::LinearGradient;
-    g.from  = {0.0f, 0.5f};
-    g.to    = {1.0f, 0.5f};
-    g.stops = {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}};
+    GradientFill g = graphics::GradientDefinition::linear(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}});
 
     Shape s = make_shape(ShapeType::Rect, g);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
@@ -289,21 +279,58 @@ TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that co
     CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
 }
 
+TEST_CASE("canonical gradient keeps conic geometry, opacity stops, and spread while sampling") {
+    auto gradient = graphics::GradientDefinition::conic(
+        {0.5f, 0.5f}, 0.0f,
+        {{0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+         {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}}},
+        graphics::GradientSpread::Reflect);
+    gradient.opacity_stops = {{0.0f, 0.25f}, {1.0f, 0.75f}};
+
+    Shape shape = make_shape(ShapeType::Rect, gradient);
+    REQUIRE(shape.rect().stroke.gradient.has_value());
+    const auto& stored = *shape.rect().stroke.gradient;
+    CHECK(stored.type == graphics::GradientType::Conic);
+    CHECK(stored.center.x == doctest::Approx(0.5f));
+    CHECK(stored.angle == doctest::Approx(0.0f));
+    CHECK(stored.spread == graphics::GradientSpread::Reflect);
+    REQUIRE(stored.opacity_stops.size() == 2);
+
+    const Color sampled = resolve_stroke_gradient_color(
+        shape, {100.0f, 150.0f}, {200.0f, 200.0f});
+
+    CHECK(sampled.r == doctest::Approx(0.75f));
+    CHECK(sampled.b == doctest::Approx(0.25f));
+    CHECK(sampled.a == doctest::Approx(0.375f));
+}
+
+TEST_CASE("canonical gradient hash includes spread, geometry, and opacity stops") {
+    Fill first = Fill::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+         {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}}});
+    Fill changed = first;
+    changed.gradient.spread = graphics::GradientSpread::Repeat;
+    CHECK(graph::hash_fill(first) != graph::hash_fill(changed));
+    changed = first;
+    changed.gradient.opacity_stops = {{0.0f, 0.25f}, {1.0f, 1.0f}};
+    CHECK(graph::hash_fill(first) != graph::hash_fill(changed));
+}
+
 TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns first stop") {
     // When from == to, the direction length is 0, and t stays 0.
-    GradientFill g;
-    g.type = FillType::LinearGradient;
-    g.from  = {0.5f, 0.5f};
-    g.to    = {0.5f, 0.5f};  // zero-length
-    g.stops = {
-        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
-    };
+    GradientFill g = graphics::GradientDefinition::linear(
+        {0.5f, 0.5f}, {0.5f, 0.5f}, {
+            {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+        });
 
     Shape s = make_shape(ShapeType::Rect, g);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
     CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
+    CHECK(c.g == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(c.b == doctest::Approx(0.0f).epsilon(1e-5f));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -353,14 +380,11 @@ TEST_CASE("safe_shape_size_for_fill: Circle with positive radius returns diamete
 // ══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("resolve_gradient_color: zero-size sz does not produce NaN/Inf") {
-    GradientFill g;
-    g.type = FillType::LinearGradient;
-    g.from  = {0.0f, 0.5f};
-    g.to    = {1.0f, 0.5f};
-    g.stops = {
-        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
-    };
+    GradientFill g = graphics::GradientDefinition::linear(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, {
+            {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+            {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+        });
     Fill fill;
     fill.type = FillType::LinearGradient;
     fill.gradient = g;
@@ -378,14 +402,11 @@ TEST_CASE("resolve_gradient_color: zero-size sz does not produce NaN/Inf") {
 }
 
 TEST_CASE("resolve_gradient_color: zero-size sz with radial gradient does not crash") {
-    GradientFill g;
-    g.type = FillType::RadialGradient;
-    g.from  = {0.5f, 0.5f};
-    g.to    = {1.0f, 0.5f};
-    g.stops = {
-        {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
-        {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},
-    };
+    GradientFill g = graphics::GradientDefinition::radial(
+        {0.5f, 0.5f}, 0.5f, {
+            {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+            {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},
+        });
     Fill fill;
     fill.type = FillType::RadialGradient;
     fill.gradient = g;

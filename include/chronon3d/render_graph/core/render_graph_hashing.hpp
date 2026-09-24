@@ -79,16 +79,32 @@ template <typename T>
     return seed;
 }
 
-[[nodiscard]] inline u64 hash_fill(const Fill& f) {
-    u64 seed = hash_bytes(&f.type, sizeof(f.type));
-    seed = hash_combine(seed, hash_color(f.solid));
-    for (const auto& stop : f.gradient.stops) {
-        seed = hash_combine(seed, hash_bytes(&stop.offset, sizeof(f32)));
+[[nodiscard]] inline u64 hash_gradient(const graphics::GradientDefinition& gradient) {
+    u64 seed = hash_value(static_cast<int>(gradient.type));
+    seed = hash_combine(seed, hash_value(static_cast<int>(gradient.spread)));
+    seed = hash_combine(seed, hash_vec2(gradient.start));
+    seed = hash_combine(seed, hash_vec2(gradient.end));
+    seed = hash_combine(seed, hash_vec2(gradient.center));
+    seed = hash_combine(seed, hash_value(gradient.radius));
+    seed = hash_combine(seed, hash_value(gradient.angle));
+    seed = hash_combine(seed, hash_value(gradient.color_stops.size()));
+    for (const auto& stop : gradient.color_stops) {
+        seed = hash_combine(seed, hash_value(stop.position));
         seed = hash_combine(seed, hash_color(stop.color));
     }
-    seed = hash_combine(seed, hash_vec2(f.gradient.from));
-    seed = hash_combine(seed, hash_vec2(f.gradient.to));
+    seed = hash_combine(seed, hash_value(gradient.opacity_stops.size()));
+    for (const auto& stop : gradient.opacity_stops) {
+        seed = hash_combine(seed, hash_value(stop.position));
+        seed = hash_combine(seed, hash_value(stop.opacity));
+    }
     return seed;
+}
+
+[[nodiscard]] inline u64 hash_fill(const Fill& f) {
+    u64 seed = hash_bytes(&f.type, sizeof(f.type));
+    seed = hash_combine(seed, hash_value(f.enabled));
+    seed = hash_combine(seed, hash_color(f.solid));
+    return hash_combine(seed, hash_gradient(f.gradient));
 }
 
 [[nodiscard]] inline u64 hash_blur_params(const BlurParams& p) {
@@ -269,15 +285,20 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_start, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_end, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.path().closed));
-            seed = hash_combine(seed, hash_value(static_cast<int>(s.path().fill.type)));
-            seed = hash_combine(seed, hash_color(s.path().fill.solid));
-            seed = hash_combine(seed, hash_vec2(s.path().fill.gradient.from));
-            seed = hash_combine(seed, hash_vec2(s.path().fill.gradient.to));
-            seed = hash_combine(seed, hash_value(s.path().fill.gradient.stops.size()));
-            for (const auto& stop : s.path().fill.gradient.stops) {
-                seed = hash_combine(seed, hash_bytes(&stop.offset, sizeof(f32)));
-                seed = hash_combine(seed, hash_color(stop.color));
-            }
+            seed = hash_combine(seed, hash_fill(s.path().fill));
+            seed = hash_combine(seed, hash_value(s.path().stroke.enabled));
+            seed = hash_combine(seed, hash_color(s.path().stroke.color));
+            seed = hash_combine(seed, hash_value(s.path().stroke.dash_array.size()));
+            for (const auto dash : s.path().stroke.dash_array)
+                seed = hash_combine(seed, hash_value(dash));
+            seed = hash_combine(seed, hash_value(s.path().stroke.dash_offset));
+            seed = hash_combine(seed, hash_value(s.path().stroke.gradient.has_value()));
+            if (s.path().stroke.gradient)
+                seed = hash_combine(seed, hash_gradient(*s.path().stroke.gradient));
+            seed = hash_combine(seed, hash_value(s.path().stroke.trim_start));
+            seed = hash_combine(seed, hash_value(s.path().stroke.trim_end));
+            seed = hash_combine(seed, hash_bytes(&s.path().stroke.cap, sizeof(s.path().stroke.cap)));
+            seed = hash_combine(seed, hash_bytes(&s.path().stroke.join, sizeof(s.path().stroke.join)));
             return seed;
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image().path.data(), s.image().path.size()));

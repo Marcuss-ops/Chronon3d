@@ -103,11 +103,16 @@ bool rasterize_path_stroke_blend2d(
     // semantics exactly as the legacy loop did.  stroke.color is the
     // fallback (and dotted onto the gradient's stop colours via the
     // existing primitive modulation).
+    //
+    // The stroke carries the canonical graphics::GradientDefinition, so
+    // its GradientType must be translated to the scene-layer FillType
+    // discriminator that resolve_fill_color() switches on; there is no
+    // second gradient payload to copy any more.
     const bool has_gradient = path.stroke.gradient.has_value();
     Fill gradient_fill{};
     if (has_gradient) {
         gradient_fill.enabled  = true;
-        gradient_fill.type = path.stroke.gradient->type;
+        gradient_fill.type = fill_type_for_gradient(path.stroke.gradient->type);
         gradient_fill.gradient = *path.stroke.gradient;
     }
 

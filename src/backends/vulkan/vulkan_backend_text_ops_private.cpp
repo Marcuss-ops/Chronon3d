@@ -3,6 +3,7 @@
 
 #include "vulkan_backend_impl.hpp"
 #include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -78,24 +79,6 @@ namespace {
 using GpuTextRunDynamic = runtime::TextRunDynamic;
 static_assert(sizeof(GpuTextRunDynamic) == 112,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
-
-float selector_weight_cpu(const GpuTextRunDynamic& run,
-                          const std::uint32_t glyph_index) {
-    const SelectorWeightParams params{
-        (run.flags & 4u) != 0u ? TextSelectorShape::Smooth
-                               : TextSelectorShape::Square,
-        run.selector_start,
-        run.selector_end,
-        0.0f,
-        run.selector_amount,
-        run.selector_unit_count,
-        0u,
-        false,
-        (run.flags & 2u) != 0u,
-        (run.flags & 8u) != 0u,
-    };
-    return selector_weight(params, glyph_index);
-}
 
 } // namespace
 
@@ -197,7 +180,7 @@ void VulkanBackend::Impl::draw_text_batch(
         prefix.resize(count + 1, 0.0f);
         for (std::size_t i = 0; i < count; ++i) {
             prefix[i + 1] = prefix[i] + gpu_runs[r].animator_tracking *
-                selector_weight_cpu(gpu_runs[r], static_cast<std::uint32_t>(i));
+                runtime::gpu_text_selector_weight(gpu_runs[r], static_cast<std::uint32_t>(i));
         }
     }
 
@@ -230,7 +213,16 @@ void VulkanBackend::Impl::draw_text_batch(
 
         const auto& run = gpu_runs[gg.run_index];
         auto& dynamic = gpu_glyph_dynamic[i];
-        dynamic.selector_weight = selector_weight_cpu(run, gg.pad0);
+        const std::uint32_t selector_unit =
+            (run.flags >> runtime::kTextRunSelectorUnitShift) &
+            runtime::kTextRunSelectorUnitMask;
+        const std::uint32_t selector_index = selector_unit ==
+                static_cast<std::uint32_t>(TextSelectorUnit::Word)
+            ? runtime::unpack_mtsdf_glyph_unit_index(gs.flags)
+            : (selector_unit == static_cast<std::uint32_t>(TextSelectorUnit::Line)
+                ? runtime::unpack_mtsdf_glyph_unit_index(gs.flags)
+                : gg.pad0);
+        dynamic.selector_weight = runtime::gpu_text_selector_weight(run, selector_index);
         const auto& prefix = tracking_prefixes[gg.run_index];
         dynamic.tracking_prefix = prefix[std::min<std::size_t>(gg.pad0,
                                                                 prefix.size() - 1)];

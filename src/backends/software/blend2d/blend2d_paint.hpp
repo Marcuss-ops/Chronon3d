@@ -56,9 +56,11 @@ enum class StyleOp { Fill, Stroke };
 
 // ── Gradient construction ───────────────────────────────────────────
 
-/// Build a vector of `BLGradientStop` from a `Fill::gradient.stops`.  The
-/// returned vector can be passed straight into `BLGradient(..., n)` or
-/// to `build_bl_gradient` which uses it internally.
+/// Build a vector of `BLGradientStop` from the fill's canonical gradient
+/// (`Fill::gradient`, a `graphics::GradientDefinition`).  Colour stops are
+/// taken as authored; an independent opacity ramp, when present, is folded
+/// into each stop's alpha.  The returned vector can be passed straight into
+/// `BLGradient(..., n)` or to `build_bl_gradient`, which uses it internally.
 [[nodiscard]] std::vector<BLGradientStop> build_gradient_stops(
     const chronon3d::Fill& fill);
 
@@ -66,20 +68,21 @@ enum class StyleOp { Fill, Stroke };
 ///
 /// |origin_x/origin_y| is the rectangle's top-left in the BL context's
 /// current transform; |width| × |height| are the rectangle's dimensions.
-/// The fill's gradient `from`/`to` are in [0..1] normalised space and
-/// are scaled to those dimensions (SVG-style gradient geometry remap):
+/// The geometry lives in the canonical `graphics::GradientDefinition` in
+/// [0..1] normalised space and is scaled to those dimensions (SVG-style
+/// gradient geometry remap):
 ///
 ///   - LinearGradient:
-///       x0 = origin_x + gradient.from.x * width
-///       y0 = origin_y + gradient.from.y * height
-///       x1 = origin_x + gradient.to.x   * width
-///       y1 = origin_y + gradient.to.y   * height
+///       x0 = origin_x + gradient.start.x * width
+///       y0 = origin_y + gradient.start.y * height
+///       x1 = origin_x + gradient.end.x   * width
+///       y1 = origin_y + gradient.end.y   * height
 ///   - RadialGradient:
-///       centre = (from * size)
-///       radius = max(width, height) * max(0.001, to.x - from.x)
+///       centre = gradient.center * size
+///       radius = max(width, height) * gradient.radius
 ///   - ConicGradient:
-///       centre = (from * size)
-///       angle  = atan2(to - from)
+///       centre = gradient.center * size
+///       angle  = gradient.angle  (radians, already explicit)
 ///
 /// Returns `std::nullopt` for degenerate input (Solid type, empty
 /// stops, zero-area rect).  Caller should fall back to a solid colour

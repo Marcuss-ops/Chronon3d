@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chronon3d.dev/schemas/chronon.render-plan.v3.extensions.schema.json",
+  "title": "Chronon3D Render Plan V3 Shape and Gradient Extensions",
+  "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
+  "$defs": {
+    "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "rgba": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+    "color_stop": {
+      "type": "object", "additionalProperties": false,
+      "required": ["position", "color"],
+      "properties": {
+        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+        "color": { "$ref": "#/$defs/rgba" }
+      }
+    },
+    "opacity_stop": {
+      "type": "object", "additionalProperties": false,
+      "required": ["position", "opacity"],
+      "properties": {
+        "position": { "type": "number", "minimum": 0, "maximum": 1 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "gradient": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "color_stops"],
+      "properties": {
+        "type": { "enum": ["linear", "radial", "conic"] },
+        "start": { "$ref": "#/$defs/point" },
+        "end": { "$ref": "#/$defs/point" },
+        "center": { "$ref": "#/$defs/point" },
+        "radius": { "type": "number", "exclusiveMinimum": 0 },
+        "angle": { "type": "number" },
+        "spread": { "enum": ["pad", "repeat", "reflect"] },
+        "color_stops": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/color_stop" } },
+        "opacity_stops": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/opacity_stop" } }
+      }
+    },
+    "path_command": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["move_to", "line_to", "quadratic_to", "cubic_to", "close"] },
+        "point": { "$ref": "#/$defs/point" },
+        "control1": { "$ref": "#/$defs/point" },
+        "control2": { "$ref": "#/$defs/point" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "enum": ["move_to", "line_to", "quadratic_to", "cubic_to"] } }, "required": ["type"] }, "then": { "required": ["point"] } },
+        { "if": { "properties": { "type": { "const": "cubic_to" } }, "required": ["type"] }, "then": { "required": ["control1", "control2"] } },
+        { "if": { "properties": { "type": { "const": "quadratic_to" } }, "required": ["type"] }, "then": { "required": ["control1"] } }
+      ]
+    },
+    "stroke": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "color": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }, { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }] },
+        "width": { "type": "number", "minimum": 0 },
+        "trim_start": { "type": "number", "minimum": 0, "maximum": 1 },
+        "trim_end": { "type": "number", "minimum": 0, "maximum": 1 },
+        "gradient": { "$ref": "#/$defs/gradient" }
+      },
+      "not": { "required": ["color", "gradient"] }
+    },
+    "shape": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path"] },
+        "radius": { "type": "number", "minimum": 0 },
+        "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
+        "stroke": { "$ref": "#/$defs/stroke" },
+        "path": { "type": "array", "minItems": 1, "maxItems": 65536, "items": { "$ref": "#/$defs/path_command" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] }, "then": { "required": ["path"] } },
+        { "if": { "properties": { "type": { "const": "line" } }, "required": ["type"] }, "then": { "required": ["path", "stroke"] } },
+        { "if": { "properties": { "type": { "enum": ["rect", "rounded_rect", "ellipse"] } }, "required": ["type"] }, "then": { "not": { "required": ["path"] } } }
+      ]
+    }
+  },
+  "type": "object",
+  "required": ["schema", "version", "layers"],
+  "properties": {
+    "schema": { "const": "chronon.render-plan.v3" },
+    "version": { "const": 3 },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "enum": ["image", "video", "text", "color", "shape"] },
+          "shape": { "$ref": "#/$defs/shape" },
+          "style": {
+            "type": "object",
+            "properties": {
+              "gradient": { "$ref": "#/$defs/gradient" },
+              "stroke": {
+                "type": "object",
+                "properties": { "gradient": { "$ref": "#/$defs/gradient" } },
+                "required": ["gradient"]
+              }
+            }
+          }
+        },
+        "allOf": [
+          { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } }
+        ]
+      }
+    }
+  }
+}

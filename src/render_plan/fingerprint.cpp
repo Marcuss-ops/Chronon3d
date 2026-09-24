@@ -114,6 +114,28 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         writer.add_string(stroke.color);
         add_optional(writer, stroke.width,
                      [](auto& nested, float value) { nested.add_float(value); });
+        add_optional(writer, stroke.trim_start,
+                     [](auto& nested, float value) { nested.add_float(value); });
+        add_optional(writer, stroke.trim_end,
+                     [](auto& nested, float value) { nested.add_float(value); });
+        add_optional(writer, stroke.gradient,
+                     [](auto& nested, const graphics::GradientDefinition& value) {
+            nested.add_enum(value.type);
+            nested.add_enum(value.spread);
+            for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
+                                        value.center.x, value.center.y, value.radius, value.angle})
+                nested.add_float(component);
+            nested.add_size(value.color_stops.size());
+            for (const auto& stop : value.color_stops) {
+                nested.add_float(stop.position);
+                nested.add_float(stop.color.r); nested.add_float(stop.color.g);
+                nested.add_float(stop.color.b); nested.add_float(stop.color.a);
+            }
+            nested.add_size(value.opacity_stops.size());
+            for (const auto& stop : value.opacity_stops) {
+                nested.add_float(stop.position); nested.add_float(stop.opacity);
+            }
+        });
     });
     add_optional(out, style.shadow, [](auto& writer, const ShadowStyle& shadow) {
         writer.add_string(shadow.color);
@@ -194,6 +216,63 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                  [](auto& writer, const LayerStylePlan& value) {
                      add_style(writer, value);
                  });
+    add_optional(out, layer.shape, [](auto& writer, const ShapeContentPlan& shape) {
+        writer.add_enum(shape.type);
+        writer.add_float(shape.radius);
+        add_optional(writer, shape.fill_color, [](auto& nested, const auto& color) {
+            for (const auto component : color) nested.add_float(component);
+        });
+        add_optional(writer, shape.gradient, [](auto& nested,
+                                                 const graphics::GradientDefinition& value) {
+            nested.add_enum(value.type); nested.add_enum(value.spread);
+            for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
+                                        value.center.x, value.center.y, value.radius, value.angle})
+                nested.add_float(component);
+            nested.add_size(value.color_stops.size());
+            for (const auto& stop : value.color_stops) {
+                nested.add_float(stop.position);
+                nested.add_float(stop.color.r); nested.add_float(stop.color.g);
+                nested.add_float(stop.color.b); nested.add_float(stop.color.a);
+            }
+            nested.add_size(value.opacity_stops.size());
+            for (const auto& stop : value.opacity_stops) {
+                nested.add_float(stop.position); nested.add_float(stop.opacity);
+            }
+        });
+        add_optional(writer, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
+            nested.add_string(stroke.color);
+            add_optional(nested, stroke.width, [](auto& w, float v) { w.add_float(v); });
+            add_optional(nested, stroke.solid_color, [](auto& w, const auto& color) {
+                for (const auto component : color) w.add_float(component);
+            });
+            add_optional(nested, stroke.trim_start, [](auto& w, float v) { w.add_float(v); });
+            add_optional(nested, stroke.trim_end, [](auto& w, float v) { w.add_float(v); });
+            add_optional(nested, stroke.gradient, [](auto& w,
+                    const graphics::GradientDefinition& value) {
+                w.add_enum(value.type); w.add_enum(value.spread);
+                for (const auto component : {value.start.x, value.start.y, value.end.x, value.end.y,
+                                            value.center.x, value.center.y, value.radius, value.angle})
+                    w.add_float(component);
+                w.add_size(value.color_stops.size());
+                for (const auto& stop : value.color_stops) {
+                    w.add_float(stop.position);
+                    w.add_float(stop.color.r); w.add_float(stop.color.g);
+                    w.add_float(stop.color.b); w.add_float(stop.color.a);
+                }
+                w.add_size(value.opacity_stops.size());
+                for (const auto& stop : value.opacity_stops) {
+                    w.add_float(stop.position); w.add_float(stop.opacity);
+                }
+            });
+        });
+        writer.add_size(shape.path.size());
+        for (const auto& command : shape.path) {
+            writer.add_enum(command.type);
+            for (const auto value : command.point) writer.add_float(value);
+            for (const auto value : command.control1) writer.add_float(value);
+            for (const auto value : command.control2) writer.add_float(value);
+        }
+    });
 
     for (const auto value : layer.size) out.add_float(value);
     out.add_size(layer.size_dimensions);

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <chronon3d/compiler/compiled_node.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
 
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 
 namespace chronon3d::compiler {
@@ -40,6 +42,7 @@ struct StaticLayerProgram {
     std::int64_t duration_frames{0};
     float opacity{1.0f};
     float radius{0.0f};
+    std::optional<render_plan::ShapeContentPlan> shape;
     bool loop{false};
     // Resolved once by compiler lowering. Runtime sampling must not scan the
     // program's text/animation tables by layer id on every frame.

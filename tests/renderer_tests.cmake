@@ -80,6 +80,7 @@ chronon3d_add_test_suite(
         render_graph/nodes/test_clear_policy.cpp
         render_graph/nodes/test_transform_policy.cpp
         render_graph/executor/test_fused_batch_policy.cpp
+        render_graph/executor/test_node_executor_cache_lifetime.cpp
         render_graph/nodes/test_mask_node_unit.cpp
         render_graph/nodes/test_multi_source_text_run.cpp
         render_graph/nodes/test_gpu_text_run_placement.cpp

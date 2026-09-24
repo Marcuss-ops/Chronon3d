@@ -82,24 +82,17 @@ double run_node(
     if (owned) {
         owned->set_key_digest(key.digest());
 
-        // ── Transform scratch buffer: preserve the scratch_slot deleter ──
-        //    through the CachedFB so the buffer is restored to the scratch
-        //    slot (cleared) when all consumers finish, instead of being
-        //    released to the pool.  Also skip caching — caching the scratch
-        //    would allow stale content to survive past the frame boundary.
-        const bool is_scratch = std::holds_alternative<ReturnToScratch>(owned.get_deleter().policy);
-        // Planned physical-slot results are non-owning RendererOwned views.
-        // Their backing slot dies with this ExecutionState, so retaining the
-        // view in NodeCache would leave a dangling framebuffer/native handle
-        // that fails on a later warm job. Only cache independently-owned FBs.
-        const bool is_renderer_owned = std::holds_alternative<RendererOwned>(
-            owned.get_deleter().policy);
+        // The output's storage contract must outlive this graph execution
+        // before it may enter NodeCache. Arena-backed framebuffers are
+        // non-owning views into the rotating video-export arena; retaining the
+        // wrapper across frames leaves a dangling/reused pixel pointer once the
+        // writer releases and the arena is reset. The predicate also excludes
+        // scratch and renderer-owned storage and native-only surfaces.
+        const bool persistently_cacheable = node_output_is_persistently_cacheable(
+            *owned, owned.get_deleter());
         result = promote_to_cached(std::move(owned));
-        const bool has_native_surface = result &&
-            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
 
-        if (use_cache && ctx.execution_node_cache() && !is_scratch &&
-            !is_renderer_owned && !has_native_surface) {
+        if (use_cache && ctx.execution_node_cache() && persistently_cacheable) {
             ctx.execution_node_cache()->store(key, result);
         }
     }

@@ -64,7 +64,7 @@ struct FillStyle {
     [[nodiscard]] bool is_solid()   const noexcept { return !gradient.has_value(); }
     [[nodiscard]] bool is_gradient() const noexcept { return  gradient.has_value(); }
 
-    // ── Bridge to legacy Fill ────────────────────────────────────────
+    // ── Bridge to scene Fill, retaining the canonical gradient ────────
 
     Fill to_fill() const;
 };
@@ -75,50 +75,19 @@ struct FillStyle {
 // ══════════════════════════════════════════════════════════════════════
 
 inline Fill FillStyle::to_fill() const {
-    if (!enabled) {
-        return {false, FillType::Solid, solid_color, {}};
-    }
-    if (!gradient.has_value()) {
-        return Fill::solid_color(solid_color);
-    }
+    if (!enabled) return {false, FillType::Solid, solid_color, {}};
+    if (!gradient) return Fill::solid_color(solid_color);
 
-    const auto& g = *gradient;
-
-    auto convert_stops = [&]() -> std::vector<::chronon3d::GradientStop> {
-        std::vector<::chronon3d::GradientStop> out;
-        out.reserve(g.color_stops.size());
-        for (const auto& s : g.color_stops) {
-            ::chronon3d::GradientStop fs;
-            fs.offset = s.position;
-            fs.color  = s.color;
-            if (!g.opacity_stops.empty()) {
-                const f32 op = detail::sample_opacity_stops(
-                    g.opacity_stops, s.position);
-                fs.color.a *= op;
-            }
-            out.push_back(fs);
-        }
-        return out;
-    };
-
-    switch (g.type) {
-        case GradientType::Linear: {
-            Fill f = Fill::linear(g.start, g.end, convert_stops());
-            f.enabled = enabled;
-            return f;
-        }
-        case GradientType::Radial: {
-            Fill f = Fill::radial(g.center, g.radius, convert_stops());
-            f.enabled = enabled;
-            return f;
-        }
-        case GradientType::Conic: {
-            Fill f = Fill::conic(g.center, g.angle, convert_stops());
-            f.enabled = enabled;
-            return f;
-        }
+    Fill fill;
+    fill.enabled = true;
+    fill.solid = solid_color;
+    fill.gradient = *gradient;
+    switch (gradient->type) {
+        case GradientType::Linear: fill.type = FillType::LinearGradient; break;
+        case GradientType::Radial: fill.type = FillType::RadialGradient; break;
+        case GradientType::Conic: fill.type = FillType::ConicGradient; break;
     }
-    return Fill::solid_color(solid_color);
+    return fill;
 }
 
 

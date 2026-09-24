@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
@@ -19,8 +20,38 @@
 namespace chronon3d::render_plan {
 
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
+inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color };
+enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape };
+enum class ShapeContentTypePlan : std::uint8_t { Rect, RoundedRect, Ellipse, Line, Path };
+enum class ShapePathCommandTypePlan : std::uint8_t {
+    MoveTo, LineTo, QuadraticTo, CubicTo, Close
+};
+
+struct ShapePathCommandPlan {
+    ShapePathCommandTypePlan type{ShapePathCommandTypePlan::MoveTo};
+    std::array<float, 2> point{0.0f, 0.0f};
+    std::array<float, 2> control1{0.0f, 0.0f};
+    std::array<float, 2> control2{0.0f, 0.0f};
+};
+
+struct StrokeStyle {
+    std::string color;
+    std::optional<float> width;
+    std::optional<float> trim_start;
+    std::optional<float> trim_end;
+    std::optional<std::array<float, 4>> solid_color;
+    std::optional<graphics::GradientDefinition> gradient;
+};
+
+struct ShapeContentPlan {
+    ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
+    float radius{0.0f};
+    std::optional<std::array<float, 4>> fill_color;
+    std::optional<graphics::GradientDefinition> gradient;
+    std::optional<StrokeStyle> stroke;
+    std::vector<ShapePathCommandPlan> path;
+};
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
@@ -31,11 +62,6 @@ struct CanvasSpec {
     int height{0};
     FrameRate fps{30, 1};
     Frame duration{0};
-};
-
-struct StrokeStyle {
-    std::string color;
-    std::optional<float> width;
 };
 
 struct ShadowStyle {
@@ -149,6 +175,7 @@ struct LayerPlan {
     // Kept as an execution field so asset preflight remains simple.
     std::string font;
     std::optional<LayerStylePlan> style;
+    std::optional<ShapeContentPlan> shape;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};
