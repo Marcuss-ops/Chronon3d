@@ -3,7 +3,7 @@
 #include <chronon3d/media/video/packet_assembler.hpp>
 
 extern "C" {
-#include <libavformat/version_major.h>
+#include <libavformat/version.h>
 #include <libavutil/hash.h>
 }
 
