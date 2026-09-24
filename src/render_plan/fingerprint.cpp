@@ -267,8 +267,14 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control1) out.add_float(value);
             for (const auto value : command.control2) out.add_float(value);
         }
-        out.add_size(shape.repeaters.size());
-        for (const auto& repeater : shape.repeaters) {
+        out.add_size(shape.operators.size());
+        for (const auto& op : shape.operators) {
+            out.add_enum(op.kind);
+            if (op.kind == PathOperatorKindPlan::RoundCorners) {
+                out.add_float(op.radius);
+                continue;
+            }
+            const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);
             for (const auto value : repeater.scale) out.add_float(value);

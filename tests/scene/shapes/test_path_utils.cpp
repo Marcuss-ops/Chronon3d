@@ -129,3 +129,22 @@ TEST_CASE("Path repeater expands deterministic copies with opacity decay") {
     CHECK(copies[1].fill.solid.a == doctest::Approx(0.5));
     CHECK(copies[2].fill.solid.a == doctest::Approx(0.25));
 }
+
+TEST_CASE("Round corners replaces polyline vertices with quadratic corners") {
+    PathShape square;
+    square.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({10, 0}),
+        PathCommand::line_to({10, 10}), PathCommand::line_to({0, 10}),
+        PathCommand::close()};
+    square.closed = true;
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::RoundCorners;
+    op.params = RoundCornersParams{2.0f};
+    const auto result = apply_path_operators(square, {op});
+    REQUIRE(result.size() == 1);
+    CHECK(result[0].commands.size() == 9);
+    CHECK(result[0].commands.front().type == PathCommandType::MoveTo);
+    CHECK(result[0].commands[1].type == PathCommandType::QuadraticTo);
+    CHECK(result[0].commands[1].p1.x == doctest::Approx(0));
+    CHECK(result[0].commands[1].p1.y == doctest::Approx(0));
+    CHECK(result[0].commands.back().type == PathCommandType::Close);
+}
