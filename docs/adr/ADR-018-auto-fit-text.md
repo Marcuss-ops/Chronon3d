@@ -8,6 +8,10 @@
 | **Tags** | `text`, `auto-fit`, `font-size`, `binary-search`, `layout`, `compile_text_layout`, `ParagraphStyle` |
 | **Related** | `include/chronon3d/text/paragraph_style.hpp` (field declarations); `src/text/text_run_builder.cpp` (`compile_text_layout` canonical compiler); `src/scene/builders/text_run_builder.cpp` (`compile_or_cache_layout` materializer); `include/chronon3d/text/text_run_builder.hpp` (`TextLayoutRequest` / `TextCompileServices`); ADR-001 (frame-graph-compiler, layout pipeline); `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` (text V1 roadmap) |
 
+> **Policy update (2026-09-24):** Auto-fit is opt-in. `TextOverflow::Clip` does not change
+> the authored font size and must not trigger this ADR's shrink-only fitting. Pixel clipping
+> to the authoring box is a separate renderer behavior tracked by `TICKET-TEXT-CLIP-BOX`.
+
 ## Context and scope
 
 Chronon3d's text pipeline (`compile_text_layout()` → `TextRunLayout`) compiles a `TextDocument` + `TextLayoutSpec` into shaped + positioned glyphs.  The `TextLayoutSpec::box` field defines the available bounding box (width × height in pixels).  When the authored text overflows the box — too many glyphs, too large a font, too narrow a wrap width — the layout simply overflows: glyphs render past the box boundary with no diagnostic and no correction.
@@ -30,7 +34,7 @@ These fields are **declared but unused** — no code path reads them.  This ADR 
 
 ### Spec
 
-Auto-fit is **shrink-only**: when `auto_fit_font_size == true`, the compiler may **reduce** the effective font size to make the paragraph fit the box, but it must **never increase** it beyond the authored font size (`TextLayoutSpec::font.font_size`).
+Auto-fit is **explicit and shrink-only**: when `auto_fit_font_size == true`, the compiler may **reduce** the effective font size to make the paragraph fit the box, but it must **never increase** it beyond the authored font size (`TextLayoutSpec::font.font_size`). `TextOverflow::Clip` alone does not enable auto-fit. `TextOverflow::Clip` alone does not enable auto-fit.
 
 The authored font size is the **ceiling** of the search range.  `max_font_size` is an upper bound clamp (default 96.0f) that caps the ceiling when the authored size exceeds it — but the compiler never *grows* toward `max_font_size`; it only uses it as a guard.
 

@@ -16,7 +16,8 @@ bool try_native_full_frame_blur(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&,
     runtime::RenderSurfaceHandle borrowed_source =
-        runtime::kInvalidRenderSurfaceHandle);
+        runtime::kInvalidRenderSurfaceHandle,
+    const Framebuffer* borrowed_source_framebuffer = nullptr);
 bool try_native_full_frame_glow(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&,

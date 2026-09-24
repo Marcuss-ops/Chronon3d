@@ -254,9 +254,18 @@ struct SurfaceAffineTransform {
     std::int32_t dispatch_origin_y{0};
     std::int32_t clip_rect[4]{};
     std::uint32_t clip_enabled{0};
+    // Homography denominator (2.5D inverse projection), consumed as three
+    // float bits by the shader; zero padding preserves the affine contract.
     std::uint32_t padding[3]{};
+    // Store blend selector: 0 = replace (legacy default — the kernel writes
+    // transparent black where the source does not cover the dispatch region),
+    // 1 = SourceOver on premultiplied surfaces (same contract as
+    // composite.comp Normal mode — destination pixels survive where the
+    // projected source has zero coverage). Producers writing a fresh
+    // destination keep 0; compositing onto a seeded destination must use 1.
+    std::uint32_t blend_source_over{0};
 };
-static_assert(sizeof(SurfaceAffineTransform) == 96,
+static_assert(sizeof(SurfaceAffineTransform) == 100,
               "SurfaceAffineTransform must match affine_transform.comp push constants");
 
 struct RectF {

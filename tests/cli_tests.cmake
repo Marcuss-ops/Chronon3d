@@ -53,6 +53,12 @@ if(TARGET chronon3d_cli_video_export)
     )
 endif()
 
+# The daemon IPC exception-boundary test drives the real UnixSocketServer
+# transport (serve_concurrent owns a per-client thread), so the suite links
+# Threads explicitly instead of relying on a transitive pthread dependency.
+find_package(Threads REQUIRED)
+list(APPEND _cli_tests_link_targets Threads::Threads)
+
 if(TARGET chronon3d_cli_dev)
     list(APPEND _cli_tests_link_targets chronon3d_cli_dev)
 endif()

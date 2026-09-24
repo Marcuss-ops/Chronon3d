@@ -167,7 +167,9 @@ TEST_CASE("AssetManifest — LayerBuilder::mesh creates an unloaded node and man
     REQUIRE(layer.nodes.size() == 1);
     CHECK(layer.nodes[0].name == "phone");
     CHECK(layer.nodes[0].shape.type() == ShapeType::Mesh);
-    CHECK(layer.nodes[0].shape.mesh_shape().mesh == nullptr);
+    // Unloaded: the logical reference is present, nothing is prepared yet.
+    CHECK_FALSE(static_cast<bool>(layer.nodes[0].shape.mesh_shape().prepared));
+    CHECK(layer.nodes[0].shape.mesh_shape().reference.path() == "models/phone.glb");
 
     auto meshes = layer.asset_manifest.filter(assets::AssetKind::Mesh);
     REQUIRE(meshes.size() == 1);

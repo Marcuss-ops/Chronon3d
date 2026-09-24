@@ -27,7 +27,7 @@ using namespace chronon3d::graph;
 
     auto materialized = node;
     auto& mesh_shape = materialized.shape.mesh_shape();
-    if (mesh_shape.prepared || mesh_shape.mesh) {
+    if (mesh_shape.prepared) {
         return materialized;
     }
     if (mesh_shape.reference.path().empty()) {

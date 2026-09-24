@@ -52,7 +52,8 @@ public:
             };
             const bool native =
                 native_effects::try_native_full_frame_blur(
-                    ctx, m_effects, *result, ctx.node_exec.clip_rect) ||
+                    ctx, m_effects, *result, ctx.node_exec.clip_rect,
+                    inputs[0]->surface_handle(), inputs[0].get()) ||
                 native_effects::try_native_full_frame_glow(
                     ctx, m_effects, *result, ctx.node_exec.clip_rect) ||
                 native_effects::try_native_full_frame_tint(

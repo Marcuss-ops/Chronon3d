@@ -44,7 +44,7 @@ struct RenderNode {
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
     // Mesh moved to Shape::MeshShape (shape variant index 13).
-    // Access via: node.shape.mesh_shape().mesh
+    // Access via: node.shape.mesh_shape().prepared / .reference
     f32 corner_radius{0.0f};
 
     // Runtime/shape-specific parameters to avoid hardcoding in RenderNode

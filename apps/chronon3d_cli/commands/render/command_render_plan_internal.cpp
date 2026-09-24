@@ -89,24 +89,6 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
-std::optional<std::string> unsupported_animated_vulkan_image(
-    const render_plan::RenderPlan& plan) {
-    for (const auto& layer : plan.layers) {
-        if (layer.type != render_plan::LayerType::Image || !layer.enable_3d ||
-            !layer.animation) {
-            continue;
-        }
-        for (const auto& track : layer.animation->tracks) {
-            if (track.property == "position_z" || track.property == "rotation_x" ||
-                track.property == "rotation_y" || track.property == "rotation_z" ||
-                track.property == "scale_z") {
-                return layer.id + ":" + track.property;
-            }
-        }
-    }
-    return std::nullopt;
-}
-
 } // namespace
 
 int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
@@ -130,26 +112,6 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             return 1;
         }
         auto context = std::move(preparation).value();
-
-        // Pixel-correct Vulkan composition is verified, but animated 2.5D
-        // image plans still have no certified Vulkan-to-CUDA/NVENC native
-        // surface feed. Fail strict native requests before opening output;
-        // do not confuse the composition fix with encoder interop support.
-        const auto requested_output = normalized_job.output_path.empty()
-            ? context.decoded.output.path : normalized_job.output_path.string();
-        const bool strict_vulkan_native = video_output(requested_output) &&
-            normalized_job.backend == "vulkan" &&
-            normalized_job.output.gpu_hot_path_mode == "require_gpu_native";
-        if (strict_vulkan_native) {
-            if (const auto unsupported =
-                    unsupported_animated_vulkan_image(context.decoded)) {
-                spdlog::error(
-                    "[video] refusing require_gpu_native: animated 2.5D image "
-                    "native video-surface capability is not certified ({})",
-                    *unsupported);
-                return 1;
-            }
-        }
 
         const auto coverage = validate_copy_lane_coverage(
             context.decoded, normalized_job.output.gop_copy_only,

@@ -111,7 +111,8 @@ public:
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled
             };
             if (!native_effects::try_native_full_frame_blur(
-                    ctx, dof_stack, *result, local_clip)) {
+                    ctx, dof_stack, *result, local_clip,
+                    inputs[0]->surface_handle(), inputs[0].get())) {
                 ctx.backend->apply_effect_stack(*result, dof_stack, dof_context);
             }
             if (ctx.node_exec.counters) {

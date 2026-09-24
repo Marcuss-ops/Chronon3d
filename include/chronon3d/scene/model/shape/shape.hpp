@@ -333,12 +333,11 @@ struct TiledImageShape {
 
 /// Mesh payload — keeps the logical reference in the scene and receives
 /// prepared runtime data at the AssetResolver → RenderGraph boundary.
-/// The legacy `mesh` slot remains as a compatibility escape hatch for
-/// already-constructed in-memory meshes; authoring never loads into it.
+/// There is no in-memory mesh escape hatch: every mesh must arrive as an
+/// `assets::PreparedMeshSourceRef` through the AssetResolver.
 struct MeshShape {
     assets::MeshRef reference{};
     assets::PreparedMeshSourceRef prepared{};
-    std::shared_ptr<Mesh> mesh;
 };
 
 /// TextRun payload — carries a shared_ptr<TextRunShape> so TextRun has its
