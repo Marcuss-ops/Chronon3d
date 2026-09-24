@@ -133,6 +133,7 @@ chronon3d_add_test_suite(
     SOURCES
         effects/effect_graph_tests.cpp
         effects/test_compose_color_op.cpp
+        effects/test_cube_lut.cpp
         effects/test_curves.cpp
         effects/test_directional_blur.cpp
         effects/test_effect_catalog.cpp

@@ -45,10 +45,16 @@ TEST_CASE("EffectCatalog: EffectType numeric values are stable") {
     static_assert(static_cast<uint8_t>(EffectType::DirectionalBlur) == 19);
     static_assert(static_cast<uint8_t>(EffectType::RadialBlur)     == 20);
     static_assert(static_cast<uint8_t>(EffectType::Stroke)         == 21);
+    static_assert(static_cast<uint8_t>(EffectType::FractalNoise)    == 22);
+    static_assert(static_cast<uint8_t>(EffectType::Checkerboard)    == 23);
+    static_assert(static_cast<uint8_t>(EffectType::FourColorGradient) == 24);
+    static_assert(static_cast<uint8_t>(EffectType::LightRays)       == 25);
+    static_assert(static_cast<uint8_t>(EffectType::Lut3D)           == 26);
 
     // Verify that the enum values we use in code match the expected numeric range
     CHECK(static_cast<uint8_t>(EffectType::Unknown) == 0);
     CHECK(static_cast<uint8_t>(EffectType::Stroke) == 21);
+    CHECK(static_cast<uint8_t>(EffectType::Lut3D) == 26);
 }
 
 // =============================================================================
@@ -73,6 +79,7 @@ TEST_CASE("EffectCatalog: effect_type_for maps param type to EffectType") {
     CHECK(effect_type_for<FillParams>::value          == EffectType::Fill);
     CHECK(effect_type_for<NoiseParams>::value         == EffectType::Noise);
     CHECK(effect_type_for<OffsetParams>::value        == EffectType::Offset);
+    CHECK(effect_type_for<Lut3DParams>::value          == EffectType::Lut3D);
 }
 
 // =============================================================================

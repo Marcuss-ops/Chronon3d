@@ -1,4 +1,5 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <chronon3d/effects/cube_lut.hpp>
 #include <cmath>
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
@@ -16,6 +17,8 @@
 #include <chronon3d/timeline/composition_definition.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -125,6 +128,19 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
         }
+        std::vector<std::vector<Lut3DParams>> prepared_luts(plan.layers.size());
+        for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+            for (const auto& effect : plan.layers[index].lut_effects) {
+                const auto resolved = resolver.resolve_logical(std::filesystem::path(effect.asset));
+                if (!resolved) throw std::runtime_error("3D LUT asset was not prepared: " + effect.asset);
+                std::ifstream file(*resolved, std::ios::binary);
+                if (!file) throw std::runtime_error("failed to open 3D LUT asset: " + effect.asset);
+                std::string contents((std::istreambuf_iterator<char>(file)), {});
+                if (contents.size() > 8U * 1024U * 1024U)
+                    throw std::runtime_error("3D LUT asset exceeds the 8 MiB parser limit: " + effect.asset);
+                prepared_luts[index].push_back(effects::parse_cube_lut(contents, effect.amount));
+            }
+        }
         materialize_layout_ms = chronon3d::profiling::duration_ms(
             materialize_t0, chronon3d::profiling::now());
 
@@ -134,7 +150,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
-        definition.scene = [plan, resolved_video_paths, prepared_texts, font_engine,
+        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_luts, font_engine,
                             has_3d_layer, plan_camera](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
@@ -452,6 +468,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
+                    for (const auto& lut : prepared_luts[index])
+                        builder.effect(lut);
                     if (layer.path_mask) {
                         PathMaskParams params;
                         params.feather = layer.path_mask->feather;

@@ -243,6 +243,19 @@ private:
                 seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
+        case Lut3D: {
+            if (auto* p = std::get_if<Lut3DParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->dimension));
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_bytes(p->domain_min.data(), sizeof(p->domain_min)));
+                seed = hash_combine(seed, hash_bytes(p->domain_max.data(), sizeof(p->domain_max)));
+                // The LUT buffer is immutable and shared. Its plan asset's
+                // content digest is part of the render-plan job fingerprint;
+                // pointer identity is the O(1) runtime invalidation token.
+                seed = hash_combine(seed, hash_value(p->values.get()));
+            }
+            break;
+        }
         case Unknown:
             break;
         }
@@ -258,7 +271,15 @@ private:
     seed = hash_combine(seed, hash_vec3(m.pos));
     seed = hash_combine(seed, hash_vec2(m.size));
     seed = hash_combine(seed, hash_value(m.radius));
+    seed = hash_combine(seed, hash_value(m.feather));
+    seed = hash_combine(seed, hash_value(m.expansion));
     seed = hash_combine(seed, hash_value(m.inverted));
+    for (const auto& command : m.path) {
+        seed = hash_combine(seed, hash_value(static_cast<int>(command.type)));
+        seed = hash_combine(seed, hash_vec2(command.p0));
+        seed = hash_combine(seed, hash_vec2(command.p1));
+        seed = hash_combine(seed, hash_vec2(command.p2));
+    }
     return seed;
 }
 

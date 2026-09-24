@@ -58,6 +58,18 @@ bool append_fusible_stage(
                 stage.blue = context.curve_cache->get_or_compile(params.blue);
             pipeline.add_stage(std::move(stage));
             return true;
+        } else if constexpr (std::is_same_v<Params, Lut3DParams>) {
+            const auto expected = static_cast<std::size_t>(params.dimension) * params.dimension * params.dimension;
+            if (effect.effect_type != effects::EffectType::Lut3D || params.dimension < 2 || params.dimension > 64 ||
+                !params.values || params.values->size() != expected || !std::isfinite(params.amount) ||
+                params.amount < 0.0f || params.amount > 1.0f)
+                return false;
+            for (std::size_t channel = 0; channel < 3; ++channel)
+                if (!std::isfinite(params.domain_min[channel]) ||
+                    !std::isfinite(params.domain_max[channel]) ||
+                    params.domain_max[channel] <= params.domain_min[channel]) return false;
+            pipeline.add_stage(params);
+            return true;
         } else {
             return false;
         }

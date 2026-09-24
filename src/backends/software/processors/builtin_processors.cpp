@@ -51,6 +51,7 @@ std::unique_ptr<EffectProcessor> create_noise_effect_processor();
 std::unique_ptr<EffectProcessor> create_fractal_noise_effect_processor();
 std::unique_ptr<EffectProcessor> create_checkerboard_effect_processor();
 std::unique_ptr<EffectProcessor> create_four_color_gradient_effect_processor();
+std::unique_ptr<EffectProcessor> create_lut_3d_effect_processor();
 std::unique_ptr<EffectProcessor> create_light_rays_effect_processor();
 std::unique_ptr<EffectProcessor> create_offset_effect_processor();
 std::unique_ptr<EffectProcessor> create_curves_effect_processor();
@@ -107,6 +108,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<FractalNoiseParams>(create_fractal_noise_effect_processor());
     registry.register_effect_processor<CheckerboardParams>(create_checkerboard_effect_processor());
     registry.register_effect_processor<FourColorGradientParams>(create_four_color_gradient_effect_processor());
+    registry.register_effect_processor<Lut3DParams>(create_lut_3d_effect_processor());
     registry.register_effect_processor<LightRaysParams>(create_light_rays_effect_processor());
     registry.register_effect_processor<OffsetParams>(create_offset_effect_processor());
     registry.register_effect_processor<DirectionalBlurParams>(create_directional_blur_effect_processor());

@@ -1,0 +1,9 @@
+CHRONON FRAMEHASH v1
+engine_sha=unknown
+plan_digest=lut-cube-canary-v1
+pixel_format=rgba8
+width=32
+height=32
+frame_bytes=4096
+frames=1
+frame=0 sha256=0066965d1f8102303ae414068e3a07a1d6f0f786a7c5fda5c97f78c1950c05c8

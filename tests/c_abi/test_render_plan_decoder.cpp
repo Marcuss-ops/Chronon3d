@@ -120,6 +120,20 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
+TEST_CASE("render plan decodes LUT assets and fails closed on unsupported effects") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "graded"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "lut_3d"}, {"asset", "looks/cinema.cube"}, {"amount", 0.75}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].lut_effects.size() == 1);
+    CHECK(decoded->layers[0].lut_effects[0].asset == "looks/cinema.cube");
+    CHECK(decoded->layers[0].lut_effects[0].amount == doctest::Approx(0.75f));
+    plan["layers"][0]["effects"][0]["type"] = "unknown";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan).has_value());
+}
+
 TEST_CASE("render plan decoder rejects a layer with missing id or type") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan.v2"},

@@ -61,6 +61,45 @@ inline void apply_compose_stage(color::StraightRgb& srgb, const ComposeStage& st
     srgb = apply_compose_op(srgb, stage.op, stage.blend);
 }
 
+inline std::array<float, 3> sample_lut(const Lut3DParams& lut, float r, float g, float b) {
+    const auto n = static_cast<int>(lut.dimension);
+    const auto coordinate = [&](float value, std::size_t channel) {
+        return std::clamp((value - lut.domain_min[channel]) /
+                          (lut.domain_max[channel] - lut.domain_min[channel]), 0.0f, 1.0f)
+               * static_cast<float>(n - 1);
+    };
+    const float x = coordinate(r, 0), y = coordinate(g, 1), z = coordinate(b, 2);
+    const int x0 = static_cast<int>(x), y0 = static_cast<int>(y), z0 = static_cast<int>(z);
+    const int x1 = std::min(x0 + 1, n - 1), y1 = std::min(y0 + 1, n - 1), z1 = std::min(z0 + 1, n - 1);
+    const float tx = x - x0, ty = y - y0, tz = z - z0;
+    const auto at = [&](int ix, int iy, int iz) -> const std::array<float, 3>& {
+        return (*lut.values)[static_cast<std::size_t>(iz * n * n + iy * n + ix)];
+    };
+    std::array<float, 3> out{};
+    for (std::size_t c = 0; c < 3; ++c) {
+        const float c00 = std::lerp(at(x0,y0,z0)[c], at(x1,y0,z0)[c], tx);
+        const float c10 = std::lerp(at(x0,y1,z0)[c], at(x1,y1,z0)[c], tx);
+        const float c01 = std::lerp(at(x0,y0,z1)[c], at(x1,y0,z1)[c], tx);
+        const float c11 = std::lerp(at(x0,y1,z1)[c], at(x1,y1,z1)[c], tx);
+        out[c] = std::lerp(std::lerp(c00, c10, ty), std::lerp(c01, c11, ty), tz);
+    }
+    return out;
+}
+
+inline void apply_lut_stage(color::StraightRgb& rgb, const Lut3DParams& lut) {
+    if (lut.dimension < 2 || !lut.values ||
+        lut.values->size() != static_cast<std::size_t>(lut.dimension) * lut.dimension * lut.dimension ||
+        !std::isfinite(lut.amount) || lut.amount <= 0.0f || lut.amount > 1.0f)
+        return;
+    for (std::size_t c = 0; c < 3; ++c)
+        if (!std::isfinite(lut.domain_min[c]) || !std::isfinite(lut.domain_max[c]) ||
+            lut.domain_max[c] <= lut.domain_min[c]) return;
+    const auto mapped = sample_lut(lut, rgb.r, rgb.g, rgb.b);
+    rgb.r = std::lerp(rgb.r, mapped[0], lut.amount);
+    rgb.g = std::lerp(rgb.g, mapped[1], lut.amount);
+    rgb.b = std::lerp(rgb.b, mapped[2], lut.amount);
+}
+
 } // anonymous namespace
 
 // =============================================================================
@@ -98,6 +137,8 @@ void ColorPipeline::apply(
                     apply_levels_stage(srgb, *lvl);
                 else if (auto* curv = std::get_if<CurvesStage>(&stage))
                     apply_curves_stage(srgb, *curv);
+                else if (auto* lut = std::get_if<Lut3DParams>(&stage))
+                    apply_lut_stage(srgb, *lut);
                 else if (auto* comp = std::get_if<ComposeStage>(&stage))
                     apply_compose_stage(srgb, *comp);
             }

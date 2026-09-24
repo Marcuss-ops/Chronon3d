@@ -192,6 +192,18 @@
               "inverted": { "type": "boolean" }
             }
           },
+          "effects": {
+            "type": "array", "maxItems": 64,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "asset"],
+              "properties": {
+                "type": { "const": "lut_3d" },
+                "asset": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "amount": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          },
           "style": {
             "type": "object",
             "properties": {

@@ -243,6 +243,28 @@ public:
     }
 };
 
+class SoftwareLut3DEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<Lut3DParams>(&params);
+        if (!p) throw std::runtime_error("Lut3D processor received invalid parameters");
+        const auto expected = static_cast<std::size_t>(p->dimension) * p->dimension * p->dimension;
+        if (p->dimension < 2 || p->dimension > 64 || !p->values ||
+            p->values->size() != expected || !std::isfinite(p->amount) ||
+            p->amount < 0.0f || p->amount > 1.0f)
+            throw std::runtime_error("Lut3D processor received invalid table dimensions or amount");
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            if (!std::isfinite(p->domain_min[channel]) ||
+                !std::isfinite(p->domain_max[channel]) ||
+                p->domain_max[channel] <= p->domain_min[channel])
+                throw std::runtime_error("Lut3D processor received an invalid domain range");
+        ColorPipeline pipeline;
+        pipeline.add_stage(*p);
+        pipeline.apply(fb, context.clip);
+    }
+};
+
 class SoftwareLightRaysEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -411,6 +433,10 @@ std::unique_ptr<EffectProcessor> create_checkerboard_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_four_color_gradient_effect_processor() {
     return std::make_unique<SoftwareFourColorGradientEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_lut_3d_effect_processor() {
+    return std::make_unique<SoftwareLut3DEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_light_rays_effect_processor() {
