@@ -285,6 +285,24 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
                 throw std::invalid_argument("wiggle-path parameters do not match operator kind");
             for (auto& path : paths)
                 path = wiggle_path(path, std::get<WigglePathParams>(op.params), op.seed);
+        } else if (op.kind == PathOperatorKind::Merge) {
+            if (!std::holds_alternative<MergeParams>(op.params))
+                throw std::invalid_argument("merge parameters do not match operator kind");
+            const auto& merge = std::get<MergeParams>(op.params);
+            std::size_t appended = 0;
+            for (const auto& subpath : merge.paths) {
+                if (subpath.empty() || subpath.front().type != PathCommandType::MoveTo)
+                    throw std::invalid_argument("each merged subpath must begin with move_to");
+                if (subpath.size() > 1000000 - appended)
+                    throw std::invalid_argument("compound path exceeds the geometry limit");
+                appended += subpath.size();
+            }
+            for (auto& path : paths) {
+                if (path.commands.size() > 1000000 - appended)
+                    throw std::invalid_argument("compound path exceeds the geometry limit");
+                for (const auto& subpath : merge.paths)
+                    path.commands.insert(path.commands.end(), subpath.begin(), subpath.end());
+            }
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");
