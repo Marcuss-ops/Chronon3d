@@ -249,6 +249,13 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         !std::isfinite(decoded_op.points_per_unit) ||
                         decoded_op.points_per_unit <= 0.0f || decoded_op.points_per_unit > 1000.0f)
                         throw std::runtime_error("invalid zig-zag parameters");
+                } else if (kind == "offset_path") {
+                    decoded_op.kind = PathOperatorKindPlan::OffsetPath;
+                    decoded_op.amount = p.at("amount").get<float>();
+                    decoded_op.miter_limit = p.value("miter_limit", 4.0f);
+                    if (!std::isfinite(decoded_op.amount) || !std::isfinite(decoded_op.miter_limit) ||
+                        decoded_op.miter_limit < 1.0f || decoded_op.miter_limit > 1000.0f)
+                        throw std::runtime_error("invalid offset-path parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }

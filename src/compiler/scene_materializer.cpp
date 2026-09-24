@@ -184,6 +184,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::ZigZag) {
                                         specs.push_back({PathOperatorKind::ZigZag,
                                             ZigZagParams{op.size, op.points_per_unit, op.smooth}, 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::OffsetPath) {
+                                        specs.push_back({PathOperatorKind::OffsetPath,
+                                            OffsetPathParams{op.amount, op.miter_limit}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

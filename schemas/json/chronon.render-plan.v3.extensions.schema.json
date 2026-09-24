@@ -80,7 +80,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "enum": ["repeater", "round_corners", "zig_zag"] },
+              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path"] },
               "params": {
                 "oneOf": [
                   {
@@ -107,6 +107,14 @@
                       "size": { "type": "number", "minimum": 0 },
                       "points_per_unit": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
                       "smooth": { "type": "boolean" }
+                    }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["amount"],
+                    "properties": {
+                      "amount": { "type": "number" },
+                      "miter_limit": { "type": "number", "minimum": 1, "maximum": 1000 }
                     }
                   }
                 ]

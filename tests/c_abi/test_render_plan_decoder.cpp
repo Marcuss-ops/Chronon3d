@@ -70,13 +70,14 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
         "operators":[{"kind":"repeater","params":{"copies":3,
           "position":[4,0],"opacity_decay":0.5}},
           {"kind":"round_corners","params":{"radius":2}},
-          {"kind":"zig_zag","params":{"size":2,"points_per_unit":0.2,"smooth":true}}]}}],
+          {"kind":"zig_zag","params":{"size":2,"points_per_unit":0.2,"smooth":true}},
+          {"kind":"offset_path","params":{"amount":2,"miter_limit":3}}]}}],
       "output":{"path":"out.png"}
     })JSON");
     auto decoded = chronon3d::render_plan::decode_render_plan(source);
     if (!decoded) INFO(decoded.error().message);
     REQUIRE(decoded.has_value());
-    REQUIRE(decoded->layers[0].shape->operators.size() == 3);
+    REQUIRE(decoded->layers[0].shape->operators.size() == 4);
     CHECK(decoded->layers[0].shape->operators[0].repeater.copies == 3);
     CHECK(decoded->layers[0].shape->operators[0].repeater.position[0] == doctest::Approx(4));
     CHECK(decoded->layers[0].shape->operators[1].kind ==
@@ -85,7 +86,10 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     CHECK(decoded->layers[0].shape->operators[2].kind ==
           chronon3d::render_plan::PathOperatorKindPlan::ZigZag);
     CHECK(decoded->layers[0].shape->operators[2].smooth);
-    source["layers"][0]["shape"]["operators"][2]["kind"] = "future_operator";
+    CHECK(decoded->layers[0].shape->operators[3].kind ==
+          chronon3d::render_plan::PathOperatorKindPlan::OffsetPath);
+    CHECK(decoded->layers[0].shape->operators[3].amount == doctest::Approx(2));
+    source["layers"][0]["shape"]["operators"][3]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 

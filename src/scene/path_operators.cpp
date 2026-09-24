@@ -131,6 +131,59 @@ PathShape zig_zag(const PathShape& source, const ZigZagParams& params) {
     output.closed = closed;
     return output;
 }
+PathShape offset_path(const PathShape& source, const OffsetPathParams& params) {
+    if (!std::isfinite(params.amount) || !std::isfinite(params.miter_limit) ||
+        params.miter_limit < 1.0f)
+        throw std::invalid_argument("offset amount must be finite and miter_limit must be at least one");
+    if (params.amount == 0.0f) return source;
+    std::vector<Vec2> points;
+    bool closed = false;
+    std::size_t subpaths = 0;
+    for (const auto& command : source.commands) {
+        if (command.type == PathCommandType::MoveTo) {
+            if (++subpaths > 1) throw std::invalid_argument("offset-path currently requires a single subpath");
+            points.push_back(command.p0);
+        } else if (command.type == PathCommandType::LineTo) points.push_back(command.p0);
+        else if (command.type == PathCommandType::Close) closed = true;
+        else throw std::invalid_argument("offset-path currently requires a polyline path");
+    }
+    if (closed && points.size() > 1 && glm::length(points.front() - points.back()) <= 1e-6f)
+        points.pop_back();
+    if (points.size() < 2) return source;
+    const std::size_t segments = points.size() - 1 + (closed ? 1U : 0U);
+    std::vector<Vec2> normals;
+    normals.reserve(segments);
+    for (std::size_t i = 0; i < segments; ++i) {
+        const Vec2 delta = points[(i + 1) % points.size()] - points[i];
+        const float len = glm::length(delta);
+        if (len <= 1e-6f) throw std::invalid_argument("offset-path cannot process zero-length segments");
+        normals.emplace_back(-delta.y / len, delta.x / len);
+    }
+    PathShape output = source;
+    output.commands.clear();
+    const auto offset_vertex = [&](std::size_t vertex) {
+        if (!closed && vertex == 0) return points[vertex] + normals.front() * params.amount;
+        if (!closed && vertex + 1 == points.size()) return points[vertex] + normals.back() * params.amount;
+        const Vec2 previous = normals[(vertex + segments - 1) % segments];
+        const Vec2 next = normals[vertex % segments];
+        const Vec2 sum = previous + next;
+        const float sum_len = glm::length(sum);
+        if (sum_len <= 1e-6f) return points[vertex] + next * params.amount;
+        const Vec2 miter = sum / sum_len;
+        const float denominator = glm::dot(miter, next);
+        float distance = std::abs(denominator) > 1e-6f
+            ? params.amount / denominator : params.amount * params.miter_limit;
+        const float maximum = std::abs(params.amount) * params.miter_limit;
+        distance = std::clamp(distance, -maximum, maximum);
+        return points[vertex] + miter * distance;
+    };
+    output.commands.push_back(PathCommand::move_to(offset_vertex(0)));
+    for (std::size_t i = 1; i < points.size(); ++i)
+        output.commands.push_back(PathCommand::line_to(offset_vertex(i)));
+    if (closed) output.commands.push_back(PathCommand::close());
+    output.closed = closed;
+    return output;
+}
 }
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
@@ -145,6 +198,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
             if (!std::holds_alternative<ZigZagParams>(op.params))
                 throw std::invalid_argument("zig-zag parameters do not match operator kind");
             for (auto& path : paths) path = zig_zag(path, std::get<ZigZagParams>(op.params));
+        } else if (op.kind == PathOperatorKind::OffsetPath) {
+            if (!std::holds_alternative<OffsetPathParams>(op.params))
+                throw std::invalid_argument("offset-path parameters do not match operator kind");
+            for (auto& path : paths) path = offset_path(path, std::get<OffsetPathParams>(op.params));
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");
