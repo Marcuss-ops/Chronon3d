@@ -336,6 +336,14 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control2) out.add_float(value);
         }
     }
+    if (!layer.lut_effects.empty()) {
+        out.add_bool(true);
+        out.add_size(layer.lut_effects.size());
+        for (const auto& effect : layer.lut_effects) {
+            out.add_string(effect.asset);
+            out.add_float(effect.amount);
+        }
+    }
 
     for (const auto value : layer.size) out.add_float(value);
     out.add_size(layer.size_dimensions);

@@ -251,6 +251,15 @@ CHRONON_EFFECT(
     false, false
 )
 
+CHRONON_EFFECT(
+    26, Lut3D, Lut3DParams, ids::ColorLut3D,
+    "3D LUT",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, true
+)
+
 // ── A3: Curves (fusable in color pipeline) ──
 
 CHRONON_EFFECT(

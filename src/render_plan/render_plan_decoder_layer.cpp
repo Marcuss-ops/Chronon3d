@@ -545,6 +545,22 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("path mask subpaths must be closed");
         layer.path_mask = std::move(mask);
     }
+    if (value.contains("effects")) {
+        const auto& effects = value.at("effects");
+        if (!effects.is_array() || effects.size() > 64)
+            throw std::runtime_error("layer.effects must be an array of at most 64 entries");
+        for (const auto& raw_effect : effects) {
+            if (raw_effect.value("type", std::string{}) != "lut_3d")
+                throw std::runtime_error("unsupported layer effect type");
+            LayerPlan::LutEffectPlan effect;
+            effect.asset = raw_effect.at("asset").get<std::string>();
+            effect.amount = raw_effect.value("amount", 1.0f);
+            if (effect.asset.empty() || effect.asset.size() > 4096 ||
+                !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
+                throw std::runtime_error("3D LUT effect requires an asset and amount in [0, 1]");
+            layer.lut_effects.push_back(std::move(effect));
+        }
+    }
     if (value.contains("position")) {
         const auto& position = value.at("position");
         layer.position_dimensions = position.size();

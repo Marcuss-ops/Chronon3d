@@ -210,6 +210,11 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
+    struct LutEffectPlan {
+        std::string asset;
+        float amount{1.0f};
+    };
+    std::vector<LutEffectPlan> lut_effects;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};

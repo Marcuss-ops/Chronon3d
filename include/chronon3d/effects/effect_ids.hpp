@@ -43,5 +43,6 @@ inline constexpr std::string_view ColorSaturation = "color.saturation";
 inline constexpr std::string_view ColorHueRotate   = "color.hue_rotate";
 inline constexpr std::string_view ColorInvert      = "color.invert";
 inline constexpr std::string_view ColorVignette    = "color.vignette";
+inline constexpr std::string_view ColorLut3D       = "color.lut_3d";
 
 } // namespace chronon3d::effects::ids
