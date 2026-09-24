@@ -80,7 +80,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "enum": ["repeater", "round_corners"] },
+              "kind": { "enum": ["repeater", "round_corners", "zig_zag"] },
               "params": {
                 "oneOf": [
                   {
@@ -99,6 +99,15 @@
                     "type": "object", "additionalProperties": false,
                     "required": ["radius"],
                     "properties": { "radius": { "type": "number", "minimum": 0 } }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["size"],
+                    "properties": {
+                      "size": { "type": "number", "minimum": 0 },
+                      "points_per_unit": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+                      "smooth": { "type": "boolean" }
+                    }
                   }
                 ]
               }

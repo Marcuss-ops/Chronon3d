@@ -368,6 +368,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     if (op.kind == PathOperatorKindPlan::RoundCorners) {
                                         specs.push_back({PathOperatorKind::RoundCorners,
                                             RoundCornersParams{op.radius}, 0});
+                                    } else if (op.kind == PathOperatorKindPlan::ZigZag) {
+                                        specs.push_back({PathOperatorKind::ZigZag,
+                                            ZigZagParams{op.size, op.points_per_unit, op.smooth}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

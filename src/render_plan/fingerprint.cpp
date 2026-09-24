@@ -274,6 +274,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(op.radius);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::ZigZag) {
+                out.add_float(op.size);
+                out.add_float(op.points_per_unit);
+                out.add_bool(op.smooth);
+                continue;
+            }
             const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);
