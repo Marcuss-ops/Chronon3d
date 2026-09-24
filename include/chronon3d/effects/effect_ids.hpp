@@ -20,6 +20,10 @@ inline constexpr std::string_view ColorLevels   = "color.levels";
 // ── A4: Fill, Noise, Offset ──
 inline constexpr std::string_view GenerateFill   = "generate.fill";
 inline constexpr std::string_view GenerateNoise  = "generate.noise";
+inline constexpr std::string_view GenerateFractalNoise = "generate.fractal_noise";
+inline constexpr std::string_view GenerateCheckerboard = "generate.checkerboard";
+inline constexpr std::string_view GenerateFourColorGradient = "generate.four_color_gradient";
+inline constexpr std::string_view GenerateLightRays = "generate.light_rays";
 inline constexpr std::string_view DistortOffset  = "distort.offset";
 
 // ── A5: Directional Blur ──

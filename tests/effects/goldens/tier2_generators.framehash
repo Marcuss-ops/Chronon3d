@@ -1,0 +1,13 @@
+CHRONON FRAMEHASH v1
+engine_sha=unknown
+plan_digest=tier2-generators-canary-v1
+pixel_format=rgba8
+width=32
+height=32
+frame_bytes=4096
+frames=5
+frame=0 sha256=d6c99f49f1ec7b61b817290bf2326024d8e3cace1b7ca0e7c8ba25d0d3311584
+frame=1 sha256=6d4fcc21c7afb59930e65382a96d459484560708a80bd6fcfcf1036a8694db10
+frame=2 sha256=7dd1f8b62ff5921010bd4d90e03b4ba3844226f32ff9a2a5e733380e7f8984f6
+frame=3 sha256=f504d43a2cb4caf6140298140eb4ebf0812da0be15aeee9839b3ea4dbabab760
+frame=4 sha256=31d6489d2b5981f1c1ec274f7dc83ce0761ec9ddd03a56106df7441586f3c662

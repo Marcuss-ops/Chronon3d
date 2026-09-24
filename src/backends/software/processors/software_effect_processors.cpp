@@ -3,6 +3,10 @@
 #include "../effects/render_effects_processor.hpp"
 #include "effects/color/exposure_levels.hpp"
 #include "effects/generate/fill_noise_offset.hpp"
+#include "effects/generate/fractal_noise.hpp"
+#include "effects/generate/checkerboard.hpp"
+#include "effects/generate/four_color_gradient.hpp"
+#include "effects/generate/light_rays.hpp"
 #include "effects/blur/directional_blur.hpp"
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
@@ -209,6 +213,48 @@ public:
     }
 };
 
+class SoftwareFractalNoiseEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<FractalNoiseParams>(&params);
+        if (!p) throw std::runtime_error("FractalNoise processor received invalid parameters");
+        apply_fractal_noise(fb, *p, context.time_seconds, context.clip);
+    }
+};
+
+class SoftwareCheckerboardEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<CheckerboardParams>(&params);
+        if (!p) throw std::runtime_error("Checkerboard processor received invalid parameters");
+        apply_checkerboard(fb, *p, context.clip);
+    }
+};
+
+class SoftwareFourColorGradientEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<FourColorGradientParams>(&params);
+        if (!p) throw std::runtime_error("FourColorGradient processor received invalid parameters");
+        apply_four_color_gradient(fb, *p, context.clip);
+    }
+};
+
+class SoftwareLightRaysEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LightRaysParams>(&params);
+        if (!p) throw std::runtime_error("LightRays processor received invalid parameters");
+        if (!context.effect_scratch)
+            throw std::runtime_error("LightRays processor requires EffectScratchResources");
+        apply_light_rays(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
 // ── Curves ────────────────────────────────────────────────────────────────
 
 class SoftwareCurvesEffectProcessor final : public EffectProcessor {
@@ -353,6 +399,22 @@ std::unique_ptr<EffectProcessor> create_fill_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_noise_effect_processor() {
     return std::make_unique<SoftwareNoiseEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_fractal_noise_effect_processor() {
+    return std::make_unique<SoftwareFractalNoiseEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_checkerboard_effect_processor() {
+    return std::make_unique<SoftwareCheckerboardEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_four_color_gradient_effect_processor() {
+    return std::make_unique<SoftwareFourColorGradientEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_light_rays_effect_processor() {
+    return std::make_unique<SoftwareLightRaysEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_offset_effect_processor() {
