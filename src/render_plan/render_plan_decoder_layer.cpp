@@ -269,6 +269,18 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         decoded_op.amount > 1.0f || !std::isfinite(decoded_op.anchor[0]) ||
                         !std::isfinite(decoded_op.anchor[1]))
                         throw std::runtime_error("invalid pucker-bloat parameters");
+                } else if (kind == "twist") {
+                    decoded_op.kind = PathOperatorKindPlan::Twist;
+                    decoded_op.degrees = p.at("degrees").get<float>();
+                    if (p.contains("center")) {
+                        const auto& center = p.at("center");
+                        if (!center.is_array() || center.size() != 2)
+                            throw std::runtime_error("twist center requires two values");
+                        decoded_op.center = {center[0].get<float>(), center[1].get<float>()};
+                    }
+                    if (!std::isfinite(decoded_op.degrees) || !std::isfinite(decoded_op.center[0]) ||
+                        !std::isfinite(decoded_op.center[1]))
+                        throw std::runtime_error("invalid twist parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }

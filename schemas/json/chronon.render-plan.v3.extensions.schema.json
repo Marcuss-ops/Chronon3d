@@ -80,7 +80,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat"] },
+              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat", "twist"] },
               "params": {
                 "oneOf": [
                   {
@@ -123,6 +123,15 @@
                     "properties": {
                       "amount": { "type": "number", "minimum": -1, "maximum": 1 },
                       "anchor": { "type": "array", "minItems": 2, "maxItems": 2,
+                                  "items": { "type": "number" } }
+                    }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["degrees"],
+                    "properties": {
+                      "degrees": { "type": "number" },
+                      "center": { "type": "array", "minItems": 2, "maxItems": 2,
                                   "items": { "type": "number" } }
                     }
                   }

@@ -377,6 +377,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     } else if (op.kind == PathOperatorKindPlan::PuckerBloat) {
                                         specs.push_back({PathOperatorKind::PuckerBloat,
                                             PuckerBloatParams{op.amount, {op.anchor[0], op.anchor[1]}}, 0});
+                                    } else if (op.kind == PathOperatorKindPlan::Twist) {
+                                        specs.push_back({PathOperatorKind::Twist,
+                                            TwistParams{op.degrees, {op.center[0], op.center[1]}}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

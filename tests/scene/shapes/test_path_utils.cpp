@@ -197,3 +197,17 @@ TEST_CASE("Pucker-bloat transforms curve points and controls around its anchor")
     CHECK(result[0].commands[1].p2.y == doctest::Approx(1.5));
     CHECK(result[0].commands[1].p0.x == doctest::Approx(2.5));
 }
+
+TEST_CASE("Twist rotates farther points more while keeping its center fixed") {
+    PathShape path;
+    path.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({10, 0})};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::Twist;
+    op.params = TwistParams{90.0f, {0, 0}};
+    const auto result = apply_path_operators(path, {op});
+    REQUIRE(result.size() == 1);
+    CHECK(result[0].commands[0].p0.x == doctest::Approx(0));
+    CHECK(result[0].commands[0].p0.y == doctest::Approx(0));
+    CHECK(result[0].commands[1].p0.x == doctest::Approx(0).epsilon(1e-5));
+    CHECK(result[0].commands[1].p0.y == doctest::Approx(10));
+}

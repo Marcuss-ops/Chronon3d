@@ -190,6 +190,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::PuckerBloat) {
                                         specs.push_back({PathOperatorKind::PuckerBloat,
                                             PuckerBloatParams{op.amount, {op.anchor[0], op.anchor[1]}}, 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Twist) {
+                                        specs.push_back({PathOperatorKind::Twist,
+                                            TwistParams{op.degrees, {op.center[0], op.center[1]}}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

@@ -290,6 +290,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const auto value : op.anchor) out.add_float(value);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::Twist) {
+                out.add_float(op.degrees);
+                for (const auto value : op.center) out.add_float(value);
+                continue;
+            }
             const auto& repeater = op.repeater;
             out.add_size(repeater.copies);
             for (const auto value : repeater.position) out.add_float(value);

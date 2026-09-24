@@ -200,6 +200,38 @@ PathShape pucker_bloat(const PathShape& source, const PuckerBloatParams& params)
     }
     return output;
 }
+PathShape twist_path(const PathShape& source, const TwistParams& params) {
+    if (!std::isfinite(params.degrees) || !std::isfinite(params.center.x) ||
+        !std::isfinite(params.center.y))
+        throw std::invalid_argument("twist degrees and center must be finite");
+    float max_radius = 0.0f;
+    const auto include_radius = [&](const Vec2& p) {
+        max_radius = std::max(max_radius, glm::length(p - params.center));
+    };
+    for (const auto& command : source.commands) {
+        if (command.type == PathCommandType::Close) continue;
+        include_radius(command.p0);
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+            include_radius(command.p1);
+        if (command.type == PathCommandType::CubicTo) include_radius(command.p2);
+    }
+    if (max_radius <= 1e-6f || params.degrees == 0.0f) return source;
+    PathShape output = source;
+    const auto twist = [&](Vec2& p) {
+        const Vec2 delta = p - params.center;
+        const float angle = glm::radians(params.degrees * glm::length(delta) / max_radius);
+        const float c = std::cos(angle), s = std::sin(angle);
+        p = params.center + Vec2{delta.x * c - delta.y * s, delta.x * s + delta.y * c};
+    };
+    for (auto& command : output.commands) {
+        if (command.type == PathCommandType::Close) continue;
+        twist(command.p0);
+        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+            twist(command.p1);
+        if (command.type == PathCommandType::CubicTo) twist(command.p2);
+    }
+    return output;
+}
 }
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
@@ -222,6 +254,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
             if (!std::holds_alternative<PuckerBloatParams>(op.params))
                 throw std::invalid_argument("pucker-bloat parameters do not match operator kind");
             for (auto& path : paths) path = pucker_bloat(path, std::get<PuckerBloatParams>(op.params));
+        } else if (op.kind == PathOperatorKind::Twist) {
+            if (!std::holds_alternative<TwistParams>(op.params))
+                throw std::invalid_argument("twist parameters do not match operator kind");
+            for (auto& path : paths) path = twist_path(path, std::get<TwistParams>(op.params));
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");

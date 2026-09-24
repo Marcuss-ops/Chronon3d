@@ -52,7 +52,7 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
-enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     PathRepeaterPlan repeater{};
@@ -63,6 +63,8 @@ struct PathOperatorPlan {
     float amount{0.0f};
     float miter_limit{4.0f};
     std::array<float, 2> anchor{0.0f, 0.0f};
+    float degrees{0.0f};
+    std::array<float, 2> center{0.0f, 0.0f};
 };
 
 struct ShapeContentPlan {
