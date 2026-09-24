@@ -12,6 +12,7 @@ enum class EffectStage {
     Adjustment,
     Composition,
     Temporal,
+    Generate,
 };
 
 [[nodiscard]] inline std::string to_string(EffectStage stage) {

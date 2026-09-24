@@ -13,6 +13,7 @@
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include <variant>
 #include <vector>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -125,6 +126,43 @@ struct NoiseParams {
     NoiseColorMode color_mode{NoiseColorMode::Monochrome};
 };
 
+// Deterministic fractal value noise generated over the full frame. Evolution
+// is a continuous sampling offset in lattice-space per second.
+struct FractalNoiseParams {
+    uint32_t seed{0};
+    uint32_t octaves{4};
+    float frequency{0.015f};
+    float amplitude{1.0f};
+    float evolution{0.0f};
+    float contrast{1.0f};
+    float brightness{0.0f};
+    NoiseColorMode color_mode{NoiseColorMode::Monochrome};
+};
+
+struct CheckerboardParams {
+    float size{64.0f};
+    Color color_a{0.0f, 0.0f, 0.0f, 1.0f};
+    Color color_b{1.0f, 1.0f, 1.0f, 1.0f};
+    float feather{0.0f};
+};
+
+struct FourColorGradientParams {
+    std::array<Color, 4> colors{
+        Color{1.0f, 0.0f, 0.0f, 1.0f}, Color{0.0f, 1.0f, 0.0f, 1.0f},
+        Color{0.0f, 0.0f, 1.0f, 1.0f}, Color{1.0f, 1.0f, 0.0f, 1.0f}};
+    std::array<Vec2, 4> points{
+        Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, Vec2{0.0f, 1.0f}, Vec2{1.0f, 1.0f}};
+    float blend_smoothness{0.15f};
+};
+
+struct LightRaysParams {
+    Vec2 origin{0.5f, 0.5f};
+    float length{320.0f};
+    float density{0.75f};
+    Color color{1.0f, 0.86f, 0.55f, 1.0f};
+    float decay{0.92f};
+};
+
 // ── Offset (pixel shift with edge modes) ────────────────────────────────
 struct OffsetParams {
     Vec2 offset{0.0f, 0.0f};
@@ -182,6 +220,10 @@ using EffectParams = std::variant<
     LevelsParams,
     FillParams,
     NoiseParams,
+    FractalNoiseParams,
+    CheckerboardParams,
+    FourColorGradientParams,
+    LightRaysParams,
     OffsetParams,
     DirectionalBlurParams,
     RadialBlurParams,

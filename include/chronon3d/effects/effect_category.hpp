@@ -14,6 +14,7 @@ enum class EffectCategory {
     Geometry,
     Temporal,
     Composite,
+    Generate,
 };
 
 [[nodiscard]] inline std::string to_string(EffectCategory category) {

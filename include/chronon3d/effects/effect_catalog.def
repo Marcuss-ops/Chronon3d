@@ -214,6 +214,43 @@ CHRONON_EFFECT(
     false, false
 )
 
+// ── Tier 2: generated fractal noise ──
+CHRONON_EFFECT(
+    22, FractalNoise, FractalNoiseParams, ids::GenerateFractalNoise,
+    "Fractal Noise",
+    EffectCategory::Generate, EffectStage::Generate,
+    EffectDomain::Generate, AlphaPolicy::Generate,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    true, false
+)
+
+CHRONON_EFFECT(
+    23, Checkerboard, CheckerboardParams, ids::GenerateCheckerboard,
+    "Checkerboard",
+    EffectCategory::Generate, EffectStage::Generate,
+    EffectDomain::Generate, AlphaPolicy::Generate,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    false, false
+)
+
+CHRONON_EFFECT(
+    24, FourColorGradient, FourColorGradientParams, ids::GenerateFourColorGradient,
+    "4-Color Gradient",
+    EffectCategory::Generate, EffectStage::Generate,
+    EffectDomain::Generate, AlphaPolicy::Generate,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    false, false
+)
+
+CHRONON_EFFECT(
+    25, LightRays, LightRaysParams, ids::GenerateLightRays,
+    "Light Rays",
+    EffectCategory::Generate, EffectStage::Generate,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    false, false
+)
+
 // ── A3: Curves (fusable in color pipeline) ──
 
 CHRONON_EFFECT(
