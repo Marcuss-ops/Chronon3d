@@ -76,6 +76,10 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
             }
         }
         layer.erase("shape");
+        // V3 path masks are validated by the extension schema above. The V2
+        // projection exists only to retain validation of fields shared with
+        // the legacy schema, which correctly rejects this V3-only field.
+        layer.erase("mask");
         if (layer.contains("style") && layer["style"].is_object()) {
             layer["style"].erase("gradient");
             if (layer["style"].contains("stroke") &&

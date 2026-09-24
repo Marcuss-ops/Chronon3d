@@ -130,6 +130,7 @@ public:
     LayerBuilder& mask_rect(RectMaskParams params);
     LayerBuilder& mask_rounded_rect(RoundedRectMaskParams params);
     LayerBuilder& mask_circle(CircleMaskParams params);
+    LayerBuilder& mask_path(PathMaskParams params);
     LayerBuilder& track_matte_alpha(std::string source_layer_name);
     LayerBuilder& track_matte_alpha_inverted(std::string source_layer_name);
     LayerBuilder& track_matte_luma(std::string source_layer_name);

@@ -323,6 +323,19 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             out.add_float(repeater.opacity_decay);
         }
     }
+    if (layer.path_mask) {
+        out.add_bool(true);
+        out.add_float(layer.path_mask->feather);
+        out.add_float(layer.path_mask->expansion);
+        out.add_bool(layer.path_mask->inverted);
+        out.add_size(layer.path_mask->path.size());
+        for (const auto& command : layer.path_mask->path) {
+            out.add_enum(command.type);
+            for (const auto value : command.point) out.add_float(value);
+            for (const auto value : command.control1) out.add_float(value);
+            for (const auto value : command.control2) out.add_float(value);
+        }
+    }
 
     for (const auto value : layer.size) out.add_float(value);
     out.add_size(layer.size_dimensions);

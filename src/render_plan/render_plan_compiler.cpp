@@ -452,6 +452,25 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
+                    if (layer.path_mask) {
+                        PathMaskParams params;
+                        params.feather = layer.path_mask->feather;
+                        params.expansion = layer.path_mask->expansion;
+                        params.inverted = layer.path_mask->inverted;
+                        for (const auto& command : layer.path_mask->path) {
+                            const Vec2 point{command.point[0], command.point[1]};
+                            const Vec2 c1{command.control1[0], command.control1[1]};
+                            const Vec2 c2{command.control2[0], command.control2[1]};
+                            switch (command.type) {
+                                case ShapePathCommandTypePlan::MoveTo: params.commands.push_back(PathCommand::move_to(point)); break;
+                                case ShapePathCommandTypePlan::LineTo: params.commands.push_back(PathCommand::line_to(point)); break;
+                                case ShapePathCommandTypePlan::QuadraticTo: params.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                case ShapePathCommandTypePlan::CubicTo: params.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                case ShapePathCommandTypePlan::Close: params.commands.push_back(PathCommand::close()); break;
+                            }
+                        }
+                        builder.mask_path(std::move(params));
+                    }
                     if (layer.type == LayerType::Video &&
                         layer.position_dimensions >= 2) {
                         const float sx = std::abs(layer.scale[0]) > 1e-6f

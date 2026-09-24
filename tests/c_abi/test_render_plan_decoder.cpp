@@ -77,11 +77,16 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
           {"kind":"wiggle_path","params":{"amount":2,"frequency":0.75,"seed":1234}},
           {"kind":"merge","params":{"paths":[[{"type":"move_to","point":[10,10]},
             {"type":"quadratic_to","point":[12,12],"control1":[12,10]},
-            {"type":"close"}]]}}]}}],
+            {"type":"close"}]]}}]},
+      "mask":{"type":"path","path":[{"type":"move_to","point":[-4,-4]},
+        {"type":"line_to","point":[4,-4]},{"type":"line_to","point":[4,4]},
+        {"type":"line_to","point":[-4,4]},{"type":"close"}],
+        "feather":2,"expansion":1}}],
       "output":{"path":"out.png"}
     })JSON");
     auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    if (!decoded) INFO(decoded.error().message);
+    const std::string decode_error = decoded.has_value() ? std::string{} : decoded.error().message;
+    INFO(decode_error);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->layers[0].shape->operators.size() == 8);
     CHECK(decoded->layers[0].shape->operators[0].repeater.copies == 3);
@@ -108,6 +113,9 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
           chronon3d::render_plan::PathOperatorKindPlan::Merge);
     REQUIRE(decoded->layers[0].shape->operators[7].paths.size() == 1);
     CHECK(decoded->layers[0].shape->operators[7].paths[0].size() == 3);
+    REQUIRE(decoded->layers[0].path_mask.has_value());
+    CHECK(decoded->layers[0].path_mask->feather == doctest::Approx(2));
+    CHECK(decoded->layers[0].path_mask->path.size() == 5);
     source["layers"][0]["shape"]["operators"][7]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }

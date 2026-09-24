@@ -2,7 +2,9 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/model/shape/path_commands.hpp>
 #include <type_traits>
+#include <vector>
 
 namespace chronon3d {
 
@@ -10,7 +12,8 @@ enum class MaskType {
     None,
     Rect,
     RoundedRect,
-    Circle
+    Circle,
+    Path
 };
 
 struct Mask {
@@ -26,6 +29,9 @@ struct Mask {
     Vec3 pos{0.0f, 0.0f, 0.0f};
     Vec2 size{0.0f, 0.0f};
     f32  radius{0.0f};
+    std::vector<PathCommand> path;
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
     bool inverted{false};
 
     [[nodiscard]] bool enabled() const { return type != MaskType::None; }
@@ -48,6 +54,14 @@ struct RoundedRectMaskParams {
 struct CircleMaskParams {
     f32  radius{50.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
+    bool inverted{false};
+};
+
+struct PathMaskParams {
+    std::vector<PathCommand> commands;
+    Vec3 pos{0.0f, 0.0f, 0.0f};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
     bool inverted{false};
 };
 

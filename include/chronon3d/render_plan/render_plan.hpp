@@ -203,6 +203,13 @@ struct LayerPlan {
     std::string font;
     std::optional<LayerStylePlan> style;
     std::optional<ShapeContentPlan> shape;
+    struct PathMaskPlan {
+        std::vector<ShapePathCommandPlan> path;
+        float feather{0.0f};
+        float expansion{0.0f};
+        bool inverted{false};
+    };
+    std::optional<PathMaskPlan> path_mask;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};
