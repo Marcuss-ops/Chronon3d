@@ -371,6 +371,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     } else if (op.kind == PathOperatorKindPlan::ZigZag) {
                                         specs.push_back({PathOperatorKind::ZigZag,
                                             ZigZagParams{op.size, op.points_per_unit, op.smooth}, 0});
+                                    } else if (op.kind == PathOperatorKindPlan::OffsetPath) {
+                                        specs.push_back({PathOperatorKind::OffsetPath,
+                                            OffsetPathParams{op.amount, op.miter_limit}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
