@@ -231,7 +231,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     // changes their pose, not their albedo, so keep them out
                     // of the scene lighting pass (which otherwise grays light
                     // product imagery and its transparent edge pixels).
-                    if (layer.type == LayerType::Image && layer.enable_3d)
+                    if ((layer.type == LayerType::Image || layer.type == LayerType::Shape) && layer.enable_3d)
                         builder.accepts_lights(false).accepts_shadows(false);
                     switch (layer.type) {
                         case LayerType::Image: {

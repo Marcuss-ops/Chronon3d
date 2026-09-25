@@ -225,6 +225,25 @@ void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
 void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
+    add_optional(out, layer.parent, [](auto& writer, const std::string& value) {
+        writer.add_string(value);
+    });
+    add_optional(out, layer.track_matte, [](auto& writer, const TrackMattePlan& value) {
+        writer.add_string(value.source);
+        writer.add_enum(value.type);
+    });
+    add_optional(out, layer.time_remap, [](auto& writer, const TimeRemapPlan& value) {
+        add_optional(writer, value.speed, [](auto& nested, float speed) {
+            nested.add_float(speed);
+        });
+        writer.add_bool(value.reverse);
+        add_optional(writer, value.freeze_frame, [](auto& nested, Frame frame) {
+            nested.add_frame(frame);
+        });
+        add_optional(writer, value.animation, [](auto& nested, const AnimationTrackPlan& track) {
+            add_track(nested, track);
+        });
+    });
     out.add_string(layer.asset);
     out.add_string(layer.source);
     out.add_string(layer.text);
@@ -415,7 +434,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v5");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v6");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

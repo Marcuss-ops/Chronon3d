@@ -1,6 +1,8 @@
 #include "../compiler_stages.hpp"
 
 #include <utility>
+#include <string>
+#include <unordered_map>
 
 namespace chronon3d::compiler::stages {
 void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) {
@@ -53,6 +55,38 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             lowered.size_dimensions = 2;
         }
         lowered.loop = layer.loop;
+        if (layer.parent) {
+            const auto parent = std::find_if(
+                plan.layers.begin(), plan.layers.end(), [&](const auto& candidate) {
+                    return candidate.id == *layer.parent;
+                });
+            if (parent != plan.layers.end())
+                lowered.parent_index = static_cast<std::uint32_t>(parent - plan.layers.begin());
+        }
+        if (layer.track_matte) {
+            const auto source = std::find_if(
+                plan.layers.begin(), plan.layers.end(), [&](const auto& candidate) {
+                    return candidate.id == layer.track_matte->source;
+                });
+            if (source != plan.layers.end())
+                lowered.matte_source_index = static_cast<std::uint32_t>(source - plan.layers.begin());
+            switch (layer.track_matte->type) {
+                case render_plan::TrackMatteTypePlan::Alpha:
+                    lowered.matte_type = LayerTrackMatteType::Alpha; break;
+                case render_plan::TrackMatteTypePlan::AlphaInverted:
+                    lowered.matte_type = LayerTrackMatteType::AlphaInverted; break;
+                case render_plan::TrackMatteTypePlan::Luma:
+                    lowered.matte_type = LayerTrackMatteType::Luma; break;
+                case render_plan::TrackMatteTypePlan::LumaInverted:
+                    lowered.matte_type = LayerTrackMatteType::LumaInverted; break;
+            }
+        }
+        if (layer.time_remap) {
+            lowered.time_remap_speed = layer.time_remap->speed.value_or(1.0f) *
+                (layer.time_remap->reverse ? -1.0f : 1.0f);
+            if (layer.time_remap->freeze_frame)
+                lowered.time_remap_freeze_frame = layer.time_remap->freeze_frame->integral();
+        }
         if (layer.fit.has_value()) {
             lowered.fit = static_cast<LayerFitMode>(static_cast<std::uint8_t>(*layer.fit));
         }
@@ -60,5 +94,24 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         if (!layer.asset.empty()) out.resources.push_back({i, ResourceKind::Asset, i, 0});
         if (!layer.font.empty()) out.resources.push_back({i, ResourceKind::Font, i, 0});
     }
+
+    // Parent transforms must be sampled before their children while the IR
+    // remains indexed in authored layer order for graph bindings.
+    std::vector<std::uint8_t> visited(out.layers.size(), 0);
+    const auto append_parent_first = [&](const auto& self, std::uint32_t index) -> void {
+        if (visited[index] == 2) return;
+        if (visited[index] == 1) return; // decoder/compiler relation validation rejects cycles
+        visited[index] = 1;
+        const auto parent = out.layers[index].parent_index;
+        if (parent < out.layers.size()) {
+            self(self, parent);
+            out.layers[index].hierarchy_depth = out.layers[parent].hierarchy_depth + 1;
+        }
+        visited[index] = 2;
+        out.layer_evaluation_order.push_back(index);
+    };
+    out.layer_evaluation_order.reserve(out.layers.size());
+    for (std::uint32_t index = 0; index < out.layers.size(); ++index)
+        append_parent_first(append_parent_first, index);
 }
 }

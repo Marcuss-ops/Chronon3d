@@ -5,11 +5,14 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <cmath>
 #include <exception>
 #include <string>
 #include <utility>
+#include <unordered_map>
+#include <vector>
 
 namespace {
 
@@ -57,6 +60,140 @@ bool has_explicit_3d_vector(const nlohmann::json& layer, const char* key) {
 }  // namespace
 
 namespace chronon3d::render_plan {
+
+std::optional<PlanDecodeError> validate_render_plan_layer_relations(
+    const RenderPlan& plan) {
+    const bool has_v3_relations = std::any_of(
+        plan.layers.begin(), plan.layers.end(), [](const LayerPlan& layer) {
+            return layer.parent.has_value() || layer.track_matte.has_value() ||
+                   layer.time_remap.has_value();
+        });
+    if (has_v3_relations && plan.schema != kRenderPlanSchemaV3) {
+        return PlanDecodeError{
+            "layers",
+            "parent, track_matte, and time_remap are available only in render-plan V3",
+            "v3_layer_feature_in_v2", "render-plan-relations"};
+    }
+    // Keep direct V2 RenderPlan inputs compatible with the historical API:
+    // relation/name checks are new V3 semantics, not retroactive V2 rules.
+    if (plan.schema != kRenderPlanSchemaV3) return std::nullopt;
+
+    std::unordered_map<std::string, std::size_t> by_id;
+    by_id.reserve(plan.layers.size());
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        const auto& id = plan.layers[index].id;
+        if (!by_id.emplace(id, index).second) {
+            return PlanDecodeError{
+                "layers[" + std::to_string(index) + "].id",
+                "layer ids must be unique",
+                "duplicate_layer_id", "render-plan-relations"};
+        }
+    }
+
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        const auto& layer = plan.layers[index];
+        if (layer.time_remap) {
+            if (layer.type != LayerType::Video) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].time_remap",
+                    "time_remap is supported only for video layers",
+                    "time_remap_requires_video", "render-plan-relations"};
+            }
+            if (layer.time_remap->speed &&
+                (!std::isfinite(*layer.time_remap->speed) ||
+                 *layer.time_remap->speed <= 0.0f ||
+                 *layer.time_remap->speed > 1000.0f)) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].time_remap.speed",
+                    "speed must be finite and in (0, 1000]",
+                    "invalid_time_remap_speed", "render-plan-relations"};
+            }
+            if (layer.time_remap->freeze_frame &&
+                (layer.time_remap->freeze_frame->integral() < 0 ||
+                 layer.time_remap->freeze_frame->integral() > 1000000)) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].time_remap.freeze_frame",
+                    "freeze frame must be in [0, 1000000]",
+                    "invalid_time_remap_freeze_frame", "render-plan-relations"};
+            }
+            if (layer.time_remap->freeze_frame && layer.time_remap->animation) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].time_remap",
+                    "freeze_frame and animation cannot both be specified",
+                    "time_remap_freeze_animation_conflict", "render-plan-relations"};
+            }
+            if (layer.time_remap->animation) {
+                const auto& track = *layer.time_remap->animation;
+                if (track.keyframes.empty()) {
+                    return PlanDecodeError{
+                        "layers[" + std::to_string(index) + "].time_remap.animation.keyframes",
+                        "time-remap animation requires at least one keyframe",
+                        "time_remap_animation_empty", "render-plan-relations"};
+                }
+                for (const auto& key : track.keyframes) {
+                    if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
+                        key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                        key.value.front() < 0.0f || key.value.front() > 1000000.0f) {
+                        return PlanDecodeError{
+                            "layers[" + std::to_string(index) + "].time_remap.animation.keyframes",
+                            "time-remap keyframes require bounded non-negative frames and scalar values",
+                            "invalid_time_remap_keyframe", "render-plan-relations"};
+                    }
+                }
+            }
+        }
+        if (layer.parent) {
+            if (*layer.parent == layer.id) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].parent",
+                    "a layer cannot parent itself",
+                    "layer_parent_self_reference", "render-plan-relations"};
+            }
+            if (!by_id.contains(*layer.parent)) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].parent",
+                    "parent layer id does not exist: " + *layer.parent,
+                    "layer_parent_missing", "render-plan-relations"};
+            }
+        }
+        if (layer.track_matte) {
+            if (layer.track_matte->source == layer.id) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].track_matte.source",
+                    "a layer cannot use itself as a track-matte source",
+                    "track_matte_self_reference", "render-plan-relations"};
+            }
+            if (!by_id.contains(layer.track_matte->source)) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].track_matte.source",
+                    "track-matte source layer id does not exist: " + layer.track_matte->source,
+                    "track_matte_source_missing", "render-plan-relations"};
+            }
+        }
+    }
+
+    std::vector<std::uint8_t> state(plan.layers.size(), 0);
+    const auto visit = [&](const auto& self, std::size_t index) -> bool {
+        if (state[index] == 1) return false;
+        if (state[index] == 2) return true;
+        state[index] = 1;
+        if (plan.layers[index].parent) {
+            const auto parent = by_id.at(*plan.layers[index].parent);
+            if (!self(self, parent)) return false;
+        }
+        state[index] = 2;
+        return true;
+    };
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        if (!visit(visit, index)) {
+            return PlanDecodeError{
+                "layers[" + std::to_string(index) + "].parent",
+                "layer parent relationships must be acyclic",
+                "layer_parent_cycle", "render-plan-relations"};
+        }
+    }
+    return std::nullopt;
+}
 
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root) {
     const auto validation = validate_render_plan(root);
@@ -142,6 +279,9 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.layers.push_back(std::move(layer));
             ++layer_index;
         }
+
+        if (const auto relation_error = validate_render_plan_layer_relations(plan))
+            return *relation_error;
 
         const auto& output = root.at("output");
         plan.output.path = output.at("path").get<std::string>();

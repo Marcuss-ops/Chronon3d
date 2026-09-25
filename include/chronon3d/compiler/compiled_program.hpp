@@ -76,6 +76,7 @@ struct CompiledProgramData {
     ProgramMetadata metadata;
     std::vector<CompiledNode> nodes;
     std::vector<StaticLayerProgram> layers;
+    std::vector<std::uint32_t> layer_evaluation_order;
     std::vector<CompiledPass> passes;
     std::vector<ResourceBindingSpec> resources;
     std::vector<AnimationProgram> animations;
@@ -101,6 +102,7 @@ public:
     [[nodiscard]] const ProgramMetadata& metadata() const noexcept;
     [[nodiscard]] const std::vector<CompiledNode>& nodes() const noexcept;
     [[nodiscard]] const std::vector<StaticLayerProgram>& layers() const noexcept;
+    [[nodiscard]] const std::vector<std::uint32_t>& layer_evaluation_order() const noexcept;
     [[nodiscard]] const std::vector<CompiledPass>& passes() const noexcept;
     [[nodiscard]] const std::vector<ResourceBindingSpec>& resources() const noexcept;
     [[nodiscard]] const std::vector<AnimationProgram>& animations() const noexcept;

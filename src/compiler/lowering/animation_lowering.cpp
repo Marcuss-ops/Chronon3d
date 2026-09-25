@@ -1,6 +1,7 @@
 #include "../compiler_stages.hpp"
 
 #include <string_view>
+#include <stdexcept>
 
 namespace chronon3d::compiler::stages {
 namespace {
@@ -32,7 +33,8 @@ AnimationProperty property_kind(std::string_view property) {
 void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& out) {
     for (std::uint32_t i = 0; i < plan.layers.size(); ++i) {
         const auto& layer = plan.layers[i];
-        if (layer.animation || !layer.text_animators.empty()) {
+        if (layer.animation || !layer.text_animators.empty() ||
+            (layer.time_remap && layer.time_remap->animation)) {
             const auto first_track = static_cast<std::uint32_t>(out.animation_tracks.size());
             if (layer.animation) {
                 for (const auto& track : layer.animation->tracks) {
@@ -48,7 +50,26 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
                         first_keyframe,
                         static_cast<std::uint32_t>(out.curve_keyframes.size() - first_keyframe)});
                     out.animation_tracks.back().property_kind = property_kind(track.property);
+                    out.animation_tracks.back().easing = track.easing;
                 }
+            }
+            if (layer.time_remap && layer.time_remap->animation) {
+                const auto& track = *layer.time_remap->animation;
+                const auto first_keyframe = static_cast<std::uint32_t>(out.curve_keyframes.size());
+                for (const auto& keyframe : track.keyframes) {
+                    if (keyframe.value.size() != 1)
+                        throw std::runtime_error("time_remap keyframes require scalar values");
+                    out.curve_keyframes.push_back({keyframe.frame.integral(), keyframe.value.front()});
+                }
+                out.animation_tracks.push_back({
+                    static_cast<std::uint32_t>(out.animation_tracks.size()),
+                    "time_remap",
+                    first_keyframe,
+                    static_cast<std::uint32_t>(out.curve_keyframes.size() - first_keyframe),
+                    AnimationProperty::TimeRemap,
+                    track.easing});
+                out.layers[i].time_remap_track_index =
+                    static_cast<std::uint32_t>(out.animation_tracks.size() - 1);
             }
             const auto animation_index = static_cast<std::uint32_t>(out.animations.size());
             out.animations.push_back({

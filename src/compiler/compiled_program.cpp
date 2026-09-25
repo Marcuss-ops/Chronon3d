@@ -15,6 +15,7 @@ CompiledProgram& CompiledProgram::operator=(CompiledProgram&&) noexcept = defaul
 const ProgramMetadata& CompiledProgram::metadata() const noexcept { return data_->metadata; }
 const std::vector<CompiledNode>& CompiledProgram::nodes() const noexcept { return data_->nodes; }
 const std::vector<StaticLayerProgram>& CompiledProgram::layers() const noexcept { return data_->layers; }
+const std::vector<std::uint32_t>& CompiledProgram::layer_evaluation_order() const noexcept { return data_->layer_evaluation_order; }
 const std::vector<CompiledPass>& CompiledProgram::passes() const noexcept { return data_->passes; }
 const std::vector<ResourceBindingSpec>& CompiledProgram::resources() const noexcept { return data_->resources; }
 const std::vector<AnimationProgram>& CompiledProgram::animations() const noexcept { return data_->animations; }

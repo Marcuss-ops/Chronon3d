@@ -76,6 +76,9 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
             }
         }
         layer.erase("shape");
+        layer.erase("parent");
+        layer.erase("track_matte");
+        layer.erase("time_remap");
         // V3 path masks are validated by the extension schema above. The V2
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.

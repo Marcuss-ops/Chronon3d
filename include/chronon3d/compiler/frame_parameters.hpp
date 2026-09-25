@@ -77,6 +77,7 @@ struct SampledLayerParameters {
     Mat4 matrix{1.0f};
     float opacity{1.0f};
     bool active{false};
+    double local_time_frame{0.0};
     std::uint32_t text_index{0};
     SampledLayerPayload payload{};
     std::vector<SampledElementParameters> elements;
