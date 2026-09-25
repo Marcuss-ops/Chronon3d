@@ -45,7 +45,11 @@ struct GpuTextRunDynamic {
     float animator_opacity;
     float animator_scale_x;
     float animator_scale_y;
-    float animator_reserved2;
+    float animator_rotation_z;
+    uint animator_fill_color;
+    uint animator_reserved3;
+    uint animator_reserved4;
+    uint animator_reserved5;
 };
 
 layout(std430, binding = 0) readonly buffer GlyphBuffer {
@@ -112,6 +116,20 @@ void main() {
         extent_y += abs(r.sy) * scale_dy * max(
             max(abs(g.plane_top), abs(g.plane_bottom)),
             max(abs(g.plane_top - g.origin_y), abs(g.plane_bottom - g.origin_y)));
+        // Per-glyph in-plane rotation: conservative envelope. Any rotation
+        // angle keeps every plane point within the largest corner radius
+        // around the glyph layout origin, so pad by that radius rather than
+        // dropping a tile contributor (raster computes exact coverage).
+        if (r.animator_rotation_z != 0.0) {
+            vec2 pivot = vec2(g.origin_x, g.origin_y);
+            float rad = max(
+                max(length(vec2(g.plane_left,  g.plane_top)    - pivot),
+                    length(vec2(g.plane_right, g.plane_top)    - pivot)),
+                max(length(vec2(g.plane_left,  g.plane_bottom) - pivot),
+                    length(vec2(g.plane_right, g.plane_bottom) - pivot)));
+            extent_x += rad;
+            extent_y += rad;
+        }
         x0 = r.tx + g.plane_left * r.sx - extent_x;
         y0 = r.ty + g.plane_top * r.sy - extent_y;
         x1 = r.tx + g.plane_right * r.sx + extent_x;

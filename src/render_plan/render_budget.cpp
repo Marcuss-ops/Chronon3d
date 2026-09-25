@@ -1,11 +1,14 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
 #include <utility>
+
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::render_plan {
 
@@ -110,9 +113,15 @@ std::optional<PlanDecodeError> validate_render_budget(
                     return fail(prefix + ".animation.tracks", "tracks require at least one keyframe");
                 Frame previous{-1};
                 for (const auto& key : track.keyframes) {
-                    if (key.frame.integral() < 0 || key.frame.integral() >= duration_value)
+                    if (key.frame.integral() < 0 || key.frame.integral() > duration_value)
                         return fail(prefix + ".animation.tracks[].keyframes[].frame",
-                                    "keyframe lies outside the composition duration");
+                                    "keyframe frame " + std::to_string(key.frame.integral()) +
+                                    " outside valid range [0, " + std::to_string(std::max<std::int64_t>(0, duration_value - 1)) +
+                                    "] (duration_frames=" + std::to_string(duration_value) + ")");
+                    if (key.frame.integral() == duration_value) {
+                        spdlog::warn("render_budget: keyframe frame {} on {} matches composition duration {}; accepted as boundary clamped to last frame",
+                                     key.frame.integral(), prefix + ".animation.tracks[].keyframes[].frame", duration_value);
+                    }
                     if (previous.integral() >= 0 && key.frame < previous)
                         return fail(prefix + ".animation.tracks[].keyframes",
                                     "keyframes must be sorted by frame");

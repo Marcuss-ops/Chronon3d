@@ -165,6 +165,10 @@ bool TextAnimatorSpec::is_valid() const {
                     return detail::check_monotonic_av(p.radius);
                 } else if constexpr (std::is_same_v<P, TrackingProperty>) {
                     return detail::check_monotonic_av(p.pixels);
+                } else if constexpr (std::is_same_v<P, RotationProperty>) {
+                    return detail::check_monotonic_av(p.degrees);
+                } else if constexpr (std::is_same_v<P, FillColorProperty>) {
+                    return detail::check_monotonic_av(p.color);
                 } else {
                     return true;  // static: monotonicity not applicable
                 }
@@ -182,8 +186,8 @@ bool TextAnimatorSpec::is_valid() const {
     //   (c) f32 width = std::numeric_limits<f32>::infinity() on stroke / shift
     // CRITICAL: each static-value alternative has its own distinct field
     // name — RotationProperty::degrees (NOT value), AnchorProperty::value,
-    // SkewProperty::{angle, axis}, FillColorProperty::color,
-    // StrokeColorProperty::color, StrokeWidthProperty::width,
+    // SkewProperty::{angle, axis}, StrokeColorProperty::color,
+    // StrokeWidthProperty::width,
     // BaselineShiftProperty::pixels, CharacterOffsetProperty::offset (i32).
     // Lumping multiple static-value types into one `p.value` branch
     // (e.g. Rotation+Anchor) is a COMPILE ERROR because RotationProperty
@@ -202,16 +206,18 @@ bool TextAnimatorSpec::is_valid() const {
                 } else if constexpr (std::is_same_v<P, TrackingProperty>) {
                     return detail::check_clean_av(p.pixels);
                 } else if constexpr (std::is_same_v<P, RotationProperty>) {
-                    // RotationProperty::degrees (Vec3) — NOT `value`.
-                    return !detail::component_has_nan_or_inf(p.degrees);
+                    // RotationProperty::degrees (AnimatedValue<Vec3>) — NOT `value`.
+                    return detail::check_clean_av(p.degrees);
                 } else if constexpr (std::is_same_v<P, AnchorProperty>) {
                     // AnchorProperty::value (Vec3).
                     return !detail::component_has_nan_or_inf(p.value);
                 } else if constexpr (std::is_same_v<P, SkewProperty>) {
                     return !detail::component_has_nan_or_inf(p.angle)
                         && !detail::component_has_nan_or_inf(p.axis);
-                } else if constexpr (std::is_same_v<P, FillColorProperty>
-                                  || std::is_same_v<P, StrokeColorProperty>) {
+                } else if constexpr (std::is_same_v<P, FillColorProperty>) {
+                    // FillColorProperty::color is animated; scan keyframes.
+                    return detail::check_clean_av(p.color);
+                } else if constexpr (std::is_same_v<P, StrokeColorProperty>) {
                     return !detail::component_has_nan_or_inf(p.color);
                 } else if constexpr (std::is_same_v<P, StrokeWidthProperty>) {
                     return !detail::component_has_nan_or_inf(p.width);

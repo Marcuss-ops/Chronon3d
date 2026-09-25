@@ -54,6 +54,10 @@ std::size_t animated_keyframe_count(const TextAnimatorSpec& spec) {
                     count += value.radius.keyframes().size();
                 } else if constexpr (std::is_same_v<Property, TrackingProperty>) {
                     count += value.pixels.keyframes().size();
+                } else if constexpr (std::is_same_v<Property, RotationProperty>) {
+                    count += value.degrees.keyframes().size();
+                } else if constexpr (std::is_same_v<Property, FillColorProperty>) {
+                    count += value.color.keyframes().size();
                 }
             },
             property);
@@ -162,7 +166,7 @@ TEST_CASE("Special name profile supports one static accent") {
     const auto& scale = std::get<ScaleProperty>(result->properties[0]);
     CHECK(scale.value.keyframes()[0].value.x == doctest::Approx(0.94f));
     const auto& fill = std::get<FillColorProperty>(result->properties[2]);
-    CHECK(fill.color == accent);
+    CHECK(fill.color.evaluate(0.0) == accent);
 }
 
 TEST_CASE("Important word profile is the fastest punch") {

@@ -79,6 +79,12 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         layer.erase("parent");
         layer.erase("track_matte");
         layer.erase("time_remap");
+        // V3 owns text-animator validation: its animator_property_track
+        // override extends the frozen V2 property enum with the per-glyph
+        // 'rotation' and 'fill_color' tracks. The extension schema validates
+        // the whole text_animators block with the V2-level strictness, so the
+        // projection must not re-validate it against the frozen V2 enum.
+        layer.erase("text_animators");
         // V3 path masks are validated by the extension schema above. The V2
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.

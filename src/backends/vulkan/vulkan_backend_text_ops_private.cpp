@@ -77,7 +77,7 @@ namespace {
 // the shader's point of view).  The public record is now the sole host/shader
 // layout authority for selector, tracking and effect bindings.
 using GpuTextRunDynamic = runtime::TextRunDynamic;
-static_assert(sizeof(GpuTextRunDynamic) == 112,
+static_assert(sizeof(GpuTextRunDynamic) == 128,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");
 
 } // namespace

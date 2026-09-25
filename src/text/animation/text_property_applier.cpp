@@ -67,7 +67,8 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, RotationProperty>) {
-            const Vec3 delta = p.degrees * weight;
+            const Vec3 v = p.degrees.evaluate(time);
+            const Vec3 delta = v * weight;
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.rotation = delta;
             } else {
@@ -115,11 +116,12 @@ void apply_property_to_glyph(
         }
         else if constexpr (std::is_same_v<T, FillColorProperty>) {
             // Color: lerp from current to target.
+            const Color target = p.color.evaluate(time);
             const Color lerped = {
-                gs.fill.r + (p.color.r - gs.fill.r) * weight,
-                gs.fill.g + (p.color.g - gs.fill.g) * weight,
-                gs.fill.b + (p.color.b - gs.fill.b) * weight,
-                gs.fill.a + (p.color.a - gs.fill.a) * weight,
+                gs.fill.r + (target.r - gs.fill.r) * weight,
+                gs.fill.g + (target.g - gs.fill.g) * weight,
+                gs.fill.b + (target.b - gs.fill.b) * weight,
+                gs.fill.a + (target.a - gs.fill.a) * weight,
             };
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.fill = lerped;

@@ -116,10 +116,12 @@ enum class TextPropertyBlendMode {
 //   so the static end-state semantics are equivalent when no keyframes are
 //   present (AnimatedValue evaluates to m_default_value).
 //
-//   The remaining variants (RotationProperty, SkewProperty, AnchorProperty,
-//   FillColorProperty, StrokeColorProperty, StrokeWidthProperty,
-//   BaselineShiftProperty, CharacterOffsetProperty) keep static values.
-//   They can be migrated in a follow-up PR without breaking any contracts.
+//   RotationProperty and FillColorProperty were migrated the same way so the
+//   render-plan `rotation` / `fill_color` animator property tracks can carry
+//   real keyframes.  The remaining variants (SkewProperty, AnchorProperty,
+//   StrokeColorProperty, StrokeWidthProperty, BaselineShiftProperty,
+//   CharacterOffsetProperty) keep static values and can be migrated the same
+//   way without breaking any contracts.
 
 struct PositionProperty {
     AnimatedValue<Vec3> value{Vec3{0.0f, 0.0f, 0.0f}};
@@ -130,7 +132,7 @@ struct ScaleProperty {
 };
 
 struct RotationProperty {
-    Vec3 degrees{0.0f, 0.0f, 0.0f};  // X, Y, Z rotation in degrees
+    AnimatedValue<Vec3> degrees{Vec3{0.0f, 0.0f, 0.0f}};  // X, Y, Z rotation in degrees
 };
 
 struct SkewProperty {
@@ -151,7 +153,7 @@ struct BlurProperty {
 };
 
 struct FillColorProperty {
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    AnimatedValue<Color> color{Color{1.0f, 1.0f, 1.0f, 1.0f}};
 };
 
 struct BackgroundColorProperty {

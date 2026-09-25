@@ -56,6 +56,19 @@ float sample_full_run_selector_weight(
     return selector_weight(params, 0u);
 }
 
+// The tiled GPU lane rotates glyphs in-plane (Z) around the glyph layout
+// origin. X/Y rotation (the 2.5D shear emulations of the software matrix)
+// is not lowered here and keeps the software route.
+bool is_z_only_rotation(const AnimatedValue<Vec3>& degrees) noexcept {
+    if (degrees.has_expression()) return false;
+    const auto at_rest = degrees.evaluate(0.0);
+    if (at_rest.x != 0.0f || at_rest.y != 0.0f) return false;
+    for (const auto& keyframe : degrees.keyframes()) {
+        if (keyframe.value.x != 0.0f || keyframe.value.y != 0.0f) return false;
+    }
+    return true;
+}
+
 } // namespace
 
 bool can_lower_gpu_run_level_animation(const TextRunShape& shape) noexcept {
@@ -76,7 +89,8 @@ bool can_lower_gpu_run_level_animation(const TextRunShape& shape) noexcept {
         } else if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
             if (opacity->value.has_expression()) return false;
             saw_dynamic_property = true;
-        } else if (std::holds_alternative<FillColorProperty>(property)) {
+        } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
+            if (fill->color.has_expression()) return false;
             saw_dynamic_property = true;
         } else {
             return false;
@@ -107,16 +121,17 @@ void sample_gpu_run_level_animation(
             const auto value = opacity->value.evaluate(sample_time);
             run.opacity *= 1.0f + (value - 1.0f) * selector_weight;
         } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
+            const Color target = fill->color.evaluate(sample_time);
             const auto unpack = [](std::uint32_t packed, int shift) {
                 return static_cast<float>((packed >> shift) & 0xFFu) / 255.0f;
             };
             Color base{
                 unpack(run.color, 0), unpack(run.color, 8),
                 unpack(run.color, 16), unpack(run.color, 24)};
-            base.r += (fill->color.r - base.r) * selector_weight;
-            base.g += (fill->color.g - base.g) * selector_weight;
-            base.b += (fill->color.b - base.b) * selector_weight;
-            base.a += (fill->color.a - base.a) * selector_weight;
+            base.r += (target.r - base.r) * selector_weight;
+            base.g += (target.g - base.g) * selector_weight;
+            base.b += (target.b - base.b) * selector_weight;
+            base.a += (target.a - base.a) * selector_weight;
             run.color = ::chronon3d::text::pack_text_color(base);
         }
     }
@@ -206,6 +221,12 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
         } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
             if (blur->radius.has_expression()) return false;
             saw_supported_property = true;
+        } else if (const auto* rotation = std::get_if<RotationProperty>(&property)) {
+            if (!is_z_only_rotation(rotation->degrees)) return false;
+            saw_supported_property = true;
+        } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
+            if (fill->color.has_expression()) return false;
+            saw_supported_property = true;
         } else {
             return false;
         }
@@ -261,6 +282,12 @@ void sample_gpu_text_animation(
             run.animator_tracking += tracking->pixels.evaluate(sample_time);
         } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
             run.animator_blur += std::max(0.0f, blur->radius.evaluate(sample_time));
+        } else if (const auto* rotation = std::get_if<RotationProperty>(&property)) {
+            run.animator_rotation_z += rotation->degrees.evaluate(sample_time).z;
+        } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
+            run.flags |= runtime::kTextRunFlagAnimatorFill;
+            run.animator_fill_color = ::chronon3d::text::pack_text_color(
+                fill->color.evaluate(sample_time));
         }
     }
 }
