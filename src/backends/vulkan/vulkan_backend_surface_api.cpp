@@ -470,7 +470,7 @@ graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
     });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1;
-    (void)shape; (void)line; (void)color;
+    (void)shape; (void)line; (void)color; (void)vertices;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::fill_solid_shape_surface: Vulkan support is disabled"));

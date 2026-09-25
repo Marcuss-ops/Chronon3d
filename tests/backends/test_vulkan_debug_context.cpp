@@ -193,10 +193,9 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
         PathCommand::line_to({64.0f, 34.0f}),
         PathCommand::close()};
 
-    // Fase 2: solid closed-shape strokes (rect / rounded-rect / circle,
-    // Inside / Center / Outside, 2D uniform scale) are now promoted to the
-    // stroked kernel alongside basic fills. Gradients / non-uniform scale /
-    // masks still fall back to CPU.
+    // Solid closed-shape strokes remain explicitly rejected by this backend
+    // until a software/Vulkan pixel-parity oracle certifies the SDF candidate.
+    // Gradients / non-uniform scale / masks are also unsupported.
     RenderNode stroked_rounded;
     stroked_rounded.shape.set_type(ShapeType::RoundedRect);
     stroked_rounded.shape.rounded_rect().size = rounded.shape.rounded_rect().size;
@@ -246,9 +245,11 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
             default:
                 FAIL("unexpected stroked primitive in test");
             }
-            const auto ok = backend->draw_node(
+            const auto result = backend->draw_node(
                 framebuffer, *stroked, state, camera, 96, 64);
-            REQUIRE(ok.ok());
+            REQUIRE_FALSE(result.ok());
+            CHECK(result.error().code ==
+                  graph::RenderBackendErrorCode::UnsupportedCapability);
         }
     }
     backend->draw_node(framebuffer, line, state, camera, 96, 64);
@@ -258,9 +259,9 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->end_frame_batch();
 
     const auto stats = backend->stats();
-    // Six fill/line/path nodes + 3×3 stroked primitives (3 alignments each)
-    // all take native passes. The cubic-stroke Path remains rejected.
-    CHECK(stats.passes_executed >= 15);
+    // Basic fills/lines and the filled path take native passes; all nine
+    // closed-shape stroke cases plus the cubic-stroke Path fail closed.
+    CHECK(stats.passes_executed >= 6);
     REQUIRE(backend->release_surface(handle).ok());
 }
 

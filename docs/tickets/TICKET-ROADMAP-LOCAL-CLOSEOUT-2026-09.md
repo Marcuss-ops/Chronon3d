@@ -28,6 +28,12 @@ hardware, assets, or remote CI remain open below.
   per-slot GPU surface version/history to safely apply accumulated deltas to a
   reused GPU image; do not remove this gate until that ownership contract is
   provided by the existing slot authority.
+- Sparse YUV was also only selected by the resolver: no scene executor consumed
+  `FrameExecutionPath::SparseYuv` or its dirty regions. It now remains
+  `FullYuv` with reason `sparse_yuv_executor_unavailable` until a persistent
+  YUV destination, region update, and encoder handoff are implemented. The
+  regression assertion is in `test_frame_delta_compiler.cpp`; no partial-YUV
+  performance is claimed.
 
 ## Audited boundaries — no new authority added
 
@@ -58,21 +64,18 @@ hardware, assets, or remote CI remain open below.
 
 The CPU shape rasterizer defines strokes through alignment-specific outer/inner
 hit tests, `spread`, clip/mask checks, fill-over-stroke precedence, and hard
-binary coverage at inverse-transformed pixel centers. The current working tree
-contains a new SDF-based Vulkan stroke branch in `fill_rect.comp` and dispatch
-setup for Rect/RoundedRect/Circle strokes. It is an implementation candidate,
-not evidence of CPU parity: the fixed smooth coverage and fill/stroke handling
-have not been validated against the CPU pixel contract. Do not describe the
-current path as certified or as preserving the prior fail-closed rejection
-boundary; source changes have moved that boundary, but correctness is unknown.
+binary coverage at inverse-transformed pixel centers. The working tree contains an SDF-based Vulkan stroke shader candidate in
+`fill_rect.comp`. The native shape dispatcher now fails closed for enabled
+Rect/RoundedRect/Circle strokes until the candidate has pixel parity; the
+backend has no implicit CPU fallback. The fixed smooth coverage and
+fill/stroke handling have not been validated against the CPU pixel contract.
 
-The Vulkan dispatch contract in `test_vulkan_debug_context.cpp` is now stale:
-it still expects all enabled closed-shape strokes to return
-`UnsupportedCapability`, while the new dispatch attempts to promote them. The
-previously recorded doctest results predate these source changes and do not
+The Vulkan dispatch contract in `test_vulkan_debug_context.cpp` now expects
+all nine enabled closed-shape stroke cases to return `UnsupportedCapability`;
+the source dispatcher has been returned to that fail-closed boundary. The
+previously recorded doctest results predate this reconciliation and do not
 verify the current tree. The test also had a post-doctest
-`free(): invalid pointer` teardown abort, which remains unresolved. This ticket
-therefore claims neither stroke support nor rejection for the current tree.
+`free(): invalid pointer` teardown abort, which remains unresolved.
 
 Acceptance remains open until the candidate is reconciled with the intended
 fail-closed policy and covered by a software-versus-Vulkan pixel parity oracle
@@ -82,11 +85,9 @@ state is settled; GPU hardware certification is a separate external gate.
 
 ## Current-tree verification caveat
 
-The build/test snapshot below describes the tree at the time those commands ran,
-before the Vulkan stroke shader/dispatch changes surfaced. Treat all reported
-passes as historical for this closeout, not as verification of the current
-source tree. The current stroke assertion conflict has not been rebuilt or
-resolved here.
+No build or tests were run after the fail-closed stroke reconciliation. The
+historical build/test snapshot below predates these changes and does not verify
+the current source tree; the Vulkan debug teardown abort is still open.
 
 
 ## External gates still blocked
@@ -99,15 +100,13 @@ resolved here.
 - VRAM calibration on 3–5 representative shapes with allocator attribution is
   required before daemon concurrency can be enabled.
 - Historical build/test snapshot from the local `linux-video-test` lane
-  (2026-09-25, before the current stroke shader/dispatch changes): the `-j16`
+  (2026-09-25, before the current stroke dispatch reconciliation): the `-j16`
   target build completed; render graph, text-tile canary, shader ABI consistency,
   and shader-layout checks passed. The full core suite failed because required
   test fonts were unavailable; focused GPU selector tests passed. The Vulkan
   debug binary reported 8 cases/43 assertions before aborting after doctest
   with `free(): invalid pointer`. None of these results verifies the current
-  stroke source; the dispatch test's rejection assertions now conflict with the
-  candidate promotion path, and the current tree needs a fresh build/test after
-  that conflict is resolved.
+  tree; a fresh build/test is still required when permitted.
 - Remote synchronization is not available in this environment; local commits
   do not imply GitHub push/CI completion. Existing two local commits remain
   ahead of the stale `origin/main` ref; no push was attempted.
