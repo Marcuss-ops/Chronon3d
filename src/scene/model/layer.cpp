@@ -48,6 +48,7 @@ Layer::Layer(const Layer& other)
       m_effects(std::make_unique<EffectStack>(*other.m_effects)),
       blend_mode(other.blend_mode),
       composite_operator(other.composite_operator),
+      backdrop_blur(other.backdrop_blur),
       depth_role(other.depth_role),
       depth_offset(other.depth_offset),
       layout(other.layout),
@@ -90,6 +91,7 @@ Layer& Layer::operator=(const Layer& other) {
     *m_effects = *other.m_effects;
     blend_mode = other.blend_mode;
     composite_operator = other.composite_operator;
+    backdrop_blur = other.backdrop_blur;
     depth_role = other.depth_role;
     depth_offset = other.depth_offset;
     layout = other.layout;
@@ -134,6 +136,11 @@ uint64_t Layer::get_static_hash() const {
     h = hash_combine(h, static_cast<u64>(blend_mode));
     h = hash_combine(h, hash_mask(mask));
     h = hash_combine(h, hash_effect_stack(*m_effects));
+    if (backdrop_blur) {
+        h = hash_combine(h, hash_bytes(&backdrop_blur->blur, sizeof(float)));
+        h = hash_combine(h, hash_bytes(&backdrop_blur->brightness, sizeof(float)));
+        h = hash_combine(h, hash_bytes(&backdrop_blur->saturation, sizeof(float)));
+    }
     for (const auto& node : nodes) {
         h = hash_combine(h, hash_render_node(node));
     }

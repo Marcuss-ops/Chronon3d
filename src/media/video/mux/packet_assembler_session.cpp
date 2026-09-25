@@ -5,6 +5,11 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+
+extern "C" {
+#include <libavutil/dict.h>
+}
 
 namespace chronon3d::media {
 namespace {
@@ -140,7 +145,11 @@ bool MuxSession::write_header(const std::string& output_path,
     }
     // The append-oriented hash writer cannot support faststart's second
     // seek/rewrite pass. Callers that require faststart remux afterwards.
-    const int ret = avformat_write_header(format_, nullptr);
+    AVDictionary* options = nullptr;
+    if (std::filesystem::path(output_path).extension() == ".gif")
+        av_dict_set(&options, "loop", "0", 0);
+    const int ret = avformat_write_header(format_, &options);
+    av_dict_free(&options);
     if (ret < 0) {
         reason = "failed to write mux header";
         return false;

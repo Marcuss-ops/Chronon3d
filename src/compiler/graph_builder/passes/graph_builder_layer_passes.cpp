@@ -50,14 +50,16 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         return;
     }
 
-auto composite = graph.add_node(std::make_unique<CompositeNode>(
+auto composite_node = std::make_unique<CompositeNode>(
     graph.next_composite_id(),
     layer.blend_mode,
     is_static ? Frame{0} : Frame{-1},
     world_z,
     ::chronon3d::CompositeOperator::SourceOver,
     is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
-), node_ctx);
+);
+composite_node->set_backdrop_blur(layer.backdrop_blur);
+auto composite = graph.add_node(std::move(composite_node), node_ctx);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;

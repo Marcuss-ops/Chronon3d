@@ -17,12 +17,115 @@
 #include <optional>
 #include <string_view>
 #include <vector>
+#include <cmath>
+#include <limits>
 
 #include "native_surface.hpp"
 
 namespace chronon3d::graph {
 
 namespace {
+
+NodeExecResult execute_backdrop_software(
+    RenderGraphContext& ctx, const Framebuffer& bottom, const Framebuffer& top,
+    const BackdropBlurParams& settings, BlendMode mode) {
+    if (ctx.policy.require_native_gpu)
+        return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+            "CompositeNode", "backdrop blur requires software composition; strict GPU-native mode rejects this layer"};
+    if (!bottom.is_cpu_authoritative() || !top.is_cpu_authoritative() ||
+        bottom.width() != ctx.frame_input.width || bottom.height() != ctx.frame_input.height ||
+        bottom.origin_x() != 0 || bottom.origin_y() != 0)
+        return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+            "CompositeNode", "software backdrop blur requires CPU-resident full-canvas inputs"};
+
+    const i32 width = bottom.width();
+    const i32 height = bottom.height();
+    const std::size_t count = static_cast<std::size_t>(width) * height;
+    std::vector<Color> source(count), horizontal(count), blurred(count);
+    for (i32 y = 0; y < height; ++y) {
+        const auto* row = bottom.pixels_row(y);
+        std::copy_n(row, width, source.data() + static_cast<std::size_t>(y) * width);
+    }
+
+    const int extent = static_cast<int>(std::ceil(settings.blur));
+    if (extent > 0) {
+        const float sigma = std::max(settings.blur / 3.0f, 0.5f);
+        std::vector<float> kernel(static_cast<std::size_t>(extent * 2 + 1));
+        float weight_sum = 0.0f;
+        for (int k = -extent; k <= extent; ++k) {
+            const float value = std::exp(-0.5f * (static_cast<float>(k) / sigma) *
+                                         (static_cast<float>(k) / sigma));
+            kernel[static_cast<std::size_t>(k + extent)] = value;
+            weight_sum += value;
+        }
+        for (auto& value : kernel) value /= weight_sum;
+        const auto sample = [&](const std::vector<Color>& input, i32 x, i32 y) {
+            x = std::clamp(x, 0, width - 1);
+            y = std::clamp(y, 0, height - 1);
+            return input[static_cast<std::size_t>(y) * width + x];
+        };
+        for (i32 y = 0; y < height; ++y) for (i32 x = 0; x < width; ++x) {
+            Color out{0, 0, 0, 0};
+            for (int k = -extent; k <= extent; ++k) {
+                const Color c = sample(source, x + k, y);
+                const float w = kernel[static_cast<std::size_t>(k + extent)];
+                out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+            }
+            horizontal[static_cast<std::size_t>(y) * width + x] = out;
+        }
+        for (i32 y = 0; y < height; ++y) for (i32 x = 0; x < width; ++x) {
+            Color out{0, 0, 0, 0};
+            for (int k = -extent; k <= extent; ++k) {
+                const Color c = sample(horizontal, x, y + k);
+                const float w = kernel[static_cast<std::size_t>(k + extent)];
+                out.r += c.r * w; out.g += c.g * w; out.b += c.b * w; out.a += c.a * w;
+            }
+            blurred[static_cast<std::size_t>(y) * width + x] = out;
+        }
+    } else {
+        blurred = source;
+    }
+
+    float max_alpha = 0.0f;
+    for (i32 y = 0; y < top.height(); ++y) {
+        const auto* row = top.pixels_row(y);
+        for (i32 x = 0; x < top.width(); ++x) max_alpha = std::max(max_alpha, row[x].a);
+    }
+    auto output = ctx.acquire_owned_fb(width, height, false);
+    for (i32 y = 0; y < height; ++y) {
+        Color* dst = output->pixels_row(y);
+        const Color* top_row = y >= top.origin_y() && y < top.origin_y() + top.height()
+            ? top.pixels_row(y - top.origin_y()) : nullptr;
+        for (i32 x = 0; x < width; ++x) {
+            Color backdrop = source[static_cast<std::size_t>(y) * width + x];
+            float coverage = 0.0f;
+            if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width() && max_alpha > 0.0f)
+                coverage = std::clamp(top_row[x - top.origin_x()].a / max_alpha, 0.0f, 1.0f);
+            Color glass = blurred[static_cast<std::size_t>(y) * width + x];
+            if (glass.a > 1e-6f) {
+                float r = glass.r / glass.a * settings.brightness;
+                float g = glass.g / glass.a * settings.brightness;
+                float b = glass.b / glass.a * settings.brightness;
+                const float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                r = luma + (r - luma) * settings.saturation;
+                g = luma + (g - luma) * settings.saturation;
+                b = luma + (b - luma) * settings.saturation;
+                glass.r = r * glass.a; glass.g = g * glass.a; glass.b = b * glass.a;
+            }
+            backdrop.r = backdrop.r * (1.0f - coverage) + glass.r * coverage;
+            backdrop.g = backdrop.g * (1.0f - coverage) + glass.g * coverage;
+            backdrop.b = backdrop.b * (1.0f - coverage) + glass.b * coverage;
+            backdrop.a = backdrop.a * (1.0f - coverage) + glass.a * coverage;
+            if (top_row && x >= top.origin_x() && x < top.origin_x() + top.width())
+                backdrop = compositor::blend(top_row[x - top.origin_x()], backdrop, mode);
+            dst[x] = backdrop;
+        }
+    }
+    output->set_origin(0, 0);
+    if (ctx.node_exec.counters)
+        ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+    return NodeExecResult{std::move(output)};
+}
 
 // ── try_native_affine_composite ──────────────────────────────────────────
 //
@@ -343,6 +446,46 @@ NodeExecResult CompositeNode::execute(
 
     const FramebufferRef& bottom = in0 ? in0 : in1;
     const FramebufferRef& top = in0 ? in1 : empty_fb;
+
+    if (m_backdrop_blur) {
+        if (!top || m_operator != CompositeOperator::SourceOver || m_mode != BlendMode::Normal)
+            return NodeExecutionError{RenderBackendErrorCode::InvalidInput,
+                "CompositeNode", "backdrop blur requires a normal source-over shape layer"};
+        if (ctx.backend && ctx.surface_registry && ctx.backend->supports_native_surfaces() &&
+            m_backdrop_blur->brightness == 1.0f && m_backdrop_blur->saturation == 1.0f &&
+            bottom->width() == ctx.frame_input.width && bottom->height() == ctx.frame_input.height &&
+            top->width() == bottom->width() && top->height() == bottom->height() &&
+            bottom->origin_x() == 0 && bottom->origin_y() == 0 &&
+            top->origin_x() == 0 && top->origin_y() == 0) {
+            auto result = ctx.acquire_owned_fb(*bottom);
+            auto horizontal = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
+            auto blurred = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
+            auto masked = ctx.acquire_owned_fb(bottom->width(), bottom->height(), false);
+            if (!ensure_native_surface(ctx, *result, "CompositeNode.backdrop.destination") ||
+                !ensure_native_surface(ctx, *horizontal, "CompositeNode.backdrop.horizontal") ||
+                !ensure_native_surface(ctx, *blurred, "CompositeNode.backdrop.blurred") ||
+                !ensure_native_surface(ctx, *masked, "CompositeNode.backdrop.masked") ||
+                !ensure_native_surface(ctx, const_cast<Framebuffer&>(*top), "CompositeNode.backdrop.mask"))
+                return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode", "failed to materialize backdrop blur surfaces"};
+            const auto h = ctx.backend->blur_surface(horizontal->surface_handle(),
+                bottom->surface_handle(), m_backdrop_blur->blur, true);
+            const auto v = h.ok() ? ctx.backend->blur_surface(blurred->surface_handle(),
+                horizontal->surface_handle(), m_backdrop_blur->blur, false) : h;
+            const auto m = v.ok() ? ctx.backend->matte_surface(masked->surface_handle(),
+                blurred->surface_handle(), top->surface_handle(), false, false) : v;
+            const auto c = m.ok() ? ctx.backend->composite_surfaces(result->surface_handle(),
+                masked->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : m;
+            const auto overlay = c.ok() ? ctx.backend->composite_surfaces(result->surface_handle(),
+                top->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : c;
+            if (!overlay.ok())
+                return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode", "native backdrop blur operation failed"};
+            result->mark_gpu_authoritative();
+            return NodeExecResult{std::move(result)};
+        }
+        return execute_backdrop_software(ctx, *bottom, *top, *m_backdrop_blur, m_mode);
+    }
 
     // Which inputs the compiler actually wired here. A Composite with a single
     // input is a pass-through (the `!top` early return below), so this line is

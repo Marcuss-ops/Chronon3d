@@ -65,12 +65,24 @@
       },
       "not": { "required": ["color", "gradient"] }
     },
+    "shadow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["color", "offset"],
+      "properties": {
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "offset": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "blur": { "type": "number", "minimum": 0 }
+      }
+    },
     "shape": {
       "type": "object", "additionalProperties": false,
       "required": ["type"],
+      "not": { "required": ["radius", "corner_radius"] },
       "properties": {
         "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path"] },
         "radius": { "type": "number", "minimum": 0 },
+        "corner_radius": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0 } },
         "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
         "stroke": { "$ref": "#/$defs/stroke" },
         "path": { "type": "array", "minItems": 1, "maxItems": 65536, "items": { "$ref": "#/$defs/path_command" } },
@@ -173,6 +185,11 @@
   "properties": {
     "schema": { "const": "chronon.render-plan.v3" },
     "version": { "const": 3 },
+    "variables": {
+      "type": "object", "maxProperties": 1024,
+      "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+      "additionalProperties": { "type": ["string", "number"] }
+    },
     "layers": {
       "type": "array",
       "items": {
@@ -288,12 +305,25 @@
             "type": "object",
             "properties": {
               "gradient": { "$ref": "#/$defs/gradient" },
+              "shadow": { "$ref": "#/$defs/shadow" },
+              "shadows": { "type": "array", "minItems": 1, "maxItems": 3,
+                           "items": { "$ref": "#/$defs/shadow" } },
+              "backdrop": {
+                "type": "object", "additionalProperties": false,
+                "required": ["blur"],
+                "properties": {
+                  "blur": { "type": "number", "minimum": 0, "maximum": 64 },
+                  "brightness": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "saturation": { "type": "number", "minimum": 0, "maximum": 4 }
+                }
+              },
               "stroke": {
                 "type": "object",
                 "properties": { "gradient": { "$ref": "#/$defs/gradient" } },
                 "required": ["gradient"]
               }
-            }
+            },
+            "not": { "required": ["shadow", "shadows"] }
           }
         },
         "allOf": [

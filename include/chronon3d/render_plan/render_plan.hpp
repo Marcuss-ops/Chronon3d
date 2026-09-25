@@ -73,6 +73,7 @@ struct PathOperatorPlan {
 struct ShapeContentPlan {
     ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
     float radius{0.0f};
+    std::optional<std::array<float, 4>> corner_radius;
     std::optional<std::array<float, 4>> fill_color;
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
@@ -80,7 +81,7 @@ struct ShapeContentPlan {
     std::vector<PathOperatorPlan> operators;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
-enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
+enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM, PngSequence, Gif };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 enum class RateControlMode : std::uint8_t { Crf, ConstantQp, Bitrate };
 
@@ -97,6 +98,12 @@ struct ShadowStyle {
     std::optional<float> blur;
     std::array<float, 2> offset{0.0f, 0.0f};
     std::size_t offset_dimensions{0};
+};
+
+struct BackdropBlurStyle {
+    float blur{16.0f};
+    float brightness{1.0f};
+    float saturation{1.0f};
 };
 
 // Per-text halo parameters. This is distinct from ShadowStyle: shadow is a
@@ -123,6 +130,8 @@ struct LayerStylePlan {
     std::string fill;
     std::optional<StrokeStyle> stroke;
     std::optional<ShadowStyle> shadow;
+    std::vector<ShadowStyle> shadows;
+    std::optional<BackdropBlurStyle> backdrop;
     std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
 };
@@ -327,6 +336,7 @@ struct RenderPlan {
     std::string schema{kRenderPlanSchemaV2};
     std::string job_id{"chronon_plan"};
     std::uint64_t content_fingerprint{0};
+    std::vector<std::string> warnings;
     CanvasSpec canvas;
     std::optional<CameraPlan> camera;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;

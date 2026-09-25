@@ -176,6 +176,23 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");
         shape.radius = raw_shape.value("radius", 0.0f);
+        if (raw_shape.contains("corner_radius")) {
+            if (shape.type != ShapeContentTypePlan::RoundedRect)
+                throw std::runtime_error("shape.corner_radius is only valid for rounded_rect");
+            if (raw_shape.contains("radius"))
+                throw std::runtime_error("shape.radius and shape.corner_radius are mutually exclusive");
+            const auto& corners = raw_shape.at("corner_radius");
+            if (!corners.is_array() || corners.size() != 4)
+                throw std::runtime_error("shape.corner_radius must contain [tl, tr, br, bl]");
+            std::array<float, 4> decoded{};
+            const float max_radius = std::min(layer.size[0], layer.size[1]) * 0.5f;
+            for (std::size_t i = 0; i < decoded.size(); ++i) {
+                decoded[i] = corners.at(i).get<float>();
+                if (!std::isfinite(decoded[i]) || decoded[i] < 0.0f || decoded[i] > max_radius)
+                    throw std::runtime_error("rounded_rect corner radius must be finite, non-negative, and not exceed half the smaller size dimension");
+            }
+            shape.corner_radius = decoded;
+        }
         if (!std::isfinite(shape.radius) || shape.radius < 0.0f)
             throw std::runtime_error("shape.radius must be finite and non-negative");
         if (shape.type == ShapeContentTypePlan::RoundedRect) {
@@ -712,8 +729,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                                             optional_value<float>(stroke, "width"),
                                             std::nullopt, std::nullopt, std::nullopt};
         }
-        if (style.contains("shadow")) {
-            const auto& shadow = style.at("shadow");
+        if (style.contains("shadow") && style.contains("shadows"))
+            throw std::runtime_error("style.shadow and style.shadows are mutually exclusive");
+        const auto decode_shadow = [](const nlohmann::json& shadow) {
             ShadowStyle shadow_plan;
             shadow_plan.color = shadow.value("color", std::string{});
             shadow_plan.opacity = optional_value<float>(shadow, "opacity");
@@ -724,7 +742,40 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 for (std::size_t i = 0; i < offset.size() && i < shadow_plan.offset.size(); ++i)
                     shadow_plan.offset[i] = offset.at(i).get<float>();
             }
-            style_plan.shadow = std::move(shadow_plan);
+            return shadow_plan;
+        };
+        if (style.contains("shadow")) {
+            style_plan.shadow = decode_shadow(style.at("shadow"));
+        }
+        if (style.contains("shadows")) {
+            const auto& shadows = style.at("shadows");
+            if (!shadows.is_array() || shadows.size() > 3)
+                throw std::runtime_error("style.shadows must contain at most 3 shadows");
+            for (const auto& raw_shadow : shadows) {
+                auto shadow = decode_shadow(raw_shadow);
+                const float opacity = shadow.opacity.value_or(1.0f);
+                const float blur = shadow.blur.value_or(0.0f);
+                if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f ||
+                    !std::isfinite(blur) || blur < 0.0f ||
+                    !std::isfinite(shadow.offset[0]) || !std::isfinite(shadow.offset[1]) ||
+                    shadow.offset_dimensions != 2 || shadow.color.empty())
+                    throw std::runtime_error("style.shadows entries require color, finite offset, opacity in [0,1], and non-negative blur");
+                style_plan.shadows.push_back(std::move(shadow));
+            }
+        }
+        if (style.contains("backdrop")) {
+            if (layer.type != LayerType::Shape)
+                throw std::runtime_error("style.backdrop is only valid for shape layers");
+            const auto& raw_backdrop = style.at("backdrop");
+            BackdropBlurStyle backdrop;
+            backdrop.blur = raw_backdrop.at("blur").get<float>();
+            backdrop.brightness = raw_backdrop.value("brightness", 1.0f);
+            backdrop.saturation = raw_backdrop.value("saturation", 1.0f);
+            if (!std::isfinite(backdrop.blur) || backdrop.blur < 0.0f || backdrop.blur > 64.0f ||
+                !std::isfinite(backdrop.brightness) || backdrop.brightness < 0.0f || backdrop.brightness > 4.0f ||
+                !std::isfinite(backdrop.saturation) || backdrop.saturation < 0.0f || backdrop.saturation > 4.0f)
+                throw std::runtime_error("style.backdrop blur, brightness, and saturation must be finite and within supported bounds");
+            style_plan.backdrop = backdrop;
         }
         if (style.contains("glow")) {
             const auto& glow = style.at("glow");

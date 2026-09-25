@@ -77,6 +77,8 @@ enum class VideoCodec : uint8_t {
 
     /// Uncompressed / raw (no encoding — used with RawVideoSink).
     Uncompressed = 5,
+    /// GIF89a animated palette video.
+    Gif = 7,
 };
 
 /// Video container format.
@@ -92,6 +94,8 @@ enum class VideoContainer : uint8_t {
 
     /// Raw file (no container — used with RawVideoSink).
     Raw = 3,
+    /// Animated GIF.
+    Gif = 4,
 };
 
 /// Classify a file extension as a supported OUTPUT container.
@@ -121,6 +125,7 @@ enum class VideoContainer : uint8_t {
     if (equals_ci("mp4")) return VideoContainer::Mp4;
     if (equals_ci("mkv")) return VideoContainer::Mkv;
     if (equals_ci("webm")) return VideoContainer::WebM;
+    if (equals_ci("gif")) return VideoContainer::Gif;
     return std::nullopt;
 }
 
@@ -295,6 +300,7 @@ struct ValidationResult {
     switch (container) {
         case VideoContainer::WebM: return VideoCodec::VP9;
         case VideoContainer::Raw:  return VideoCodec::Uncompressed;
+        case VideoContainer::Gif: return VideoCodec::Gif;
         case VideoContainer::Mp4:
         case VideoContainer::Mkv:
         default:                   return VideoCodec::H264;

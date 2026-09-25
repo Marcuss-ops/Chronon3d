@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
+#include <chronon3d/scene/model/layer/backdrop_blur.hpp>
 #include <atomic>
 #include <span>
 
@@ -23,6 +24,9 @@ public:
           m_unique_id(instance_id) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
+    void set_backdrop_blur(std::optional<BackdropBlurParams> params) {
+        m_backdrop_blur = std::move(params);
+    }
     std::string_view name() const noexcept override { return "Composite"; }
 
     std::optional<raster::BBox> predicted_bbox(
@@ -78,13 +82,22 @@ public:
         // so distinct CompositeNodes can never hash-collide, and use the
         // current frame for frame-variant composites (m_cache_frame < 0)
         // so zoom-different frames can never collide either.
-        const u64 params_hash = hash_combine(
+        u64 params_hash = hash_combine(
             m_unique_id,
             hash_combine(
                 static_cast<u64>(m_mode),
                 static_cast<u64>(m_operator)
             )
         );
+        if (m_backdrop_blur) {
+            const auto& blur = *m_backdrop_blur;
+            const auto bytes = [](float value) {
+                return hash_bytes(&value, sizeof(value));
+            };
+            params_hash = hash_combine(
+                params_hash, hash_combine(bytes(blur.blur),
+                    hash_combine(bytes(blur.brightness), bytes(blur.saturation))));
+        }
         return cache::NodeCacheKey{
             .scope = "composite",
             .frame = cache_frame_for_policy(
@@ -108,6 +121,7 @@ public:
 private:
     BlendMode                  m_mode;
     CompositeOperator          m_operator{CompositeOperator::SourceOver};
+    std::optional<BackdropBlurParams> m_backdrop_blur;
     Frame                      m_cache_frame{-1};
     float                      m_world_z{0.0f};
     u64                        m_unique_id{0};
