@@ -264,6 +264,28 @@ registration now belongs to `tools/gates/manifest.sh`; the full B00-B11
 machine-verification input is unavailable here, so the historical baseline
 acceptance remains explicitly pending rather than inferred from the CPU smoke.
 
+### Re-audit after benchmark-fleet demolition — 2026-09-24
+
+The B00-B11 CPU factories and their corpus runner are recoverable from Git
+history, but they were deliberately removed in `d1d8265b5`
+(`chore(demolition): remove visual/golden/demo fleet and dead tooling`). The
+current `docs/benchmarks/gpu-corpus-v1.json` is a different, active manifest:
+its B00-B11 scene names are resolved by an external content pack. The current
+runtime composition registry exposes only `DarkGridBackground` and
+`CameraImageClip`; neither manifest-named B00-B11 compositions nor the old
+factory registrations are available in this checkout. The in-memory
+`chronon3d_bench` target is also optional (`CHRONON3D_BUILD_BENCHMARK_CLI=OFF`)
+and, even when enabled, registers the same current runtime compositions. Its
+`--node-memory-json` path is CPU-capable, so the missing deliverable is a
+representative set of runnable corpus scenes, not GPU certification. The
+retired runner and factories are historical source, not current executable
+evidence.
+
+The two current built-in CPU reports remain smoke evidence only. They pass the
+per-node allocation gate but cannot satisfy the representative B00-B11
+acceptance item while the external scene pack (or a replacement CPU corpus)
+is unavailable.
+
 The existing structs/schema/tests proved the **data shape**, not the requested
 runtime metrics. A local implementation increment now wires input/output pixel
 and byte volumes into `ScopedNodeMemory`, and observes framebuffer backing-store

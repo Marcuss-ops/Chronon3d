@@ -399,13 +399,13 @@ void check_same_semantics(const JobRequest& cli, const JobRequest& ipc) {
 void check_normalized_parity(const JobRequest& cli, const std::string& payload,
                              const JobCaps& capabilities) {
     INFO("IPC payload: " << payload);
-    const auto ipc_request = cli::decode_render_job_payload(payload);
-    check_same_semantics(cli, ipc_request);
+    const auto decoded = cli::decode_render_job_payload(payload);
+    check_same_semantics(cli, decoded.request);
 
     const auto cli_resolved =
         c3d::runtime::job::normalize_render_job(cli, capabilities);
     const auto ipc_resolved =
-        c3d::runtime::job::normalize_render_job(ipc_request, capabilities);
+        c3d::runtime::job::normalize_render_job(decoded.request, capabilities);
     REQUIRE(cli_resolved.has_value());
     REQUIRE(ipc_resolved.has_value());
     const auto& cli_job = cli_resolved.value();
@@ -707,10 +707,10 @@ TEST_CASE("decode_render_job_payload maps changed intervals") {
             ]
         }
     })");
-    REQUIRE(request.output.changed_intervals.size() == 2);
-    CHECK(request.output.changed_intervals[0].kind ==
+    REQUIRE(request.request.output.changed_intervals.size() == 2);
+    CHECK(request.request.output.changed_intervals[0].kind ==
           c3d::media::ChangedIntervalKind::Content);
-    CHECK(request.output.changed_intervals[1].kind ==
+    CHECK(request.request.output.changed_intervals[1].kind ==
           c3d::media::ChangedIntervalKind::Trim);
 }
 
@@ -727,6 +727,7 @@ TEST_CASE("decode_render_job_payload maps changed intervals") {
 
 TEST_CASE("decode_render_job_payload accepts the whole documented vocabulary") {
     const auto request = cli::decode_render_job_payload(R"({
+        "job_id":"full-video-job-42",
         "plan_path":"plan.json",
         "prepared_package_path":"package.json",
         "output":"hero.mp4",
@@ -790,13 +791,14 @@ TEST_CASE("decode_render_job_payload accepts the whole documented vocabulary") {
         }
     })");
 
-    CHECK(request.plan_path == "plan.json");
-    CHECK(request.output_path == "hero.mp4");
-    CHECK(request.output.hardware_encoder == "nvenc");
-    CHECK(request.output.gop_copy_only == false);
-    REQUIRE(request.output.changed_intervals.size() == 1);
-    CHECK(request.requirements.gpu_required);
-    CHECK_FALSE(request.requirements.cpu_fallback_allowed);
+    CHECK(request.request.plan_path == "plan.json");
+    CHECK(request.job_id == "full-video-job-42");
+    CHECK(request.request.output_path == "hero.mp4");
+    CHECK(request.request.output.hardware_encoder == "nvenc");
+    CHECK(request.request.output.gop_copy_only == false);
+    REQUIRE(request.request.output.changed_intervals.size() == 1);
+    CHECK(request.request.requirements.gpu_required);
+    CHECK_FALSE(request.request.requirements.cpu_fallback_allowed);
 }
 
 TEST_CASE("decode_render_job_payload refuses a key outside the closed vocabulary") {
@@ -805,6 +807,10 @@ TEST_CASE("decode_render_job_payload refuses a key outside the closed vocabulary
     CHECK_THROWS_AS(
         cli::decode_render_job_payload(
             R"({"plan_path":"plan.json","hardware_encder":"nvenc"})"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(
+            R"({"job_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","plan_path":"plan.json"})"),
         std::exception);
     CHECK_THROWS_AS(
         cli::decode_render_job_payload(

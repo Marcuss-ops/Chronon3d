@@ -23,19 +23,29 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
             // No payload re-serialization, no second parse, no second
             // normalize anywhere on this path.
             runtime::job::RenderJobRequest job_request;
+            std::string job_id;
             try {
-                job_request = decode_render_job_payload(payload);
+                auto decoded = decode_render_job_payload(payload);
+                job_id = std::move(decoded.job_id);
+                job_request = std::move(decoded.request);
             } catch (const std::exception& e) {
                 return ipc::Reply{ipc::Status::BadRequest,
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
             }
+            if (!job_id.empty() && !begin_job_status(job_id)) {
+                return ipc::Reply{ipc::Status::BadRequest,
+                    "RENDER_JOB duplicate active or retained job_id '" + job_id + "'"};
+            }
             const auto normalized = runtime::job::normalize_render_job(
                 job_request, runtime::job::RuntimeCapabilities{m_backend});
             if (!normalized) {
+                update_job_status(job_id, JobState::Failed,
+                                  normalized.error().message);
                 return ipc::Reply{ipc::Status::BadRequest,
                                   "RENDER_JOB normalization failed: " +
                                       normalized.error().message};
             }
+            update_job_status(job_id, JobState::Prepared, "normalized");
             const auto& resolved = normalized.value();
             const auto& canon = resolved.execution;
             // serve_concurrent keeps IPC ingress responsive, but a video job
@@ -65,6 +75,8 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
                                            plan_height)) {
                 case PlanDimensions::Unreadable:
                     // AUDIT §6 — fail closed instead of charging 1920x1080.
+                    update_job_status(job_id, JobState::Failed,
+                                      "plan file unreadable; canvas dimensions unknown");
                     return ipc::Reply{
                         ipc::Status::Error,
                         "RENDER_JOB rejected: plan file unreadable, canvas "
@@ -103,6 +115,8 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
                 estimated_vram / (1024ULL * 1024ULL),
                 concurrency.peak_footprints_that_fit, concurrency.reason);
             if (!admission.admitted()) {
+                update_job_status(job_id, JobState::Failed,
+                                  admission.failure_reason());
                 if (std::string_view{admission.failure_reason()} ==
                     "daemon is shutting down") {
                     return ipc::Reply{ipc::Status::Shutdown,
@@ -114,6 +128,7 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
             }
 
             auto reservation = admission.take_reservation();
+            update_job_status(job_id, JobState::Running, "rendering");
             const auto reserved_device = reservation.device();
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={}, vram_est={}MB)",
                           reserved_device, native_nvenc, estimated_vram / (1024 * 1024));
@@ -160,6 +175,10 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
 
             // Wake any pending job waiting in admission
             m_admission_cv.notify_all();
+
+            update_job_status(job_id,
+                reply.status == ipc::Status::Ok ? JobState::Completed : JobState::Failed,
+                reply.message);
 
             return reply;
 }

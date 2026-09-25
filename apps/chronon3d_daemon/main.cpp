@@ -95,12 +95,17 @@ int main(int argc, char* argv[]) {
     Config config = Config::from_environment();
     config.set_backend_preference(preference_from_string(args.backend));
 
+    // CompositionSession registers prepared compositions in this session
+    // registry. Keep it alive longer than the daemon-owned RenderEngine.
+    CompositionRegistry composition_registry;
     std::unique_ptr<RenderEngine> engine;
     if (args.assets_root.empty()) {
         engine = std::make_unique<RenderEngine>(std::move(config));
     } else {
         engine = std::make_unique<RenderEngine>(std::move(config), args.assets_root);
     }
+
+    engine->set_composition_registry(&composition_registry);
 
     spdlog::info("RenderEngine initialised.");
 
