@@ -589,6 +589,39 @@ TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
           chronon3d::render_plan::CameraPropertyPlan::PositionZ);
 }
 
+TEST_CASE("render plan decoder accepts bounded cubic Bezier track easing and fingerprints it") {
+    auto source = nlohmann::json{
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 30}}},
+        {"layers", {{{"id", "move"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+            {"animation", {{"tracks", {{{"property", "position_y"},
+                {"easing", "bezier"}, {"bezier_curve", {0.16, 1.0, 0.3, 1.0}},
+                {"keyframes", {{{"frame", 0}, {"value", 100}},
+                                {{"frame", 24}, {"value", 0}}}}}}}}}}}},
+        {"output", {{"path", "out.png"}}}};
+    const auto first = chronon3d::render_plan::decode_render_plan(source);
+    if (!first) FAIL(first.error().message);
+    REQUIRE(first);
+    const auto& track = first->layers[0].animation->tracks[0];
+    REQUIRE(track.bezier_curve);
+    CHECK((*track.bezier_curve)[0] == doctest::Approx(0.16f));
+    CHECK((*track.bezier_curve)[3] == doctest::Approx(1.0f));
+
+    auto changed = source;
+    changed["layers"][0]["animation"]["tracks"][0]["bezier_curve"][1] = 0.8;
+    const auto second = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(second);
+    CHECK(first->content_fingerprint != second->content_fingerprint);
+
+    auto missing_curve = source;
+    missing_curve["layers"][0]["animation"]["tracks"][0].erase("bezier_curve");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(missing_curve));
+    auto invalid_x = source;
+    invalid_x["layers"][0]["animation"]["tracks"][0]["bezier_curve"][0] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_x));
+}
+
 TEST_CASE("render plan decoder rejects invalid camera ranges and unknown tracks") {
     const nlohmann::json base = {
         {"schema", "chronon.render-plan.v2"}, {"version", 2},
