@@ -185,6 +185,19 @@ struct KeyingParams {
     float threshold{0.20f};
     float softness{0.08f};
     float spill{0.75f};
+    // Screen-matte refinement (Keylight-style clip + choke):
+    // the matte value is remapped through [clip_black, clip_white] and then
+    // eroded by `choke` before it reaches alpha.
+    float clip_black{0.0f};  // matte at or below this is fully removed
+    float clip_white{1.0f};  // matte at or above this is fully kept
+    float choke{0.0f};       // edge erosion of the matte, [0, 1)
+    // Garbage matte: keep-only rectangle in normalized layer coordinates
+    // (x, y, width, height). Disabled when width or height is 0.
+    float garbage_x{0.0f};
+    float garbage_y{0.0f};
+    float garbage_w{0.0f};
+    float garbage_h{0.0f};
+    float garbage_feather{0.0f}; // soft edge width in normalized units [0, 0.5]
 };
 
 struct ThresholdParams {
@@ -240,6 +253,52 @@ struct StrokeParams {
     StrokeMode mode{StrokeMode::Outside};
 };
 
+// ── Warp family (AE distortion parity) ─────────────────────────────────
+// All four resample in place: every destination pixel samples the source
+// through an inverse map. Centers, quads and grid points are in normalized
+// layer space [0, 1]; radial radii are fractions of min(width, height).
+
+// Corner Pin — maps the four corners of the source onto an arbitrary quad
+// (screen replacement). The inverse bilinear solve is fail-closed: a
+// destination pixel with no source solution renders transparent.
+struct CornerPinParams {
+    Vec2 top_left{0.0f, 0.0f};
+    Vec2 top_right{1.0f, 0.0f};
+    Vec2 bottom_right{1.0f, 1.0f};
+    Vec2 bottom_left{0.0f, 1.0f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
+// Twirl — rotation around `center`, linearly faded to zero at `radius`
+// raised to `falloff`. The inverse map is the exact negative rotation at
+// the same radius, so the warp is bijective where the falloff is monotonic.
+struct TwirlParams {
+    Vec2 center{0.5f, 0.5f};
+    float angle_degrees{90.0f};
+    float radius{0.5f};
+    float falloff{1.0f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
+// Bulge / Pinch — radial magnification around `center`. amount > 0 bulges,
+// amount < 0 pinches. The inverse samples at radius / s(d).
+struct BulgeParams {
+    Vec2 center{0.5f, 0.5f};
+    float amount{0.5f};   // [-1, 1]
+    float radius{0.5f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
+// Mesh Warp — control grid (cols x rows) of displacement vectors, bilinearly
+// interpolated between grid points (smoothstep-weighted when smoothness > 0).
+struct MeshWarpParams {
+    int cols{2};               // [2, 32]
+    int rows{2};               // [2, 32]
+    float smoothness{0.0f};    // [0, 1]
+    std::vector<Vec2> offsets; // cols * rows displacement vectors (normalized)
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -274,7 +333,11 @@ using EffectParams = std::variant<
     DirectionalBlurParams,
     RadialBlurParams,
     StrokeParams,
-    CurvesParams
+    CurvesParams,
+    CornerPinParams,
+    TwirlParams,
+    BulgeParams,
+    MeshWarpParams
 >;
 
 } // namespace chronon3d

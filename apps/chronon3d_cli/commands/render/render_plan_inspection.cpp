@@ -61,6 +61,15 @@ std::string blend_mode_name(chronon3d::BlendMode mode) {
         case chronon3d::BlendMode::HardLight:  return "hard_light";
         case chronon3d::BlendMode::ColorDodge: return "color_dodge";
         case chronon3d::BlendMode::ColorBurn:  return "color_burn";
+        case chronon3d::BlendMode::Subtract:    return "subtract";
+        case chronon3d::BlendMode::Divide:      return "divide";
+        case chronon3d::BlendMode::VividLight:  return "vivid_light";
+        case chronon3d::BlendMode::PinLight:    return "pin_light";
+        case chronon3d::BlendMode::LinearLight: return "linear_light";
+        case chronon3d::BlendMode::Hue:         return "hue";
+        case chronon3d::BlendMode::Saturation:  return "saturation";
+        case chronon3d::BlendMode::Color:       return "color";
+        case chronon3d::BlendMode::Luminosity:  return "luminosity";
     }
     return "normal";
 }

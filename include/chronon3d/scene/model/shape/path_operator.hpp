@@ -9,7 +9,7 @@
 namespace chronon3d {
 struct PathShape;
 
-enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge };
+enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim };
 struct RepeaterParams {
     std::uint32_t copies{1};
     Vec2 position{0.0f};
@@ -25,7 +25,12 @@ struct PuckerBloatParams { float amount{0.0f}; Vec2 anchor{0.0f}; };
 struct TwistParams { float degrees{0.0f}; Vec2 center{0.0f}; };
 struct WigglePathParams { float amount{0.0f}; float frequency{1.0f}; };
 struct MergeParams { std::vector<std::vector<PathCommand>> paths; };
-using PathOperatorParams = std::variant<RepeaterParams, RoundCornersParams, ZigZagParams, OffsetPathParams, PuckerBloatParams, TwistParams, WigglePathParams, MergeParams>;
+// Trim Paths: keeps the arc-length window [start, end] of each subpath
+// (fractions of that subpath's length) shifted by `offset`. The window wraps
+// around the path end, so an offset can carry the visible segment through the
+// start point. start == 0 && end == 1 is the identity regardless of offset.
+struct TrimPathParams { float start{0.0f}; float end{1.0f}; float offset{0.0f}; };
+using PathOperatorParams = std::variant<RepeaterParams, RoundCornersParams, ZigZagParams, OffsetPathParams, PuckerBloatParams, TwistParams, WigglePathParams, MergeParams, TrimPathParams>;
 struct PathOperatorSpec {
     PathOperatorKind kind{PathOperatorKind::Repeater};
     PathOperatorParams params{RepeaterParams{}};

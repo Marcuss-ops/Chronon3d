@@ -427,19 +427,16 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
     // edges (Montserrat exposed this as a dotted/fragmented watermark).
     // Using the true distance keeps DirectYUV text deterministic and avoids
     // falling back to the expensive RGBA compositor for a simple watermark.
-    const float signed_distance = a_channel;
     const float source_scale = 0.5f *
         (fabsf(layer.dst_x1 - layer.dst_x0) / (float)layer.source_width +
          fabsf(layer.dst_y1 - layer.dst_y0) / (float)layer.source_height);
     const float range = layer.distance_range_px > 0.0f
         ? layer.distance_range_px : 16.0f;
-    // Keep the fill coverage independent of the destination scale. The
-    // watermark atlas is already generated at the canonical 64px profile;
-    // applying the downscale factor to the distance field collapses ordinary
-    // glyph interiors to a sparse one-pixel contour at API watermark sizes.
-    // The signed-distance threshold is stable under nearest sampling and
-    // preserves the complete glyph silhouette in the NV12 fast path.
-    const float fill_alpha = signed_distance > 0.5f ? 1.0f : 0.0f;
+    // Convert the normalized atlas distance into destination pixels before
+    // resolving coverage. The 0.5px ramp keeps thin glyph edges intact through
+    // NV12 chroma subsampling and video encoding.
+    const float field_px = (a_channel - 0.5f) * range * source_scale;
+    const float fill_alpha = fminf(fmaxf(field_px + 0.5f, 0.0f), 1.0f);
     // The shadow is painted first — under the stroke, under the fill — from
     // the same prepared distance field.
     float4 src = direct_layer_has_shadow(layer)
@@ -447,8 +444,7 @@ __device__ float4 direct_layer_load(const DirectYuvLayer& layer,
         : make_float4(0, 0, 0, 0);
     if (layer.stroke_width > 0.0f && layer.stroke_color != 0u) {
       const float stroke_alpha = fminf(fmaxf(
-          ((a_channel - 0.5f) * range + layer.stroke_width) *
-              source_scale + 0.5f, 0.0f), 1.0f);
+          field_px + 0.5f * layer.stroke_width + 0.5f, 0.0f), 1.0f);
       const float4 stroke = unpack_direct_color(layer.stroke_color);
       src = make_float4(stroke.x, stroke.y, stroke.z, stroke.w * stroke_alpha);
     }

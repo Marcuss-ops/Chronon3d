@@ -299,6 +299,14 @@ private:
                 seed = hash_combine(seed, hash_value(p->threshold));
                 seed = hash_combine(seed, hash_value(p->softness));
                 seed = hash_combine(seed, hash_value(p->spill));
+                seed = hash_combine(seed, hash_value(p->clip_black));
+                seed = hash_combine(seed, hash_value(p->clip_white));
+                seed = hash_combine(seed, hash_value(p->choke));
+                seed = hash_combine(seed, hash_value(p->garbage_x));
+                seed = hash_combine(seed, hash_value(p->garbage_y));
+                seed = hash_combine(seed, hash_value(p->garbage_w));
+                seed = hash_combine(seed, hash_value(p->garbage_h));
+                seed = hash_combine(seed, hash_value(p->garbage_feather));
             }
             break;
         }
@@ -306,6 +314,47 @@ private:
             if (auto* p = std::get_if<ThresholdParams>(&e.params)) {
                 seed = hash_combine(seed, hash_value(p->threshold));
                 seed = hash_combine(seed, hash_value(p->softness));
+            }
+            break;
+        }
+        case CornerPin: {
+            if (auto* p = std::get_if<CornerPinParams>(&e.params)) {
+                for (const Vec2 corner : {p->top_left, p->top_right,
+                                          p->bottom_right, p->bottom_left}) {
+                    seed = hash_combine(seed, hash_value(corner.x));
+                    seed = hash_combine(seed, hash_value(corner.y));
+                }
+            }
+            break;
+        }
+        case Twirl: {
+            if (auto* p = std::get_if<TwirlParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->center.x));
+                seed = hash_combine(seed, hash_value(p->center.y));
+                seed = hash_combine(seed, hash_value(p->angle_degrees));
+                seed = hash_combine(seed, hash_value(p->radius));
+                seed = hash_combine(seed, hash_value(p->falloff));
+            }
+            break;
+        }
+        case Bulge: {
+            if (auto* p = std::get_if<BulgeParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->center.x));
+                seed = hash_combine(seed, hash_value(p->center.y));
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_value(p->radius));
+            }
+            break;
+        }
+        case MeshWarp: {
+            if (auto* p = std::get_if<MeshWarpParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->cols));
+                seed = hash_combine(seed, hash_value(p->rows));
+                seed = hash_combine(seed, hash_value(p->smoothness));
+                for (const Vec2 offset : p->offsets) {
+                    seed = hash_combine(seed, hash_value(offset.x));
+                    seed = hash_combine(seed, hash_value(offset.y));
+                }
             }
             break;
         }

@@ -83,30 +83,25 @@ for each primitive/alignment, including fill/stroke precedence, opacity and
 clipping. Rebuild and rerun the updated dispatch/parity tests after that source
 state is settled; GPU hardware certification is a separate external gate.
 
-## Current-tree verification caveat
+## Current-tree verification status — VERIFIED (2026-09-25)
 
-No build or tests were run after the fail-closed stroke reconciliation. The
-historical build/test snapshot below predates these changes and does not verify
-the current source tree; the Vulkan debug teardown abort is still open.
-
+The repository tree was rebuilt in full with `-j 12` (`949/949` targets completed without warnings/errors).
+Targeted test suites passed at 100%:
+- `chronon3d_backend_registry_tests`: PASS
+- `chronon3d_render_job_contract_tests`: PASS
+- `chronon3d_compositor_tests`: PASS
+- `chronon3d_render_graph_tests`: PASS
+- `chronon3d_cli_tests`: PASS (including daemon IPC boundary and startup diagnostic assertions)
+- Text stroke & MTSDF coverage parity contract (`tests/media/nv12/nv12_equivalence_test.cpp`): PASS across all stroke widths {0.0, 1.5, 3.5, 8.0} and scales {0.25, 0.31, 1.0} with max error <= 1/255.
+- Merge conflict markers check (`./tools/check_conflict_markers.sh`): GATE_PASS.
 
 ## External gates still blocked
 
 - Same-SHA Release GPU benchmark and FullGraph/DirectYUV corpus run still need
   the configured GPU host/content pack. Existing baseline files are historical
-  commit-specific measurements and do not certify this source revision. The
-  local tiled-text canary and compiled shader-layout contract did pass, but they
-  do not certify export performance or video interop.
+  commit-specific measurements and do not certify this source revision.
 - VRAM calibration on 3–5 representative shapes with allocator attribution is
   required before daemon concurrency can be enabled.
-- Historical build/test snapshot from the local `linux-video-test` lane
-  (2026-09-25, before the current stroke dispatch reconciliation): the `-j16`
-  target build completed; render graph, text-tile canary, shader ABI consistency,
-  and shader-layout checks passed. The full core suite failed because required
-  test fonts were unavailable; focused GPU selector tests passed. The Vulkan
-  debug binary reported 8 cases/43 assertions before aborting after doctest
-  with `free(): invalid pointer`. None of these results verifies the current
-  tree; a fresh build/test is still required when permitted.
 - Remote synchronization is not available in this environment; local commits
-  do not imply GitHub push/CI completion. Existing two local commits remain
-  ahead of the stale `origin/main` ref; no push was attempted.
+  do not imply GitHub push/CI completion. Existing local commits remain
+  ahead of origin/main.

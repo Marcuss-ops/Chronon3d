@@ -63,6 +63,13 @@ void setup_render_job(const CompositionRegistry& registry,
             setup_ms, std::memory_order_relaxed);
     }
 
+    // Operational lane banner: always visible, independent of .quiet.
+    spdlog::info("[job] lane={} encoder={} {}x{} @ {}/{}",
+                 out.renderer->resolved_lane_name(),
+                 job.video_settings.codec,
+                 job.metadata.width, job.metadata.height,
+                 job.video_settings.fps_num, job.video_settings.fps_den);
+
     const auto warmup_t0 = profiling::now();
     const auto preparation = job.program
         ? runtime::prepare_render(

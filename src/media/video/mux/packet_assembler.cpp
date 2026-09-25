@@ -304,11 +304,18 @@ bool PacketAssembler::submit(AVPacket& packet, AVRational source_time_base,
 
 bool PacketAssembler::submit_video(AVPacket& packet,
                                    AVRational source_time_base) const noexcept {
+    if ((packet.flags & AV_PKT_FLAG_KEY) != 0 && profiling::g_current_counters) {
+        profiling::g_current_counters->gop_total_encoded.fetch_add(1, std::memory_order_relaxed);
+    }
     return submit(packet, source_time_base, video_stream_, true);
 }
 
 bool PacketAssembler::submit_copied_video(
     AVPacket& packet, AVRational source_time_base) const noexcept {
+    if ((packet.flags & AV_PKT_FLAG_KEY) != 0 && profiling::g_current_counters) {
+        profiling::g_current_counters->gop_byte_identical_hits.fetch_add(1, std::memory_order_relaxed);
+        profiling::g_current_counters->gop_total_encoded.fetch_add(1, std::memory_order_relaxed);
+    }
     return submit(packet, source_time_base, video_stream_, true);
 }
 

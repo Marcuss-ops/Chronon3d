@@ -313,9 +313,16 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
             }
             ++ctx.frames_encoded;
             const auto enc_t1 = profiling::now();
+            const auto enc_ms = static_cast<uint64_t>(profiling::duration_ms(enc_t0, enc_t1));
             ctx.writer_encode_us_total.fetch_add(
                 static_cast<uint64_t>(profiling::duration_us(enc_t0, enc_t1)),
                 std::memory_order_relaxed);
+            if (ctx.counters) {
+                ctx.counters->encode_wall_ms_total.fetch_add(enc_ms, std::memory_order_relaxed);
+            }
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->encode_wall_ms_total.fetch_add(enc_ms, std::memory_order_relaxed);
+            }
 
             const auto telemetry = ctx.encoder.last_frame_telemetry();
             ctx.frame_encoder_telemetry.push_back({

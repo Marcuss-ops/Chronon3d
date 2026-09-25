@@ -14,6 +14,7 @@
 #if defined(CHRONON3D_ENABLE_CUDA_INTEROP) && defined(CHRONON3D_ENABLE_VULKAN)
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
+#include <chronon3d/runtime/lane_decision.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include "../../../daemon/daemon_render_concurrency.hpp"
 
@@ -240,7 +241,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
-        std::string direct_reason;
+        runtime::LaneReason direct_reason;
         session->direct_yuv_session->program = media::video::DirectYuvProgram::prepare(
             compiled, session->device_runtime->image_cache(), session->device_runtime,
             *session->direct_yuv_session->asset_resolver,
@@ -250,12 +251,20 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             // Path classification already happened once in the dispatcher.
             // A prepare failure is an execution/setup error, never permission
             // to silently switch the final plan after resources are acquired.
-            spdlog::error("[direct-yuv] final plan preparation failed: {}", direct_reason);
+            if (direct_reason.decision == runtime::LaneDecision::FallbackUnsupported) {
+                spdlog::info("[lane] direct-yuv unsupported ({}: {}): fallback to full graph",
+                             direct_reason.category, direct_reason.detail);
+                session->opts.resolved_execution_downgrade_count++;
+                session->opts.resolved_execution_reason = direct_reason.to_string();
+            } else {
+                spdlog::error("[lane] direct-yuv preparation failed ({}: {})",
+                              direct_reason.category, direct_reason.detail);
+            }
             session->direct_yuv_session->required_but_unavailable = true;
             return session;
         }
         if (session->direct_yuv_selected()) {
-            spdlog::info("[direct-yuv] selected for video source '{}'",
+            spdlog::info("[lane] direct-yuv selected for video source '{}'",
                          session->direct_yuv_session->program->video_path());
         }
     }

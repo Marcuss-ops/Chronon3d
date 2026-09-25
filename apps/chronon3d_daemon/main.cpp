@@ -29,6 +29,10 @@ struct DaemonArgs {
     std::string socket_path{"/run/chronon3d/chronon.sock"};
     std::string assets_root;
     std::string backend{"auto"};
+    int width{1920};
+    int height{1080};
+    int fps_num{30};
+    int fps_den{1};
 };
 
 [[noreturn]] void print_usage_and_exit(int code) {
@@ -37,6 +41,9 @@ struct DaemonArgs {
         "  --socket PATH      Unix socket path (default: /run/chronon3d/chronon.sock)\n"
         "  --assets-root DIR  Asset resolution root\n"
         "  --backend NAME     Render backend: auto|software|vulkan\n"
+        "  --width N          Default render width (default: 1920)\n"
+        "  --height N         Default render height (default: 1080)\n"
+        "  --fps NUM[/DEN]    Default fps (default: 30/1)\n"
         "  --help, -h         Show this help\n");
     std::exit(code);
 }
@@ -61,6 +68,23 @@ DaemonArgs parse_args(int argc, char* argv[]) {
         } else if (arg == "--backend") {
             if (i + 1 >= argc) usage_error("--backend requires a NAME argument");
             args.backend = argv[++i];
+        } else if (arg == "--width") {
+            if (i + 1 >= argc) usage_error("--width requires an integer argument");
+            args.width = std::stoi(argv[++i]);
+        } else if (arg == "--height") {
+            if (i + 1 >= argc) usage_error("--height requires an integer argument");
+            args.height = std::stoi(argv[++i]);
+        } else if (arg == "--fps") {
+            if (i + 1 >= argc) usage_error("--fps requires a NUM or NUM/DEN argument");
+            std::string fps_str = argv[++i];
+            auto slash = fps_str.find('/');
+            if (slash != std::string::npos) {
+                args.fps_num = std::stoi(fps_str.substr(0, slash));
+                args.fps_den = std::stoi(fps_str.substr(slash + 1));
+            } else {
+                args.fps_num = std::stoi(fps_str);
+                args.fps_den = 1;
+            }
         } else {
             usage_error("unknown argument");
         }
@@ -108,6 +132,9 @@ int main(int argc, char* argv[]) {
     engine->set_composition_registry(&composition_registry);
 
     spdlog::info("RenderEngine initialised.");
+    spdlog::info("  resolved lane: {}", engine->resolved_lane_name());
+    spdlog::info("  render size  : {}x{} @ {}/{}fps",
+                 args.width, args.height, args.fps_num, args.fps_den);  // GAP 7
 
     IpcCommandDispatcher dispatcher(std::move(engine));
     dispatcher.warmup();

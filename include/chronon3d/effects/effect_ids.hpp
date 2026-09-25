@@ -49,4 +49,10 @@ inline constexpr std::string_view MatteKeying      = "matte.luma_chroma_key";
 inline constexpr std::string_view StylizeThreshold = "stylize.threshold";
 inline constexpr std::string_view StylizeMosaic    = "stylize.mosaic";
 
+// ── Warp family (AE distortion parity) ──
+inline constexpr std::string_view DistortCornerPin = "distort.corner_pin";
+inline constexpr std::string_view DistortTwirl     = "distort.twirl";
+inline constexpr std::string_view DistortBulge     = "distort.bulge";
+inline constexpr std::string_view DistortMeshWarp  = "distort.mesh_warp";
+
 } // namespace chronon3d::effects::ids

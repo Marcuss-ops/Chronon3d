@@ -187,7 +187,7 @@ TEST_CASE("Vulkan native affine transform matches inverse mapping") {
     CHECK(output[(3 * 4 + 3) * 4] == doctest::Approx(0.0f));
 }
 
-TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source as transparent") {
+TEST_CASE("Vulkan affine bilinear sampling replicates a tight-surface edge like software") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc source_desc{
         2, 2, chronon3d::runtime::PixelFormat::Rgba32Float,
@@ -222,10 +222,91 @@ TEST_CASE("Vulkan affine sampling treats tight-surface taps outside the source a
     REQUIRE(backend.initialize_transparent_surface(304).ok());
     REQUIRE(backend.transform_surface_affine(304, 303, transform).ok());
     REQUIRE(backend.download_surface(304, output).ok());
-    // Edge clamping would reproduce the opaque source corner at full
-    // strength; transparent OOB taps must reduce the edge sample.
-    CHECK(output[0] < 0.9f);
-    CHECK(output[3] < 0.9f);
+    // The mapped coordinate is inside the source rect. Bilinear taps that
+    // cross the physical surface edge must clamp to the opaque edge texel,
+    // matching blend2d_bridge::sample_bilinear_float.
+    CHECK(output[0] == doctest::Approx(1.0f));
+    CHECK(output[3] == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Vulkan affine bilinear edge replication survives an aligned quarter-scale transform") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc source_desc{
+        8, 8, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    const runtime::SurfaceDesc destination_desc{
+        2, 2, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> source(8 * 8 * 4, 0.0f);
+    source[0] = 0.75f;
+    source[1] = 0.25f;
+    source[2] = 0.125f;
+    source[3] = 1.0f;
+    std::vector<float> output(2 * 2 * 4, -1.0f);
+    runtime::SurfaceAffineTransform transform{};
+    transform.source_x[0] = 4.0f;
+    transform.source_x[2] = -1.75f;
+    transform.source_y[1] = 4.0f;
+    transform.source_y[2] = -1.75f;
+    transform.max_x = 8.0f;
+    transform.max_y = 8.0f;
+    transform.bilinear = 1u;
+
+    REQUIRE(backend.create_surface(311, source_desc).ok());
+    REQUIRE(backend.create_surface(312, destination_desc).ok());
+    REQUIRE(backend.upload_surface(311, source_desc, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(312).ok());
+    REQUIRE(backend.transform_surface_affine(312, 311, transform).ok());
+    REQUIRE(backend.download_surface(312, output).ok());
+    // The top-left destination centre maps to (0.25,0.25) in the 8x8 source.
+    // This keeps the source/destination scale exactly 4:1 and catches a
+    // transparent bilinear tap at the image boundary.
+    CHECK(output[0] == doctest::Approx(0.75f));
+    CHECK(output[1] == doctest::Approx(0.25f));
+    CHECK(output[2] == doctest::Approx(0.125f));
+    CHECK(output[3] == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Vulkan affine projective bilinear sampling clamps taps at fractional source bounds") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc source_desc{
+        2, 2, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    const runtime::SurfaceDesc destination_desc{
+        1, 1, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.5f, 0.25f, 1.0f};
+    std::vector<float> output(4, -1.0f);
+    runtime::SurfaceAffineTransform transform{};
+    // At canvas centre (0.5,0.5), the projective mapping resolves to (1.7,1.7).
+    // This is inside the fractional crop [0,1.75), but its bilinear taps cross
+    // the physical right and bottom edges of this tight surface.
+    transform.source_x[0] = 0.1f;
+    transform.source_x[2] = 1.65f;
+    transform.source_y[1] = 0.1f;
+    transform.source_y[2] = 1.65f;
+    transform.max_x = 1.75f;
+    transform.max_y = 1.75f;
+    transform.bilinear = 1u;
+    transform.padding[0] = std::bit_cast<std::uint32_t>(0.05f);
+    transform.padding[2] = std::bit_cast<std::uint32_t>(0.975f);
+
+    REQUIRE(backend.create_surface(309, source_desc).ok());
+    REQUIRE(backend.create_surface(310, destination_desc).ok());
+    REQUIRE(backend.upload_surface(309, source_desc, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(310).ok());
+    REQUIRE(backend.transform_surface_affine(310, 309, transform).ok());
+    REQUIRE(backend.download_surface(310, output).ok());
+    CHECK(output[0] == doctest::Approx(1.0f));
+    CHECK(output[1] == doctest::Approx(0.5f));
+    CHECK(output[2] == doctest::Approx(0.25f));
+    CHECK(output[3] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("Vulkan affine SourceOver preserves seeded destination outside projected source") {

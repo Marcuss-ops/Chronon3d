@@ -54,7 +54,7 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
-enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     PathRepeaterPlan repeater{};
@@ -70,6 +70,11 @@ struct PathOperatorPlan {
     float frequency{1.0f};
     std::uint32_t seed{0};
     std::vector<std::vector<ShapePathCommandPlan>> paths;
+    // Trim Paths: visible arc-length window [trim_start, trim_end] shifted by
+    // trim_offset (all fractions of the subpath length; the window wraps).
+    float trim_start{0.0f};
+    float trim_end{1.0f};
+    float trim_offset{0.0f};
 };
 
 struct ShapeContentPlan {
@@ -261,7 +266,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -275,6 +280,12 @@ struct LayerPlan {
         float threshold{0.20f};
         float softness{0.08f};
         float spill{0.75f};
+        // Screen-matte refinement + garbage matte (see KeyingParams).
+        float clip_black{0.0f};
+        float clip_white{1.0f};
+        float choke{0.0f};
+        std::array<float, 4> garbage_rect{0.0f, 0.0f, 0.0f, 0.0f};
+        float garbage_feather{0.0f};
         float threshold_softness{0.0f};
         std::uint32_t block_size{8};
         float radius{0.0f};
@@ -296,6 +307,19 @@ struct LayerPlan {
         float evolution{0.0f};
         float contrast{1.0f};
         float brightness{0.0f};
+        // Warp family — quad corners (TL, TR, BR, BL as x,y pairs), radial
+        // controls and the mesh-warp control grid.
+        std::array<float, 8> quad{0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        std::array<float, 2> warp_center{0.5f, 0.5f};
+        float warp_radius{0.5f};
+        float warp_falloff{1.0f};
+        float warp_angle{90.0f};
+        float warp_amount{0.5f};
+        std::uint32_t mesh_cols{2};
+        std::uint32_t mesh_rows{2};
+        float mesh_smoothness{0.0f};
+        std::vector<float> mesh_offsets{}; // cols*rows x,y pairs
+
     };
     std::vector<EffectPlan> effects;
 
