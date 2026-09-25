@@ -4,6 +4,12 @@ if(NOT CHRONON3D_BUILD_TESTS)
     return()
 endif()
 
+chronon3d_add_test_suite(
+    NAME chronon3d_particle_sampling_tests
+    TIER UNIT
+    SOURCES scene/shapes/test_particles_sampling.cpp
+)
+
 # ── TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0g+ ──
 # Helper-specific UNIT-tier test coverage for
 # `chronon3d::detail::image_params_resolve_path` (5 TEST_CASEs

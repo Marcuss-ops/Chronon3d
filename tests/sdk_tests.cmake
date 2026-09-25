@@ -4,6 +4,7 @@ chronon3d_add_test_suite(
     NAME chronon3d_sdk_tests
     TIER SDK
     SOURCES sdk/test_sdk_render_grid_background.cpp
+            sdk/test_sdk_render_plan_temporal_blur.cpp
             sdk/test_sdk_archive_manifest.cpp
             sdk/test_sdk_assets_root_isolation.cpp
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_scene chronon3d_pipeline chronon3d_backend_software chronon3d_backend_image

@@ -95,6 +95,9 @@ LayerType layer_type(const std::string& value) {
     if (value == "text") return LayerType::Text;
     if (value == "color") return LayerType::Color;
     if (value == "shape") return LayerType::Shape;
+    if (value == "particles") return LayerType::Particles;
+    if (value == "light") return LayerType::Light;
+    if (value == "adjustment") return LayerType::Adjustment;
     throw std::runtime_error("unsupported primitive layer type: " + value);
 }
 

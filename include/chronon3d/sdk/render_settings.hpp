@@ -26,6 +26,9 @@ struct RenderSettings {
     int  height{1080};                 ///< Output height in pixels
     int  antialiasing_samples{1};      ///< >=1; 1 disables MSAA
     bool motion_blur{false};           ///< Enable analogue motion-blur path
+    int  motion_blur_samples{8};
+    float motion_blur_shutter_angle_deg{180.0f};
+    float motion_blur_shutter_phase_deg{-90.0f};
     bool dirty_rects{false};           ///< Use dirty-rect optimisation
     bool deterministic{false};         ///< Force deterministic scheduling
 };

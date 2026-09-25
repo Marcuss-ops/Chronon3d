@@ -305,6 +305,27 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             canvas.at("height").get<int>(),
             FrameRate{canvas.at("fps_num").get<int>(), canvas.at("fps_den").get<int>()},
             Frame{canvas.at("duration_frames").get<std::int64_t>()}};
+        if (resolved_root.contains("temporal_motion_blur")) {
+            const auto& raw = resolved_root.at("temporal_motion_blur");
+            MotionBlurPlan blur;
+            blur.shutter_angle = raw.value("shutter_angle", 180.0f);
+            blur.samples = raw.value("samples", std::uint32_t{12});
+            if (!std::isfinite(blur.shutter_angle) || blur.shutter_angle <= 0.0f ||
+                blur.shutter_angle > 360.0f || blur.samples < 2 || blur.samples > 64)
+                return PlanDecodeError{
+                    "temporal_motion_blur",
+                    "requires shutter_angle in (0, 360] and samples in [2, 64]",
+                    "invalid_temporal_motion_blur", "render-plan-decoder"};
+            if (std::any_of(resolved_root.at("layers").begin(),
+                            resolved_root.at("layers").end(), [](const auto& layer) {
+                                return layer.is_object() && layer.contains("motion_blur");
+                            }))
+                return PlanDecodeError{
+                    "temporal_motion_blur",
+                    "cannot be combined with per-layer analytic motion_blur",
+                    "conflicting_motion_blur_modes", "render-plan-decoder"};
+            plan.temporal_motion_blur = blur;
+        }
         if (resolved_root.contains("camera"))
             plan.camera = detail::decode_camera(resolved_root.at("camera"));
         if (resolved_root.contains("camera_animation")) {
@@ -318,6 +339,16 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         std::size_t layer_index = 0;
         for (const auto& layer_value : resolved_root.at("layers")) {
             auto layer = detail::decode_layer(layer_value);
+            if (layer.safe_insets &&
+                ((*layer.safe_insets)[0] + (*layer.safe_insets)[2] >=
+                     static_cast<float>(plan.canvas.height) ||
+                 (*layer.safe_insets)[1] + (*layer.safe_insets)[3] >=
+                     static_cast<float>(plan.canvas.width))) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(layer_index) + "].safe_insets",
+                    "safe insets must leave a non-empty canvas area",
+                    "invalid_safe_insets", "render-plan-decoder"};
+            }
             const bool explicit_3d_vector =
                 has_explicit_3d_vector(layer_value, "position") ||
                 has_explicit_3d_vector(layer_value, "scale") ||

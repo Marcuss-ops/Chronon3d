@@ -276,12 +276,32 @@ u64 hash_text_style_span(const TextStyleSpan& span) {
 
     if (span.appearance) seed = hcombine(seed, hash_text_appearance(*span.appearance));
     else                 seed = hcombine(seed, 0xFFFFFFFFFFFFFFFFULL);
+    if (span.fill_color_override)
+        seed = hcombine(seed, hbytes(&*span.fill_color_override, sizeof(Color)));
+    else
+        seed = hcombine(seed, 0xFFFFFFFFFFFFFFFEULL);
+    if (span.highlight) {
+        if (span.highlight->background)
+            seed = hcombine(seed, hbytes(&*span.highlight->background, sizeof(Color)));
+        else seed = hcombine(seed, 0xFFFFFFFFFFFFFFFDULL);
+        if (span.highlight->padding_em)
+            seed = hcombine(seed, hval(*span.highlight->padding_em));
+        else seed = hcombine(seed, 0xFFFFFFFFFFFFFFFCULL);
+        if (span.highlight->radius_em)
+            seed = hcombine(seed, hval(*span.highlight->radius_em));
+        else seed = hcombine(seed, 0xFFFFFFFFFFFFFFFBULL);
+    } else seed = hcombine(seed, 0xFFFFFFFFFFFFFFFAULL);
 
     if (span.tracking)   seed = hcombine(seed, hval(*span.tracking));
     else                 seed = hcombine(seed, 0xFFFFFFFFFFFFFFFFULL);
 
     if (span.baseline_shift) seed = hcombine(seed, hval(*span.baseline_shift));
     else                     seed = hcombine(seed, 0xFFFFFFFFFFFFFFFFULL);
+
+    if (span.semantic_id) seed = hcombine(seed, hstring(*span.semantic_id));
+    else                  seed = hcombine(seed, 0xFFFFFFFFFFFFFFF9ULL);
+    if (span.font_size_multiplier) seed = hcombine(seed, hval(*span.font_size_multiplier));
+    else                           seed = hcombine(seed, 0xFFFFFFFFFFFFFFF8ULL);
 
     return seed;
 }
@@ -367,6 +387,8 @@ void append_span_override(
         }
         span.appearance = std::move(app);
     }
+    span.fill_color_override = over.color;
+    span.highlight = over.highlight;
 
     if (over.tracking)        span.tracking        = *over.tracking;
     if (over.baseline_shift)  span.baseline_shift  = *over.baseline_shift;

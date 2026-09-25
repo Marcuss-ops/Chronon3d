@@ -10,7 +10,7 @@ namespace chronon3d::assets {
 // ═══════════════════════════════════════════════════════════════════════════
 // `AssetKind` — discriminator for the type-erased `InternalAssetRef`.
 //
-// 5 valori, sizeof 1 byte. Distinto da `chronon3d::AssetType` (6 valori
+// 7 valori, sizeof 1 byte. Distinto da `chronon3d::AssetType` (6 valori
 // inclusi Mesh + Unknown, semantica metadata/registry; vive in
 // `asset_metadata.hpp`, usato da `AssetRegistry::import_*` e
 // `AssetMetadata::type`).
@@ -21,7 +21,8 @@ enum class AssetKind : unsigned char {
     Video  = 2,
     Audio  = 3,
     Mesh   = 4,
-    Layout = 5
+    Layout = 5,
+    Svg    = 6
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -103,6 +104,11 @@ public:
     /// Add a layout asset reference (owner-keyed; `AssetKind::Layout`).
     void add_layout(std::string path, std::string owner, bool required = true) {
         add({AssetKind::Layout, std::move(path), std::move(owner), required});
+    }
+
+    /// Add a vector SVG source asset (owner-keyed; `AssetKind::Svg`).
+    void add_svg(std::string path, std::string owner, bool required = true) {
+        add({AssetKind::Svg, std::move(path), std::move(owner), required});
     }
 
     /// First-inserted-wins lookup by `owner`. Returns `std::nullopt` if

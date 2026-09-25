@@ -169,7 +169,7 @@ CHRONON_EFFECT(
     EffectCategory::Stylize, EffectStage::Adjustment,
     EffectDomain::Color, AlphaPolicy::Preserve,
     DirtyPolicy::Preserve, BoundsPolicy::Preserve,
-    false, false
+    true, false
 )
 
 CHRONON_EFFECT(

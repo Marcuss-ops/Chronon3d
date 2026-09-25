@@ -176,6 +176,7 @@ private:
             case assets::AssetKind::Video:  return PreflightAssetType::Video;
             case assets::AssetKind::Audio:  return PreflightAssetType::Audio;
             case assets::AssetKind::Mesh:   return PreflightAssetType::RegisteredAsset;
+            case assets::AssetKind::Svg:    return PreflightAssetType::RegisteredAsset;
             default:                        return PreflightAssetType::RegisteredAsset;
         }
     }

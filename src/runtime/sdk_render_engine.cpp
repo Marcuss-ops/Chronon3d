@@ -43,9 +43,10 @@ chronon3d::RenderSettings convert_settings(const RenderSettings& sdk) {
     internal.motion_blur.mode = sdk.motion_blur
         ? chronon3d::MotionBlurMode::TemporalAccumulation
         : chronon3d::MotionBlurMode::Off;
-    internal.motion_blur.samples           = sdk.motion_blur ? 8 : 1;
-    internal.motion_blur.shutter_angle_deg = 180.0f;
-    internal.motion_blur.shutter_phase_deg = 0.0f;
+    internal.motion_blur.samples = sdk.motion_blur
+        ? std::max(2, sdk.motion_blur_samples) : 1;
+    internal.motion_blur.shutter_angle_deg = sdk.motion_blur_shutter_angle_deg;
+    internal.motion_blur.shutter_phase_deg = sdk.motion_blur_shutter_phase_deg;
     internal.dirty.enabled                 = sdk.dirty_rects;
     internal.force_scalar_normal_blend     = sdk.deterministic;
     internal.fail_on_missing_assets       = true;

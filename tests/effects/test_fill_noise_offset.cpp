@@ -209,6 +209,44 @@ TEST_CASE("Noise: animated changes with frame") {
            std::abs(a.b - b.b) > kExactEpsilon));
 }
 
+TEST_CASE("Noise: size groups deterministic grain into pixel cells") {
+    Framebuffer fb(8, 8);
+    for (int y = 0; y < 8; ++y)
+        for (int x = 0; x < 8; ++x)
+            fb.set_pixel(x, y, Color{0.5f, 0.5f, 0.5f, 1.0f});
+
+    apply_noise(fb, 0.2f, 42u, true, false, 7u, std::nullopt, 4.0f);
+
+    const Color cell = fb.get_pixel(0, 0);
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x)
+            check_color_near(fb.get_pixel(x, y), cell, kExactEpsilon);
+}
+
+TEST_CASE("Noise: film-grain tonal response controls shadows and highlights") {
+    Framebuffer fb(8, 1);
+    for (int x = 0; x < 4; ++x)
+        fb.set_pixel(x, 0, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    for (int x = 4; x < 8; ++x)
+        fb.set_pixel(x, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
+
+    apply_noise(fb, 0.25f, 42u, false, false, 0u, std::nullopt, 1.0f,
+                0.0f, 1.0f, 2.0f);
+
+    for (int x = 0; x < 4; ++x) {
+        const Color pixel = fb.get_pixel(x, 0);
+        CHECK(pixel.r == doctest::Approx(0.0f));
+        CHECK(pixel.g == doctest::Approx(0.0f));
+        CHECK(pixel.b == doctest::Approx(0.0f));
+    }
+    bool highlight_changed = false;
+    for (int x = 4; x < 8; ++x) {
+        const Color pixel = fb.get_pixel(x, 0);
+        highlight_changed = highlight_changed || pixel.r != doctest::Approx(1.0f);
+    }
+    CHECK(highlight_changed);
+}
+
 // =============================================================================
 // 8. Noise — monochrome vs RGB (sezione 7.3)
 // =============================================================================

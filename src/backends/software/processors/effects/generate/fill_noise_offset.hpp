@@ -23,7 +23,11 @@ void apply_fill(Framebuffer& fb, const Color& color, float amount,
 
 void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
                  bool animated, bool rgb_mode, uint32_t frame = 0,
-                 const std::optional<raster::BBox>& clip = std::nullopt);
+                 const std::optional<raster::BBox>& clip = std::nullopt,
+                 float size = 1.0f,
+                 float shadow_response = 1.0f,
+                 float midtone_response = 1.0f,
+                 float highlight_response = 1.0f);
 
 // ── Offset ──────────────────────────────────────────────────────────────────
 

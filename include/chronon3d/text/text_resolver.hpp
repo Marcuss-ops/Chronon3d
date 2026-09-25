@@ -68,6 +68,10 @@ struct ResolvedTextRun {
 
     /// The paragraph style governing this run's layout.
     ParagraphStyle paragraph_style{};
+    std::optional<Color> fill_color_override;
+    std::optional<TextStrokeStyle> stroke;
+    std::optional<TextHighlightStyle> highlight;
+    std::optional<std::string> semantic_id;
 };
 
 // ── ResolvedParagraph — one paragraph with its resolved runs ───────────

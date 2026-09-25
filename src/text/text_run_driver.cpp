@@ -76,7 +76,10 @@ void update_text_run_shape_per_frame(
 
     // ── Empty animators short-circuit: just (re)seed glyphs. ─────────
     if (shape.animators.empty()) {
-        reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
+        evaluate_animator_stack_into(
+            shape.glyphs, shape.animators, shape.layout->placed,
+            shape.layout->source_text, shape.layout->units, time,
+            &shape.layout->font_spans);
         return;
     }
 
@@ -111,7 +114,8 @@ void update_text_run_shape_per_frame(
         shape.layout->placed,
         shape.layout->source_text,
         shape.layout->units,
-        time
+        time,
+        &shape.layout->font_spans
     );
 
     // ── PR 11 — mirror the animator stack onto dissolve_glyphs when
@@ -125,7 +129,8 @@ void update_text_run_shape_per_frame(
             shape.dissolve_layout->placed,
             shape.dissolve_layout->source_text,
             shape.dissolve_layout->units,
-            time
+            time,
+            &shape.dissolve_layout->font_spans
         );
     }
 }

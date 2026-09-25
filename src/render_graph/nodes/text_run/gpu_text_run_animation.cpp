@@ -31,6 +31,7 @@ bool is_full_run_selector(const TextRunShape& shape,
         return false;
     }
     const auto& selector = animator.selectors.front();
+    if (selector.semantic_id) return false;
     const auto initial = bind_selector_runtime(
         selector, 1u, SampleTime::from_frame(0.0, FrameRate{30, 1}));
     return selector.unit == TextSelectorUnit::Word &&
@@ -178,6 +179,7 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
          selector.order != TextSelectorOrder::FromCenter &&
          selector.order != TextSelectorOrder::ToCenter) ||
         selector.combine != SelectorCombineMode::Replace ||
+        selector.semantic_id.has_value() ||
         selector.randomize_order || selector.offset.is_time_dependent() ||
         std::abs(selector.ease_low) > 1e-6f ||
         std::abs(selector.ease_high - 100.0f) > 1e-6f ||

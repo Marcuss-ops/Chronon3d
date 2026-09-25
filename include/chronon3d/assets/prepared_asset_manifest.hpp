@@ -72,7 +72,8 @@ enum class PreparedAssetKind : std::uint8_t {
     Audio,
     Font,
     Subtitle,
-    Data
+    Data,
+    Svg
 };
 
 /// True when `extension` (any case, leading dot optional) belongs to `kind`.
@@ -111,7 +112,7 @@ enum class PreparedAssetKind : std::uint8_t {
             return accepts({"ttf", "otf", "woff", "woff2"});
         case PreparedAssetKind::Image:
             return accepts({"png", "jpg", "jpeg", "webp", "bmp", "gif",
-                            "tif", "tiff", "exr", "svg"});
+                            "tif", "tiff", "exr"});
         case PreparedAssetKind::Video:
             return accepts({"mp4", "mov", "mkv", "webm", "avi", "m4v"});
         case PreparedAssetKind::Audio:
@@ -120,6 +121,8 @@ enum class PreparedAssetKind : std::uint8_t {
             return accepts({"ass", "srt", "vtt", "json"});
         case PreparedAssetKind::Data:
             return true;
+        case PreparedAssetKind::Svg:
+            return accepts({"svg"});
     }
     return true;
 }

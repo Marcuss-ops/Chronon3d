@@ -11,6 +11,7 @@ namespace chronon3d {
 // Forward declarations — full types live in other headers.
 struct PlacedGlyphRun;   // chronon3d/text/font_engine.hpp
 struct TextUnitMap;      // chronon3d/text/glyph_selector.hpp
+struct ShapedFontSpan;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // evaluate_animator_stack — public stack evaluator (allocates return)
@@ -31,7 +32,8 @@ struct TextUnitMap;      // chronon3d/text/glyph_selector.hpp
     const std::vector<TextAnimatorSpec>& animators,
     const PlacedGlyphRun& placed,
     std::string_view source,
-    SampleTime time
+    SampleTime time,
+    const std::vector<ShapedFontSpan>* span_styles = nullptr
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -59,7 +61,8 @@ void evaluate_animator_stack_into(
     const PlacedGlyphRun& placed,
     std::string_view source,
     const TextUnitMap& unit_map,
-    SampleTime time
+    SampleTime time,
+    const std::vector<ShapedFontSpan>* span_styles = nullptr
 );
 
 } // namespace chronon3d

@@ -31,6 +31,10 @@ struct FontSubRange {
     std::size_t byte_start{0};
     std::size_t byte_end{0};
     FontSpec    font;
+    std::optional<Color> fill_color_override;
+    std::optional<TextStrokeStyle> stroke;
+    std::optional<TextHighlightStyle> highlight;
+    std::optional<std::string> semantic_id;
 };
 
 // Split a paragraph's byte range into font-homogeneous sub-ranges based

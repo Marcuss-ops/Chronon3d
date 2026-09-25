@@ -12,6 +12,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
+#include <chronon3d/text/text_run_builder.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -115,6 +116,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         // semantics in LayerBuilder::build().
         std::vector<std::optional<chronon3d::PreparedText>> prepared_texts(
             plan.layers.size());
+        std::vector<std::optional<chronon3d::Vec2>> prepared_text_bounds(
+            plan.layers.size());
+        const auto assets_root = resolver.mount_root();
+        chronon3d::TextCompileServices text_compile_services{
+            font_engine.get(), nullptr,
+            assets_root.empty() ? std::filesystem::path{}
+                                : assets_root / "fonts"};
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::Text) continue;
@@ -128,6 +136,15 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             }
             definition.style.font.font_path = resolved->string();
             prepared_texts[index] = chronon3d::prepare_text(definition);
+            if ((layer.style && layer.style->background) || layer.safe_insets) {
+                auto measured = chronon3d::compile_text_layout(
+                    *prepared_texts[index], text_compile_services);
+                if (!measured)
+                    throw std::runtime_error(
+                        "text card layout failed for layer '" + layer.id + "': " +
+                        measured.error().message);
+                prepared_text_bounds[index] = measured.value()->bounds;
+            }
         }
         std::vector<std::vector<EffectParams>> prepared_effects(plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
@@ -177,6 +194,28 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         .intensity = effect.glow_intensity,
                         .color = Color{effect.effect_color[0], effect.effect_color[1],
                                        effect.effect_color[2], effect.effect_color[3]}});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Noise) {
+                    prepared_effects[index].emplace_back(NoiseParams{
+                        .amount = effect.amount,
+                        .seed = effect.seed,
+                        .animated = effect.animated,
+                        .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
+                                                       : NoiseColorMode::Monochrome,
+                        .size = effect.noise_size,
+                        .shadow_response = effect.grain_shadow_response,
+                        .midtone_response = effect.grain_midtone_response,
+                        .highlight_response = effect.grain_highlight_response});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::FractalNoise) {
+                    prepared_effects[index].emplace_back(FractalNoiseParams{
+                        .seed = effect.seed,
+                        .octaves = effect.octaves,
+                        .frequency = effect.frequency,
+                        .amplitude = effect.amplitude,
+                        .evolution = effect.evolution,
+                        .contrast = effect.contrast,
+                        .brightness = effect.brightness,
+                        .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
+                                                       : NoiseColorMode::Monochrome});
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
@@ -192,7 +231,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
-        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_effects, font_engine,
+        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_text_bounds, prepared_effects, font_engine,
                             has_3d_layer, plan_camera](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
@@ -318,6 +357,55 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             builder.rect("color", std::move(params));
                             break;
                         }
+                        case LayerType::Particles: {
+                            if (!layer.particle_emitter)
+                                throw std::runtime_error(
+                                    "particles layer '" + layer.id + "' has no emitter parameters");
+                            const double fps = static_cast<double>(plan.canvas.fps.numerator) /
+                                static_cast<double>(plan.canvas.fps.denominator);
+                            if (!std::isfinite(fps) || fps <= 0.0)
+                                throw std::runtime_error("particles require a positive canvas frame rate");
+                            const double seconds = static_cast<double>(ctx.effective_frame()) / fps;
+                            const auto sampled = sample_particles(*layer.particle_emitter, seconds);
+                            if (!sampled.ok())
+                                throw std::runtime_error("particle sampling failed: " + sampled.error);
+                            builder.accepts_lights(false).accepts_shadows(false);
+                            for (const auto& particle : sampled.particles) {
+                                CircleParams params;
+                                params.radius = particle.size * 0.5f;
+                                params.color = particle.color;
+                                params.fill = graphics::FillStyle::solid(particle.color);
+                                params.pos = Vec3{particle.position.x, particle.position.y, 0.0f};
+                                builder.circle("particle_" + std::to_string(particle.index),
+                                               std::move(params));
+                            }
+                            break;
+                        }
+                        case LayerType::Light: {
+                            if (!layer.light)
+                                throw std::runtime_error("light layer '" + layer.id + "' has no light payload");
+                            const auto& light = *layer.light;
+                            const Color color{
+                                light.color[0] * light.intensity,
+                                light.color[1] * light.intensity,
+                                light.color[2] * light.intensity,
+                                light.color[3]};
+                            CircleParams params;
+                            params.radius = light.radius;
+                            params.color = color;
+                            params.fill = graphics::FillStyle::radial(
+                                {0.5f, 0.5f}, 0.5f,
+                                {{0.0f, color}, {1.0f, Color{
+                                    color.r, color.g, color.b, 0.0f}}});
+                            builder.accepts_lights(false).accepts_shadows(false);
+                            builder.circle("radial_light", std::move(params));
+                            break;
+                        }
+                        case LayerType::Adjustment:
+                            // Adjustment effects consume the composite built
+                            // from preceding layers and intentionally draw no
+                            // source geometry of their own.
+                            break;
                         case LayerType::Shape: {
                             if (!layer.shape)
                                 throw std::runtime_error("shape layer '" + layer.id + "' has no shape payload");
@@ -510,6 +598,31 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             if (!prepared_texts[index])
                                 throw std::runtime_error(
                                     "text layer was not prepared");
+                            if (layer.style && layer.style->background) {
+                                if (!prepared_text_bounds[index])
+                                    throw std::runtime_error(
+                                        "text card bounds were not measured for layer '" + layer.id + "'");
+                                const auto& background = *layer.style->background;
+                                const auto color = parse_hex_color(
+                                    background.color,
+                                    background.opacity.value_or(1.0f));
+                                if (!color)
+                                    throw std::runtime_error(
+                                        "text layer '" + layer.id + "' has invalid background color");
+                                const Vec2 padding = background.padding_dimensions == 2
+                                    ? Vec2{background.padding[0], background.padding[1]}
+                                    : Vec2{0.0f, 0.0f};
+                                const Vec2 card_size{
+                                    std::max(1.0f, prepared_text_bounds[index]->x + 2.0f * padding.x),
+                                    std::max(1.0f, prepared_text_bounds[index]->y + 2.0f * padding.y)};
+                                RoundedRectParams card;
+                                card.size = card_size;
+                                card.radius = background.radius.value_or(0.0f);
+                                card.pos = {-card_size.x * 0.5f, -card_size.y * 0.5f, 0.0f};
+                                card.color = *color;
+                                card.fill = graphics::FillStyle::solid(*color);
+                                builder.rounded_rect("text_card", std::move(card));
+                            }
                             auto& text_builder = builder.text_run(
                                 "text",
                                 *prepared_texts[index])
@@ -521,6 +634,50 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
+                    if (layer.safe_insets) {
+                                const auto& insets = *layer.safe_insets;
+                                Vec2 content_size{};
+                                if (layer.type == LayerType::Text &&
+                                    prepared_text_bounds[index]) {
+                                    content_size = *prepared_text_bounds[index];
+                                    if (layer.style && layer.style->background) {
+                                        const auto& padding_style = *layer.style->background;
+                                        if (padding_style.padding_dimensions == 2) {
+                                            content_size.x += 2.0f * padding_style.padding[0];
+                                            content_size.y += 2.0f * padding_style.padding[1];
+                                        }
+                                    }
+                                } else if (layer.type == LayerType::Shape &&
+                                           layer.size_dimensions == 2) {
+                                    content_size = {layer.size[0], layer.size[1]};
+                                } else if ((layer.type == LayerType::Image ||
+                                            layer.type == LayerType::Video) &&
+                                           layer.size_dimensions == 2) {
+                                    content_size = {layer.size[0], layer.size[1]};
+                                } else if (layer.type == LayerType::Particles &&
+                                           layer.particle_emitter) {
+                                    content_size = layer.particle_emitter->emitter_size;
+                                } else if (layer.type == LayerType::Light && layer.light) {
+                                    content_size = Vec2{layer.light->radius * 2.0f};
+                                }
+                                content_size.x *= std::abs(layer.scale[0]);
+                                content_size.y *= std::abs(layer.scale[1]);
+                                const float angle = glm::radians(layer.rotation[2]);
+                                const Vec2 rotated_size{
+                                    std::abs(std::cos(angle)) * content_size.x +
+                                        std::abs(std::sin(angle)) * content_size.y,
+                                    std::abs(std::sin(angle)) * content_size.x +
+                                        std::abs(std::cos(angle)) * content_size.y};
+                                const float half_canvas_width =
+                                    static_cast<float>(plan.canvas.width) * 0.5f;
+                                const float half_canvas_height =
+                                    static_cast<float>(plan.canvas.height) * 0.5f;
+                                builder.keep_in_safe_area(chronon3d::SafeArea{
+                                    .top = insets[0] - half_canvas_height,
+                                    .bottom = half_canvas_height + insets[2] + rotated_size.y,
+                                    .left = insets[3] - half_canvas_width,
+                                    .right = half_canvas_width + insets[1] + rotated_size.x});
+                    }
                     if (layer.type == LayerType::Shape && layer.style) {
                         const auto add_shadow = [&](const ShadowStyle& shadow) {
                             const float opacity = shadow.opacity.value_or(1.0f);
@@ -542,6 +699,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             using T = std::decay_t<decltype(params)>;
                             if constexpr (!std::is_same_v<T, std::monostate>) builder.effect(params);
                         }, effect);
+                    if (const auto motion_blur = detail::motion_blur_params_at(
+                            layer, ctx.effective_frame())) {
+                        builder.effect(*motion_blur);
+                    }
                     if (layer.path_mask) {
                         PathMaskParams params;
                         params.feather = layer.path_mask->feather;
@@ -589,7 +750,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 // Full-canvas color, image and video plates are backdrops, not
                 // camera-facing cards. Keep them in screen space around any
                 // projected 3D content, independent of the concrete media type.
-                if (layer.screen_space || full_canvas_backdrop)
+                if (layer.type == LayerType::Adjustment)
+                    scene.adjustment_layer(layer.id, author_layer);
+                else if (layer.screen_space || full_canvas_backdrop)
                     scene.screen_layer(layer.id, author_layer);
                 else scene.layer(layer.id, author_layer);
             }

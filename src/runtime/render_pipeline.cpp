@@ -18,8 +18,13 @@
 #include <chronon3d/backends/software/software_execution_context.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include "../render_graph/pipeline/temporal_render_pipeline.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <chronon3d/animation/temporal/temporal_samples.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/compiler/typed_program_sampler.hpp>
@@ -37,6 +42,9 @@
 #include <stdexcept>
 #include <thread>
 #include <utility>
+#include <memory>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d::runtime {
 
@@ -290,6 +298,114 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                         compiler::SceneMaterializer{}.materialize_scene(program)),
                     1};
         });
+
+    const auto& settings = *m_context.settings;
+    if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
+        settings.motion_blur.samples > 1 &&
+        settings.motion_blur.shutter_angle_deg > 0.0f) {
+        const auto width = static_cast<i32>(metadata.width);
+        const auto height = static_cast<i32>(metadata.height);
+        temporal::TemporalSampleParams shutter;
+        shutter.shutter_angle_deg = settings.motion_blur.shutter_angle_deg;
+        shutter.shutter_phase_deg = settings.motion_blur.shutter_phase_deg;
+        shutter.pattern = settings.motion_blur.pattern;
+        shutter.filter = settings.motion_blur.filter;
+        shutter.jitter_seed = settings.motion_blur.jitter_seed;
+        const auto samples = temporal::make_temporal_sample_plan(
+            shutter, settings.motion_blur.samples, frame, canvas_fps,
+            static_cast<std::size_t>(width), static_cast<std::size_t>(height),
+            key, temporal::TemporalBudgetResolver{
+                settings.render_budget.max_temporal_pixels});
+        if (!samples.valid())
+            throw std::invalid_argument(
+                "Render Plan motion-blur temporal sample plan is invalid");
+
+        std::vector<std::unique_ptr<cache::NodeCache>> value_caches;
+        std::vector<std::unique_ptr<graph::CompiledGraphCache>> topology_caches;
+        std::vector<std::unique_ptr<JobSession>> sample_sessions;
+        std::vector<std::unique_ptr<TransformScratchBuffer>> scratches;
+        std::vector<std::shared_ptr<cache::FramebufferPool>> framebuffer_pools;
+        const auto count = samples.contexts.size();
+        value_caches.reserve(count);
+        topology_caches.reserve(count);
+        sample_sessions.reserve(count);
+        scratches.reserve(count);
+        framebuffer_pools.reserve(count);
+        const auto pool_limit = m_renderer->framebuffer_pool()->stats().budget_bytes;
+        for (std::size_t i = 0; i < count; ++i) {
+            value_caches.push_back(std::make_unique<cache::NodeCache>());
+            topology_caches.push_back(std::make_unique<graph::CompiledGraphCache>());
+            sample_sessions.push_back(std::make_unique<JobSession>());
+            scratches.push_back(std::make_unique<TransformScratchBuffer>());
+            framebuffer_pools.push_back(
+                cache::FramebufferPool::create_shared(pool_limit));
+        }
+
+        auto accumulated = framebuffer_pools.front()->acquire(
+            width, height, /*clear=*/true);
+        float weight_sum = 0.0f;
+        compiler::TypedProgramSampler sampler;
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& sample = samples[i];
+            compiler::FrameParameterBlock parameters;
+            sampler.sample_into(program, sample.time.frame, parameters);
+            (void)motion::apply_layer_states(layer_states, layer_state_count, parameters);
+            (void)motion::apply_element_states(element_states, element_state_count, parameters);
+            const float frame_offset = static_cast<float>(
+                sample.time.frame - static_cast<double>(frame.integral()));
+            const graph::TemporalRenderContext temporal_context{
+                .sample_key = sample.cache_key,
+                .sample_time = sample.time,
+                .value_cache = value_caches[i].get(),
+                .topology_cache = topology_caches[i].get(),
+                .session = sample_sessions[i].get(),
+                .scratch = scratches[i].get(),
+                .counters = nullptr,
+                .framebuffer_pool = framebuffer_pools[i],
+            };
+            const auto rendered = graph::render_scene_via_graph_temporal(
+                *m_context.backend, *m_context.scratch.node_cache, *topology,
+                Camera{}, width, height, frame, frame_offset, settings,
+                m_context.registry.compositions, m_context.video_decoder,
+                static_cast<float>(canvas_fps.fps()), metadata.job_id, m_renderer,
+                &temporal_context, nullptr, &parameters, key);
+            if (!rendered)
+                throw std::runtime_error(
+                    "Render Plan motion-blur temporal sample produced no framebuffer");
+            const float weight = sample.weight;
+            weight_sum += weight;
+            tbb::parallel_for(tbb::blocked_range<i32>(0, height, 16),
+                [&](const tbb::blocked_range<i32>& rows) {
+                    for (i32 y = rows.begin(); y < rows.end(); ++y) {
+                        const Color* source = rendered->pixels_row(y);
+                        Color* destination = accumulated->pixels_row(y);
+                        for (i32 x = 0; x < width; ++x) {
+                            destination[x].r += source[x].r * weight;
+                            destination[x].g += source[x].g * weight;
+                            destination[x].b += source[x].b * weight;
+                            destination[x].a += source[x].a * weight;
+                        }
+                    }
+                });
+        }
+        if (weight_sum > 1e-6f && std::abs(weight_sum - 1.0f) > 1e-6f) {
+            const float inverse_weight = 1.0f / weight_sum;
+            tbb::parallel_for(tbb::blocked_range<i32>(0, height, 16),
+                [&](const tbb::blocked_range<i32>& rows) {
+                    for (i32 y = rows.begin(); y < rows.end(); ++y) {
+                        Color* destination = accumulated->pixels_row(y);
+                        for (i32 x = 0; x < width; ++x) {
+                            destination[x].r *= inverse_weight;
+                            destination[x].g *= inverse_weight;
+                            destination[x].b *= inverse_weight;
+                            destination[x].a *= inverse_weight;
+                        }
+                    }
+                });
+        }
+        return accumulated;
+    }
+
     return chronon3d::graph::render_scene_via_graph(
         *m_context.backend, *m_context.scratch.node_cache, *topology, Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,

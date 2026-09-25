@@ -252,6 +252,23 @@ TEST_CASE("Invariants: effect_order_changes_hash") {
     CHECK(hash1 != hash2);
 }
 
+TEST_CASE("Invariants: animated grain seed and size participate in effect hash") {
+    using namespace chronon3d::graph;
+    const auto hash_noise = [](NoiseParams params) {
+        LayerBuilder builder("grain", SampleTime{}, std::pmr::get_default_resource());
+        builder.effect(params);
+        return hash_effect_stack(builder.build().effects());
+    };
+    const NoiseParams base{.amount = 0.2f, .seed = 7, .animated = true,
+                           .color_mode = NoiseColorMode::Monochrome, .size = 1.0f};
+    CHECK(hash_noise(base) != hash_noise(NoiseParams{
+        .amount = 0.2f, .seed = 8, .animated = true,
+        .color_mode = NoiseColorMode::Monochrome, .size = 1.0f}));
+    CHECK(hash_noise(base) != hash_noise(NoiseParams{
+        .amount = 0.2f, .seed = 7, .animated = true,
+        .color_mode = NoiseColorMode::Monochrome, .size = 4.0f}));
+}
+
 // 8. cache_key_changes_when_glow_params_change
 TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     using namespace chronon3d::graph;

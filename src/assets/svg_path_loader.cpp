@@ -8,12 +8,15 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <functional>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <cctype>
+#include <map>
 
 namespace chronon3d::assets {
 namespace {
@@ -203,11 +206,93 @@ void apply_transform(PathShape& path, const Affine2& transform) {
     }
 }
 
+struct SvgStyleState {
+    std::optional<Fill> fill{Fill::solid_color(Color::black())};
+    PathStroke stroke{.enabled = false};
+    float opacity{1.0f};
+    float fill_opacity{1.0f};
+    float stroke_opacity{1.0f};
+};
+
+std::string trim(std::string value) {
+    const auto first = value.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return {};
+    const auto last = value.find_last_not_of(" \t\r\n");
+    return value.substr(first, last - first + 1);
+}
+
+std::optional<Color> parse_svg_color(std::string value, Color current) {
+    value = trim(std::move(value));
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (value == "none") return std::nullopt;
+    if (value == "currentcolor") return current;
+    if (value.size() == 4 && value[0] == '#') {
+        const auto digit = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1; };
+        const int r = digit(value[1]), g = digit(value[2]), b = digit(value[3]);
+        if (r < 0 || g < 0 || b < 0) return std::nullopt;
+        return Color{r / 15.0f, g / 15.0f, b / 15.0f, 1.0f};
+    }
+    if (value.size() == 7 && value[0] == '#') {
+        try { return Color::from_hex(value.c_str()); } catch (...) { return std::nullopt; }
+    }
+    if (value.rfind("rgb(", 0) == 0 && value.back() == ')') {
+        const auto parts = transform_numbers(std::string_view(value).substr(4, value.size() - 5));
+        if (parts.size() == 3) return Color{std::clamp(parts[0], 0.0f, 255.0f) / 255.0f, std::clamp(parts[1], 0.0f, 255.0f) / 255.0f, std::clamp(parts[2], 0.0f, 255.0f) / 255.0f, 1.0f};
+    }
+    return std::nullopt;
+}
+
+std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
+    std::map<std::string, std::string> values;
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity"}) {
+        if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) values[key] = *value;
+    }
+    if (auto style = node.get_optional<std::string>("<xmlattr>.style")) {
+        std::istringstream input(*style);
+        std::string item;
+        while (std::getline(input, item, ';')) {
+            const auto colon = item.find(':');
+            if (colon == std::string::npos) continue;
+            auto key = trim(item.substr(0, colon));
+            auto value = trim(item.substr(colon + 1));
+            std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            values[key] = value;
+        }
+    }
+    return values;
+}
+
+float style_number(const std::map<std::string, std::string>& style, const char* key, float fallback) {
+    const auto it = style.find(key);
+    if (it == style.end()) return fallback;
+    try { return std::clamp(std::stof(it->second), 0.0f, 1.0f); } catch (...) { return fallback; }
+}
+
 void collect_path_data(
     const boost::property_tree::ptree& tree,
     std::vector<std::pair<std::string, Affine2>>& paths,
-    const Affine2& parent_transform = Affine2(1.0f)) {
+    std::vector<SvgStyleState>& styles,
+    const Affine2& parent_transform = Affine2(1.0f),
+    SvgStyleState parent_style = {}) {
     for (const auto& [name, node] : tree) {
+        auto style = parent_style;
+        const auto properties = style_properties(node);
+        const Color current = style.fill ? style.fill->solid : Color::black();
+        if (auto it = properties.find("fill"); it != properties.end()) {
+            const auto color = parse_svg_color(it->second, current);
+            style.fill = color ? std::optional<Fill>{Fill::solid_color(*color)} : std::nullopt;
+        }
+        if (auto it = properties.find("stroke"); it != properties.end()) {
+            const auto color = parse_svg_color(it->second, current);
+            style.stroke.enabled = color.has_value();
+            if (color) style.stroke.color = *color;
+        }
+        if (auto it = properties.find("stroke-width"); it != properties.end()) {
+            try { style.stroke.width = std::max(0.0f, std::stof(it->second)); } catch (...) {}
+        }
+        style.opacity *= style_number(properties, "opacity", 1.0f);
+        style.fill_opacity *= style_number(properties, "fill-opacity", 1.0f);
+        style.stroke_opacity *= style_number(properties, "stroke-opacity", 1.0f);
         const auto local_transform = node.get_optional<std::string>("<xmlattr>.transform");
         Affine2 node_transform = local_transform ? parse_transform(*local_transform) : Affine2(1.0f);
         if (name == "svg") {
@@ -218,15 +303,15 @@ void collect_path_data(
         const Affine2 transform = parent_transform * node_transform;
         if (name == "path") {
             if (auto d = node.get_optional<std::string>("<xmlattr>.d")) {
-                paths.emplace_back(*d, transform);
+                paths.emplace_back(*d, transform); styles.push_back(style);
             }
         } else if (name == "rect" || name == "circle" || name == "ellipse" ||
                    name == "line" || name == "polyline" || name == "polygon") {
             if (auto d = primitive_path_data(name, node); !d.empty()) {
-                paths.emplace_back(std::move(d), transform);
+                paths.emplace_back(std::move(d), transform); styles.push_back(style);
             }
         }
-        collect_path_data(node, paths, transform);
+        collect_path_data(node, paths, styles, transform, style);
     }
 }
 
@@ -248,8 +333,31 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .ok = false, .error = e.what()};
     }
 
+    std::string unsupported;
+    std::function<void(const boost::property_tree::ptree&)> inspect = [&](const auto& tree) {
+        for (const auto& [name, node] : tree) {
+            if (name == "text" || name == "image" || name == "use" || name == "style") {
+                unsupported = name == "style" ? "CSS esterni" : name;
+                return;
+            }
+            if (node.get_optional<std::string>("<xmlattr>.href") ||
+                node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href")) {
+                unsupported = "CSS esterni";
+                return;
+            }
+            inspect(node);
+            if (!unsupported.empty()) return;
+        }
+    };
+    inspect(document);
+    if (!unsupported.empty()) {
+        const auto tag = unsupported == "CSS esterni" ? "style" : unsupported.c_str();
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">"};
+    }
     std::vector<std::pair<std::string, Affine2>> path_data;
-    collect_path_data(document, path_data);
+    std::vector<SvgStyleState> styles;
+    collect_path_data(document, path_data, styles);
     if (path_data.empty()) {
         return {.paths = {}, .ok = false, .error = "No <path d=\"...\"> found"};
     }
@@ -267,6 +375,13 @@ SvgDocumentLoadResult load_svg_document_file(
             };
         }
         apply_transform(path.path, path_data[index].second);
+        auto style = styles[index];
+        style.stroke.color.a *= style.stroke_opacity;
+        if (style.fill) style.fill->solid.a *= style.fill_opacity;
+        path.path.fill = style.fill.value_or(Fill{.enabled = false});
+        path.path.stroke = style.stroke;
+        path.path.opacity = style.opacity;
+        result.elements.push_back(SvgStyledElement{path.path, style.fill, style.stroke, style.opacity});
         result.paths.push_back(std::move(path.path));
     }
     result.ok = true;

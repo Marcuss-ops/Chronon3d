@@ -131,6 +131,10 @@ struct TextFrame {
     /// Auto-fit: shrink font to fit box (maps to TextDefaults::layout.auto_fit).
     bool auto_fit{false};
 
+    /// When enabled with auto_fit, preserve the authored width and resolve
+    /// the box height from the measured wrapped text during pre-layout.
+    bool grow_and_shrink{false};
+
     /// Minimum font size for auto-fit (maps to TextDefaults::layout.min_font_size).
     f32 min_font_size{12.0f};
 

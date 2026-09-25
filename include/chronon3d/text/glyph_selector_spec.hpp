@@ -15,6 +15,7 @@
 #include <chronon3d/core/types/types.hpp>
 
 #include <string>
+#include <optional>
 
 namespace chronon3d {
 
@@ -106,6 +107,7 @@ struct GlyphSelectorSpec {
     bool exclude_spaces{true};                   // skip whitespace-only units
     bool randomize_order{false};                 // use deterministic shuffle
     u64  random_seed{0};                         // seed for deterministic shuffle
+    std::optional<std::string> semantic_id;       // target one named semantic span
 };
 
 } // namespace chronon3d

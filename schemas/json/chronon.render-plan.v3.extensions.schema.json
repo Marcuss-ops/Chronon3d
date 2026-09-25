@@ -122,6 +122,7 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "id": { "type": "string" },
+        "semantic_id": { "type": "string", "minLength": 1, "maxLength": 256 },
         "unit": { "enum": ["glyph", "grapheme", "character", "word", "line"] },
         "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth"] },
         "order": { "enum": ["forward", "reverse", "from_center", "to_center", "random"] },
@@ -329,12 +330,106 @@
       "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
       "additionalProperties": { "type": ["string", "number"] }
     },
+    "temporal_motion_blur": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "shutter_angle": { "type": "number", "exclusiveMinimum": 0, "maximum": 360 },
+        "samples": { "type": "integer", "minimum": 2, "maximum": 64 }
+      }
+    },
     "layers": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "type": { "enum": ["image", "video", "text", "color", "shape"] },
+          "type": { "enum": ["image", "video", "text", "color", "shape", "particles", "light", "adjustment"] },
+          "light": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+              "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+            }
+          },
+          "safe_insets": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "top": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "right": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "bottom": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "left": { "type": "number", "minimum": 0, "maximum": 1000000 }
+            }
+          },
+          "particle_emitter": {
+            "type": "object", "additionalProperties": false,
+            "required": ["count", "seed", "emitter_size", "velocity_min", "velocity_max", "lifetime", "size"],
+            "properties": {
+              "count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+              "emitter_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "velocity_min": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+              "velocity_max": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+              "lifetime": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
+              "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "gravity": { "type": "number" },
+              "turbulence": { "type": "number", "minimum": 0 },
+              "color_ramp": {
+                "type": "array", "minItems": 2, "maxItems": 256,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["position", "color"],
+                  "properties": {
+                    "position": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+                  }
+                }
+              }
+            }
+          },
+          "spans": {
+            "type": "array", "maxItems": 65536,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["start", "end", "style"],
+              "properties": {
+                "start": { "type": "integer", "minimum": 0 },
+                "end": { "type": "integer", "minimum": 1 },
+                "semantic_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "style": {
+                  "type": "object", "additionalProperties": false,
+                  "minProperties": 1,
+                  "properties": {
+                    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+                    "font_size_mult": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+                    "tracking": { "type": "number", "minimum": -1000, "maximum": 1000 },
+                    "stroke": {
+                      "type": "object", "additionalProperties": false,
+                      "properties": {
+                        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+                        "width_em": { "type": "number", "minimum": 0, "maximum": 100 }
+                      },
+                      "minProperties": 1
+                    },
+                    "highlight": {
+                      "type": "object", "additionalProperties": false,
+                      "properties": {
+                        "background": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+                        "padding_em": { "type": "number", "minimum": 0, "maximum": 100 },
+                        "radius_em": { "type": "number", "minimum": 0, "maximum": 100 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "motion_blur": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "shutter_angle": { "type": "number", "exclusiveMinimum": 0, "maximum": 360 },
+              "samples": { "type": "integer", "minimum": 1, "maximum": 64 }
+            }
+          },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
           "track_matte": {
             "type": "object", "additionalProperties": false,
@@ -479,6 +574,34 @@
                   "color": { "type": "array", "minItems": 4, "maxItems": 4,
                              "items": { "type": "number", "minimum": 0, "maximum": 1 } }
                 }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "noise" },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+                  "animated": { "type": "boolean" },
+                  "size": { "type": "number", "exclusiveMinimum": 0, "maximum": 256 },
+                  "shadow_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "midtone_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "highlight_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "color_mode": { "enum": ["monochrome", "rgb"] }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "fractal_noise" },
+                  "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+                  "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
+                  "frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 10 },
+                  "amplitude": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "evolution": { "type": "number", "minimum": -10000, "maximum": 10000 },
+                  "contrast": { "type": "number", "minimum": 0, "maximum": 16 },
+                  "brightness": { "type": "number", "minimum": -16, "maximum": 16 },
+                  "color_mode": { "enum": ["monochrome", "rgb"] }
+                }
               }
             ] }
           },
@@ -509,6 +632,9 @@
         },
         "allOf": [
           { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } },
+          { "if": { "properties": { "type": { "const": "particles" } }, "required": ["type"] }, "then": { "required": ["particle_emitter"] } },
+          { "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] }, "then": { "required": ["light"] } },
+          { "if": { "properties": { "type": { "const": "adjustment" } }, "required": ["type"] }, "then": { "required": ["effects"], "properties": { "effects": { "minItems": 1 } } } },
           { "if": { "required": ["time_remap"] }, "then": { "properties": { "type": { "const": "video" } } } }
         ]
       }
