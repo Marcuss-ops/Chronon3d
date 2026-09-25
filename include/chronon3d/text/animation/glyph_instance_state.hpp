@@ -48,6 +48,8 @@ struct GlyphInstanceState {
 
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};     // final fill color
     Color background{0.0f, 0.0f, 0.0f, 0.0f}; // background rect color (alpha=0 → disabled)
+    f32 background_padding_em{0.0f};
+    f32 background_radius_em{0.0f};
     Color stroke{0.0f, 0.0f, 0.0f, 0.0f};     // stroke color (alpha=0 → disabled)
     f32 stroke_width{0.0f};                 // stroke width
 };

@@ -58,6 +58,8 @@ struct TextStyleSpan {
 
     std::optional<FontSpec>           font;
     std::optional<TextAppearanceSpec> appearance;
+    std::optional<Color> fill_color_override;
+    std::optional<TextHighlightStyle> highlight;
     std::optional<f32>               tracking;
     std::optional<f32>               baseline_shift;
 

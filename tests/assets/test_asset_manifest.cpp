@@ -12,6 +12,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/assets/asset_manifest.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -70,6 +71,19 @@ TEST_CASE("AssetManifest — add_mesh records a logical dependency") {
     CHECK(m.assets()[0].path == "models/phone.glb");
     CHECK(m.assets()[0].owner == "hero/mesh");
     CHECK(m.assets()[0].required);
+}
+
+TEST_CASE("AssetManifest — add_svg records a typed vector asset") {
+    AssetManifest m;
+    m.add_svg("assets/icons/logo.svg", "logo/vector");
+    REQUIRE(m.size() == 1);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Svg);
+    CHECK(m.assets()[0].path == "assets/icons/logo.svg");
+    CHECK(m.assets()[0].owner == "logo/vector");
+    CHECK(m.assets()[0].required);
+    CHECK(m.filter(assets::AssetKind::Svg).size() == 1);
+    CHECK(assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Svg, ".SVG"));
+    CHECK_FALSE(assets::asset_kind_accepts_extension(assets::PreparedAssetKind::Image, ".svg"));
 }
 
 TEST_CASE("AssetManifest — filter by type") {

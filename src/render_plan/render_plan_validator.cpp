@@ -37,6 +37,7 @@ std::vector<validation::RawSchemaError> validate_against(
 
 nlohmann::json v2_projection(const nlohmann::json& root) {
     nlohmann::json projected = root;
+    projected.erase("temporal_motion_blur");
     projected["schema"] = kRenderPlanSchemaV2;
     projected["version"] = 2;
     if (!projected.contains("layers") || !projected["layers"].is_array())
@@ -45,7 +46,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;
         const bool shape_layer = layer.value("type", std::string{}) == "shape";
-        if (shape_layer) {
+        const bool adjustment_layer = layer.value("type", std::string{}) == "adjustment";
+        if (shape_layer || adjustment_layer) {
             // The base V2 validator is authoritative for every common field;
             // supply only the neutral V2 layer discriminator/payload needed
             // to pass V2's closed enum and required-color condition.
@@ -83,6 +85,11 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         layer.erase("parent");
         layer.erase("track_matte");
         layer.erase("time_remap");
+        // V3-only fields are validated by the extension schema below.
+        layer.erase("safe_insets");
+        layer.erase("font");
+        layer.erase("spans");
+        layer.erase("motion_blur");
         // V3 owns text-animator validation: its animator_property_track
         // override extends the frozen V2 property enum with the per-glyph
         // 'rotation' and 'fill_color' tracks. The extension schema validates

@@ -65,6 +65,8 @@ namespace chronon3d::text::resolver {
                 if (span.font->font_size > 0.0f)
                     font.font_size = span.font->font_size;
             }
+            if (span.font_size_multiplier && *span.font_size_multiplier > 0.0f)
+                font.font_size = doc.defaults.font.font_size * *span.font_size_multiplier;
         }
     }
 
@@ -113,7 +115,21 @@ namespace chronon3d::text::resolver {
         if (start >= end) continue;
 
         FontSpec font = effective_font(doc, start);
-        ranges.push_back({start, end, std::move(font)});
+        FontSubRange range{start, end, std::move(font)};
+        for (const auto& span : doc.spans) {
+            if (span.byte_start <= start && start < span.byte_end) {
+                range.fill_color_override = span.fill_color_override;
+                range.stroke = span.appearance && span.appearance->paint.stroke_enabled
+                    ? std::optional<TextStrokeStyle>{TextStrokeStyle{
+                        span.appearance->paint.stroke_width,
+                        span.appearance->paint.stroke_color}}
+                    : std::nullopt;
+                range.highlight = span.highlight;
+                range.semantic_id = span.semantic_id;
+                break;
+            }
+        }
+        ranges.push_back(std::move(range));
     }
 
     return ranges;

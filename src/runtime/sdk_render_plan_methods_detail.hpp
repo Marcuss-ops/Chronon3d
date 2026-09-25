@@ -12,6 +12,8 @@ RenderEngine::compile_plan_json(std::string_view json) {
         chronon3d::compiler::CompileOptions compile_options;
         compile_options.fingerprint.render_settings.width = decoded->canvas.width;
         compile_options.fingerprint.render_settings.height = decoded->canvas.height;
+        compile_options.fingerprint.render_settings.motion_blur =
+            decoded->temporal_motion_blur.has_value();
         compile_options.fingerprint.render_settings.deterministic = false;
         compile_options.fingerprint.render_settings.force_scalar_normal_blend = false;
         auto compiled = chronon3d::compiler::compile(
@@ -23,6 +25,14 @@ RenderEngine::compile_plan_json(std::string_view json) {
         RenderSettings settings = m_impl->settings;
         settings.width = decoded->canvas.width;
         settings.height = decoded->canvas.height;
+        settings.motion_blur = decoded->temporal_motion_blur.has_value();
+        if (decoded->temporal_motion_blur) {
+            settings.motion_blur_samples = static_cast<int>(
+                decoded->temporal_motion_blur->samples);
+            settings.motion_blur_shutter_angle_deg =
+                decoded->temporal_motion_blur->shutter_angle;
+            settings.motion_blur_shutter_phase_deg = -90.0f;
+        }
         m_impl->settings = settings;
         m_impl->prepared_job.reset();
         m_impl->prepared_composition = nullptr;
@@ -67,6 +77,8 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
             fingerprint_options.render_settings.width = decoded->canvas.width;
             fingerprint_options.render_settings.height = decoded->canvas.height;
+            fingerprint_options.render_settings.motion_blur =
+                decoded->temporal_motion_blur.has_value();
             fingerprint_options.render_settings.deterministic = false;
             fingerprint_options.render_settings.force_scalar_normal_blend = false;
             chronon3d::compiler::CompileOptions compile_options;
@@ -83,6 +95,14 @@ RenderEngine::render_plan_file(const std::filesystem::path& plan_path,
             RenderSettings settings = m_impl->settings;
             settings.width = static_cast<int>(meta.width);
             settings.height = static_cast<int>(meta.height);
+            settings.motion_blur = decoded->temporal_motion_blur.has_value();
+            if (decoded->temporal_motion_blur) {
+                settings.motion_blur_samples = static_cast<int>(
+                    decoded->temporal_motion_blur->samples);
+                settings.motion_blur_shutter_angle_deg =
+                    decoded->temporal_motion_blur->shutter_angle;
+                settings.motion_blur_shutter_phase_deg = -90.0f;
+            }
             m_impl->settings = settings;
             m_impl->prepared_job.reset();
             m_impl->prepared_composition = nullptr;

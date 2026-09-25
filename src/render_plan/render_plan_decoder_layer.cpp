@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include <chronon3d/render_plan/color_utils.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -88,6 +89,11 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     selector.exclude_spaces = value.value("exclude_spaces", true);
     selector.randomize_order = value.value("randomize_order", false);
     selector.random_seed = value.value("random_seed", std::uint64_t{0});
+    if (value.contains("semantic_id")) {
+        selector.semantic_id = value.at("semantic_id").get<std::string>();
+        if (selector.semantic_id->empty())
+            throw std::runtime_error("text selector semantic_id must not be empty");
+    }
     return selector;
 }
 
@@ -111,6 +117,81 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
+    if (value.contains("light")) {
+        if (layer.type != LayerType::Light)
+            throw std::runtime_error("light is only valid for light layers");
+        const auto& raw = value.at("light");
+        LightLayerPlan light;
+        light.radius = raw.value("radius", light.radius);
+        light.intensity = raw.value("intensity", light.intensity);
+        const auto color = parse_hex_color(raw.value("color", std::string{"#FFFFFF"}));
+        if (!color) throw std::runtime_error("light.color must be a #RRGGBB or #RRGGBBAA color");
+        light.color = {color->r, color->g, color->b, color->a};
+        if (!std::isfinite(light.radius) || light.radius <= 0.0f ||
+            !std::isfinite(light.intensity) || light.intensity < 0.0f || light.intensity > 16.0f)
+            throw std::runtime_error("light radius must be positive and intensity must be in [0, 16]");
+        layer.light = light;
+        if (!value.contains("blend_mode")) layer.blend_mode = BlendMode::Screen;
+    }
+    if (layer.type == LayerType::Light && !layer.light)
+        throw std::runtime_error("light layers require a light object");
+    if (value.contains("particle_emitter")) {
+        if (layer.type != LayerType::Particles)
+            throw std::runtime_error("particle_emitter is only valid for particles layers");
+        const auto& raw = value.at("particle_emitter");
+        ParticleEmitterParams params;
+        params.count = raw.at("count").get<u32>();
+        params.seed = raw.at("seed").get<u32>();
+        const auto read_vec2 = [](const nlohmann::json& object, const char* key) {
+            const auto& input = object.at(key);
+            if (!input.is_array() || input.size() != 2)
+                throw std::runtime_error(std::string("particle_emitter.") + key + " must have two numbers");
+            const Vec2 result{input[0].get<float>(), input[1].get<float>()};
+            if (!std::isfinite(result.x) || !std::isfinite(result.y))
+                throw std::runtime_error(std::string("particle_emitter.") + key + " must be finite");
+            return result;
+        };
+        params.emitter_size = read_vec2(raw, "emitter_size");
+        params.velocity_min = read_vec2(raw, "velocity_min");
+        params.velocity_max = read_vec2(raw, "velocity_max");
+        const auto& lifetime = raw.at("lifetime");
+        const auto& size = raw.at("size");
+        if (!lifetime.is_array() || lifetime.size() != 2 || !size.is_array() || size.size() != 2)
+            throw std::runtime_error("particle_emitter lifetime and size must be [min, max]");
+        params.lifetime_min = lifetime[0].get<float>();
+        params.lifetime_max = lifetime[1].get<float>();
+        params.size_min = size[0].get<float>();
+        params.size_max = size[1].get<float>();
+        params.gravity = raw.value("gravity", 0.0f);
+        params.turbulence = raw.value("turbulence", 0.0f);
+        if (raw.contains("color_ramp")) {
+            std::vector<graphics::GradientStop> stops;
+            for (const auto& stop : raw.at("color_ramp")) {
+                const auto& color = stop.at("color");
+                if (!color.is_array() || color.size() != 4)
+                    throw std::runtime_error("particle color ramp stops require RGBA");
+                const float position = stop.at("position").get<float>();
+                const Color decoded{color[0].get<float>(), color[1].get<float>(),
+                                    color[2].get<float>(), color[3].get<float>()};
+                const auto valid = [](float component) {
+                    return std::isfinite(component) && component >= 0.0f && component <= 1.0f;
+                };
+                if (!valid(position) || !valid(decoded.r) || !valid(decoded.g) ||
+                    !valid(decoded.b) || !valid(decoded.a))
+                    throw std::runtime_error("particle color ramp values must be finite and in [0, 1]");
+                stops.push_back({position, decoded});
+            }
+            if (stops.size() < 2)
+                throw std::runtime_error("particle color ramp requires at least two stops");
+            params.color_ramp = graphics::GradientDefinition::linear(
+                {0.0f, 0.0f}, {1.0f, 0.0f}, std::move(stops));
+        }
+        if (const auto error = validate_particle_emitter(params); !error.empty())
+            throw std::runtime_error(error);
+        layer.particle_emitter = std::move(params);
+    }
+    if (layer.type == LayerType::Particles && !layer.particle_emitter)
+        throw std::runtime_error("particles layers require particle_emitter");
     if (value.contains("parent"))
         layer.parent = value.at("parent").get<std::string>();
     if (value.contains("track_matte")) {
@@ -166,6 +247,68 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     layer.text = value.value("text", std::string{});
+    if (value.contains("spans")) {
+        if (layer.type != LayerType::Text)
+            throw std::runtime_error("layer.spans is only valid for text layers");
+        std::size_t previous_end = 0;
+        const auto boundary = [&](std::size_t offset) {
+            return offset == 0 || offset == layer.text.size() ||
+                (static_cast<unsigned char>(layer.text[offset]) & 0xc0U) != 0x80U;
+        };
+        for (const auto& raw_span : value.at("spans")) {
+            TextSpanOverride span;
+            span.byte_start = raw_span.at("start").get<std::size_t>();
+            span.byte_end = raw_span.at("end").get<std::size_t>();
+            if (span.byte_start < previous_end || span.byte_start >= span.byte_end ||
+                span.byte_end > layer.text.size() || !boundary(span.byte_start) || !boundary(span.byte_end))
+                throw std::runtime_error("text spans must be sorted, non-overlapping UTF-8 byte ranges within text");
+            previous_end = span.byte_end;
+            const auto& style = raw_span.at("style");
+            if (style.contains("color")) {
+                const auto color = parse_hex_color(style.at("color").get<std::string>());
+                if (!color) throw std::runtime_error("text span has invalid color");
+                span.color = *color;
+            }
+            if (style.contains("font_size_mult")) {
+                const float mult = style.at("font_size_mult").get<float>();
+                if (!std::isfinite(mult) || mult <= 0.0f || mult > 100.0f)
+                    throw std::runtime_error("text span font_size_mult must be finite and in (0, 100]");
+                span.font_size_multiplier = mult;
+            }
+            if (style.contains("tracking")) span.tracking = style.at("tracking").get<float>();
+            if (style.contains("stroke")) {
+                const auto& raw_stroke = style.at("stroke");
+                TextStrokeStyle stroke;
+                if (raw_stroke.contains("color")) {
+                    const auto color = parse_hex_color(raw_stroke.at("color").get<std::string>());
+                    if (!color) throw std::runtime_error("text span has invalid stroke color");
+                    stroke.color = *color;
+                }
+                if (raw_stroke.contains("width_em"))
+                    stroke.width_em = raw_stroke.at("width_em").get<float>();
+                if (!std::isfinite(stroke.width_em) || stroke.width_em < 0.0f || stroke.width_em > 100.0f)
+                    throw std::runtime_error("text span stroke width_em must be finite and in [0, 100]");
+                span.stroke = stroke;
+            }
+            if (style.contains("highlight")) {
+                const auto& raw_highlight = style.at("highlight");
+                TextHighlightStyle highlight;
+                if (raw_highlight.contains("background")) {
+                    const auto color = parse_hex_color(
+                        raw_highlight.at("background").get<std::string>());
+                    if (!color) throw std::runtime_error("text span has invalid highlight background color");
+                    highlight.background = *color;
+                }
+                if (raw_highlight.contains("padding_em"))
+                    highlight.padding_em = raw_highlight.at("padding_em").get<float>();
+                if (raw_highlight.contains("radius_em"))
+                    highlight.radius_em = raw_highlight.at("radius_em").get<float>();
+                span.highlight = highlight;
+            }
+            if (raw_span.contains("semantic_id")) span.semantic_id = raw_span.at("semantic_id").get<std::string>();
+            layer.text_spans.push_back(std::move(span));
+        }
+    }
 
     if (value.contains("size")) {
         const auto& size = value.at("size");
@@ -752,8 +895,57 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
                     !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
                     throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
+            } else if (kind == "noise") {
+                effect.kind = LayerPlan::EffectKindPlan::Noise;
+                effect.amount = raw_effect.value("amount", 0.08f);
+                effect.seed = raw_effect.value("seed", std::uint32_t{0});
+                effect.animated = raw_effect.value("animated", false);
+                effect.noise_size = raw_effect.value("size", 1.0f);
+                effect.grain_shadow_response = raw_effect.value("shadow_response", 1.0f);
+                effect.grain_midtone_response = raw_effect.value("midtone_response", 1.0f);
+                effect.grain_highlight_response = raw_effect.value("highlight_response", 1.0f);
+                const auto mode = raw_effect.value("color_mode", std::string{"monochrome"});
+                if (mode != "monochrome" && mode != "rgb")
+                    throw std::runtime_error("Noise color_mode must be monochrome or rgb");
+                effect.rgb_noise = mode == "rgb";
+                if (!std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f ||
+                    !std::isfinite(effect.noise_size) || effect.noise_size <= 0.0f || effect.noise_size > 256.0f ||
+                    !std::isfinite(effect.grain_shadow_response) || effect.grain_shadow_response < 0.0f || effect.grain_shadow_response > 4.0f ||
+                    !std::isfinite(effect.grain_midtone_response) || effect.grain_midtone_response < 0.0f || effect.grain_midtone_response > 4.0f ||
+                    !std::isfinite(effect.grain_highlight_response) || effect.grain_highlight_response < 0.0f || effect.grain_highlight_response > 4.0f)
+                    throw std::runtime_error("Noise amount, size, or tonal response is outside its supported range");
+            } else if (kind == "fractal_noise") {
+                effect.kind = LayerPlan::EffectKindPlan::FractalNoise;
+                effect.seed = raw_effect.value("seed", std::uint32_t{0});
+                effect.octaves = raw_effect.value("octaves", std::uint32_t{4});
+                effect.frequency = raw_effect.value("frequency", 0.015f);
+                effect.amplitude = raw_effect.value("amplitude", 1.0f);
+                effect.evolution = raw_effect.value("evolution", 0.0f);
+                effect.contrast = raw_effect.value("contrast", 1.0f);
+                effect.brightness = raw_effect.value("brightness", 0.0f);
+                const auto mode = raw_effect.value("color_mode", std::string{"monochrome"});
+                if (mode != "monochrome" && mode != "rgb")
+                    throw std::runtime_error("Fractal Noise color_mode must be monochrome or rgb");
+                effect.rgb_noise = mode == "rgb";
+                if (effect.octaves == 0 || effect.octaves > 16 ||
+                    !std::isfinite(effect.frequency) || effect.frequency <= 0.0f || effect.frequency > 10.0f ||
+                    !std::isfinite(effect.amplitude) || effect.amplitude < 0.0f || effect.amplitude > 4.0f ||
+                    !std::isfinite(effect.evolution) || std::abs(effect.evolution) > 10000.0f ||
+                    !std::isfinite(effect.contrast) || effect.contrast < 0.0f || effect.contrast > 16.0f ||
+                    !std::isfinite(effect.brightness) || std::abs(effect.brightness) > 16.0f)
+                    throw std::runtime_error("Fractal Noise parameters are outside supported finite ranges");
             } else throw std::runtime_error("unsupported layer effect type");
             layer.effects.push_back(std::move(effect));
+        }
+    }
+    if (layer.type == LayerType::Adjustment) {
+        if (layer.effects.empty())
+            throw std::runtime_error("adjustment layers require at least one effect");
+        for (const auto* content_key : {"asset", "source", "text", "shape",
+                                        "particle_emitter", "light"}) {
+            if (value.contains(content_key))
+                throw std::runtime_error(
+                    std::string("adjustment layers cannot contain '") + content_key + "'");
         }
     }
     if (value.contains("position")) {
@@ -780,6 +972,18 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     }
     layer.enable_3d = value.value("enable_3d", false);
     layer.screen_space = value.value("screen_space", false);
+    if (value.contains("safe_insets")) {
+        const auto& insets = value.at("safe_insets");
+        if (!insets.is_object())
+            throw std::runtime_error("layer.safe_insets must be an object");
+        std::array<float, 4> parsed{
+            insets.value("top", 0.0f), insets.value("right", 0.0f),
+            insets.value("bottom", 0.0f), insets.value("left", 0.0f)};
+        for (const float inset : parsed)
+            if (!std::isfinite(inset) || inset < 0.0f)
+                throw std::runtime_error("layer.safe_insets values must be finite and non-negative");
+        layer.safe_insets = parsed;
+    }
     if (value.contains("depth_role")) {
         layer.depth_role = value.at("depth_role").get<std::string>();
         static constexpr std::array<std::string_view, 7> kRoles{
@@ -804,6 +1008,25 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         style_plan.font = style.value("font", std::string{});
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
+        style_plan.text_fit_mode = style.value("fit_mode", std::string{"none"});
+        style_plan.min_font_size = optional_value<float>(style, "min_font_size");
+        style_plan.max_font_size = optional_value<float>(style, "max_font_size");
+        if (style_plan.text_fit_mode != "none" &&
+            style_plan.text_fit_mode != "shrink_only" &&
+            style_plan.text_fit_mode != "grow_and_shrink")
+            throw std::runtime_error("text style fit_mode must be none, shrink_only, or grow_and_shrink");
+        if ((style_plan.min_font_size &&
+             (!std::isfinite(*style_plan.min_font_size) || *style_plan.min_font_size <= 0.0f)) ||
+            (style_plan.max_font_size &&
+             (!std::isfinite(*style_plan.max_font_size) || *style_plan.max_font_size <= 0.0f)) ||
+            style_plan.max_font_size.value_or(160.0f) <
+                style_plan.min_font_size.value_or(12.0f))
+            throw std::runtime_error("text style font size limits must be positive, finite, and ordered");
+        if (style_plan.text_fit_mode != "none" && layer.type != LayerType::Text)
+            throw std::runtime_error("style.fit_mode is only valid for text layers");
+        if ((style_plan.min_font_size || style_plan.max_font_size) &&
+            style_plan.text_fit_mode == "none")
+            throw std::runtime_error("text font size limits require a non-none fit_mode");
         if (style.contains("stroke")) {
             const auto& stroke = style.at("stroke");
             style_plan.stroke = StrokeStyle{stroke.value("color", std::string{}),
@@ -903,9 +1126,45 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             animation.tracks.push_back(decode_animation_track(track_value));
         layer.animation = std::move(animation);
     }
+    if (value.contains("motion_blur")) {
+        const auto& raw = value.at("motion_blur");
+        MotionBlurPlan motion_blur;
+        motion_blur.shutter_angle = raw.value("shutter_angle", 180.0f);
+        motion_blur.samples = raw.value("samples", std::uint32_t{12});
+        if (!std::isfinite(motion_blur.shutter_angle) ||
+            motion_blur.shutter_angle <= 0.0f || motion_blur.shutter_angle > 360.0f ||
+            motion_blur.samples == 0 || motion_blur.samples > 64)
+            throw std::runtime_error("motion_blur requires shutter_angle in (0, 360] and samples in [1, 64]");
+        if (!layer.animation)
+            throw std::runtime_error("motion_blur requires an animated layer position track");
+        bool has_position = false;
+        for (const auto& track : layer.animation->tracks) {
+            has_position = has_position || track.property == "position" ||
+                track.property == "position_x" || track.property == "position_y" ||
+                track.property == "position_z";
+            if (track.property == "scale" || track.property.starts_with("scale_") ||
+                track.property == "rotation" || track.property.starts_with("rotation_"))
+                throw std::runtime_error("motion_blur currently requires translational motion; scale/rotation tracks need temporal accumulation");
+        }
+        if (!has_position)
+            throw std::runtime_error("motion_blur requires an animated layer position track");
+        layer.motion_blur = motion_blur;
+    }
     if (value.contains("text_animators")) {
         for (const auto& animator : value.at("text_animators"))
             layer.text_animators.push_back(decode_text_animator(animator));
+    }
+    for (const auto& animator : layer.text_animators) {
+        for (const auto& selector : animator.selectors) {
+            if (!selector.semantic_id) continue;
+            const bool found = std::any_of(layer.text_spans.begin(), layer.text_spans.end(),
+                [&](const TextSpanOverride& span) {
+                    return span.semantic_id == selector.semantic_id;
+                });
+            if (!found)
+                throw std::runtime_error("text animator selector references unknown semantic_id '" +
+                                         *selector.semantic_id + "'");
+        }
     }
     if (value.contains("blend_mode")) {
         if (const auto mode = blend_mode(value.at("blend_mode").get<std::string>()))

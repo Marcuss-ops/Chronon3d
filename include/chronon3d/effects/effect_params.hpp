@@ -125,6 +125,12 @@ struct NoiseParams {
     uint32_t seed{0};
     bool animated{false};
     NoiseColorMode color_mode{NoiseColorMode::Monochrome};
+    float size{1.0f}; // grain cell size in pixels; 1 = independent pixel noise
+    // Relative grain amplitude sampled across luminance, from shadows to
+    // highlights. All ones preserves the historical uniform-noise result.
+    float shadow_response{1.0f};
+    float midtone_response{1.0f};
+    float highlight_response{1.0f};
 };
 
 // Deterministic fractal value noise generated over the full frame. Evolution

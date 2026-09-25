@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/assets/svg_styled_element.hpp>
 #include <string>
 #include <string_view>
 #include <optional>
@@ -24,6 +25,7 @@ struct SvgPathLoadResult {
 /// are owned by the shape/style pipeline, not by the SVG XML geometry reader.
 struct SvgDocumentLoadResult {
     std::vector<PathShape> paths;
+    std::vector<SvgStyledElement> elements;
     bool ok{false};
     std::string error;
 };

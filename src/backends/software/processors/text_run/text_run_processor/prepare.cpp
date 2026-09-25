@@ -146,8 +146,10 @@ namespace chronon3d::renderer::text_run_stages {
             }
             s.span_handles.push_back(std::move(span_handle));
             BLFont span_blfont;
+            const float span_size = spn.font_size > 0.0f
+                ? spn.font_size : layout.font_size;
             span_blfont.createFromFace(*s.span_handles.back().bl_face,
-                layout.font_size * static_cast<float>(s.raster_space.scale));
+                span_size * static_cast<float>(s.raster_space.scale));
             s.span_fonts.push_back(std::move(span_blfont));
         }
         s.per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
@@ -207,8 +209,10 @@ namespace chronon3d::renderer::text_run_stages {
                     break;
                 }
                 BLFont span_blfont;
+                const float span_size = spn.font_size > 0.0f
+                    ? spn.font_size : dl.font_size;
                 span_blfont.createFromFace(*span_handle.bl_face,
-                    dl.font_size * static_cast<float>(s.raster_space.scale));
+                    span_size * static_cast<float>(s.raster_space.scale));
                 temp_handles.push_back(std::move(span_handle));
                 temp_fonts.push_back(std::move(span_blfont));
             }

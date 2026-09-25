@@ -62,13 +62,13 @@
       }
     },
     "animator_property_track": {
-      "description": "Animated property applied by a text animator. 'property' selects the engine property and must be one the compiler implements; any other value fails plan compilation.",
+      "description": "Property applied by a text animator. Numeric properties are animated tracks; fill_color takes exactly one RGBA [0,1] keyframe value and is revealed by the selector amount.",
       "type": "object", "additionalProperties": false,
       "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
         "property": {
-          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking"]
+          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "fill_color"]
         },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
@@ -89,7 +89,8 @@
         "amount": { "$ref": "#/$defs/selector_track" },
         "exclude_spaces": { "type": "boolean" },
         "randomize_order": { "type": "boolean" },
-        "random_seed": { "type": "integer", "minimum": 0 }
+        "random_seed": { "type": "integer", "minimum": 0 },
+        "semantic_id": { "type": "string", "minLength": 1, "maxLength": 256 }
       }
     },
     "text_animator": {
@@ -160,7 +161,7 @@
         "required": ["id", "type"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "type": { "enum": ["image", "video", "text", "color"] },
+          "type": { "enum": ["image", "video", "text", "color", "particles", "light"] },
           "asset": { "type": "string", "minLength": 1 },
           "source": { "type": "string", "minLength": 1 },
           "text": { "type": "string", "maxLength": 1048576 },
@@ -171,6 +172,40 @@
           "color": {
             "type": "array", "minItems": 4, "maxItems": 4,
             "items": { "type": "number" }
+          },
+          "particle_emitter": {
+            "type": "object", "additionalProperties": false,
+            "required": ["count", "seed", "emitter_size", "velocity_min", "velocity_max", "lifetime", "size"],
+            "properties": {
+              "count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+              "emitter_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "velocity_min": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+              "velocity_max": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+              "lifetime": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
+              "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "gravity": { "type": "number" },
+              "turbulence": { "type": "number", "minimum": 0 },
+              "color_ramp": {
+                "type": "array", "minItems": 2, "maxItems": 256,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["position", "color"],
+                  "properties": {
+                    "position": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+                  }
+                }
+              }
+            }
+          },
+          "light": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
+              "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+            }
           },
           "position": {
             "type": "array", "minItems": 2, "maxItems": 3,
@@ -200,6 +235,9 @@
               "font": { "type": "string", "minLength": 1 },
               "font_size": { "type": "number", "exclusiveMinimum": 0 },
               "fill": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+              "fit_mode": { "enum": ["none", "shrink_only", "grow_and_shrink"] },
+              "min_font_size": { "type": "number", "exclusiveMinimum": 0 },
+              "max_font_size": { "type": "number", "exclusiveMinimum": 0 },
               "stroke": {
                 "type": "object", "additionalProperties": false,
                 "required": ["color", "width"],
@@ -359,6 +397,14 @@
           {
             "if": { "properties": { "type": { "const": "color" } }, "required": ["type"] },
             "then": { "required": ["color"] }
+          },
+          {
+            "if": { "properties": { "type": { "const": "particles" } }, "required": ["type"] },
+            "then": { "required": ["particle_emitter"] }
+          },
+          {
+            "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] },
+            "then": { "required": ["light"] }
           }
         ]
       }

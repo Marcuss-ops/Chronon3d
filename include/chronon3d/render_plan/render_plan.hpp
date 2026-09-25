@@ -6,6 +6,8 @@
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/scene/model/shape/particles.hpp>
+#include <chronon3d/text/text_span_override.hpp>
 
 #include <array>
 #include <cstddef>
@@ -22,7 +24,7 @@ namespace chronon3d::render_plan {
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
 inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape };
+enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment };
 enum class ShapeContentTypePlan : std::uint8_t { Rect, RoundedRect, Ellipse, Line, Path };
 enum class ShapePathCommandTypePlan : std::uint8_t {
     MoveTo, LineTo, QuadraticTo, CubicTo, Close
@@ -128,6 +130,9 @@ struct LayerStylePlan {
     std::string font;
     std::optional<float> font_size;
     std::string fill;
+    std::string text_fit_mode{"none"};
+    std::optional<float> min_font_size;
+    std::optional<float> max_font_size;
     std::optional<StrokeStyle> stroke;
     std::optional<ShadowStyle> shadow;
     std::vector<ShadowStyle> shadows;
@@ -152,6 +157,17 @@ struct AnimationTrackPlan {
 
 struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
+};
+
+struct MotionBlurPlan {
+    float shutter_angle{180.0f};
+    std::uint32_t samples{12};
+};
+
+struct LightLayerPlan {
+    float radius{256.0f};
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    float intensity{1.0f};
 };
 
 enum class TrackMatteTypePlan : std::uint8_t {
@@ -210,6 +226,7 @@ struct TextSelectorPlan {
     bool exclude_spaces{true};
     bool randomize_order{false};
     std::uint64_t random_seed{0};
+    std::optional<std::string> semantic_id;
 };
 
 struct TextAnimatorPlan {
@@ -227,12 +244,16 @@ struct LayerPlan {
     std::string asset;
     std::string source;
     std::string text;
+    std::vector<TextSpanOverride> text_spans;
 
     // Normalized concrete font asset path copied from style.font by decoder.
     // Kept as an execution field so asset preflight remains simple.
     std::string font;
     std::optional<LayerStylePlan> style;
+    std::optional<MotionBlurPlan> motion_blur;
     std::optional<ShapeContentPlan> shape;
+    std::optional<ParticleEmitterParams> particle_emitter;
+    std::optional<LightLayerPlan> light;
     struct PathMaskPlan {
         std::vector<ShapePathCommandPlan> path;
         float feather{0.0f};
@@ -240,7 +261,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -262,6 +283,19 @@ struct LayerPlan {
         float bloom_threshold{0.80f};
         float bloom_intensity{0.60f};
         float glow_intensity{0.25f};
+        std::uint32_t seed{0};
+        bool animated{false};
+        bool rgb_noise{false};
+        float noise_size{1.0f};
+        float grain_shadow_response{1.0f};
+        float grain_midtone_response{1.0f};
+        float grain_highlight_response{1.0f};
+        std::uint32_t octaves{4};
+        float frequency{0.015f};
+        float amplitude{1.0f};
+        float evolution{0.0f};
+        float contrast{1.0f};
+        float brightness{0.0f};
     };
     std::vector<EffectPlan> effects;
 
@@ -283,6 +317,8 @@ struct LayerPlan {
     // Render-plan backgrounds commonly need this so transparent projected
     // layers reveal the authored background instead of the camera clear color.
     bool screen_space{false};
+    // Pixel insets [top, right, bottom, left] for title/action-safe layout.
+    std::optional<std::array<float, 4>> safe_insets;
     std::optional<std::string> depth_role;
     float depth_offset{0.0f};
     // Rounded image corner radius, evaluated by the image compositor's
@@ -346,6 +382,8 @@ struct RenderPlan {
     std::uint64_t content_fingerprint{0};
     std::vector<std::string> warnings;
     CanvasSpec canvas;
+    // Full-scene shutter accumulation; separate from the per-layer analytic blur.
+    std::optional<MotionBlurPlan> temporal_motion_blur;
     std::optional<CameraPlan> camera;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::vector<LayerPlan> layers;

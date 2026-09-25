@@ -17,6 +17,11 @@ public:
                      Frame frame,
                      FrameParameterBlock& destination) const;
 
+    /// Sample continuously for temporal shutter accumulation.
+    void sample_into(const CompiledProgram& program,
+                     double frame,
+                     FrameParameterBlock& destination) const;
+
     [[nodiscard]] FrameParameterBlock sample(const CompiledProgram& program,
                                               Frame frame) const;
 };

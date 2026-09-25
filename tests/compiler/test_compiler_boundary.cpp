@@ -181,6 +181,14 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
     CHECK(reused.frame == chronon3d::Frame{12});
     CHECK(reused.layers.front().opacity == doctest::Approx(1.0f));
 
+    sampler.sample_into(program, 6.5, reused);
+    CHECK(reused.frame == chronon3d::Frame{6});
+    CHECK(reused.layers.front().opacity == doctest::Approx(0.65625f));
+    CHECK(reused.layers.front().matrix[0][1] ==
+          doctest::Approx(std::sin(glm::radians(2.5f))).epsilon(1e-5f));
+    CHECK_THROWS_AS(sampler.sample_into(
+        program, std::numeric_limits<double>::infinity(), reused), std::invalid_argument);
+
     const auto scene = chronon3d::compiler::SceneMaterializer{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
 }

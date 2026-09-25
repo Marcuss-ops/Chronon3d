@@ -33,6 +33,7 @@ chronon3d::TextDefinition materialize_text(
 
     chronon3d::TextDefinition definition;
     definition.content.value = layer.text;
+    definition.spans = layer.text_spans;
     definition.style.font.font_path = layer.font;
     definition.style.font.font_size = *layer.style->font_size;
     const auto fill = parse_hex_color(layer.style->fill);
@@ -91,6 +92,11 @@ chronon3d::TextDefinition materialize_text(
     definition.frame.anchor = chronon3d::TextAnchor::Center;
     definition.frame.align = chronon3d::TextAlign::Center;
     definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
+    definition.frame.auto_fit = layer.style->text_fit_mode != "none";
+    definition.frame.grow_and_shrink =
+        layer.style->text_fit_mode == "grow_and_shrink";
+    definition.frame.min_font_size = layer.style->min_font_size.value_or(12.0f);
+    definition.frame.max_font_size = layer.style->max_font_size.value_or(160.0f);
     definition.frame.placement = chronon3d::TextPlacement{
         chronon3d::TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
     return definition;

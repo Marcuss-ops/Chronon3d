@@ -38,6 +38,7 @@ struct TextSpanOverride {
     std::optional<f32>       baseline_shift;
     std::optional<std::string> semantic_id;
     std::optional<TextStrokeStyle> stroke;
+    std::optional<TextHighlightStyle> highlight;
 };
 
 } // namespace chronon3d

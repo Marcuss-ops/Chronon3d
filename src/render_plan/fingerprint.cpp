@@ -144,6 +144,11 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     add_optional(out, style.font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
+    out.add_string(style.text_fit_mode);
+    add_optional(out, style.min_font_size,
+                 [](auto& writer, float value) { writer.add_float(value); });
+    add_optional(out, style.max_font_size,
+                 [](auto& writer, float value) { writer.add_float(value); });
 
     add_optional(out, style.stroke, [](auto& writer, const StrokeStyle& stroke) {
         writer.add_string(stroke.color);
@@ -218,6 +223,9 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         out.add_bool(selector.exclude_spaces);
         out.add_bool(selector.randomize_order);
         out.add_uint64(selector.random_seed);
+        add_optional(out, selector.semantic_id, [](auto& writer, const std::string& value) {
+            writer.add_string(value);
+        });
     }
     out.add_size(animator.properties.size());
     for (const auto& track : animator.properties) add_track(out, track);
@@ -273,6 +281,52 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.asset);
     out.add_string(layer.source);
     out.add_string(layer.text);
+    if (!layer.text_spans.empty()) {
+      out.add_size(layer.text_spans.size());
+      for (const auto& span : layer.text_spans) {
+        out.add_size(span.byte_start);
+        out.add_size(span.byte_end);
+        add_optional(out, span.color, [](auto& writer, const Color& color) {
+            writer.add_float(color.r); writer.add_float(color.g);
+            writer.add_float(color.b); writer.add_float(color.a);
+        });
+        add_optional(out, span.font_size_multiplier, [](auto& writer, float value) {
+            writer.add_float(value);
+        });
+        add_optional(out, span.tracking, [](auto& writer, float value) {
+            writer.add_float(value);
+        });
+        add_optional(out, span.stroke, [](auto& writer, const TextStrokeStyle& stroke) {
+            writer.add_float(stroke.width_em);
+            add_optional(writer, stroke.color, [](auto& nested, const Color& color) {
+                nested.add_float(color.r); nested.add_float(color.g);
+                nested.add_float(color.b); nested.add_float(color.a);
+            });
+            add_optional(writer, stroke.dash_period_em, [](auto& nested, float value) {
+                nested.add_float(value);
+            });
+        });
+        add_optional(out, span.semantic_id, [](auto& writer, const std::string& value) {
+            writer.add_string(value);
+        });
+        add_optional(out, span.highlight, [](auto& writer, const TextHighlightStyle& highlight) {
+            add_optional(writer, highlight.background, [](auto& nested, const Color& color) {
+                nested.add_float(color.r); nested.add_float(color.g);
+                nested.add_float(color.b); nested.add_float(color.a);
+            });
+            add_optional(writer, highlight.padding_em, [](auto& nested, float value) {
+                nested.add_float(value);
+            });
+            add_optional(writer, highlight.radius_em, [](auto& nested, float value) {
+                nested.add_float(value);
+            });
+        });
+      }
+    }
+    if (layer.motion_blur) {
+        out.add_float(layer.motion_blur->shutter_angle);
+        out.add_size(layer.motion_blur->samples);
+    }
     out.add_string(layer.font);
     add_optional(out, layer.style,
                  [](auto& writer, const LayerStylePlan& value) {
@@ -372,6 +426,29 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             out.add_float(repeater.opacity_decay);
         }
     }
+    if (layer.particle_emitter) {
+        const auto& particles = *layer.particle_emitter;
+        out.add_uint64(particles.count);
+        out.add_uint64(particles.seed);
+        out.add_float(particles.emitter_size.x);
+        out.add_float(particles.emitter_size.y);
+        out.add_float(particles.velocity_min.x);
+        out.add_float(particles.velocity_min.y);
+        out.add_float(particles.velocity_max.x);
+        out.add_float(particles.velocity_max.y);
+        out.add_float(particles.lifetime_min);
+        out.add_float(particles.lifetime_max);
+        out.add_float(particles.size_min);
+        out.add_float(particles.size_max);
+        out.add_float(particles.gravity);
+        out.add_float(particles.turbulence);
+        add_gradient(out, particles.color_ramp);
+    }
+    if (layer.light) {
+        out.add_float(layer.light->radius);
+        for (const auto component : layer.light->color) out.add_float(component);
+        out.add_float(layer.light->intensity);
+    }
     if (layer.path_mask) {
         out.add_bool(true);
         out.add_float(layer.path_mask->feather);
@@ -420,6 +497,24 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.radius);
                 out.add_float(effect.glow_intensity);
                 for (const auto value : effect.effect_color) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Noise) {
+                out.add_float(effect.amount);
+                out.add_uint64(effect.seed);
+                out.add_bool(effect.animated);
+                out.add_bool(effect.rgb_noise);
+                out.add_float(effect.noise_size);
+                out.add_float(effect.grain_shadow_response);
+                out.add_float(effect.grain_midtone_response);
+                out.add_float(effect.grain_highlight_response);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::FractalNoise) {
+                out.add_uint64(effect.seed);
+                out.add_uint64(effect.octaves);
+                out.add_float(effect.frequency);
+                out.add_float(effect.amplitude);
+                out.add_float(effect.evolution);
+                out.add_float(effect.contrast);
+                out.add_float(effect.brightness);
+                out.add_bool(effect.rgb_noise);
             } else {
                 out.add_size(effect.block_size);
             }
@@ -437,6 +532,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_size(layer.rotation_dimensions);
     out.add_bool(layer.enable_3d);
     out.add_bool(layer.screen_space);
+    // Preserve byte-for-byte fingerprints for plans authored before safe
+    // insets existed; the presence marker is only emitted for this extension.
+    if (layer.safe_insets) {
+        out.add_bool(true);
+        for (const float inset : *layer.safe_insets) out.add_float(inset);
+    }
     add_optional(out, layer.depth_role,
                  [](auto& writer, const std::string& value) { writer.add_string(value); });
     out.add_float(layer.depth_offset);
@@ -485,6 +586,13 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     out.add_i64(plan.canvas.fps.num());
     out.add_i64(plan.canvas.fps.den());
     out.add_frame(plan.canvas.duration);
+    if (plan.temporal_motion_blur) {
+        // Preserve the historical byte stream for plans without this v3-only
+        // extension; present values still contribute fully to identity.
+        out.add_bool(true);
+        out.add_float(plan.temporal_motion_blur->shutter_angle);
+        out.add_uint64(plan.temporal_motion_blur->samples);
+    }
     add_optional(out, plan.camera,
                  [](auto& writer, const CameraPlan& camera) { add_camera(writer, camera); });
     add_optional(out, plan.camera_animation,

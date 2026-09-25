@@ -245,9 +245,20 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 const double bg_h  = fm.ascent + fm.descent;
                 const double bg_x0 = source_placed.glyphs[gi].bbox_x0;
                 const double bg_w  = source_placed.glyphs[gi].bbox_x1 - bg_x0;
+                const double pad_x = span_font.size() * g.background_padding_em;
+                const double pad_y = span_font.size() * g.background_padding_em;
+                const double radius = span_font.size() * g.background_radius_em;
                 ctx.setFillStyle(to_bl_rgba(g.background));
                 ctx.setGlobalAlpha(static_cast<double>(g.background.a * op_alpha));
-                ctx.fillRect(BLRect(bg_x0, bg_y0, bg_w, bg_h));
+                if (radius > 0.0) {
+                    ctx.fillRoundRect(BLRect(bg_x0 - pad_x, bg_y0 - pad_y,
+                                             bg_w + 2.0 * pad_x,
+                                             bg_h + 2.0 * pad_y), radius);
+                } else {
+                    ctx.fillRect(BLRect(bg_x0 - pad_x, bg_y0 - pad_y,
+                                        bg_w + 2.0 * pad_x,
+                                        bg_h + 2.0 * pad_y));
+                }
                 ctx.setGlobalAlpha(1.0);
             }
 

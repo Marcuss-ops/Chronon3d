@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/animation/text_animator_stack.hpp>
+#include <chronon3d/text/text_run_layout.hpp>
 using namespace chronon3d;
 
 
@@ -49,6 +51,71 @@ std::string make_source_prop(size_t count) {
 }
 
 } // anonymous namespace
+
+TEST_CASE("Text spans seed per glyph fill and highlight even without animators") {
+    auto placed = make_test_placed_run_prop(3);
+    ShapedFontSpan span;
+    span.glyph_begin = 1;
+    span.glyph_end = 3;
+    span.fill_color_override = Color::yellow();
+    TextHighlightStyle highlight;
+    highlight.background = Color::blue();
+    highlight.padding_em = 0.4f;
+    highlight.radius_em = 0.2f;
+    span.highlight = highlight;
+    const std::vector<ShapedFontSpan> styles{span};
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    const auto states = evaluate_animator_stack(
+        {}, placed, "abc", time, &styles);
+
+    REQUIRE(states.size() == 3);
+    CHECK(states[0].fill.r == doctest::Approx(1.0f));
+    CHECK(states[0].fill.g == doctest::Approx(1.0f));
+    CHECK(states[0].background.a == doctest::Approx(0.0f));
+    for (std::size_t i = 1; i < states.size(); ++i) {
+        CHECK(states[i].fill.r == doctest::Approx(1.0f));
+        CHECK(states[i].fill.g == doctest::Approx(1.0f));
+        CHECK(states[i].fill.b == doctest::Approx(0.0f));
+        CHECK(states[i].background.b == doctest::Approx(1.0f));
+        CHECK(states[i].background_padding_em == doctest::Approx(0.4f));
+        CHECK(states[i].background_radius_em == doctest::Approx(0.2f));
+    }
+}
+
+TEST_CASE("semantic text selector targets only glyphs in the named span") {
+    const auto placed = make_test_placed_run_prop(4);
+    auto units = build_text_unit_map(placed, "abcd");
+    units.glyph_semantic_id = {"", "word-0", "word-0", "word-1"};
+
+    GlyphSelectorSpec selector;
+    selector.semantic_id = "word-0";
+    selector.shape = TextSelectorShape::Square;
+    selector.exclude_spaces = false;
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    CHECK(selector_weight(selector, units, 0, "abcd", time, &placed) == doctest::Approx(0.0f));
+    CHECK(selector_weight(selector, units, 1, "abcd", time, &placed) == doctest::Approx(1.0f));
+    CHECK(selector_weight(selector, units, 2, "abcd", time, &placed) == doctest::Approx(1.0f));
+    CHECK(selector_weight(selector, units, 3, "abcd", time, &placed) == doctest::Approx(0.0f));
+
+    ShapedFontSpan semantic_span;
+    semantic_span.glyph_begin = 1;
+    semantic_span.glyph_end = 3;
+    semantic_span.semantic_id = "word-0";
+    const std::vector<ShapedFontSpan> semantic_spans{semantic_span};
+    TextAnimatorSpec animator;
+    selector.semantic_id = "word-0";
+    animator.selectors.push_back(selector);
+    animator.properties.push_back(OpacityProperty{0.0f});
+    const auto states = evaluate_animator_stack(
+        {animator}, placed, "abcd", time, &semantic_spans);
+    REQUIRE(states.size() == 4);
+    CHECK(states[0].opacity == doctest::Approx(1.0f));
+    CHECK(states[1].opacity == doctest::Approx(0.0f));
+    CHECK(states[2].opacity == doctest::Approx(0.0f));
+    CHECK(states[3].opacity == doctest::Approx(1.0f));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Initial state factory tests

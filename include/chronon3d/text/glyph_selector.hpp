@@ -27,6 +27,7 @@ struct TextUnitMap {
     std::vector<u32> glyph_to_grapheme;   // glyph_index → grapheme_unit_index
     std::vector<u32> glyph_to_word;       // glyph_index → word_unit_index
     std::vector<u32> glyph_to_line;       // glyph_index → line_unit_index
+    std::vector<std::string> glyph_semantic_id; // glyph_index → named span (empty = untagged)
 
     /// Precomputed first glyph for each word/line unit — enables O(1)
     /// whitespace exclusion queries in CompiledSelector.

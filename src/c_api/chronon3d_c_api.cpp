@@ -150,7 +150,8 @@ struct PlanCompileError : std::runtime_error {
 };
 
 chronon3d::compiler::CompiledProgram compile_plan(
-    const json& root, chronon3d::assets::AssetResolver& resolver) {
+    const json& root, chronon3d::assets::AssetResolver& resolver,
+    chronon3d::sdk::RenderSettings* plan_settings = nullptr) {
     const auto decoded = chronon3d::render_plan::decode_render_plan(root);
     if (!decoded)
         throw PlanCompileError(decoded.error().path, decoded.error().message,
@@ -158,6 +159,8 @@ chronon3d::compiler::CompiledProgram compile_plan(
     chronon3d::render_plan::RenderPlanFingerprintOptions fingerprint_options;
     fingerprint_options.render_settings.width = decoded->canvas.width;
     fingerprint_options.render_settings.height = decoded->canvas.height;
+    fingerprint_options.render_settings.motion_blur =
+        decoded->temporal_motion_blur.has_value();
     fingerprint_options.render_settings.deterministic = false;
     fingerprint_options.render_settings.force_scalar_normal_blend = false;
     chronon3d::compiler::CompileOptions compile_options;
@@ -172,6 +175,18 @@ chronon3d::compiler::CompiledProgram compile_plan(
                                compiled.error().message,
                                missing_asset ? "MissingAsset" : "compile_error",
                                compiled.error().component);
+    }
+    if (plan_settings) {
+        plan_settings->width = decoded->canvas.width;
+        plan_settings->height = decoded->canvas.height;
+        plan_settings->motion_blur = decoded->temporal_motion_blur.has_value();
+        if (decoded->temporal_motion_blur) {
+            plan_settings->motion_blur_samples = static_cast<int>(
+                decoded->temporal_motion_blur->samples);
+            plan_settings->motion_blur_shutter_angle_deg =
+                decoded->temporal_motion_blur->shutter_angle;
+            plan_settings->motion_blur_shutter_phase_deg = -90.0f;
+        }
     }
     return std::move(compiled).value();
 }
@@ -400,10 +415,10 @@ chronon_status chronon_plan_compile_json_n(chronon_engine* engine, const char* s
     *out_plan = nullptr;
     try {
         const auto root = json::parse(source, source + source_size);
-        auto program = compile_plan(root, engine->resolver);
+        chronon3d::sdk::RenderSettings plan_settings;
+        auto program = compile_plan(root, engine->resolver, &plan_settings);
         auto plan = std::make_unique<chronon_plan>(std::move(program));
-        plan->settings.width = static_cast<int>(plan->program.metadata().width);
-        plan->settings.height = static_cast<int>(plan->program.metadata().height);
+        plan->settings = plan_settings;
         *out_plan = plan.release();
         clear_error(engine);
         return CHRONON_OK;

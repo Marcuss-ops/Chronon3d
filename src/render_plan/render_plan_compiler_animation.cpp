@@ -81,6 +81,79 @@ chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
     return fallback;
 }
 
+struct PositionAnimationData {
+    std::vector<std::pair<Frame, chronon3d::Vec3>> keyframes;
+    chronon3d::EasingCurve easing{};
+};
+
+PositionAnimationData position_animation_data(const LayerPlan& layer,
+                                               chronon3d::Vec3 base) {
+    PositionAnimationData result;
+    if (!layer.animation) return result;
+    const AnimationTrackPlan* vector_track = nullptr;
+    std::array<const AnimationTrackPlan*, 3> component_tracks{};
+    const auto component_index = [](std::string_view property) -> int {
+        if (property == "position_x") return 0;
+        if (property == "position_y") return 1;
+        if (property == "position_z") return 2;
+        return -1;
+    };
+    for (const auto& track : layer.animation->tracks) {
+        if (track.property == "position") {
+            if (vector_track) throw std::runtime_error("layer has overlapping position tracks");
+            vector_track = &track;
+        } else if (const int component = component_index(track.property); component >= 0) {
+            auto*& slot = component_tracks[static_cast<std::size_t>(component)];
+            if (slot) throw std::runtime_error("layer has overlapping position component tracks");
+            slot = &track;
+        }
+    }
+    const auto component_count = static_cast<std::size_t>(std::count_if(
+        component_tracks.begin(), component_tracks.end(), [](const auto* value) { return value; }));
+    if (vector_track && component_count != 0)
+        throw std::runtime_error("layer cannot combine vector and component position tracks");
+    if (!vector_track && component_count == 0) return result;
+
+    const AnimationTrackPlan* reference = vector_track;
+    if (!reference) {
+        for (const auto* component : component_tracks)
+            if (component) { reference = component; break; }
+        for (const auto* component : component_tracks) {
+            if (!component || component == reference) continue;
+            if (component->easing != reference->easing ||
+                component->bezier_curve != reference->bezier_curve ||
+                component->keyframes.size() != reference->keyframes.size())
+                throw std::runtime_error(
+                    "position component tracks must share keyframes and easing");
+            for (std::size_t index = 0; index < reference->keyframes.size(); ++index)
+                if (component->keyframes[index].frame != reference->keyframes[index].frame)
+                    throw std::runtime_error(
+                        "position component tracks must share keyframes and easing");
+        }
+    }
+    result.easing = track_easing(reference->easing, reference->bezier_curve);
+    const auto& reference_keys = reference->keyframes;
+    result.keyframes.reserve(reference_keys.size());
+    for (std::size_t index = 0; index < reference_keys.size(); ++index) {
+        auto value = base;
+        if (vector_track) {
+            value = vector_value(reference_keys[index], "position", base);
+        } else {
+            for (std::size_t component = 0; component < component_tracks.size(); ++component) {
+                const auto* track = component_tracks[component];
+                if (!track) continue;
+                const float offset = scalar_value(track->keyframes[index], track->property);
+                if (component == 0) value.x += offset;
+                else if (component == 1) value.y += offset;
+                else value.z += offset;
+            }
+        }
+        result.keyframes.emplace_back(reference_keys[index].frame, value);
+    }
+    return result;
+}
+
+
 chronon3d::TextSelectorUnit text_selector_unit(std::string_view value) {
     using chronon3d::TextSelectorUnit;
     if (value == "glyph") return TextSelectorUnit::Glyph;
@@ -194,6 +267,7 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
 chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan) {
     chronon3d::GlyphSelectorSpec selector;
     selector.id = plan.id;
+    selector.semantic_id = plan.semantic_id;
     selector.unit = text_selector_unit(plan.unit);
     selector.shape = text_selector_shape(plan.shape);
     selector.order = text_selector_order(plan.order);
@@ -257,7 +331,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                             int canvas_height) {
     if (!layer.animation) return;
     chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
-    if ((layer.type == LayerType::Text || layer.type == LayerType::Shape) &&
+    if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
+         layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
         layer.position_dimensions >= 2) {
         // Primitive animation keyframes are offsets from the authored element
         // centre. Resolve that centre once before applying the offsets.
@@ -646,6 +721,29 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
     if (layer.blend_mode) builder.blend(*layer.blend_mode);
     if (layer.opacity) builder.opacity(*layer.opacity);
     apply_animation_tracks(builder, layer, canvas_width, canvas_height);
+}
+
+
+std::optional<chronon3d::DirectionalBlurParams> motion_blur_params_at(
+    const LayerPlan& layer, double frame) {
+    if (!layer.motion_blur || !layer.animation) return std::nullopt;
+    const chronon3d::Vec3 base{layer.position[0], layer.position[1], layer.position[2]};
+    chronon3d::AnimatedValue<chronon3d::Vec3> position{base};
+    const auto data = position_animation_data(layer, base);
+    if (data.keyframes.empty()) return std::nullopt;
+    for (const auto& [key_frame, value] : data.keyframes)
+        position.add_keyframe(key_frame, value, data.easing);
+    const double half_exposure_frames =
+        static_cast<double>(layer.motion_blur->shutter_angle) / 720.0;
+    const auto delta = position.evaluate(frame + half_exposure_frames) -
+                       position.evaluate(frame - half_exposure_frames);
+    const float length = glm::length(glm::vec2{delta.x, delta.y});
+    if (!std::isfinite(length) || length <= 1.0e-4f) return std::nullopt;
+    chronon3d::DirectionalBlurParams result;
+    result.angle = glm::degrees(std::atan2(delta.y, delta.x));
+    result.length = length;
+    result.samples = static_cast<int>(layer.motion_blur->samples);
+    return result;
 }
 
 }  // namespace chronon3d::render_plan::detail

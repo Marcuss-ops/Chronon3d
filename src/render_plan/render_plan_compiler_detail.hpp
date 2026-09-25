@@ -3,6 +3,7 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -25,5 +26,7 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
                             int canvas_height);
+[[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
+motion_blur_params_at(const LayerPlan& layer, double frame);
 
 }  // namespace chronon3d::render_plan::detail

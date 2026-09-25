@@ -243,6 +243,32 @@ private:
                 seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
+        case Noise: {
+            if (auto* p = std::get_if<NoiseParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_value(p->seed));
+                seed = hash_combine(seed, hash_value(p->animated));
+                seed = hash_combine(seed, hash_value(p->color_mode));
+                seed = hash_combine(seed, hash_value(p->size));
+                seed = hash_combine(seed, hash_value(p->shadow_response));
+                seed = hash_combine(seed, hash_value(p->midtone_response));
+                seed = hash_combine(seed, hash_value(p->highlight_response));
+            }
+            break;
+        }
+        case FractalNoise: {
+            if (auto* p = std::get_if<FractalNoiseParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->seed));
+                seed = hash_combine(seed, hash_value(p->octaves));
+                seed = hash_combine(seed, hash_value(p->frequency));
+                seed = hash_combine(seed, hash_value(p->amplitude));
+                seed = hash_combine(seed, hash_value(p->evolution));
+                seed = hash_combine(seed, hash_value(p->contrast));
+                seed = hash_combine(seed, hash_value(p->brightness));
+                seed = hash_combine(seed, hash_value(p->color_mode));
+            }
+            break;
+        }
         case Lut3D: {
             if (auto* p = std::get_if<Lut3DParams>(&e.params)) {
                 seed = hash_combine(seed, hash_value(p->dimension));

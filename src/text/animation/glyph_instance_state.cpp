@@ -56,6 +56,9 @@ void reset_glyph_states_in_place(
         gs.baseline_shift = 0.0f;
         gs.character_offset = 0;
         gs.fill = {1.0f, 1.0f, 1.0f, 1.0f};
+        gs.background = {0.0f, 0.0f, 0.0f, 0.0f};
+        gs.background_padding_em = 0.0f;
+        gs.background_radius_em = 0.0f;
         gs.stroke = {0.0f, 0.0f, 0.0f, 0.0f};
         gs.stroke_width = 0.0f;
     }
