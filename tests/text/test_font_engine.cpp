@@ -295,11 +295,11 @@ TEST_CASE("FontEngine: glyph bbox cache cleared with clear_cache") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TICKET-OPENTYPE-FEATURES-PASS — explicit-feature-string regression tests.
+// Explicit OpenType feature-string regression tests.
 //
 // Verifies that `TextShaping::features` reaches HarfBuzz via the
 // canonical `parse_opentype_features()` parser in font_engine.cpp
-// (see TICKET-OPENTYPE-FEATURES-PASS.md for the full design contract).
+// through the full shaping path.
 // Honest-discipline note: the verdict spec claimed "office" with liga=1
 // would produce `glyph_count == 5` (with "fi" + "ffi" ligatures).
 // Observable reality on Inter-Bold.ttf: "office" has no separate "fi"

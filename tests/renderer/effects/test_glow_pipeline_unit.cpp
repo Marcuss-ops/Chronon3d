@@ -72,7 +72,9 @@ TEST_CASE("PR2-Unit-ShadowBounds: halo matches contact and ambient shadow maps")
     CHECK(halo.left == doctest::Approx(44.0f));
     CHECK(halo.top == doctest::Approx(44.0f));
     CHECK(halo.right == doctest::Approx(44.0f));
-    CHECK(halo.bottom == doctest::Approx(50.6f));
+    // The ambient map rounds the 1.65x contact offset to an integer pixel,
+    // so the lower halo is blur padding plus seven pixels.
+    CHECK(halo.bottom == doctest::Approx(51.0f));
     CHECK(effects::drop_shadow_blur_padding(params) == doctest::Approx(44.0f));
 
     // Both maps are included in the shared ROI even for atypical negative

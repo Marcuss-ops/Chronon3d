@@ -47,6 +47,37 @@ WireFrame IpcCodec::encode_request(std::uint64_t message_id,
             auto envelope = CreateIpcEnvelope(
                 builder, message_id, IpcRequestBody_ShutdownRequest, body_offset);
             builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcPrepareJob>) {
+            auto id = builder.CreateString(req.job_id);
+            auto descriptor = builder.CreateString(req.descriptor_json);
+            auto body_offset = CreatePrepareJobRequest(builder, id, descriptor).Union();
+            auto envelope = CreateIpcEnvelope(
+                builder, message_id, IpcRequestBody_PrepareJobRequest, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcRenderJob>) {
+            auto id = builder.CreateString(req.job_id);
+            auto body_offset = CreateRenderJobRequest(
+                builder, id, req.frame_index).Union();
+            auto envelope = CreateIpcEnvelope(
+                builder, message_id, IpcRequestBody_RenderJobRequest, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcReleaseJob>) {
+            auto id = builder.CreateString(req.job_id);
+            auto body_offset = CreateReleaseJobRequest(builder, id).Union();
+            auto envelope = CreateIpcEnvelope(
+                builder, message_id, IpcRequestBody_ReleaseJobRequest, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcGetJobStatus>) {
+            auto id = builder.CreateString(req.job_id);
+            auto body_offset = CreateGetJobStatusRequest(builder, id).Union();
+            auto envelope = CreateIpcEnvelope(
+                builder, message_id, IpcRequestBody_GetJobStatusRequest, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcHealthRequest>) {
+            auto body_offset = CreateHealthRequest(builder).Union();
+            auto envelope = CreateIpcEnvelope(
+                builder, message_id, IpcRequestBody_HealthRequest, body_offset);
+            builder.Finish(envelope);
         }
     }, request);
 
@@ -89,6 +120,21 @@ WireFrame IpcCodec::encode_reply(std::uint64_t message_id,
             auto body_offset = CreateShutdownReply(builder, rep.status, msg).Union();
             auto envelope = CreateIpcReplyEnvelope(
                 builder, message_id, IpcReplyBody_ShutdownReply, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcJobResult>) {
+            auto id = builder.CreateString(rep.job_id);
+            auto msg = builder.CreateString(rep.message);
+            auto body_offset = CreateJobReply(
+                builder, rep.status, id, rep.state, msg, rep.last_frame,
+                rep.render_ms).Union();
+            auto envelope = CreateIpcReplyEnvelope(
+                builder, message_id, IpcReplyBody_JobReply, body_offset);
+            builder.Finish(envelope);
+        } else if constexpr (std::is_same_v<T, IpcHealthResult>) {
+            auto msg = builder.CreateString(rep.message);
+            auto body_offset = CreateHealthReply(builder, rep.status, msg).Union();
+            auto envelope = CreateIpcReplyEnvelope(
+                builder, message_id, IpcReplyBody_HealthReply, body_offset);
             builder.Finish(envelope);
         }
     }, response);
@@ -138,6 +184,32 @@ IpcCodec::decode_request(const WireFrame& frame) {
             return std::make_pair(message_id, IpcRequest{IpcStatusRequest{}});
         case IpcRequestBody_ShutdownRequest:
             return std::make_pair(message_id, IpcRequest{IpcShutdown{}});
+        case IpcRequestBody_PrepareJobRequest: {
+            const auto* req = env->body_as_PrepareJobRequest();
+            if (!req || !req->job_id() || !req->descriptor_json()) return std::nullopt;
+            return std::make_pair(message_id, IpcRequest{IpcPrepareJob{
+                req->job_id()->str(), req->descriptor_json()->str()}});
+        }
+        case IpcRequestBody_RenderJobRequest: {
+            const auto* req = env->body_as_RenderJobRequest();
+            if (!req || !req->job_id()) return std::nullopt;
+            IpcRenderJob out;
+            out.job_id = req->job_id()->str();
+            out.frame_index = req->frame_index();
+            return std::make_pair(message_id, IpcRequest{std::move(out)});
+        }
+        case IpcRequestBody_ReleaseJobRequest: {
+            const auto* req = env->body_as_ReleaseJobRequest();
+            if (!req || !req->job_id()) return std::nullopt;
+            return std::make_pair(message_id, IpcRequest{IpcReleaseJob{req->job_id()->str()}});
+        }
+        case IpcRequestBody_GetJobStatusRequest: {
+            const auto* req = env->body_as_GetJobStatusRequest();
+            if (!req || !req->job_id()) return std::nullopt;
+            return std::make_pair(message_id, IpcRequest{IpcGetJobStatus{req->job_id()->str()}});
+        }
+        case IpcRequestBody_HealthRequest:
+            return std::make_pair(message_id, IpcRequest{IpcHealthRequest{}});
         default:
             return std::nullopt;
     }
@@ -185,6 +257,26 @@ IpcCodec::decode_reply(const WireFrame& frame) {
             const auto* r = env->body_as_ShutdownReply();
             if (!r) return std::nullopt;
             IpcShutdownResult out;
+            out.status = r->status();
+            if (r->message()) out.message = r->message()->str();
+            return std::make_pair(message_id, IpcResponse{std::move(out)});
+        }
+        case IpcReplyBody_JobReply: {
+            const auto* r = env->body_as_JobReply();
+            if (!r) return std::nullopt;
+            IpcJobResult out;
+            out.status = r->status();
+            out.state = r->state();
+            out.last_frame = r->last_frame();
+            out.render_ms = r->render_ms();
+            if (r->job_id()) out.job_id = r->job_id()->str();
+            if (r->message()) out.message = r->message()->str();
+            return std::make_pair(message_id, IpcResponse{std::move(out)});
+        }
+        case IpcReplyBody_HealthReply: {
+            const auto* r = env->body_as_HealthReply();
+            if (!r) return std::nullopt;
+            IpcHealthResult out;
             out.status = r->status();
             if (r->message()) out.message = r->message()->str();
             return std::make_pair(message_id, IpcResponse{std::move(out)});

@@ -266,9 +266,8 @@ struct TextShaping {
     //       → parse_opentype_features() (anon-namespace in font_engine.cpp)
     //         → hb_shape(font, buf, features.data(), features.size())
     //
-    // See docs/tickets/TICKET-OPENTYPE-FEATURES-PASS.md for the full rationale
-    // and verbatim design contract.  Type alias `TextShapingFeatures` is defined
-    // in include/chronon3d/text/text_run_layout.hpp (TICKET-103a lineage) and
+    // Type alias `TextShapingFeatures` is defined in
+    // include/chronon3d/text/text_run_layout.hpp (TICKET-103a lineage) and
     // refers to the same std::string bytewise layout.
     std::string features{};
 };

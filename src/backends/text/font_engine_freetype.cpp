@@ -96,7 +96,7 @@ struct GlyphBBoxCacheEntry {
 } // namespace chronon3d
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TICKET-OPENTYPE-FEATURES-PASS — canonical OpenType feature parser.
+// Parse the OpenType feature string before passing explicit features to HarfBuzz.
 // ═══════════════════════════════════════════════════════════════════════════
 namespace {
 [[nodiscard]] std::vector<hb_feature_t>

@@ -11,6 +11,7 @@
 #include "chronon_ipc.hpp"
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <memory>
@@ -18,6 +19,9 @@
 #include <shared_mutex>
 #include <vector>
 #include <unordered_map>
+#include <map>
+#include <deque>
+#include <string_view>
 
 namespace chronon3d {
     class RenderEngine;
@@ -94,12 +98,21 @@ struct DaemonOptions {
  *   RENDER_JOB     <json>         Render a chronon.render-plan.v2 file
  *                                 (decoded once by daemon_render_job_payload;
  *                                 normalized once; dispatched as
- *                                 NormalizedRenderJob)
+ *                                 NormalizedRenderJob; optional `job_id`
+ *                                 enables lifecycle lookup)
+ *   GET_JOB_STATUS <job-id>       Return prepared/running/completed/failed
+ *                                 status for a tracked RENDER_JOB
  *   STATUS                        Engine statistics
  *   SHUTDOWN                      Stop serving
  */
 class DaemonService {
 public:
+    enum class JobState : std::uint8_t { Prepared, Running, Completed, Failed };
+    struct JobStatusRecord {
+        JobState state{JobState::Prepared};
+        std::string message;
+    };
+
     DaemonService(const CompositionRegistry& registry, DaemonOptions options);
     ~DaemonService();
 
@@ -125,7 +138,11 @@ private:
     ipc::Reply ipc_render_overlay(const std::string& args);
     ipc::Reply handle_render_job_payload(const std::string& payload);
     ipc::Reply ipc_status();
+    ipc::Reply ipc_get_job_status(const std::string& job_id);
     ipc::Reply ipc_assemble_segments(const std::string& payload);
+    [[nodiscard]] bool begin_job_status(std::string_view job_id);
+    void update_job_status(std::string_view job_id, JobState state,
+                           std::string message);
     [[nodiscard]] std::shared_ptr<SoftwareRenderer> warm_renderer_for_device(
         runtime::DeviceId device);
 
@@ -194,6 +211,10 @@ private:
     std::atomic<bool> m_running{true};
     std::atomic<int> m_render_count{0};
     std::atomic<double> m_total_render_ms{0.0};
+    mutable std::mutex m_job_status_mutex;
+    std::map<std::string, JobStatusRecord, std::less<>> m_job_statuses;
+    std::deque<std::string> m_terminal_job_history;
+    static constexpr std::size_t kRetainedTerminalJobStatuses = 256;
 };
 
 } // namespace chronon3d::cli

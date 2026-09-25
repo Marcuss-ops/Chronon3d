@@ -6,10 +6,8 @@
 
 | Area | Pri | Stato | Scheda |
 |---|---|---|---|
-| Intermittent renderer-core mask SIGSEGV | P1 | OPEN | [RENDERER-CORE-MASK-SEGV](tickets/TICKET-RENDERER-CORE-MASK-SEGV.md) — reproduced on the clean repository baseline; failing mask varies, isolated cases pass; root-cause backtrace still needed |
 | Luma/Chroma Key native GPU dispatch | P1 | OPEN | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) — software keyer is certified; native shader/capability gate remains |
 | Echo native GPU dispatch | P1 | OPEN | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) — local software processor is certified; GPU-only surfaces fail explicitly until native frame-history storage and dispatch land |
-| Daemon IPC rejection resilience | P1 | OPEN | [DAEMON-IPC-REJECTION-RESILIENCE](tickets/TICKET-DAEMON-IPC-REJECTION-RESILIENCE.md) — `UnsupportedCapability` must return a typed failed-job envelope and leave the socket, daemon health and subsequent valid renders alive |
 | Main truth / Stage 1-2 closeout | P0 | VERIFY | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — frame-slot structural closeout + Vulkan pipeline-cache consistency + docs reconciliation landed; close only after same-SHA `Chronon CI` green and main-tip verification |
 | Stage 1-5 stabilization campaign | P0 | VERIFY | [TICKET-200](tickets/TICKET-200-stage-plan.md) — Stabilize→Certify→Accelerate stages 1-5: build GREEN (756 targets), cache/compositor/render_job_contract/software suites PASS, arch gate 120/120 PASS (all 10 pre-existing fails cleared, see ticket); close after CI green on same SHA |
 | Font asset fixtures | P1 | RESOLVED (source) | all 21 fixtures re-pinned in `tools/bootstrap_test_fonts.py` (blob SHA-1, local-store first) + `assets/` bootstrap-only policy in `.gitignore`; text/render_graph suites no longer fail on missing assets; residual suite failures are geometry/in-flight work, not asset debt |
@@ -24,8 +22,8 @@
 | Framework compiler layer-batch: 3 rossi con 2 cause distinte | P0 | RESOLVED (contratto ri-pinnato) | [SCALE-P0](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — causa #1+#2 (invariante `100 Image layers → 1 batch` + golden): gate `frame_bound_image_source` di `00be928ab`, troppo ampio perché `binding_meta.has_binding()` è vero per **ogni** Source raggiungibile → nessuna immagine poteva più essere fusa, mentre il commento dichiarava il contrario. Causa #3 (TextRun `lowered_into_batch`): `members.size() < 2` di `a78a8a29e` sopprime il batch di un solo membro. Decisione (immagini native-only) applicata: invariante riscritta al nuovo contratto, golden rigenerato (`0x65304b41dbf40d8f`) come cambio contrattuale esplicito, proxy del test TextRun sostituito con l'intento reale. Scoperta collaterale: la suite era **troncata** — la `CHECK` su `layer_batches[0]` vuoto faceva SIGSEGV e solo 31/378 casi giravano → ora `REQUIRE`, `chronon3d_render_graph_tests` **378/378 PASS** (era 29/31 su 31 eseguiti) |
 | Lane `linux-video-test` (GPU/video) | P1 | **LANDED** | Lane configurata e costruita (648/648, EXIT 0) dopo aver liberato i due alberi `.tmp/chronon-builds/*` (33 GB). I due vuoti video-gated ora girano: `chronon3d_cache_tests` include `test_direct_yuv_text_cache.cpp` (997596 assertion) e `chronon3d_cli_tests` include `test_packet_assembler_contract.cpp` (GOP executor). Il parity gate della demolition hybrid è **eseguito e verde**: `tests/cli/test_gop_direct_mux_parity.cpp` confronta i due percorsi sul corpus congelato e, per la lane copy, l'SHA-256 dell'intero file è **byte-identico** (oltre a payload/PTS/DTS/flags, frame decodificati, durata e audio). **2026-09-16:** la lane è stata **ri-creata** dopo la liberazione degli alberi (era rimasto il solo symlink pendente `build/chronon/linux-video-fast-dev`, ora rimosso): `build/chronon/linux-video-test` → `.tmp/chronon-builds/linux-video-test`, ed è il primo candidato CLI nella discovery di `tools/verify_zero_copy_end_to_end.sh`. Vedi [`CCACHE-AUDIT-2026-09-10.md`](CCACHE-AUDIT-2026-09-10.md) per il rimedio `.ninja_deps` che ha reso incrementali i build |
 | Benchmark + CPU budget | P1 | MEASURED / HOST CERT PENDING | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) — B00 smoke and same-SHA CPU measurement landed; full corpus still needs the external content pack |
-| OpenType features | P1 | OPEN | [OPENTYPE-FEATURES-PASS](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 | CLI project UX | P2 | P1 CODE LANDED (CLI fixture E2E PASS; generated-template host verification pending) | [ADD-LOADER-FOR-CHRONON-JSON](tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
+| Daemon Job Runtime (FlatBuffers) | P1 | PARTIAL (FlatBuffers prepared-frame lifecycle + CLI whole-plan job status verified over software IPC; plan-backed FlatBuffers executor and prepared-plan LRU remain) | [DAEMON-JOB-RUNTIME](tickets/TICKET-DAEMON-JOB-RUNTIME.md) |
 | Node memory metrics | P1 | OPEN (instrumentation, per-node events and gate landed; representative corpus certification pending) | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
 
 ### Cross-checkout contract sign-offs
@@ -130,6 +128,15 @@
   fixture: `tests/fixtures/animated_image_residency/run_pixel_probe.sh`,
   `tests/registry/test_backend_registry_vulkan_transforms.cpp` e
   `tests/fixtures/text_motion_reference_v2/`. Nessun altro riferimento nel repo.
+- **2026-09-24 — chiusi con verifiche CPU e purgati dall’indice**:
+  `DAEMON-IPC-REJECTION-RESILIENCE` (Unix socket: rifiuto `UnsupportedCapability`,
+  `STATUS`, render software valido e `Shutdown` sulla stessa connessione; 15/15
+  asserzioni), `OPENTYPE-FEATURES-PASS` (plumbing fino a `TextRunLayout`; 8/8
+  test, 42/42 asserzioni) e `RENDERER-CORE-MASK-SEGV` (backtrace sul sink TLS
+  lasciato dalla fixture di campioni sovrapposti; suite renderer completa passata
+  7 volte: 167/167 casi e 1744/1744 asserzioni ogni volta). Il crash era
+  riproducibile su software CPU e non richiedeva GPU. Le schede terminali sono
+  state rimosse secondo la policy dell’indice.
 - **2026-09-23 — purga ticket a chiusura terminale**: rimossi `TICKET-GLOW-QUALITY-2026-09-18`
   (CLOSED), `TICKET-GPU-TEXT-CPU-SELECTOR-COMPAT` (RESOLVED 2026-09-21),
   `TICKET-TEXT-INTEROP-CACHE-OVERFLOW` (CLOSED) e `TICKET-TEXT-ROUTE-CONSOLIDATION`

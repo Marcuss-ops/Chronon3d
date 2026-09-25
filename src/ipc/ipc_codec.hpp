@@ -33,12 +33,25 @@ struct IpcRenderFrame {
 
 struct IpcStatusRequest {};
 struct IpcShutdown {};
+struct IpcPrepareJob { std::string job_id; std::string descriptor_json; };
+struct IpcRenderJob {
+    std::string job_id;
+    std::uint32_t frame_index{0};
+};
+struct IpcReleaseJob { std::string job_id; };
+struct IpcGetJobStatus { std::string job_id; };
+struct IpcHealthRequest {};
 
 using IpcRequest = std::variant<
     IpcCreateComposition,
     IpcRenderFrame,
     IpcStatusRequest,
-    IpcShutdown>;
+    IpcShutdown,
+    IpcPrepareJob,
+    IpcRenderJob,
+    IpcReleaseJob,
+    IpcGetJobStatus,
+    IpcHealthRequest>;
 
 struct IpcCreateCompositionResult {
     IpcStatus status{IpcStatus_Ok};
@@ -62,11 +75,27 @@ struct IpcShutdownResult {
     std::string message;
 };
 
+struct IpcJobResult {
+    IpcStatus status{IpcStatus_Ok};
+    std::string job_id;
+    JobState state{JobState_Unknown};
+    std::string message;
+    std::uint32_t last_frame{0};
+    float render_ms{0.0f};
+};
+
+struct IpcHealthResult {
+    IpcStatus status{IpcStatus_Ok};
+    std::string message;
+};
+
 using IpcResponse = std::variant<
     IpcCreateCompositionResult,
     IpcRenderFrameResult,
     IpcStatusResult,
-    IpcShutdownResult>;
+    IpcShutdownResult,
+    IpcJobResult,
+    IpcHealthResult>;
 
 /// Encode/decode FlatBuffers ↔ WireFrame.
 class IpcCodec {

@@ -40,6 +40,16 @@ enum IpcStatus : byte {
     NotPrepared = 5,    // no active prepared plan
 }
 
+/// Lifecycle reported for a prepared daemon job.
+enum JobState : byte {
+    Unknown = 0,
+    Prepared = 1,
+    Running = 2,
+    Completed = 3,
+    Failed = 4,
+    Released = 5,
+}
+
 // ── Request types ──────────────────────────────────────────────────────────
 
 /// Create a new composition from a descriptor and compile it once.
@@ -66,6 +76,27 @@ table RenderFrameRequest {
     // Output path for this frame (optional — daemon can auto-resolve).
     output_path: string;
 }
+
+/// Prepare a persistent render job from a composition descriptor.
+table PrepareJobRequest {
+    job_id: string (required);
+    descriptor_json: string (required);
+}
+
+/// Render one frame of a prepared job and record its lifecycle result.
+table RenderJobRequest {
+    job_id: string (required);
+    frame_index: uint32;
+}
+
+/// Release the prepared resources owned by a job.
+table ReleaseJobRequest { job_id: string (required); }
+
+/// Query the last known lifecycle state for a job.
+table GetJobStatusRequest { job_id: string (required); }
+
+/// Query daemon readiness independently from frame/job statistics.
+table HealthRequest {}
 
 /// Dynamic parameter override for a single frame.
 table ParamOverride {
@@ -103,6 +134,20 @@ table ShutdownReply {
     message: string;
 }
 
+table JobReply {
+    status: IpcStatus = Ok;
+    job_id: string;
+    state: JobState = Unknown;
+    message: string;
+    last_frame: uint32;
+    render_ms: float32;
+}
+
+table HealthReply {
+    status: IpcStatus = Ok;
+    message: string;
+}
+
 // ── Union dispatch ─────────────────────────────────────────────────────────
 
 /// Tagged union of all IPC request types.  The transport layer reads the
@@ -112,6 +157,11 @@ union IpcRequestBody {
     RenderFrameRequest,
     StatusRequest,
     ShutdownRequest,
+    PrepareJobRequest,
+    RenderJobRequest,
+    ReleaseJobRequest,
+    GetJobStatusRequest,
+    HealthRequest,
 }
 
 union IpcReplyBody {
@@ -119,6 +169,8 @@ union IpcReplyBody {
     RenderFrameReply,
     StatusReply,
     ShutdownReply,
+    JobReply,
+    HealthReply,
 }
 
 /// Each IPC message is an envelope with exactly one request or reply body.

@@ -33,7 +33,7 @@ void DaemonService::run_socket(const std::string& path) {
     }
 
     spdlog::info("🔌 Daemon listening on Unix socket '{}'", server.path());
-    spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | RENDER_JOB | STATUS | SHUTDOWN");
+    spdlog::info("   PREFETCH_ASSET | PREPARE_PLAN | RENDER_OVERLAY | RENDER_JOB | GET_JOB_STATUS | STATUS | SHUTDOWN");
 
     const int rc = server.serve_concurrent([this](const ipc::Request& req) {
         return handle_ipc(req);
@@ -62,6 +62,8 @@ ipc::Reply DaemonService::handle_ipc(const ipc::Request& req) {
             return ipc_render_overlay(req.payload);
         case ipc::Command::RenderJob:
             return handle_render_job_payload(req.payload);
+        case ipc::Command::GetJobStatus:
+            return ipc_get_job_status(req.payload);
         case ipc::Command::AssembleSegments:
             return ipc_assemble_segments(req.payload);
         case ipc::Command::Status:

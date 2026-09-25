@@ -47,7 +47,7 @@ std::int64_t spec_or_root_int(
 }
 
 constexpr std::string_view kRenderJobRootKeys[] = {
-    "plan_path", "prepared_package_path", "output", "assets_root", "report",
+    "job_id", "plan_path", "prepared_package_path", "output", "assets_root", "report",
     "trace_output", "trace_level", "receipt_verify",
     "range_enabled", "first_frame", "last_frame", "parallel_disjoint",
     "codec", "hardware_encoder", "hardware", "encoder_backend",
@@ -187,12 +187,17 @@ PlanDimensions extract_plan_dimensions(
                                      : PlanDimensions::NoCanvasField;
 }
 
-runtime::job::RenderJobRequest decode_render_job_payload(
+DecodedRenderJobPayload decode_render_job_payload(
     const std::string& payload) {
     const auto request = nlohmann::json::parse(payload);
     reject_unknown_render_job_keys(request);
 
-    runtime::job::RenderJobRequest job_request;
+    DecodedRenderJobPayload decoded;
+    decoded.job_id = request.value("job_id", std::string{});
+    if (decoded.job_id.size() > 256) {
+        throw std::runtime_error("RENDER_JOB job_id exceeds 256 bytes");
+    }
+    auto& job_request = decoded.request;
     job_request.plan_path = request.value("plan_path", "");
     job_request.prepared_package_path = request.value("prepared_package_path", "");
     job_request.output_path = request.value("output", "");
@@ -291,7 +296,7 @@ runtime::job::RenderJobRequest decode_render_job_payload(
     }
     job_request.requirements = exec_reqs;
     job_request.backend = request.value("backend", job_request.backend);
-    return job_request;
+    return decoded;
 }
 
 ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {

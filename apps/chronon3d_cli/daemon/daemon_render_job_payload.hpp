@@ -37,11 +37,17 @@
 
 namespace chronon3d::cli {
 
+/// Transport metadata is kept beside, not inside, the semantic render intent.
+struct DecodedRenderJobPayload {
+    runtime::job::RenderJobRequest request;
+    std::string job_id;
+};
+
 /// Decode the RENDER_JOB wire payload (JSON) into the semantic request.
 /// This is the single canonical JSON→RenderJobRequest mapper on the daemon
 /// path. Throws std::exception (nlohmann parse/type errors) on malformed
 /// input; callers map that to ipc::Status::BadRequest.
-[[nodiscard]] runtime::job::RenderJobRequest decode_render_job_payload(
+[[nodiscard]] DecodedRenderJobPayload decode_render_job_payload(
     const std::string& payload);
 
 } // namespace chronon3d::cli

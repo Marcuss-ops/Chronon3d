@@ -3,6 +3,7 @@
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
 #include <atomic>
@@ -203,10 +204,10 @@ TEST_CASE("PreparedRenderJob compatibility scene allocation is bounded") {
     // This test is deliberately a quarantine contract for the deprecated
     // Composition::SceneFunction adapter.  The zero-allocation gate applies
     // to the compiled program path; this legacy callback is allowed one
-    // bounded scene-materialization allocation per frame until demolition.
+    // bounded RenderNode-vector allocation per frame until demolition.
+    // Keep the byte ceiling tied to the element type: a fixed byte constant
+    // became stale as RenderNode gained fields even though the compatibility
+    // path still performs exactly one single-element allocation per frame.
     CHECK(allocations <= 100);
-    // The quarantined Scene materialization is currently 1,232 bytes per
-    // callback on this ABI. Keep a small per-frame margin while the exact
-    // one-allocation-per-frame bound above remains the primary invariant.
-    CHECK(bytes <= 128000);
+    CHECK(bytes <= 100 * sizeof(chronon3d::RenderNode));
 }

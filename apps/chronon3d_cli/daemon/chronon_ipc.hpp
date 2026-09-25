@@ -21,7 +21,8 @@
 //   PREPARE_PLAN    <composition-id>          compile + plan once
 //   RENDER_OVERLAY  "<frame> [output-path]"   render + save a frame
 //   RENDER_JOB      <json>                    render a chronon.render-plan.v2
-//                                            file: {"plan_path", "assets_root",
+//                                            file: {"job_id" (optional),
+//                                            "plan_path", "assets_root",
 //                                            "output", "backend", "report",
 //                                            "range_enabled", "first_frame",
 //                                            "last_frame", "audio_source_path",
@@ -29,6 +30,7 @@
 //                                            "execution_requirements",
 //                                            "output_spec"}; replies JSON
 //                                            {"status":"ok","output":"..."}
+//   GET_JOB_STATUS <job-id>                 inspect one RENDER_JOB lifecycle
 //
 // RENDER_JOB range parity: first/last are honored ONLY when range_enabled is
 // true, and an explicit first=0/last=0 pair is a single-frame chunk at frame
@@ -87,6 +89,7 @@ enum class Command : std::uint32_t {
     Shutdown      = 5,   ///< no payload → stop serving
     RenderJob     = 6,   ///< payload: JSON render-plan request (full parity fields)
     AssembleSegments = 7, ///< payload: JSON {input_paths, output_path}
+    GetJobStatus  = 8,   ///< payload: daemon job_id → JSON lifecycle snapshot
 };
 
 enum class Status : std::uint32_t {
