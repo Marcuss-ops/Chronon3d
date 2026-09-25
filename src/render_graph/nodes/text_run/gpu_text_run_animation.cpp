@@ -173,8 +173,6 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
          selector.unit != TextSelectorUnit::Grapheme &&
          selector.unit != TextSelectorUnit::Word &&
          selector.unit != TextSelectorUnit::Line) ||
-        (selector.shape != TextSelectorShape::Square &&
-         selector.shape != TextSelectorShape::Smooth) ||
         (selector.order != TextSelectorOrder::Forward &&
          selector.order != TextSelectorOrder::Reverse &&
          selector.order != TextSelectorOrder::FromCenter &&
@@ -256,7 +254,7 @@ void sample_gpu_text_animation(
     run.flags |= 2u;
     run.flags = runtime::pack_text_selector_metadata(
         run.flags, static_cast<std::uint32_t>(selector.unit),
-        static_cast<std::uint32_t>(selector.order));
+        static_cast<std::uint32_t>(selector.order), selector.shape);
     const auto bound = bind_selector_runtime(
         selector, shape.layout->units.unit_count(selector.unit), sample_time);
     if (bound.shape == TextSelectorShape::Smooth) run.flags |= 4u;

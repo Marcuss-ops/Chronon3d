@@ -19,12 +19,16 @@ inline constexpr std::uint16_t kMtsdfGlyphWordIndexMask = 0x7fffu;
 // pack_text_selector_metadata.
 inline constexpr std::uint32_t kTextRunFlagAnimatorFill = 1u << 10;
 
-// TextRunDynamic.flags bits 4..6 carry selector-unit metadata for host-side
-// per-glyph weighting. Bits 0..3 retain their existing selector/placement flags.
+// TextRunDynamic.flags bits 4..9 carry selector-unit/order metadata;
+// bits 11..13 optionally carry the selector shape (enum + 1). Bits 0..3
+// retain selector/placement/completion flags; bit 10 is animator fill color.
 inline constexpr std::uint32_t kTextRunSelectorUnitShift = 4u;
 inline constexpr std::uint32_t kTextRunSelectorUnitMask = 0x7u;
 inline constexpr std::uint32_t kTextRunSelectorOrderShift = 7u;
 inline constexpr std::uint32_t kTextRunSelectorOrderMask = 0x7u;
+// Encoded as enum value + 1 so zero remains the legacy Square/Smooth marker.
+inline constexpr std::uint32_t kTextRunSelectorShapeShift = 11u;
+inline constexpr std::uint32_t kTextRunSelectorShapeMask = 0x7u;
 
 [[nodiscard]] constexpr std::uint32_t pack_text_selector_metadata(
     std::uint32_t flags, std::uint32_t unit, std::uint32_t order) noexcept {
@@ -34,6 +38,35 @@ inline constexpr std::uint32_t kTextRunSelectorOrderMask = 0x7u;
     return (flags & ~metadata_mask) |
         ((unit & kTextRunSelectorUnitMask) << kTextRunSelectorUnitShift) |
         ((order & kTextRunSelectorOrderMask) << kTextRunSelectorOrderShift);
+}
+
+[[nodiscard]] constexpr std::uint32_t pack_text_selector_metadata(
+    std::uint32_t flags, std::uint32_t unit, std::uint32_t order,
+    chronon3d::TextSelectorShape shape) noexcept {
+    constexpr std::uint32_t metadata_mask =
+        (kTextRunSelectorUnitMask << kTextRunSelectorUnitShift) |
+        (kTextRunSelectorOrderMask << kTextRunSelectorOrderShift) |
+        (kTextRunSelectorShapeMask << kTextRunSelectorShapeShift);
+    const auto encoded_shape =
+        (static_cast<std::uint32_t>(shape) + 1u) & kTextRunSelectorShapeMask;
+    return (flags & ~metadata_mask) |
+        ((unit & kTextRunSelectorUnitMask) << kTextRunSelectorUnitShift) |
+        ((order & kTextRunSelectorOrderMask) << kTextRunSelectorOrderShift) |
+        (encoded_shape << kTextRunSelectorShapeShift);
+}
+
+[[nodiscard]] constexpr chronon3d::TextSelectorShape unpack_text_selector_shape(
+    std::uint32_t flags) noexcept {
+    const auto encoded =
+        (flags >> kTextRunSelectorShapeShift) & kTextRunSelectorShapeMask;
+    if (encoded == 0u) {
+        return (flags & 4u) != 0u ? chronon3d::TextSelectorShape::Smooth
+                                  : chronon3d::TextSelectorShape::Square;
+    }
+    const auto value = encoded - 1u;
+    return value <= static_cast<std::uint32_t>(chronon3d::TextSelectorShape::Smooth)
+        ? static_cast<chronon3d::TextSelectorShape>(value)
+        : chronon3d::TextSelectorShape::Square;
 }
 
 [[nodiscard]] constexpr std::uint32_t pack_mtsdf_glyph_unit_flags(
@@ -56,8 +89,7 @@ inline constexpr std::uint32_t kTextRunSelectorOrderMask = 0x7u;
     const auto order = static_cast<chronon3d::TextSelectorOrder>(
         (run.flags >> kTextRunSelectorOrderShift) & kTextRunSelectorOrderMask);
     const chronon3d::SelectorWeightParams params{
-        (run.flags & 4u) != 0u ? chronon3d::TextSelectorShape::Smooth
-                               : chronon3d::TextSelectorShape::Square,
+        unpack_text_selector_shape(run.flags),
         run.selector_start, run.selector_end, 0.0f, run.selector_amount,
         run.selector_unit_count,
         chronon3d::detail::apply_selector_order(order, glyph_index,

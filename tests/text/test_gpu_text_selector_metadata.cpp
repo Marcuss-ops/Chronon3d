@@ -2,6 +2,8 @@
 
 #include <doctest/doctest.h>
 
+#include <array>
+
 using namespace chronon3d;
 using namespace chronon3d::runtime;
 
@@ -32,19 +34,42 @@ TEST_CASE("GPU CPU selector weight supports word, line, and center-out order") {
     run.selector_unit_count = 3;
 
     run.flags = pack_text_selector_metadata(2u, static_cast<std::uint32_t>(TextSelectorUnit::Word),
-                                            static_cast<std::uint32_t>(TextSelectorOrder::Forward));
+                                            static_cast<std::uint32_t>(TextSelectorOrder::Forward),
+                                            TextSelectorShape::Square);
     CHECK(gpu_text_selector_weight(run, 0u) > 0.99f);
     CHECK(gpu_text_selector_weight(run, 1u) < 0.01f);
 
     run.flags = pack_text_selector_metadata(2u, static_cast<std::uint32_t>(TextSelectorUnit::Line),
-                                            static_cast<std::uint32_t>(TextSelectorOrder::Reverse));
+                                            static_cast<std::uint32_t>(TextSelectorOrder::Reverse),
+                                            TextSelectorShape::Smooth);
     CHECK(gpu_text_selector_weight(run, 2u) > 0.99f);
     CHECK(gpu_text_selector_weight(run, 0u) < 0.01f);
 
     run.selector_unit_count = 5;
     run.selector_end = 25.0f;
     run.flags = pack_text_selector_metadata(2u, static_cast<std::uint32_t>(TextSelectorUnit::Word),
-                                            static_cast<std::uint32_t>(TextSelectorOrder::FromCenter));
+                                            static_cast<std::uint32_t>(TextSelectorOrder::FromCenter),
+                                            TextSelectorShape::Square);
     CHECK(gpu_text_selector_weight(run, 2u) > 0.99f);
     CHECK(gpu_text_selector_weight(run, 0u) < 0.01f);
+
+    constexpr std::array<TextSelectorShape, 6> shapes{
+        TextSelectorShape::Square, TextSelectorShape::RampUp,
+        TextSelectorShape::RampDown, TextSelectorShape::Triangle,
+        TextSelectorShape::Round, TextSelectorShape::Smooth};
+    for (const auto shape : shapes) {
+        run.selector_start = 0.0f;
+        run.selector_end = 80.0f;
+        run.selector_amount = 73.0f;
+        run.selector_unit_count = 5u;
+        run.flags = pack_text_selector_metadata(
+            2u, static_cast<std::uint32_t>(TextSelectorUnit::Glyph),
+            static_cast<std::uint32_t>(TextSelectorOrder::Forward), shape);
+        const SelectorWeightParams reference{
+            shape, 0.0f, 80.0f, 0.0f, 73.0f, 5u, 0u, true, true, false};
+        for (std::uint32_t glyph = 0; glyph < 5u; ++glyph) {
+            CHECK(gpu_text_selector_weight(run, glyph) ==
+                  doctest::Approx(selector_weight(reference, glyph)));
+        }
+    }
 }

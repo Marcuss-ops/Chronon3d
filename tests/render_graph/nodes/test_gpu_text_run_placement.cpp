@@ -4,6 +4,7 @@
 #include <chronon3d/text/animation/text_animator_stack.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
+#include <chronon3d/runtime/gpu_text_selector_metadata.hpp>
 
 #include <algorithm>
 #include <array>
@@ -144,7 +145,8 @@ TEST_CASE("GPU text lowers Z-only rotation and samples it per glyph") {
 
     TextAnimatorSpec animator;
     animator.selectors.push_back(full_glyph_selector());
-    animator.properties.push_back(RotationProperty{{0.0f, 0.0f, 12.0f}});
+    animator.properties.push_back(
+        RotationProperty{AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, 12.0f}}});
     shape.animators.push_back(std::move(animator));
 
     REQUIRE(can_lower_gpu_text_animation(shape));
@@ -153,6 +155,51 @@ TEST_CASE("GPU text lowers Z-only rotation and samples it per glyph") {
     sample_gpu_text_animation(
         shape, SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}), run);
     CHECK(run.animator_rotation_z == doctest::Approx(12.0f));
+}
+
+TEST_CASE("GPU text lowers canonical selector shapes with CPU-equivalent per-glyph weights") {
+    const std::array<TextSelectorShape, 6> shapes{
+        TextSelectorShape::Square, TextSelectorShape::RampUp,
+        TextSelectorShape::RampDown, TextSelectorShape::Triangle,
+        TextSelectorShape::Round, TextSelectorShape::Smooth};
+
+    for (const auto selector_shape : shapes) {
+        auto layout = std::make_shared<TextRunLayout>();
+        layout->placed = make_test_placed_run(5);
+        layout->units.glyph_to_grapheme = {0u, 1u, 2u, 3u, 4u};
+        layout->units.grapheme_count = 5u;
+
+        TextRunShape shape;
+        shape.layout = layout;
+        shape.glyphs = make_initial_glyph_states(layout->placed);
+
+        GlyphSelectorSpec selector = full_glyph_selector();
+        selector.shape = selector_shape;
+        selector.start = AnimatedValue<f32>(0.0f);
+        selector.start.add_keyframe(Frame{0}, 0.0f);
+        selector.start.add_keyframe(Frame{60}, 80.0f);
+        selector.end = AnimatedValue<f32>(100.0f);
+        selector.amount = AnimatedValue<f32>(100.0f);
+
+        TextAnimatorSpec animator;
+        animator.selectors.push_back(selector);
+        animator.properties.push_back(OpacityProperty{0.0f});
+        shape.animators.push_back(std::move(animator));
+
+        CAPTURE(static_cast<int>(selector_shape));
+        REQUIRE(can_lower_gpu_text_animation(shape));
+
+        runtime::TextRunDynamic run;
+        const auto time = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1});
+        sample_gpu_text_animation(shape, time, run);
+        CHECK(runtime::unpack_text_selector_shape(run.flags) == selector_shape);
+
+        const auto params = bind_selector_runtime(selector, 5u, time);
+        for (std::uint32_t glyph = 0; glyph < 5; ++glyph) {
+            CHECK(runtime::gpu_text_selector_weight(run, glyph) ==
+                  doctest::Approx(selector_weight(params, glyph)));
+        }
+    }
 }
 
 TEST_CASE("GPU text does not lower X/Y rotation into the in-plane MTSDF path") {
@@ -165,7 +212,8 @@ TEST_CASE("GPU text does not lower X/Y rotation into the in-plane MTSDF path") {
 
     TextAnimatorSpec animator;
     animator.selectors.push_back(full_glyph_selector());
-    animator.properties.push_back(RotationProperty{{10.0f, 0.0f, 0.0f}});
+    animator.properties.push_back(
+        RotationProperty{AnimatedValue<Vec3>{Vec3{10.0f, 0.0f, 0.0f}}});
     shape.animators.push_back(std::move(animator));
 
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
@@ -191,6 +239,8 @@ TEST_CASE("GPU text lowers fill_color and packs the per-glyph target") {
     sample_gpu_text_animation(
         shape, SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}), run);
     CHECK((run.flags & runtime::kTextRunFlagAnimatorFill) != 0u);
+    CHECK(runtime::unpack_text_selector_shape(run.flags) ==
+          TextSelectorShape::Square);
     CHECK(run.animator_fill_color ==
           chronon3d::text::pack_text_color(target));
 }
