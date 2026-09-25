@@ -244,9 +244,15 @@ hwframes are materialized during native-surface warm-up, then reused by the
 bounded encoder ring.
 
 The Vulkan tiled text bridge was then aligned with the canonical
-`runtime::TextRunDynamic` ABI (`3e4ed832d`). The shader declares 112 bytes and
-the host now uploads exactly that record, including selector/tracking/effect
-bindings; no second 64-byte host layout remains in that path.
+`runtime::TextRunDynamic` ABI (`3e4ed832d`). The shader and host originally used
+112-byte records including selector/tracking/effect bindings. Later per-glyph
+rotation and fill-color support extended the current tile ABI to 128 bytes;
+the canary and `tests/test_shader_layout_contract.py` pin that current size and
+compare both tile shaders to the C++ record and compiled SPIR-V stride. In the
+2026-09-25 `linux-video-test` lane, the layout contract ran the compiled stride
+checks, and the text canary, shader ABI consistency suite, and render-graph
+suite passed. These local checks do not replace same-SHA Release/video corpus
+certification.
 
 The static certification is green (`185/185` architecture rules and the
 steady-state allocation gate at `0.0` allocations/frame). RenderingGen

@@ -764,7 +764,8 @@ struct VulkanBackend::Impl {
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
                           const Vec4& shape, const Vec4& line,
-                          const Color& color);
+                          const Color& color,
+                          const std::array<Vec2, 8>& vertices = {});
     void fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color);
     void fill_grid(runtime::RenderSurfaceHandle destination,

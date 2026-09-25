@@ -71,11 +71,11 @@ void VulkanBackend::Impl::text_run_surface(
 
 namespace {
 
-// The tiled shaders consume the canonical 112-byte runtime record.  Keeping
-// a second, shorter mirror here used to make the first six dynamic animator
-// fields invisible to Vulkan (and shifted every following array element from
-// the shader's point of view).  The public record is now the sole host/shader
-// layout authority for selector, tracking and effect bindings.
+// The tiled shaders consume the canonical 128-byte runtime record. Keeping
+// a second, shorter mirror here used to make dynamic animator fields invisible
+// to Vulkan and shift every following array element from the shader's point of
+// view. The public record is now the sole host/shader layout authority for
+// selector, tracking, rotation, fill-color and effect bindings.
 using GpuTextRunDynamic = runtime::TextRunDynamic;
 static_assert(sizeof(GpuTextRunDynamic) == 128,
               "GpuTextRunDynamic must match runtime::TextRunDynamic/std430");

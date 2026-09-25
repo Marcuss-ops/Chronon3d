@@ -55,6 +55,11 @@ float grid_cell_distance(float value, float step) {
     return abs(value - cell);
 }
 
+float sd_rounded_rect(vec2 p, vec2 center, vec2 half_size, float radius) {
+    vec2 q = abs(p - center) - (half_size - vec2(radius));
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+}
+
 void main() {
     // Dispatch is restricted to the rectangle's clipped bounds.  Re-add the
     // absolute origin because gl_GlobalInvocationID is local to that region.
@@ -67,6 +72,80 @@ void main() {
     vec2 max_corner = vec2(params.rect.zw);
     vec2 size = max_corner - min_corner;
     vec2 center = (min_corner + max_corner) * 0.5;
+
+    // ── Fase 2: stroked rect / rounded-rect / circle (solid fill + solid stroke) ──
+    // params.shape.w == 1.0 signals a stroked primitive. Original geometry
+    // limits are in vertices[0].xy (min) / vertices[1].xy (max), stroke color
+    // in params.line, stroke width (dst pixels, full) in vertices[2].x and
+    // alignment code (0 Inside / 1 Center / 2 Outside) in vertices[2].y.
+    // rect still carries the clipped dispatch rectangle. Geometry is separate
+    // so a clip never deforms the corner radius.
+    if (params.shape.x <= 2.5 && params.shape.w > 0.5) {
+        vec2 geomMin = params.vertices[0];
+        vec2 geomMax = params.vertices[1];
+        vec4 strokePm = params.line; // premultiplied RGBA
+        float w = params.vertices[2].x; // full band width in dst pixels
+        int align = int(params.vertices[2].y + 0.5); // 0 Inside, 1 Center, 2 Outside
+        w = max(w, 0.0);
+
+        vec2 gCenter = (geomMin + geomMax) * 0.5;
+        vec2 gHalf   = (geomMax - geomMin) * 0.5;
+        float d = 1e9;
+        if (params.shape.x < 0.5) {
+            // kind 0 — axis-aligned rect
+            vec2 q = abs(p - gCenter) - gHalf;
+            d = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0);
+        } else if (params.shape.x < 1.5) {
+            float r = min(params.shape.y, min(gHalf.x, gHalf.y));
+            r = max(r, 0.0);
+            d = sd_rounded_rect(p, gCenter, gHalf, r);
+        } else {
+            // kind 2 — circle / ellipse (circle: half.x == half.y == radius)
+            float r = max(params.shape.y, 0.001);
+            d = distance(p, gCenter) - r;
+            // For perfect circles gHalf is scalar; use gHalf.x as authoritative.
+        }
+
+        const float aa = 0.5; // screen-space feather, coherent with uniform-scale dst params
+        bool hasFill = params.color.a > 0.001;
+        float fillCov = 0.0;
+        if (hasFill) {
+            fillCov = 1.0 - smoothstep(-aa, aa, d);
+        }
+        float lo = 0.0, hi = 0.0;
+        if (align == 0) { lo = -w; hi = 0.0; }
+        else if (align == 1) { lo = -w * 0.5; hi = w * 0.5; }
+        else { lo = 0.0; hi = w; }
+        float bandCov = 0.0;
+        if (w > 0.001) {
+            float lowCov  = smoothstep(lo - aa, lo + aa, d);
+            float highCov = 1.0 - smoothstep(hi - aa, hi + aa, d);
+            bandCov = lowCov * highCov;
+            // Thin band (w < 2*aa) naturally feathers to <1, no extra branch.
+        }
+            // Fill over stroke precedence: if the pixel is inside the shape,
+        // fill color wins (matches hit_test_shape_fill || hit_test_shape_stroke
+        // with fill-before-stroke in shape_rasterizer.cpp). For Center strokes
+        // the inner half is therefore masked by fill; the visible stroke is
+        // only the band where fillCov==0. For Inside strokes the band is a
+        // strict subset of fill → no visible stroke band (golden must reflect
+        // software semantics; if Inside should be visible it is a software fix).
+        if (hasFill && fillCov > 0.001) {
+            vec4 outCol = vec4(params.color.rgb * fillCov, params.color.a * fillCov);
+            imageStore(dst_image, pixel, outCol);
+            return;
+        }
+        if (bandCov > 0.001) {
+            float cov = bandCov;
+            // Clip-case AA: the shader's AA is already 0.5 px in dst space,
+            // so scaling was accounted for when w was scaled. A uniform-scale
+            // factor was folded into w; AA itself stays screen-relative.
+            cov = clamp(cov, 0.0, 1.0);
+            vec4 outCol = vec4(strokePm.rgb * cov, strokePm.a * cov);
+            imageStore(dst_image, pixel, outCol);
+        }
+        return;
+    }
     if (params.shape.x > 4.5) {
         // ── Analytic grid background (software-kernel replica) ────────
         // Evaluates the same per-pixel feather weights as the CPU

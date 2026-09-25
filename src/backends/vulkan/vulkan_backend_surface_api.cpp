@@ -460,12 +460,13 @@ graph::RenderOpResult VulkanBackend::initialize_transparent_surface(
 graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
     runtime::RenderSurfaceHandle destination,
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
-    const Vec4& shape, const Vec4& line, const Color& color) {
+    const Vec4& shape, const Vec4& line, const Color& color,
+    const std::array<Vec2, 8>& vertices) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_solid_shape(destination, x0, y0, x1, y1,
-                                 shape, line, color);
+                                 shape, line, color, vertices);
     });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1;

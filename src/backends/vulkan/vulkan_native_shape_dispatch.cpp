@@ -120,10 +120,11 @@ bool try_native_path_stroke(
     //   - polyline joins carry no certified joint semantics shared with the
     //     CPU stroker;
     //   - translucent strokes accumulate alpha on every covered pixel.
-    // Everything outside this subset returns Unsupported so the caller falls
-    // back to the exact CPU stroker: slower-but-correct beats
-    // fast-but-wrong-pixels (backend specialization must never change render
-    // semantics).
+    // Everything outside this subset is rejected by this backend as
+    // UnsupportedCapability. This VulkanBackend has no implicit CPU stroker
+    // fallback; the graph must surface the failure rather than change routes
+    // silently. Slower-but-correct beats fast-but-wrong-pixels (backend
+    // specialization must never change render semantics).
     // The pre-scan doubles as the point capture: a path that passes the gate
     // is exactly MoveTo + a single LineTo, so the points below are the only
     // ones the emission step can ever see. Keeping the capture here (instead
@@ -253,27 +254,46 @@ bool try_native_solid_rect(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
+    // Fase 2: allow solid stroked primitives
+    // - rect / rounded-rect / circle with solid fill or solid stroke
+    // - 2D uniform scale (axis-aligned affine) — within this kernel the
+    //   matrix is restricted to translation + uniform scale; non-uniform
+    //   scale, shear, projection or gradient strokes fall back to CPU.
+    // Gradients and nontrivial stroke decorations are unsupported.
+    const ShapeStroke* stroke_ptr = nullptr;
+    if (type == ShapeType::Rect) stroke_ptr = &node.shape.rect().stroke;
+    else if (type == ShapeType::RoundedRect) stroke_ptr = &node.shape.rounded_rect().stroke;
+    else if (type == ShapeType::Circle) stroke_ptr = &node.shape.circle().stroke;
+    const bool has_stroke = stroke_ptr && stroke_ptr->enabled && stroke_ptr->width > 0.0f;
+    const bool stroke_gradient = has_stroke && stroke_ptr->gradient.has_value();
+    const bool fill_disabled = !node.fill.enabled;
+    if (has_stroke) {
+        if (stroke_gradient) return false;
+        if (stroke_ptr->width <= 0.0f) return false;
+        if (node.fill.type != FillType::Solid && node.fill.enabled) return false;
+        // Stroke colors must be solid; dash/trim not applicable to closed primitives.
+    }
     Vec2 size{};
     Vec4 shape_params{0.0f};
     Vec4 line_params{0.0f};
     Color shape_color = node.color;
     const bool is_line = type == ShapeType::Line;
     if (type == ShapeType::Rect) {
-        if (node.shape.rect().stroke.enabled) return false;
         size = node.shape.rect().size;
         if (node.corner_radius > 0.0f) {
             shape_params = Vec4{1.0f, node.corner_radius, node.corner_radius, 0.0f};
         }
+        if (has_stroke) shape_params.w = 1.0f;
     } else if (type == ShapeType::RoundedRect) {
-        if (node.shape.rounded_rect().stroke.enabled) return false;
         size = node.shape.rounded_rect().size;
         shape_params = Vec4{1.0f, node.shape.rounded_rect().radius,
                             node.shape.rounded_rect().radius, 0.0f};
+        if (has_stroke) shape_params.w = 1.0f;
     } else if (type == ShapeType::Circle) {
-        if (node.shape.circle().stroke.enabled) return false;
         size = Vec2{node.shape.circle().radius * 2.0f};
         shape_params = Vec4{2.0f, node.shape.circle().radius,
                             node.shape.circle().radius, 0.0f};
+        if (has_stroke) shape_params.w = 1.0f;
     } else {
         const auto& line = node.shape.line();
         if (!line.stroke.enabled || line.stroke.trim_start != 0.0f ||
@@ -290,32 +310,130 @@ bool try_native_solid_rect(
         return false;
     }
 
-    bool alpha_zero = false;
-    const Color color = graph::native_promotion::premultiply(shape_color, state.opacity,
-                                                      &alpha_zero);
-    if (alpha_zero) return true;
+    // Resolve colors upfront (both fill and stroke are premultiplied by opacity).
+    bool fill_alpha_zero = false;
+    const Color fill_premul = graph::native_promotion::premultiply(shape_color, state.opacity,
+                                                           &fill_alpha_zero);
+    // Null fill (transparent or disabled) is valid for stroke-only draws.
+    Color stroke_premul{0, 0, 0, 0};
+    bool stroke_alpha_zero = true;
+    if (has_stroke) {
+        stroke_premul = graph::native_promotion::premultiply(stroke_ptr->color, state.opacity,
+                                                     &stroke_alpha_zero);
+        if (fill_alpha_zero && stroke_alpha_zero) return true;
+    } else {
+        if (fill_alpha_zero) return true;
+    }
 
+    // Geometry bounds in destination pixels (axis-aligned affine outer hull).
     const Vec4 c00 = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
     const Vec4 c10 = state.matrix * Vec4(size.x, 0.0f, 0.0f, 1.0f);
     const Vec4 c01 = state.matrix * Vec4(0.0f, size.y, 0.0f, 1.0f);
     const Vec4 c11 = state.matrix * Vec4(size.x, size.y, 0.0f, 1.0f);
-    float min_x = std::min({c00.x, c10.x, c01.x, c11.x});
-    float min_y = std::min({c00.y, c10.y, c01.y, c11.y});
-    float max_x = std::max({c00.x, c10.x, c01.x, c11.x});
-    float max_y = std::max({c00.y, c10.y, c01.y, c11.y});
+    float geom_min_x = std::min({c00.x, c10.x, c01.x, c11.x});
+    float geom_min_y = std::min({c00.y, c10.y, c01.y, c11.y});
+    float geom_max_x = std::max({c00.x, c10.x, c01.x, c11.x});
+    float geom_max_y = std::max({c00.y, c10.y, c01.y, c11.y});
+
+    // Uniform-scale factor (axis-alignedAffine guarantees no shear/projection).
+    const float scale_x = std::abs(state.matrix[0][0]);
+    const float scale_y = std::abs(state.matrix[1][1]);
+    // First-pass policy: require uniform scale; non-uniform falls back to CPU.
+    if (has_stroke) {
+        const float uniform_eps = 1e-3f;
+        if (std::abs(scale_x - scale_y) > std::max(0.1f, scale_x) * 0.05f +
+            uniform_eps) {
+            // Permit near-uniform: relative 5% + 0.001 absolute.
+            if (std::abs(scale_x - scale_y) > 0.01f + uniform_eps) return false;
+        }
+    }
+    float scale = scale_x;
+    // Scale shape parameters for the shader (radii in dst pixels).
+    if (has_stroke) {
+        if (shape_params.x > 0.5f && shape_params.x < 1.5f) { // rounded-rect
+            shape_params.y *= scale;
+            shape_params.z *= scale;
+        } else if (shape_params.x > 1.5f) { // circle
+            shape_params.y *= scale;
+            shape_params.z *= scale;
+        }
+    }
+
+    float dispatch_min_x, dispatch_min_y, dispatch_max_x, dispatch_max_y;
+    std::array<Vec2, 8> vertices{};
+
     if (is_line) {
         const Vec4 endpoint = state.matrix * Vec4(node.shape.line().to, 1.0f);
         line_params = Vec4{c00.x, c00.y, endpoint.x, endpoint.y};
         const float half_width = shape_params.y * 0.5f;
-        min_x = std::min(c00.x, endpoint.x) - half_width;
-        min_y = std::min(c00.y, endpoint.y) - half_width;
-        max_x = std::max(c00.x, endpoint.x) + half_width;
-        max_y = std::max(c00.y, endpoint.y) + half_width;
+        dispatch_min_x = std::min(c00.x, endpoint.x) - half_width;
+        dispatch_min_y = std::min(c00.y, endpoint.y) - half_width;
+        dispatch_max_x = std::max(c00.x, endpoint.x) + half_width;
+        dispatch_max_y = std::max(c00.y, endpoint.y) + half_width;
+    } else if (has_stroke) {
+        float w_dst = stroke_ptr->width * scale;
+        if (!std::isfinite(w_dst) || w_dst <= 0.0f) return true;
+        // Canonical stroke AA width (consistent with fill_rect.comp).
+        constexpr float kAA = 0.5f;
+        float outward = 0.0f;
+        switch (stroke_ptr->alignment) {
+            case StrokeAlignment::Inside:  outward = kAA; break;
+            case StrokeAlignment::Center:  outward = w_dst * 0.5f + kAA; break;
+            case StrokeAlignment::Outside: outward = w_dst + kAA; break;
+        }
+        // Dispatch covers the whole band with AA padding. Geometry itself
+        // is carried in vertices[0]/[1] so a clip never deforms the corner radius.
+        dispatch_min_x = geom_min_x - outward;
+        dispatch_min_y = geom_min_y - outward;
+        dispatch_max_x = geom_max_x + outward;
+        dispatch_max_y = geom_max_y + outward;
+
+        // Prepare push-constant payload for the stroked kernel.
+        Vec4 stroke_line_params{stroke_premul.r, stroke_premul.g, stroke_premul.b, stroke_premul.a};
+        // Fill is still carried in color; stroke in line.
+        line_params = stroke_line_params;
+        vertices[0] = Vec2{geom_min_x, geom_min_y};
+        vertices[1] = Vec2{geom_max_x, geom_max_y};
+        float align_code = 1.0f;
+        switch (stroke_ptr->alignment) {
+            case StrokeAlignment::Inside:  align_code = 0.0f; break;
+            case StrokeAlignment::Center:  align_code = 1.0f; break;
+            case StrokeAlignment::Outside: align_code = 2.0f; break;
+        }
+        vertices[2] = Vec2{w_dst, align_code};
+        // For stroked draws, fill can be transparent (vertex-colour handled above).
+        // The generic path already computed fill_premul; hand it as the fill arg.
+        auto x0 = static_cast<std::int32_t>(std::floor(dispatch_min_x));
+        auto y0 = static_cast<std::int32_t>(std::floor(dispatch_min_y));
+        auto x1 = static_cast<std::int32_t>(std::ceil(dispatch_max_x));
+        auto y1 = static_cast<std::int32_t>(std::ceil(dispatch_max_y));
+        x0 = std::clamp(x0, 0, framebuffer.width());
+        y0 = std::clamp(y0, 0, framebuffer.height());
+        x1 = std::clamp(x1, 0, framebuffer.width());
+        y1 = std::clamp(y1, 0, framebuffer.height());
+        if (state.clip_rect) {
+            x0 = std::max(x0, state.clip_rect->x0);
+            y0 = std::max(y0, state.clip_rect->y0);
+            x1 = std::min(x1, state.clip_rect->x1);
+            y1 = std::min(y1, state.clip_rect->y1);
+        }
+        if (x0 >= x1 || y0 >= y1) return true;
+        Color fill_for_dispatch = fill_disabled ? Color{0, 0, 0, 0} : fill_premul;
+        if (fill_alpha_zero) fill_for_dispatch = Color{0, 0, 0, 0};
+        return backend.fill_solid_shape_surface(
+            framebuffer.surface_handle(), x0, y0, x1, y1,
+            shape_params, line_params, fill_for_dispatch, vertices).ok();
+    } else {
+        dispatch_min_x = geom_min_x;
+        dispatch_min_y = geom_min_y;
+        dispatch_max_x = geom_max_x;
+        dispatch_max_y = geom_max_y;
     }
-    auto x0 = static_cast<std::int32_t>(std::ceil(min_x - 0.5f));
-    auto y0 = static_cast<std::int32_t>(std::ceil(min_y - 0.5f));
-    auto x1 = static_cast<std::int32_t>(std::ceil(max_x - 0.5f));
-    auto y1 = static_cast<std::int32_t>(std::ceil(max_y - 0.5f));
+
+    auto x0 = static_cast<std::int32_t>(std::ceil(dispatch_min_x - 0.5f));
+    auto y0 = static_cast<std::int32_t>(std::ceil(dispatch_min_y - 0.5f));
+    auto x1 = static_cast<std::int32_t>(std::ceil(dispatch_max_x - 0.5f));
+    auto y1 = static_cast<std::int32_t>(std::ceil(dispatch_max_y - 0.5f));
     x0 = std::clamp(x0, 0, framebuffer.width());
     y0 = std::clamp(y0, 0, framebuffer.height());
     x1 = std::clamp(x1, 0, framebuffer.width());
@@ -328,9 +446,10 @@ bool try_native_solid_rect(
     }
     if (x0 >= x1 || y0 >= y1) return true;
 
+    Color fill_for_dispatch = fill_premul;
     return backend.fill_solid_shape_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1,
-        shape_params, line_params, color).ok();
+        shape_params, line_params, fill_for_dispatch).ok();
 }
 
 } // namespace

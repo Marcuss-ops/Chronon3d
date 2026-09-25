@@ -86,12 +86,11 @@ struct GpuGlyphDynamic {
 };
 static_assert(sizeof(GpuGlyphDynamic) == 8);
 
-// Use the production ABI directly.  The shader consumes the extended
-// selector/animator block (112 bytes, std430 stride); a hand-written 64-byte
-// mirror silently made every default-initialized glyph invisible and caused
-// the second run to be read at the wrong array stride.
+// Use the production ABI directly. The tiled shaders consume the complete
+// selector/animator block (128 bytes, std430 stride); pin it here so stale
+// canary builds or host/shader drift cannot silently shift following runs.
 using GpuTextRunDynamic = chronon3d::runtime::TextRunDynamic;
-static_assert(sizeof(GpuTextRunDynamic) == 112);
+static_assert(sizeof(GpuTextRunDynamic) == 128);
 static_assert(alignof(GpuTextRunDynamic) == 16);
 
 struct RasterPush {

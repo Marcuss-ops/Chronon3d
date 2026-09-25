@@ -215,6 +215,36 @@ TEST_CASE("ExecutionResolver resolves YUV execution paths from a FrameDelta") {
     CHECK(plan.reason == "full_yuv_p010");
 }
 
+TEST_CASE("ExecutionResolver keeps strict native RGB sparse rendering fail-closed") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    graph::detail::DirtyRectOutput dirty;
+    dirty.frame_delta = graph::detail::FrameDelta{};
+    dirty.frame_delta->scene_changed = true;
+    dirty.use_dirty_tiles = true;
+    dirty.tile_grid = TileGrid(32, 32, 16);
+    dirty.dirty_tiles = chronon3d::raster::DirtyTileMask(*dirty.tile_grid);
+    dirty.dirty_tiles->mark_tile(0, 0);
+    dirty.dirty_rect = BBox{0, 0, 16, 16};
+
+    RenderSettings settings;
+    settings.require_native_gpu = true;
+    const auto plan = ExecutionResolver::resolve(
+        {}, {}, Scene{}, Camera2_5D{}, settings, dirty, 0.25, nullptr,
+        Frame{1}, 32, 32, nullptr, true, false,
+        runtime::PixelFormat::Rgba32Float);
+
+    CHECK(plan.path == FrameExecutionPath::FullRgb);
+    CHECK(plan.reason == "native_gpu_disables_sparse_tiles");
+    CHECK_FALSE(plan.use_dirty_region);
+    CHECK(plan.dirty_regions.empty());
+    CHECK_FALSE(plan.copy_previous_surface);
+    CHECK_FALSE(plan.previous_framebuffer);
+    CHECK_FALSE(plan.previous_surface);
+}
+
+
 TEST_CASE("ExecutionResolver resolves initial ReuseSurface from a clean FrameDelta") {
     chronon3d::graph::detail::FrameDelta delta;
     delta.reuse.resolved_scene_reuse = true;

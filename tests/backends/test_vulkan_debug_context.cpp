@@ -8,6 +8,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <cstdlib>
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 TEST_SUITE("VulkanDebugContext") {
@@ -192,9 +193,64 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
         PathCommand::line_to({64.0f, 34.0f}),
         PathCommand::close()};
 
+    // Fase 2: solid closed-shape strokes (rect / rounded-rect / circle,
+    // Inside / Center / Outside, 2D uniform scale) are now promoted to the
+    // stroked kernel alongside basic fills. Gradients / non-uniform scale /
+    // masks still fall back to CPU.
+    RenderNode stroked_rounded;
+    stroked_rounded.shape.set_type(ShapeType::RoundedRect);
+    stroked_rounded.shape.rounded_rect().size = rounded.shape.rounded_rect().size;
+    stroked_rounded.shape.rounded_rect().radius = rounded.shape.rounded_rect().radius;
+    stroked_rounded.shape.rounded_rect().stroke.enabled = true;
+    stroked_rounded.shape.rounded_rect().stroke.color = Color{0.2f, 0.8f, 0.8f, 1.0f};
+    stroked_rounded.shape.rounded_rect().stroke.width = 3.0f;
+    stroked_rounded.color = Color{0.1f, 0.1f, 0.8f, 1.0f};
+    RenderNode stroked_circle;
+    stroked_circle.shape.set_type(ShapeType::Circle);
+    stroked_circle.shape.circle().radius = circle.shape.circle().radius;
+    stroked_circle.shape.circle().stroke.enabled = true;
+    stroked_circle.shape.circle().stroke.color = Color{0.9f, 0.2f, 0.2f, 1.0f};
+    stroked_circle.shape.circle().stroke.width = 2.0f;
+    stroked_circle.color = Color{0.2f, 0.8f, 0.2f, 1.0f};
+    RenderNode rect;
+    rect.shape.set_type(ShapeType::Rect);
+    rect.shape.rect().size = {20.0f, 14.0f};
+    rect.color = Color{0.7f, 0.6f, 0.2f, 1.0f};
+    RenderNode stroked_rect;
+    stroked_rect.shape.set_type(ShapeType::Rect);
+    stroked_rect.shape.rect().size = rect.shape.rect().size;
+    stroked_rect.shape.rect().stroke.enabled = true;
+    stroked_rect.shape.rect().stroke.color = Color{0.8f, 0.2f, 0.6f, 1.0f};
+    stroked_rect.shape.rect().stroke.width = 2.0f;
+    stroked_rect.color = Color{0.2f, 0.2f, 0.9f, 1.0f};
+
     backend->begin_frame_batch();
+    backend->draw_node(framebuffer, rect, state, camera, 96, 64);
     backend->draw_node(framebuffer, rounded, state, camera, 96, 64);
     backend->draw_node(framebuffer, circle, state, camera, 96, 64);
+    constexpr std::array alignments{
+        StrokeAlignment::Inside, StrokeAlignment::Center,
+        StrokeAlignment::Outside};
+    for (auto* stroked : {&stroked_rect, &stroked_rounded, &stroked_circle}) {
+        for (const auto alignment : alignments) {
+            switch (stroked->shape.type()) {
+            case ShapeType::Rect:
+                stroked->shape.rect().stroke.alignment = alignment;
+                break;
+            case ShapeType::RoundedRect:
+                stroked->shape.rounded_rect().stroke.alignment = alignment;
+                break;
+            case ShapeType::Circle:
+                stroked->shape.circle().stroke.alignment = alignment;
+                break;
+            default:
+                FAIL("unexpected stroked primitive in test");
+            }
+            const auto ok = backend->draw_node(
+                framebuffer, *stroked, state, camera, 96, 64);
+            REQUIRE(ok.ok());
+        }
+    }
     backend->draw_node(framebuffer, line, state, camera, 96, 64);
     backend->draw_node(framebuffer, diagonal, state, camera, 96, 64);
     backend->draw_node(framebuffer, stroked_path, state, camera, 96, 64);
@@ -202,13 +258,9 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->end_frame_batch();
 
     const auto stats = backend->stats();
-    // Five of the six nodes take a native pass. The cubic-stroke Path is
-    // DELIBERATELY rejected by try_native_path_stroke's CPU-exactness gate
-    // (only a single straight opaque segment is native-equivalent; a cubic
-    // stroke would double-blend the flattened joints and notch the caps), so
-    // it contributes no GPU pass and must fail closed to the CPU stroker.
-    // The earlier `>= 6` expectation predates that gate and was stale.
-    CHECK(stats.passes_executed >= 5);
+    // Six fill/line/path nodes + 3×3 stroked primitives (3 alignments each)
+    // all take native passes. The cubic-stroke Path remains rejected.
+    CHECK(stats.passes_executed >= 15);
     REQUIRE(backend->release_surface(handle).ok());
 }
 
