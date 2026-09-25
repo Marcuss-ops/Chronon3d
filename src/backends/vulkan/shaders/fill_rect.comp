@@ -73,7 +73,10 @@ void main() {
     vec2 size = max_corner - min_corner;
     vec2 center = (min_corner + max_corner) * 0.5;
 
-    // ── Fase 2: stroked rect / rounded-rect / circle (solid fill + solid stroke) ──
+    // Candidate SDF path for stroked rect / rounded-rect / circle. The host
+    // dispatcher currently fails closed before recording this branch until a
+    // CPU/Vulkan pixel-parity oracle certifies the complete stroke contract.
+    // ────────────────────────────────────────────────────────────────────────
     // params.shape.w == 1.0 signals a stroked primitive. Original geometry
     // limits are in vertices[0].xy (min) / vertices[1].xy (max), stroke color
     // in params.line, stroke width (dst pixels, full) in vertices[2].x and
@@ -123,13 +126,12 @@ void main() {
             bandCov = lowCov * highCov;
             // Thin band (w < 2*aa) naturally feathers to <1, no extra branch.
         }
-            // Fill over stroke precedence: if the pixel is inside the shape,
+            // Fill-over-stroke precedence candidate: if the pixel is inside shape,
         // fill color wins (matches hit_test_shape_fill || hit_test_shape_stroke
         // with fill-before-stroke in shape_rasterizer.cpp). For Center strokes
         // the inner half is therefore masked by fill; the visible stroke is
         // only the band where fillCov==0. For Inside strokes the band is a
-        // strict subset of fill → no visible stroke band (golden must reflect
-        // software semantics; if Inside should be visible it is a software fix).
+        // strict subset of fill. This candidate still requires pixel parity.
         if (hasFill && fillCov > 0.001) {
             vec4 outCol = vec4(params.color.rgb * fillCov, params.color.a * fillCov);
             imageStore(dst_image, pixel, outCol);

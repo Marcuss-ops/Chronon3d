@@ -509,13 +509,18 @@ FrameExecutionPlan ExecutionResolver::resolve(
         }
         if (dirty_out.use_dirty_tiles && dirty_out.tile_grid &&
             dirty_out.dirty_tiles && dirty_out.dirty_tiles->any()) {
-            plan.path = FrameExecutionPath::SparseYuv;
-            plan.reason = output_format == runtime::PixelFormat::P010
-                ? "sparse_yuv_p010" : "sparse_yuv_nv12";
             plan.dirty_regions = ExecutionResolver::coalesce_dirty_regions(
                 *dirty_out.tile_grid, *dirty_out.dirty_tiles);
-            plan.use_dirty_region = !plan.dirty_regions.empty();
-            if (plan.use_dirty_region) return plan;
+            // SparseYuv is represented in the plan taxonomy, but the scene
+            // executor does not yet apply these regions to a persistent YUV
+            // output surface. Do not report a sparse path while executing the
+            // full graph; keep the output correct and make the missing executor
+            // explicit in telemetry.
+            if (!plan.dirty_regions.empty()) {
+                plan.path = FrameExecutionPath::FullYuv;
+                plan.reason = "sparse_yuv_executor_unavailable";
+                return plan;
+            }
         }
         plan.path = FrameExecutionPath::FullYuv;
         plan.reason = output_format == runtime::PixelFormat::P010
