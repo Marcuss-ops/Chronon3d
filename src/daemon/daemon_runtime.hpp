@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -44,13 +45,21 @@ public:
 
     void prepare_composition(std::string_view composition_id,
                              std::string_view descriptor_json);
+    void prepare_job(std::string_view job_id, std::string_view descriptor_json);
     [[nodiscard]] std::shared_ptr<Framebuffer> render_frame(
         std::string_view composition_id, Frame frame);
     [[nodiscard]] RenderOutcome render_frame_timed(
         std::string_view composition_id, Frame frame);
+    [[nodiscard]] RenderOutcome render_job(
+        std::string_view job_id, Frame frame);
     [[nodiscard]] RenderEngine& engine() noexcept { return *m_engine; }
     [[nodiscard]] bool contains(std::string_view composition_id) const noexcept;
     void release_composition(std::string_view composition_id);
+    [[nodiscard]] bool release_job(std::string_view job_id);
+    void record_job_failure(std::string_view job_id, std::string_view message);
+    [[nodiscard]] std::optional<ipc::SessionJobStatus> job_status(
+        std::string_view job_id) const;
+    [[nodiscard]] std::string health_json() const;
 
     void begin_shutdown() noexcept;
     [[nodiscard]] bool accepting() const noexcept;

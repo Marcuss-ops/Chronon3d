@@ -42,6 +42,11 @@ void DaemonRuntime::prepare_composition(
     m_session.create_composition(composition_id, descriptor_json);
 }
 
+void DaemonRuntime::prepare_job(
+    std::string_view job_id, std::string_view descriptor_json) {
+    prepare_composition(job_id, descriptor_json);
+}
+
 std::shared_ptr<Framebuffer> DaemonRuntime::render_frame(
     std::string_view composition_id, Frame frame) {
     return render_frame_timed(composition_id, frame).framebuffer;
@@ -63,12 +68,42 @@ DaemonRuntime::RenderOutcome DaemonRuntime::render_frame_timed(
     return outcome;
 }
 
+DaemonRuntime::RenderOutcome DaemonRuntime::render_job(
+    std::string_view job_id, Frame frame) {
+    auto outcome = render_frame_timed(job_id, frame);
+    m_session.set_job_render_time(job_id, outcome.render_ms);
+    return outcome;
+}
+
 bool DaemonRuntime::contains(std::string_view composition_id) const noexcept {
     return m_session.contains(composition_id);
 }
 
 void DaemonRuntime::release_composition(std::string_view composition_id) {
     m_session.remove(composition_id);
+}
+
+bool DaemonRuntime::release_job(std::string_view job_id) {
+    return m_session.release_job(job_id);
+}
+
+void DaemonRuntime::record_job_failure(
+    std::string_view job_id, std::string_view message) {
+    m_session.record_job_failure(job_id, message);
+}
+
+std::optional<ipc::SessionJobStatus> DaemonRuntime::job_status(
+    std::string_view job_id) const {
+    return m_session.job_status(job_id);
+}
+
+std::string DaemonRuntime::health_json() const {
+    const auto current = state();
+    const bool healthy = current == State::Ready || current == State::Warming;
+    std::ostringstream ss;
+    ss << R"({"healthy":)" << (healthy ? "true" : "false")
+       << R"(,"state":")" << state_name(current) << R"("})";
+    return ss.str();
 }
 
 void DaemonRuntime::begin_shutdown() noexcept {

@@ -457,12 +457,16 @@ TEST_CASE("Motion blur memory report: sample domains remain distinct for 1/2/4/8
     const std::array<int, 4> sample_counts{1, 2, 4, 8};
     for (const int samples : sample_counts) {
         graph::NodeMemoryTracker tracker;
-        std::vector<std::unique_ptr<graph::ScopedNodeMemory>> scopes;
-        scopes.reserve(static_cast<std::size_t>(samples));
+        // These are simultaneously live accounting entries, not nested node
+        // executions. ScopedNodeMemory also installs the thread-local
+        // framebuffer event sink, whose lifetime must follow execution scope
+        // nesting. Use the tracker primitives here so destroying a collection
+        // of overlapping sample entries cannot restore a stale TLS sink.
+        constexpr std::string_view node_id = "motion-sample";
+        tracker.ensure_node(node_id);
         for (int index = 0; index < samples; ++index) {
             const TemporalSampleKey key{Frame{7}, static_cast<u32>(index + 1), 3};
-            scopes.push_back(std::make_unique<graph::ScopedNodeMemory>(
-                tracker, "motion-sample", key, 64));
+            tracker.acquire_temporary(node_id, key, 64);
         }
 
         const auto live_report = tracker.snapshot();
@@ -478,7 +482,10 @@ TEST_CASE("Motion blur memory report: sample domains remain distinct for 1/2/4/8
         CHECK(live_report.nodes.front().peak_live_bytes ==
               static_cast<std::uint64_t>(samples * 64));
 
-        scopes.clear();
+        for (int index = 0; index < samples; ++index) {
+            const TemporalSampleKey key{Frame{7}, static_cast<u32>(index + 1), 3};
+            tracker.release_temporary(node_id, key, 64);
+        }
         const auto released_report = tracker.snapshot();
         CHECK(released_report.current_live_bytes == 0);
         CHECK(released_report.peak_live_bytes == static_cast<std::uint64_t>(samples * 64));
