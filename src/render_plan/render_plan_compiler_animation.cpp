@@ -195,8 +195,9 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                             int canvas_height) {
     if (!layer.animation) return;
     chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
-    if (layer.type == LayerType::Text && layer.position_dimensions >= 2) {
-        // Primitive animation keyframes are offsets from the authored text
+    if ((layer.type == LayerType::Text || layer.type == LayerType::Shape) &&
+        layer.position_dimensions >= 2) {
+        // Primitive animation keyframes are offsets from the authored element
         // centre. Resolve that centre once before applying the offsets.
         base_position.x -= static_cast<float>(canvas_width) * 0.5f;
         base_position.y -= static_cast<float>(canvas_height) * 0.5f;
@@ -412,6 +413,33 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
                             int canvas_height) {
+    if (layer.parent) builder.parent(*layer.parent);
+    if (layer.track_matte) {
+        switch (layer.track_matte->type) {
+            case TrackMatteTypePlan::Alpha:
+                builder.track_matte_alpha(layer.track_matte->source); break;
+            case TrackMatteTypePlan::AlphaInverted:
+                builder.track_matte_alpha_inverted(layer.track_matte->source); break;
+            case TrackMatteTypePlan::Luma:
+                builder.track_matte_luma(layer.track_matte->source); break;
+            case TrackMatteTypePlan::LumaInverted:
+                builder.track_matte_luma_inverted(layer.track_matte->source); break;
+        }
+    }
+    if (layer.time_remap) {
+        if (layer.time_remap->speed)
+            builder.speed(*layer.time_remap->speed);
+        if (layer.time_remap->reverse)
+            builder.reverse();
+        if (layer.time_remap->freeze_frame)
+            builder.freeze_frame(*layer.time_remap->freeze_frame);
+        if (layer.time_remap->animation) {
+            auto& remap = builder.time_remap_anim();
+            for (const auto& key : layer.time_remap->animation->keyframes)
+                remap.add_keyframe(key.frame, scalar_value(key, "time_remap"),
+                                   track_easing(layer.time_remap->animation->easing));
+        }
+    }
     if (layer.enable_3d) builder.enable_3d();
     if (layer.depth_role) {
         builder.depth_role(depth_role_value(*layer.depth_role));
@@ -420,13 +448,11 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
     if (layer.start_frame) builder.from(*layer.start_frame);
     if (layer.duration_frames) builder.duration(*layer.duration_frames);
     if (layer.position_dimensions >= 2) {
-        // Render-plan text geometry is authored in canvas coordinates with a
-        // top-left box origin, while LayerBuilder transforms are centred on
-        // the canvas.  The old path applied [x,y] directly and therefore
-        // translated a centred [960,540] text box another [960,540] pixels
-        // into the bottom-right corner.  Convert the box origin once; motion
-        // tracks remain additive offsets from this resolved placement.
-        if (layer.type == LayerType::Text) {
+        // Render-plan geometry (Text, Shape) is authored in canvas coordinates
+        // with a top-left box origin, while LayerBuilder transforms are centred
+        // on the canvas. Convert the box origin once; motion tracks remain
+        // additive offsets from this resolved placement.
+        if (layer.type == LayerType::Text || layer.type == LayerType::Shape) {
             builder.position({
                 layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
                 layer.position[1] - static_cast<float>(canvas_height) * 0.5f,

@@ -179,6 +179,49 @@
         "type": "object",
         "properties": {
           "type": { "enum": ["image", "video", "text", "color", "shape"] },
+          "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "track_matte": {
+            "type": "object", "additionalProperties": false,
+            "required": ["source", "type"],
+            "properties": {
+              "source": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "type": { "enum": ["alpha", "alpha_inverted", "luma", "luma_inverted"] }
+            }
+          },
+          "time_remap": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "speed": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+              "reverse": { "type": "boolean" },
+              "freeze_frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "animation": {
+                "type": "object", "additionalProperties": false,
+                "required": ["keyframes"],
+                "properties": {
+                  "easing": {
+                    "enum": ["linear", "in_quad", "out_quad", "in_out_quad",
+                      "in_cubic", "out_cubic", "in_out_cubic", "in_expo", "out_expo",
+                      "in_out_expo", "in_sine", "out_sine", "in_out_sine", "in_back",
+                      "out_back", "in_out_back", "in_elastic", "out_elastic",
+                      "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce",
+                      "smoothstep", "hold"]
+                  },
+                  "keyframes": {
+                    "type": "array", "minItems": 1, "maxItems": 65536,
+                    "items": {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["frame", "value"],
+                      "properties": {
+                        "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                        "value": { "type": "number", "minimum": 0, "maximum": 1000000 }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "not": { "required": ["freeze_frame", "animation"] }
+          },
           "shape": { "$ref": "#/$defs/shape" },
           "mask": {
             "type": "object", "additionalProperties": false,
@@ -254,7 +297,8 @@
           }
         },
         "allOf": [
-          { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } }
+          { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } },
+          { "if": { "required": ["time_remap"] }, "then": { "properties": { "type": { "const": "video" } } } }
         ]
       }
     }

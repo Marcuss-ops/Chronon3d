@@ -87,6 +87,57 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
+    if (value.contains("parent"))
+        layer.parent = value.at("parent").get<std::string>();
+    if (value.contains("track_matte")) {
+        const auto& raw_matte = value.at("track_matte");
+        TrackMattePlan matte;
+        matte.source = raw_matte.at("source").get<std::string>();
+        const auto matte_type = raw_matte.at("type").get<std::string>();
+        if (matte_type == "alpha") matte.type = TrackMatteTypePlan::Alpha;
+        else if (matte_type == "alpha_inverted") matte.type = TrackMatteTypePlan::AlphaInverted;
+        else if (matte_type == "luma") matte.type = TrackMatteTypePlan::Luma;
+        else if (matte_type == "luma_inverted") matte.type = TrackMatteTypePlan::LumaInverted;
+        else throw std::runtime_error("unsupported track_matte.type: " + matte_type);
+        layer.track_matte = std::move(matte);
+    }
+    if (value.contains("time_remap")) {
+        const auto& raw_remap = value.at("time_remap");
+        TimeRemapPlan remap;
+        remap.speed = optional_value<float>(raw_remap, "speed");
+        remap.reverse = raw_remap.value("reverse", false);
+        remap.freeze_frame = optional_frame(raw_remap, "freeze_frame");
+        if (raw_remap.contains("animation")) {
+            AnimationTrackPlan track;
+            const auto& animation = raw_remap.at("animation");
+            track.property = "time_remap";
+            track.easing = animation.value("easing", std::string{"linear"});
+            for (const auto& key_value : animation.at("keyframes")) {
+                AnimationKeyframePlan key;
+                key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
+                const auto& raw = key_value.at("value");
+                if (raw.is_array()) {
+                    if (raw.size() != 1)
+                        throw std::runtime_error("time_remap keyframes require scalar values");
+                    key.value.push_back(raw.at(0).get<float>());
+                } else {
+                    key.value.push_back(raw.get<float>());
+                }
+                if (!std::isfinite(key.value.front()) || key.value.front() < 0.0f ||
+                    key.value.front() > 1000000.0f)
+                    throw std::runtime_error("time_remap source frame values must be finite and in [0, 1000000]");
+                track.keyframes.push_back(std::move(key));
+            }
+            remap.animation = std::move(track);
+        }
+        if (remap.speed && (!std::isfinite(*remap.speed) || *remap.speed <= 0.0f || *remap.speed > 1000.0f))
+            throw std::runtime_error("time_remap.speed must be finite and in (0, 1000]");
+        if (remap.freeze_frame && (remap.freeze_frame->integral() < 0 || remap.freeze_frame->integral() > 1000000))
+            throw std::runtime_error("time_remap.freeze_frame must be in [0, 1000000]");
+        if (remap.freeze_frame && remap.animation)
+            throw std::runtime_error("time_remap cannot specify both freeze_frame and animation");
+        layer.time_remap = std::move(remap);
+    }
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     layer.text = value.value("text", std::string{});

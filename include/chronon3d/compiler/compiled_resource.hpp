@@ -40,6 +40,7 @@ enum class AnimationProperty : std::uint8_t {
     RotationX,
     RotationY,
     RotationZ,
+    TimeRemap,
 };
 
 /// Immutable, typed timeline entry. Frame values are authored-time data;
@@ -57,6 +58,7 @@ struct AnimationTrackProgram {
     std::uint32_t first_keyframe{0};
     std::uint32_t keyframe_count{0};
     AnimationProperty property_kind{AnimationProperty::Unknown};
+    std::string easing{"linear"};
 };
 
 struct CurveKeyframeProgram {

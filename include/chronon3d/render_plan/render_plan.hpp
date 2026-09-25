@@ -144,6 +144,22 @@ struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
 
+enum class TrackMatteTypePlan : std::uint8_t {
+    Alpha, AlphaInverted, Luma, LumaInverted
+};
+
+struct TrackMattePlan {
+    std::string source;
+    TrackMatteTypePlan type{TrackMatteTypePlan::Alpha};
+};
+
+struct TimeRemapPlan {
+    std::optional<float> speed;
+    bool reverse{false};
+    std::optional<Frame> freeze_frame;
+    std::optional<AnimationTrackPlan> animation;
+};
+
 // Camera values are expressed in world units and degrees. rotation_deg uses
 // the canonical [tilt_x, pan_y, roll_z] order consumed by Camera2_5D.
 struct CameraPlan {
@@ -194,6 +210,9 @@ struct TextAnimatorPlan {
 struct LayerPlan {
     std::string id;
     LayerType type{LayerType::Color};
+    std::optional<std::string> parent;
+    std::optional<TrackMattePlan> track_matte;
+    std::optional<TimeRemapPlan> time_remap;
     std::string asset;
     std::string source;
     std::string text;
@@ -333,6 +352,9 @@ struct PlanDecodeError {
     const RenderBudget& budget = {});
 
 [[nodiscard]] std::uint64_t compute_render_plan_content_fingerprint(
+    const RenderPlan& plan);
+
+[[nodiscard]] std::optional<PlanDecodeError> validate_render_plan_layer_relations(
     const RenderPlan& plan);
 
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root);
