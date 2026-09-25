@@ -193,6 +193,24 @@ std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
         CameraTrackPlan track;
         track.property = camera_property(raw.at("property").get<std::string>());
         track.easing = raw.value("easing", std::string{"linear"});
+        const bool has_curve = raw.contains("bezier_curve");
+        if ((track.easing == "bezier") != has_curve)
+            throw std::runtime_error("camera animation requires easing='bezier' and bezier_curve together");
+        if (has_curve) {
+            const auto& values = raw.at("bezier_curve");
+            if (!values.is_array() || values.size() != 4)
+                throw std::runtime_error("camera animation bezier_curve must contain [x1, y1, x2, y2]");
+            std::array<float, 4> curve{};
+            for (std::size_t i = 0; i < curve.size(); ++i) {
+                curve[i] = values.at(i).get<float>();
+                if (!std::isfinite(curve[i]))
+                    throw std::runtime_error("camera animation bezier_curve values must be finite");
+            }
+            if (curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+                curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+                throw std::runtime_error("camera animation bezier_curve x handles must be in [0, 1] and y handles in [-10, 10]");
+            track.bezier_curve = curve;
+        }
         for (const auto& raw_key : raw.at("keyframes")) {
             AnimationKeyframePlan key;
             key.frame = Frame{raw_key.at("frame").get<std::int64_t>()};

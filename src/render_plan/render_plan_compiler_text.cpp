@@ -49,20 +49,20 @@ chronon3d::TextDefinition materialize_text(
         definition.style.paint.stroke_color = *stroke_color;
         definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
     }
-    const auto append_shadow = [&](const ShadowStyle& spec) {
+    const auto append_shadow = [&](const ShadowStyle& shadow_style) {
         // Keep colour alpha and shadow opacity as separate factors.  The
         // canonical text renderer applies opacity once to the blurred union
         // mask; baking it into the colour here would multiply it twice.
-        const auto shadow_color = parse_hex_color(spec.color);
+        const auto shadow_color = parse_hex_color(shadow_style.color);
         if (!shadow_color)
             throw std::runtime_error("text layer '" + layer.id + "' has invalid shadow color");
         chronon3d::TextShadow shadow;
         shadow.enabled = true;
         shadow.color = *shadow_color;
-        shadow.opacity = spec.opacity.value_or(1.0f);
-        shadow.blur = spec.blur.value_or(0.0f);
-        if (spec.offset_dimensions == 2) {
-            shadow.offset = {spec.offset[0], spec.offset[1]};
+        shadow.opacity = shadow_style.opacity.value_or(1.0f);
+        shadow.blur = shadow_style.blur.value_or(0.0f);
+        if (shadow_style.offset_dimensions == 2) {
+            shadow.offset = {shadow_style.offset[0], shadow_style.offset[1]};
         }
         definition.style.shadows.push_back(shadow);
     };

@@ -5,6 +5,16 @@
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
     "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "bezier_curve": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": { "type": "number", "minimum": -10, "maximum": 10 }
+    },
+    "bezier_easing_contract": {
+      "allOf": [
+        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"] } },
+        { "if": { "required": ["bezier_curve"] }, "then": { "properties": { "easing": { "const": "bezier" } }, "required": ["easing"] } }
+      ]
+    },
     "rgba": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
     "color_stop": {
       "type": "object", "additionalProperties": false,
@@ -214,6 +224,7 @@
               "animation": {
                 "type": "object", "additionalProperties": false,
                 "required": ["keyframes"],
+                "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
                 "properties": {
                   "easing": {
                     "enum": ["linear", "in_quad", "out_quad", "in_out_quad",
@@ -221,8 +232,9 @@
                       "in_out_expo", "in_sine", "out_sine", "in_out_sine", "in_back",
                       "out_back", "in_out_back", "in_elastic", "out_elastic",
                       "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce",
-                      "smoothstep", "hold"]
+                      "smoothstep", "hold", "bezier"]
                   },
+                  "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
                   "keyframes": {
                     "type": "array", "minItems": 1, "maxItems": 65536,
                     "items": {
@@ -297,6 +309,43 @@
                 "properties": {
                   "type": { "const": "mosaic" },
                   "block_size": { "type": "integer", "minimum": 1, "maximum": 512 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "gaussian_blur" },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 256 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "drop_shadow" },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 256 },
+                  "offset": { "type": "array", "minItems": 2, "maxItems": 2,
+                              "items": { "type": "number", "minimum": -10000, "maximum": 10000 } },
+                  "color": { "type": "array", "minItems": 4, "maxItems": 4,
+                             "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "bloom" },
+                  "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 256 },
+                  "intensity": { "type": "number", "minimum": 0, "maximum": 4 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "glow" },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 256 },
+                  "intensity": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "color": { "type": "array", "minItems": 4, "maxItems": 4,
+                             "items": { "type": "number", "minimum": 0, "maximum": 1 } }
                 }
               }
             ] }

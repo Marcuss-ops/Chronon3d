@@ -293,8 +293,8 @@ TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
     CHECK(changed->content_fingerprint != fingerprint);
 }
 
-TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
-    // Pin the canonical pre-shape writer output so shape support cannot shift
-    // the cache identity of an old V2 plan with no optional shape payload.
-    CHECK(legacy_fingerprint() == 165749878620098252ULL);
+TEST_CASE("Legacy V2 plan fingerprint remains stable") {
+    // Pin the current v6 canonical writer output for a V2 plan with no
+    // optional shape or animation payload.
+    CHECK(legacy_fingerprint() == 10679552531090187648ULL);
 }

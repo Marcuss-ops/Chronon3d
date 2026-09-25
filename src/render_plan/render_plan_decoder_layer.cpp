@@ -21,6 +21,29 @@ std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
     return object.at(key).get<T>();
 }
 
+std::optional<std::array<float, 4>> decode_bezier_curve(
+    const nlohmann::json& object, std::string_view easing, std::string_view field) {
+    const bool has_curve = object.contains("bezier_curve");
+    if ((easing == "bezier") != has_curve)
+        throw std::runtime_error(std::string(field) +
+            " requires easing='bezier' and bezier_curve together");
+    if (!has_curve) return std::nullopt;
+    const auto& raw = object.at("bezier_curve");
+    if (!raw.is_array() || raw.size() != 4)
+        throw std::runtime_error(std::string(field) + ".bezier_curve must contain [x1, y1, x2, y2]");
+    std::array<float, 4> curve{};
+    for (std::size_t i = 0; i < curve.size(); ++i) {
+        curve[i] = raw.at(i).get<float>();
+        if (!std::isfinite(curve[i]))
+            throw std::runtime_error(std::string(field) + ".bezier_curve values must be finite");
+    }
+    if (curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+        curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+        throw std::runtime_error(std::string(field) +
+            ".bezier_curve x handles must be in [0, 1] and y handles in [-10, 10]");
+    return curve;
+}
+
 std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
     if (!object.contains(key)) return std::nullopt;
     return Frame{object.at(key).get<std::int64_t>()};
@@ -36,6 +59,7 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     // confusing decode failure.
     track.property = value.value("property", std::string{});
     track.easing = value.value("easing", std::string{"linear"});
+    track.bezier_curve = decode_bezier_curve(value, track.easing, "animation track");
     for (const auto& key_value : value.at("keyframes")) {
         AnimationKeyframePlan key;
         key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
@@ -112,6 +136,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             const auto& animation = raw_remap.at("animation");
             track.property = "time_remap";
             track.easing = animation.value("easing", std::string{"linear"});
+            track.bezier_curve = decode_bezier_curve(animation, track.easing, "time_remap.animation");
             for (const auto& key_value : animation.at("keyframes")) {
                 AnimationKeyframePlan key;
                 key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
@@ -671,6 +696,62 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 effect.block_size = raw_effect.value("block_size", 8u);
                 if (effect.block_size == 0 || effect.block_size > 512)
                     throw std::runtime_error("Mosaic block_size must be in [1, 512]");
+            } else if (kind == "gaussian_blur") {
+                effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+                effect.radius = raw_effect.value("radius", 8.0f);
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
+                    throw std::runtime_error("Gaussian blur radius must be in [0, 256]");
+            } else if (kind == "drop_shadow") {
+                effect.kind = LayerPlan::EffectKindPlan::DropShadow;
+                effect.radius = raw_effect.value("radius", 12.0f);
+                if (raw_effect.contains("offset")) {
+                    const auto& offset = raw_effect.at("offset");
+                    if (!offset.is_array() || offset.size() != 2)
+                        throw std::runtime_error("Drop shadow offset must contain [x, y]");
+                    for (std::size_t i = 0; i < 2; ++i) {
+                        effect.offset[i] = offset.at(i).get<float>();
+                        if (!std::isfinite(effect.offset[i]) || std::abs(effect.offset[i]) > 10000.0f)
+                            throw std::runtime_error("Drop shadow offset values must be finite and within [-10000, 10000]");
+                    }
+                }
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Drop shadow color must contain [r, g, b, a]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.effect_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.effect_color[i]) || effect.effect_color[i] < 0.0f || effect.effect_color[i] > 1.0f)
+                            throw std::runtime_error("Drop shadow color components must be in [0, 1]");
+                    }
+                }
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
+                    throw std::runtime_error("Drop shadow radius must be in [0, 256]");
+            } else if (kind == "bloom") {
+                effect.kind = LayerPlan::EffectKindPlan::Bloom;
+                effect.bloom_threshold = raw_effect.value("threshold", 0.80f);
+                effect.radius = raw_effect.value("radius", 24.0f);
+                effect.bloom_intensity = raw_effect.value("intensity", 0.60f);
+                if (!std::isfinite(effect.bloom_threshold) || effect.bloom_threshold < 0.0f || effect.bloom_threshold > 1.0f ||
+                    !std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
+                    !std::isfinite(effect.bloom_intensity) || effect.bloom_intensity < 0.0f || effect.bloom_intensity > 4.0f)
+                    throw std::runtime_error("Bloom requires threshold in [0, 1], radius in [0, 256], and intensity in [0, 4]");
+            } else if (kind == "glow") {
+                effect.kind = LayerPlan::EffectKindPlan::Glow;
+                effect.radius = raw_effect.value("radius", 24.0f);
+                effect.glow_intensity = raw_effect.value("intensity", 0.25f);
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Glow color must contain [r, g, b, a]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.effect_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.effect_color[i]) || effect.effect_color[i] < 0.0f || effect.effect_color[i] > 1.0f)
+                            throw std::runtime_error("Glow color components must be in [0, 1]");
+                    }
+                }
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
+                    !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
+                    throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
             } else throw std::runtime_error("unsupported layer effect type");
             layer.effects.push_back(std::move(effect));
         }

@@ -4,6 +4,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 
 #include <stdexcept>
+#include <cmath>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -11,8 +12,24 @@
 namespace chronon3d::render_plan::detail {
 namespace {
 
-chronon3d::EasingCurve track_easing(std::string_view value) {
+chronon3d::EasingCurve track_easing(
+    std::string_view value,
+    const std::optional<std::array<float, 4>>& bezier_curve = std::nullopt) {
     using chronon3d::Easing;
+    if (value == "bezier") {
+        if (!bezier_curve)
+            throw std::runtime_error("easing='bezier' requires bezier_curve [x1, y1, x2, y2]");
+        const auto& curve = *bezier_curve;
+        if (!std::isfinite(curve[0]) || !std::isfinite(curve[1]) ||
+            !std::isfinite(curve[2]) || !std::isfinite(curve[3]) ||
+            curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+            curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+            throw std::runtime_error("bezier_curve handles must be finite; x in [0, 1], y in [-10, 10]");
+        return chronon3d::EasingCurve::cubic_bezier(
+            curve[0], curve[1], curve[2], curve[3]);
+    }
+    if (bezier_curve)
+        throw std::runtime_error("bezier_curve requires easing='bezier'");
     if (value == "linear") return {Easing::Linear};
     if (value == "in_quad") return {Easing::InQuad};
     if (value == "out_quad") return {Easing::OutQuad};
@@ -108,7 +125,7 @@ chronon3d::AnimatedValue<T> animated_text_value(
     const AnimationTrackPlan& track, T fallback, std::string_view property) {
     chronon3d::AnimatedValue<T> result{fallback};
     for (const auto& key : track.keyframes) {
-        const auto easing = track_easing(track.easing);
+        const auto easing = track_easing(track.easing, track.bezier_curve);
         if constexpr (std::is_same_v<T, float>) {
             result.add_keyframe(key.frame, scalar_value(key, property), easing);
         } else {
@@ -130,7 +147,7 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
             value.y = scalar_value(key, property);
         else
             value.z = scalar_value(key, property);
-        result.add_keyframe(key.frame, value, track_easing(track.easing));
+        result.add_keyframe(key.frame, value, track_easing(track.easing, track.bezier_curve));
     }
     return result;
 }
@@ -212,7 +229,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     bool blur_claimed = false;
 
     for (const auto& track : layer.animation->tracks) {
-        const auto easing = track_easing(track.easing);
+        const auto easing = track_easing(track.easing, track.bezier_curve);
         const auto component_track = [&](std::string_view prefix) {
             return track.property == std::string(prefix) + "_x" ||
                    track.property == std::string(prefix) + "_y" ||
@@ -332,7 +349,7 @@ make_camera_descriptor(const RenderPlan& plan) {
             if (key.value.size() != 1)
                 throw std::runtime_error("camera track keyframes require scalar values");
             const auto value = key.value.front();
-            const auto easing = camera_track_easing(track.easing);
+            const auto easing = track_easing(track.easing, track.bezier_curve);
             switch (track.property) {
                 case CameraPropertyPlan::PositionX: {
                     auto current = descriptor.base.position;
@@ -437,7 +454,8 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
             auto& remap = builder.time_remap_anim();
             for (const auto& key : layer.time_remap->animation->keyframes)
                 remap.add_keyframe(key.frame, scalar_value(key, "time_remap"),
-                                   track_easing(layer.time_remap->animation->easing));
+                                   track_easing(layer.time_remap->animation->easing,
+                                                layer.time_remap->animation->bezier_curve));
         }
     }
     if (layer.enable_3d) builder.enable_3d();

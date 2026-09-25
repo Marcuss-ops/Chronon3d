@@ -158,6 +158,25 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     prepared_effects[index].emplace_back(ThresholdParams{
                         .threshold = effect.threshold,
                         .softness = effect.threshold_softness});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur) {
+                    prepared_effects[index].emplace_back(BlurParams{.radius = effect.radius});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::DropShadow) {
+                    prepared_effects[index].emplace_back(DropShadowParams{
+                        .offset = Vec2{effect.offset[0], effect.offset[1]},
+                        .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                       effect.effect_color[2], effect.effect_color[3]},
+                        .radius = effect.radius});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Bloom) {
+                    prepared_effects[index].emplace_back(BloomParams{
+                        .threshold = effect.bloom_threshold,
+                        .radius = effect.radius,
+                        .intensity = effect.bloom_intensity});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Glow) {
+                    prepared_effects[index].emplace_back(GlowParams{
+                        .radius = effect.radius,
+                        .intensity = effect.glow_intensity,
+                        .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                       effect.effect_color[2], effect.effect_color[3]}});
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
