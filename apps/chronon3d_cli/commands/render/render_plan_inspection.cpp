@@ -26,6 +26,8 @@ std::string layer_type_name(render_plan::LayerType type) {
 std::string output_format_name(render_plan::OutputFormat format) {
     switch (format) {
         case render_plan::OutputFormat::Png:  return "png";
+        case render_plan::OutputFormat::PngSequence: return "png_sequence";
+        case render_plan::OutputFormat::Gif: return "gif";
         case render_plan::OutputFormat::Mp4:  return "mp4";
         case render_plan::OutputFormat::Mkv:  return "mkv";
         case render_plan::OutputFormat::WebM: return "webm";

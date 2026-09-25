@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <optional>
+#include <array>
 #include <vector>
 
 namespace chronon3d {
@@ -21,6 +22,9 @@ struct RectParams {
 struct RoundedRectParams {
     Vec2 size{100, 100};
     f32 radius{8.0f};
+    // Optional [top-left, top-right, bottom-right, bottom-left] radii.
+    // When omitted, the legacy uniform `radius` is used.
+    std::optional<std::array<f32, 4>> corner_radius{};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     std::optional<graphics::FillStyle> fill{};

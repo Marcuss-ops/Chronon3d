@@ -163,6 +163,19 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         for (const auto value : shadow.offset) writer.add_float(value);
         writer.add_size(shadow.offset_dimensions);
     });
+    out.add_size(style.shadows.size());
+    for (const auto& shadow : style.shadows) {
+        out.add_string(shadow.color);
+        add_optional(out, shadow.opacity, [](auto& nested, float value) { nested.add_float(value); });
+        add_optional(out, shadow.blur, [](auto& nested, float value) { nested.add_float(value); });
+        for (const auto value : shadow.offset) out.add_float(value);
+        out.add_size(shadow.offset_dimensions);
+    }
+    add_optional(out, style.backdrop, [](auto& writer, const BackdropBlurStyle& backdrop) {
+        writer.add_float(backdrop.blur);
+        writer.add_float(backdrop.brightness);
+        writer.add_float(backdrop.saturation);
+    });
     add_optional(out, style.glow, [](auto& writer, const GlowStyle& glow) {
         writer.add_float(glow.radius);
         writer.add_float(glow.intensity);
@@ -259,6 +272,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         const auto& shape = *layer.shape;
         out.add_enum(shape.type);
         out.add_float(shape.radius);
+        add_optional(out, shape.corner_radius, [](auto& nested, const auto& radii) {
+            for (const auto radius : radii) nested.add_float(radius);
+        });
         add_optional(out, shape.fill_color, [](auto& nested, const auto& color) {
             for (const auto component : color) nested.add_float(component);
         });
