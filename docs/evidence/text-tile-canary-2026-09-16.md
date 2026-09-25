@@ -95,7 +95,18 @@ auto-correggersi: è il modo in cui una misura stale sopravvive a un fix.
 * Il canary può tornare a essere un gate: `tools/verify_text_tile_gpu_canary.sh`
   lo costruisce ed esegue, richiedendo 78/78 quando esiste un device Vulkan.
 
-## 6. Ripro
+## 6. Riproduzione
+
+### Nota di aggiornamento ABI — 2026-09-25
+
+Il dato da 112 byte sopra è storico e descrive l'ABI al momento della prova del
+16 settembre. Rotation e fill-color per-glyph hanno poi esteso il record tile a
+128 byte. Il canary attuale usa direttamente
+`chronon3d::runtime::TextRunDynamic` (128 byte); `tests/test_shader_layout_contract.py`
+confronta entrambi gli shader tile con i campi/size C++ e con l'`ArrayStride`
+SPIR-V compilato quando `glslangValidator` è disponibile. Nel closeout 2026-09-25
+questo contract test e il canary Vulkan sono passati; la certificazione video
+GPU same-SHA e il corpus restano separati e non sono dichiarati completati.
 
 ```bash
 Chronon3d/tools/verify_text_tile_gpu_canary.sh                     # default: lane linux-video-test

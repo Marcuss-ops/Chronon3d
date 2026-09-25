@@ -54,17 +54,23 @@ graph::RenderOpResult draw_cached_text_run(
         }
     }
 
-    const auto frame_number = ctx.frame_input.frame.integral();
-    spdlog::info(
-        "[text-route] frame={} route={} reason={} unsupported_animation={} "
-        "forced_software={} native_surfaces={} prepared_cache={} backend={} "
-        "surface_registry={}",
-        frame_number,
-        detail::text_execution_route_name(route_decision.route),
-        detail::text_route_reason_name(route_decision.reason),
-        unsupported_animation, force_software, native_surfaces_supported,
-        ctx.gpu_text_prepared_cache != nullptr, ctx.backend != nullptr,
-        ctx.surface_registry != nullptr);
+    if (ctx.policy.diagnostics_enabled) {
+        const auto frame_number = ctx.frame_input.frame.integral();
+        spdlog::info(
+            "[text-route] frame={} route={} reason={} unsupported_animation={} "
+            "forced_software={} native_surfaces={} prepared_cache={} backend={} "
+            "surface_registry={}",
+            frame_number,
+            detail::text_execution_route_name(route_decision.route),
+            detail::text_route_reason_name(route_decision.reason),
+            unsupported_animation, force_software, native_surfaces_supported,
+            ctx.gpu_text_prepared_cache != nullptr, ctx.backend != nullptr,
+            ctx.surface_registry != nullptr);
+    }
+
+    // Route counters above remain the normal per-job observability; this
+    // detailed frame-level record is opt-in so production rendering does not
+    // format or emit one INFO message per text run per frame.
 
     if (route_decision.route == detail::TextExecutionRoute::Reject) {
         return graph::RenderOpResult(graph::make_render_backend_error(
@@ -86,5 +92,4 @@ graph::RenderOpResult draw_cached_text_run(
     return draw_cached_text_run_mtsdf(
         ctx, destination, shape, model_matrix, opacity);
 }
-
 } // namespace chronon3d::graph::text_run

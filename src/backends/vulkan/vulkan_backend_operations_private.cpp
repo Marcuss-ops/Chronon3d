@@ -99,7 +99,8 @@ void VulkanBackend::Impl::fill_solid_shape(
     std::int32_t x0, std::int32_t y0,
     std::int32_t x1, std::int32_t y1,
     const Vec4& shape, const Vec4& line,
-    const Color& color) {
+    const Color& color,
+    const std::array<Vec2, 8>& vertices) {
     auto& dst_image = resolve_image(destination);
     if (dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument("Vulkan shape fill references an empty surface");
@@ -110,7 +111,7 @@ void VulkanBackend::Impl::fill_solid_shape(
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image});
         record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
-                         color, shape, line);
+                         color, shape, line, vertices);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

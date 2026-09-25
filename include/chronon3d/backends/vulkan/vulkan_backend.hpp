@@ -397,10 +397,15 @@ public:
     /// Native axis-aligned solid primitive fill. `primitive_kind` is 0 for
     /// rectangles, 1 for rounded rectangles and 2 for ellipses; radii are in
     /// destination pixels.
+    /// For Fase 2 stroked kinds (0–2 with shape.w==1) the extra geometry
+    /// (vertices[0]/[1]) and stroke band (vertices[2]) are passed through
+    /// the shared push-constant vertices slot, exactly like the polygon/grid
+    /// path, so the 128-byte push constant is not enlarged.
     graph::RenderOpResult fill_solid_shape_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Vec4& shape,
-        const Vec4& line, const Color&);
+        const Vec4& line, const Color&,
+        const std::array<Vec2, 8>& vertices = {});
     graph::RenderOpResult fill_path_surface(
         runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
     /// Native analytic grid background fill over the half-open destination
