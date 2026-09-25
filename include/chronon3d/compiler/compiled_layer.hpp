@@ -16,6 +16,10 @@ namespace chronon3d::compiler {
 /// by the materializer/sampler after the compiler boundary.
 enum class LayerFitMode : std::uint8_t { Cover, Contain, Stretch, None };
 
+enum class LayerTrackMatteType : std::uint8_t {
+    None, Alpha, AlphaInverted, Luma, LumaInverted
+};
+
 struct StaticLayerProgram {
     static constexpr std::uint32_t kInvalidProgramIndex =
         std::numeric_limits<std::uint32_t>::max();
@@ -48,6 +52,13 @@ struct StaticLayerProgram {
     // program's text/animation tables by layer id on every frame.
     std::uint32_t text_program_index{kInvalidProgramIndex};
     std::uint32_t animation_program_index{kInvalidProgramIndex};
+    std::uint32_t parent_index{kInvalidProgramIndex};
+    std::uint32_t hierarchy_depth{0};
+    std::uint32_t matte_source_index{kInvalidProgramIndex};
+    LayerTrackMatteType matte_type{LayerTrackMatteType::None};
+    float time_remap_speed{1.0f};
+    std::int64_t time_remap_freeze_frame{-1};
+    std::uint32_t time_remap_track_index{kInvalidProgramIndex};
 };
 
 }  // namespace chronon3d::compiler
