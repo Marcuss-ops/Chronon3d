@@ -41,6 +41,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SHADER = ROOT / "src" / "backends" / "vulkan" / "shaders" / "text_run.comp"
 CPP_HEADER = ROOT / "include" / "chronon3d" / "runtime" / "render_surface.hpp"
 STRUCT_NAME = "GlyphInstance"
+TEXT_RUN_DYNAMIC = "TextRunDynamic"
+TEXT_TILE_SHADERS = (
+    ROOT / "src" / "backends" / "vulkan" / "shaders" / "text_tile_bin.comp",
+    ROOT / "src" / "backends" / "vulkan" / "shaders" / "text_tile_raster.comp",
+)
 
 # GLSL scalar -> (canonical slot name, std430 size).
 GLSL_SCALARS = {
@@ -81,7 +86,10 @@ def _struct_body(text, name):
     `{0}` would otherwise close a non-greedy `.*?}` match early.
     """
     text = _strip_line_comments(text)
-    match = re.search(r"\bstruct\s+%s\s*\{" % re.escape(name), text)
+    match = re.search(
+        r"\bstruct\s+(?:alignas\s*\([^)]*\)\s*)?%s\s*\{" % re.escape(name),
+        text,
+    )
     if not match:
         raise AssertionError("struct %s not found" % name)
     start = match.end()
@@ -182,9 +190,9 @@ def _cpp_fields(body):
     return fields
 
 
-def _cpp_pinned_size(header_text):
+def _cpp_pinned_size(header_text, struct_name=STRUCT_NAME):
     match = re.search(
-        r"static_assert\(\s*sizeof\(\s*%s\s*\)\s*==\s*(?P<size>\d+)" % re.escape(STRUCT_NAME),
+        r"static_assert\(\s*sizeof\(\s*%s\s*\)\s*==\s*(?P<size>\d+)" % re.escape(struct_name),
         header_text,
     )
     if not match:
@@ -265,51 +273,65 @@ def test_shader_comment_declares_real_size():
     )
 
 
-def _spirv_array_stride():
-    """ArrayStride glslangValidator emits for the shader's runtime array."""
+def _spirv_array_stride(shader=SHADER, struct_name=STRUCT_NAME):
+    """ArrayStride emitted for the runtime array whose element is struct_name."""
     tool = shutil.which("glslangValidator")
     if not tool:
         return None
     with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp) / "text_run.spv"
+        out = Path(tmp) / (shader.stem + ".spv")
         proc = subprocess.run(
-            [tool, "-V", str(SHADER), "-o", str(out)],
+            [tool, "-V", "-g", str(shader), "-o", str(out)],
             capture_output=True,
             text=True,
         )
         if proc.returncode != 0 or not out.exists():
             raise AssertionError(
-                "glslangValidator failed on %s: %s" % (SHADER.name, proc.stderr.strip())
+                "glslangValidator failed on %s: %s" % (shader.name, proc.stderr.strip())
             )
         data = out.read_bytes()
     words = struct.unpack("<%dI" % (len(data) // 4), data)
-    op_type_runtime_array, op_decorate, dec_array_stride = 29, 71, 6
-    runtime_arrays, strides = set(), {}
+    op_name, op_type_runtime_array, op_decorate, dec_array_stride = 5, 29, 71, 6
+    names, runtime_arrays, strides = {}, {}, {}
     index = 5  # skip the 5-word header
     while index < len(words):
         word_count = words[index] >> 16
         opcode = words[index] & 0xFFFF
         if word_count == 0 or index + word_count > len(words):
             break
-        if opcode == op_type_runtime_array:
-            runtime_arrays.add(words[index + 1])
+        if opcode == op_name:
+            raw_name = struct.pack(
+                "<%dI" % (word_count - 2), *words[index + 2 : index + word_count]
+            ).split(bytes([0]), 1)[0].decode("utf-8")
+            names[raw_name] = words[index + 1]
+        elif opcode == op_type_runtime_array:
+            runtime_arrays[words[index + 1]] = words[index + 2]
         elif opcode == op_decorate and words[index + 2] == dec_array_stride:
             strides[words[index + 1]] = words[index + 3]
         index += word_count
-    assert len(runtime_arrays) == 1, (
-        "expected exactly one runtime array in %s, found %d — extend this test"
-        % (SHADER.name, len(runtime_arrays))
+    struct_id = names.get(struct_name)
+    assert struct_id is not None, (
+        "glslangValidator emitted no OpName for %s in %s"
+        % (struct_name, shader.name)
     )
-    array_id = runtime_arrays.pop()
+    matching_arrays = [
+        array_id for array_id, element_id in runtime_arrays.items()
+        if element_id == struct_id
+    ]
+    assert len(matching_arrays) == 1, (
+        "expected one runtime array of %s in %s, found %d"
+        % (struct_name, shader.name, len(matching_arrays))
+    )
+    array_id = matching_arrays[0]
     assert array_id in strides, (
-        "glslangValidator emitted no ArrayStride for the runtime array — the "
-        "struct is not in a std430 buffer anymore"
+        "glslangValidator emitted no ArrayStride for %s in %s"
+        % (struct_name, shader.name)
     )
     return strides[array_id]
 
 
 def test_compiled_array_stride_matches_cpp():
-    stride = _spirv_array_stride()
+    stride = _spirv_array_stride(SHADER, STRUCT_NAME)
     if stride is None:
         print("  SKIP: glslangValidator not on PATH — compiled stride not checked")
         return False
@@ -320,14 +342,49 @@ def test_compiled_array_stride_matches_cpp():
     return True
 
 
+def test_text_tile_dynamic_layout_matches_cpp():
+    header = _read(CPP_HEADER)
+    cpp_body = _struct_body(header, TEXT_RUN_DYNAMIC)
+    cpp_fields = _cpp_fields(cpp_body)
+    pinned = _cpp_pinned_size(header, TEXT_RUN_DYNAMIC)
+    assert pinned == 128, "TextRunDynamic ABI must remain 128 bytes"
+
+    for shader in TEXT_TILE_SHADERS:
+        shader_body = _struct_body(_read(shader), "GpuTextRunDynamic")
+        glsl_members = _glsl_members(shader_body)
+        glsl_fields = [
+            (name, slot)
+            for name, slots, _, _ in glsl_members
+            for slot in slots
+            if len(slots) == 1
+        ]
+        assert glsl_fields == cpp_fields, (
+            "%s GpuTextRunDynamic fields diverge from C++ TextRunDynamic: "
+            "%r != %r" % (shader.name, glsl_fields, cpp_fields)
+        )
+        computed = _std430_size(glsl_members)
+        assert computed == pinned, (
+            "%s std430 size %d != C++ TextRunDynamic size %d"
+            % (shader.name, computed, pinned)
+        )
+        stride = _spirv_array_stride(shader, "GpuTextRunDynamic")
+        if stride is not None:
+            assert stride == pinned, (
+                "%s compiled TextRunDynamic ArrayStride %d != C++ size %d"
+                % (shader.name, stride, pinned)
+            )
+
+
 if __name__ == "__main__":
     test_glsl_slot_sequence_matches_cpp()
     test_shared_member_names_keep_order()
     test_computed_size_matches_cpp_static_assert()
     test_shader_comment_declares_real_size()
     compiled = test_compiled_array_stride_matches_cpp()
+    test_text_tile_dynamic_layout_matches_cpp()
     print(
-        "shader layout contract tests: PASS (spirv stride check: %s)"
+        "shader layout contract tests: PASS (text-run SPIR-V stride check: %s; "
+        "text-tile GLSL/C++ layout checks: PASS)"
         % ("ran" if compiled else "skipped")
     )
     sys.exit(0)

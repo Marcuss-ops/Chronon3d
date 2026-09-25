@@ -1,8 +1,17 @@
 #include <doctest/doctest.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/sink.h>
 
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+
+#include <mutex>
 #include <string>
+#include <vector>
 
 #include "src/render_graph/nodes/text_run/gpu_text_cached_policy.hpp"
+#include "src/render_graph/nodes/text_run/gpu_text_run.hpp"
 
 using chronon3d::graph::text_run::detail::TextExecutionRoute;
 using chronon3d::graph::text_run::detail::TextRouteReason;
@@ -12,6 +21,52 @@ namespace {
 
 constexpr bool kNativeSurfaces = true;
 constexpr bool kNoNativeSurfaces = false;
+
+class TextRouteCaptureSink final : public spdlog::sinks::sink {
+public:
+    void log(const spdlog::details::log_msg& message) override {
+        std::lock_guard lock(m_mutex);
+        m_messages.emplace_back(message.payload.begin(), message.payload.end());
+    }
+    void flush() override {}
+    void set_pattern(const std::string&) override {}
+    void set_formatter(std::unique_ptr<spdlog::formatter>) override {}
+
+    [[nodiscard]] std::vector<std::string> messages() const {
+        std::lock_guard lock(m_mutex);
+        return m_messages;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    std::vector<std::string> m_messages;
+};
+
+class ScopedTextRouteLogCapture {
+public:
+    ScopedTextRouteLogCapture() : m_previous(spdlog::default_logger()) {
+        m_sink = std::make_shared<TextRouteCaptureSink>();
+        m_logger = std::make_shared<spdlog::logger>("text_route_test", m_sink);
+        m_logger->set_level(spdlog::level::trace);
+        spdlog::set_default_logger(m_logger);
+    }
+    ~ScopedTextRouteLogCapture() { spdlog::set_default_logger(m_previous); }
+
+    [[nodiscard]] const TextRouteCaptureSink& sink() const noexcept { return *m_sink; }
+
+private:
+    std::shared_ptr<spdlog::logger> m_previous;
+    std::shared_ptr<TextRouteCaptureSink> m_sink;
+    std::shared_ptr<spdlog::logger> m_logger;
+};
+
+std::size_t text_route_log_count(const TextRouteCaptureSink& sink) {
+    const auto messages = sink.messages();
+    return static_cast<std::size_t>(std::count_if(
+        messages.begin(), messages.end(), [](const std::string& message) {
+            return message.find("[text-route]") != std::string::npos;
+        }));
+}
 
 } // namespace
 
@@ -54,6 +109,33 @@ TEST_CASE("Cached GPU text policy fails closed without native MTSDF resources") 
               .route == TextExecutionRoute::Reject);
     CHECK(resolve_text_execution_route(false, kNativeSurfaces, false, true, true, false)
               .route == TextExecutionRoute::Reject);
+}
+
+TEST_CASE("Cached GPU text route logs only when diagnostics are enabled") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph::text_run;
+
+    const auto run_case = [](bool diagnostics_enabled) {
+        ScopedTextRouteLogCapture capture;
+        RenderCounters counters;
+        profiling::ProfilingGuard profiling_guard(&counters, nullptr);
+
+        graph::RenderGraphContext context;
+        context.policy.diagnostics_enabled = diagnostics_enabled;
+        context.frame_input.frame = Frame{17};
+        TextRunShape shape;
+        shape.animators.emplace_back(); // invalid/unlowerable: route rejects before resource access
+        Framebuffer destination(1, 1);
+        const auto result = draw_cached_text_run(
+            context, destination, shape, glm::mat4{1.0f}, 1.0f);
+
+        CHECK_FALSE(result.ok());
+        CHECK(counters.gpu_text_route_reject_count.load(std::memory_order_relaxed) == 1);
+        return text_route_log_count(capture.sink());
+    };
+
+    CHECK(run_case(false) == 0);
+    CHECK(run_case(true) == 1);
 }
 
 TEST_CASE("Cached GPU text policy names every route and reason") {
