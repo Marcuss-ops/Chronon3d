@@ -201,8 +201,8 @@ TEST_CASE("ExecutionResolver resolves YUV execution paths from a FrameDelta") {
         chronon3d::RenderSettings{}, dirty, 0.25, nullptr,
         chronon3d::Frame{1}, 32, 32, nullptr, false, false,
         chronon3d::runtime::PixelFormat::Nv12);
-    CHECK(plan.path == chronon3d::graph::FrameExecutionPath::SparseYuv);
-    CHECK(plan.reason == "sparse_yuv_nv12");
+    CHECK(plan.path == chronon3d::graph::FrameExecutionPath::FullYuv);
+    CHECK(plan.reason == "sparse_yuv_executor_unavailable");
     REQUIRE(plan.dirty_regions.size() == 1);
 
     dirty.use_dirty_tiles = false;
