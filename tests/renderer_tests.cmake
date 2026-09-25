@@ -135,6 +135,7 @@ chronon3d_add_test_suite(
         effects/test_compose_color_op.cpp
         effects/test_cube_lut.cpp
         effects/test_keying.cpp
+        effects/test_warp.cpp
         effects/test_stylize.cpp
         effects/test_curves.cpp
         effects/test_directional_blur.cpp

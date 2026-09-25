@@ -215,6 +215,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                             merge.paths.push_back(std::move(subpath));
                                         }
                                         specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Trim) {
+                                        specs.push_back({PathOperatorKind::Trim,
+                                            TrimPathParams{op.trim_start, op.trim_end, op.trim_offset}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

@@ -11,6 +11,7 @@
 #include "effects/blur/directional_blur.hpp"
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
+#include "effects/distort/warp.hpp"
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
@@ -349,6 +350,21 @@ public:
             p->key_color.g < 0.0f || p->key_color.g > 1.0f ||
             p->key_color.b < 0.0f || p->key_color.b > 1.0f)
             throw std::runtime_error("Keying parameters are outside supported bounds");
+        if (!std::isfinite(p->clip_black) || !std::isfinite(p->clip_white) ||
+            p->clip_black < 0.0f || p->clip_white > 1.0f || p->clip_white <= p->clip_black ||
+            !std::isfinite(p->choke) || p->choke < 0.0f || p->choke >= 1.0f ||
+            !std::isfinite(p->garbage_x) || !std::isfinite(p->garbage_y) ||
+            !std::isfinite(p->garbage_w) || !std::isfinite(p->garbage_h) ||
+            !std::isfinite(p->garbage_feather) ||
+            p->garbage_x < 0.0f || p->garbage_x > 1.0f ||
+            p->garbage_y < 0.0f || p->garbage_y > 1.0f ||
+            p->garbage_w < 0.0f || p->garbage_w > 1.0f ||
+            p->garbage_h < 0.0f || p->garbage_h > 1.0f ||
+            p->garbage_feather < 0.0f || p->garbage_feather > 0.5f)
+            throw std::runtime_error("Keying parameters are outside supported bounds");
+        const bool garbage_enabled = p->garbage_w > 0.0f && p->garbage_h > 0.0f;
+        const float inv_width = 1.0f / static_cast<float>(std::max(fb.width(), 1));
+        const float inv_height = 1.0f / static_cast<float>(std::max(fb.height(), 1));
 
         int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
         if (context.clip) {
@@ -383,12 +399,31 @@ public:
                     const float t = std::clamp((measure - p->threshold) / p->softness, 0.0f, 1.0f);
                     keep = t * t * (3.0f - 2.0f * t);
                 }
+                // Screen-matte refinement: remap through [clip_black, clip_white]
+                // then erode the matte edge by `choke` before it reaches alpha.
+                keep = std::clamp(
+                    (keep - p->clip_black) / std::max(p->clip_white - p->clip_black, 1.0e-6f),
+                    0.0f, 1.0f);
+                if (p->choke > 0.0f)
+                    keep = std::clamp((keep - p->choke) / (1.0f - p->choke), 0.0f, 1.0f);
+                float garbage = 1.0f;
+                if (garbage_enabled) {
+                    const float u = (static_cast<float>(x) + 0.5f) * inv_width;
+                    const float v = (static_cast<float>(y) + 0.5f) * inv_height;
+                    const float dx = std::min(u - p->garbage_x, p->garbage_x + p->garbage_w - u);
+                    const float dy = std::min(v - p->garbage_y, p->garbage_y + p->garbage_h - v);
+                    const float d = std::min(dx, dy);
+                    if (p->garbage_feather > 0.0f)
+                        garbage = std::clamp(d / p->garbage_feather, 0.0f, 1.0f);
+                    else
+                        garbage = d >= 0.0f ? 1.0f : 0.0f;
+                }
                 const float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
                 const float spill = p->spill * (1.0f - keep);
                 r += (gray - r) * spill;
                 g += (gray - g) * spill;
                 b += (gray - b) * spill;
-                const float alpha = source_alpha * keep;
+                const float alpha = source_alpha * keep * garbage;
                 pixel = {r * alpha, g * alpha, b * alpha, alpha};
             }
         }
@@ -559,6 +594,48 @@ public:
     }
 };
 
+// ── Warp family (CornerPin, Twirl, Bulge, MeshWarp) ──────────────────────
+
+class SoftwareCornerPinEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<CornerPinParams>(&params);
+        if (!p) throw std::runtime_error("CornerPin processor received invalid parameters");
+        apply_corner_pin(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareTwirlEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<TwirlParams>(&params);
+        if (!p) throw std::runtime_error("Twirl processor received invalid parameters");
+        apply_twirl(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareBulgeEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<BulgeParams>(&params);
+        if (!p) throw std::runtime_error("Bulge processor received invalid parameters");
+        apply_bulge(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareMeshWarpEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<MeshWarpParams>(&params);
+        if (!p) throw std::runtime_error("MeshWarp processor received invalid parameters");
+        apply_mesh_warp(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
 // ── Factory functions ────────────────────────────────────────────────────────
 
 std::unique_ptr<EffectProcessor> create_blur_effect_processor() {
@@ -647,6 +724,22 @@ std::unique_ptr<EffectProcessor> create_echo_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_keying_effect_processor() {
     return std::make_unique<SoftwareKeyingEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_corner_pin_effect_processor() {
+    return std::make_unique<SoftwareCornerPinEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_twirl_effect_processor() {
+    return std::make_unique<SoftwareTwirlEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_bulge_effect_processor() {
+    return std::make_unique<SoftwareBulgeEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_mesh_warp_effect_processor() {
+    return std::make_unique<SoftwareMeshWarpEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor() {

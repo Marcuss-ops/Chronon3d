@@ -273,6 +273,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
 #endif
                 receipt_input.git_sha = telemetry::TelemetryManager::get_git_commit();
                 receipt_input.backend = normalized_job.backend;
+                receipt_input.render_lane = result->render_lane.empty() ? normalized_job.backend : result->render_lane;
+                receipt_input.lane_reason = result->lane_reason;
                 receipt_input.width = meta.width;
                 receipt_input.height = meta.height;
                 receipt_input.fps_num = meta.fps_numerator;

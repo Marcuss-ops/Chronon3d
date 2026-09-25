@@ -314,6 +314,8 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.asset_manifest_digest = input.asset_manifest_digest;
 
     receipt.backend = input.backend;
+    receipt.render_lane = input.render_lane.empty() ? input.backend : input.render_lane;
+    receipt.lane_reason = input.lane_reason;
     receipt.width = input.width;
     receipt.height = input.height;
     receipt.fps_num = input.fps_num;
@@ -502,6 +504,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
                                            const std::filesystem::path& output_path) {
     nlohmann::json js;
     js["schema"] = receipt.schema;
+    js["render_lane"] = receipt.render_lane;
+    js["lane_reason"] = receipt.lane_reason;
     js["identity"] = {
         {"job_id", receipt.job_id},
         {"chronon_version", receipt.chronon_version},
@@ -514,6 +518,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
     };
     js["render"] = {
         {"backend", receipt.backend},
+        {"render_lane", receipt.render_lane},
+        {"lane_reason", receipt.lane_reason},
         {"width", receipt.width},
         {"height", receipt.height},
         {"fps_num", receipt.fps_num},

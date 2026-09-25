@@ -153,6 +153,11 @@ public:
                      std::filesystem::path output_path,
                      std::filesystem::path assets_root = {});
 
+    /// Canonical resolved render lane for diagnostics: e.g. "software",
+    /// "vulkan_native", "cuda_direct_yuv". Reflects what the backend
+    /// registry attached, not the preference string.
+    [[nodiscard]] std::string resolved_lane_name() const;
+
     /// Apply new render settings.  Replaces whatever was set in the
     /// constructor or by a prior `set_settings` call.  Thread-safe
     /// relative to `render()` (the engine snapshots settings at the

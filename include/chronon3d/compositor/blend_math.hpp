@@ -91,6 +91,28 @@ inline float blend_color_burn(float cb, float cs) {
     return 1.0f - std::min(1.0f, (1.0f - cb) / std::max(cs, 1e-8f));
 }
 
+inline float blend_subtract(float cb, float cs) {
+    return std::max(cb - cs, 0.0f);
+}
+
+inline float blend_divide(float cb, float cs) {
+    if (cs <= 0.0f) return cb <= 0.0f ? 0.0f : 1.0f;
+    return std::min(1.0f, cb / cs);
+}
+
+inline float blend_linear_light(float cb, float cs) {
+    return std::clamp(cb + 2.0f * cs - 1.0f, 0.0f, 1.0f);
+}
+
+inline float blend_vivid_light(float cb, float cs) {
+    if (cs <= 0.5f) return blend_color_burn(cb, std::min(2.0f * cs, 1.0f));
+    return blend_color_dodge(cb, std::max(2.0f * cs - 1.0f, 0.0f));
+}
+
+inline float blend_pin_light(float cb, float cs) {
+    return cs <= 0.5f ? std::min(cb, 2.0f * cs) : std::max(cb, 2.0f * cs - 1.0f);
+}
+
 // ── Canonical premultiplied blend reference ─────────────────────────────────
 // This is the scalar "source of truth" that all SIMD paths must match.
 //
@@ -207,6 +229,89 @@ inline Color blend_reference_premul(
             bg = blend_color_burn(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
             bb = blend_color_burn(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
             break;
+
+        case BlendMode::Subtract:
+            br = blend_subtract(cb_r, cs_r);
+            bg = blend_subtract(cb_g, cs_g);
+            bb = blend_subtract(cb_b, cs_b);
+            break;
+
+        case BlendMode::Divide:
+            br = blend_divide(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_divide(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_divide(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
+            break;
+
+        case BlendMode::LinearLight:
+            br = blend_linear_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_linear_light(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_linear_light(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
+            break;
+
+        case BlendMode::VividLight:
+            br = blend_vivid_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_vivid_light(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_vivid_light(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
+            break;
+
+        case BlendMode::PinLight:
+            br = blend_pin_light(std::clamp(cb_r, 0.0f, 1.0f), std::clamp(cs_r, 0.0f, 1.0f));
+            bg = blend_pin_light(std::clamp(cb_g, 0.0f, 1.0f), std::clamp(cs_g, 0.0f, 1.0f));
+            bb = blend_pin_light(std::clamp(cb_b, 0.0f, 1.0f), std::clamp(cs_b, 0.0f, 1.0f));
+            break;
+
+        case BlendMode::Hue: {
+            float r = std::clamp(cs_r, 0.0f, 1.0f),
+                  g = std::clamp(cs_g, 0.0f, 1.0f),
+                  b = std::clamp(cs_b, 0.0f, 1.0f);
+            const float cb_r1 = std::clamp(cb_r, 0.0f, 1.0f),
+                        cb_g1 = std::clamp(cb_g, 0.0f, 1.0f),
+                        cb_b1 = std::clamp(cb_b, 0.0f, 1.0f);
+            compositor::hsl_set_sat(r, g, b, compositor::hsl_sat(cb_r1, cb_g1, cb_b1));
+            compositor::hsl_set_lum(r, g, b, compositor::hsl_lum(cb_r1, cb_g1, cb_b1));
+            br = r; bg = g; bb = b;
+            break;
+        }
+
+        case BlendMode::Saturation: {
+            float r = std::clamp(cb_r, 0.0f, 1.0f),
+                  g = std::clamp(cb_g, 0.0f, 1.0f),
+                  b = std::clamp(cb_b, 0.0f, 1.0f);
+            compositor::hsl_set_sat(r, g, b,
+                compositor::hsl_sat(std::clamp(cs_r, 0.0f, 1.0f),
+                                    std::clamp(cs_g, 0.0f, 1.0f),
+                                    std::clamp(cs_b, 0.0f, 1.0f)));
+            compositor::hsl_set_lum(r, g, b,
+                compositor::hsl_lum(std::clamp(cb_r, 0.0f, 1.0f),
+                                    std::clamp(cb_g, 0.0f, 1.0f),
+                                    std::clamp(cb_b, 0.0f, 1.0f)));
+            br = r; bg = g; bb = b;
+            break;
+        }
+
+        case BlendMode::Color: {
+            float r = std::clamp(cs_r, 0.0f, 1.0f),
+                  g = std::clamp(cs_g, 0.0f, 1.0f),
+                  b = std::clamp(cs_b, 0.0f, 1.0f);
+            compositor::hsl_set_lum(r, g, b,
+                compositor::hsl_lum(std::clamp(cb_r, 0.0f, 1.0f),
+                                    std::clamp(cb_g, 0.0f, 1.0f),
+                                    std::clamp(cb_b, 0.0f, 1.0f)));
+            br = r; bg = g; bb = b;
+            break;
+        }
+
+        case BlendMode::Luminosity: {
+            float r = std::clamp(cb_r, 0.0f, 1.0f),
+                  g = std::clamp(cb_g, 0.0f, 1.0f),
+                  b = std::clamp(cb_b, 0.0f, 1.0f);
+            compositor::hsl_set_lum(r, g, b,
+                compositor::hsl_lum(std::clamp(cs_r, 0.0f, 1.0f),
+                                    std::clamp(cs_g, 0.0f, 1.0f),
+                                    std::clamp(cs_b, 0.0f, 1.0f)));
+            br = r; bg = g; bb = b;
+            break;
+        }
 
         default:
             br = cs_r; bg = cs_g; bb = cs_b;

@@ -174,6 +174,8 @@ struct RenderJobOutput {
     RenderMode mode{RenderMode::Still};
     std::string output;
     int frames_written{0};
+    std::string render_lane{"software"};
+    std::string lane_reason;
 };
 
 /// Unresolved input to the canonical resolve → execute pipeline.

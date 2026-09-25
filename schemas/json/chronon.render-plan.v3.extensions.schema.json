@@ -232,7 +232,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat", "twist", "wiggle_path", "merge"] },
+              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat", "twist", "wiggle_path", "merge", "trim"] },
               "params": {
                 "oneOf": [
                   {
@@ -305,6 +305,14 @@
                         "items": { "type": "array", "minItems": 1, "maxItems": 65536,
                                     "items": { "$ref": "#/$defs/path_command" } }
                       }
+                    }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "properties": {
+                      "start": { "type": "number", "minimum": 0, "maximum": 1 },
+                      "end": { "type": "number", "minimum": 0, "maximum": 1 },
+                      "offset": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
                     }
                   }
                 ]
@@ -520,7 +528,13 @@
                                  "items": { "type": "number", "minimum": 0, "maximum": 1 } },
                   "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
                   "softness": { "type": "number", "minimum": 0, "maximum": 1 },
-                  "spill": { "type": "number", "minimum": 0, "maximum": 1 }
+                  "spill": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "clip_black": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "clip_white": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "choke": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
+                  "garbage_rect": { "type": "array", "minItems": 4, "maxItems": 4,
+                                    "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+                  "garbage_feather": { "type": "number", "minimum": 0, "maximum": 0.5 }
                 }
               },
               { "type": "object", "additionalProperties": false,
@@ -592,6 +606,20 @@
               { "type": "object", "additionalProperties": false,
                 "required": ["type"],
                 "properties": {
+                  "type": { "const": "corner_pin" },
+                  "top_left": { "type": "array", "minItems": 2, "maxItems": 2,
+                                "items": { "type": "number", "minimum": -4, "maximum": 4 } },
+                  "top_right": { "type": "array", "minItems": 2, "maxItems": 2,
+                                 "items": { "type": "number", "minimum": -4, "maximum": 4 } },
+                  "bottom_right": { "type": "array", "minItems": 2, "maxItems": 2,
+                                    "items": { "type": "number", "minimum": -4, "maximum": 4 } },
+                  "bottom_left": { "type": "array", "minItems": 2, "maxItems": 2,
+                                   "items": { "type": "number", "minimum": -4, "maximum": 4 } }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
                   "type": { "const": "fractal_noise" },
                   "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
                   "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
@@ -601,6 +629,38 @@
                   "contrast": { "type": "number", "minimum": 0, "maximum": 16 },
                   "brightness": { "type": "number", "minimum": -16, "maximum": 16 },
                   "color_mode": { "enum": ["monochrome", "rgb"] }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "twirl" },
+                  "center": { "type": "array", "minItems": 2, "maxItems": 2,
+                              "items": { "type": "number" } },
+                  "angle_degrees": { "type": "number", "minimum": -3600, "maximum": 3600 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 },
+                  "falloff": { "type": "number", "exclusiveMinimum": 0, "maximum": 4 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "bulge" },
+                  "center": { "type": "array", "minItems": 2, "maxItems": 2,
+                              "items": { "type": "number" } },
+                  "amount": { "type": "number", "minimum": -1, "maximum": 1 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type", "offsets"],
+                "properties": {
+                  "type": { "const": "mesh_warp" },
+                  "cols": { "type": "integer", "minimum": 2, "maximum": 32 },
+                  "rows": { "type": "integer", "minimum": 2, "maximum": 32 },
+                  "smoothness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "offsets": { "type": "array", "minItems": 8, "maxItems": 2048,
+                               "items": { "type": "number", "minimum": -4, "maximum": 4 } }
                 }
               }
             ] }

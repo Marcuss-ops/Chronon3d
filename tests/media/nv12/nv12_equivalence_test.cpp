@@ -616,6 +616,235 @@ TEST_CASE("NV12 direct batch: the text drop shadow composites from the prepared 
     CHECK(shadow_plane.identical);
 }
 
+TEST_CASE("NV12 direct MTSDF: fill is antialiased and stroke width stays in destination pixels") {
+    using namespace chronon3d::nv12_equiv;
+    using chronon3d::media::CudaLayerResource;
+    using chronon3d::media::CudaLayerResourceKind;
+    if (!gpu_tests_enabled()) {
+        MESSAGE("set CHRONON3D_RUN_CUDA_TESTS=1 to run the MTSDF stroke contract test");
+        return;
+    }
+
+    CudaSession session;
+    if (!session.ok) {
+        MESSAGE("CUDA device/context unavailable; MTSDF stroke contract is NOT RUN");
+        return;
+    }
+    session.set_current();
+
+    constexpr int w = 640;
+    constexpr int h = 360;
+    constexpr int atlas_size = 64;
+    constexpr float range_px = 16.0f;
+    constexpr float disc_radius = 20.0f;
+    constexpr float dst_x0 = 300.375f;
+    constexpr float dst_y0 = 140.375f;
+    constexpr float dst_extent = 48.0f;  // 0.75 destination pixels per atlas pixel.
+    constexpr float center_x = dst_x0 + (atlas_size - 1) * 0.5f * 0.75f;
+    constexpr float center_y = dst_y0 + (atlas_size - 1) * 0.5f * 0.75f;
+    static_assert(center_x == 324.0f && center_y == 164.0f);
+
+    const std::size_t y_bytes = static_cast<std::size_t>(w) * h;
+    const std::size_t uv_bytes = static_cast<std::size_t>(w) * ((h + 1) / 2);
+    const std::vector<std::uint8_t> bg_y(y_bytes, 128u);
+    const std::vector<std::uint8_t> bg_uv(uv_bytes, 128u);
+    const auto atlas = make_disc_atlas(atlas_size, disc_radius, range_px);
+
+    DevBuffer atlas_d, bg_y_d, bg_uv_d, out_y_d, out_uv_d;
+    atlas_d.alloc(atlas.size() * sizeof(float));
+    atlas_d.upload_async(session.stream, atlas.data());
+    bg_y_d.alloc(y_bytes);
+    bg_uv_d.alloc(uv_bytes);
+    out_y_d.alloc(y_bytes);
+    out_uv_d.alloc(uv_bytes);
+    bg_y_d.upload_async(session.stream, bg_y.data());
+    bg_uv_d.upload_async(session.stream, bg_uv.data());
+
+    chronon3d::runtime::LayerInstance instance;
+    instance.kind = chronon3d::runtime::PrimitiveKind::Text;
+    instance.resource_index = 0;
+    instance.src_x0 = 0.0f;
+    instance.src_y0 = 0.0f;
+    instance.src_x1 = 1.0f;
+    instance.src_y1 = 1.0f;
+    instance.dst_x0 = dst_x0;
+    instance.dst_y0 = dst_y0;
+    instance.dst_x1 = dst_x0 + dst_extent;
+    instance.dst_y1 = dst_y0 + dst_extent;
+    instance.opacity = 1.0f;
+    chronon3d::runtime::GpuLayerBatch batch;
+    batch.instances = {instance};
+
+    CudaLayerResource resource;
+    resource.kind = CudaLayerResourceKind::Mtsdf;
+    resource.rgba = atlas_d.ptr;
+    resource.pitch_bytes = atlas_size * static_cast<int>(sizeof(std::uint32_t));
+    resource.width = atlas_size;
+    resource.height = atlas_size;
+    resource.distance_range_px = range_px;
+    resource.color = 0xFFFFFFFFu;
+    resource.stroke_color = 0xFF000000u;
+
+    chronon3d::media::video::CudaNv12Compositor compositor(session.context);
+    const auto render = [&](float stroke_width, std::vector<std::uint8_t>& out_y) {
+        resource.stroke_width = stroke_width;
+        const std::vector<CudaLayerResource> resources{resource};
+        REQUIRE(compositor.composite_direct_nv12_batch(
+            batch, resources, bg_y_d.ptr, w, bg_uv_d.ptr, w, out_y_d.ptr, w,
+            out_uv_d.ptr, w, static_cast<std::uint32_t>(w),
+            static_cast<std::uint32_t>(h), session.stream));
+        check_ok(cuStreamSynchronize(session.stream), "cuStreamSynchronize");
+        out_y.resize(y_bytes);
+        out_y_d.download(out_y.data());
+    };
+
+    std::vector<std::uint8_t> fill_only_y, outlined_y;
+    render(0.0f, fill_only_y);
+    render(3.5f, outlined_y);
+
+    const auto pixel = [&](const std::vector<std::uint8_t>& plane, int x) {
+        return luma_at(plane, w, x, static_cast<int>(center_y));
+    };
+    const int background = 128;
+    // The fill edge is a coverage ramp, not a hard on/off threshold.
+    CHECK(pixel(fill_only_y, 338) > pixel(fill_only_y, 339));
+    CHECK(pixel(fill_only_y, 339) > pixel(fill_only_y, 340));
+    CHECK(pixel(fill_only_y, 340) == background);
+
+    // At scale 0.75, x=341 is 2 px outside the disc edge and gets only the
+    // remaining quarter-pixel of the authored 3.5px outline's AA ramp. At
+    // x=342 the outline must have ended. Multiplying stroke_width by the
+    // atlas scale makes the former fully dark and leaves a false fringe at
+    // the latter; the destination-pixel equation satisfies both checks.
+    CHECK(pixel(outlined_y, 340) < background - 40);
+    CHECK(pixel(outlined_y, 341) > pixel(outlined_y, 340));
+    CHECK(pixel(outlined_y, 341) < background - 10);
+    CHECK(pixel(outlined_y, 342) == background);
+
+    // A radial probe on the opposite side checks that the width does not
+    // depend on the sign of the distance-field gradient.
+    CHECK(luma_at(outlined_y, w, static_cast<int>(center_x) - 18,
+                  static_cast<int>(center_y)) == background);
+}
+
+TEST_CASE("cuda and vulkan mtsdf coverage agree for stroke widths") {
+    constexpr int atlas_size = 64;
+    constexpr float range_px = 16.0f;
+    constexpr float disc_radius = 20.0f;
+    const auto atlas = make_disc_atlas(atlas_size, disc_radius, range_px);
+
+    auto tap_alpha = [&](int sx, int sy) -> float {
+        sx = std::clamp(sx, 0, atlas_size - 1);
+        sy = std::clamp(sy, 0, atlas_size - 1);
+        std::uint32_t packed = 0;
+        std::memcpy(&packed, &atlas[static_cast<std::size_t>(sy) * atlas_size + sx], sizeof(packed));
+        return static_cast<float>((packed >> 24u) & 0xFFu) / 255.0f;
+    };
+
+    // 1. CPU replica of CUDA kernel (cuda_nv12_kernels.hpp direct_mtsdf_signed_distance + direct_layer_load)
+    auto eval_cuda = [&](float stroke, float scale, float px, float py,
+                         float dst_x0, float dst_y0, float dst_extent) -> float {
+        const float u = (px - dst_x0) / dst_extent;
+        const float v = (py - dst_y0) / dst_extent;
+        if (u < 0.0f || v < 0.0f || u >= 1.0f || v >= 1.0f) return 0.0f;
+
+        const float tx = u * static_cast<float>(atlas_size) - 0.5f;
+        const float ty = v * static_cast<float>(atlas_size) - 0.5f;
+        const int x0 = std::clamp(static_cast<int>(std::floor(tx)), 0, atlas_size - 1);
+        const int y0 = std::clamp(static_cast<int>(std::floor(ty)), 0, atlas_size - 1);
+        const int x1 = std::min(x0 + 1, atlas_size - 1);
+        const int y1 = std::min(y0 + 1, atlas_size - 1);
+        const float fx = std::clamp(tx - std::floor(tx), 0.0f, 1.0f);
+        const float fy = std::clamp(ty - std::floor(ty), 0.0f, 1.0f);
+        const float top = tap_alpha(x0, y0) * (1.0f - fx) + tap_alpha(x1, y0) * fx;
+        const float bottom = tap_alpha(x0, y1) * (1.0f - fx) + tap_alpha(x1, y1) * fx;
+        const float a_channel = top * (1.0f - fy) + bottom * fy;
+
+        const float source_scale = scale;
+        const float field_px = (a_channel - 0.5f) * range_px * source_scale;
+        const float fill_alpha = std::clamp(field_px + 0.5f, 0.0f, 1.0f);
+        float stroke_alpha = 0.0f;
+        if (stroke > 0.0f) {
+            stroke_alpha = std::clamp(field_px + 0.5f * stroke + 0.5f, 0.0f, 1.0f);
+        }
+        return fill_alpha + stroke_alpha * (1.0f - fill_alpha);
+    };
+
+    // 2. Vulkan reference decoder (src/backends/vulkan/shaders/text_tile_raster.comp)
+    auto eval_vulkan = [&](float stroke, float scale, float px, float py,
+                           float dst_x0, float dst_y0, float dst_extent) -> float {
+        const float plane_w = dst_extent;
+        const float plane_h = dst_extent;
+        const float local_x = px - dst_x0;
+        const float local_y = py - dst_y0;
+        if (local_x < 0.0f || local_x >= plane_w || local_y < 0.0f || local_y >= plane_h) {
+            return 0.0f;
+        }
+        const float texel_to_screen = scale;
+        const float local_to_screen = 1.0f;
+        const float glyph_uv_x = local_x / plane_w;
+        const float glyph_uv_y = local_y / plane_h;
+        const float glyph_texel_x = glyph_uv_x * static_cast<float>(atlas_size) - 0.5f;
+        const float glyph_texel_y = glyph_uv_y * static_cast<float>(atlas_size) - 0.5f;
+
+        const float max_texel = static_cast<float>(atlas_size - 1);
+        const float clamped_tx = std::clamp(glyph_texel_x, 0.0f, max_texel);
+        const float clamped_ty = std::clamp(glyph_texel_y, 0.0f, max_texel);
+        const int i0_x = static_cast<int>(std::floor(clamped_tx));
+        const int i0_y = static_cast<int>(std::floor(clamped_ty));
+        const int i1_x = std::min(i0_x + 1, atlas_size - 1);
+        const int i1_y = std::min(i0_y + 1, atlas_size - 1);
+        const float fx = clamped_tx - static_cast<float>(i0_x);
+        const float fy = clamped_ty - static_cast<float>(i0_y);
+
+        const float c00 = tap_alpha(i0_x, i0_y);
+        const float c10 = tap_alpha(i1_x, i0_y);
+        const float c01 = tap_alpha(i0_x, i1_y);
+        const float c11 = tap_alpha(i1_x, i1_y);
+        const float msd = (c00 * (1.0f - fx) + c10 * fx) * (1.0f - fy) +
+                          (c01 * (1.0f - fx) + c11 * fx) * fy;
+
+        const float fill_alpha = std::clamp((msd - 0.5f) * range_px * texel_to_screen + 0.5f, 0.0f, 1.0f);
+        float stroke_alpha = 0.0f;
+        if (stroke > 0.0f) {
+            stroke_alpha = std::clamp((msd - 0.5f) * range_px * texel_to_screen +
+                                      0.5f * stroke * local_to_screen + 0.5f, 0.0f, 1.0f);
+        }
+        return fill_alpha + stroke_alpha * (1.0f - fill_alpha);
+    };
+
+    // 3. Documented tolerance: within 1/255 (single 8-bit quantization step)
+    constexpr float kMaxAllowedDiff = 1.0f / 255.0f;
+
+    for (auto stroke : {0.0f, 1.5f, 3.5f, 8.0f}) {
+        for (auto scale : {0.25f, 0.31f, 1.0f}) {
+            const float dst_extent = static_cast<float>(atlas_size) * scale;
+            const float dst_x0 = 100.0f;
+            const float dst_y0 = 100.0f;
+            const float center = dst_x0 + dst_extent * 0.5f;
+            const float disc_radius_dest = disc_radius * scale;
+
+            // Probe on the edge band: from inside the glyph boundary out to stroke halo
+            float max_diff = 0.0f;
+            const float halo = 0.5f * stroke + range_px * scale + 2.0f;
+            const float r_min = std::max(0.0f, disc_radius_dest - halo);
+            const float r_max = std::min(dst_extent * 0.5f - 1.0f, disc_radius_dest + halo);
+
+            for (float r = r_min; r <= r_max; r += 0.25f) {
+                const float px = center + r;
+                const float py = center;
+                const float alpha_cuda = eval_cuda(stroke, scale, px, py, dst_x0, dst_y0, dst_extent);
+                const float alpha_vk = eval_vulkan(stroke, scale, px, py, dst_x0, dst_y0, dst_extent);
+                const float diff = std::abs(alpha_cuda - alpha_vk);
+                if (diff > max_diff) {
+                    max_diff = diff;
+                }
+            }
+            CHECK(max_diff <= kMaxAllowedDiff);
+        }
+    }
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // Determinism: each instance is bit-exact across identical re-runs.
 // ═════════════════════════════════════════════════════════════════════════

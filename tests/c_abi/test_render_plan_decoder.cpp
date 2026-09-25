@@ -528,7 +528,8 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
           {"kind":"wiggle_path","params":{"amount":2,"frequency":0.75,"seed":1234}},
           {"kind":"merge","params":{"paths":[[{"type":"move_to","point":[10,10]},
             {"type":"quadratic_to","point":[12,12],"control1":[12,10]},
-            {"type":"close"}]]}}]},
+            {"type":"close"}]]}},
+          {"kind":"trim","params":{"start":0.25,"end":0.75,"offset":0.1}}]},
       "mask":{"type":"path","path":[{"type":"move_to","point":[-4,-4]},
         {"type":"line_to","point":[4,-4]},{"type":"line_to","point":[4,4]},
         {"type":"line_to","point":[-4,4]},{"type":"close"}],
@@ -539,7 +540,7 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     const std::string decode_error = decoded.has_value() ? std::string{} : decoded.error().message;
     INFO(decode_error);
     REQUIRE(decoded.has_value());
-    REQUIRE(decoded->layers[0].shape->operators.size() == 8);
+    REQUIRE(decoded->layers[0].shape->operators.size() == 9);
     CHECK(decoded->layers[0].shape->operators[0].repeater.copies == 3);
     CHECK(decoded->layers[0].shape->operators[0].repeater.position[0] == doctest::Approx(4));
     CHECK(decoded->layers[0].shape->operators[1].kind ==
@@ -564,10 +565,15 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
           chronon3d::render_plan::PathOperatorKindPlan::Merge);
     REQUIRE(decoded->layers[0].shape->operators[7].paths.size() == 1);
     CHECK(decoded->layers[0].shape->operators[7].paths[0].size() == 3);
+    CHECK(decoded->layers[0].shape->operators[8].kind ==
+          chronon3d::render_plan::PathOperatorKindPlan::Trim);
+    CHECK(decoded->layers[0].shape->operators[8].trim_start == doctest::Approx(0.25f));
+    CHECK(decoded->layers[0].shape->operators[8].trim_end == doctest::Approx(0.75f));
+    CHECK(decoded->layers[0].shape->operators[8].trim_offset == doctest::Approx(0.1f));
     REQUIRE(decoded->layers[0].path_mask.has_value());
     CHECK(decoded->layers[0].path_mask->feather == doctest::Approx(2));
     CHECK(decoded->layers[0].path_mask->path.size() == 5);
-    source["layers"][0]["shape"]["operators"][7]["kind"] = "future_operator";
+    source["layers"][0]["shape"]["operators"][8]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 

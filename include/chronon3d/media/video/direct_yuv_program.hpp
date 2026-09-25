@@ -7,6 +7,7 @@
 #include <chronon3d/media/video/hw_frame_ref.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/cuda_layer_resource.hpp>
+#include <chronon3d/runtime/lane_decision.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 
@@ -68,6 +69,13 @@ public:
     [[nodiscard]] static CapabilityReport resolve_support(
         const CompiledComposition& compiled,
         DirectYuvPolicy policy);
+
+    static std::shared_ptr<DirectYuvProgram> prepare(
+        const CompiledComposition& compiled,
+        ImageCache& image_cache,
+        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
+        const assets::AssetResolver& asset_resolver,
+        ::chronon3d::runtime::LaneReason& reason);
 
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,

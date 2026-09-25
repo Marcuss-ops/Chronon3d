@@ -295,3 +295,7 @@ const Config& RenderEngine::config() const noexcept {
 
 void RenderEngine::clear_caches() { m_impl->m_renderer->clear_caches(); }
 void RenderEngine::reset_counters() { m_impl->m_renderer->reset_counters(); }
+
+std::string RenderEngine::resolved_lane_name() const {
+    return m_impl ? m_impl->resolved_lane_name() : "software";
+}

@@ -3,6 +3,7 @@
 #include <chronon3d/vector/path_factories.hpp>
 #include <doctest/doctest.h>
 #include <cmath>
+#include <limits>
 using namespace chronon3d;
 
 using namespace chronon3d::math;
@@ -245,4 +246,87 @@ TEST_CASE("Merge combines paths as independent subpaths without boolean operatio
     CHECK(result[0].commands[2].type == PathCommandType::MoveTo);
     CHECK(result[0].commands[3].type == PathCommandType::QuadraticTo);
     CHECK(result[0].commands[4].type == PathCommandType::Close);
+}
+
+TEST_CASE("Trim paths keeps the requested arc-length window") {
+    PathShape square;
+    square.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({100, 0}),
+        PathCommand::line_to({100, 100}), PathCommand::line_to({0, 100}),
+        PathCommand::close()};
+    square.closed = true;
+
+    SUBCASE("Full window is the identity") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.0f, 1.0f, 0.3f};
+        const auto result = apply_path_operators(square, {op});
+        REQUIRE(result.size() == 1);
+        CHECK(result[0].commands.size() == square.commands.size());
+        CHECK(result[0].commands.back().type == PathCommandType::Close);
+    }
+
+    SUBCASE("Half window trims half the perimeter") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.0f, 0.5f, 0.0f};
+        const auto result = apply_path_operators(square, {op});
+        REQUIRE(result.size() == 1);
+        std::vector<Vec2> points;
+        for (const auto& command : result[0].commands) points.push_back(command.p0);
+        CHECK(math::polyline_length(points) == doctest::Approx(200.0f));
+        CHECK(result[0].commands.front().p0.x == doctest::Approx(0.0f));
+        CHECK(result[0].commands.front().p0.y == doctest::Approx(0.0f));
+        CHECK(result[0].commands.back().p0.x == doctest::Approx(100.0f));
+        CHECK(result[0].commands.back().p0.y == doctest::Approx(100.0f));
+    }
+
+    SUBCASE("Offset slides the window along the path") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.0f, 0.25f, 0.5f};
+        const auto result = apply_path_operators(square, {op});
+        REQUIRE(result.size() == 1);
+        std::vector<Vec2> points;
+        for (const auto& command : result[0].commands) points.push_back(command.p0);
+        CHECK(math::polyline_length(points) == doctest::Approx(100.0f));
+        CHECK(result[0].commands.front().p0.x == doctest::Approx(100.0f));
+        CHECK(result[0].commands.front().p0.y == doctest::Approx(100.0f));
+        CHECK(result[0].commands.back().p0.x == doctest::Approx(0.0f));
+        CHECK(result[0].commands.back().p0.y == doctest::Approx(100.0f));
+    }
+
+    SUBCASE("Window wrapping emits two runs without a connecting segment") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.0f, 0.25f, 0.8f};
+        const auto result = apply_path_operators(square, {op});
+        REQUIRE(result.size() == 1);
+        std::size_t moves = 0;
+        for (const auto& command : result[0].commands)
+            if (command.type == PathCommandType::MoveTo) ++moves;
+        CHECK(moves == 2);
+        std::vector<Vec2> points;
+        for (const auto& command : result[0].commands) points.push_back(command.p0);
+        CHECK(math::polyline_length(points) == doctest::Approx(100.0f));
+    }
+
+    SUBCASE("Empty window yields an empty path") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.5f, 0.5f, 0.0f};
+        const auto result = apply_path_operators(square, {op});
+        REQUIRE(result.size() == 1);
+        CHECK(result[0].commands.empty());
+    }
+
+    SUBCASE("Invalid parameters are rejected") {
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::Trim;
+        op.params = TrimPathParams{0.8f, 0.2f, 0.0f};
+        CHECK_THROWS(apply_path_operators(square, {op}));
+        op.params = TrimPathParams{0.0f, 1.5f, 0.0f};
+        CHECK_THROWS(apply_path_operators(square, {op}));
+        op.params = TrimPathParams{0.0f, 0.5f, std::numeric_limits<float>::quiet_NaN()};
+        CHECK_THROWS(apply_path_operators(square, {op}));
+    }
 }

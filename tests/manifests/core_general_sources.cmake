@@ -83,6 +83,7 @@ set(CORE_TEST_SOURCES
     text/test_text_run_multi_run_failure_policy.cpp
     ${CORE_BLEND2D_TESTS}
     media/test_media_placement.cpp
+    media/test_point_tracker.cpp
     core/test_result.cpp
     core/test_surface_coordinate_mapper.cpp
     core/test_canonical_error.cpp

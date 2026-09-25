@@ -95,6 +95,8 @@ public:
 
     // ── RenderBackend overrides ──────────────────────────────────────────
 
+    [[nodiscard]] std::string lane_name() const override { return "software"; }
+
     [[nodiscard]] graph::RenderCapabilities capabilities() const noexcept override;
 
     RenderCounters* counters() override { return m_counters; }

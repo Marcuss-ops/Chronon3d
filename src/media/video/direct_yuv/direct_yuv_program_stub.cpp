@@ -14,6 +14,17 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     ImageCache&,
     std::shared_ptr<::chronon3d::media::VideoDeviceRuntime>,
     const assets::AssetResolver&,
+    runtime::LaneReason& reason) {
+    reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                 "unsupported_feature", "native_ffmpeg_required"};
+    return nullptr;
+}
+
+std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
+    const CompiledComposition&,
+    ImageCache&,
+    std::shared_ptr<::chronon3d::media::VideoDeviceRuntime>,
+    const assets::AssetResolver&,
     std::string& reason) {
     reason = "DirectYUV requires native FFmpeg support";
     return nullptr;

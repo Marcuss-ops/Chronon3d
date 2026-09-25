@@ -584,6 +584,18 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         total_commands += subpath.size();
                         decoded_op.paths.push_back(std::move(subpath));
                     }
+                } else if (kind == "trim") {
+                    decoded_op.kind = PathOperatorKindPlan::Trim;
+                    decoded_op.trim_start = p.value("start", 0.0f);
+                    decoded_op.trim_end = p.value("end", 1.0f);
+                    decoded_op.trim_offset = p.value("offset", 0.0f);
+                    if (!std::isfinite(decoded_op.trim_start) || !std::isfinite(decoded_op.trim_end) ||
+                        !std::isfinite(decoded_op.trim_offset) ||
+                        decoded_op.trim_start < 0.0f || decoded_op.trim_start > 1.0f ||
+                        decoded_op.trim_end < 0.0f || decoded_op.trim_end > 1.0f ||
+                        decoded_op.trim_end < decoded_op.trim_start ||
+                        std::abs(decoded_op.trim_offset) > 1000000.0f)
+                        throw std::runtime_error("invalid trim-path parameters");
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }
@@ -823,10 +835,34 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 effect.threshold = raw_effect.value("threshold", 0.20f);
                 effect.softness = raw_effect.value("softness", 0.08f);
                 effect.spill = raw_effect.value("spill", 0.75f);
+                effect.clip_black = raw_effect.value("clip_black", 0.0f);
+                effect.clip_white = raw_effect.value("clip_white", 1.0f);
+                effect.choke = raw_effect.value("choke", 0.0f);
+                if (raw_effect.contains("garbage_rect")) {
+                    const auto& rect = raw_effect.at("garbage_rect");
+                    if (!rect.is_array() || rect.size() != 4)
+                        throw std::runtime_error("Keying garbage_rect must contain [x, y, w, h]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.garbage_rect[i] = rect.at(i).get<float>();
+                        if (!std::isfinite(effect.garbage_rect[i]) ||
+                            effect.garbage_rect[i] < 0.0f || effect.garbage_rect[i] > 1.0f)
+                            throw std::runtime_error("Keying garbage_rect components must be in [0, 1]");
+                    }
+                }
+                effect.garbage_feather = raw_effect.value("garbage_feather", 0.0f);
                 if (!std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f ||
                     !std::isfinite(effect.softness) || effect.softness < 0.0f || effect.softness > 1.0f ||
                     !std::isfinite(effect.spill) || effect.spill < 0.0f || effect.spill > 1.0f)
                     throw std::runtime_error("Keying threshold, softness, and spill must be in [0, 1]");
+                if (!std::isfinite(effect.clip_black) || !std::isfinite(effect.clip_white) ||
+                    effect.clip_black < 0.0f || effect.clip_white > 1.0f ||
+                    effect.clip_white <= effect.clip_black)
+                    throw std::runtime_error("Keying clip_black/clip_white must satisfy 0 <= black < white <= 1");
+                if (!std::isfinite(effect.choke) || effect.choke < 0.0f || effect.choke >= 1.0f)
+                    throw std::runtime_error("Keying choke must be in [0, 1)");
+                if (!std::isfinite(effect.garbage_feather) || effect.garbage_feather < 0.0f ||
+                    effect.garbage_feather > 0.5f)
+                    throw std::runtime_error("Keying garbage_feather must be in [0, 0.5]");
             } else if (kind == "threshold") {
                 effect.kind = LayerPlan::EffectKindPlan::Threshold;
                 effect.threshold = raw_effect.value("threshold", 0.5f);
@@ -934,6 +970,80 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     !std::isfinite(effect.contrast) || effect.contrast < 0.0f || effect.contrast > 16.0f ||
                     !std::isfinite(effect.brightness) || std::abs(effect.brightness) > 16.0f)
                     throw std::runtime_error("Fractal Noise parameters are outside supported finite ranges");
+            } else if (kind == "corner_pin") {
+                effect.kind = LayerPlan::EffectKindPlan::CornerPin;
+                const auto read_quad = [&](const char* key, std::size_t index) {
+                    if (!raw_effect.contains(key)) return;
+                    const auto& point = raw_effect.at(key);
+                    if (!point.is_array() || point.size() != 2)
+                        throw std::runtime_error(std::string("Corner pin ") + key + " requires two values");
+                    effect.quad[index] = point[0].get<float>();
+                    effect.quad[index + 1] = point[1].get<float>();
+                };
+                read_quad("top_left", 0);
+                read_quad("top_right", 2);
+                read_quad("bottom_right", 4);
+                read_quad("bottom_left", 6);
+                for (const float value : effect.quad)
+                    if (!std::isfinite(value) || std::abs(value) > 4.0f)
+                        throw std::runtime_error("Corner pin coordinates must be finite and within [-4, 4]");
+            } else if (kind == "twirl") {
+                effect.kind = LayerPlan::EffectKindPlan::Twirl;
+                if (raw_effect.contains("center")) {
+                    const auto& center = raw_effect.at("center");
+                    if (!center.is_array() || center.size() != 2)
+                        throw std::runtime_error("Twirl center requires two values");
+                    effect.warp_center = {center[0].get<float>(), center[1].get<float>()};
+                }
+                effect.warp_angle = raw_effect.value("angle_degrees", 90.0f);
+                effect.warp_radius = raw_effect.value("radius", 0.5f);
+                effect.warp_falloff = raw_effect.value("falloff", 1.0f);
+                if (!std::isfinite(effect.warp_center[0]) || !std::isfinite(effect.warp_center[1]) ||
+                    !std::isfinite(effect.warp_angle) || std::abs(effect.warp_angle) > 3600.0f ||
+                    !std::isfinite(effect.warp_radius) || effect.warp_radius <= 0.0f ||
+                    effect.warp_radius > 2.0f ||
+                    !std::isfinite(effect.warp_falloff) || effect.warp_falloff <= 0.0f ||
+                    effect.warp_falloff > 4.0f)
+                    throw std::runtime_error("Invalid twirl parameters");
+            } else if (kind == "bulge") {
+                effect.kind = LayerPlan::EffectKindPlan::Bulge;
+                if (raw_effect.contains("center")) {
+                    const auto& center = raw_effect.at("center");
+                    if (!center.is_array() || center.size() != 2)
+                        throw std::runtime_error("Bulge center requires two values");
+                    effect.warp_center = {center[0].get<float>(), center[1].get<float>()};
+                }
+                effect.warp_amount = raw_effect.value("amount", 0.5f);
+                effect.warp_radius = raw_effect.value("radius", 0.5f);
+                if (!std::isfinite(effect.warp_center[0]) || !std::isfinite(effect.warp_center[1]) ||
+                    !std::isfinite(effect.warp_amount) || effect.warp_amount < -1.0f ||
+                    effect.warp_amount > 1.0f ||
+                    !std::isfinite(effect.warp_radius) || effect.warp_radius <= 0.0f ||
+                    effect.warp_radius > 2.0f)
+                    throw std::runtime_error("Invalid bulge parameters");
+            } else if (kind == "mesh_warp") {
+                effect.kind = LayerPlan::EffectKindPlan::MeshWarp;
+                effect.mesh_cols = raw_effect.value("cols", 2u);
+                effect.mesh_rows = raw_effect.value("rows", 2u);
+                effect.mesh_smoothness = raw_effect.value("smoothness", 0.0f);
+                if (effect.mesh_cols < 2 || effect.mesh_cols > 32 ||
+                    effect.mesh_rows < 2 || effect.mesh_rows > 32 ||
+                    !std::isfinite(effect.mesh_smoothness) || effect.mesh_smoothness < 0.0f ||
+                    effect.mesh_smoothness > 1.0f)
+                    throw std::runtime_error("Invalid mesh-warp grid dimensions");
+                const auto& offsets = raw_effect.at("offsets");
+                const std::size_t expected =
+                    static_cast<std::size_t>(effect.mesh_cols) * effect.mesh_rows * 2;
+                if (!offsets.is_array() || offsets.size() != expected || expected > 2048)
+                    throw std::runtime_error("Mesh warp offsets must contain cols*rows x,y pairs");
+                effect.mesh_offsets.reserve(expected);
+                for (const auto& value : offsets) {
+                    const float component = value.get<float>();
+                    if (!std::isfinite(component) || std::abs(component) > 4.0f)
+                        throw std::runtime_error("Mesh warp offsets must be finite and within [-4, 4]");
+                    effect.mesh_offsets.push_back(component);
+                }
+
             } else throw std::runtime_error("unsupported layer effect type");
             layer.effects.push_back(std::move(effect));
         }

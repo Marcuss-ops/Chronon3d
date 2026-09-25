@@ -395,4 +395,10 @@ void RenderEngine::set_assets_root(std::filesystem::path root) {
     m_impl->prepared_composition = nullptr;
 }
 
+std::string RenderEngine::resolved_lane_name() const {
+    if (!m_impl) return "software";
+    std::lock_guard lock(m_impl->state_mutex);
+    return m_impl->engine.resolved_lane_name();
+}
+
 } // namespace chronon3d::sdk

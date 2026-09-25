@@ -125,6 +125,7 @@ public:
     [[nodiscard]] const SoftwareExecutionContext& execution_context() const noexcept { return m_execution_context; }
     [[nodiscard]] graph::RenderBackend& backend();
     [[nodiscard]] const graph::RenderBackend& backend() const;
+    [[nodiscard]] std::string resolved_lane_name() const;
     // ── Text render resources ──────────────────────────────────────────
     [[nodiscard]] TextRenderResources* text_render_resources();
     [[nodiscard]] const TextRenderResources* text_render_resources() const;

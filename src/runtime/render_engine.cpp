@@ -123,6 +123,16 @@ struct RenderEngine::Impl {
     void set_assets_root(const std::filesystem::path& root) {
         m_runtime->resolver().mount(root);
     }
+
+    [[nodiscard]] std::string resolved_lane_name() const {
+        if (m_runtime && m_runtime->backend_attached()) {
+            return m_runtime->backend().lane_name();
+        }
+        if (m_renderer) {
+            return m_renderer->resolved_lane_name();
+        }
+        return "software";
+    }
 };
 
 #include "render_engine_prepared_job_detail.hpp"

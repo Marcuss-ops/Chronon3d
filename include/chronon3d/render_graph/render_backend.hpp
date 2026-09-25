@@ -184,6 +184,12 @@ public:
     RenderBackend(RenderBackend&&) noexcept = default;
     RenderBackend& operator=(RenderBackend&&) noexcept = default;
 
+    /// Canonical resolved render lane for diagnostics: e.g. "software",
+    /// "vulkan_native", "cuda_direct_yuv".
+    [[nodiscard]] virtual std::string lane_name() const {
+        return "software";
+    }
+
     /// Query backend capabilities at planning time.
     [[nodiscard]] virtual RenderCapabilities capabilities() const noexcept {
         return RenderCapabilities{};

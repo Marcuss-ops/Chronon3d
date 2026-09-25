@@ -3,6 +3,8 @@
 #include "daemon/chronon_ipc.hpp"
 #include "daemon/daemon_service.hpp"
 #include "commands/render/command_render_plan.hpp"
+#include <chronon3d/api/render_engine.hpp>
+#include <fmt/format.h>
 
 #include <atomic>
 #include <chrono>
@@ -272,4 +274,15 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     REQUIRE(shutdown.has_value());
     CHECK(shutdown->status == Status::Shutdown);
     CHECK(dispatch_count.load(std::memory_order_relaxed) == 2);
+}
+
+TEST_CASE("daemon startup diagnostic reports resolved lane") {
+    chronon3d::Config config = chronon3d::Config::from_environment();
+    config.set_backend_preference(chronon3d::graph::BackendPreference::Software);
+    chronon3d::RenderEngine engine(std::move(config));
+    CHECK(engine.resolved_lane_name() == "software");
+
+    const auto lane_msg = fmt::format("  resolved lane: {}", engine.resolved_lane_name());
+    CHECK(lane_msg.find("resolved lane") != std::string::npos);
+    CHECK(lane_msg.find("software") != std::string::npos);
 }
