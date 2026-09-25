@@ -403,10 +403,20 @@ struct alignas(16) TextRunDynamic {
     float animator_opacity{1.0f};
     float animator_scale_x{1.0f};
     float animator_scale_y{1.0f};
-    float animator_reserved2{0.0f};
+    /// Per-glyph Z rotation in degrees, applied around the glyph layout
+    /// origin exactly like animator_scale_* (forward value; the shader
+    /// weights it by the per-glyph selector weight).
+    float animator_rotation_z{0.0f};
+    /// Per-glyph fill target (pack_text_color). The raster shader lerps
+    /// `color` towards this value by the selector weight when the animator
+    /// fill flag (see gpu_text_selector_metadata.hpp) is set.
+    std::uint32_t animator_fill_color{0};
+    std::uint32_t animator_reserved3{0};
+    std::uint32_t animator_reserved4{0};
+    std::uint32_t animator_reserved5{0};
 };
-static_assert(sizeof(TextRunDynamic) == 112,
-              "TextRunDynamic must be 112 bytes matching std430");
+static_assert(sizeof(TextRunDynamic) == 128,
+              "TextRunDynamic must be 128 bytes matching std430");
 static_assert(alignof(TextRunDynamic) == 16,
               "TextRunDynamic must be 16-byte aligned for std430 arrays");
 
