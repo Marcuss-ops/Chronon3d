@@ -147,6 +147,7 @@ struct AnimationTrackPlan {
     std::string property;
     std::vector<AnimationKeyframePlan> keyframes;
     std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 struct AnimationPlan {
@@ -191,6 +192,7 @@ struct CameraTrackPlan {
     CameraPropertyPlan property{CameraPropertyPlan::PositionZ};
     std::vector<AnimationKeyframePlan> keyframes;
     std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 // Generic AE-style text animator contract. Editorial motion ids are lowered
@@ -238,7 +240,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -254,6 +256,12 @@ struct LayerPlan {
         float spill{0.75f};
         float threshold_softness{0.0f};
         std::uint32_t block_size{8};
+        float radius{0.0f};
+        std::array<float, 2> offset{0.0f, 8.0f};
+        std::array<float, 4> effect_color{0.0f, 0.0f, 0.0f, 0.35f};
+        float bloom_threshold{0.80f};
+        float bloom_intensity{0.60f};
+        float glow_intensity{0.25f};
     };
     std::vector<EffectPlan> effects;
 

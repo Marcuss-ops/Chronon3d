@@ -16,7 +16,18 @@
         "in_back", "out_back", "in_out_back",
         "in_elastic", "out_elastic", "in_out_elastic",
         "in_bounce", "out_bounce", "in_out_bounce",
-        "smoothstep", "hold"
+        "smoothstep", "hold", "bezier"
+      ]
+    },
+    "bezier_curve": {
+      "description": "Cubic timing curve [x1, y1, x2, y2]. X handles must be monotonic in [0, 1]; Y handles allow bounded overshoot.",
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": { "type": "number", "minimum": -10, "maximum": 10 }
+    },
+    "bezier_easing_contract": {
+      "allOf": [
+        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"] } },
+        { "if": { "required": ["bezier_curve"] }, "then": { "properties": { "easing": { "const": "bezier" } }, "required": ["easing"] } }
       ]
     },
     "keyframe_list": {
@@ -38,6 +49,7 @@
     "selector_track": {
       "description": "Keyframe track for a text-selector bound (start/end/offset/amount). The selector's meaning comes from its structural position, so 'property' is inert and optional here: it is decoded for backward compatibility but never influences selector evaluation.",
       "type": "object", "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["keyframes"],
       "properties": {
         "property": {
@@ -45,18 +57,21 @@
           "description": "Accepted for backward compatibility; selector behavior is defined by the field position (start/end/offset/amount), not by this value."
         },
         "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }
       }
     },
     "animator_property_track": {
       "description": "Animated property applied by a text animator. 'property' selects the engine property and must be one the compiler implements; any other value fails plan compilation.",
       "type": "object", "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
         "property": {
           "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking"]
         },
         "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }
       }
     },
@@ -100,10 +115,12 @@
     },
     "camera_track": {
       "type": "object", "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
         "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom"] },
         "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }
       }
     },
@@ -261,6 +278,7 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
+                  "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
                   "required": ["property", "keyframes"],
                   "properties": {
                     "property": {
@@ -281,9 +299,10 @@
                         "in_back", "out_back", "in_out_back",
                         "in_elastic", "out_elastic", "in_out_elastic",
                         "in_bounce", "out_bounce", "in_out_bounce",
-                        "smoothstep", "hold"
+                        "smoothstep", "hold", "bezier"
                       ]
                     },
+                    "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
                     "keyframes": {
                       "type": "array",
                       "minItems": 1,
