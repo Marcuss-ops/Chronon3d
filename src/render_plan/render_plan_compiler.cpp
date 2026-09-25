@@ -3,6 +3,7 @@
 #include <cmath>
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/render_plan/color_utils.hpp>
 
 #include "render_plan_compiler_detail.hpp"
 
@@ -157,6 +158,25 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     prepared_effects[index].emplace_back(ThresholdParams{
                         .threshold = effect.threshold,
                         .softness = effect.threshold_softness});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur) {
+                    prepared_effects[index].emplace_back(BlurParams{.radius = effect.radius});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::DropShadow) {
+                    prepared_effects[index].emplace_back(DropShadowParams{
+                        .offset = Vec2{effect.offset[0], effect.offset[1]},
+                        .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                       effect.effect_color[2], effect.effect_color[3]},
+                        .radius = effect.radius});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Bloom) {
+                    prepared_effects[index].emplace_back(BloomParams{
+                        .threshold = effect.bloom_threshold,
+                        .radius = effect.radius,
+                        .intensity = effect.bloom_intensity});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Glow) {
+                    prepared_effects[index].emplace_back(GlowParams{
+                        .radius = effect.radius,
+                        .intensity = effect.glow_intensity,
+                        .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                       effect.effect_color[2], effect.effect_color[3]}});
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
@@ -348,6 +368,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     RoundedRectParams params;
                                     params.size = size;
                                     params.radius = shape.radius;
+                                    params.corner_radius = shape.corner_radius;
                                     params.color = base_color;
                                     params.fill = fill;
                                     params.stroke = stroke;
@@ -468,6 +489,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     break;
                                 }
                             }
+                            if (layer.style && layer.style->backdrop) {
+                                const auto& backdrop = *layer.style->backdrop;
+                                builder.backdrop_blur(BackdropBlurParams{
+                                    .blur = backdrop.blur,
+                                    .brightness = backdrop.brightness,
+                                    .saturation = backdrop.saturation});
+                            }
                             break;
                         }
                         case LayerType::Text: {
@@ -493,6 +521,22 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
+                    if (layer.type == LayerType::Shape && layer.style) {
+                        const auto add_shadow = [&](const ShadowStyle& shadow) {
+                            const float opacity = shadow.opacity.value_or(1.0f);
+                            const auto color = parse_hex_color(shadow.color, opacity);
+                            if (!color)
+                                throw std::runtime_error("shape layer '" + layer.id + "' has invalid shadow color");
+                            if (shadow.offset_dimensions != 2)
+                                throw std::runtime_error("shape layer '" + layer.id + "' shadow requires a two-dimensional offset");
+                            builder.effect(DropShadowParams{
+                                .offset = Vec2{shadow.offset[0], shadow.offset[1]},
+                                .color = *color,
+                                .radius = shadow.blur.value_or(0.0f)});
+                        };
+                        if (layer.style->shadow) add_shadow(*layer.style->shadow);
+                        for (const auto& shadow : layer.style->shadows) add_shadow(shadow);
+                    }
                     for (const auto& effect : prepared_effects[index])
                         std::visit([&](const auto& params) {
                             using T = std::decay_t<decltype(params)>;

@@ -113,6 +113,18 @@ TEST_CASE("stroke_has_gradient: None type returns false") {
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
+TEST_CASE("software rounded_rect fill selects the authored radius for each corner") {
+    Shape shape;
+    shape.set_type(ShapeType::RoundedRect);
+    shape.rounded_rect().size = {100.0f, 100.0f};
+    shape.rounded_rect().corner_radius = std::array<f32, 4>{30.0f, 20.0f, 10.0f, 0.0f};
+    CHECK(hit_test_shape_fill(shape, {10.0f, 10.0f}, 0.0f, 0.0f));
+    CHECK_FALSE(hit_test_shape_fill(shape, {0.0f, 0.0f}, 0.0f, 0.0f));
+    CHECK_FALSE(hit_test_shape_fill(shape, {99.0f, 1.0f}, 0.0f, 0.0f));
+    CHECK_FALSE(hit_test_shape_fill(shape, {99.0f, 99.0f}, 0.0f, 0.0f));
+    CHECK(hit_test_shape_fill(shape, {0.0f, 99.0f}, 0.0f, 0.0f));
+}
+
 TEST_CASE("stroke_has_gradient: disabled stroke with gradient still returns true") {
     // stroke_has_gradient only checks gradient.has_value(), not enabled.
     auto grad = make_linear_rb_gradient();

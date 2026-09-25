@@ -710,6 +710,39 @@ TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
           chronon3d::render_plan::CameraPropertyPlan::PositionZ);
 }
 
+TEST_CASE("render plan decoder accepts bounded cubic Bezier track easing and fingerprints it") {
+    auto source = nlohmann::json{
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 320}, {"height", 180}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 30}}},
+        {"layers", {{{"id", "move"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+            {"animation", {{"tracks", {{{"property", "position_y"},
+                {"easing", "bezier"}, {"bezier_curve", {0.16, 1.0, 0.3, 1.0}},
+                {"keyframes", {{{"frame", 0}, {"value", 100}},
+                                {{"frame", 24}, {"value", 0}}}}}}}}}}}},
+        {"output", {{"path", "out.png"}}}};
+    const auto first = chronon3d::render_plan::decode_render_plan(source);
+    if (!first) FAIL(first.error().message);
+    REQUIRE(first);
+    const auto& track = first->layers[0].animation->tracks[0];
+    REQUIRE(track.bezier_curve);
+    CHECK((*track.bezier_curve)[0] == doctest::Approx(0.16f));
+    CHECK((*track.bezier_curve)[3] == doctest::Approx(1.0f));
+
+    auto changed = source;
+    changed["layers"][0]["animation"]["tracks"][0]["bezier_curve"][1] = 0.8;
+    const auto second = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(second);
+    CHECK(first->content_fingerprint != second->content_fingerprint);
+
+    auto missing_curve = source;
+    missing_curve["layers"][0]["animation"]["tracks"][0].erase("bezier_curve");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(missing_curve));
+    auto invalid_x = source;
+    invalid_x["layers"][0]["animation"]["tracks"][0]["bezier_curve"][0] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_x));
+}
+
 TEST_CASE("render plan decoder rejects invalid camera ranges and unknown tracks") {
     const nlohmann::json base = {
         {"schema", "chronon.render-plan.v2"}, {"version", 2},
@@ -821,7 +854,9 @@ TEST_CASE("V3 shape path commands decode in order and malformed commands fail cl
         })}
     });
     auto input = render_plan_test::base_plan({layer});
-    auto decoded = render_plan::decode_render_plan(input);
+    auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    if (!decoded) INFO(decoded.error().message);
+    if (!decoded) INFO(decoded.error().message);
     REQUIRE(decoded);
     const auto& commands = decoded->layers[0].shape->path;
     REQUIRE(commands.size() == 5);
@@ -858,7 +893,7 @@ TEST_CASE("V3 shape decoding rejects non-finite geometry and oversized rounded c
     };
     auto point_layer = render_plan_test::shape_layer(std::move(point_shape));
     auto input = render_plan_test::base_plan({point_layer});
-    CHECK_FALSE(render_plan::decode_render_plan(input));
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
 
     auto rounded = render_plan_test::shape_layer({{"type", "rounded_rect"}, {"radius", 15.0}});
     input = render_plan_test::base_plan({rounded});
@@ -871,6 +906,108 @@ TEST_CASE("V3 shape decoding rejects non-finite geometry and oversized rounded c
     auto bad_size = render_plan_test::shape_layer({{"type", "rect"}});
     bad_size["size"][0] = std::numeric_limits<double>::infinity();
     CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({bad_size})));
+}
+
+TEST_CASE("V3 rounded_rect accepts four corner radii and rejects ambiguous or invalid values") {
+    auto layer = render_plan_test::shape_layer({
+        {"type", "rounded_rect"}, {"corner_radius", {14.0, 14.0, 0.0, 14.0}}});
+    auto input = render_plan_test::base_plan({layer});
+    auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    INFO("render plan decode failure: " << decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].shape->corner_radius);
+    CHECK((*decoded->layers[0].shape->corner_radius)[2] == doctest::Approx(0.0f));
+
+    input["layers"][0]["shape"]["radius"] = 8.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
+    input["layers"][0]["shape"].erase("radius");
+    input["layers"][0]["shape"]["corner_radius"][0] = 15.01;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
+    input["layers"][0]["shape"]["corner_radius"] = {1.0, 2.0, 3.0};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
+}
+
+TEST_CASE("Render plan shadow arrays are bounded and mutually exclusive with legacy shadow") {
+    auto layer = render_plan_test::shape_layer({{"type", "rounded_rect"}});
+    layer["style"] = {{"shadows", nlohmann::json::array({
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}, {"blur", 8.0}},
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}, {"blur", 24.0}}})}};
+    auto plan = render_plan_test::base_plan({layer});
+    auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].style);
+    CHECK(decoded->layers[0].style->shadows.size() == 2);
+    plan["layers"][0]["style"]["shadow"] = {{"color", "#000000"}, {"offset", {0, 0}}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+    plan["layers"][0]["style"].erase("shadow");
+    plan["layers"][0]["style"]["shadows"].push_back(
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}});
+    plan["layers"][0]["style"]["shadows"].push_back(
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("Render plan variables resolve typed values before validation and fingerprinting") {
+    nlohmann::json layer{
+        {"id", "title"}, {"type", "text"}, {"text", "Hello ${title}"},
+        {"style", {{"font", "font.ttf"}, {"font_size", 20}, {"fill", "#FFFFFF"}}},
+        {"animation", {{"tracks", nlohmann::json::array({
+            {{"property", "opacity"}, {"keyframes", nlohmann::json::array({
+                {{"frame", 0}, {"value", "${score}"}}
+            })}}
+        })}}}
+    };
+    auto source = render_plan_test::base_plan({layer});
+    source["schema"] = "chronon.render-plan.v2";
+    source["version"] = 2;
+    source["variables"] = {{"title", "Ada"}, {"score", 73}, {"unused", "x"}};
+    auto resolved = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(resolved);
+    CHECK(resolved->layers[0].text == "Hello Ada");
+    REQUIRE(resolved->layers[0].animation);
+    CHECK(resolved->layers[0].animation->tracks[0].keyframes[0].value[0] == doctest::Approx(73.0f));
+    REQUIRE(resolved->warnings.size() == 1);
+    auto manual = source;
+    manual.erase("variables");
+    manual["layers"][0]["text"] = "Hello Ada";
+    manual["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["value"] = 73;
+    auto hand_written = chronon3d::render_plan::decode_render_plan(manual);
+    REQUIRE(hand_written);
+    CHECK(resolved->content_fingerprint == hand_written->content_fingerprint);
+    source["layers"][0]["text"] = "${missing}";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+    source["layers"][0]["text"] = "ok";
+    source["layers"][0]["animation"]["tracks"][0]["property"] = "${score}";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+}
+
+TEST_CASE("Render plan declares PNG sequence and GIF output formats") {
+    auto source = render_plan_test::base_plan();
+    source["output"]["format"] = "png_sequence";
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    CHECK(decoded->output.format == chronon3d::render_plan::OutputFormat::PngSequence);
+    source["output"]["format"] = "gif";
+    const auto gif = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(gif);
+    CHECK(gif->output.format == chronon3d::render_plan::OutputFormat::Gif);
+}
+
+TEST_CASE("Backdrop blur is accepted only on shape layers with bounded parameters") {
+    auto shape = render_plan_test::shape_layer({{"type", "rounded_rect"}});
+    shape["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0}}}};
+    auto plan = render_plan_test::base_plan({shape});
+    auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].style->backdrop);
+    CHECK(decoded->layers[0].style->backdrop->blur == doctest::Approx(16.0f));
+    plan["layers"][0]["style"]["backdrop"]["blur"] = 65.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+    plan = render_plan_test::base_plan({{{"id", "txt"}, {"type", "text"}, {"text", "x"},
+        {"style", {{"font", "font.ttf"}, {"font_size", 10}, {"fill", "#FFFFFF"},
+                    {"backdrop", {{"blur", 16}}}}}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
 }
 
 TEST_CASE("V3 color alias normalizes to shape.fill with explicit fill precedence") {

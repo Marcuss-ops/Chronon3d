@@ -73,6 +73,7 @@ struct PathOperatorPlan {
 struct ShapeContentPlan {
     ShapeContentTypePlan type{ShapeContentTypePlan::Rect};
     float radius{0.0f};
+    std::optional<std::array<float, 4>> corner_radius;
     std::optional<std::array<float, 4>> fill_color;
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
@@ -80,7 +81,7 @@ struct ShapeContentPlan {
     std::vector<PathOperatorPlan> operators;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
-enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM };
+enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM, PngSequence, Gif };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 enum class RateControlMode : std::uint8_t { Crf, ConstantQp, Bitrate };
 
@@ -97,6 +98,12 @@ struct ShadowStyle {
     std::optional<float> blur;
     std::array<float, 2> offset{0.0f, 0.0f};
     std::size_t offset_dimensions{0};
+};
+
+struct BackdropBlurStyle {
+    float blur{16.0f};
+    float brightness{1.0f};
+    float saturation{1.0f};
 };
 
 // Per-text halo parameters. This is distinct from ShadowStyle: shadow is a
@@ -123,6 +130,8 @@ struct LayerStylePlan {
     std::string fill;
     std::optional<StrokeStyle> stroke;
     std::optional<ShadowStyle> shadow;
+    std::vector<ShadowStyle> shadows;
+    std::optional<BackdropBlurStyle> backdrop;
     std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
 };
@@ -138,6 +147,7 @@ struct AnimationTrackPlan {
     std::string property;
     std::vector<AnimationKeyframePlan> keyframes;
     std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 struct AnimationPlan {
@@ -182,6 +192,7 @@ struct CameraTrackPlan {
     CameraPropertyPlan property{CameraPropertyPlan::PositionZ};
     std::vector<AnimationKeyframePlan> keyframes;
     std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 // Generic AE-style text animator contract. Editorial motion ids are lowered
@@ -229,7 +240,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -245,6 +256,12 @@ struct LayerPlan {
         float spill{0.75f};
         float threshold_softness{0.0f};
         std::uint32_t block_size{8};
+        float radius{0.0f};
+        std::array<float, 2> offset{0.0f, 8.0f};
+        std::array<float, 4> effect_color{0.0f, 0.0f, 0.0f, 0.35f};
+        float bloom_threshold{0.80f};
+        float bloom_intensity{0.60f};
+        float glow_intensity{0.25f};
     };
     std::vector<EffectPlan> effects;
 
@@ -327,6 +344,7 @@ struct RenderPlan {
     std::string schema{kRenderPlanSchemaV2};
     std::string job_id{"chronon_plan"};
     std::uint64_t content_fingerprint{0};
+    std::vector<std::string> warnings;
     CanvasSpec canvas;
     std::optional<CameraPlan> camera;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;

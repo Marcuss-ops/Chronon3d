@@ -12,11 +12,15 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/shape_stroke.hpp>
 
+#include <array>
+#include <optional>
+
 namespace chronon3d {
 
 struct RoundedRectShape {
     Vec2 size{100.0f, 100.0f};
     f32 radius{8.0f};
+    std::optional<std::array<f32, 4>> corner_radius{};
     ShapeStroke stroke{};
 };
 

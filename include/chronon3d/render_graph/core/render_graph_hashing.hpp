@@ -336,6 +336,9 @@ private:
         case ShapeType::RoundedRect:
             seed = hash_combine(seed, hash_vec2(s.rounded_rect().size));
             seed = hash_combine(seed, hash_bytes(&s.rounded_rect().radius, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(s.rounded_rect().corner_radius.has_value()));
+            if (s.rounded_rect().corner_radius)
+                seed = hash_combine(seed, hash_bytes(s.rounded_rect().corner_radius->data(), sizeof(f32) * 4));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rounded_rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.width));

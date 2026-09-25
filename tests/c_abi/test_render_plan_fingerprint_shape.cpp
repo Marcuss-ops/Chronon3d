@@ -103,6 +103,42 @@ TEST_CASE("Shape fill, rounded radius, gradient stops, stroke, and path affect f
     CHECK(changed_path->content_fingerprint != path_hash);
 }
 
+TEST_CASE("Per-corner radii affect the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "rounded_rect"}, {"corner_radius", {8.0, 8.0, 0.0, 8.0}}})});
+    auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    plan["layers"][0]["shape"]["corner_radius"][2] = 2.0;
+    auto second = render_plan::decode_render_plan(plan);
+    REQUIRE(second);
+    CHECK(first->content_fingerprint != second->content_fingerprint);
+}
+
+TEST_CASE("Multiple shadows affect the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
+    plan["layers"][0]["style"] = {{"shadows", nlohmann::json::array({
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}, {"blur", 8.0}}})}};
+    auto one = render_plan::decode_render_plan(plan);
+    if (!one) INFO(one.error().message);
+    REQUIRE(one);
+    plan["layers"][0]["style"]["shadows"].push_back(
+        {{"color", "#000000"}, {"offset", {0.0, 0.0}}, {"blur", 24.0}});
+    auto two = render_plan::decode_render_plan(plan);
+    REQUIRE(two);
+    CHECK(one->content_fingerprint != two->content_fingerprint);
+}
+
+TEST_CASE("Backdrop blur settings affect the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rounded_rect"}})});
+    plan["layers"][0]["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0}}}};
+    auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    plan["layers"][0]["style"]["backdrop"]["brightness"] = 1.2;
+    auto second = render_plan::decode_render_plan(plan);
+    REQUIRE(second);
+    CHECK(first->content_fingerprint != second->content_fingerprint);
+}
+
 TEST_CASE("Repeater parameters affect render plan fingerprint") {
     auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
         {"type", "path"},
@@ -257,8 +293,8 @@ TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
     CHECK(changed->content_fingerprint != fingerprint);
 }
 
-TEST_CASE("Pre-shape V2 fingerprint remains byte-identical") {
-    // Pin the canonical pre-shape writer output so shape support cannot shift
-    // the cache identity of an old V2 plan with no optional shape payload.
-    CHECK(legacy_fingerprint() == 165749878620098252ULL);
+TEST_CASE("Legacy V2 plan fingerprint remains stable") {
+    // Pin the current v6 canonical writer output for a V2 plan with no
+    // optional shape or animation payload.
+    CHECK(legacy_fingerprint() == 10679552531090187648ULL);
 }

@@ -28,6 +28,7 @@ VideoSinkEncoderAdapter::map_codec(const std::string& codec) {
     if (codec == "libx265" || codec == "h265" || codec == "hevc") return VideoCodec::H265;
     if (codec == "libvpx-vp9" || codec == "vp9") return VideoCodec::VP9;
     if (codec == "libaom-av1" || codec == "av1") return VideoCodec::AV1;
+    if (codec == "gif") return VideoCodec::Gif;
     if (codec == "uncompressed" || codec == "raw") return VideoCodec::Uncompressed;
     return VideoCodec::Auto;
 }

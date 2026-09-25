@@ -91,6 +91,10 @@ private:
 void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
     out.add_string(track.property);
     out.add_string(track.easing);
+    if (track.bezier_curve) {
+        out.add_bool(true);
+        for (const auto value : *track.bezier_curve) out.add_float(value);
+    }
     out.add_size(track.keyframes.size());
     for (const auto& key : track.keyframes) {
         out.add_frame(key.frame);
@@ -163,6 +167,24 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         for (const auto value : shadow.offset) writer.add_float(value);
         writer.add_size(shadow.offset_dimensions);
     });
+    if (!style.shadows.empty()) {
+        out.add_bool(true);
+        out.add_size(style.shadows.size());
+        for (const auto& shadow : style.shadows) {
+            out.add_string(shadow.color);
+            add_optional(out, shadow.opacity, [](auto& nested, float value) { nested.add_float(value); });
+            add_optional(out, shadow.blur, [](auto& nested, float value) { nested.add_float(value); });
+            for (const auto value : shadow.offset) out.add_float(value);
+            out.add_size(shadow.offset_dimensions);
+        }
+    }
+    if (style.backdrop) {
+        out.add_bool(true);
+        const auto& backdrop = *style.backdrop;
+        out.add_float(backdrop.blur);
+        out.add_float(backdrop.brightness);
+        out.add_float(backdrop.saturation);
+    }
     add_optional(out, style.glow, [](auto& writer, const GlowStyle& glow) {
         writer.add_float(glow.radius);
         writer.add_float(glow.intensity);
@@ -214,6 +236,10 @@ void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
 void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
     out.add_enum(track.property);
     out.add_string(track.easing);
+    if (track.bezier_curve) {
+        out.add_bool(true);
+        for (const auto value : *track.bezier_curve) out.add_float(value);
+    }
     out.add_size(track.keyframes.size());
     for (const auto& key : track.keyframes) {
         out.add_frame(key.frame);
@@ -259,6 +285,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         const auto& shape = *layer.shape;
         out.add_enum(shape.type);
         out.add_float(shape.radius);
+        if (shape.corner_radius) {
+            out.add_bool(true);
+            for (const auto radius : *shape.corner_radius) out.add_float(radius);
+        }
         add_optional(out, shape.fill_color, [](auto& nested, const auto& color) {
             for (const auto component : color) nested.add_float(component);
         });
@@ -376,6 +406,20 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
                 out.add_float(effect.threshold);
                 out.add_float(effect.threshold_softness);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur) {
+                out.add_float(effect.radius);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::DropShadow) {
+                out.add_float(effect.radius);
+                for (const auto value : effect.offset) out.add_float(value);
+                for (const auto value : effect.effect_color) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Bloom) {
+                out.add_float(effect.bloom_threshold);
+                out.add_float(effect.radius);
+                out.add_float(effect.bloom_intensity);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Glow) {
+                out.add_float(effect.radius);
+                out.add_float(effect.glow_intensity);
+                for (const auto value : effect.effect_color) out.add_float(value);
             } else {
                 out.add_size(effect.block_size);
             }

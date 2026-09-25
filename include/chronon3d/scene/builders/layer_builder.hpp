@@ -148,6 +148,7 @@ public:
         f32 radius = 0.5f, f32 softness = 0.5f, f32 amount = 1.0f);
     LayerBuilder& drop_shadow(
         Vec2 offset, Color color = {0, 0, 0, 0.35f}, f32 radius = 12.0f);
+    LayerBuilder& backdrop_blur(BackdropBlurParams params);
     template <typename Params>
     LayerBuilder& effect(Params params) {
         const auto& entry = effects::catalog_entry(effects::effect_type_v<Params>);
