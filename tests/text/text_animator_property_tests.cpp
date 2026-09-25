@@ -206,6 +206,140 @@ TEST_CASE("Property: property with zero selector weight has no effect") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Per-glyph karaoke fill (fill_color) and rotation goldens
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("Golden: karaoke — three words painted by their own fill_color") {
+    // 'aa bb cc' — words own glyphs 0-1, 3-4, 6-7; glyphs 2 and 5 are the
+    // separating spaces.  One animator per word, each windowed to its own
+    // third of the word units, each carrying a distinct fill target.
+    const std::string source = "aa bb cc";
+    auto placed = make_test_placed_run_prop(source.size());
+
+    const Color red{1.0f, 0.0f, 0.0f, 1.0f};
+    const Color green{0.0f, 1.0f, 0.0f, 1.0f};
+    const Color blue{0.0f, 0.0f, 1.0f, 1.0f};
+    const Color words[3] = {red, green, blue};
+
+    std::vector<TextAnimatorSpec> specs;
+    for (int word = 0; word < 3; ++word) {
+        TextAnimatorSpec spec;
+        spec.id = "karaoke_" + std::to_string(word);
+        spec.selectors.push_back({});
+        auto& selector = spec.selectors.back();
+        selector.unit = TextSelectorUnit::Word;
+        selector.shape = TextSelectorShape::Square;
+        selector.combine = SelectorCombineMode::Replace;
+        selector.start.set(static_cast<float>(word) * 100.0f / 3.0f);
+        selector.end.set(static_cast<float>(word + 1) * 100.0f / 3.0f);
+        selector.amount.set(100.0f);
+        spec.properties.push_back(FillColorProperty{words[word]});
+        specs.push_back(std::move(spec));
+    }
+
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    auto states = evaluate_animator_stack(specs, placed, source, t);
+    REQUIRE(states.size() == source.size());
+
+    const auto expect_glyph = [&](size_t glyph, const Color& expected) {
+        CHECK(states[glyph].fill.r == doctest::Approx(expected.r));
+        CHECK(states[glyph].fill.g == doctest::Approx(expected.g));
+        CHECK(states[glyph].fill.b == doctest::Approx(expected.b));
+    };
+    expect_glyph(0, red);
+    expect_glyph(1, red);
+    expect_glyph(3, green);
+    expect_glyph(4, green);
+    expect_glyph(6, blue);
+    expect_glyph(7, blue);
+    // The three words are painted differently — the karaoke contract.
+    CHECK(states[0].fill.r > 0.9f);   // word 0 is red
+    CHECK(states[3].fill.r < 0.1f);   // word 1 is green, not red
+}
+
+TEST_CASE("Golden: fill_color keyframes animate over time") {
+    TextAnimatorSpec spec;
+    spec.id = "fill_sweep";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    FillColorProperty fill;
+    fill.color.key(Frame{0}, Color{0.0f, 0.0f, 0.0f, 1.0f})
+              .key(Frame{30}, Color{1.0f, 1.0f, 1.0f, 1.0f});
+    spec.properties.push_back(fill);
+
+    auto placed = make_test_placed_run_prop(1);
+    auto source = make_source_prop(1);
+
+    auto at_frame = [&](int frame) {
+        return evaluate_animator_stack(
+            {spec}, placed, source,
+            SampleTime::from_frame_int(Frame{frame}, FrameRate{30, 1}))[0];
+    };
+
+    CHECK(at_frame(0).fill.r == doctest::Approx(0.0f));
+    CHECK(at_frame(15).fill.r == doctest::Approx(0.5f));
+    CHECK(at_frame(30).fill.r == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Golden: per-glyph rotation from_center targets the centre glyph") {
+    TextAnimatorSpec spec;
+    spec.id = "spin_center";
+    spec.selectors.push_back({});
+    auto& selector = spec.selectors.back();
+    selector.unit = TextSelectorUnit::Glyph;
+    selector.shape = TextSelectorShape::Square;
+    selector.order = TextSelectorOrder::FromCenter;
+    selector.combine = SelectorCombineMode::Replace;
+    selector.start.set(0.0f);
+    selector.end.set(20.0f);  // one glyph of five, reindexed from the centre
+    selector.amount.set(100.0f);
+    RotationProperty spin;
+    spin.degrees.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f})
+                .key(Frame{30}, Vec3{0.0f, 0.0f, 30.0f});
+    spec.properties.push_back(spin);
+
+    auto placed = make_test_placed_run_prop(5);
+    auto source = make_source_prop(5);
+
+    auto at_frame = [&](int frame) {
+        return evaluate_animator_stack(
+            {spec}, placed, source,
+            SampleTime::from_frame_int(Frame{frame}, FrameRate{30, 1}));
+    };
+
+    // FromCenter reindexes the middle glyph (index 2) first, so the 0-20%
+    // window selects exactly it.
+    auto states = at_frame(30);
+    REQUIRE(states.size() == 5);
+    CHECK(states[2].rotation.z == doctest::Approx(30.0f));
+    CHECK(states[0].rotation.z == doctest::Approx(0.0f));
+    CHECK(states[4].rotation.z == doctest::Approx(0.0f));
+
+    // The track animates: half time, half angle.
+    states = at_frame(15);
+    CHECK(states[2].rotation.z == doctest::Approx(15.0f));
+}
+
+TEST_CASE("Golden: rotation XYZ components ride the same track") {
+    TextAnimatorSpec spec;
+    spec.id = "spin_xyz";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+    spec.properties.push_back(
+        RotationProperty{Vec3{10.0f, 20.0f, 30.0f}});
+
+    auto placed = make_test_placed_run_prop(1);
+    auto source = make_source_prop(1);
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    auto states = evaluate_animator_stack({spec}, placed, source, t);
+
+    CHECK(states[0].rotation.x == doctest::Approx(10.0f));
+    CHECK(states[0].rotation.y == doctest::Approx(20.0f));
+    CHECK(states[0].rotation.z == doctest::Approx(30.0f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Multiple animators with blend modes
 // ═══════════════════════════════════════════════════════════════════════════
 

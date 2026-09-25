@@ -3,6 +3,7 @@
 #include <src/render_graph/nodes/text_run/gpu_text_run.hpp>
 #include <chronon3d/text/animation/text_animator_stack.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_color_packing.hpp>
 
 #include <algorithm>
 #include <array>
@@ -133,9 +134,9 @@ TEST_CASE("GPU MTSDF scale plus translation keeps the authored pivot fixed") {
     }
 }
 
-TEST_CASE("GPU text does not lower rotation into the scale-only MTSDF path") {
+TEST_CASE("GPU text lowers Z-only rotation and samples it per glyph") {
     auto layout = std::make_shared<TextRunLayout>();
-    layout->placed = make_test_placed_run(1);
+    layout->placed = make_test_placed_run(3);
 
     TextRunShape shape;
     shape.layout = layout;
@@ -146,7 +147,87 @@ TEST_CASE("GPU text does not lower rotation into the scale-only MTSDF path") {
     animator.properties.push_back(RotationProperty{{0.0f, 0.0f, 12.0f}});
     shape.animators.push_back(std::move(animator));
 
+    REQUIRE(can_lower_gpu_text_animation(shape));
+
+    runtime::TextRunDynamic run;
+    sample_gpu_text_animation(
+        shape, SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}), run);
+    CHECK(run.animator_rotation_z == doctest::Approx(12.0f));
+}
+
+TEST_CASE("GPU text does not lower X/Y rotation into the in-plane MTSDF path") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(1);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(full_glyph_selector());
+    animator.properties.push_back(RotationProperty{{10.0f, 0.0f, 0.0f}});
+    shape.animators.push_back(std::move(animator));
+
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text lowers fill_color and packs the per-glyph target") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(3);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+
+    const Color target{0.25f, 0.5f, 0.75f, 1.0f};
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(full_glyph_selector());
+    animator.properties.push_back(FillColorProperty{target});
+    shape.animators.push_back(std::move(animator));
+
+    REQUIRE(can_lower_gpu_text_animation(shape));
+
+    runtime::TextRunDynamic run;
+    sample_gpu_text_animation(
+        shape, SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}), run);
+    CHECK((run.flags & runtime::kTextRunFlagAnimatorFill) != 0u);
+    CHECK(run.animator_fill_color ==
+          chronon3d::text::pack_text_color(target));
+}
+
+TEST_CASE("GPU run-level fill_color lowers and lerps the packed run color") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->units.word_count = 1;
+    layout->placed = make_test_placed_run(3);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+
+    GlyphSelectorSpec whole_word;
+    whole_word.unit = TextSelectorUnit::Word;
+    whole_word.shape = TextSelectorShape::Square;
+    whole_word.order = TextSelectorOrder::Forward;
+    whole_word.combine = SelectorCombineMode::Replace;
+    whole_word.start = AnimatedValue<f32>(0.0f);
+    whole_word.end = AnimatedValue<f32>(100.0f);
+    whole_word.amount = AnimatedValue<f32>(100.0f);
+
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(std::move(whole_word));
+    animator.properties.push_back(
+        FillColorProperty{Color{1.0f, 0.0f, 0.0f, 1.0f}});
+    shape.animators.push_back(std::move(animator));
+
+    REQUIRE(can_lower_gpu_run_level_animation(shape));
+
+    runtime::TextRunDynamic run;
+    run.color = chronon3d::text::pack_text_color(Color{0.0f, 0.0f, 1.0f, 1.0f});
+    sample_gpu_run_level_animation(
+        shape, SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}), run);
+    // Full-run selector weight 1.0 lands the fill exactly on the target.
+    CHECK(run.color ==
+          chronon3d::text::pack_text_color(Color{1.0f, 0.0f, 0.0f, 1.0f}));
 }
 
 TEST_CASE("Typewriter reveal keeps already shaped glyph positions stable") {

@@ -57,7 +57,11 @@ struct GpuTextRunDynamic {
     float animator_opacity;
     float animator_scale_x;
     float animator_scale_y;
-    float animator_reserved2;
+    float animator_rotation_z;
+    uint animator_fill_color;
+    uint animator_reserved3;
+    uint animator_reserved4;
+    uint animator_reserved5;
 };
 
 layout(std430, set = 0, binding = 2) readonly buffer GlyphBuffer {
@@ -128,6 +132,16 @@ vec4 unpack_color(uint c) {
     float g = float((c >> 8)  & 0xFFu) / 255.0;
     float r = float( c        & 0xFFu) / 255.0;
     return vec4(r, g, b, a);
+}
+
+// Per-glyph animator fill: lerps the run fill towards animator_fill_color by
+// the selector weight when flag bit 10 (kTextRunFlagAnimatorFill) is set;
+// otherwise the plain run color, so the path is an exact identity without an
+// animated fill.
+vec4 animated_fill_color(GpuTextRunDynamic run, float weight) {
+    vec4 base = unpack_color(run.color);
+    if ((run.flags & 0x400u) == 0u) return base;
+    return mix(base, unpack_color(run.animator_fill_color), weight);
 }
 
 void main() {
@@ -262,6 +276,19 @@ void main() {
             vec2 local = (pixel_pos - vec2(run.tx, run.ty) - animator_offset -
                           scale_origin_compensation) /
                          (vec2(run.sx, run.sy) * animator_scale);
+            // Per-glyph in-plane rotation around the glyph layout origin (the
+            // same pivot the scale compensation above preserves). Forward is
+            // a +degrees rotation in layout space; this is its inverse. For a
+            // uniform animator scale the composition order against scale is
+            // immaterial, which is the canonical per-glyph contract.
+            if (run.animator_rotation_z != 0.0) {
+                float angle = radians(run.animator_rotation_z * reveal_weight);
+                float ca = cos(angle);
+                float sa = sin(angle);
+                vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
+                local = vec2(glyph.origin_x, glyph.origin_y) +
+                        vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
+            }
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
                      local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;
             if (inside) {
@@ -383,13 +410,14 @@ void main() {
                 stroke *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
                 stroke_layer = stroke + stroke_layer * (1.0 - stroke.a);
             }
-            vec4 fill = unpack_color(run.color) * fill_alpha;
+            vec4 fill = animated_fill_color(run, reveal_weight) * fill_alpha;
             fill *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
             fill_layer = fill + fill_layer * (1.0 - fill.a);
         } else {
             src = sample_value;
-            if (run.color != 0xFFFFFFFFu && run.color != 0u) {
-                src *= unpack_color(run.color);
+            if ((run.flags & 0x400u) != 0u ||
+                (run.color != 0xFFFFFFFFu && run.color != 0u)) {
+                src *= animated_fill_color(run, reveal_weight);
             }
             src *= run.opacity * (1.0 + (run.animator_opacity - 1.0) * reveal_weight);
             fill_layer = src + fill_layer * (1.0 - src.a);

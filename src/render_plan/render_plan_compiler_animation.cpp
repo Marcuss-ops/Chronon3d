@@ -3,6 +3,9 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 
+#include <algorithm>
+#include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -118,6 +121,42 @@ chronon3d::AnimatedValue<T> animated_text_value(
     return result;
 }
 
+// `rotation` keyframes are scalar (Z rotation in degrees) or full XYZ triples.
+chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_rotation(
+    const AnimationTrackPlan& track) {
+    chronon3d::AnimatedValue<chronon3d::Vec3> result{chronon3d::Vec3{}};
+    for (const auto& key : track.keyframes) {
+        chronon3d::Vec3 value{};
+        if (key.value.size() == 1) {
+            value.z = scalar_value(key, "rotation");
+        } else if (key.value.size() == 3) {
+            value = vector_value(key, "rotation", chronon3d::Vec3{});
+        } else {
+            throw std::runtime_error(
+                "animation property 'rotation' requires scalar or 3-component keyframe values");
+        }
+        result.add_keyframe(key.frame, value, track_easing(track.easing));
+    }
+    return result;
+}
+
+// `fill_color` keyframes are always RGBA quadruples in 0..1.
+chronon3d::AnimatedValue<chronon3d::Color> animated_text_color(
+    const AnimationTrackPlan& track, std::string_view property) {
+    chronon3d::AnimatedValue<chronon3d::Color> result{
+        chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f}};
+    for (const auto& key : track.keyframes) {
+        if (key.value.size() != 4)
+            throw std::runtime_error("animation property '" + std::string(property) +
+                                     "' requires 4 keyframe components");
+        result.add_keyframe(
+            key.frame,
+            chronon3d::Color{key.value[0], key.value[1], key.value[2], key.value[3]},
+            track_easing(track.easing));
+    }
+    return result;
+}
+
 chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
     const AnimationTrackPlan& track, chronon3d::Vec3 fallback,
     std::string_view property) {
@@ -180,6 +219,12 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan) 
         } else if (track.property == "tracking") {
             animator.properties.push_back(chronon3d::TrackingProperty{
                 animated_text_value(track, 0.0f, track.property)});
+        } else if (track.property == "rotation") {
+            animator.properties.push_back(chronon3d::RotationProperty{
+                animated_text_rotation(track)});
+        } else if (track.property == "fill_color") {
+            animator.properties.push_back(chronon3d::FillColorProperty{
+                animated_text_color(track, track.property)});
         } else {
             throw std::runtime_error("unsupported text animator property: " + track.property);
         }
@@ -205,92 +250,207 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     const chronon3d::Vec3 base_scale{layer.scale[0], layer.scale[1], layer.scale[2]};
     const chronon3d::Vec3 base_rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
 
-    bool position_claimed = false;
-    bool scale_claimed = false;
-    bool rotation_claimed = false;
-    bool opacity_claimed = false;
-    bool blur_claimed = false;
+    struct AxisTrackGroup {
+        const AnimationTrackPlan* full = nullptr;
+        const AnimationTrackPlan* x = nullptr;
+        const AnimationTrackPlan* y = nullptr;
+        const AnimationTrackPlan* z = nullptr;
+    };
+
+    AxisTrackGroup pos_tracks;
+    AxisTrackGroup scale_tracks;
+    AxisTrackGroup rot_tracks;
+    const AnimationTrackPlan* opacity_track = nullptr;
+    const AnimationTrackPlan* blur_track = nullptr;
 
     for (const auto& track : layer.animation->tracks) {
-        const auto easing = track_easing(track.easing);
-        const auto component_track = [&](std::string_view prefix) {
-            return track.property == std::string(prefix) + "_x" ||
-                   track.property == std::string(prefix) + "_y" ||
-                   track.property == std::string(prefix) + "_z";
-        };
-        if (track.property == "position" || component_track("position")) {
-            if (position_claimed)
-                throw std::runtime_error("layer '" + layer.id + "' has overlapping position tracks");
-            position_claimed = true;
-            auto& animated = builder.position_anim();
-            animated.set(base_position);
-            for (const auto& key : track.keyframes) {
-                auto value = base_position;
-                if (track.property == "position") {
-                    value = vector_value(key, track.property, base_position);
-                } else {
-                    const float offset = scalar_value(key, track.property);
-                    if (track.property == "position_x") value.x += offset;
-                    else if (track.property == "position_y") value.y += offset;
-                    else value.z += offset;
-                }
-                animated.add_keyframe(key.frame, value, easing);
-            }
-        } else if (track.property == "scale" || component_track("scale")) {
-            if (scale_claimed)
-                throw std::runtime_error("layer '" + layer.id + "' has overlapping scale tracks");
-            scale_claimed = true;
-            auto& animated = builder.scale_anim();
-            animated.set(base_scale);
-            for (const auto& key : track.keyframes) {
-                auto value = base_scale;
-                if (track.property == "scale") {
-                    value = vector_value(key, track.property, base_scale);
-                } else {
-                    const float scalar = scalar_value(key, track.property);
-                    if (track.property == "scale_x") value.x = scalar;
-                    else if (track.property == "scale_y") value.y = scalar;
-                    else value.z = scalar;
-                }
-                animated.add_keyframe(key.frame, value, easing);
-            }
-        } else if (track.property == "rotation" || component_track("rotation")) {
-            if (rotation_claimed)
-                throw std::runtime_error("layer '" + layer.id + "' has overlapping rotation tracks");
-            rotation_claimed = true;
-            auto& animated = builder.rotate_anim();
-            animated.set(base_rotation);
-            for (const auto& key : track.keyframes) {
-                auto value = base_rotation;
-                if (track.property == "rotation") {
-                    value = vector_value(key, track.property, base_rotation);
-                } else {
-                    const float scalar = scalar_value(key, track.property);
-                    if (track.property == "rotation_x") value.x = scalar;
-                    else if (track.property == "rotation_y") value.y = scalar;
-                    else value.z = scalar;
-                }
-                animated.add_keyframe(key.frame, value, easing);
-            }
+        if (track.property == "position") {
+            if (pos_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate position tracks");
+            pos_tracks.full = &track;
+        } else if (track.property == "position_x") {
+            if (pos_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_x tracks");
+            pos_tracks.x = &track;
+        } else if (track.property == "position_y") {
+            if (pos_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_y tracks");
+            pos_tracks.y = &track;
+        } else if (track.property == "position_z") {
+            if (pos_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_z tracks");
+            pos_tracks.z = &track;
+        } else if (track.property == "scale") {
+            if (scale_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale tracks");
+            scale_tracks.full = &track;
+        } else if (track.property == "scale_x") {
+            if (scale_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_x tracks");
+            scale_tracks.x = &track;
+        } else if (track.property == "scale_y") {
+            if (scale_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_y tracks");
+            scale_tracks.y = &track;
+        } else if (track.property == "scale_z") {
+            if (scale_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_z tracks");
+            scale_tracks.z = &track;
+        } else if (track.property == "rotation") {
+            if (rot_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation tracks");
+            rot_tracks.full = &track;
+        } else if (track.property == "rotation_x") {
+            if (rot_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_x tracks");
+            rot_tracks.x = &track;
+        } else if (track.property == "rotation_y") {
+            if (rot_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_y tracks");
+            rot_tracks.y = &track;
+        } else if (track.property == "rotation_z") {
+            if (rot_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_z tracks");
+            rot_tracks.z = &track;
         } else if (track.property == "opacity") {
-            if (opacity_claimed)
-                throw std::runtime_error("layer '" + layer.id + "' has duplicate opacity tracks");
-            opacity_claimed = true;
-            auto& animated = builder.opacity_anim();
-            animated.set(layer.opacity.value_or(1.0f));
-            for (const auto& key : track.keyframes)
-                animated.add_keyframe(key.frame, scalar_value(key, track.property), easing);
+            if (opacity_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate opacity tracks");
+            opacity_track = &track;
         } else if (track.property == "blur") {
-            if (blur_claimed)
-                throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
-            blur_claimed = true;
-            auto& animated = builder.blur_anim();
-            animated.set(0.0f);
-            for (const auto& key : track.keyframes)
-                animated.add_keyframe(key.frame, scalar_value(key, track.property), easing);
+            if (blur_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
+            blur_track = &track;
         } else {
             throw std::runtime_error("unsupported primitive animation property: " + track.property);
         }
+    }
+
+    if (pos_tracks.full && (pos_tracks.x || pos_tracks.y || pos_tracks.z))
+        throw std::runtime_error("layer '" + layer.id + "' mixes 'position' with component tracks");
+    if (scale_tracks.full && (scale_tracks.x || scale_tracks.y || scale_tracks.z))
+        throw std::runtime_error("layer '" + layer.id + "' mixes 'scale' with component tracks");
+    if (rot_tracks.full && (rot_tracks.x || rot_tracks.y || rot_tracks.z))
+        throw std::runtime_error("layer '" + layer.id + "' mixes 'rotation' with component tracks");
+
+    auto make_scalar_eval = [](const AnimationTrackPlan* track, float fallback) -> std::optional<chronon3d::AnimatedValue<float>> {
+        if (!track) return std::nullopt;
+        chronon3d::AnimatedValue<float> anim(fallback);
+        const auto easing = track_easing(track->easing);
+        for (const auto& key : track->keyframes) {
+            anim.add_keyframe(key.frame, scalar_value(key, track->property), easing);
+        }
+        return anim;
+    };
+
+    auto dominant_easing = [](const AnimationTrackPlan* x,
+                              const AnimationTrackPlan* y,
+                              const AnimationTrackPlan* z,
+                              Frame f) -> chronon3d::EasingCurve {
+        chronon3d::EasingCurve result{chronon3d::Easing::Linear};
+        for (const auto* t : {x, y, z}) {
+            if (t) {
+                for (const auto& k : t->keyframes) {
+                    if (k.frame == f) {
+                        const auto curve = track_easing(t->easing);
+                        if (curve != chronon3d::Easing::Linear || result == chronon3d::Easing::Linear) {
+                            result = curve;
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    };
+
+    if (pos_tracks.full) {
+        auto& animated = builder.position_anim();
+        animated.set(base_position);
+        const auto easing = track_easing(pos_tracks.full->easing);
+        for (const auto& key : pos_tracks.full->keyframes) {
+            animated.add_keyframe(key.frame, vector_value(key, pos_tracks.full->property, base_position), easing);
+        }
+    } else if (pos_tracks.x || pos_tracks.y || pos_tracks.z) {
+        auto& animated = builder.position_anim();
+        animated.set(base_position);
+        auto eval_x = make_scalar_eval(pos_tracks.x, 0.0f);
+        auto eval_y = make_scalar_eval(pos_tracks.y, 0.0f);
+        auto eval_z = make_scalar_eval(pos_tracks.z, 0.0f);
+
+        std::set<Frame> frames;
+        for (const auto* t : {pos_tracks.x, pos_tracks.y, pos_tracks.z}) {
+            if (t) {
+                for (const auto& k : t->keyframes) frames.insert(k.frame);
+            }
+        }
+
+        for (const auto& f : frames) {
+            chronon3d::Vec3 v = base_position;
+            if (eval_x) v.x += eval_x->evaluate(static_cast<double>(f.integral()));
+            if (eval_y) v.y += eval_y->evaluate(static_cast<double>(f.integral()));
+            if (eval_z) v.z += eval_z->evaluate(static_cast<double>(f.integral()));
+            animated.add_keyframe(f, v, dominant_easing(pos_tracks.x, pos_tracks.y, pos_tracks.z, f));
+        }
+    }
+
+    if (scale_tracks.full) {
+        auto& animated = builder.scale_anim();
+        animated.set(base_scale);
+        const auto easing = track_easing(scale_tracks.full->easing);
+        for (const auto& key : scale_tracks.full->keyframes) {
+            animated.add_keyframe(key.frame, vector_value(key, scale_tracks.full->property, base_scale), easing);
+        }
+    } else if (scale_tracks.x || scale_tracks.y || scale_tracks.z) {
+        auto& animated = builder.scale_anim();
+        animated.set(base_scale);
+        auto eval_x = make_scalar_eval(scale_tracks.x, base_scale.x);
+        auto eval_y = make_scalar_eval(scale_tracks.y, base_scale.y);
+        auto eval_z = make_scalar_eval(scale_tracks.z, base_scale.z);
+
+        std::set<Frame> frames;
+        for (const auto* t : {scale_tracks.x, scale_tracks.y, scale_tracks.z}) {
+            if (t) {
+                for (const auto& k : t->keyframes) frames.insert(k.frame);
+            }
+        }
+
+        for (const auto& f : frames) {
+            chronon3d::Vec3 v = base_scale;
+            if (eval_x) v.x = eval_x->evaluate(static_cast<double>(f.integral()));
+            if (eval_y) v.y = eval_y->evaluate(static_cast<double>(f.integral()));
+            if (eval_z) v.z = eval_z->evaluate(static_cast<double>(f.integral()));
+            animated.add_keyframe(f, v, dominant_easing(scale_tracks.x, scale_tracks.y, scale_tracks.z, f));
+        }
+    }
+
+    if (rot_tracks.full) {
+        auto& animated = builder.rotate_anim();
+        animated.set(base_rotation);
+        const auto easing = track_easing(rot_tracks.full->easing);
+        for (const auto& key : rot_tracks.full->keyframes) {
+            animated.add_keyframe(key.frame, vector_value(key, rot_tracks.full->property, base_rotation), easing);
+        }
+    } else if (rot_tracks.x || rot_tracks.y || rot_tracks.z) {
+        auto& animated = builder.rotate_anim();
+        animated.set(base_rotation);
+        auto eval_x = make_scalar_eval(rot_tracks.x, base_rotation.x);
+        auto eval_y = make_scalar_eval(rot_tracks.y, base_rotation.y);
+        auto eval_z = make_scalar_eval(rot_tracks.z, base_rotation.z);
+
+        std::set<Frame> frames;
+        for (const auto* t : {rot_tracks.x, rot_tracks.y, rot_tracks.z}) {
+            if (t) {
+                for (const auto& k : t->keyframes) frames.insert(k.frame);
+            }
+        }
+
+        for (const auto& f : frames) {
+            chronon3d::Vec3 v = base_rotation;
+            if (eval_x) v.x = eval_x->evaluate(static_cast<double>(f.integral()));
+            if (eval_y) v.y = eval_y->evaluate(static_cast<double>(f.integral()));
+            if (eval_z) v.z = eval_z->evaluate(static_cast<double>(f.integral()));
+            animated.add_keyframe(f, v, dominant_easing(rot_tracks.x, rot_tracks.y, rot_tracks.z, f));
+        }
+    }
+
+    if (opacity_track) {
+        const auto easing = track_easing(opacity_track->easing);
+        auto& animated = builder.opacity_anim();
+        animated.set(layer.opacity.value_or(1.0f));
+        for (const auto& key : opacity_track->keyframes)
+            animated.add_keyframe(key.frame, scalar_value(key, opacity_track->property), easing);
+    }
+    if (blur_track) {
+        const auto easing = track_easing(blur_track->easing);
+        auto& animated = builder.blur_anim();
+        animated.set(0.0f);
+        for (const auto& key : blur_track->keyframes)
+            animated.add_keyframe(key.frame, scalar_value(key, blur_track->property), easing);
     }
 }
 

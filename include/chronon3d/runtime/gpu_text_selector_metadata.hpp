@@ -12,6 +12,13 @@ namespace chronon3d::runtime {
 inline constexpr std::uint16_t kMtsdfGlyphWordIndexShift = 1u;
 inline constexpr std::uint16_t kMtsdfGlyphWordIndexMask = 0x7fffu;
 
+// TextRunDynamic.flags bit 10 marks an active per-glyph animator fill color
+// (animator_fill_color is the lerp target; `color` stays the lerp base). Bits
+// 4..9 carry selector metadata and 0..3 the selector/placement flags, so the
+// animator-fill marker lives above them and is preserved by
+// pack_text_selector_metadata.
+inline constexpr std::uint32_t kTextRunFlagAnimatorFill = 1u << 10;
+
 // TextRunDynamic.flags bits 4..6 carry selector-unit metadata for host-side
 // per-glyph weighting. Bits 0..3 retain their existing selector/placement flags.
 inline constexpr std::uint32_t kTextRunSelectorUnitShift = 4u;

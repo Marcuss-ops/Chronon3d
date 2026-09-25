@@ -60,6 +60,127 @@ TEST_CASE("render plan decoder decodes concrete primitive layers") {
     CHECK(decoded->layers[3].type == chronon3d::render_plan::LayerType::Text);
 }
 
+namespace {
+
+nlohmann::json v3_text_plan() {
+    return nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"txt","type":"text","text":"Hello",
+        "style":{"font":"fonts/roboto.ttf","font_size":32.0,"fill":"#FFFFFF"}}],
+      "output":{"path":"out.mp4"}})JSON");
+}
+
+} // namespace
+
+TEST_CASE("render plan V3 decodes per-glyph rotation and fill_color animator tracks") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "karaoke",
+            "selectors": [
+                {
+                    "unit": "word", "shape": "square", "order": "forward",
+                    "start": {"keyframes": [{"frame": 0, "value": 0.0}]},
+                    "end": {"keyframes": [{"frame": 0, "value": 33.33}]}
+                }
+            ],
+            "properties": [
+                {
+                    "property": "fill_color",
+                    "keyframes": [
+                        {"frame": 0, "value": [0.9, 0.1, 0.1, 1.0]},
+                        {"frame": 12, "value": [1.0, 0.8, 0.0, 1.0]}
+                    ]
+                },
+                {
+                    "property": "rotation",
+                    "keyframes": [
+                        {"frame": 0, "value": 0.0},
+                        {"frame": 30, "value": 45.0}
+                    ]
+                }
+            ]
+        }
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].text_animators.size() == 1);
+    const auto& properties = decoded->layers[0].text_animators[0].properties;
+    REQUIRE(properties.size() == 2);
+    CHECK(properties[0].property == "fill_color");
+    REQUIRE(properties[0].keyframes.size() == 2);
+    CHECK(properties[0].keyframes[0].value ==
+          std::vector<float>{0.9f, 0.1f, 0.1f, 1.0f});
+    CHECK(properties[1].property == "rotation");
+    CHECK(properties[1].keyframes.back().value == std::vector<float>{45.0f});
+}
+
+TEST_CASE("render plan V2 keeps the frozen animator property enum") {
+    auto source = v3_text_plan();
+    source["schema"] = "chronon.render-plan.v2";
+    source["version"] = 2;
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "spin",
+            "selectors": [{"unit": "glyph"}],
+            "properties": [{"property": "rotation", "keyframes": [{"frame": 0, "value": 45.0}]}]
+        }
+    ])JSON");
+
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 rejects malformed rotation and fill_color tracks") {
+    // fill_color requires RGBA quadruples.
+    auto fill_three = v3_text_plan();
+    fill_three["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "bad_fill",
+            "selectors": [{"unit": "glyph"}],
+            "properties": [{"property": "fill_color", "keyframes": [{"frame": 0, "value": [1.0, 0.0, 0.0]}]}]
+        }
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(fill_three).has_value());
+
+    // rotation accepts scalars or XYZ triples, never pairs.
+    auto rotation_pair = v3_text_plan();
+    rotation_pair["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "bad_rotation",
+            "selectors": [{"unit": "glyph"}],
+            "properties": [{"property": "rotation", "keyframes": [{"frame": 0, "value": [10.0, 20.0]}]}]
+        }
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(rotation_pair).has_value());
+
+    // fill_color stays inside the closed 0..1 channel vocabulary.
+    auto fill_hot = v3_text_plan();
+    fill_hot["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "hot_fill",
+            "selectors": [{"unit": "glyph"}],
+            "properties": [{"property": "fill_color", "keyframes": [{"frame": 0, "value": [2.0, 0.0, 0.0, 1.0]}]}]
+        }
+    ])JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(fill_hot).has_value());
+}
+
+TEST_CASE("render plan rejects unknown text animator properties") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {
+            "id": "unknown",
+            "selectors": [{"unit": "glyph"}],
+            "properties": [{"property": "skew", "keyframes": [{"frame": 0, "value": 5.0}]}]
+        }
+    ])JSON");
+
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan decoder accepts bounded repeater operators and rejects unknown kinds") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

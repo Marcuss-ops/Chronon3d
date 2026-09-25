@@ -573,3 +573,138 @@ TEST_CASE("render_plan_compiler: animation tracks map to animated transforms") {
     REQUIRE(evaluated.value().scene.layers().size() == 1u);
     CHECK(evaluated.value().scene.layers().front().anim_transform.opacity.is_animated());
 }
+
+TEST_CASE("render_plan_compiler: position_x and position_y merge correctly (diagonal drift)") {
+    chronon3d::assets::AssetResolver resolver;
+
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "drift_layer";
+    layer.type = chronon3d::render_plan::LayerType::Color;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    chronon3d::render_plan::AnimationTrackPlan track_x;
+    track_x.property = "position_x";
+    track_x.easing = "linear";
+    track_x.keyframes.push_back({chronon3d::Frame{0}, {0.0f}});
+    track_x.keyframes.push_back({chronon3d::Frame{30}, {100.0f}});
+
+    chronon3d::render_plan::AnimationTrackPlan track_y;
+    track_y.property = "position_y";
+    track_y.easing = "linear";
+    track_y.keyframes.push_back({chronon3d::Frame{0}, {0.0f}});
+    track_y.keyframes.push_back({chronon3d::Frame{30}, {200.0f}});
+
+    layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(track_x), std::move(track_y)}};
+
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "test_drift";
+    plan.canvas = {.width = 1280, .height = 720,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{30}};
+    plan.layers.push_back(std::move(layer));
+
+    auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+
+    auto eval0 = chronon3d::evaluate(prepared->compiled_composition, {}, chronon3d::Frame{0});
+    REQUIRE(eval0);
+    CHECK(eval0.value().scene.layers().front().anim_transform.position.is_animated());
+}
+
+TEST_CASE("render_plan_compiler: rejects mixing position with component tracks") {
+    chronon3d::assets::AssetResolver resolver;
+
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "bad_mix_layer";
+    layer.type = chronon3d::render_plan::LayerType::Color;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    chronon3d::render_plan::AnimationTrackPlan track_full;
+    track_full.property = "position";
+    track_full.keyframes.push_back({chronon3d::Frame{0}, {0.0f, 0.0f, 0.0f}});
+
+    chronon3d::render_plan::AnimationTrackPlan track_x;
+    track_x.property = "position_x";
+    track_x.keyframes.push_back({chronon3d::Frame{0}, {50.0f}});
+
+    layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(track_full), std::move(track_x)}};
+
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "test_bad_mix";
+    plan.canvas = {.width = 1280, .height = 720,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{30}};
+    plan.layers.push_back(std::move(layer));
+
+    auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    auto eval = chronon3d::evaluate(prepared->compiled_composition, {}, chronon3d::Frame{0});
+    CHECK(!eval);
+    CHECK(eval.error().message.find("mixes 'position' with component tracks") != std::string::npos);
+}
+
+TEST_CASE("render_plan_compiler: rejects duplicate component tracks") {
+    chronon3d::assets::AssetResolver resolver;
+
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "dup_layer";
+    layer.type = chronon3d::render_plan::LayerType::Color;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    chronon3d::render_plan::AnimationTrackPlan track_x1;
+    track_x1.property = "position_x";
+    track_x1.keyframes.push_back({chronon3d::Frame{0}, {10.0f}});
+
+    chronon3d::render_plan::AnimationTrackPlan track_x2;
+    track_x2.property = "position_x";
+    track_x2.keyframes.push_back({chronon3d::Frame{0}, {20.0f}});
+
+    layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(track_x1), std::move(track_x2)}};
+
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "test_dup";
+    plan.canvas = {.width = 1280, .height = 720,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{30}};
+    plan.layers.push_back(std::move(layer));
+
+    auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    auto eval = chronon3d::evaluate(prepared->compiled_composition, {}, chronon3d::Frame{0});
+    CHECK(!eval);
+    CHECK(eval.error().message.find("duplicate position_x tracks") != std::string::npos);
+}
+
+TEST_CASE("render_plan_compiler: rotation_x and rotation_y merge correctly (dual gimbal)") {
+    chronon3d::assets::AssetResolver resolver;
+
+    chronon3d::render_plan::LayerPlan layer;
+    layer.id = "gimbal_layer";
+    layer.type = chronon3d::render_plan::LayerType::Color;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    chronon3d::render_plan::AnimationTrackPlan rot_x;
+    rot_x.property = "rotation_x";
+    rot_x.keyframes.push_back({chronon3d::Frame{0}, {10.0f}});
+    rot_x.keyframes.push_back({chronon3d::Frame{30}, {20.0f}});
+
+    chronon3d::render_plan::AnimationTrackPlan rot_y;
+    rot_y.property = "rotation_y";
+    rot_y.keyframes.push_back({chronon3d::Frame{0}, {-5.0f}});
+    rot_y.keyframes.push_back({chronon3d::Frame{30}, {5.0f}});
+
+    layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(rot_x), std::move(rot_y)}};
+
+    chronon3d::render_plan::RenderPlan plan;
+    plan.job_id = "test_gimbal";
+    plan.canvas = {.width = 1280, .height = 720,
+                   .fps = chronon3d::FrameRate{30, 1},
+                   .duration = chronon3d::Frame{30}};
+    plan.layers.push_back(std::move(layer));
+
+    auto prepared = chronon3d::render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    auto eval0 = chronon3d::evaluate(prepared->compiled_composition, {}, chronon3d::Frame{0});
+    REQUIRE(eval0);
+    CHECK(eval0.value().scene.layers().front().anim_transform.rotation_euler.is_animated());
+}
