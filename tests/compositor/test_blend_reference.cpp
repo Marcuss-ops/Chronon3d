@@ -214,7 +214,7 @@ TEST_CASE("blend_ref_b3: ColorBurn — exact spec values") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("blend: alpha output is Ao = As + Ab - As*Ab for all non-Add modes") {
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         if (mode == BlendMode::Add) continue;
         Color r = blend_reference_premul(kSrcPremul, kDstPremul, mode);
@@ -224,7 +224,7 @@ TEST_CASE("blend: alpha output is Ao = As + Ab - As*Ab for all non-Add modes") {
 
 TEST_CASE("blend: source alpha 0 → destination unchanged") {
     Color transparent_src{0.5f, 0.3f, 0.7f, 0.0f};
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         if (mode == BlendMode::Add) continue;
         Color r = blend_reference_premul(transparent_src, kDstPremul, mode);
@@ -235,7 +235,7 @@ TEST_CASE("blend: source alpha 0 → destination unchanged") {
 TEST_CASE("blend: destination alpha 0 → source unchanged") {
     // Use a valid premultiplied transparent color (alpha=0, RGB=0).
     Color transparent_dst{0.0f, 0.0f, 0.0f, 0.0f};
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         if (mode == BlendMode::Add) continue;
         Color r = blend_reference_premul(kSrcPremul, transparent_dst, mode);
@@ -244,7 +244,7 @@ TEST_CASE("blend: destination alpha 0 → source unchanged") {
 }
 
 TEST_CASE("blend: both alpha 0 → transparent") {
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         if (mode == BlendMode::Add) continue;
         Color r = blend_reference_premul(
@@ -400,13 +400,64 @@ TEST_CASE("blend_b3: ColorBurn Cb=1 → 1") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// AE-parity extension modes — exact spec values (opaque straight inputs)
+//   Cs = (0.8, 0.2, 0.4), Cb = (0.2, 0.6, 0.5)
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("blend_modes: AE-parity modes — exact spec values") {
+    const Color cs{0.8f, 0.2f, 0.4f, 1.0f};
+    const Color cb{0.2f, 0.6f, 0.5f, 1.0f};
+    const auto run = [&](BlendMode m) { return compositor::blend(cs, cb, m); };
+
+    const Color sub = run(BlendMode::Subtract);
+    check_close(sub.r, 0.0f); check_close(sub.g, 0.4f); check_close(sub.b, 0.1f);
+
+    const Color div = run(BlendMode::Divide);
+    check_close(div.r, 0.25f); check_close(div.g, 1.0f); check_close(div.b, 1.0f);
+
+    const Color lin = run(BlendMode::LinearLight);
+    check_close(lin.r, 0.8f); check_close(lin.g, 0.0f); check_close(lin.b, 0.3f);
+
+    const Color vivid = run(BlendMode::VividLight);
+    check_close(vivid.r, 0.5f); check_close(vivid.g, 0.0f); check_close(vivid.b, 0.375f);
+
+    const Color pin = run(BlendMode::PinLight);
+    check_close(pin.r, 0.6f); check_close(pin.g, 0.4f); check_close(pin.b, 0.5f);
+
+    // Hue = SetLum(SetSat(Cs, Sat(Cb)), Lum(Cb))
+    const Color hue = run(BlendMode::Hue);
+    check_close(hue.r, 0.7343333f, 1e-4f);
+    check_close(hue.g, 0.3343333f, 1e-4f);
+    check_close(hue.b, 0.4676666f, 1e-4f);
+
+    // Saturation = SetLum(SetSat(Cb, Sat(Cs)), Lum(Cb))
+    const Color sat = run(BlendMode::Saturation);
+    check_close(sat.r, 0.0655f, 1e-4f);
+    check_close(sat.g, 0.6655f, 1e-4f);
+    check_close(sat.b, 0.5155f, 1e-4f);
+
+    // Color = SetLum(Cs, Lum(Cb))
+    const Color col = run(BlendMode::Color);
+    check_close(col.r, 0.867f, 1e-4f);
+    check_close(col.g, 0.267f, 1e-4f);
+    check_close(col.b, 0.467f, 1e-4f);
+
+    // Luminosity = SetLum(Cb, Lum(Cs))
+    const Color lum = run(BlendMode::Luminosity);
+    check_close(lum.r, 0.133f, 1e-4f);
+    check_close(lum.g, 0.533f, 1e-4f);
+    check_close(lum.b, 0.433f, 1e-4f);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // Universal: No NaN/Inf for any mode
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("blend: NaN source returns transparent for all modes") {
     Color nan_src{std::numeric_limits<float>::quiet_NaN(), 0.0f, 0.0f, 1.0f};
     Color dst{0.3f, 0.4f, 0.5f, 0.6f};
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         Color r = blend_reference_premul(nan_src, dst, mode);
         check_color_close(r, Color::transparent());
@@ -416,7 +467,7 @@ TEST_CASE("blend: NaN source returns transparent for all modes") {
 TEST_CASE("blend: Inf source returns transparent for all modes") {
     Color inf_src{std::numeric_limits<float>::infinity(), 0.0f, 0.0f, 1.0f};
     Color dst{0.3f, 0.4f, 0.5f, 0.6f};
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         Color r = blend_reference_premul(inf_src, dst, mode);
         check_color_close(r, Color::transparent());
@@ -426,7 +477,7 @@ TEST_CASE("blend: Inf source returns transparent for all modes") {
 TEST_CASE("blend: NaN backdrop returns transparent for all modes") {
     Color src{0.4f, 0.1f, 0.2f, 0.5f};
     Color nan_dst{std::numeric_limits<float>::quiet_NaN(), 0.0f, 0.0f, 1.0f};
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         Color r = blend_reference_premul(src, nan_dst, mode);
         check_color_close(r, Color::transparent());
@@ -442,7 +493,7 @@ TEST_CASE("blend: no NaN/Inf for random inputs across all modes") {
     std::uniform_real_distribution<float> d(-2.0f, 4.0f);  // HDR range
     std::uniform_real_distribution<float> ad(0.0f, 1.0f);
 
-    for (int m = 0; m <= static_cast<int>(BlendMode::ColorBurn); ++m) {
+    for (int m = 0; m <= static_cast<int>(BlendMode::Luminosity); ++m) {
         auto mode = static_cast<BlendMode>(m);
         for (int i = 0; i < 1000; ++i) {
             float sa = ad(gen);

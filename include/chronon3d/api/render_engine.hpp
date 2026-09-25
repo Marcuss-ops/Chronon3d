@@ -318,6 +318,11 @@ public:
     /// Reset all profiling counters to zero.
     void reset_counters();
 
+    /// Canonical resolved render lane for diagnostics: e.g. "software",
+    /// "vulkan_native", "cuda_direct_yuv". Reflects what the backend
+    /// registry attached, not the preference string.
+    [[nodiscard]] std::string resolved_lane_name() const;
+
 private:
     friend class PreparedRenderJob;
     struct Impl;

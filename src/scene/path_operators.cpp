@@ -1,4 +1,5 @@
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
 #include <algorithm>
 #include <cmath>
@@ -233,6 +234,38 @@ PathShape twist_path(const PathShape& source, const TwistParams& params) {
     }
     return output;
 }
+void append_polyline(std::vector<PathCommand>& out, const std::vector<Vec2>& points) {
+    if (points.size() < 2) return;
+    out.push_back(PathCommand::move_to(points.front()));
+    for (std::size_t i = 1; i < points.size(); ++i)
+        if (points[i] != points[i - 1]) out.push_back(PathCommand::line_to(points[i]));
+}
+PathShape trim_path(const PathShape& source, const TrimPathParams& params) {
+    if (!std::isfinite(params.start) || !std::isfinite(params.end) ||
+        !std::isfinite(params.offset) || params.start < 0.0f || params.end > 1.0f ||
+        params.end < params.start || std::abs(params.offset) > 1000000.0f)
+        throw std::invalid_argument("trim-path start, end, and offset must be finite and valid");
+    if (params.start == 0.0f && params.end == 1.0f) return source;
+    const float span = params.end - params.start;
+    float start = params.start + params.offset;
+    start -= std::floor(start); // wrap into [0, 1)
+    const float end = start + span;
+    PathShape output = source;
+    output.commands.clear();
+    output.closed = false;
+    for (const auto& subpath : math::flatten_path(source, 24)) {
+        std::vector<Vec2> visible = math::trim_polyline(subpath, start, end);
+        if (end > 1.0f) {
+            // The window wraps past the end of the path: the visible part is
+            // [start, 1] plus the wrapped head [0, end - 1] as its own run so no
+            // artificial connecting segment is drawn between them.
+            append_polyline(output.commands, visible);
+            visible = math::trim_polyline(subpath, 0.0f, end - 1.0f);
+        }
+        append_polyline(output.commands, visible);
+    }
+    return output;
+}
 PathShape wiggle_path(const PathShape& source, const WigglePathParams& params,
                       std::uint32_t seed) {
     if (!std::isfinite(params.amount) || params.amount < 0.0f ||
@@ -285,6 +318,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
                 throw std::invalid_argument("wiggle-path parameters do not match operator kind");
             for (auto& path : paths)
                 path = wiggle_path(path, std::get<WigglePathParams>(op.params), op.seed);
+        } else if (op.kind == PathOperatorKind::Trim) {
+            if (!std::holds_alternative<TrimPathParams>(op.params))
+                throw std::invalid_argument("trim-path parameters do not match operator kind");
+            for (auto& path : paths) path = trim_path(path, std::get<TrimPathParams>(op.params));
         } else if (op.kind == PathOperatorKind::Merge) {
             if (!std::holds_alternative<MergeParams>(op.params))
                 throw std::invalid_argument("merge parameters do not match operator kind");

@@ -220,6 +220,10 @@ public:
     explicit VulkanBackend(std::uint32_t device_index = UINT32_MAX);
     ~VulkanBackend() override;
 
+    [[nodiscard]] std::string lane_name() const override {
+        return "vulkan_native";
+    }
+
     [[nodiscard]] bool supports_native_video_surface() const noexcept override {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         return true;

@@ -371,7 +371,7 @@
             "type": "array", "items": { "$ref": "#/$defs/text_animator" }
           },
           "blend_mode": {
-            "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn"]
+            "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn", "subtract", "divide", "vivid_light", "pin_light", "linear_light", "hue", "saturation", "color", "luminosity"]
           },
           "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
           "loop": { "type": "boolean" }

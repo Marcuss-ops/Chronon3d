@@ -306,3 +306,41 @@ CHRONON_EFFECT(
     DirtyPolicy::Preserve, BoundsPolicy::Preserve,
     false, true
 )
+
+// ── Warp family (AE distortion parity) — in-place resampling ──
+
+CHRONON_EFFECT(
+    31, CornerPin, CornerPinParams, ids::DistortCornerPin,
+    "Corner Pin",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    32, Twirl, TwirlParams, ids::DistortTwirl,
+    "Twirl",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    33, Bulge, BulgeParams, ids::DistortBulge,
+    "Bulge",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    34, MeshWarp, MeshWarpParams, ids::DistortMeshWarp,
+    "Mesh Warp",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)

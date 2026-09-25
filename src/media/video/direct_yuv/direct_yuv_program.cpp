@@ -61,14 +61,16 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     ImageCache& image_cache,
     std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
     const assets::AssetResolver& asset_resolver,
-    std::string& reason) {
+    runtime::LaneReason& reason) {
 #ifndef CHRONON3D_ENABLE_CUDA_INTEROP
     (void)compiled; (void)image_cache; (void)video_runtime; (void)asset_resolver;
-    reason = "CUDA interop is not compiled";
+    reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                 "unsupported_feature", "cuda_interop_not_compiled"};
     return nullptr;
 #else
     if (!compiled.composition) {
-        reason = "compiled composition is empty";
+        reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                     "error", "compiled_composition_empty"};
         return nullptr;
     }
     // Lane selection is final before this preparation boundary. The resolver
@@ -77,7 +79,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     // errors, or broken invariants, but it must not classify the composition
     // again and silently switch lanes.
     if (!video_runtime) {
-        reason = "video device runtime is unavailable";
+        reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                     "error", "video_device_runtime_unavailable"};
         return nullptr;
     }
 
@@ -97,22 +100,32 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     try {
         scene_0 = compiled.composition->evaluate(context_0);
     } catch (const std::exception& error) {
-        reason = std::string("scene evaluation failed: ") + error.what();
+        reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                     "error", "scene_evaluation_failed"};
         return nullptr;
     }
     const double scene_eval_ms = profiling::duration_ms(scene_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->scene_eval_wall_ms_total.fetch_add(
+            static_cast<uint64_t>(scene_eval_ms), std::memory_order_relaxed);
+    }
 
     std::string video_path;
     std::vector<DirectVideoLayer> video_layers;
     for (const auto& layer : scene_0.layers()) {
-        if (layer.uses_2_5d_projection || layer.mask.enabled()) {
-            reason = "layer '" + std::string(layer.name) + "' uses unsupported 3D (" +
-                     (layer.uses_2_5d_projection ? "yes" : "no") + ") or mask (" +
-                     (layer.mask.enabled() ? "yes" : "no") + ")";
+        if (layer.uses_2_5d_projection) {
+            reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                         "unsupported_feature", "layer_2_5d"};
+            return nullptr;
+        }
+        if (layer.mask.enabled()) {
+            reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                         "unsupported_feature", "mask"};
             return nullptr;
         }
         if (!is_2d_transform(layer.transform)) {
-            reason = "layer uses 3D transform";
+            reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                         "unsupported_feature", "transform_3d"};
             return nullptr;
         }
         if (layer.video_source) {
@@ -126,7 +139,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     }
 
     if (video_path.empty()) {
-        reason = "no video source";
+        reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                     "unsupported_feature", "no_video_source"};
         return nullptr;
     }
 
@@ -142,8 +156,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         if (layer_resources.find(layer_name) != layer_resources.end()) return true;
         if (layer.nodes.empty()) return true;
         if (layer.nodes.size() > 1) {
-            reason = "DirectYUV preparation rejects multi-node overlay layer: " +
-                layer_name;
+            reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                         "unsupported_feature", "multi_node_overlay_layer"};
             return false;
         }
 
@@ -159,17 +173,23 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             auto cached = image_cache.get_or_load(image.path, image.decode_options, asset_resolver);
             watermark_load_ms += profiling::duration_ms(img_t0, profiling::now());
             if (!cached || !cached->valid() || cached->gpu_rgba.empty()) {
-                reason = "overlay is not available through the canonical ImageCache: " + image.path;
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "image_cache_missing"};
                 return false;
             }
             bool cache_hit = false;
             double upload_ms = 0.0;
+            std::string upload_error;
             auto resource = video_runtime->get_or_upload_image(
                 cached->gpu_key.content_digest, image.decode_options,
                 static_cast<std::uint32_t>(cached->width),
                 static_cast<std::uint32_t>(cached->height), cached->gpu_rgba,
-                cache_hit, upload_ms, reason);
-            if (!resource) return false;
+                cache_hit, upload_ms, upload_error);
+            if (!resource) {
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "upload_failed"};
+                return false;
+            }
             watermark_upload_ms += upload_ms;
 
             DirectLayerResourceEntry entry;
@@ -209,23 +229,27 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             }
 
             if (font_path.empty()) {
-                reason = "text layer has no prepared font asset: " + layer_name;
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "text_font_missing"};
                 return false;
             }
             if (font_size <= 0.0f) {
-                reason = "text layer has no prepared font size (TextRun shape must carry the canonical layout): " + layer_name;
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "text_font_size_missing"};
                 return false;
             }
             if (text_content.empty()) {
                 // A text layer with no prepared source text cannot be
                 // rasterized faithfully from the layer name.
-                reason = "text layer has no prepared source text: " + layer_name;
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "text_source_missing"};
                 return false;
             }
 
             const auto text_t0 = profiling::now();
             if (!prepared_shape) {
-                reason = "text layer has no prepared TextRunShape: " + layer_name;
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "text_shape_missing"};
                 return false;
             }
             // The capability matrix already accepted this scene through the
@@ -235,8 +259,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
             const auto text_contract =
                 resolve_direct_yuv_text_contract(*prepared_shape);
             if (text_contract.rejection) {
-                reason = std::string(text_contract.rejection) +
-                    " (layer '" + layer_name + "')";
+                reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                             "unsupported_feature", "text_contract_rejected"};
                 return false;
             }
             auto rasterized = text_texture_cache().get_or_create(
@@ -245,12 +269,17 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
 
             bool cache_hit = false;
             double upload_ms = 0.0;
+            std::string upload_error;
             auto resource = video_runtime->get_or_upload_image(
                 rasterized->digest, ImageDecodeOptions{},
                 static_cast<std::uint32_t>(rasterized->width),
                 static_cast<std::uint32_t>(rasterized->height), rasterized->gpu_rgba,
-                cache_hit, upload_ms, reason, runtime::PixelFormat::Rgba8Unorm);
-            if (!resource) return false;
+                cache_hit, upload_ms, upload_error, runtime::PixelFormat::Rgba8Unorm);
+            if (!resource) {
+                reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                             "error", "upload_failed"};
+                return false;
+            }
             watermark_upload_ms += upload_ms;
 
             DirectLayerResourceEntry entry;
@@ -322,8 +351,8 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                     } catch (const std::exception& error) {
                         // FAIL-CLOSED: evaluation failure during asset
                         // discovery is a fatal program-preparation error.
-                        reason = std::string("scene evaluation failed for layer '") +
-                                 std::string(layer.name) + "': " + error.what();
+                        reason = runtime::LaneReason{runtime::LaneDecision::Failed,
+                                                     "error", "scene_evaluation_failed"};
                         return nullptr;
                     }
                     bool fatal = false;
@@ -377,9 +406,22 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
               [](const auto& lhs, const auto& rhs) {
                   return lhs.first < rhs.first;
               });
+    reason = runtime::LaneReason{runtime::LaneDecision::Selected, "none", "selected"};
     return program;
-#endif
 }
+
+std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
+    const CompiledComposition& compiled,
+    ImageCache& image_cache,
+    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
+    const assets::AssetResolver& asset_resolver,
+    std::string& reason) {
+    runtime::LaneReason lane_reason;
+    auto res = prepare(compiled, image_cache, video_runtime, asset_resolver, lane_reason);
+    reason = lane_reason.to_string();
+    return res;
+}
+#endif
 
 const DirectLayerResourceEntry* DirectYuvProgram::find_resource(
     std::string_view name) const noexcept {
@@ -480,6 +522,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         .height = height_,
     });
 
+    const auto scene_t0 = profiling::now();
     Scene scene;
     try {
         scene = composition_->evaluate(context);
@@ -496,6 +539,11 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         spdlog::error("[direct-yuv] scene evaluation failed at frame={} with an unknown exception",
                       frame.integral());
         return nullptr;
+    }
+    const double scene_eval_ms = profiling::duration_ms(scene_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->scene_eval_wall_ms_total.fetch_add(
+            static_cast<uint64_t>(scene_eval_ms), std::memory_order_relaxed);
     }
 
     // AUDIT-13/14: no unsupported_blend flag — every unsupported blend fails

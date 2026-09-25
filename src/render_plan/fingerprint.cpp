@@ -404,6 +404,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_uint64(op.seed);
                 continue;
             }
+            if (op.kind == PathOperatorKindPlan::Trim) {
+                out.add_float(op.trim_start);
+                out.add_float(op.trim_end);
+                out.add_float(op.trim_offset);
+                continue;
+            }
             if (op.kind == PathOperatorKindPlan::Merge) {
                 out.add_size(op.paths.size());
                 for (const auto& subpath : op.paths) {
@@ -480,6 +486,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.threshold);
                 out.add_float(effect.softness);
                 out.add_float(effect.spill);
+                out.add_float(effect.clip_black);
+                out.add_float(effect.clip_white);
+                out.add_float(effect.choke);
+                for (const auto value : effect.garbage_rect) out.add_float(value);
+                out.add_float(effect.garbage_feather);
             } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
                 out.add_float(effect.threshold);
                 out.add_float(effect.threshold_softness);
@@ -515,6 +526,24 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.contrast);
                 out.add_float(effect.brightness);
                 out.add_bool(effect.rgb_noise);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::CornerPin) {
+                for (const auto value : effect.quad) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Twirl) {
+                for (const auto value : effect.warp_center) out.add_float(value);
+                out.add_float(effect.warp_angle);
+                out.add_float(effect.warp_radius);
+                out.add_float(effect.warp_falloff);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Bulge) {
+                for (const auto value : effect.warp_center) out.add_float(value);
+                out.add_float(effect.warp_amount);
+                out.add_float(effect.warp_radius);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::MeshWarp) {
+                out.add_size(effect.mesh_cols);
+                out.add_size(effect.mesh_rows);
+                out.add_float(effect.mesh_smoothness);
+                out.add_size(effect.mesh_offsets.size());
+                for (const auto value : effect.mesh_offsets) out.add_float(value);
+
             } else {
                 out.add_size(effect.block_size);
             }

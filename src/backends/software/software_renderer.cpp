@@ -341,6 +341,12 @@ graph::CompiledGraphCache& SoftwareRenderer::graph_cache()                   { r
 const graph::CompiledGraphCache& SoftwareRenderer::graph_cache() const       { return *m_execution_context.scratch.graph_cache; }
 graph::RenderBackend& SoftwareRenderer::backend()                             { return *m_execution_context.backend; }
 const graph::RenderBackend& SoftwareRenderer::backend() const                 { return *m_execution_context.backend; }
+std::string SoftwareRenderer::resolved_lane_name() const {
+    if (m_execution_context.backend) {
+        return m_execution_context.backend->lane_name();
+    }
+    return "software";
+}
 cache::NodeCache& SoftwareRenderer::node_cache() noexcept                     { return *m_execution_context.scratch.node_cache; }
 const cache::NodeCache& SoftwareRenderer::node_cache() const noexcept         { return *m_execution_context.scratch.node_cache; }
 // font_engine() intentionally NOT here — see software_renderer_text.cpp.

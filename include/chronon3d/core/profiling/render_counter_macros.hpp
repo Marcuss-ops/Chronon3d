@@ -459,7 +459,12 @@ namespace chronon3d {
     X(cuda_frames_cache_miss) \
     X(cuda_image_cache_hit) \
     X(cuda_image_cache_miss) \
-    X(cuda_host_upload_bytes)
+    X(cuda_host_upload_bytes) \
+    X(scene_eval_wall_ms_total) \
+    X(compositor_wall_ms_total) \
+    X(encode_wall_ms_total) \
+    X(gop_byte_identical_hits) \
+    X(gop_total_encoded)
 
 #define CHRONON_COUNTERS_FRAME_WALL(X) \
     X(timeline_patch_wall_us) \

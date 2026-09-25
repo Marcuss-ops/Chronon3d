@@ -34,6 +34,8 @@ void write_render_job_receipt(const RenderJob& job) {
     input.git_sha = chronon3d::telemetry::TelemetryManager::get_git_commit();
     input.backend = job.video_settings.hardware_encoder == "none"
         ? "software" : "vulkan";
+    input.render_lane = input.backend;
+    input.lane_reason = "selected";
     input.width = job.metadata.width;
     input.height = job.metadata.height;
     input.fps_num = job.video_settings.fps_num;
@@ -303,6 +305,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             .mode = job.mode,
             .output = job.output,
             .frames_written = loop.frames_written,
+            .render_lane = setup.renderer ? setup.renderer->resolved_lane_name() : "software",
+            .lane_reason = "selected",
         };
     } catch (const std::exception& error) {
         return make_render_job_error(

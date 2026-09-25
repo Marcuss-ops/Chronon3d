@@ -334,15 +334,15 @@ void record_image_barrier(VkCommandBuffer cmd, const Image& img,
 //     left 4 columns:  premultiplied white, alpha 1.0
 //     right 4 columns: premultiplied white, alpha 0.5 (rgb = 0.5)
 //   glyph B (MTSDF) at (8,0) 8x8: rgb = 1.0 (inside, dist +0.5), a = 255.
-//   glyph C (MTSDF) at (24,0) 8x8: rgb ramps (i + 0.5) / 8 across x, a = 255.
+//   glyph C (MTSDF) at (24,0) 8x8: RGBA ramps (i + 0.5) / 8 across x.
 //     Its run is translated by half a texel so pixel centres fall BETWEEN
 //     texel centres and the bilinear tap has to interpolate.
 //   glyph C's right neighbour at (32,0) 8x8: rgb = 1.0 (bleed detector).
-//   glyph E (MTSDF) at (40,0) 8x8: rgb = 0.25 flat, a = 255.
+//   glyph E (MTSDF) at (40,0) 8x8: RGBA = 0.25 flat.
 //     Its right neighbour (48,0) and its neighbour below (40,8) are rgb = 1.0,
 //     so any tap escaping glyph E's rect would raise its coverage.
 // Both MTSDF probes carry distance_range = 1, which makes the shader's fill
-// coverage a direct linear readout of the sampled field (alpha == median).
+// coverage a direct linear readout of the sampled alpha distance field.
 // That is a synthetic probe value, not the canonical 16 px profile: its only
 // job is that the asserted pixel value IS the sampled texel value.
 constexpr std::uint32_t kAtlasSize = 64;
@@ -488,7 +488,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
                 ((static_cast<double>(xx - 24) + 0.5) / 8.0) * 255.0));
             const auto idx = (y * kAtlasSize + xx) * 4;
             atlas_pixels[idx] = value; atlas_pixels[idx + 1] = value;
-            atlas_pixels[idx + 2] = value; atlas_pixels[idx + 3] = 255;
+            atlas_pixels[idx + 2] = value; atlas_pixels[idx + 3] = value;
         }
     }
     // Glyph C's right neighbour and glyph E's right/below neighbours: extreme
@@ -506,12 +506,12 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     fill_rect_255(32, 40, 0, 8);
     fill_rect_255(48, 56, 0, 8);
     fill_rect_255(40, 48, 8, 16);
-    // Glyph E: flat 0.25 field (rgb = 0.25 → alpha = 0.25 with range 1).
+    // Glyph E: flat 0.25 field in RGBA (alpha drives coverage, range 1).
     for (std::uint32_t y = 0; y < 8; ++y) {
         for (std::uint32_t xx = 40; xx < 48; ++xx) {
             const auto idx = (y * kAtlasSize + xx) * 4;
             atlas_pixels[idx] = 64; atlas_pixels[idx + 1] = 64;
-            atlas_pixels[idx + 2] = 64; atlas_pixels[idx + 3] = 255;
+            atlas_pixels[idx + 2] = 64; atlas_pixels[idx + 3] = 64;
         }
     }
     std::memcpy(staging.mapped, atlas_pixels.data(), atlas_pixels.size());
@@ -781,7 +781,7 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     // Glyph C ramps (i + 0.5) / 8 across its rect and its run is translated
     // by half a texel, so destination pixel x samples texel x - 0.5, i.e.
     // exactly halfway between two texel centres.  With range 1 the fill
-    // coverage equals the sampled median distance, so the expected value at
+    // coverage equals the sampled alpha distance, so the expected value at
     // any pixel is the exact bilinear mix of the two neighbours.
     //
     //   x=4 → mix(texel3=112/255, texel4=143/255) = 0.5      → 0.25 + 0.75*0.5

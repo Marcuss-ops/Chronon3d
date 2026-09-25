@@ -49,6 +49,12 @@ enum class EffectType : uint8_t {
     Keying          = 28,
     Threshold       = 29,
     Mosaic          = 30,
+
+    // ── Warp family (AE distortion parity) ──
+    CornerPin       = 31,
+    Twirl           = 32,
+    Bulge           = 33,
+    MeshWarp        = 34,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

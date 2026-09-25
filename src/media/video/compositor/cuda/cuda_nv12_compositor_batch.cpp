@@ -129,6 +129,8 @@ bool CudaNv12Compositor::composite_direct_nv12_batch(
         counters->cuda_composite_frames.fetch_add(1, std::memory_order_relaxed);
         counters->cuda_composite_wall_us.fetch_add(
             static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
+        counters->compositor_wall_ms_total.fetch_add(
+            static_cast<std::uint64_t>(elapsed / 1000), std::memory_order_relaxed);
     }
     return true;
 }

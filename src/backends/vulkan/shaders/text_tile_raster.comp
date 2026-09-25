@@ -98,10 +98,6 @@ shared uint s_glyph_indices[256];
 shared uint s_draw_orders[256];
 shared uint s_count;
 
-float median3(float r, float g, float b) {
-    return max(min(r, g), min(max(r, g), b));
-}
-
 // Fractional (bilinear) atlas tap for the prepared-glyph path.
 //
 // The sample coordinate `texel` is in texel-centre space (integer == the
@@ -327,11 +323,12 @@ void main() {
 
         vec4 src;
         if (mtsdf) {
-            // The prepared atlas is an MTSDF payload.  The RGB median is the
-            // canonical screen-space signed-distance reconstruction used by
-            // the text profile; the alpha lane is retained for diagnostics and
-            // must not turn the padded glyph plane into fill.
-            float msd = median3(sample_value.r, sample_value.g, sample_value.b);
+            // The custom MTSDF generator assigns RGB edge channels with a
+            // simple i % 3 scheme; those channels are not reliably
+            // median-combinable. Alpha stores the true signed distance and is
+            // also the channel used by DirectYUV, so every Vulkan text effect
+            // reconstructs coverage from the same field.
+            float msd = sample_value.a;
             float distance_range = uintBitsToFloat(run.distance_range_bits);
             if (!(distance_range > 0.0)) distance_range = 8.0;
             float glyph_blur = max(run.animator_blur * reveal_weight, 0.0);
@@ -354,20 +351,13 @@ void main() {
                         shadow_uv * vec2(float(atlas_w), float(atlas_h)) - vec2(0.5);
                     vec4 shadow_sample = atlas_tap_bilinear(
                         atlas_origin, int(atlas_w), int(atlas_h), shadow_texel);
-                    // Use the same median signed-distance coverage as the
-                    // fill.  The alpha lane is a useful true-distance
-                    // diagnostic, but using it for the effect path makes the
-                    // result depend on channel quantization/edge padding and
-                    // can turn the whole glyph plane into a low-alpha shadow
-                    // mask during a typewriter reveal.
-                    //
-                    // Build coverage from the signed glyph distance itself.
+                    // Use the alpha lane's true signed distance, matching the
+                    // fill and the DirectYUV text path.
                     // Keep the soft edge below the baked distance range: the
                     // atlas intentionally clamps distances outside its
                     // padding, so asking for a wider transition would make
                     // the clamped rectangular plane contribute again.
-                    float shadow_msd = median3(
-                        shadow_sample.r, shadow_sample.g, shadow_sample.b);
+                    float shadow_msd = shadow_sample.a;
                     float shadow_distance_px =
                         (shadow_msd - 0.5) * distance_range * texel_to_screen;
                     // The authored blur is a paint-space width, while the cap
@@ -403,6 +393,9 @@ void main() {
                 // diameter.  Expanding by the full width makes every padded
                 // texel of the glyph plane pass the stroke test and produces
                 // the opaque rectangular boxes seen around projected text.
+                // Stroke and fill use the same alpha distance field. The RGB
+                // median is not valid for this generator's naive edge coloring
+                // and can create broken or one-sided contours.
                 float stroke_alpha = clamp(
                     (msd - 0.5) * distance_range * texel_to_screen +
                     0.5 * run.stroke_width * local_to_screen + 0.5, 0.0, 1.0);

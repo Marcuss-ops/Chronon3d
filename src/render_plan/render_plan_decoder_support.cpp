@@ -122,6 +122,15 @@ std::optional<chronon3d::BlendMode> blend_mode(const std::string& value) {
     if (value == "hard_light") return chronon3d::BlendMode::HardLight;
     if (value == "color_dodge") return chronon3d::BlendMode::ColorDodge;
     if (value == "color_burn") return chronon3d::BlendMode::ColorBurn;
+    if (value == "subtract") return chronon3d::BlendMode::Subtract;
+    if (value == "divide") return chronon3d::BlendMode::Divide;
+    if (value == "vivid_light") return chronon3d::BlendMode::VividLight;
+    if (value == "pin_light") return chronon3d::BlendMode::PinLight;
+    if (value == "linear_light") return chronon3d::BlendMode::LinearLight;
+    if (value == "hue") return chronon3d::BlendMode::Hue;
+    if (value == "saturation") return chronon3d::BlendMode::Saturation;
+    if (value == "color") return chronon3d::BlendMode::Color;
+    if (value == "luminosity") return chronon3d::BlendMode::Luminosity;
     return std::nullopt;
 }
 

@@ -140,6 +140,8 @@ struct RenderReceiptInput {
 
     // render
     std::string backend{"software"};
+    std::string render_lane;        // NEW: resolved lane id ("direct_yuv_cuda", "full_graph_vulkan", ...)
+    std::string lane_reason;        // NEW: structured, not free text (see LaneReason below)
     int width{0};
     int height{0};
     int fps_num{0};
@@ -178,6 +180,8 @@ struct RenderReceipt {
 
     // render
     std::string backend{"software"};
+    std::string render_lane;
+    std::string lane_reason;
     int width{0};
     int height{0};
     int fps_num{0};

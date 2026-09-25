@@ -55,6 +55,73 @@ TEST_CASE("Keying removes chroma and luma while preserving premultiplied alpha")
     CHECK(fb.get_pixel(3, 0).a == doctest::Approx(1.0f));
 }
 
+TEST_CASE("Keying screen-matte refinement clips and chokes the matte") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    effects::EffectExecutionContext context;
+    // Luma 0.5 with threshold 0.3 / softness 0.4 → raw matte keep = 0.5.
+    const auto run = [&](const KeyingParams& params) {
+        Framebuffer fb(1, 1);
+        fb.set_pixel(0, 0, Color{0.5f, 0.5f, 0.5f, 1.0f});
+        EffectStack stack;
+        stack.emplace_back(params);
+        apply_effect_stack(fb, stack, context, registry);
+        return fb.get_pixel(0, 0).a;
+    };
+    KeyingParams base{.mode = KeyingMode::Luma,
+        .threshold = 0.3f, .softness = 0.4f, .spill = 0.0f};
+    CHECK(run(base) == doctest::Approx(0.5f));
+
+    KeyingParams clipped = base;
+    clipped.clip_black = 0.25f;
+    clipped.clip_white = 0.5f;
+    CHECK(run(clipped) == doctest::Approx(1.0f));
+
+    KeyingParams cut = base;
+    cut.clip_black = 0.5f;
+    cut.clip_white = 1.0f;
+    CHECK(run(cut) == doctest::Approx(0.0f));
+
+    KeyingParams choked = base;
+    choked.choke = 0.25f;
+    CHECK(run(choked) == doctest::Approx(1.0f / 3.0f));
+
+    KeyingParams invalid = base;
+    invalid.clip_black = 0.5f;
+    invalid.clip_white = 0.5f;
+    CHECK_THROWS(run(invalid));
+}
+
+TEST_CASE("Keying garbage matte keeps only the declared rectangle") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    effects::EffectExecutionContext context;
+    const auto run = [&](const KeyingParams& params, int px, int py) {
+        Framebuffer fb(8, 8);
+        for (int y = 0; y < 8; ++y)
+            for (int x = 0; x < 8; ++x)
+                fb.set_pixel(x, y, Color{0.5f, 0.5f, 0.5f, 1.0f});
+        EffectStack stack;
+        stack.emplace_back(params);
+        apply_effect_stack(fb, stack, context, registry);
+        return fb.get_pixel(px, py).a;
+    };
+    KeyingParams base{.mode = KeyingMode::Luma,
+        .threshold = 0.3f, .softness = 0.4f, .spill = 0.0f,
+        .garbage_x = 0.0f, .garbage_y = 0.0f, .garbage_w = 0.5f, .garbage_h = 1.0f};
+    CHECK(run(base, 1, 4) == doctest::Approx(0.5f));  // inside → keep unchanged
+    CHECK(run(base, 6, 4) == doctest::Approx(0.0f));  // outside → removed
+
+    KeyingParams feathered = base;
+    feathered.garbage_feather = 0.25f;
+    // u = 0.5/8 = 0.0625 → coverage 0.0625/0.25 = 0.25 → alpha = 0.5 * 0.25
+    CHECK(run(feathered, 0, 4) == doctest::Approx(0.125f));
+
+    KeyingParams off = base;
+    off.garbage_w = 0.0f;
+    CHECK(run(off, 6, 4) == doctest::Approx(0.5f));  // disabled → no garbage matte
+}
+
 TEST_CASE("KeyingFramehashCanary") {
     constexpr int width = 32, height = 32;
     SoftwareRegistry registry;

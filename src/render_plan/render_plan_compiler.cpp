@@ -170,6 +170,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     keying.threshold = effect.threshold;
                     keying.softness = effect.softness;
                     keying.spill = effect.spill;
+                    keying.clip_black = effect.clip_black;
+                    keying.clip_white = effect.clip_white;
+                    keying.choke = effect.choke;
+                    keying.garbage_x = effect.garbage_rect[0];
+                    keying.garbage_y = effect.garbage_rect[1];
+                    keying.garbage_w = effect.garbage_rect[2];
+                    keying.garbage_h = effect.garbage_rect[3];
+                    keying.garbage_feather = effect.garbage_feather;
                     prepared_effects[index].emplace_back(keying);
                 } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
                     prepared_effects[index].emplace_back(ThresholdParams{
@@ -216,6 +224,33 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         .brightness = effect.brightness,
                         .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
                                                        : NoiseColorMode::Monochrome});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::CornerPin) {
+                    prepared_effects[index].emplace_back(CornerPinParams{
+                        .top_left = Vec2{effect.quad[0], effect.quad[1]},
+                        .top_right = Vec2{effect.quad[2], effect.quad[3]},
+                        .bottom_right = Vec2{effect.quad[4], effect.quad[5]},
+                        .bottom_left = Vec2{effect.quad[6], effect.quad[7]}});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Twirl) {
+                    prepared_effects[index].emplace_back(TwirlParams{
+                        .center = Vec2{effect.warp_center[0], effect.warp_center[1]},
+                        .angle_degrees = effect.warp_angle,
+                        .radius = effect.warp_radius,
+                        .falloff = effect.warp_falloff});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Bulge) {
+                    prepared_effects[index].emplace_back(BulgeParams{
+                        .center = Vec2{effect.warp_center[0], effect.warp_center[1]},
+                        .amount = effect.warp_amount,
+                        .radius = effect.warp_radius});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::MeshWarp) {
+                    MeshWarpParams mesh;
+                    mesh.cols = static_cast<int>(effect.mesh_cols);
+                    mesh.rows = static_cast<int>(effect.mesh_rows);
+                    mesh.smoothness = effect.mesh_smoothness;
+                    mesh.offsets.reserve(effect.mesh_offsets.size() / 2);
+                    for (std::size_t i = 0; i + 1 < effect.mesh_offsets.size(); i += 2)
+                        mesh.offsets.push_back(Vec2{effect.mesh_offsets[i], effect.mesh_offsets[i + 1]});
+                    prepared_effects[index].emplace_back(std::move(mesh));
+
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
@@ -552,6 +587,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                             merge.paths.push_back(std::move(subpath));
                                         }
                                         specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
+                                    } else if (op.kind == PathOperatorKindPlan::Trim) {
+                                        specs.push_back({PathOperatorKind::Trim,
+                                            TrimPathParams{op.trim_start, op.trim_end, op.trim_offset}, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;

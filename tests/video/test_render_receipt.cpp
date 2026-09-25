@@ -29,3 +29,31 @@ TEST_CASE("render receipt reports missing video without dumping probe payload") 
     CHECK(receipt.execution_downgrade_reason == "gop_splice_unsafe");
     CHECK(receipt.execution_downgrade_count == 1);
 }
+
+TEST_CASE("render receipt contract: preserves software and direct_yuv lane") {
+    SUBCASE("job software -> render_lane == software") {
+        chronon3d::verification::RenderReceiptInput input;
+        input.job_id = "receipt-software-contract";
+        input.backend = "software";
+        input.render_lane = "software";
+        input.lane_reason = "selected";
+
+        const auto receipt = chronon3d::verification::build_render_receipt(
+            input, "/tmp/chronon3d_receipt_contract_test.mp4", /*is_video=*/false);
+        CHECK(receipt.render_lane == "software");
+        CHECK(receipt.lane_reason == "selected");
+    }
+
+    SUBCASE("job direct_yuv -> render_lane == direct_yuv_*") {
+        chronon3d::verification::RenderReceiptInput input;
+        input.job_id = "receipt-direct-yuv-contract";
+        input.backend = "gpu";
+        input.render_lane = "direct_yuv_cuda";
+        input.lane_reason = "selected";
+
+        const auto receipt = chronon3d::verification::build_render_receipt(
+            input, "/tmp/chronon3d_receipt_contract_test.mp4", /*is_video=*/false);
+        CHECK(receipt.render_lane == "direct_yuv_cuda");
+        CHECK(receipt.lane_reason == "selected");
+    }
+}
