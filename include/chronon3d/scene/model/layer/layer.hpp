@@ -15,6 +15,7 @@
 #include <chronon3d/scene/model/layer/time_remap.hpp>
 #include <chronon3d/scene/model/layer/layer_time_resolver.hpp>
 #include <chronon3d/scene/model/layer/content_ref.hpp>
+#include <chronon3d/scene/model/layer/backdrop_blur.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
 // material_2_5d.hpp  — forward-declared
 // card3d_material.hpp — forward-declared
@@ -136,6 +137,7 @@ struct Layer {
     std::unique_ptr<EffectStack> m_effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};
     CompositeOperator composite_operator{CompositeOperator::SourceOver};
+    std::optional<BackdropBlurParams> backdrop_blur;
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};

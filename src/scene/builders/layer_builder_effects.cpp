@@ -12,6 +12,11 @@ LayerBuilder& LayerBuilder::blur(f32 radius) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::backdrop_blur(BackdropBlurParams params) {
+    m_layer.backdrop_blur = params;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::tint(Color color, f32 amount) {
     m_layer.effects().push_back(EffectInstance{
         effects::EffectDescriptor{.id = std::string{effects::ids::ColorTint}},

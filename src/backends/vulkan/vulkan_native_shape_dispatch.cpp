@@ -278,12 +278,20 @@ bool try_native_solid_rect(
     if (type == ShapeType::Rect) {
         size = node.shape.rect().size;
         if (node.corner_radius > 0.0f) {
-            shape_params = Vec4{1.0f, node.corner_radius, node.corner_radius, 0.0f};
+            shape_params = Vec4{1.0f, node.corner_radius, node.corner_radius, node.corner_radius};
+            line_params = Vec4{node.corner_radius, 0.0f, 0.0f, 0.0f};
         }
     } else if (type == ShapeType::RoundedRect) {
         size = node.shape.rounded_rect().size;
-        shape_params = Vec4{1.0f, node.shape.rounded_rect().radius,
-                            node.shape.rounded_rect().radius, 0.0f};
+        if (node.shape.rounded_rect().corner_radius) {
+            const auto& r = *node.shape.rounded_rect().corner_radius;
+            shape_params = Vec4{1.0f, r[0], r[1], r[2]};
+            line_params = Vec4{r[3], 0.0f, 0.0f, 0.0f};
+        } else {
+            shape_params = Vec4{1.0f, node.shape.rounded_rect().radius,
+                                node.shape.rounded_rect().radius, node.shape.rounded_rect().radius};
+            line_params = Vec4{node.shape.rounded_rect().radius, 0.0f, 0.0f, 0.0f};
+        }
     } else if (type == ShapeType::Circle) {
         size = Vec2{node.shape.circle().radius * 2.0f};
         shape_params = Vec4{2.0f, node.shape.circle().radius,
