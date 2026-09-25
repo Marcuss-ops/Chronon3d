@@ -26,6 +26,8 @@ render_plan::FitMode parse_fit(const std::string& value) {
 }
 
 render_plan::OutputFormat parse_output_format(const std::string& value) {
+    if (value == "png_sequence") return render_plan::OutputFormat::PngSequence;
+    if (value == "gif") return render_plan::OutputFormat::Gif;
     if (value == "mp4") return render_plan::OutputFormat::Mp4;
     if (value == "mkv") return render_plan::OutputFormat::Mkv;
     if (value == "webm") return render_plan::OutputFormat::WebM;
@@ -68,6 +70,8 @@ std::string format_name(render_plan::OutputFormat format) {
         case render_plan::OutputFormat::Mkv: return "mkv";
         case render_plan::OutputFormat::WebM: return "webm";
         case render_plan::OutputFormat::Png: return "png";
+        case render_plan::OutputFormat::PngSequence: return "png_sequence";
+        case render_plan::OutputFormat::Gif: return "gif";
     }
     return "png";
 }

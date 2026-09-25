@@ -143,11 +143,17 @@ void main() {
         vec2 normalized = (p - center) / radius;
         if (dot(normalized, normalized) > 1.0) return;
     } else if (params.shape.x > 0.5) {
-        vec2 radius = min(max(params.shape.yz, vec2(0.0)), size * 0.5);
-        vec2 q = abs(p - center) - (size * 0.5 - radius);
-        if (q.x > 0.0 && q.y > 0.0) {
-            vec2 normalized = q / max(radius, vec2(0.001));
-            if (dot(normalized, normalized) > 1.0) return;
+        vec2 local = p - min_corner;
+        float radius = local.y < size.y * 0.5
+            ? (local.x < size.x * 0.5 ? params.shape.y : params.shape.z)
+            : (local.x >= size.x * 0.5 ? params.shape.w : params.line.x);
+        radius = min(max(radius, 0.0), min(size.x, size.y) * 0.5);
+        bool in_corner = local.x < radius || local.x > size.x - radius;
+        in_corner = in_corner && (local.y < radius || local.y > size.y - radius);
+        if (in_corner && radius > 0.0) {
+            vec2 corner_center = vec2(local.x < size.x * 0.5 ? radius : size.x - radius,
+                                      local.y < size.y * 0.5 ? radius : size.y - radius);
+            if (distance(local, corner_center) > radius) return;
         }
     }
     imageStore(dst_image, pixel, params.color);

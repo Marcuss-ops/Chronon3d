@@ -23,6 +23,10 @@ namespace {
 [[nodiscard]] const char* check_codec_container(
     VideoCodec codec, VideoContainer container) noexcept
 {
+    if (container == VideoContainer::Gif && codec != VideoCodec::Gif)
+        return "GIF container requires the GIF palette encoder";
+    if (codec == VideoCodec::Gif && container != VideoContainer::Gif)
+        return "GIF palette encoder requires the GIF container";
     if (container == VideoContainer::WebM) {
         if (codec == VideoCodec::H264 || codec == VideoCodec::H264Nvenc) {
             return "WebM container does not support H.264 codec";

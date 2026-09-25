@@ -85,7 +85,7 @@ std::string codec_name(render_plan::VideoCodec codec) {
 
 bool video_output(const std::string& path) {
     const auto extension = std::filesystem::path(path).extension().string();
-    return extension == ".mp4" || extension == ".mkv" || extension == ".webm" ||
+    return extension == ".mp4" || extension == ".mkv" || extension == ".webm" || extension == ".gif" ||
            extension == ".mov";
 }
 
@@ -125,8 +125,19 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         const auto& fp = context.program->fingerprint_data();
         const auto& effective_assets_root = context.effective_assets_root;
         const auto& effective_settings = context.settings;
-        const auto output = normalized_job.output_path.empty()
+        auto output = normalized_job.output_path.empty()
             ? meta.output.path : normalized_job.output_path.string();
+        if (context.decoded.output.format == render_plan::OutputFormat::Gif &&
+            std::filesystem::path(output).extension() != ".gif") {
+            std::filesystem::path gif_path(output);
+            gif_path.replace_extension(".gif");
+            output = gif_path.string();
+        }
+        if (context.decoded.output.format == render_plan::OutputFormat::PngSequence &&
+            output.find("####") == std::string::npos) {
+            const auto extension = output.find_last_of('.');
+            output.insert(extension == std::string::npos ? output.size() : extension, "_####");
+        }
         const auto first = normalized_job.frame_range
             ? normalized_job.frame_range->first : std::int64_t{0};
         const auto last = normalized_job.frame_range
@@ -159,6 +170,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             ? meta.fps_denominator : normalized_job.output.fps_den;
         request.video_settings.codec = codec_name(
             static_cast<render_plan::VideoCodec>(meta.output.codec));
+        if (context.decoded.output.format == render_plan::OutputFormat::Gif)
+            request.video_settings.codec = "gif";
         request.video_settings.rate_control_mode =
             meta.output.rate_control == static_cast<std::uint8_t>(render_plan::RateControlMode::ConstantQp)
                 ? "qp"
@@ -167,6 +180,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         request.video_settings.qp = meta.output.qp;
         request.video_settings.bitrate = meta.output.bitrate;
         if (!normalized_job.output.codec.empty()) request.video_settings.codec = normalized_job.output.codec;
+        if (context.decoded.output.format == render_plan::OutputFormat::Gif)
+            request.video_settings.codec = "gif";
         if (!normalized_job.output.hardware_encoder.empty())
             request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
         if (!normalized_job.output.encoder_backend.empty())

@@ -123,6 +123,8 @@ std::optional<chronon3d::BlendMode> blend_mode(const std::string& value) {
 }
 
 OutputFormat output_format(const std::string& value) {
+    if (value == "png_sequence") return OutputFormat::PngSequence;
+    if (value == "gif") return OutputFormat::Gif;
     if (value == "mp4") return OutputFormat::Mp4;
     if (value == "mkv") return OutputFormat::Mkv;
     if (value == "webm") return OutputFormat::WebM;

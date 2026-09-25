@@ -204,6 +204,20 @@
                   }
                 }
               },
+              "shadows": {
+                "type": "array", "minItems": 1, "maxItems": 3,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["color", "offset"],
+                  "properties": {
+                    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                    "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "blur": { "type": "number", "minimum": 0 },
+                    "offset": { "type": "array", "minItems": 2, "maxItems": 2,
+                                "items": { "type": "number" } }
+                  }
+                }
+              },
               "glow": {
                 "description": "One Gaussian halo controlled by radius, intensity and color. Deprecated legacy fields are accepted only for V2 compatibility and ignored by the decoder/renderer.",
                 "type": "object", "additionalProperties": false,
@@ -233,7 +247,8 @@
                   }
                 }
               }
-            }
+            },
+            "not": { "required": ["shadow", "shadows"] }
           },
           "animation": {
             "type": "object",
@@ -337,7 +352,7 @@
       "type": "object", "additionalProperties": false, "required": ["path"],
       "properties": {
         "path": { "type": "string", "minLength": 1 },
-        "format": { "enum": ["png", "mp4", "mkv", "webm"] },
+        "format": { "enum": ["png", "png_sequence", "gif", "mp4", "mkv", "webm"] },
         "codec": { "enum": ["auto", "h264", "h265", "vp9", "av1"] },
         "profile_id": { "type": "string", "minLength": 1 },
         "rate_control": { "enum": ["crf", "qp", "bitrate"] },
