@@ -187,12 +187,36 @@ namespace chronon3d::renderer {
            p.y >= -spread && p.y < size.y + spread;
 }
 
+[[nodiscard]] static inline bool hit_test_per_corner_rect(
+    const Vec2& p, Vec2 size, const std::array<f32, 4>& radii, f32 spread) {
+    if (p.x < -spread || p.x > size.x + spread ||
+        p.y < -spread || p.y > size.y + spread) return false;
+    const std::size_t index = p.y < size.y * 0.5f
+        ? (p.x < size.x * 0.5f ? 0u : 1u)
+        : (p.x >= size.x * 0.5f ? 2u : 3u);
+    const f32 radius = std::max(0.0f, std::min(radii[index], std::min(size.x, size.y) * 0.5f));
+    if (radius <= 0.0f) return true;
+    const bool in_corner = index == 0 ? p.x < radius && p.y < radius :
+        index == 1 ? p.x > size.x - radius && p.y < radius :
+        index == 2 ? p.x > size.x - radius && p.y > size.y - radius :
+                     p.x < radius && p.y > size.y - radius;
+    if (!in_corner) return true;
+    const f32 cx = index == 0 || index == 3 ? radius : size.x - radius;
+    const f32 cy = index < 2 ? radius : size.y - radius;
+    const f32 expanded = radius + spread;
+    const f32 dx = p.x - cx, dy = p.y - cy;
+    return dx * dx + dy * dy <= expanded * expanded;
+}
+
 [[nodiscard]] static inline bool hit_test_shape_fill(const Shape& shape, Vec2 p, f32 spread, f32 corner_radius) {
     switch (shape.type()) {
         case ShapeType::Rect:
             return hit_test_rect_like(p, shape.rect().size, corner_radius, spread);
         case ShapeType::RoundedRect:
-            return hit_test_rect_like(p, shape.rounded_rect().size, shape.rounded_rect().radius, spread);
+            if (!shape.rounded_rect().corner_radius)
+                return hit_test_rect_like(p, shape.rounded_rect().size, shape.rounded_rect().radius, spread);
+            return hit_test_per_corner_rect(p, shape.rounded_rect().size,
+                                            *shape.rounded_rect().corner_radius, spread);
         case ShapeType::Circle: {
             const f32 r = shape.circle().radius + spread;
             const f32 dx = p.x - shape.circle().radius;
@@ -251,6 +275,17 @@ namespace chronon3d::renderer {
         case ShapeType::RoundedRect: {
             const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rounded_rect().size : shape.rounded_rect().size + Vec2{stroke, stroke};
             const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rounded_rect().size : Vec2{std::max(0.0f, shape.rounded_rect().size.x - stroke), std::max(0.0f, shape.rounded_rect().size.y - stroke)};
+            if (shape.rounded_rect().corner_radius) {
+                auto outer_radii = *shape.rounded_rect().corner_radius;
+                auto inner_radii = *shape.rounded_rect().corner_radius;
+                for (std::size_t i = 0; i < outer_radii.size(); ++i) {
+                    if (alignment != StrokeAlignment::Inside) outer_radii[i] += half;
+                    if (alignment != StrokeAlignment::Outside)
+                        inner_radii[i] = std::max(0.0f, inner_radii[i] - half);
+                }
+                return hit_test_per_corner_rect(p - outer_origin, outer_size, outer_radii, outer_spread) &&
+                       !hit_test_per_corner_rect(p - inner_origin, inner_size, inner_radii, inner_spread);
+            }
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.rounded_rect().radius : shape.rounded_rect().radius + half;
             const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.rounded_rect().radius : std::max(0.0f, shape.rounded_rect().radius - half);
             return hit_test_rect_like(p - outer_origin, outer_size, outer_radius, outer_spread) &&

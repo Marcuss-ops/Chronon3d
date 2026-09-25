@@ -21,6 +21,29 @@ std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
     return object.at(key).get<T>();
 }
 
+std::optional<std::array<float, 4>> decode_bezier_curve(
+    const nlohmann::json& object, std::string_view easing, std::string_view field) {
+    const bool has_curve = object.contains("bezier_curve");
+    if ((easing == "bezier") != has_curve)
+        throw std::runtime_error(std::string(field) +
+            " requires easing='bezier' and bezier_curve together");
+    if (!has_curve) return std::nullopt;
+    const auto& raw = object.at("bezier_curve");
+    if (!raw.is_array() || raw.size() != 4)
+        throw std::runtime_error(std::string(field) + ".bezier_curve must contain [x1, y1, x2, y2]");
+    std::array<float, 4> curve{};
+    for (std::size_t i = 0; i < curve.size(); ++i) {
+        curve[i] = raw.at(i).get<float>();
+        if (!std::isfinite(curve[i]))
+            throw std::runtime_error(std::string(field) + ".bezier_curve values must be finite");
+    }
+    if (curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+        curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+        throw std::runtime_error(std::string(field) +
+            ".bezier_curve x handles must be in [0, 1] and y handles in [-10, 10]");
+    return curve;
+}
+
 std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
     if (!object.contains(key)) return std::nullopt;
     return Frame{object.at(key).get<std::int64_t>()};
@@ -36,6 +59,7 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     // confusing decode failure.
     track.property = value.value("property", std::string{});
     track.easing = value.value("easing", std::string{"linear"});
+    track.bezier_curve = decode_bezier_curve(value, track.easing, "animation track");
     for (const auto& key_value : value.at("keyframes")) {
         AnimationKeyframePlan key;
         key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
@@ -112,6 +136,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             const auto& animation = raw_remap.at("animation");
             track.property = "time_remap";
             track.easing = animation.value("easing", std::string{"linear"});
+            track.bezier_curve = decode_bezier_curve(animation, track.easing, "time_remap.animation");
             for (const auto& key_value : animation.at("keyframes")) {
                 AnimationKeyframePlan key;
                 key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
@@ -176,6 +201,23 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");
         shape.radius = raw_shape.value("radius", 0.0f);
+        if (raw_shape.contains("corner_radius")) {
+            if (shape.type != ShapeContentTypePlan::RoundedRect)
+                throw std::runtime_error("shape.corner_radius is only valid for rounded_rect");
+            if (raw_shape.contains("radius"))
+                throw std::runtime_error("shape.radius and shape.corner_radius are mutually exclusive");
+            const auto& corners = raw_shape.at("corner_radius");
+            if (!corners.is_array() || corners.size() != 4)
+                throw std::runtime_error("shape.corner_radius must contain [tl, tr, br, bl]");
+            std::array<float, 4> decoded{};
+            const float max_radius = std::min(layer.size[0], layer.size[1]) * 0.5f;
+            for (std::size_t i = 0; i < decoded.size(); ++i) {
+                decoded[i] = corners.at(i).get<float>();
+                if (!std::isfinite(decoded[i]) || decoded[i] < 0.0f || decoded[i] > max_radius)
+                    throw std::runtime_error("rounded_rect corner radius must be finite, non-negative, and not exceed half the smaller size dimension");
+            }
+            shape.corner_radius = decoded;
+        }
         if (!std::isfinite(shape.radius) || shape.radius < 0.0f)
             throw std::runtime_error("shape.radius must be finite and non-negative");
         if (shape.type == ShapeContentTypePlan::RoundedRect) {
@@ -654,6 +696,62 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 effect.block_size = raw_effect.value("block_size", 8u);
                 if (effect.block_size == 0 || effect.block_size > 512)
                     throw std::runtime_error("Mosaic block_size must be in [1, 512]");
+            } else if (kind == "gaussian_blur") {
+                effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+                effect.radius = raw_effect.value("radius", 8.0f);
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
+                    throw std::runtime_error("Gaussian blur radius must be in [0, 256]");
+            } else if (kind == "drop_shadow") {
+                effect.kind = LayerPlan::EffectKindPlan::DropShadow;
+                effect.radius = raw_effect.value("radius", 12.0f);
+                if (raw_effect.contains("offset")) {
+                    const auto& offset = raw_effect.at("offset");
+                    if (!offset.is_array() || offset.size() != 2)
+                        throw std::runtime_error("Drop shadow offset must contain [x, y]");
+                    for (std::size_t i = 0; i < 2; ++i) {
+                        effect.offset[i] = offset.at(i).get<float>();
+                        if (!std::isfinite(effect.offset[i]) || std::abs(effect.offset[i]) > 10000.0f)
+                            throw std::runtime_error("Drop shadow offset values must be finite and within [-10000, 10000]");
+                    }
+                }
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Drop shadow color must contain [r, g, b, a]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.effect_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.effect_color[i]) || effect.effect_color[i] < 0.0f || effect.effect_color[i] > 1.0f)
+                            throw std::runtime_error("Drop shadow color components must be in [0, 1]");
+                    }
+                }
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
+                    throw std::runtime_error("Drop shadow radius must be in [0, 256]");
+            } else if (kind == "bloom") {
+                effect.kind = LayerPlan::EffectKindPlan::Bloom;
+                effect.bloom_threshold = raw_effect.value("threshold", 0.80f);
+                effect.radius = raw_effect.value("radius", 24.0f);
+                effect.bloom_intensity = raw_effect.value("intensity", 0.60f);
+                if (!std::isfinite(effect.bloom_threshold) || effect.bloom_threshold < 0.0f || effect.bloom_threshold > 1.0f ||
+                    !std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
+                    !std::isfinite(effect.bloom_intensity) || effect.bloom_intensity < 0.0f || effect.bloom_intensity > 4.0f)
+                    throw std::runtime_error("Bloom requires threshold in [0, 1], radius in [0, 256], and intensity in [0, 4]");
+            } else if (kind == "glow") {
+                effect.kind = LayerPlan::EffectKindPlan::Glow;
+                effect.radius = raw_effect.value("radius", 24.0f);
+                effect.glow_intensity = raw_effect.value("intensity", 0.25f);
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Glow color must contain [r, g, b, a]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.effect_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.effect_color[i]) || effect.effect_color[i] < 0.0f || effect.effect_color[i] > 1.0f)
+                            throw std::runtime_error("Glow color components must be in [0, 1]");
+                    }
+                }
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
+                    !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
+                    throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
             } else throw std::runtime_error("unsupported layer effect type");
             layer.effects.push_back(std::move(effect));
         }
@@ -712,8 +810,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                                             optional_value<float>(stroke, "width"),
                                             std::nullopt, std::nullopt, std::nullopt};
         }
-        if (style.contains("shadow")) {
-            const auto& shadow = style.at("shadow");
+        if (style.contains("shadow") && style.contains("shadows"))
+            throw std::runtime_error("style.shadow and style.shadows are mutually exclusive");
+        const auto decode_shadow = [](const nlohmann::json& shadow) {
             ShadowStyle shadow_plan;
             shadow_plan.color = shadow.value("color", std::string{});
             shadow_plan.opacity = optional_value<float>(shadow, "opacity");
@@ -724,7 +823,40 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 for (std::size_t i = 0; i < offset.size() && i < shadow_plan.offset.size(); ++i)
                     shadow_plan.offset[i] = offset.at(i).get<float>();
             }
-            style_plan.shadow = std::move(shadow_plan);
+            return shadow_plan;
+        };
+        if (style.contains("shadow")) {
+            style_plan.shadow = decode_shadow(style.at("shadow"));
+        }
+        if (style.contains("shadows")) {
+            const auto& shadows = style.at("shadows");
+            if (!shadows.is_array() || shadows.size() > 3)
+                throw std::runtime_error("style.shadows must contain at most 3 shadows");
+            for (const auto& raw_shadow : shadows) {
+                auto shadow = decode_shadow(raw_shadow);
+                const float opacity = shadow.opacity.value_or(1.0f);
+                const float blur = shadow.blur.value_or(0.0f);
+                if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f ||
+                    !std::isfinite(blur) || blur < 0.0f ||
+                    !std::isfinite(shadow.offset[0]) || !std::isfinite(shadow.offset[1]) ||
+                    shadow.offset_dimensions != 2 || shadow.color.empty())
+                    throw std::runtime_error("style.shadows entries require color, finite offset, opacity in [0,1], and non-negative blur");
+                style_plan.shadows.push_back(std::move(shadow));
+            }
+        }
+        if (style.contains("backdrop")) {
+            if (layer.type != LayerType::Shape)
+                throw std::runtime_error("style.backdrop is only valid for shape layers");
+            const auto& raw_backdrop = style.at("backdrop");
+            BackdropBlurStyle backdrop;
+            backdrop.blur = raw_backdrop.at("blur").get<float>();
+            backdrop.brightness = raw_backdrop.value("brightness", 1.0f);
+            backdrop.saturation = raw_backdrop.value("saturation", 1.0f);
+            if (!std::isfinite(backdrop.blur) || backdrop.blur < 0.0f || backdrop.blur > 64.0f ||
+                !std::isfinite(backdrop.brightness) || backdrop.brightness < 0.0f || backdrop.brightness > 4.0f ||
+                !std::isfinite(backdrop.saturation) || backdrop.saturation < 0.0f || backdrop.saturation > 4.0f)
+                throw std::runtime_error("style.backdrop blur, brightness, and saturation must be finite and within supported bounds");
+            style_plan.backdrop = backdrop;
         }
         if (style.contains("glow")) {
             const auto& glow = style.at("glow");

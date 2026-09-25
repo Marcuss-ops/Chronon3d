@@ -5,9 +5,11 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -48,6 +50,7 @@ using Clock = std::chrono::steady_clock;
     case VideoCodec::H265:      return AV_CODEC_ID_HEVC;
     case VideoCodec::VP9:       return AV_CODEC_ID_VP9;
     case VideoCodec::AV1:       return AV_CODEC_ID_AV1;
+    case VideoCodec::Gif:       return AV_CODEC_ID_GIF;
     default:                    return AV_CODEC_ID_NONE;
     }
 }
@@ -59,6 +62,7 @@ using Clock = std::chrono::steady_clock;
     case VideoCodec::H265:      return "libx265";
     case VideoCodec::VP9:       return "libvpx-vp9";
     case VideoCodec::AV1:       return "libaom-av1";
+    case VideoCodec::Gif:       return "gif";
     default:                    return nullptr;
     }
 }
@@ -220,8 +224,9 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     codec_->gop_size = keyframe_interval_frames(config.stream.frame_rate_num,
                                                 config.stream.frame_rate_den);
     codec_->max_b_frames = 0;
-    codec_->pix_fmt = choose_encoder_pixel_format(
-        encoder, config.encoder.encoded_pixel_format);
+    codec_->pix_fmt = resolved_codec == VideoCodec::Gif
+        ? AV_PIX_FMT_PAL8
+        : choose_encoder_pixel_format(encoder, config.encoder.encoded_pixel_format);
     if (codec_->pix_fmt == AV_PIX_FMT_NONE) {
         return fail(VideoSinkError::InvalidConfig,
                     "no supported encoder pixel format for requested output");
@@ -237,24 +242,25 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     codec_->color_trc = AVCOL_TRC_BT709;
     codec_->color_primaries = AVCOL_PRI_BT709;
 
-    if (config.encoder.rate_control_mode == RateControlMode::Bitrate) {
+    if (resolved_codec != VideoCodec::Gif &&
+        config.encoder.rate_control_mode == RateControlMode::Bitrate) {
         codec_->bit_rate = config.encoder.bitrate;
     }
 
     AVDictionary* codec_options = nullptr;
-    if (!config.encoder.preset.empty()) {
+    if (resolved_codec != VideoCodec::Gif && !config.encoder.preset.empty()) {
         av_dict_set(&codec_options, "preset", config.encoder.preset.c_str(), 0);
     }
-    if (config.encoder.tune && !config.encoder.tune->empty()) {
+    if (resolved_codec != VideoCodec::Gif && config.encoder.tune && !config.encoder.tune->empty()) {
         av_dict_set(&codec_options, "tune", config.encoder.tune->c_str(), 0);
     }
-    if (config.encoder.rate_control_mode == RateControlMode::Crf &&
+    if (resolved_codec != VideoCodec::Gif && config.encoder.rate_control_mode == RateControlMode::Crf &&
         config.encoder.crf >= 0) {
         const std::string value = std::to_string(config.encoder.crf);
         av_dict_set(&codec_options,
                     resolved_codec == VideoCodec::H264Nvenc ? "cq" : "crf",
                     value.c_str(), 0);
-    } else if (config.encoder.rate_control_mode == RateControlMode::ConstantQp &&
+    } else if (resolved_codec != VideoCodec::Gif && config.encoder.rate_control_mode == RateControlMode::ConstantQp &&
                config.encoder.qp >= 0) {
         const std::string value = std::to_string(config.encoder.qp);
         av_dict_set(&codec_options, "qp", value.c_str(), 0);
@@ -412,19 +418,60 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
                     "av_frame_make_writable failed: " + ffmpeg_error(writable_result));
     }
 
-    sws_ = sws_getCachedContext(
-        sws_, width, height, static_cast<AVPixelFormat>(source_av_format),
-        codec_->width, codec_->height, codec_->pix_fmt,
-        SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (!sws_) {
-        return fail(VideoSinkError::EncoderFailed,
-                    "sws_getCachedContext failed");
-    }
-    const int rows = sws_scale(sws_, data, linesize, 0, height,
-                               frame_->data, frame_->linesize);
-    if (rows != height) {
-        return fail(VideoSinkError::EncoderFailed,
-                    "sws_scale produced an incomplete frame");
+    const bool gif_output = resolve_auto_codec(
+        config_.encoder.codec, config_.output.container) == VideoCodec::Gif;
+    if (gif_output) {
+        const int out_width = codec_->width;
+        const int out_height = codec_->height;
+        std::vector<std::uint8_t> rgba(static_cast<std::size_t>(out_width) *
+                                       static_cast<std::size_t>(out_height) * 4u);
+        std::uint8_t* rgba_planes[4]{rgba.data(), nullptr, nullptr, nullptr};
+        int rgba_strides[4]{out_width * 4, 0, 0, 0};
+        sws_ = sws_getCachedContext(
+            sws_, width, height, static_cast<AVPixelFormat>(source_av_format),
+            out_width, out_height, AV_PIX_FMT_RGBA,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (!sws_)
+            return fail(VideoSinkError::EncoderFailed, "GIF RGBA conversion setup failed");
+        const int rows = sws_scale(sws_, data, linesize, 0, height,
+                                   rgba_planes, rgba_strides);
+        if (rows != out_height || !frame_->data[1])
+            return fail(VideoSinkError::EncoderFailed, "GIF frame conversion or palette allocation failed");
+
+        // A fixed global 3-3-2 palette keeps colors stable for the whole
+        // animation. Ordered Bayer dithering distributes quantization error
+        // without introducing frame-dependent palettes.
+        static constexpr int bayer[4][4] = {
+            {0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+        auto* palette = reinterpret_cast<std::uint32_t*>(frame_->data[1]);
+        for (unsigned index = 0; index < 256; ++index) {
+            const unsigned r = ((index >> 5u) & 7u) * 255u / 7u;
+            const unsigned g = ((index >> 2u) & 7u) * 255u / 7u;
+            const unsigned b = (index & 3u) * 255u / 3u;
+            palette[index] = 0xff000000u | (r << 16u) | (g << 8u) | b;
+        }
+        for (int y = 0; y < out_height; ++y) {
+            auto* dst = frame_->data[0] + static_cast<std::ptrdiff_t>(y) * frame_->linesize[0];
+            const auto* src = rgba.data() + static_cast<std::size_t>(y) * out_width * 4u;
+            for (int x = 0; x < out_width; ++x) {
+                const int bias = (bayer[y & 3][x & 3] - 7) * 3;
+                const int r = std::clamp(static_cast<int>(src[x * 4]) + bias, 0, 255);
+                const int g = std::clamp(static_cast<int>(src[x * 4 + 1]) + bias, 0, 255);
+                const int b = std::clamp(static_cast<int>(src[x * 4 + 2]) + bias, 0, 255);
+                dst[x] = static_cast<std::uint8_t>(((r * 7 + 127) / 255 << 5) |
+                    ((g * 7 + 127) / 255 << 2) | ((b * 3 + 127) / 255));
+            }
+        }
+    } else {
+        sws_ = sws_getCachedContext(
+            sws_, width, height, static_cast<AVPixelFormat>(source_av_format),
+            codec_->width, codec_->height, codec_->pix_fmt,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (!sws_) return fail(VideoSinkError::EncoderFailed, "sws_getCachedContext failed");
+        const int rows = sws_scale(sws_, data, linesize, 0, height,
+                                   frame_->data, frame_->linesize);
+        if (rows != height)
+            return fail(VideoSinkError::EncoderFailed, "sws_scale produced an incomplete frame");
     }
 
     // Preserve the caller's media timeline. NativeAvSink must not silently

@@ -33,6 +33,7 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
     node.shape.set_type(ShapeType::RoundedRect);
     node.shape.rounded_rect().size = p.size;
     node.shape.rounded_rect().radius = p.radius;
+    node.shape.rounded_rect().corner_radius = p.corner_radius;
     node.shape.rounded_rect().stroke = p.stroke.to_shape_stroke();
     node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};

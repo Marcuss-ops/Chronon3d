@@ -8,11 +8,13 @@
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
+#include <cctype>
 #include <exception>
 #include <string>
 #include <utility>
 #include <unordered_map>
 #include <vector>
+#include <set>
 
 namespace {
 
@@ -55,6 +57,89 @@ std::optional<std::string> find_3d_track(const nlohmann::json& layer) {
 bool has_explicit_3d_vector(const nlohmann::json& layer, const char* key) {
     return layer.contains(key) && layer.at(key).is_array() &&
            layer.at(key).size() >= 3;
+}
+
+struct ResolvedVariables {
+    nlohmann::json plan;
+    std::vector<std::string> unused;
+};
+
+ResolvedVariables resolve_variables(const nlohmann::json& source) {
+    ResolvedVariables result{source, {}};
+    if (!source.contains("variables")) return result;
+    const auto& raw_variables = source.at("variables");
+    if (!raw_variables.is_object() || raw_variables.size() > 1024)
+        throw std::runtime_error("variables must be an object with at most 1024 entries");
+    std::unordered_map<std::string, nlohmann::json> variables;
+    for (auto it = raw_variables.begin(); it != raw_variables.end(); ++it) {
+        if (it.key().empty() ||
+            !(std::isalpha(static_cast<unsigned char>(it.key().front())) || it.key().front() == '_') ||
+            !std::all_of(it.key().begin() + 1, it.key().end(), [](unsigned char c) {
+                return std::isalnum(c) || c == '_';
+            }) ||
+            !(it.value().is_string() || it.value().is_number()))
+            throw std::runtime_error("variables must map names to string or number values");
+        variables.emplace(it.key(), it.value());
+    }
+    std::set<std::string> used;
+    const auto resolve_string = [&](std::string value, bool typed,
+                                    const std::string& path) -> nlohmann::json {
+        std::optional<nlohmann::json> exact;
+        std::string output;
+        std::size_t cursor = 0;
+        while (true) {
+            const auto begin = value.find("${", cursor);
+            if (begin == std::string::npos) {
+                output.append(value, cursor, std::string::npos);
+                break;
+            }
+            output.append(value, cursor, begin - cursor);
+            const auto end = value.find('}', begin + 2);
+            if (end == std::string::npos)
+                throw std::runtime_error("unterminated variable reference in " + path);
+            const auto name = value.substr(begin + 2, end - begin - 2);
+            const auto found = variables.find(name);
+            if (found == variables.end())
+                throw std::runtime_error("unknown render variable '${" + name + "}' in " + path);
+            used.insert(name);
+            if (typed && begin == 0 && end + 1 == value.size()) {
+                exact = found->second;
+                break;
+            }
+            output += found->second.is_string() ? found->second.get<std::string>()
+                                                : found->second.dump();
+            cursor = end + 1;
+        }
+        if (exact) return *exact;
+        return output;
+    };
+    const auto walk = [&](const auto& self, nlohmann::json& value,
+                          const std::string& path, const std::string& parent_key) -> void {
+        if (value.is_object()) {
+            for (auto it = value.begin(); it != value.end(); ++it) {
+                if (it.key().find("${") != std::string::npos)
+                    throw std::runtime_error("variable references are not allowed in object keys");
+                self(self, it.value(), path + "." + it.key(), it.key());
+            }
+        } else if (value.is_array()) {
+            for (std::size_t i = 0; i < value.size(); ++i)
+                self(self, value[i], path + "[" + std::to_string(i) + "]", parent_key);
+        } else if (value.is_string()) {
+            const auto text = value.get<std::string>();
+            if (text.find("${") != std::string::npos) {
+                if (parent_key == "property" || parent_key == "type")
+                    throw std::runtime_error("render variables are not allowed in property/type names");
+                value = resolve_string(text, true, path);
+            }
+        }
+    };
+    result.plan.erase("variables");
+    walk(walk, result.plan, "$", {});
+    for (const auto& [name, unused] : variables) {
+        (void)unused;
+        if (!used.contains(name)) result.unused.push_back(name);
+    }
+    return result;
 }
 
 }  // namespace
@@ -196,32 +281,42 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
 }
 
 Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& root) {
-    const auto validation = validate_render_plan(root);
+    ResolvedVariables resolved;
+    try {
+        resolved = resolve_variables(root);
+    } catch (const std::exception& error) {
+        return PlanDecodeError{"variables", error.what(), "invalid_render_variables", "render-plan-variables"};
+    }
+    const auto& resolved_root = resolved.plan;
+    const auto validation = validate_render_plan(resolved_root);
     if (!validation.ok())
         return PlanDecodeError{"", validation.format()};
 
     try {
         RenderPlan plan;
-        plan.schema = root.at("schema").get<std::string>();
-        plan.job_id = root.value("job_id", std::string{"chronon_plan"});
-        const auto& canvas = root.at("canvas");
+        plan.warnings.reserve(resolved.unused.size());
+        for (const auto& name : resolved.unused)
+            plan.warnings.push_back("unused render variable '" + name + "'");
+        plan.schema = resolved_root.at("schema").get<std::string>();
+        plan.job_id = resolved_root.value("job_id", std::string{"chronon_plan"});
+        const auto& canvas = resolved_root.at("canvas");
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
             canvas.at("height").get<int>(),
             FrameRate{canvas.at("fps_num").get<int>(), canvas.at("fps_den").get<int>()},
             Frame{canvas.at("duration_frames").get<std::int64_t>()}};
-        if (root.contains("camera"))
-            plan.camera = detail::decode_camera(root.at("camera"));
-        if (root.contains("camera_animation")) {
+        if (resolved_root.contains("camera"))
+            plan.camera = detail::decode_camera(resolved_root.at("camera"));
+        if (resolved_root.contains("camera_animation")) {
             if (!plan.camera)
                 return PlanDecodeError{"camera_animation",
                     "camera_animation requires a camera object",
                     "camera_animation_requires_camera", "render-plan-decoder"};
-            plan.camera_animation = detail::decode_camera_tracks(root.at("camera_animation"));
+            plan.camera_animation = detail::decode_camera_tracks(resolved_root.at("camera_animation"));
         }
 
         std::size_t layer_index = 0;
-        for (const auto& layer_value : root.at("layers")) {
+        for (const auto& layer_value : resolved_root.at("layers")) {
             auto layer = detail::decode_layer(layer_value);
             const bool explicit_3d_vector =
                 has_explicit_3d_vector(layer_value, "position") ||
@@ -283,7 +378,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         if (const auto relation_error = validate_render_plan_layer_relations(plan))
             return *relation_error;
 
-        const auto& output = root.at("output");
+        const auto& output = resolved_root.at("output");
         plan.output.path = output.at("path").get<std::string>();
         if (output.contains("format"))
             plan.output.format = detail::output_format(output.at("format").get<std::string>());
@@ -303,8 +398,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
              plan.canvas.fps != FrameRate{30, 1})) {
             return PlanDecodeError{"canvas", "velox-h264-1080p30-v1 requires 1920x1080 at 30 fps"};
         }
-        if (root.contains("budget")) {
-            const auto& budget = root.at("budget");
+        if (resolved_root.contains("budget")) {
+            const auto& budget = resolved_root.at("budget");
             plan.budget.max_temporal_pixels = budget.value(
                 "max_temporal_pixels", plan.budget.max_temporal_pixels);
         }

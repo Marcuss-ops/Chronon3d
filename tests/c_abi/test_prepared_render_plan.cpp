@@ -4,6 +4,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <array>
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
@@ -551,7 +552,8 @@ TEST_CASE("render_plan_compiler: animation tracks map to animated transforms") {
 
     chronon3d::render_plan::AnimationTrackPlan track;
     track.property = "opacity";
-    track.easing = "in_quad";
+    track.easing = "bezier";
+    track.bezier_curve = std::array<float, 4>{0.16f, 1.0f, 0.3f, 1.0f};
     track.keyframes.push_back({chronon3d::Frame{0}, {0.0f}});
     track.keyframes.push_back({chronon3d::Frame{15}, {1.0f}});
     layer.animation = chronon3d::render_plan::AnimationPlan{.tracks = {std::move(track)}};
