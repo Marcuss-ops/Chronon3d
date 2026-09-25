@@ -183,7 +183,8 @@ compile_text_layout(
     // explicit frame flag.  Treating every positive Clip box as auto-fit can
     // shrink ordinary overlay titles to min_font_size when layout bounds
     // include box metrics instead of ink bounds.
-    const bool auto_fit_required = prepared.frame.auto_fit;
+    const bool auto_fit_required = prepared.frame.auto_fit ||
+                                   prepared.frame.grow_and_shrink;
     PreparedText effective = prepared;
     if (auto_fit_required) {
         const f32 min_fs = prepared.frame.min_font_size;
@@ -202,7 +203,8 @@ compile_text_layout(
                 // rendered alpha bounds, not only the layout metrics.
                 return result &&
                        result.value()->bounds.x <= prepared.frame.size.x * 0.95f &&
-                       result.value()->bounds.y <= prepared.frame.size.y * 0.75f;
+                       (prepared.frame.grow_and_shrink ||
+                        result.value()->bounds.y <= prepared.frame.size.y * 0.75f);
             };
             f32 low = min_fs;
             f32 high = max_fs;
@@ -221,8 +223,26 @@ compile_text_layout(
                 }
             }
             effective.frame.auto_fit = false;
+            effective.frame.grow_and_shrink = false;
             effective.style.font.font_size = best;
             effective.document.defaults.font.font_size = best;
+        }
+    }
+
+    if (prepared.frame.grow_and_shrink) {
+        PreparedText measure = effective;
+        measure.frame.auto_fit = false;
+        measure.frame.grow_and_shrink = false;
+        measure.frame.vertical_align = VerticalAlign::Top;
+        // The first pass measures wrapped content with the authored width and
+        // no vertical clip. The second pass below uses the measured height so
+        // vertical alignment and clipping are resolved against the final box.
+        measure.frame.size.y = 1'000'000.0f;
+        auto measured = compile_prepared_text_core(measure, services, pre_resolved);
+        if (measured) {
+            const float padding = effective.style.box_style.padding.y * 2.0f;
+            effective.frame.size.y = std::max(
+                1.0f, measured.value()->bounds.y + padding);
         }
     }
 

@@ -3,10 +3,12 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include "test_render_plan_shape_helpers.hpp"
+#include "../../src/render_plan/render_plan_compiler_detail.hpp"
 
 #include <utility>
 #include <limits>
 #include <type_traits>
+#include <cmath>
 #include <nlohmann/json.hpp>
 
 TEST_CASE("render plan decoder constructs typed V2 plan") {
@@ -31,6 +33,334 @@ TEST_CASE("render plan decoder constructs typed V2 plan") {
     CHECK(decoded->layers[0].start_frame->integral() == 3);
     CHECK(decoded->output.codec == chronon3d::render_plan::VideoCodec::H264);
     CHECK(decoded->budget.max_temporal_pixels == 4096);
+}
+
+TEST_CASE("render plan text spans preserve byte ranges and affect deterministic fingerprint") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"caption","type":"text","text":"Hi future",
+        "style":{"font":"fonts/roboto.ttf","font_size":32,"fill":"#FFFFFF"},
+        "spans":[{"start":3,"end":9,"semantic_id":"word-0",
+          "style":{"color":"#FFB020","font_size_mult":1.3,
+            "stroke":{"color":"#FF0000","width_em":0.08},
+            "highlight":{"background":"#000000","padding_em":0.5,"radius_em":0.2}}}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto first = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = first.has_value() ? std::string{} :
+        first.error().path + ": " + first.error().message;
+    REQUIRE_MESSAGE(first.has_value(), decode_error);
+    REQUIRE(first->layers[0].text_spans.size() == 1);
+    CHECK(first->layers[0].text_spans[0].byte_start == 3);
+    CHECK(first->layers[0].text_spans[0].byte_end == 9);
+    CHECK(first->layers[0].text_spans[0].semantic_id == "word-0");
+    REQUIRE(first->layers[0].text_spans[0].stroke.has_value());
+    CHECK(first->layers[0].text_spans[0].stroke->width_em == doctest::Approx(0.08f));
+    REQUIRE(first->layers[0].text_spans[0].highlight.has_value());
+    CHECK(first->layers[0].text_spans[0].highlight->background.has_value());
+    CHECK(first->layers[0].text_spans[0].highlight->padding_em == doctest::Approx(0.5f));
+    CHECK(first->layers[0].text_spans[0].highlight->radius_em == doctest::Approx(0.2f));
+    CHECK(first->content_fingerprint ==
+          chronon3d::render_plan::compute_render_plan_content_fingerprint(*first));
+    const auto repeat = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeat.has_value());
+    CHECK(first->content_fingerprint == repeat->content_fingerprint);
+    source["layers"][0]["spans"][0]["style"]["color"] = "#00FF00";
+    const auto recolored = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(recolored.has_value());
+    CHECK(first->content_fingerprint != recolored->content_fingerprint);
+}
+
+TEST_CASE("render plan rejects overlapping text span byte ranges") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"caption","type":"text","text":"Hello",
+        "style":{"font":"font.ttf","font_size":20,"fill":"#FFFFFF"},
+        "spans":[{"start":0,"end":4,"style":{"color":"#FF0000"}},
+                  {"start":3,"end":5,"style":{"color":"#00FF00"}}]}],
+      "output":{"path":"out.png"}})JSON");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan decodes pre-layout text fit modes") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"caption","type":"text","text":"A responsive caption",
+        "size":[240,48],
+        "style":{"font":"font.ttf","font_size":28,"fill":"#FFFFFF",
+          "fit_mode":"grow_and_shrink","min_font_size":14,"max_font_size":36}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = plan.has_value() ? std::string{} :
+        plan.error().path + ": " + plan.error().message;
+    REQUIRE_MESSAGE(plan.has_value(), decode_error);
+    REQUIRE(plan->layers[0].style.has_value());
+    CHECK(plan->layers[0].style->text_fit_mode == "grow_and_shrink");
+    CHECK(plan->layers[0].style->min_font_size == doctest::Approx(14.0f));
+    CHECK(plan->layers[0].style->max_font_size == doctest::Approx(36.0f));
+    const auto repeat = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeat.has_value());
+    CHECK(plan->content_fingerprint == repeat->content_fingerprint);
+    source["layers"][0]["style"]["fit_mode"] = "shrink_only";
+    const auto shrink = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(shrink.has_value());
+    CHECK(plan->content_fingerprint != shrink->content_fingerprint);
+    source["layers"][0]["style"]["min_font_size"] = 40;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan decodes named semantic span selector for word animation") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"caption","type":"text","text":"Hi future",
+        "style":{"font":"fonts/roboto.ttf","font_size":32,"fill":"#FFFFFF"},
+        "spans":[{"start":3,"end":9,"semantic_id":"word-0","style":{"color":"#FFB020"}}],
+        "text_animators":[{"id":"word-highlight",
+          "selectors":[{"unit":"glyph","semantic_id":"word-0","shape":"square",
+            "amount":{"keyframes":[{"frame":0,"value":0},{"frame":8,"value":100}]}}],
+          "properties":[
+            {"property":"opacity","keyframes":[
+              {"frame":0,"value":0.0},{"frame":8,"value":1.0}]},
+            {"property":"fill_color","keyframes":[
+              {"frame":0,"value":[1.0,0.7,0.0,1.0]}]}]}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    std::string decode_error;
+    if (!plan.has_value()) decode_error = plan.error().message;
+    CAPTURE(decode_error);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].text_animators.size() == 1);
+    REQUIRE(plan->layers[0].text_animators[0].selectors.size() == 1);
+    CHECK(plan->layers[0].text_animators[0].selectors[0].semantic_id == "word-0");
+    REQUIRE(plan->layers[0].text_animators[0].properties.size() == 2);
+    CHECK(plan->layers[0].text_animators[0].properties[1].property == "fill_color");
+    REQUIRE(plan->layers[0].text_animators[0].properties[1].keyframes[0].value.size() == 4);
+    CHECK(plan->layers[0].text_animators[0].properties[1].keyframes[0].value[1] == doctest::Approx(0.7f));
+    auto renamed = source;
+    renamed["layers"][0]["spans"][0]["semantic_id"] = "word-1";
+    renamed["layers"][0]["text_animators"][0]["selectors"][0]["semantic_id"] = "word-1";
+    const auto renamed_plan = chronon3d::render_plan::decode_render_plan(renamed);
+    REQUIRE(renamed_plan.has_value());
+    CHECK(plan->content_fingerprint != renamed_plan->content_fingerprint);
+}
+
+TEST_CASE("render plan decodes shutter-angle motion blur settings") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":25},
+      "layers":[{"id":"moving","type":"shape","size":[20,20],
+        "shape":{"type":"rect"},"motion_blur":{"shutter_angle":180,"samples":12},
+        "animation":{"tracks":[{"property":"position","keyframes":[
+          {"frame":0,"value":[0,0]},{"frame":24,"value":[480,0]}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].motion_blur.has_value());
+    CHECK(plan->layers[0].motion_blur->shutter_angle == doctest::Approx(180.0f));
+    CHECK(plan->layers[0].motion_blur->samples == 12);
+    const auto blur = chronon3d::render_plan::detail::motion_blur_params_at(
+        plan->layers[0], 12.0);
+    REQUIRE(blur.has_value());
+    CHECK(blur->length == doctest::Approx(10.0f));
+    CHECK(blur->angle == doctest::Approx(0.0f));
+    CHECK(blur->samples == 12);
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated.has_value());
+    CHECK(plan->content_fingerprint == repeated->content_fingerprint);
+    source["layers"][0]["motion_blur"]["shutter_angle"] = 90;
+    const auto changed_shutter = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed_shutter.has_value());
+    CHECK(plan->content_fingerprint != changed_shutter->content_fingerprint);
+    source["layers"][0]["motion_blur"]["shutter_angle"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    auto diagonal = source;
+    diagonal["layers"][0]["motion_blur"]["shutter_angle"] = 180;
+    diagonal["layers"][0]["animation"]["tracks"] = nlohmann::json::parse(R"JSON([
+      {"property":"position_x","keyframes":[{"frame":0,"value":0},{"frame":24,"value":480}]},
+      {"property":"position_y","keyframes":[{"frame":0,"value":0},{"frame":24,"value":240}]}
+    ])JSON");
+    const auto diagonal_plan = chronon3d::render_plan::decode_render_plan(diagonal);
+    REQUIRE(diagonal_plan.has_value());
+    const auto diagonal_blur = chronon3d::render_plan::detail::motion_blur_params_at(
+        diagonal_plan->layers[0], 12.0);
+    REQUIRE(diagonal_blur.has_value());
+    CHECK(diagonal_blur->length == doctest::Approx(std::sqrt(125.0f)));
+    CHECK(diagonal_blur->angle == doctest::Approx(std::atan2(5.0f, 10.0f) * 180.0f / 3.14159265358979323846f));
+}
+
+TEST_CASE("render plan exposes true temporal shutter accumulation settings") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":25},
+      "temporal_motion_blur":{"shutter_angle":180,"samples":12},
+      "layers":[{"id":"moving","type":"shape","size":[20,20],
+        "shape":{"type":"rect"},"animation":{"tracks":[{"property":"rotation",
+          "keyframes":[{"frame":0,"value":[0,0,0]},{"frame":24,"value":[0,0,360]}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->temporal_motion_blur.has_value());
+    CHECK(plan->temporal_motion_blur->shutter_angle == doctest::Approx(180.0f));
+    CHECK(plan->temporal_motion_blur->samples == 12);
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated.has_value());
+    CHECK(plan->content_fingerprint == repeated->content_fingerprint);
+    source["temporal_motion_blur"]["samples"] = 16;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(plan->content_fingerprint != changed->content_fingerprint);
+    source["temporal_motion_blur"]["samples"] = 1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["temporal_motion_blur"]["samples"] = 12;
+    source["layers"][0]["motion_blur"] = {{"shutter_angle", 180}, {"samples", 12}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan safe insets enable responsive safe-area clamping and affect identity") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":1080,"height":1920,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"caption","type":"text","text":"Hello","font":"tests/fixtures/Inter-Bold.ttf",
+        "position":[540,1700],"safe_insets":{"top":80,"right":60,"bottom":220,"left":60},
+        "style":{"font":"tests/fixtures/Inter-Bold.ttf","font_size":64,"fill":"#FFFFFF"}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    if (!plan) FAIL(plan.error().message);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].safe_insets.has_value());
+    CHECK((*plan->layers[0].safe_insets)[0] == doctest::Approx(80.0f));
+    CHECK((*plan->layers[0].safe_insets)[1] == doctest::Approx(60.0f));
+    CHECK((*plan->layers[0].safe_insets)[2] == doctest::Approx(220.0f));
+    CHECK((*plan->layers[0].safe_insets)[3] == doctest::Approx(60.0f));
+    source["layers"][0]["safe_insets"]["bottom"] = 180;
+    const auto adjusted = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(adjusted.has_value());
+    CHECK(plan->content_fingerprint != adjusted->content_fingerprint);
+    source["layers"][0]["safe_insets"]["bottom"] = -1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0]["safe_insets"] = {
+        {"top", 1000}, {"bottom", 1000}, {"left", 60}, {"right", 60}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan decodes and fingerprints deterministic particle emitters") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":48},
+      "layers":[{"id":"dust","type":"particles","particle_emitter":{
+        "count":200,"seed":4728,"emitter_size":[640,360],
+        "velocity_min":[-8,-20],"velocity_max":[8,-4],
+        "lifetime":[3,8],"size":[2,14],"gravity":1.5,"turbulence":0.35,
+        "color_ramp":[{"position":0,"color":[0.6,0.5,0.4,0]},
+                       {"position":1,"color":[0.8,0.7,0.6,1]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers.size() == 1);
+    CHECK(plan->layers[0].type == chronon3d::render_plan::LayerType::Particles);
+    REQUIRE(plan->layers[0].particle_emitter.has_value());
+    CHECK(plan->layers[0].particle_emitter->count == 200);
+    CHECK(plan->layers[0].particle_emitter->seed == 4728);
+    REQUIRE(plan->layers[0].particle_emitter->color_ramp.color_stops.size() == 2);
+
+    auto changed = source;
+    changed["layers"][0]["particle_emitter"]["seed"] = 4729;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
+
+    changed["layers"][0]["particle_emitter"]["velocity_max"][0] = -9;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+}
+
+TEST_CASE("render plan decodes screen-space radial light layers") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"warm-light","type":"light","position":[320,180],
+        "light":{"radius":240,"color":"#FF8040","intensity":1.5}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers.size() == 1);
+    REQUIRE(plan->layers[0].light.has_value());
+    CHECK(plan->layers[0].light->radius == doctest::Approx(240.0f));
+    CHECK(plan->layers[0].light->intensity == doctest::Approx(1.5f));
+    CHECK(plan->layers[0].blend_mode == chronon3d::BlendMode::Screen);
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated.has_value());
+    CHECK(plan->content_fingerprint == repeated->content_fingerprint);
+
+    auto changed = source;
+    changed["layers"][0]["light"]["intensity"] = 1.0;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
+    changed["layers"][0]["light"]["radius"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+}
+
+TEST_CASE("render plan decodes deterministic noise and procedural background effects") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"background","type":"color","color":[0,0,0,1],
+        "effects":[{"type":"fractal_noise","seed":19,"octaves":5,"frequency":0.025,
+          "amplitude":0.8,"evolution":0.4,"contrast":1.2,"brightness":-0.1,"color_mode":"rgb"},
+          {"type":"noise","amount":0.08,"size":2,"seed":42,"animated":true,
+            "shadow_response":0.6,"midtone_response":1.0,"highlight_response":0.4}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].effects.size() == 2);
+    CHECK(plan->layers[0].effects[0].kind ==
+          chronon3d::render_plan::LayerPlan::EffectKindPlan::FractalNoise);
+    CHECK(plan->layers[0].effects[0].seed == 19);
+    CHECK(plan->layers[0].effects[0].rgb_noise);
+    CHECK(plan->layers[0].effects[1].kind ==
+          chronon3d::render_plan::LayerPlan::EffectKindPlan::Noise);
+    CHECK(plan->layers[0].effects[1].animated);
+    CHECK(plan->layers[0].effects[1].grain_shadow_response == doctest::Approx(0.6f));
+    CHECK(plan->layers[0].effects[1].grain_highlight_response == doctest::Approx(0.4f));
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated.has_value());
+    CHECK(plan->content_fingerprint == repeated->content_fingerprint);
+    auto changed = source;
+    changed["layers"][0]["effects"][1]["highlight_response"] = 0.7;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
+    changed["layers"][0]["effects"][0]["octaves"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+    changed = source;
+    changed["layers"][0]["effects"][1]["shadow_response"] = 5.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+}
+
+TEST_CASE("render plan requires adjustment layers to own only an effect stack") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":24,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"grain","type":"adjustment","effects":[
+        {"type":"noise","amount":0.05,"size":1.5,"seed":123,"animated":true}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = plan.has_value() ? std::string{} :
+        plan.error().path + ": " + plan.error().message;
+    REQUIRE_MESSAGE(plan.has_value(), decode_error);
+    REQUIRE(plan->layers.size() == 1);
+    CHECK(plan->layers[0].type == chronon3d::render_plan::LayerType::Adjustment);
+    REQUIRE(plan->layers[0].effects.size() == 1);
+    auto empty = source;
+    empty["layers"][0]["effects"] = nlohmann::json::array();
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(empty).has_value());
+    auto drawable = source;
+    drawable["layers"][0]["text"] = "must not draw";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(drawable).has_value());
 }
 
 TEST_CASE("render plan decoder decodes concrete primitive layers") {

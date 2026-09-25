@@ -49,6 +49,16 @@ namespace chronon3d {
 
 namespace detail {
 
+[[nodiscard]] bool semantic_target_matches(
+    const GlyphSelectorSpec& spec,
+    const TextUnitMap& unit_map,
+    u32 glyph_index
+) noexcept {
+    return !spec.semantic_id ||
+        (glyph_index < unit_map.glyph_semantic_id.size() &&
+         unit_map.glyph_semantic_id[glyph_index] == *spec.semantic_id);
+}
+
 f32 evaluate_selector_shape(
     const TextSelectorShape shape,
     f32 unit_position,
@@ -145,14 +155,21 @@ CompiledSelector compile_selector(
 ) {
     CompiledSelector c;
     c.spec = &spec;
-    c.total_units = unit_map.unit_count(spec.unit);
+    if (spec.semantic_id) {
+        const bool exists = std::find(unit_map.glyph_semantic_id.begin(),
+                                      unit_map.glyph_semantic_id.end(),
+                                      *spec.semantic_id) != unit_map.glyph_semantic_id.end();
+        c.total_units = exists ? 1U : 0U;
+    } else {
+        c.total_units = unit_map.unit_count(spec.unit);
+    }
 
     if (spec.randomize_order && c.total_units > 0) {
         c.random_permutation = random::permutation(
             random::Seed{spec.random_seed}, c.total_units);
     }
 
-    if (spec.exclude_spaces && placed != nullptr && c.total_units > 0) {
+    if (!spec.semantic_id && spec.exclude_spaces && placed != nullptr && c.total_units > 0) {
         c.unit_is_whitespace.resize(c.total_units, false);
 
         if (spec.unit == TextSelectorUnit::Glyph ||
@@ -235,6 +252,15 @@ SelectorWeightParams bind_selector_runtime(
     }
 
     const auto& spec = *compiled.spec;
+    if (!detail::semantic_target_matches(spec, unit_map, glyph_index)) {
+        params.window_completed = true;
+        return params;
+    }
+    if (spec.semantic_id) {
+        params.ordered_index = 0;
+        params.use_ordered_index = true;
+        return params;
+    }
     const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
     if (raw_index >= compiled.total_units) return params;
 
@@ -314,6 +340,14 @@ SelectorWeight selector_weight(
         return 0.0f;
     }
     const auto& spec = *compiled.spec;
+    if (!detail::semantic_target_matches(spec, unit_map, glyph_index)) return 0.0f;
+    if (spec.semantic_id) {
+        auto named_params = params;
+        named_params.total_units = 1;
+        named_params.ordered_index = 0;
+        named_params.use_ordered_index = true;
+        return selector_weight(named_params, 0);
+    }
     const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
     const u32 total = compiled.total_units;
     if (spec.exclude_spaces && !compiled.unit_is_whitespace.empty() &&

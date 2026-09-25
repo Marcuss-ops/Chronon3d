@@ -54,6 +54,7 @@
 #include <doctest/doctest.h>
 
 #include <cstring>
+#include <algorithm>
 #include <string>
 
 using namespace chronon3d;
@@ -206,6 +207,19 @@ TEST_CASE("build_text_run: span override (font_size) is preserved through compil
     override_span.font->font_family = "Inter";  // SAME as default → single-font
     override_span.font->font_size   = kOverrideSize;
     override_span.font->font_weight = 400;
+    override_span.fill_color_override = Color::yellow();
+    override_span.semantic_id = "word-target";
+    TextHighlightStyle highlight;
+    highlight.background = Color::blue();
+    highlight.padding_em = 0.25f;
+    override_span.highlight = highlight;
+    TextStrokeStyle stroke;
+    stroke.width_em = 0.05f;
+    stroke.color = Color::red();
+    override_span.appearance.emplace();
+    override_span.appearance->paint.stroke_enabled = true;
+    override_span.appearance->paint.stroke_width = stroke.width_em;
+    override_span.appearance->paint.stroke_color = *stroke.color;
     doc.spans.push_back(override_span);
 
     doc.split_paragraphs();
@@ -234,6 +248,21 @@ TEST_CASE("build_text_run: span override (font_size) is preserved through compil
     const bool font_size_is_default = (l.font_size == 32.0f);
     const bool font_size_is_override = (l.font_size == kOverrideSize);
     CHECK((font_size_is_default || font_size_is_override));
+
+    if (!l.placed.glyphs.empty()) {
+        const auto styled = std::find_if(l.font_spans.begin(), l.font_spans.end(),
+            [](const ShapedFontSpan& span) { return span.fill_color_override.has_value(); });
+        REQUIRE(styled != l.font_spans.end());
+        CHECK(styled->fill_color_override->g == doctest::Approx(1.0f));
+        REQUIRE(styled->highlight.has_value());
+        REQUIRE(styled->highlight->background.has_value());
+        CHECK(styled->highlight->background->b == doctest::Approx(1.0f));
+        REQUIRE(styled->stroke.has_value());
+        CHECK(styled->stroke->width_em == doctest::Approx(0.05f));
+        CHECK(std::count(l.units.glyph_semantic_id.begin(),
+                         l.units.glyph_semantic_id.end(), "word-target") ==
+              static_cast<std::ptrdiff_t>(styled->glyph_end - styled->glyph_begin));
+    }
 
     // ── INVARIANT (Fase 1.1) ──
     // Ok ⇒ units populated unconditionally.

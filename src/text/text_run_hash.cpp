@@ -30,6 +30,7 @@ u64 TextRunLayout::layout_hash() const {
     using chronon3d::graph::hash_string;
     using chronon3d::graph::hash_combine;
     using chronon3d::graph::hash_value;
+    using chronon3d::graph::hash_color;
 
     u64 seed = hash_string(source_text);
     seed = hash_combine(seed, hash_string(font.font_path));
@@ -56,6 +57,26 @@ u64 TextRunLayout::layout_hash() const {
         seed = hash_combine(seed, hash_string(span.font.font_style));
         seed = hash_combine(seed, hash_value(span.glyph_begin));
         seed = hash_combine(seed, hash_value(span.glyph_end));
+        seed = hash_combine(seed, hash_value(span.font_size));
+        if (span.fill_color_override)
+            seed = hash_combine(seed, hash_color(*span.fill_color_override));
+        if (span.stroke) {
+            seed = hash_combine(seed, hash_value(span.stroke->width_em));
+            if (span.stroke->color)
+                seed = hash_combine(seed, hash_color(*span.stroke->color));
+            if (span.stroke->dash_period_em)
+                seed = hash_combine(seed, hash_value(*span.stroke->dash_period_em));
+        }
+        if (span.highlight) {
+            if (span.highlight->background)
+                seed = hash_combine(seed, hash_color(*span.highlight->background));
+            if (span.highlight->padding_em)
+                seed = hash_combine(seed, hash_value(*span.highlight->padding_em));
+            if (span.highlight->radius_em)
+                seed = hash_combine(seed, hash_value(*span.highlight->radius_em));
+        }
+        if (span.semantic_id)
+            seed = hash_combine(seed, hash_string(*span.semantic_id));
     }
     return seed;
 }
@@ -111,6 +132,9 @@ u64 hash_text_run_shape(const TextRunShape& s) {
         seed = hash_combine(seed, hash_color(g.fill));
         seed = hash_combine(seed, hash_color(g.stroke));
         seed = hash_combine(seed, hash_value(g.stroke_width));
+        seed = hash_combine(seed, hash_color(g.background));
+        seed = hash_combine(seed, hash_value(g.background_padding_em));
+        seed = hash_combine(seed, hash_value(g.background_radius_em));
     }
 
     // Material hash (premium material settings)

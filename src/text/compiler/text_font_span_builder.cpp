@@ -23,6 +23,7 @@
 
 #include "text_compile_internal.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <spdlog/spdlog.h>
 
@@ -46,8 +47,13 @@ populate_font_spans(
 
         ShapedFontSpan span;
         span.font        = font_identity_of(para_runs[ri].font);
+        span.font_size   = para_runs[ri].font.font_size;
         span.glyph_begin = begin;
         span.glyph_end   = end;
+        span.fill_color_override = para_runs[ri].fill_color_override;
+        span.stroke = para_runs[ri].stroke;
+        span.highlight = para_runs[ri].highlight;
+        span.semantic_id = para_runs[ri].semantic_id;
         text_layout.font_spans.push_back(std::move(span));
     }
 
@@ -60,9 +66,14 @@ populate_font_spans(
         !text_layout.placed.glyphs.empty() && para_runs.size() == 1) {
         ShapedFontSpan span;
         span.font = font_identity_of(para_runs.front().font);
+        span.font_size = para_runs.front().font.font_size;
         span.glyph_begin = 0;
         span.glyph_end = static_cast<std::uint32_t>(
             text_layout.placed.glyphs.size());
+        span.fill_color_override = para_runs.front().fill_color_override;
+        span.stroke = para_runs.front().stroke;
+        span.highlight = para_runs.front().highlight;
+        span.semantic_id = para_runs.front().semantic_id;
         text_layout.font_spans.push_back(std::move(span));
     }
 
@@ -79,6 +90,15 @@ populate_font_spans(
             "for one or more identities).  Multi-font input renders as an empty "
             "paragraph — verify fonts are installed on CI.",
             para_runs.size());
+    }
+
+    text_layout.units.glyph_semantic_id.assign(text_layout.placed.glyphs.size(), {});
+    for (const auto& span : text_layout.font_spans) {
+        if (!span.semantic_id) continue;
+        const auto end = std::min<std::size_t>(span.glyph_end,
+                                               text_layout.units.glyph_semantic_id.size());
+        for (std::size_t glyph = span.glyph_begin; glyph < end; ++glyph)
+            text_layout.units.glyph_semantic_id[glyph] = *span.semantic_id;
     }
 }
 

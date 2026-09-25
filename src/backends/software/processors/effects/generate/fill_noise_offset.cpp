@@ -93,8 +93,14 @@ namespace {
 
 void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
                  bool animated, bool rgb_mode, uint32_t frame,
-                 const std::optional<raster::BBox>& clip) {
+                 const std::optional<raster::BBox>& clip, float size,
+                 float shadow_response, float midtone_response,
+                 float highlight_response) {
     if (amount <= 0.0f) return;
+    if (!std::isfinite(size) || size <= 1.0f) size = 1.0f;
+    if (!std::isfinite(shadow_response) || !std::isfinite(midtone_response) ||
+        !std::isfinite(highlight_response))
+        return;
 
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -112,21 +118,29 @@ void apply_noise(Framebuffer& fb, float amount, uint32_t seed,
             if (c.a <= 0.0f) continue;
 
             auto srgb = color::unpremultiply_rgb(c);
+            const float luma = std::clamp(
+                0.2126f * srgb.r + 0.7152f * srgb.g + 0.0722f * srgb.b,
+                0.0f, 1.0f);
+            const float tone_response = luma <= 0.5f
+                ? shadow_response + (midtone_response - shadow_response) * (luma * 2.0f)
+                : midtone_response + (highlight_response - midtone_response) *
+                    ((luma - 0.5f) * 2.0f);
+            const float scaled_amount = amount * tone_response;
+            const auto noise_x = static_cast<uint32_t>(std::floor(
+                static_cast<float>(x) / size));
+            const auto noise_y = static_cast<uint32_t>(std::floor(
+                static_cast<float>(y) / size));
 
             if (rgb_mode) {
-                const uint32_t h_r = pixel_hash(static_cast<uint32_t>(x) * 3 + 0,
-                                                 static_cast<uint32_t>(y), seed, f);
-                const uint32_t h_g = pixel_hash(static_cast<uint32_t>(x) * 3 + 1,
-                                                 static_cast<uint32_t>(y), seed, f);
-                const uint32_t h_b = pixel_hash(static_cast<uint32_t>(x) * 3 + 2,
-                                                 static_cast<uint32_t>(y), seed, f);
-                srgb.r += hash_to_noise(h_r) * amount;
-                srgb.g += hash_to_noise(h_g) * amount;
-                srgb.b += hash_to_noise(h_b) * amount;
+                const uint32_t h_r = pixel_hash(noise_x * 3 + 0, noise_y, seed, f);
+                const uint32_t h_g = pixel_hash(noise_x * 3 + 1, noise_y, seed, f);
+                const uint32_t h_b = pixel_hash(noise_x * 3 + 2, noise_y, seed, f);
+                srgb.r += hash_to_noise(h_r) * scaled_amount;
+                srgb.g += hash_to_noise(h_g) * scaled_amount;
+                srgb.b += hash_to_noise(h_b) * scaled_amount;
             } else {
-                const uint32_t h = pixel_hash(static_cast<uint32_t>(x),
-                                               static_cast<uint32_t>(y), seed, f);
-                const float n = hash_to_noise(h) * amount;
+                const uint32_t h = pixel_hash(noise_x, noise_y, seed, f);
+                const float n = hash_to_noise(h) * scaled_amount;
                 srgb.r += n;
                 srgb.g += n;
                 srgb.b += n;

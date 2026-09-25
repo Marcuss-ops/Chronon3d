@@ -14,6 +14,8 @@
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 
 namespace chronon3d::renderer {
@@ -205,11 +207,14 @@ public:
 class SoftwareNoiseEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<NoiseParams>(&params)) {
             apply_noise(fb, p->amount, p->seed,
                         p->animated, p->color_mode == NoiseColorMode::RGB,
-                        static_cast<uint32_t>(0));
+                        static_cast<uint32_t>(std::max<std::int64_t>(
+                            context.frame.integral(), 0)), context.clip, p->size,
+                        p->shadow_response, p->midtone_response,
+                        p->highlight_response);
         }
     }
 };

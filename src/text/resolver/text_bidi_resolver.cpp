@@ -128,6 +128,12 @@ std::size_t emit_via_bidi(
     }
 
     std::size_t missing_clusters = 0;
+    const auto carry_span_style = [&sub](ResolvedTextRun& run) {
+        run.fill_color_override = sub.fill_color_override;
+        run.stroke = sub.stroke;
+        run.highlight = sub.highlight;
+        run.semantic_id = sub.semantic_id;
+    };
 
     // No bidi branch: even non-bidi-input collapses to a single run
     // with the resolved font + override_dir (or LTR fallback).
@@ -139,6 +145,7 @@ std::size_t emit_via_bidi(
             text, stack, shaping, sub.byte_start, direction, para.style);
         missing_clusters += result.missing_clusters;
         for (auto& run : result.runs) {
+            carry_span_style(run);
             out.push_back(std::move(run));
         }
         return missing_clusters;
@@ -157,6 +164,7 @@ std::size_t emit_via_bidi(
 
         missing_clusters += result.missing_clusters;
         for (auto& run : result.runs) {
+            carry_span_style(run);
             out.push_back(std::move(run));
         }
     }

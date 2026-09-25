@@ -25,6 +25,11 @@ set(CHRONON3D_RENDER_PLAN_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v2.schema.json)
 set(CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE
     ${CMAKE_SOURCE_DIR}/schemas/json/chronon.render-plan.v3.extensions.schema.json)
+# These schemas are embedded at configure time; make edits to either source
+# schema invalidate the generated header instead of leaving validation stale.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
+    "${CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE}")
 file(READ "${CHRONON3D_RENDER_PLAN_SCHEMA_FILE}"
      CHRONON3D_RENDER_PLAN_SCHEMA_JSON)
 file(READ "${CHRONON3D_RENDER_PLAN_V3_EXTENSIONS_SCHEMA_FILE}"

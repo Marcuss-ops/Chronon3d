@@ -26,10 +26,12 @@
 
 #include <chronon3d/text/font_engine.hpp>      // FontSpec, FontIdentity, PlacedGlyphRun, TextWrap, TextDirection
 #include <chronon3d/text/glyph_selector.hpp>   // TextUnitMap (PlacedGlyphRun => TextUnitMap via glyph_selector)
+#include <chronon3d/text/text_span.hpp>        // TextHighlightStyle
 #include <chronon3d/core/types/types.hpp>       // Vec2, f32, u64, u32
 
 #include <cstddef>                              // std::uint32_t transitively for ShapedFontSpan fields
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -96,6 +98,11 @@ struct ShapedFontSpan {
     FontIdentity   font;        // identity of the font for glyphs [glyph_begin, glyph_end)
     std::uint32_t  glyph_begin{0};  // inclusive index into TextRunLayout::placed.glyphs
     std::uint32_t  glyph_end{0};    // EXCLUSIVE index
+    f32 font_size{0.0f};            // resolved run size; 0 falls back to layout size
+    std::optional<Color> fill_color_override;
+    std::optional<TextStrokeStyle> stroke;
+    std::optional<TextHighlightStyle> highlight;
+    std::optional<std::string> semantic_id;
 };
 
 struct TextRunLayout {

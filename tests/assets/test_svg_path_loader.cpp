@@ -268,7 +268,7 @@ TEST_CASE("SVG document importer handles invalid SVG and malformed input") {
     auto empty = load_svg_document_file(empty_svg);
     std::remove(empty_svg.c_str());
     CHECK_FALSE(empty.ok);
-    CHECK(empty.error.find("No <path d=\"...\"> found") != std::string::npos);
+    CHECK(empty.error.find("CSS esterni non supportata: <style>") != std::string::npos);
 
     // 4. Invalid path data within SVG
     const std::string invalid_path_svg = "temp_test_invalid_path.svg";
@@ -279,4 +279,39 @@ TEST_CASE("SVG document importer handles invalid SVG and malformed input") {
     auto invalid_path = load_svg_document_file(invalid_path_svg);
     std::remove(invalid_path_svg.c_str());
     CHECK_FALSE(invalid_path.ok);
+}
+
+TEST_CASE("SVG styles parse colors, inline declarations and group inheritance") {
+    const std::string filename = "temp_test_styled.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g fill="#123456" style="stroke:rgb(255,0,128);stroke-width:2;opacity:0.5">)svg"
+            << R"svg(<path d="M0 0L1 1" fill="#abc"/>)svg"
+            << R"svg(<path d="M0 0L1 1" fill="currentColor"/>)svg"
+            << R"svg(<path d="M0 0L1 1" fill="none"/>)svg"
+            << R"svg(<path d="M0 0L1 1" style="fill:#a1b2c3;fill-opacity:0.25"/>)svg"
+            << R"svg(</g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 4);
+    CHECK(result.elements[0].fill->solid.r == doctest::Approx(170.0f / 255.0f));
+    CHECK(result.elements[1].fill->solid.g == doctest::Approx(0x34 / 255.0f));
+    CHECK_FALSE(result.elements[2].fill.has_value());
+    CHECK(result.elements[3].fill->solid.r == doctest::Approx(0xa1 / 255.0f));
+    CHECK(result.elements[0].stroke.enabled);
+    CHECK(result.elements[0].stroke.width == doctest::Approx(2.0f));
+    CHECK(result.elements[0].opacity == doctest::Approx(0.5f));
+}
+
+TEST_CASE("SVG importer rejects unsupported render tags explicitly") {
+    for (const auto* tag : {"text", "image", "use"}) {
+        const std::string filename = "temp_test_unsupported.svg";
+        { std::ofstream out(filename); out << "<svg><" << tag << "/></svg>"; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        CHECK_FALSE(result.ok);
+        CHECK(result.error.find(std::string("non supportata: <") + tag + ">") != std::string::npos);
+    }
 }

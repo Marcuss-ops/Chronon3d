@@ -8,6 +8,7 @@
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 
 #include <chrono>
@@ -122,6 +123,394 @@ TEST_CASE("prepared render plan owns the canonical compiled composition") {
           prepared.compiled_composition.fingerprint);
     CHECK(repeated->fingerprint.content_digest == prepared.fingerprint.content_digest);
     CHECK(repeated->fingerprint.request_digest == prepared.fingerprint.request_digest);
+}
+
+TEST_CASE("render plan compiler transfers safe insets to layer layout rules") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "safe-insets-layout";
+    plan.canvas = {.width = 1080, .height = 1920,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan shape;
+    shape.id = "caption-card";
+    shape.type = LayerType::Shape;
+    shape.size = {800.0f, 180.0f};
+    shape.size_dimensions = 2;
+    shape.position = {900.0f, 1800.0f, 0.0f};
+    shape.position_dimensions = 2;
+    shape.safe_insets = std::array<float, 4>{80.0f, 60.0f, 220.0f, 60.0f};
+    shape.shape = ShapeContentPlan{};
+    shape.shape->type = ShapeContentTypePlan::Rect;
+    shape.shape->fill_color = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f};
+    plan.layers.push_back(shape);
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    CompositionEvaluateContext evaluate_context;
+    evaluate_context.frame_context = make_frame_context(FrameContextParams{
+        .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+        .duration = Frame{1}, .width = 1080, .height = 1920});
+    const auto evaluated = chronon3d::evaluate(
+        prepared->compiled_composition, evaluate_context, chronon3d::Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& layout = evaluated->scene.layers()[0].layout;
+    CHECK(layout.enabled);
+    CHECK(layout.keep_in_safe_area);
+    CHECK(layout.safe_area.top == doctest::Approx(-880.0f));
+    CHECK(layout.safe_area.right == doctest::Approx(1400.0f));
+    CHECK(layout.safe_area.bottom == doctest::Approx(1360.0f));
+    CHECK(layout.safe_area.left == doctest::Approx(-480.0f));
+    CHECK(evaluated->scene.layers()[0].transform.position.x == doctest::Approx(-320.0f));
+    CHECK(evaluated->scene.layers()[0].transform.position.y == doctest::Approx(560.0f));
+}
+
+TEST_CASE("render plan compiles semantic word fill-color animator") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "semantic-word-fill";
+    plan.canvas = {.width = 320, .height = 120,
+                   .fps = FrameRate{30, 1}, .duration = Frame{10}};
+    LayerPlan text;
+    text.id = "caption";
+    text.type = LayerType::Text;
+    text.text = "Hi future";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    LayerStylePlan style;
+    style.font = text.font;
+    style.font_size = 32.0f;
+    style.fill = "#FFFFFF";
+    text.style = style;
+    TextSpanOverride word_span;
+    word_span.byte_start = 3;
+    word_span.byte_end = 9;
+    word_span.semantic_id = "word-0";
+    text.text_spans.push_back(word_span);
+
+    TextSelectorPlan selector;
+    selector.semantic_id = "word-0";
+    selector.shape = "square";
+    selector.amount.keyframes = {
+        {Frame{0}, {0.0f}}, {Frame{8}, {100.0f}}};
+    TextAnimatorPlan animator;
+    animator.id = "word-highlight";
+    animator.selectors.push_back(selector);
+    AnimationTrackPlan fill_color;
+    fill_color.property = "fill_color";
+    fill_color.keyframes = {{Frame{0}, {1.0f, 0.7f, 0.0f, 1.0f}}};
+    animator.properties.push_back(fill_color);
+    text.text_animators.push_back(animator);
+    plan.layers.push_back(text);
+
+    const auto source_root = std::filesystem::path(__FILE__)
+        .parent_path().parent_path().parent_path();
+    assets::AssetResolver resolver;
+    resolver.mount(source_root);
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{4});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto shape = evaluated->scene.layers()[0].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(shape);
+    REQUIRE(shape->animators.size() == 1);
+    REQUIRE(shape->animators[0].properties.size() == 1);
+    const auto* target = std::get_if<FillColorProperty>(
+        &shape->animators[0].properties[0]);
+    REQUIRE(target);
+    const auto evaluated_color = target->color.evaluate(4.0);
+    CHECK(evaluated_color.r == doctest::Approx(1.0f));
+    CHECK(evaluated_color.g == doctest::Approx(0.7f));
+    CHECK(evaluated_color.b == doctest::Approx(0.0f));
+}
+
+TEST_CASE("render plan resolves grow-and-shrink text height before evaluation") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "responsive-caption";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan text;
+    text.id = "caption";
+    text.type = LayerType::Text;
+    text.text = "A longer caption wraps to multiple lines";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    text.size = {160.0f, 12.0f};
+    text.size_dimensions = 2;
+    LayerStylePlan style;
+    style.font = text.font;
+    style.font_size = 24.0f;
+    style.fill = "#FFFFFF";
+    style.text_fit_mode = "grow_and_shrink";
+    style.min_font_size = 12.0f;
+    style.max_font_size = 32.0f;
+    text.style = style;
+    plan.layers.push_back(std::move(text));
+
+    const auto source_root = std::filesystem::path(__FILE__)
+        .parent_path().parent_path().parent_path();
+    assets::AssetResolver resolver;
+    resolver.mount(source_root);
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto handle = evaluated->scene.layers()[0].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(handle);
+    CHECK(handle->layout_spec.box.x == doctest::Approx(160.0f));
+    CHECK(handle->layout_spec.box.y > 12.0f);
+    CHECK(handle->layout_spec.auto_fit == false);
+}
+
+TEST_CASE("render plan text background becomes a measured card behind the text run") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "caption-card";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan text;
+    text.id = "caption";
+    text.type = LayerType::Text;
+    text.text = "A caption that wraps into multiple lines";
+    text.font = "tests/fixtures/Inter-Bold.ttf";
+    text.size = {170.0f, 16.0f};
+    text.size_dimensions = 2;
+    LayerStylePlan style;
+    style.font = text.font;
+    style.font_size = 24.0f;
+    style.fill = "#FFFFFF";
+    style.text_fit_mode = "grow_and_shrink";
+    style.min_font_size = 12.0f;
+    style.background = BackgroundStyle{
+        .color = "#101820", .opacity = 0.9f, .radius = 6.0f,
+        .padding = {10.0f, 8.0f}, .padding_dimensions = 2};
+    text.style = style;
+    plan.layers.push_back(std::move(text));
+
+    const auto source_root = std::filesystem::path(__FILE__)
+        .parent_path().parent_path().parent_path();
+    assets::AssetResolver resolver;
+    resolver.mount(source_root);
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& nodes = evaluated->scene.layers()[0].nodes;
+    REQUIRE(nodes.size() == 2);
+    CHECK(nodes[0].shape.type() == ShapeType::RoundedRect);
+    CHECK(nodes[1].shape.type() == ShapeType::TextRun);
+    CHECK(nodes[0].shape.rounded_rect().size.y > 16.0f);
+    const auto run = nodes[1].shape.text_run_shape_handle().value;
+    REQUIRE(run);
+    CHECK(run->layout_spec.box.y > 16.0f);
+}
+
+TEST_CASE("render plan composes synchronized X and Y position tracks") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "component-position-tracks";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{25}};
+    LayerPlan shape;
+    shape.id = "moving-shape";
+    shape.type = LayerType::Shape;
+    shape.size = {20.0f, 20.0f};
+    shape.size_dimensions = 2;
+    shape.shape = ShapeContentPlan{};
+    AnimationPlan animation;
+    AnimationTrackPlan x;
+    x.property = "position_x";
+    x.keyframes = {{Frame{0}, {0.0f}}, {Frame{24}, {480.0f}}};
+    AnimationTrackPlan y;
+    y.property = "position_y";
+    y.keyframes = {{Frame{0}, {0.0f}}, {Frame{24}, {240.0f}}};
+    animation.tracks = {x, y};
+    shape.animation = std::move(animation);
+    plan.layers.push_back(std::move(shape));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{12});
+    const auto initial = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(initial);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    CHECK(evaluated->scene.layers()[0].transform.position.x -
+          initial->scene.layers()[0].transform.position.x == doctest::Approx(240.0f));
+    CHECK(evaluated->scene.layers()[0].transform.position.y -
+          initial->scene.layers()[0].transform.position.y == doctest::Approx(120.0f));
+}
+
+TEST_CASE("render plan materializes deterministic particle shapes per frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "particle-layer";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{25}};
+    LayerPlan layer;
+    layer.id = "dust";
+    layer.type = LayerType::Particles;
+    ParticleEmitterParams emitter;
+    emitter.count = 8;
+    emitter.seed = 17;
+    emitter.emitter_size = {100.0f, 60.0f};
+    emitter.velocity_min = {-5.0f, -12.0f};
+    emitter.velocity_max = {5.0f, -2.0f};
+    emitter.lifetime_min = 2.0f;
+    emitter.lifetime_max = 4.0f;
+    emitter.size_min = 2.0f;
+    emitter.size_max = 10.0f;
+    emitter.color_ramp = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f},
+        {{0.0f, Color{1.0f, 1.0f, 1.0f, 0.0f}},
+         {1.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}}});
+    layer.particle_emitter = emitter;
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto first = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{12});
+    const auto repeated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{12});
+    REQUIRE(first);
+    REQUIRE(repeated);
+    REQUIRE(first->scene.layers().size() == 1);
+    REQUIRE(repeated->scene.layers().size() == 1);
+    const auto& first_nodes = first->scene.layers()[0].nodes;
+    const auto& repeated_nodes = repeated->scene.layers()[0].nodes;
+    REQUIRE(first_nodes.size() == emitter.count);
+    REQUIRE(repeated_nodes.size() == first_nodes.size());
+    for (std::size_t index = 0; index < first_nodes.size(); ++index) {
+        CHECK(first_nodes[index].shape.type() == ShapeType::Circle);
+        CHECK(first_nodes[index].world_transform.position.x ==
+              repeated_nodes[index].world_transform.position.x);
+        CHECK(first_nodes[index].world_transform.position.y ==
+              repeated_nodes[index].world_transform.position.y);
+    }
+}
+
+TEST_CASE("render plan compiles radial light into a screen-space gradient circle") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "radial-light-layer";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "warm-light";
+    layer.type = LayerType::Light;
+    layer.position = {160.0f, 90.0f, 0.0f};
+    layer.position_dimensions = 2;
+    layer.light = LightLayerPlan{
+        .radius = 80.0f, .color = {1.0f, 0.5f, 0.25f, 1.0f}, .intensity = 1.25f};
+    layer.blend_mode = BlendMode::Screen;
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.type() == ShapeType::Circle);
+}
+
+TEST_CASE("render plan lowers fractal noise to the generate effect stack") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "procedural-background";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{24, 1}, .duration = Frame{24}};
+    LayerPlan layer;
+    layer.id = "background";
+    layer.type = LayerType::Color;
+    layer.color = {0.0f, 0.0f, 0.0f, 1.0f};
+    layer.effects.push_back({
+        .kind = LayerPlan::EffectKindPlan::FractalNoise,
+        .seed = 7, .rgb_noise = true, .octaves = 5,
+        .frequency = 0.03f, .amplitude = 0.9f,
+        .evolution = 0.5f, .contrast = 1.1f, .brightness = -0.1f,
+        });
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{12});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* noise = std::get_if<FractalNoiseParams>(&effects[0].params);
+    REQUIRE(noise);
+    CHECK(noise->seed == 7);
+    CHECK(noise->octaves == 5);
+    CHECK(noise->evolution == doctest::Approx(0.5f));
+    CHECK(noise->color_mode == NoiseColorMode::RGB);
+}
+
+TEST_CASE("render plan adjustment layer applies grain without drawing content") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "background-grain-adjustment";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{24, 1}, .duration = Frame{1}};
+    LayerPlan background;
+    background.id = "background";
+    background.type = LayerType::Color;
+    background.color = {0.1f, 0.15f, 0.2f, 1.0f};
+    plan.layers.push_back(std::move(background));
+    LayerPlan adjustment;
+    adjustment.id = "film-grain";
+    adjustment.type = LayerType::Adjustment;
+    adjustment.effects.push_back({
+        .kind = LayerPlan::EffectKindPlan::Noise,
+        .amount = 0.05f, .seed = 123, .animated = true,
+        .noise_size = 1.5f});
+    plan.layers.push_back(std::move(adjustment));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 2);
+    CHECK(evaluated->scene.layers()[1].kind == LayerKind::Adjustment);
+    CHECK(evaluated->scene.layers()[1].nodes.empty());
+    const auto& effects = evaluated->scene.layers()[1].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* noise = std::get_if<NoiseParams>(&effects[0].params);
+    REQUIRE(noise);
+    CHECK(noise->seed == 123);
+    CHECK(noise->animated);
+    CHECK(noise->size == doctest::Approx(1.5f));
 }
 
 TEST_CASE("render plan prepares and lowers content-addressed 3D LUT assets") {

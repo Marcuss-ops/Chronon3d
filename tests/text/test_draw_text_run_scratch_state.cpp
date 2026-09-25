@@ -29,6 +29,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/software_processor_context.hpp>
@@ -252,4 +253,58 @@ TEST_CASE("draw_text_run: stroke render succeeds with per-span font_handle + scr
         }
     }
     CHECK(has_non_transparent);
+}
+
+TEST_CASE("draw_text_run: Render Plan style span highlight reaches software pixels") {
+    if (!test_text_fixture::fixture_exists(test_text_fixture::kInterBoldPath)) {
+        test_text_fixture::skip_if_missing(test_text_fixture::kInterBoldPath, "rich text highlight pixel render");
+        return;
+    }
+
+    const std::string text = "Hi";
+    auto renderer = test::make_renderer();
+    FontEngine engine{*renderer.execution_context().text.assets};
+    TextLayoutSpec layout;
+    layout.box = {256.0f, 80.0f};
+
+    TextDocument doc;
+    doc.utf8 = text;
+    doc.defaults.font = test_text_fixture::inter_bold();
+    TextStyleSpan text_span;
+    text_span.byte_start = 0;
+    text_span.byte_end = text.size();
+    text_span.fill_color_override = Color::yellow();
+    TextHighlightStyle highlight;
+    highlight.background = Color::blue();
+    highlight.padding_em = 0.5f;
+    highlight.radius_em = 0.15f;
+    text_span.highlight = highlight;
+    doc.spans.push_back(text_span);
+    doc.split_paragraphs();
+
+    const auto built = build_text_run(doc, engine, layout, &s_text_cache);
+    REQUIRE_FALSE(built.paragraphs.empty());
+    REQUIRE(built.paragraphs.front() != nullptr);
+    auto shape = std::make_shared<TextRunShape>();
+    shape->layout = built.paragraphs.front();
+    shape->glyphs = make_initial_glyph_states(shape->layout->placed);
+    shape->engine = &engine;
+    shape->layout_spec = layout;
+    update_text_run_shape_per_frame(*shape, SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}));
+
+    Framebuffer fb(256, 80);
+    const auto result = renderer.backend().draw_text_run(fb, *shape, Mat4(1.0f), 1.0f);
+    REQUIRE(static_cast<bool>(result));
+
+    bool saw_blue_highlight = false;
+    bool saw_yellow_glyph = false;
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const Color pixel = fb.get_pixel(x, y);
+            saw_blue_highlight |= pixel.b > 0.65f && pixel.r < 0.2f && pixel.g < 0.2f;
+            saw_yellow_glyph |= pixel.r > 0.65f && pixel.g > 0.65f && pixel.b < 0.2f;
+        }
+    }
+    CHECK(saw_blue_highlight);
+    CHECK(saw_yellow_glyph);
 }

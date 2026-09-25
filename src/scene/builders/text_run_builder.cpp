@@ -450,6 +450,15 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
 
     TextLayoutSpec layout_spec;
     layout_spec.box            = prepared_with_font.frame.size;
+    if (prepared_with_font.frame.grow_and_shrink) {
+        const float vertical_padding = prepared_with_font.style.box_style.padding.y * 2.0f;
+        layout_spec.box.y = std::max(
+            1.0f, text_layout->bounds.y + vertical_padding);
+        // The font-fit decision and measured height are resolved before this
+        // immutable run reaches render time; the frame evaluator only clips
+        // against the final pre-layout box.
+        layout_spec.auto_fit = false;
+    }
     layout_spec.anchor         = prepared_with_font.frame.anchor;
     layout_spec.align          = prepared_with_font.frame.align;
     layout_spec.vertical_align = prepared_with_font.frame.vertical_align;
@@ -458,7 +467,8 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
     layout_spec.centering_mode = prepared_with_font.frame.centering_mode;
     layout_spec.line_height    = prepared_with_font.frame.line_height;
     layout_spec.tracking       = prepared_with_font.frame.tracking;
-    layout_spec.auto_fit       = prepared_with_font.frame.auto_fit;
+    layout_spec.auto_fit       = prepared_with_font.frame.auto_fit &&
+                                 !prepared_with_font.frame.grow_and_shrink;
     layout_spec.min_font_size  = prepared_with_font.frame.min_font_size;
     layout_spec.max_font_size  = prepared_with_font.frame.max_font_size;
     layout_spec.max_lines      = prepared_with_font.frame.max_lines;
@@ -489,7 +499,8 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
         prepared.animators,
         prepared.layout->placed,
         prepared.layout->source_text,
-        sample_time);
+        sample_time,
+        &prepared.layout->font_spans);
     shape->paint = prepared.paint;
     shape->material = prepared.material;
     shape->shadows = prepared.shadows;
