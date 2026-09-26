@@ -77,8 +77,11 @@ public:
         const auto* p = std::get_if<GlowParams>(&params);
         if (!p) throw std::runtime_error("Glow processor received invalid parameters");
         if (p->intensity > 0.0f) {
+            if (!context.effect_scratch)
+                throw std::runtime_error("Glow processor requires EffectScratchResources");
             run_glow_pipeline(fb, GlowPipeline::from(*p), context.clip,
-                              /*source_is_alpha_mask=*/false, context.debug_cfg);
+                              /*source_is_alpha_mask=*/false, context.debug_cfg,
+                              &context.effect_scratch->glow_kernel_scratch());
         }
     }
 };

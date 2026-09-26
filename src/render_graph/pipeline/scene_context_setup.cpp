@@ -128,6 +128,7 @@ SoftwareRenderer* setup_render_graph_context(
     // PrecompNode creation, and dirty/tile policies can access them
     // without a SoftwareRenderer dependency.
     if (sw_renderer) {
+        ctx.effect_scratch = &sw_renderer->software_session().software.effect_scratch;
         if (!ctx.execution) ctx.compiled_graph_cache = &sw_renderer->graph_cache();
         // The processor snapshot captured by SoftwareBackend is owned by
         // SoftwareRegistry and carries that registry's generation. Use the

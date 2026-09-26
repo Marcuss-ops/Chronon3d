@@ -71,6 +71,7 @@
 // <chronon3d/core/config.hpp> themselves.  This keeps the SDK header
 // lightweight.
 namespace chronon3d { class DebugConfig; }
+namespace chronon3d { struct EffectScratchResources; }
 
 #include <algorithm>
 #include <memory>
@@ -514,6 +515,9 @@ struct RenderGraphContext {
     ImageCache* image_cache{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+    // Borrowed per-session software effect workspace (Glow's per-worker
+    // Gaussian kernel included); null for non-software execution.
+    chronon3d::EffectScratchResources* effect_scratch{nullptr};
     const CompositionRegistry* registry{nullptr};
     media::MediaFrameProvider* video_decoder{nullptr};
     const class effects::EffectCatalog* effect_catalog{nullptr};

@@ -139,7 +139,8 @@ namespace chronon3d::renderer {
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
                        bool source_is_alpha_mask = false,
-                       const chronon3d::DebugConfig* debug_cfg = nullptr);
+                       const chronon3d::DebugConfig* debug_cfg = nullptr,
+                       std::vector<float>* kernel_scratch = nullptr);
 
 void run_bloom_effect(Framebuffer& fb, const BloomParams& params,
                       const std::optional<raster::BBox>& clip);
