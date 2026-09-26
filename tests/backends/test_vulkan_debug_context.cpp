@@ -381,6 +381,68 @@ TEST_CASE("Vulkan long dashed polylines match the software stroke oracle") {
     REQUIRE(backend->release_surface(handle).ok());
 }
 
+TEST_CASE("Vulkan dashed curves, contours and translucent strokes match software") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    auto backend_base = make_vulkan_backend(0);
+    auto* backend = dynamic_cast<VulkanBackend*>(backend_base.get());
+    REQUIRE(backend != nullptr);
+
+    constexpr int width = 64;
+    constexpr int height = 48;
+    constexpr runtime::RenderSurfaceHandle handle = 0xC3D101u;
+    const auto desc = runtime::SurfaceDesc::make(
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Generic,
+        runtime::LifetimeClass::FrameTransient,
+        runtime::ColorMetadata{});
+    REQUIRE(backend->create_surface(handle, desc).ok());
+    REQUIRE(backend->initialize_transparent_surface(handle).ok());
+
+    Framebuffer gpu(width, height);
+    gpu.set_surface_handle(handle);
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    Camera camera;
+    RenderNode node;
+    node.shape.set_type(ShapeType::Path);
+    auto& path = node.shape.path();
+    path.fill.enabled = false;
+    path.stroke.width = 3.0f;
+    path.stroke.color = Color{0.25f, 0.7f, 0.45f, 0.48f};
+    path.stroke.dash_array = {7.0f, 3.0f, 2.0f};
+    path.stroke.dash_offset = 1.25f;
+    path.commands = {
+        PathCommand::move_to({3.0f, 5.0f}),
+        PathCommand::cubic_to({10.0f, 1.0f}, {18.0f, 22.0f}, {26.0f, 10.0f}),
+        PathCommand::quadratic_to({32.0f, 2.0f}, {38.0f, 13.0f}),
+        PathCommand::move_to({5.0f, 34.0f}),
+        PathCommand::line_to({15.0f, 31.0f}),
+        PathCommand::line_to({23.0f, 43.0f})};
+
+    Framebuffer oracle(width, height);
+    renderer::PathRasterizer::draw_path(oracle, node, state, camera, width, height);
+    backend->begin_frame_batch();
+    const auto draw = backend->draw_node(gpu, node, state, camera, width, height);
+    backend->end_frame_batch();
+    REQUIRE(draw.ok());
+
+    std::vector<float> rgba(static_cast<std::size_t>(width) * height * 4U);
+    REQUIRE(backend->download_surface(handle, rgba).ok());
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const Color expected = oracle.get_pixel(x, y);
+            const auto index = (static_cast<std::size_t>(y) * width + x) * 4U;
+            CHECK(rgba[index] == doctest::Approx(expected.r).epsilon(1e-5));
+            CHECK(rgba[index + 1] == doctest::Approx(expected.g).epsilon(1e-5));
+            CHECK(rgba[index + 2] == doctest::Approx(expected.b).epsilon(1e-5));
+            CHECK(rgba[index + 3] == doctest::Approx(expected.a).epsilon(1e-5));
+        }
+    }
+    REQUIRE(backend->release_surface(handle).ok());
+}
+
 TEST_CASE("VulkanDebugContext object naming helpers coverage") {
     using namespace chronon3d::backends::vulkan;
     VulkanDebugContext ctx;
