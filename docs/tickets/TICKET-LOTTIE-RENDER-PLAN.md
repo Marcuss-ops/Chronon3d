@@ -1,7 +1,9 @@
 # TICKET-LOTTIE-RENDER-PLAN — Bounded Lottie lowering
 
 ## Stato
-CONTRACT APPROVED — no runtime Lottie renderer; decode and lower before plan compilation.
+IN PROGRESS — resolver-backed static path lowering is implemented; animated
+properties, groups, primitive shapes, and the full contract gate suite remain
+open.
 
 ## Obiettivo
 Resolve a logical `.json` Bodymovin/Lottie asset from a render plan and lower
@@ -43,6 +45,20 @@ its supported shape layers, transforms, and keyframes into existing
 - [ ] Render-plan CLI fixture lowers and renders an animated shape with a
   deterministic frame hash that changes across the expected keyframes.
 - [ ] Focused decoder/compiler tests and relevant renderer suite pass.
+
+## Implementation progress
+
+- [x] v3 plan schema accepts a logical `.json` Lottie source; decoder validates
+  the path form and the asset enters the prepared manifest/content fingerprint.
+- [x] Compiler resolves the asset under `AssetResolver`, limits input to
+  10 MiB, lowers a static cubic path and solid RGB fill, and quantizes geometry
+  to 1e-4. Unsupported layers and non-identity or animated transforms fail
+  explicitly.
+- [x] Decoder/compiler integration fixture and the complete C ABI test suite
+  pass.
+- [ ] This initial lowering does not yet satisfy the approved broader subset
+  (keyframes, ellipse/rectangle, stroke, nested groups, and non-identity
+  transforms); do not use it as a completion claim.
 
 ## Demolition debt
 
