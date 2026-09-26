@@ -261,6 +261,86 @@ TEST_CASE("Merge combines paths as independent subpaths without boolean operatio
     CHECK(result[0].commands[4].type == PathCommandType::Close);
 }
 
+TEST_CASE("Path morph interpolates command coordinates without changing contour topology") {
+    PathShape source;
+    source.commands = {
+        PathCommand::move_to({0.0f, 0.0f}),
+        PathCommand::cubic_to({2.0f, 0.0f}, {2.0f, 2.0f}, {4.0f, 2.0f}),
+        PathCommand::close(),
+        PathCommand::move_to({10.0f, 10.0f}),
+        PathCommand::quadratic_to({12.0f, 10.0f}, {12.0f, 12.0f}),
+        PathCommand::close()};
+    source.closed = true;
+    MorphPathParams params;
+    params.target = {
+        PathCommand::move_to({2.0f, 4.0f}),
+        PathCommand::cubic_to({6.0f, 4.0f}, {6.0f, 8.0f}, {10.0f, 8.0f}),
+        PathCommand::close(),
+        PathCommand::move_to({20.0f, 20.0f}),
+        PathCommand::quadratic_to({24.0f, 20.0f}, {24.0f, 24.0f}),
+        PathCommand::close()};
+    params.progress = 0.5f;
+
+    const auto result = apply_path_operators(source, {{PathOperatorKind::Morph, params, 0}});
+    REQUIRE(result.size() == 1);
+    CHECK(result[0].commands.size() == source.commands.size());
+    CHECK(result[0].commands[0].p0 == Vec2{1.0f, 2.0f});
+    CHECK(result[0].commands[1].p1 == Vec2{4.0f, 2.0f});
+    CHECK(result[0].commands[1].p2 == Vec2{4.0f, 5.0f});
+    CHECK(result[0].commands[1].p0 == Vec2{7.0f, 5.0f});
+    CHECK(result[0].commands[3].p0 == Vec2{15.0f, 15.0f});
+    CHECK(result[0].commands[4].p1 == Vec2{18.0f, 15.0f});
+    CHECK(result[0].commands[4].p0 == Vec2{18.0f, 18.0f});
+    CHECK(result[0].commands[2].type == PathCommandType::Close);
+    CHECK(result[0].closed);
+
+    params.progress = 0.0f;
+    const auto start = apply_path_operators(source, {{PathOperatorKind::Morph, params, 0}});
+    CHECK(start[0].commands[1].p0 == source.commands[1].p0);
+    params.progress = 1.0f;
+    const auto end = apply_path_operators(source, {{PathOperatorKind::Morph, params, 0}});
+    CHECK(end[0].commands[1].p0 == params.target[1].p0);
+
+    // Opposite-sign finite float endpoints must not overflow in the
+    // interpolation delta (the midpoint is representable and finite).
+    PathShape extreme;
+    extreme.commands = {
+        PathCommand::move_to({-std::numeric_limits<float>::max(), 0.0f}),
+        PathCommand::line_to({-std::numeric_limits<float>::max(), 1.0f})};
+    MorphPathParams extreme_params{
+        {PathCommand::move_to({std::numeric_limits<float>::max(), 0.0f}),
+         PathCommand::line_to({std::numeric_limits<float>::max(), 1.0f})},
+        0.5f};
+    const auto midpoint = apply_path_operators(
+        extreme, {{PathOperatorKind::Morph, extreme_params, 0}});
+    CHECK(std::isfinite(midpoint[0].commands[0].p0.x));
+    CHECK(midpoint[0].commands[0].p0.x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Path morph fails closed for invalid progress, topology, contours and coordinates") {
+    PathShape source;
+    source.commands = {PathCommand::move_to({0.0f, 0.0f}), PathCommand::line_to({2.0f, 0.0f})};
+    PathOperatorSpec op{PathOperatorKind::Morph,
+        MorphPathParams{{PathCommand::move_to({0.0f, 0.0f}),
+                         PathCommand::line_to({4.0f, 0.0f})}, 0.5f}, 0};
+    CHECK_NOTHROW(apply_path_operators(source, {op}));
+    op.params = MorphPathParams{{PathCommand::move_to({0.0f, 0.0f}),
+                                 PathCommand::cubic_to({1.0f, 0.0f}, {2.0f, 0.0f}, {4.0f, 0.0f})}, 0.5f};
+    CHECK_THROWS(apply_path_operators(source, {op}));
+    op.params = MorphPathParams{{PathCommand::line_to({0.0f, 0.0f}),
+                                 PathCommand::line_to({4.0f, 0.0f})}, 0.5f};
+    CHECK_THROWS(apply_path_operators(source, {op}));
+    op.params = MorphPathParams{{PathCommand::move_to({0.0f, 0.0f}),
+                                 PathCommand::line_to({4.0f, 0.0f})}, 1.1f};
+    CHECK_THROWS(apply_path_operators(source, {op}));
+    op.params = MorphPathParams{{PathCommand::move_to({0.0f, 0.0f}),
+                                 PathCommand::line_to({std::numeric_limits<float>::infinity(), 0.0f})}, 0.5f};
+    CHECK_THROWS(apply_path_operators(source, {op}));
+    op.params = MorphPathParams{{PathCommand::move_to({0.0f, 0.0f}),
+                                 PathCommand::close()}, 0.5f};
+    CHECK_THROWS(apply_path_operators(source, {op}));
+}
+
 TEST_CASE("Trim paths keeps the requested arc-length window") {
     PathShape square;
     square.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({100, 0}),

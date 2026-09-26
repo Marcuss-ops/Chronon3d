@@ -1,4 +1,5 @@
 #include "glyph_selector_helpers.hpp"
+#include <limits>
 using namespace chronon3d;
 using namespace test_glyph_sel;
 
@@ -133,6 +134,57 @@ TEST_CASE("Evaluate: sub-frame evaluation consistency") {
         f32 w2 = evaluate_selector(spec, map, i, source, t2);
         CHECK(w1 == doctest::Approx(w2));
     }
+}
+
+TEST_CASE("Evaluate: Wiggly selector is deterministic, seeded, and bounded") {
+    GlyphSelectorSpec spec;
+    spec.id = "wiggly";
+    spec.shape = TextSelectorShape::Wiggly;
+    spec.start.set(0.0f);
+    spec.end.set(100.0f);
+    spec.wiggly.frequency = 0.75f;
+    spec.wiggly.amplitude = 0.4f;
+    spec.wiggly.seed = 1234;
+
+    auto placed = make_test_placed_run(12);
+    auto source = make_test_source(12);
+    auto map = build_text_unit_map(placed, source);
+    const auto time = SampleTime::from_frame_int(Frame{4}, FrameRate{30, 1});
+
+    std::vector<f32> first;
+    for (u32 i = 0; i < 12; ++i) {
+        const f32 weight = evaluate_selector(spec, map, i, source, time);
+        CHECK(weight >= 0.0f);
+        CHECK(weight <= 1.0f);
+        first.push_back(weight);
+    }
+    for (u32 i = 0; i < 12; ++i)
+        CHECK(evaluate_selector(spec, map, i, source, time) == doctest::Approx(first[i]));
+
+    spec.wiggly.seed++;
+    bool changed = false;
+    for (u32 i = 0; i < 12; ++i)
+        changed = changed || std::abs(evaluate_selector(spec, map, i, source, time) - first[i]) > 1e-5f;
+    CHECK(changed);
+}
+
+TEST_CASE("Evaluate: Wiggly selector rejects non-finite or out-of-range parameters") {
+    GlyphSelectorSpec spec;
+    spec.shape = TextSelectorShape::Wiggly;
+    auto placed = make_test_placed_run(2);
+    auto source = make_test_source(2);
+    auto map = build_text_unit_map(placed, source);
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    spec.wiggly.frequency = 0.0f;
+    CHECK_THROWS(evaluate_selector(spec, map, 0, source, time));
+    spec.wiggly.frequency = std::numeric_limits<f32>::infinity();
+    CHECK_THROWS(evaluate_selector(spec, map, 0, source, time));
+    spec.wiggly.frequency = 1000.1f;
+    CHECK_THROWS(evaluate_selector(spec, map, 0, source, time));
+    spec.wiggly.frequency = 1.0f;
+    spec.wiggly.amplitude = 1.01f;
+    CHECK_THROWS(evaluate_selector(spec, map, 0, source, time));
 }
 
 TEST_CASE("Evaluate: deterministic random seed") {

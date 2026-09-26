@@ -79,6 +79,8 @@ endif()
 # Project options.
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
+option(CHRONON3D_ENABLE_MOTION_ADAPTER
+    "Build the optional offline ChrononMotion3D-to-RenderPlan adapter (sibling checkout required)" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks and benchmark CLI" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
@@ -290,6 +292,21 @@ execute_process(
 )
 if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
+endif()
+
+# The motion adapter is an offline authoring boundary only. It is not linked
+# into Chronon3D's renderer, graph executor, or frame path. It is opt-in so the
+# renderer remains independently buildable and dependency-lean.
+if(CHRONON3D_ENABLE_MOTION_ADAPTER)
+    set(_chrononmotion_dir "${CMAKE_SOURCE_DIR}/../ChrononMotion3D")
+    if(NOT EXISTS "${_chrononmotion_dir}/CMakeLists.txt")
+        message(FATAL_ERROR "CHRONON3D_ENABLE_MOTION_ADAPTER requires the sibling ChrononMotion3D checkout")
+    endif()
+    set(CHRONONMOTION_BUILD_TESTS OFF CACHE BOOL "Do not add the sibling project's standalone test suite" FORCE)
+    set(CHRONON3D_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include" CACHE PATH "Chronon3D public headers for offline motion adapter" FORCE)
+    set(CHRONON3D_DEPENDENCY_INCLUDE_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
+        CACHE PATH "Chronon3D public dependency headers for offline motion adapter" FORCE)
+    add_subdirectory("${_chrononmotion_dir}" "${CMAKE_BINARY_DIR}/chrononmotion" EXCLUDE_FROM_ALL)
 endif()
 
 # Central build registries and source graph.

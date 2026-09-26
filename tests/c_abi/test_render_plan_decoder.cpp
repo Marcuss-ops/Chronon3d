@@ -71,6 +71,33 @@ TEST_CASE("render plan text spans preserve byte ranges and affect deterministic 
     CHECK(first->content_fingerprint != recolored->content_fingerprint);
 }
 
+TEST_CASE("render plan V3 decodes and fingerprints deterministic Wiggly selectors") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"title","type":"text","text":"Wiggle",
+        "style":{"font":"fonts/roboto.ttf","font_size":24,"fill":"#FFFFFF"},
+        "text_animators":[{"id":"w","selectors":[{"shape":"wiggly",
+          "wiggly_frequency":0.75,"wiggly_amplitude":0.4,"wiggly_seed":1234}],
+          "properties":[{"property":"position_y","keyframes":[{"frame":0,"value":4}]}]}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    const auto& selector = decoded->layers[0].text_animators[0].selectors[0];
+    CHECK(selector.shape == "wiggly");
+    CHECK(selector.wiggly_frequency == doctest::Approx(0.75f));
+    CHECK(selector.wiggly_amplitude == doctest::Approx(0.4f));
+    CHECK(selector.wiggly_seed == 1234u);
+    const auto original_fingerprint = decoded->content_fingerprint;
+    source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_seed"] = 5678;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != original_fingerprint);
+
+    source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_amplitude"] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan rejects overlapping text span byte ranges") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
@@ -623,6 +650,56 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     CHECK(decoded->layers[0].path_mask->path.size() == 5);
     source["layers"][0]["shape"]["operators"][8]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 decodes animated path morphs and fingerprints their full semantics") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"shape","type":"shape","size":[32,32],"shape":{
+        "type":"path","path":[
+          {"type":"move_to","point":[0,0]},
+          {"type":"cubic_to","point":[10,10],"control1":[3,0],"control2":[7,10]},
+          {"type":"close"}],
+        "operators":[{"kind":"morph","params":{
+          "target":[{"type":"move_to","point":[2,4]},
+            {"type":"cubic_to","point":[20,20],"control1":[6,4],"control2":[14,20]},
+            {"type":"close"}],
+          "progress":0.25,
+          "animation":{"easing":"smoothstep","keyframes":[
+            {"frame":0,"value":0},{"frame":12,"value":1}]}}}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded.has_value() ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    const auto& morph = decoded->layers[0].shape->operators[0];
+    CHECK(morph.kind == chronon3d::render_plan::PathOperatorKindPlan::Morph);
+    CHECK(morph.morph_progress == doctest::Approx(0.25f));
+    REQUIRE(morph.morph_target.size() == 3);
+    REQUIRE(morph.morph_animation.has_value());
+    CHECK(morph.morph_animation->keyframes.size() == 2);
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated.has_value());
+    CHECK(decoded->content_fingerprint == repeated->content_fingerprint);
+
+    auto changed = source;
+    changed["layers"][0]["shape"]["operators"][0]["params"]["target"][1]["point"][0] = 21;
+    const auto changed_target = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_target.has_value());
+    CHECK(decoded->content_fingerprint != changed_target->content_fingerprint);
+    changed = source;
+    changed["layers"][0]["shape"]["operators"][0]["params"]["animation"]["keyframes"][1]["value"] = 0.5;
+    const auto changed_track = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_track.has_value());
+    CHECK(decoded->content_fingerprint != changed_track->content_fingerprint);
+
+    auto incompatible = source;
+    incompatible["layers"][0]["shape"]["operators"][0]["params"]["target"][1]["type"] = "line_to";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(incompatible).has_value());
+    auto invalid_progress = source;
+    invalid_progress["layers"][0]["shape"]["operators"][0]["params"]["animation"]["keyframes"][0]["value"] = 2;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_progress).has_value());
 }
 
 TEST_CASE("render plan decodes LUT assets and fails closed on unsupported effects") {

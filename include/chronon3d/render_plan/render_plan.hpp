@@ -48,6 +48,18 @@ struct StrokeStyle {
     float dash_offset{0.0f};
 };
 
+struct AnimationKeyframePlan {
+    Frame frame{0};
+    std::vector<float> value;
+};
+
+struct AnimationTrackPlan {
+    std::string property;
+    std::vector<AnimationKeyframePlan> keyframes;
+    std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
+};
+
 struct PathRepeaterPlan {
     std::uint32_t copies{1};
     std::array<float, 2> position{0.0f, 0.0f};
@@ -56,7 +68,7 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
-enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     PathRepeaterPlan repeater{};
@@ -72,6 +84,9 @@ struct PathOperatorPlan {
     float frequency{1.0f};
     std::uint32_t seed{0};
     std::vector<std::vector<ShapePathCommandPlan>> paths;
+    std::vector<ShapePathCommandPlan> morph_target;
+    float morph_progress{0.0f};
+    std::optional<AnimationTrackPlan> morph_animation;
     // Trim Paths: visible arc-length window [trim_start, trim_end] shifted by
     // trim_offset (all fractions of the subpath length; the window wraps).
     float trim_start{0.0f};
@@ -148,20 +163,8 @@ struct LayerStylePlan {
     std::optional<BackgroundStyle> background;
 };
 
-struct AnimationKeyframePlan {
-    Frame frame{0};
-    std::vector<float> value;
-};
-
 // Generic concrete property track. `property` names engine properties only;
 // editorial ids (preset/unit/role/profile) are intentionally not representable.
-struct AnimationTrackPlan {
-    std::string property;
-    std::vector<AnimationKeyframePlan> keyframes;
-    std::string easing{"linear"};
-    std::optional<std::array<float, 4>> bezier_curve;
-};
-
 struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
@@ -233,6 +236,9 @@ struct TextSelectorPlan {
     bool exclude_spaces{true};
     bool randomize_order{false};
     std::uint64_t random_seed{0};
+    float wiggly_frequency{1.0f};
+    float wiggly_amplitude{0.25f};
+    std::uint64_t wiggly_seed{0};
     std::optional<std::string> semantic_id;
 };
 
