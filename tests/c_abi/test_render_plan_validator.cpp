@@ -154,7 +154,7 @@ TEST_CASE("render_plan V3 exposes typed transition parameters and excludes them 
                      {"fps_den", 1}, {"duration_frames", 12}}},
         {"layers", json::array({
             {{"id", "shape"}, {"type", "color"}, {"color", {0.1, 0.2, 0.3, 1.0}},
-             {"transition_in", {{"id", "slide"}, {"duration", 0.5},
+             {"transition_in", {{"kind", "slide"}, {"duration_frames", 12},
                 {"params", {{"distance", 0.75}}}}}}
         })},
         {"output", {{"path", "out.png"}}}

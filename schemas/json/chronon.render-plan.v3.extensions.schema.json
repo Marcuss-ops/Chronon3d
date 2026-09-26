@@ -21,11 +21,11 @@
             "distance": { "type": "number", "minimum": 0, "maximum": 4 },
             "feather": { "type": "number", "minimum": 0, "maximum": 1 },
             "center": { "$ref": "#/$defs/point" },
-            "color": { "$ref": "#/$defs/rgba" },
+            "color": { "oneOf": [{ "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" }, { "$ref": "#/$defs/rgba" }] },
             "seed": { "type": "number" },
-            "inner_color": { "$ref": "#/$defs/rgba" },
-            "mid_color": { "$ref": "#/$defs/rgba" },
-            "outer_color": { "$ref": "#/$defs/rgba" },
+            "inner_color": { "oneOf": [{ "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" }, { "$ref": "#/$defs/rgba" }] },
+            "mid_color": { "oneOf": [{ "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" }, { "$ref": "#/$defs/rgba" }] },
+            "outer_color": { "oneOf": [{ "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" }, { "$ref": "#/$defs/rgba" }] },
             "speed": { "type": "number", "exclusiveMinimum": 0 },
             "remotion_direction": { "type": "number" },
             "angle": { "type": "number" }
@@ -98,28 +98,6 @@
     "bezier_curve": {
       "type": "array", "minItems": 4, "maxItems": 4,
       "items": { "type": "number", "minimum": -10, "maximum": 10 }
-    },
-    "layer_transition": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id"],
-      "properties": {
-        "id": { "enum": ["none", "crossfade", "slide", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"] },
-        "direction": { "enum": ["none", "left", "right", "up", "down", "in", "out"] },
-        "duration": { "type": "number", "minimum": 0, "maximum": 3600 },
-        "delay": { "type": "number", "minimum": 0, "maximum": 3600 },
-        "easing": { "enum": ["linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic", "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine", "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic", "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce", "smoothstep", "hold"] },
-        "params": { "type": "object" }
-      },
-      "allOf": [
-        { "if": { "properties": { "id": { "const": "slide" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "distance": { "type": "number", "minimum": 0, "maximum": 100 } } } } } },
-        { "if": { "properties": { "id": { "const": "smooth_wipe" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "feather": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } } } } } },
-        { "if": { "properties": { "id": { "const": "circle_iris" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "center": { "$ref": "#/$defs/point" }, "feather": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } } } } } },
-        { "if": { "properties": { "id": { "const": "flash" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" } } } } } },
-        { "if": { "properties": { "id": { "const": "procedural_remotion" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "seed": { "type": "number" } } } } } },
-        { "if": { "properties": { "id": { "const": "remotion" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "speed": { "type": "number", "exclusiveMinimum": 0 }, "direction": { "type": "number" }, "angle": { "type": "number" } } } } } },        { "if": { "properties": { "id": { "enum": ["none", "crossfade", "wipe_linear"] } }, "required": ["id"] }, "then": { "not": { "required": ["params"] } } },
-        { "if": { "required": ["params"] }, "then": { "properties": { "id": { "enum": ["slide", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"] } } } }
-
-      ]
     },
     "bezier_easing_contract": {
       "allOf": [
@@ -637,8 +615,6 @@
           "transition_in": { "$ref": "#/$defs/transition" },
           "transition_out": { "$ref": "#/$defs/transition" },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
-          "transition_in": { "$ref": "#/$defs/layer_transition" },
-          "transition_out": { "$ref": "#/$defs/layer_transition" },
           "track_matte": {
             "type": "object", "additionalProperties": false,
             "required": ["source", "type"],
@@ -713,7 +689,10 @@
                               { "type": "number" },
                               { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                             ]
-                          }
+                          },
+                          "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                          "easing": { "$ref": "#/$defs/easing" },
+                          "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
                         }
                       }
                     }
