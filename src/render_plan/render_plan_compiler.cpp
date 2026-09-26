@@ -4,6 +4,9 @@
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
+#if defined(CHRONON3D_ENABLE_SVG)
+#include <chronon3d/assets/svg_path_loader.hpp>
+#endif
 
 #include "render_plan_compiler_detail.hpp"
 
@@ -33,11 +36,95 @@
 namespace chronon3d::render_plan {
 
 Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
-    const RenderPlan& plan,
+    const RenderPlan& input_plan,
     chronon3d::assets::AssetResolver& resolver,
     const RenderPlanFingerprintOptions& fingerprint_options,
     const compiler::CompiledProgram* canonical_program) {
     try {
+        auto expanded_plan = input_plan;
+        auto& plan = expanded_plan;
+#if defined(CHRONON3D_ENABLE_SVG)
+        for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
+            auto& layer = plan.layers[layer_index];
+            if (!layer.shape || !layer.shape->svg_asset) continue;
+            const auto logical = *layer.shape->svg_asset;
+            const auto resolved = resolver.resolve_logical(logical);
+            if (!resolved)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                    "SVG asset could not be resolved within the mounted asset root",
+                    "svg_asset_unresolved", "render-plan-svg"};
+            const auto imported = chronon3d::assets::load_svg_document_file(resolved->string());
+            if (!imported.ok)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                    imported.error, "svg_import_failed", "render-plan-svg"};
+            if (imported.elements.empty())
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                    "SVG contains no path geometry", "svg_empty_geometry", "render-plan-svg"};
+            auto& shape = *layer.shape;
+            const auto& paint = imported.elements.front();
+            if (paint.opacity != 1.0f || (paint.fill && paint.fill->type != FillType::Solid) ||
+                paint.stroke.gradient)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                    "SVG opacity and gradient paint are not representable by this shape plan",
+                    "svg_unsupported_style", "render-plan-svg"};
+            for (const auto& element : imported.elements) {
+                const bool fill_mismatch = element.fill.has_value() != paint.fill.has_value() ||
+                    (element.fill && paint.fill && (element.fill->enabled != paint.fill->enabled ||
+                     element.fill->type != paint.fill->type ||
+                     element.fill->solid.r != paint.fill->solid.r ||
+                     element.fill->solid.g != paint.fill->solid.g ||
+                     element.fill->solid.b != paint.fill->solid.b ||
+                     element.fill->solid.a != paint.fill->solid.a));
+                if (element.opacity != paint.opacity || fill_mismatch ||
+                    element.stroke.enabled != paint.stroke.enabled ||
+                    element.stroke.width != paint.stroke.width ||
+                    element.stroke.color.r != paint.stroke.color.r ||
+                    element.stroke.color.g != paint.stroke.color.g ||
+                    element.stroke.color.b != paint.stroke.color.b ||
+                    element.stroke.color.a != paint.stroke.color.a || element.stroke.gradient)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG paths with different styles cannot share one shape layer",
+                        "svg_unsupported_style", "render-plan-svg"};
+                for (const auto& command : element.path.commands) {
+                    ShapePathCommandPlan lowered;
+                    const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
+                    const auto point = [&](Vec2 value, std::array<float, 2>& out) {
+                        if (!std::isfinite(value.x) || !std::isfinite(value.y) ||
+                            std::abs(value.x) > 100000.0f || std::abs(value.y) > 100000.0f)
+                            throw std::runtime_error("SVG coordinate exceeds finite resource bounds");
+                        out = {quantize(value.x), quantize(value.y)};
+                    };
+                    switch (command.type) {
+                        case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
+                        case PathCommandType::LineTo: lowered.type = ShapePathCommandTypePlan::LineTo; point(command.p0, lowered.point); break;
+                        case PathCommandType::QuadraticTo: lowered.type = ShapePathCommandTypePlan::QuadraticTo; point(command.p0, lowered.point); point(command.p1, lowered.control1); break;
+                        case PathCommandType::CubicTo: lowered.type = ShapePathCommandTypePlan::CubicTo; point(command.p0, lowered.point); point(command.p1, lowered.control1); point(command.p2, lowered.control2); break;
+                        case PathCommandType::Close: lowered.type = ShapePathCommandTypePlan::Close; break;
+                    }
+                    if (shape.path.size() >= 65536)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG path command limit exceeded", "svg_resource_limit", "render-plan-svg"};
+                    shape.path.push_back(lowered);
+                }
+            }
+            if (paint.fill && paint.fill->enabled)
+                shape.fill_color = std::array<float, 4>{paint.fill->solid.r,
+                    paint.fill->solid.g, paint.fill->solid.b, paint.fill->solid.a};
+            if (paint.stroke.enabled) {
+                StrokeStyle stroke;
+                stroke.width = paint.stroke.width;
+                stroke.solid_color = std::array<float, 4>{paint.stroke.color.r,
+                    paint.stroke.color.g, paint.stroke.color.b, paint.stroke.color.a};
+                shape.stroke = std::move(stroke);
+            }
+        }
+#else
+        for (std::size_t index = 0; index < plan.layers.size(); ++index)
+            if (plan.layers[index].shape && plan.layers[index].shape->svg_asset)
+                return PlanDecodeError{"layers[" + std::to_string(index) + "].shape.asset",
+                    "Chronon was built without SVG import support", "svg_import_unavailable",
+                    "render-plan-svg"};
+#endif
         const auto compile_total_t0 = chronon3d::profiling::now();
         double asset_prepare_ms = 0.0;
         double fingerprint_ms = 0.0;

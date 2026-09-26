@@ -695,6 +695,27 @@ TEST_CASE("render plan decodes animated dash offsets and effect time controls in
     CHECK(plan->content_fingerprint!=changed_plan->content_fingerprint);
 }
 
+TEST_CASE("render plan accepts resolver-backed SVG geometry references") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],
+        "shape":{"type":"path","asset":"art/vector.svg"}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].shape.has_value());
+    CHECK(decoded->layers[0].shape->svg_asset == "art/vector.svg");
+    CHECK(decoded->layers[0].shape->path.empty());
+
+    auto both_sources = source;
+    both_sources["layers"][0]["shape"]["path"] = {{{"type", "move_to"}, {"point", {0, 0}}}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(both_sources).has_value());
+    auto invalid_extension = source;
+    invalid_extension["layers"][0]["shape"]["asset"] = "art/vector.png";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_extension).has_value());
+}
+
 TEST_CASE("render plan decoder accepts bounded repeater operators and rejects unknown kinds") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

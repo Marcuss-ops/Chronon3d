@@ -315,3 +315,28 @@ TEST_CASE("SVG importer rejects unsupported render tags explicitly") {
         CHECK(result.error.find(std::string("non supportata: <") + tag + ">") != std::string::npos);
     }
 }
+
+TEST_CASE("SVG importer rejects excessive XML nodes before geometry lowering") {
+    const std::string filename = "temp_test_svg_node_limit.svg";
+    {
+        std::ofstream out(filename);
+        out << "<svg>";
+        for (std::size_t i = 0; i < 100001; ++i) out << "<g/>";
+        out << "</svg>";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("node count exceeds 100000") != std::string::npos);
+}
+
+TEST_CASE("SVG imported coordinates are quantized to four decimal places") {
+    const std::string filename = "temp_test_svg_quantize.svg";
+    { std::ofstream out(filename); out << R"(<svg><path d="M 0.123456 0.987654 L 1 1"/></svg>)"; }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.paths.size() == 1);
+    CHECK(result.paths[0].commands[0].p0.x == doctest::Approx(0.1235f));
+    CHECK(result.paths[0].commands[0].p0.y == doctest::Approx(0.9877f));
+}

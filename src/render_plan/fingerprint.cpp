@@ -399,6 +399,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     if (layer.shape) {
         const auto& shape = *layer.shape;
         out.add_enum(shape.type);
+        add_optional(out, shape.svg_asset, [](auto& nested, const std::string& asset) {
+            nested.add_string(asset);
+        });
         out.add_float(shape.radius);
         if (shape.corner_radius) {
             out.add_bool(true);
