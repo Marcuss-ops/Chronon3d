@@ -6,6 +6,7 @@
 #include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/profiling_context.hpp>
+#include "effects/render_effects_processor.hpp"
 #include <tbb/global_control.h>
 #include <cmath>
 
@@ -204,4 +205,109 @@ TEST_CASE("PR2-Unit-ShadowBounds: halo matches contact and ambient shadow maps")
     CHECK(fractional_offset_halo.left == doctest::Approx(44.0f));
     CHECK(fractional_offset_halo.top == doctest::Approx(44.0f));
     CHECK(fractional_offset_halo.bottom == doctest::Approx(44.0f));
+}
+
+TEST_CASE("PhaseB CPU blur, shadow, and bloom preserve neutral paths, alpha, and deterministic pixels") {
+    const auto fill_pattern = [](Framebuffer& fb) {
+        fb.clear(Color::transparent());
+        for (int y = 3; y < std::min(9, fb.height() - 2); ++y)
+            for (int x = 4; x < std::min(11, fb.width() - 2); ++x)
+                fb.pixels_row(y)[x] = Color{0.3f, 0.1f, 0.05f, 0.4f};
+        fb.pixels_row(fb.height() / 2)[fb.width() / 2] = Color{0.8f, 0.8f, 0.8f, 1.0f};
+    };
+    const auto exact_pixels = [](const Framebuffer& a, const Framebuffer& b) {
+        REQUIRE(a.width() == b.width());
+        REQUIRE(a.height() == b.height());
+        for (int y = 0; y < a.height(); ++y)
+            for (int x = 0; x < a.width(); ++x) {
+                CHECK(a.pixels_row(y)[x].r == b.pixels_row(y)[x].r);
+                CHECK(a.pixels_row(y)[x].g == b.pixels_row(y)[x].g);
+                CHECK(a.pixels_row(y)[x].b == b.pixels_row(y)[x].b);
+                CHECK(a.pixels_row(y)[x].a == b.pixels_row(y)[x].a);
+            }
+    };
+    const auto check_premultiplied = [](const Framebuffer& fb, const char* effect) {
+        for (int y = 0; y < fb.height(); ++y)
+            for (int x = 0; x < fb.width(); ++x) {
+                const auto c = fb.pixels_row(y)[x];
+                CHECK_MESSAGE(c.a >= -1.0e-7f, effect);
+                CHECK_MESSAGE(c.a <= 1.0f + 1.0e-6f, effect);
+                CHECK_MESSAGE(c.r <= c.a + 1.0e-6f, effect);
+                CHECK_MESSAGE(c.g <= c.a + 1.0e-6f, effect);
+                CHECK_MESSAGE(c.b <= c.a + 1.0e-6f, effect);
+            }
+    };
+
+    for (const auto [width, height] : {std::pair{64, 40}, std::pair{40, 64}}) {
+        Framebuffer source{width, height};
+        fill_pattern(source);
+
+        Framebuffer blur_neutral{source};
+        renderer::apply_blur(blur_neutral, 0.0f, std::nullopt, 1);
+        exact_pixels(source, blur_neutral);
+        Framebuffer blur_a{source}, blur_b{source};
+        renderer::apply_blur(blur_a, 4.0f, std::nullopt, 1);
+        renderer::apply_blur(blur_b, 4.0f, std::nullopt, 1);
+        exact_pixels(blur_a, blur_b);
+        check_premultiplied(blur_a, "after Gaussian blur");
+
+        DropShadowParams shadow;
+        shadow.offset = {3.0f, -2.0f};
+        shadow.color = Color{0.8f, 0.1f, 0.0f, 0.0f};
+        Framebuffer shadow_neutral{source};
+        renderer::apply_shadow_effect(shadow_neutral, shadow, std::nullopt);
+        exact_pixels(source, shadow_neutral);
+        shadow.color.a = 0.6f;
+        shadow.radius = 2.0f;
+        Framebuffer shadow_a{source}, shadow_b{source};
+        renderer::apply_shadow_effect(shadow_a, shadow, std::nullopt);
+        renderer::apply_shadow_effect(shadow_b, shadow, std::nullopt);
+        exact_pixels(shadow_a, shadow_b);
+        check_premultiplied(shadow_a, "after drop shadow");
+
+        BloomParams bloom;
+        bloom.intensity = 0.0f;
+        Framebuffer bloom_neutral{source};
+        renderer::run_bloom_effect(bloom_neutral, bloom, std::nullopt);
+        exact_pixels(source, bloom_neutral);
+        bloom = BloomParams{.threshold = 0.5f, .radius = 5.0f, .intensity = 0.8f};
+        Framebuffer bloom_a{source}, bloom_b{source};
+        renderer::run_bloom_effect(bloom_a, bloom, std::nullopt);
+        renderer::run_bloom_effect(bloom_b, bloom, std::nullopt);
+        exact_pixels(bloom_a, bloom_b);
+        check_premultiplied(bloom_a, "after bloom");
+    }
+}
+
+TEST_CASE("PhaseB blur, drop shadow, and bloom reuse warmed framebuffer scratch") {
+    auto pool = std::make_shared<cache::FramebufferPool>(16U * 1024U * 1024U);
+    profiling::ProfilingGuard profiling_guard(nullptr, pool.get());
+    Framebuffer base{64, 48};
+    base.clear(Color::transparent());
+    for (int y = 18; y < 30; ++y)
+        for (int x = 20; x < 36; ++x)
+            base.pixels_row(y)[x] = Color{0.6f, 0.2f, 0.1f, 0.75f};
+
+    const auto run_all = [&](Framebuffer& fb) {
+        renderer::apply_blur(fb, 4.0f, std::nullopt, 1);
+        renderer::apply_shadow_effect(fb, DropShadowParams{
+            .offset = {3.0f, 2.0f}, .color = {0.1f, 0.0f, 0.0f, 0.5f}, .radius = 3.0f}, std::nullopt);
+        renderer::run_bloom_effect(fb, BloomParams{
+            .threshold = 0.5f, .radius = 5.0f, .intensity = 0.6f}, std::nullopt);
+    };
+    Framebuffer first{base};
+    run_all(first);
+    const auto allocations_after_warmup = pool->stats().total_allocations;
+    const auto reuses_after_warmup = pool->stats().total_reuses;
+    Framebuffer second{base};
+    run_all(second);
+    CHECK(pool->stats().total_allocations == allocations_after_warmup);
+    CHECK(pool->stats().total_reuses > reuses_after_warmup);
+    for (int y = 0; y < first.height(); ++y)
+        for (int x = 0; x < first.width(); ++x) {
+            CHECK(first.pixels_row(y)[x].r == second.pixels_row(y)[x].r);
+            CHECK(first.pixels_row(y)[x].g == second.pixels_row(y)[x].g);
+            CHECK(first.pixels_row(y)[x].b == second.pixels_row(y)[x].b);
+            CHECK(first.pixels_row(y)[x].a == second.pixels_row(y)[x].a);
+        }
 }
