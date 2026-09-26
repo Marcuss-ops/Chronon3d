@@ -114,6 +114,10 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     const auto prepared = compile_render_plan(*decoded, resolver);
     REQUIRE(prepared);
     CHECK(prepared->assets.assets().size() == 1);
+
+    auto missing = *decoded;
+    missing.layers[0].shape->svg_asset = "art/not-found.svg";
+    CHECK_FALSE(compile_render_plan(missing, resolver));
 }
 #endif
 
