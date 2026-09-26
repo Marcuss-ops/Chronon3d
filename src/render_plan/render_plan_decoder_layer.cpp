@@ -92,6 +92,61 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     return track;
 }
 
+TransitionPlan decode_transition(const nlohmann::json& value) {
+    TransitionPlan plan;
+    plan.id = value.value("id", std::string{});
+    plan.kind = value.at("kind").get<std::string>();
+    plan.duration_frames = Frame{value.at("duration_frames").get<std::int64_t>()};
+    plan.delay_frames = Frame{value.value("delay_frames", std::int64_t{0})};
+    plan.easing = value.value("easing", std::string{"linear"});
+    plan.direction = value.value("direction", std::string{});
+    if (!value.contains("params")) return plan;
+    const auto& params = value.at("params");
+    const std::vector<std::string> allowed = [&]() {
+        if (plan.kind == "slide") return std::vector<std::string>{"distance"};
+        if (plan.kind == "smooth_wipe") return std::vector<std::string>{"feather"};
+        if (plan.kind == "circle_iris") return std::vector<std::string>{"feather", "center"};
+        if (plan.kind == "flash") return std::vector<std::string>{"color"};
+        if (plan.kind == "procedural_remotion")
+            return std::vector<std::string>{"seed", "inner_color", "mid_color", "outer_color"};
+        if (plan.kind == "remotion")
+            return std::vector<std::string>{"speed", "remotion_direction", "angle"};
+        return std::vector<std::string>{};
+    }();
+    for (auto it = params.begin(); it != params.end(); ++it)
+        if (std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end())
+            throw std::runtime_error("parameter '" + it.key() + "' is not supported by transition '" + plan.kind + "'");
+    plan.distance = params.value("distance", plan.distance);
+    plan.feather = params.value("feather", plan.feather);
+    if (params.contains("center"))
+        for (std::size_t i = 0; i < 2; ++i) plan.center[i] = params.at("center").at(i).get<float>();
+    const auto read_color = [&](const char* key, std::array<float, 4>& target) {
+        if (!params.contains(key)) return;
+        for (std::size_t i = 0; i < 4; ++i) target[i] = params.at(key).at(i).get<float>();
+    };
+    read_color("color", plan.color);
+    read_color("inner_color", plan.inner_color);
+    read_color("mid_color", plan.mid_color);
+    read_color("outer_color", plan.outer_color);
+    plan.seed = params.value("seed", plan.seed);
+    plan.speed = params.value("speed", plan.speed);
+    plan.remotion_direction = params.value("remotion_direction", plan.remotion_direction);
+    plan.angle = params.value("angle", plan.angle);
+    if (!std::isfinite(plan.distance) || plan.distance < 0.0f || plan.distance > 4.0f ||
+        !std::isfinite(plan.feather) || plan.feather < 0.0f || plan.feather > 1.0f ||
+        !std::isfinite(plan.seed) || !std::isfinite(plan.speed) || plan.speed <= 0.0f ||
+        !std::isfinite(plan.remotion_direction) || !std::isfinite(plan.angle))
+        throw std::runtime_error("transition parameters are outside their finite supported ranges");
+    for (const auto value : plan.center)
+        if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+            throw std::runtime_error("transition center components must be finite in [0, 1]");
+    for (const auto* color : {&plan.color, &plan.inner_color, &plan.mid_color, &plan.outer_color})
+        for (const auto value : *color)
+            if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                throw std::runtime_error("transition color components must be finite in [0, 1]");
+    return plan;
+}
+
 TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     TextSelectorPlan selector;
     selector.id = value.value("id", std::string{});
@@ -148,6 +203,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
+    if (value.contains("transition_in")) layer.transition_in = decode_transition(value.at("transition_in"));
+    if (value.contains("transition_out")) layer.transition_out = decode_transition(value.at("transition_out"));
     if (value.contains("light")) {
         if (layer.type != LayerType::Light)
             throw std::runtime_error("light is only valid for light layers");

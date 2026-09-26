@@ -534,6 +534,21 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         std::size_t layer_index = 0;
         for (const auto& layer_value : resolved_root.at("layers")) {
             auto layer = detail::decode_layer(layer_value);
+            const auto transition_error = [&](const std::optional<TransitionPlan>& transition,
+                                              const char* slot) -> std::optional<PlanDecodeError> {
+                if (!transition) return std::nullopt;
+                const auto lifetime = layer.duration_frames.value_or(plan.canvas.duration).integral();
+                const auto span = transition->duration_frames.integral() +
+                                  transition->delay_frames.integral();
+                if (transition->duration_frames.integral() < 1 || span > lifetime)
+                    return PlanDecodeError{
+                        "layers[" + std::to_string(layer_index) + "]." + slot,
+                        "transition duration plus delay must fit within the layer lifetime",
+                        "invalid_transition_duration", "render-plan-transition"};
+                return std::nullopt;
+            };
+            if (const auto error = transition_error(layer.transition_in, "transition_in")) return *error;
+            if (const auto error = transition_error(layer.transition_out, "transition_out")) return *error;
             if (layer.safe_insets &&
                 ((*layer.safe_insets)[0] + (*layer.safe_insets)[2] >=
                      static_cast<float>(plan.canvas.height) ||

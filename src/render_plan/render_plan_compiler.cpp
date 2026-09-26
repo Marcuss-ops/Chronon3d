@@ -746,7 +746,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         }
                     }
                     detail::apply_layer_primitives(
-                        builder, layer, plan.canvas.width, plan.canvas.height);
+                        builder, layer, plan.canvas.width, plan.canvas.height, plan.canvas.fps);
                     if (layer.type == LayerType::Particles && layer.particle_emitter)
                         builder.blend(layer.particle_emitter->blend_mode);
                     if (layer.safe_insets) {
