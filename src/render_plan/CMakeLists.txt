@@ -17,6 +17,9 @@ add_library(chronon3d_render_plan OBJECT
     audio_mix_compiler.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
+if(CHRONON3D_ENABLE_SVG)
+    target_compile_definitions(chronon3d_render_plan PRIVATE CHRONON3D_ENABLE_SVG=1)
+endif()
 set_source_files_properties(
     render_plan_compiler.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON

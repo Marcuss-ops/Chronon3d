@@ -36,3 +36,6 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_chronon3d_c_abi_links}
     SOURCES ${_chronon3d_c_abi_sources}
 )
+if(CHRONON3D_ENABLE_SVG)
+    target_compile_definitions(chronon3d_c_abi_tests PRIVATE CHRONON_TEST_ENABLE_SVG=1)
+endif()

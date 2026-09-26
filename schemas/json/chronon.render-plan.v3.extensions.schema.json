@@ -331,6 +331,7 @@
       "not": { "required": ["radius", "corner_radius"] },
       "properties": {
         "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path"] },
+        "asset": { "type": "string", "minLength": 1, "pattern": "\\.svg$" },
         "radius": { "type": "number", "minimum": 0 },
         "corner_radius": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0 } },
         "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
@@ -464,7 +465,7 @@
         }
       },
       "allOf": [
-        { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] }, "then": { "required": ["path"] } },
+        { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] }, "then": { "oneOf": [{"required":["path"],"not":{"required":["asset"]}},{"required":["asset"],"not":{"required":["path"]}}] } },
         { "if": { "properties": { "type": { "const": "line" } }, "required": ["type"] }, "then": { "required": ["path", "stroke"] } },
         { "if": { "properties": { "type": { "enum": ["rect", "rounded_rect", "ellipse"] } }, "required": ["type"] }, "then": { "not": { "required": ["path"] } } }
       ]

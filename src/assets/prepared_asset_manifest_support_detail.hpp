@@ -65,6 +65,8 @@ struct RequestedAsset {
         } else if (layer.type == render_plan::LayerType::Text) {
             add(layer.font, PreparedAssetKind::Font);
         }
+        if (layer.shape && layer.shape->svg_asset)
+            add(*layer.shape->svg_asset, PreparedAssetKind::Svg);
         for (const auto& effect : layer.effects)
             if (effect.kind == render_plan::LayerPlan::EffectKindPlan::Lut3D)
                 add(effect.asset, PreparedAssetKind::Data);

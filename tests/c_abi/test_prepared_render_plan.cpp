@@ -10,6 +10,9 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#if defined(CHRONON_TEST_ENABLE_SVG)
+#include <chronon3d/render_plan/render_plan.hpp>
+#endif
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include "test_render_plan_shape_helpers.hpp"
 
@@ -88,6 +91,31 @@ TEST_CASE("render-plan layer transitions lower into the existing scene layer spe
     changed_spec.parameters = chronon3d::SlideParams{1.5f};
     CHECK(chronon3d::graph::hash_layer_transition_spec(changed_spec) != transition_hash);
 }
+
+#if defined(CHRONON_TEST_ENABLE_SVG)
+TEST_CASE("render plan imports a resolver-backed SVG before composition compile") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/vector.svg");
+        svg << R"(<svg><path d="M 0 0 L 20 0 L 20 20 Z" fill="#ff0000" stroke="none"/></svg>)";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],
+        "shape":{"type":"path","asset":"art/vector.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    CHECK(prepared->assets.assets().size() == 1);
+}
+#endif
 
 TEST_CASE("all text backends share one linear-domain color packer") {
     const chronon3d::Color color{0.2158605f, 0.5f, 1.0f, 0.5f};
