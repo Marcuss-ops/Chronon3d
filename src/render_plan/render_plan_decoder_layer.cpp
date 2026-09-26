@@ -12,6 +12,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <filesystem>
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
@@ -465,6 +466,14 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
         else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
+        if (raw_shape.contains("asset")) {
+            if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
+                throw std::runtime_error("shape.asset is only valid for path shapes and cannot be combined with path commands");
+            shape.svg_asset = raw_shape.at("asset").get<std::string>();
+            if (detail::invalid_logical_path(*shape.svg_asset) ||
+                std::filesystem::path(*shape.svg_asset).extension() != ".svg")
+                throw std::runtime_error("shape.asset must be a relative logical .svg path");
+        }
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");
@@ -560,7 +569,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             }
         }
         if ((shape.type == ShapeContentTypePlan::Line ||
-             shape.type == ShapeContentTypePlan::Path) && shape.path.empty())
+             (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset)) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");
         if (raw_shape.contains("operators")) {
             const auto& raw_ops = raw_shape.at("operators");

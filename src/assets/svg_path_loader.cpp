@@ -17,6 +17,7 @@
 #include <utility>
 #include <cctype>
 #include <map>
+#include <filesystem>
 
 namespace chronon3d::assets {
 namespace {
@@ -324,6 +325,14 @@ SvgPathLoadResult parse_svg_path_data(std::string_view d, SvgPathLoadOptions opt
 SvgDocumentLoadResult load_svg_document_file(
     const std::string& filename,
     SvgPathLoadOptions options) {
+    constexpr std::uintmax_t kMaxSvgBytes = 8U * 1024U * 1024U;
+    constexpr std::size_t kMaxXmlNodes = 100000;
+    constexpr std::size_t kMaxCommandsPerPath = 65536;
+    std::error_code size_error;
+    const auto byte_size = std::filesystem::file_size(filename, size_error);
+    if (size_error || byte_size > kMaxSvgBytes)
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = "SVG document exceeds the 8 MiB resource limit"};
     boost::property_tree::ptree document;
     try {
         boost::property_tree::read_xml(
@@ -334,14 +343,20 @@ SvgDocumentLoadResult load_svg_document_file(
     }
 
     std::string unsupported;
+    std::size_t xml_nodes = 0;
     std::function<void(const boost::property_tree::ptree&)> inspect = [&](const auto& tree) {
         for (const auto& [name, node] : tree) {
+            if (name == "<xmlattr>") continue;
+            if (++xml_nodes > kMaxXmlNodes) {
+                unsupported = "resource limit: XML node count exceeds 100000";
+                return;
+            }
             if (name == "text" || name == "image" || name == "use" || name == "style") {
                 unsupported = name == "style" ? "CSS esterni" : name;
                 return;
             }
-            if (node.get_optional<std::string>("<xmlattr>.href") ||
-                node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href")) {
+            if (node.template get_optional<std::string>("<xmlattr>.href") ||
+                node.template get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href")) {
                 unsupported = "CSS esterni";
                 return;
             }
@@ -351,6 +366,8 @@ SvgDocumentLoadResult load_svg_document_file(
     };
     inspect(document);
     if (!unsupported.empty()) {
+        if (unsupported.starts_with("resource limit:"))
+            return {.paths = {}, .elements = {}, .ok = false, .error = "SVG " + unsupported};
         const auto tag = unsupported == "CSS esterni" ? "style" : unsupported.c_str();
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">"};
@@ -375,6 +392,22 @@ SvgDocumentLoadResult load_svg_document_file(
             };
         }
         apply_transform(path.path, path_data[index].second);
+        if (path.path.commands.size() > kMaxCommandsPerPath)
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG resource limit: path command count exceeds 65536"};
+        const auto quantize = [](Vec2& point) {
+            if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                std::abs(point.x) > 100000.0f || std::abs(point.y) > 100000.0f)
+                return false;
+            point.x = std::round(point.x * 10000.0f) / 10000.0f;
+            point.y = std::round(point.y * 10000.0f) / 10000.0f;
+            return true;
+        };
+        for (auto& command : path.path.commands) {
+            if (!quantize(command.p0) || !quantize(command.p1) || !quantize(command.p2))
+                return {.paths = {}, .elements = {}, .ok = false,
+                        .error = "SVG coordinate exceeds finite resource bounds"};
+        }
         auto style = styles[index];
         style.stroke.color.a *= style.stroke_opacity;
         if (style.fill) style.fill->solid.a *= style.fill_opacity;

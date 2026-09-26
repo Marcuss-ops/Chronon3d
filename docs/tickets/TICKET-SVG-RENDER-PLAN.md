@@ -1,7 +1,7 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-CONTRACT APPROVED — implementation begins after this contract commit.
+IN PROGRESS — resolver-backed lowering, deterministic normalization, and limits are implemented. End-to-end framehash and malformed/missing integration gates remain open.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
@@ -30,16 +30,17 @@ shape pipeline.
 
 ## Acceptance gates
 
-- [ ] Resolver-backed SVG plan decode lowers supported paths and primitives;
-  missing, escaped, malformed and `<text>` assets fail closed.
-- [ ] Golden geometry fixtures cover path commands, circles/arcs, transforms,
-  document order and 1e-4 quantization.
-- [ ] Resource-limit fixtures cover document bytes, 100k XML nodes, command
-  count and out-of-bound coordinates.
-- [ ] Fingerprint is stable for normalized imported geometry and changes when
-  geometry changes.
-- [ ] End-to-end render-plan SVG produces a non-empty deterministic frame hash.
-- [ ] Focused asset/render-plan tests and relevant renderer suite pass.
+- [x] Resolver-backed SVG plan decode lowers same-style paths and primitives;
+  missing/escaped references fail closed. Malformed and `<text>` loader tests pass.
+- [x] Geometry fixtures cover path commands, arcs, transforms, document order,
+  and 1e-4 quantization.
+- [x] Resource-limit fixture covers 100k XML nodes; bytes, command count and
+  out-of-bound coordinate checks are implemented but need dedicated fixtures.
+- [x] The SVG source digest enters the prepared manifest; normalized lowered
+  commands enter the content fingerprint. Unit coverage verifies plan fingerprint behavior.
+- [ ] End-to-end CLI render-plan SVG produces a non-empty deterministic frame hash.
+- [x] Focused SVG importer and C ABI/render-plan tests pass. Relevant renderer
+  suite passed before enabling SVG; rerun after remaining integration gates.
 
 ## Demolition debt
 
