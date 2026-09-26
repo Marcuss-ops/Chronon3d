@@ -83,6 +83,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
 
         const auto media_t0 = chronon3d::profiling::now();
         std::vector<std::string> resolved_video_paths(plan.layers.size());
+        std::vector<std::string> resolved_particle_sprite_paths(plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::Video) continue;
@@ -92,6 +93,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 throw std::runtime_error(
                     "video source was not prepared: " + layer.source);
             resolved_video_paths[index] = resolved->string();
+        }
+        for (std::size_t index=0; index<plan.layers.size(); ++index) {
+            const auto& layer=plan.layers[index];
+            if (!layer.particle_emitter || layer.particle_emitter->sprite_asset.empty()) continue;
+            const auto resolved=resolver.resolve_logical(std::filesystem::path(layer.particle_emitter->sprite_asset));
+            if(!resolved) throw std::runtime_error("particle sprite asset was not prepared: "+layer.particle_emitter->sprite_asset);
+            resolved_particle_sprite_paths[index]=resolved->string();
         }
         media_resolution_ms = chronon3d::profiling::duration_ms(
             media_t0, chronon3d::profiling::now());
@@ -224,6 +232,29 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         .brightness = effect.brightness,
                         .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
                                                        : NoiseColorMode::Monochrome});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Sharpen) {
+                    prepared_effects[index].emplace_back(SharpenParams{
+                        .amount = effect.amount, .radius = effect.radius, .threshold = effect.threshold});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::TurbulentDisplace) {
+                    prepared_effects[index].emplace_back(TurbulentDisplaceParams{
+                        .amount=effect.amount,.size=effect.warp_size,.evolution=effect.warp_evolution,
+                        .evolution_speed=effect.warp_speed,.complexity=effect.warp_complexity});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::WaveWarp) {
+                    prepared_effects[index].emplace_back(WaveWarpParams{
+                        .type=static_cast<WaveWarpParams::WaveType>(effect.wave_type),
+                        .direction=Vec2{effect.warp_direction[0],effect.warp_direction[1]},
+                        .amplitude=effect.amount,.wavelength=effect.warp_wavelength,
+                        .speed=effect.warp_speed,.phase=effect.warp_phase});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Ripple) {
+                    prepared_effects[index].emplace_back(RippleParams{
+                        .center=Vec2{effect.warp_center[0],effect.warp_center[1]},
+                        .radius=effect.warp_radius,.wave_speed=effect.warp_speed,
+                        .width=effect.warp_width,.wave_height=effect.warp_height,.damping=effect.warp_damping});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::DisplacementMap) {
+                    prepared_effects[index].emplace_back(DisplacementMapParams{
+                        .map_layer=effect.map_layer,.intensity_x=effect.map_intensity_x,
+                        .intensity_y=effect.map_intensity_y,
+                        .channel=static_cast<DisplacementMapParams::Channel>(effect.map_channel)});
                 } else if (effect.kind == LayerPlan::EffectKindPlan::CornerPin) {
                     prepared_effects[index].emplace_back(CornerPinParams{
                         .top_left = Vec2{effect.quad[0], effect.quad[1]},
@@ -266,7 +297,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
-        definition.scene = [plan, resolved_video_paths, prepared_texts, prepared_text_bounds, prepared_effects, font_engine,
+        definition.scene = [plan, resolved_video_paths, resolved_particle_sprite_paths, prepared_texts, prepared_text_bounds, prepared_effects, font_engine,
                             has_3d_layer, plan_camera](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
@@ -406,6 +437,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 throw std::runtime_error("particle sampling failed: " + sampled.error);
                             builder.accepts_lights(false).accepts_shadows(false);
                             for (const auto& particle : sampled.particles) {
+                                if (!resolved_particle_sprite_paths[index].empty()) {
+                                    ImageParams sprite;
+                                    sprite.asset_path=resolved_particle_sprite_paths[index];
+                                    sprite.size=Vec2{particle.size*particle.sprite_scale,particle.size*particle.sprite_scale};
+                                    sprite.pos=Vec3{particle.position.x,particle.position.y,0.0f};
+                                    sprite.opacity=particle.color.a;
+                                    sprite.tint=Color{particle.color.r,particle.color.g,particle.color.b,1.0f};
+                                    sprite.rotation_radians=particle.rotation;
+                                    builder.image("particle_"+std::to_string(particle.index),std::move(sprite));
+                                    continue;
+                                }
                                 CircleParams params;
                                 params.radius = particle.size * 0.5f;
                                 params.color = particle.color;
@@ -471,6 +513,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 stroke.gradient = shape.stroke->gradient;
                                 stroke.trim_start = shape.stroke->trim_start.value_or(0.0f);
                                 stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
+                                stroke.dash_array = shape.stroke->dash_array;
+                                stroke.dash_offset = shape.stroke->dash_offset;
+                                if (const auto animated_offset=detail::stroke_dash_offset_at(layer,ctx.effective_frame()))
+                                    stroke.dash_offset=*animated_offset;
                             }
                             if (layer.position_dimensions < 2 &&
                                 shape.type != ShapeContentTypePlan::Line &&
@@ -672,6 +718,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     detail::apply_layer_primitives(
                         builder, layer, plan.canvas.width, plan.canvas.height);
+                    if (layer.type == LayerType::Particles && layer.particle_emitter)
+                        builder.blend(layer.particle_emitter->blend_mode);
                     if (layer.safe_insets) {
                                 const auto& insets = *layer.safe_insets;
                                 Vec2 content_size{};
@@ -732,11 +780,21 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         if (layer.style->shadow) add_shadow(*layer.style->shadow);
                         for (const auto& shadow : layer.style->shadows) add_shadow(shadow);
                     }
-                    for (const auto& effect : prepared_effects[index])
+                    for (std::size_t effect_index=0; effect_index<prepared_effects[index].size(); ++effect_index) {
+                        const auto& effect=prepared_effects[index][effect_index];
+                        const auto* effect_plan=effect_index<layer.effects.size()?&layer.effects[effect_index]:nullptr;
+                        const auto time_control=effect_plan?effect_plan->posterize_fps:std::nullopt;
+                        std::optional<TemporalCurve1D> time_curve;
+                        if(effect_plan&&effect_plan->time_curve)
+                            time_curve=detail::make_effect_time_curve(*effect_plan->time_curve);
+                        const double composition_fps=static_cast<double>(plan.canvas.fps.numerator)/plan.canvas.fps.denominator;
+                        const double duration_seconds=static_cast<double>(plan.canvas.duration.value)/composition_fps;
                         std::visit([&](const auto& params) {
                             using T = std::decay_t<decltype(params)>;
-                            if constexpr (!std::is_same_v<T, std::monostate>) builder.effect(params);
+                            if constexpr (!std::is_same_v<T, std::monostate>)
+                                builder.effect(params,time_control,time_curve,duration_seconds,composition_fps);
                         }, effect);
+                    }
                     if (const auto motion_blur = detail::motion_blur_params_at(
                             layer, ctx.effective_frame())) {
                         builder.effect(*motion_blur);

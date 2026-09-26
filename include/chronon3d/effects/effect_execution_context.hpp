@@ -16,6 +16,7 @@ struct EffectProcessorHandle;
 
 namespace chronon3d {
 class DebugConfig;
+class Framebuffer;
 class CurveCache;
 struct RenderCounters;
 struct EffectScratchResources;
@@ -57,6 +58,7 @@ struct EffectExecutionContext {
     // Stable per-layer/per-effect key for temporal processors. Empty on
     // legacy direct dispatch means the effect can render but cannot retain history.
     std::string_view temporal_history_key{};
+    const chronon3d::Framebuffer* second_input{nullptr};
 };
 
 } // namespace chronon3d::effects

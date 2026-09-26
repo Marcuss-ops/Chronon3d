@@ -8,6 +8,8 @@
 #include <typeindex>
 #include <utility>
 #include <type_traits>
+#include <optional>
+#include <chronon3d/animation/core/temporal_curve_1d.hpp>
 
 namespace chronon3d::effects {
 
@@ -22,6 +24,10 @@ struct EffectInstance {
     ::chronon3d::EffectParams params;
     EffectType       effect_type{EffectType::Unknown};
     bool             enabled{true};
+    std::optional<float> posterize_fps;
+    std::optional<TemporalCurve1D> time_curve;
+    double time_duration_seconds{0.0};
+    double composition_fps{0.0};
 
     EffectInstance() = default;
 

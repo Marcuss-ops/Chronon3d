@@ -34,5 +34,18 @@ void apply_bulge(Framebuffer& fb, const BulgeParams& params,
 void apply_mesh_warp(Framebuffer& fb, const MeshWarpParams& params,
                      ::chronon3d::EffectScratchResources& scratch,
                      const std::optional<raster::BBox>& clip = std::nullopt);
+void apply_turbulent_displace(Framebuffer& fb, const TurbulentDisplaceParams& params, float time_seconds,
+                              ::chronon3d::EffectScratchResources& scratch,
+                              const std::optional<raster::BBox>& clip = std::nullopt);
+void apply_wave_warp(Framebuffer& fb, const WaveWarpParams& params, float time_seconds,
+                     ::chronon3d::EffectScratchResources& scratch,
+                     const std::optional<raster::BBox>& clip = std::nullopt);
+void apply_ripple(Framebuffer& fb, const RippleParams& params, float time_seconds,
+                  ::chronon3d::EffectScratchResources& scratch,
+                  const std::optional<raster::BBox>& clip = std::nullopt);
+void apply_displacement_map(Framebuffer& fb, const DisplacementMapParams& params,
+                            const Framebuffer& map,
+                            ::chronon3d::EffectScratchResources& scratch,
+                            const std::optional<raster::BBox>& clip = std::nullopt);
 
 } // namespace chronon3d::renderer

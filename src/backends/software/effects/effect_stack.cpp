@@ -10,6 +10,7 @@
 
 #include <stdexcept>
 #include <vector>
+#include <cmath>
 
 namespace chronon3d::renderer {
 
@@ -125,7 +126,23 @@ void apply_effect_stack(
                 "Missing compiled software effect processor for effect type " +
                 std::to_string(static_cast<int>(effect.effect_type)));
         }
-        processor->apply(fb, effect.params, context);
+        auto effect_context=context;
+        if (effect.time_curve) {
+            if(!std::isfinite(effect.time_duration_seconds)||effect.time_duration_seconds<=0.0||
+               !std::isfinite(context.time_seconds)||!std::isfinite(effect.composition_fps)||effect.composition_fps<=0.0)
+                throw std::runtime_error("effect time curve requires finite positive composition timing");
+            const float normalized=static_cast<float>(context.time_seconds/effect.time_duration_seconds);
+            effect_context.time_seconds=effect.time_curve->evaluate_normalized(normalized)*effect.time_duration_seconds;
+            effect_context.frame=Frame{static_cast<i64>(std::llround(effect_context.time_seconds*effect.composition_fps))};
+        }
+        if (effect.posterize_fps) {
+            const float fps=*effect.posterize_fps;
+            if (!std::isfinite(fps)||fps<=0.0f) throw std::runtime_error("effect posterize fps must be positive and finite");
+            effect_context.time_seconds=std::floor(effect_context.time_seconds*fps+0.5f)/fps;
+            if(effect.composition_fps>0.0)
+                effect_context.frame=Frame{static_cast<i64>(std::llround(effect_context.time_seconds*effect.composition_fps))};
+        }
+        processor->apply(fb, effect.params, effect_context);
     }
     flush_fused_pipeline();
 }

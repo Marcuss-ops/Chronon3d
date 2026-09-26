@@ -4,12 +4,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace chronon3d::backends::vulkan {
 
 namespace {
+
+bool try_native_path_stroke(
+    VulkanBackend& backend, Framebuffer& framebuffer,
+    const RenderNode& node, const RenderState& state);
 
 bool try_native_path_fill(
     VulkanBackend& backend, Framebuffer& framebuffer,
@@ -20,7 +27,11 @@ bool try_native_path_fill(
     }
     const auto& path = node.shape.path();
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
-        path.stroke.enabled || path.commands.empty() ||
+        (path.stroke.enabled && (path.stroke.dash_array.empty() ||
+            path.stroke.width <= 0.0f || path.stroke.trim_start != 0.0f ||
+            path.stroke.trim_end != 1.0f || path.stroke.gradient.has_value() ||
+            path.stroke.cap != LineCap::Butt || path.stroke.color.a < 1.0f ||
+            state.opacity < 1.0f)) || path.commands.empty() ||
         graph::native_promotion::has_active_mask(state) ||
         graph::native_promotion::is_projected(state)) {
         return false;
@@ -61,6 +72,22 @@ bool try_native_path_fill(
     }
     if (!valid || !closed || vertices.size() < 3 || vertices.size() > 8) return false;
 
+    if (path.stroke.enabled && !path.stroke.dash_array.empty()) {
+        if (path.stroke.width <= 0.0f || path.stroke.cap != LineCap::Butt ||
+            path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
+            path.stroke.gradient.has_value() || path.stroke.color.a < 1.0f ||
+            state.opacity < 1.0f || !std::isfinite(path.stroke.dash_offset))
+            return false;
+        float pattern_length = 0.0f;
+        for (const float length : path.stroke.dash_array) {
+            if (!std::isfinite(length) || length < 0.0f) return false;
+            pattern_length += length;
+        }
+        if (path.stroke.dash_array.size() % 2U != 0U) pattern_length *= 2.0f;
+        if (!std::isfinite(pattern_length) || pattern_length <= 1.0e-5f ||
+            !std::isfinite(path.stroke.dash_offset)) return false;
+    }
+
     const auto transform = [&state](Vec2 point) {
         const Vec4 transformed = state.matrix * Vec4(point, 0.0f, 1.0f);
         return Vec2{transformed.x, transformed.y};
@@ -90,8 +117,13 @@ bool try_native_path_fill(
     bool alpha_zero = false;
     const Color color = graph::native_promotion::premultiply(
         path.fill.solid, state.opacity, &alpha_zero);
-    if (alpha_zero) return true;
-    return backend.fill_path_surface(framebuffer.surface_handle(), vertices, color).ok();
+    if (alpha_zero)
+        return !path.stroke.enabled ||
+            try_native_path_stroke(backend, framebuffer, node, state);
+    if (!backend.fill_path_surface(framebuffer.surface_handle(), vertices, color).ok())
+        return false;
+    return !path.stroke.enabled ||
+        try_native_path_stroke(backend, framebuffer, node, state);
 }
 
 bool try_native_path_stroke(
@@ -102,56 +134,46 @@ bool try_native_path_stroke(
         return false;
     }
     const auto& path = node.shape.path();
-    if (path.fill.enabled || !path.stroke.enabled || path.stroke.width <= 0.0f ||
+    if ((path.fill.enabled && (path.stroke.dash_array.empty() ||
+                               path.fill.type != FillType::Solid)) ||
+        !path.stroke.enabled || path.stroke.width <= 0.0f ||
         path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
-        !path.stroke.dash_array.empty() || path.stroke.gradient.has_value() ||
+        path.stroke.gradient.has_value() ||
         path.stroke.cap != LineCap::Butt ||
         graph::native_promotion::has_active_mask(state) ||
         graph::native_promotion::is_projected(state)) {
         return false;
     }
 
-    // CPU-exactness gate: this GPU path rasterises every segment as an
-    // independent hard-edged SourceOver line, which is only equivalent to the
-    // CPU stroker for a SINGLE straight OPAQUE segment:
-    //   - flattening Quadratic/Cubic curves into 8/12 sub-segments
-    //     double-blends the overlapping joints (visible seams when alpha<1)
-    //     and leaves butt-cap notches on the outside of curved corners;
-    //   - polyline joins carry no certified joint semantics shared with the
-    //     CPU stroker;
-    //   - translucent strokes accumulate alpha on every covered pixel.
-    // Everything outside this subset is rejected by this backend as
-    // UnsupportedCapability. This VulkanBackend has no implicit CPU stroker
-    // fallback; the graph must surface the failure rather than change routes
-    // silently. Slower-but-correct beats fast-but-wrong-pixels (backend
-    // specialization must never change render semantics).
-    // The pre-scan doubles as the point capture: a path that passes the gate
-    // is exactly MoveTo + a single LineTo, so the points below are the only
-    // ones the emission step can ever see. Keeping the capture here (instead
-    // of a second command loop) guarantees no unreachable flattening/Close
-    // emission branches can be re-introduced below the gate.
-    int segments = 0;
-    bool saw_move = false;
-    Vec2 move_point{0.0f};
-    Vec2 line_point{0.0f};
+    // The GPU path accepts line-only contours. Dash positions are calculated
+    // on CPU along the complete contour; only the resulting solid segments
+    // reach the existing line shader. Curves and translucent strokes remain
+    // outside this path because the current GPU stroke primitive cannot match
+    // their software joins/blending semantics.
+    std::vector<Vec2> points;
+    bool closed = false;
     for (const auto& command : path.commands) {
         switch (command.type) {
         case PathCommandType::MoveTo:
-            if (saw_move) return false;  // multiple subpaths → unsupported
-            saw_move = true;
-            move_point = command.p0;
+            if (!points.empty()) return false;  // multiple subpaths → unsupported
+            points.push_back(command.p0);
             break;
         case PathCommandType::LineTo:
-            if (!saw_move || ++segments > 1) return false;  // polyline → CPU
-            line_point = command.p0;
+            if (points.empty() || closed) return false;
+            points.push_back(command.p0);
             break;
         case PathCommandType::Close:
+            if (points.size() < 3 || closed) return false;
+            closed = true;
+            break;
         case PathCommandType::QuadraticTo:
         case PathCommandType::CubicTo:
-            return false;  // curves / closed contours → exact CPU stroker
+            return false;
         }
     }
-    if (!saw_move || segments != 1) return false;
+    if (points.size() < 2) return false;
+    if (path.fill.enabled && (!closed || points.size() < 3 || points.size() > 8)) return false;
+    if (path.stroke.dash_array.empty() && (closed || points.size() != 2)) return false;
 
     const float width = path.stroke.width;
     bool alpha_zero = false;
@@ -172,11 +194,11 @@ bool try_native_path_stroke(
         if (!ok || glm::length(to - from) <= 1e-5f) return;
         const Vec2 a = transform(from);
         const Vec2 b = transform(to);
-        const float half_width = width * 0.5f;
-        auto x0 = static_cast<std::int32_t>(std::floor(std::min(a.x, b.x) - half_width));
-        auto y0 = static_cast<std::int32_t>(std::floor(std::min(a.y, b.y) - half_width));
-        auto x1 = static_cast<std::int32_t>(std::ceil(std::max(a.x, b.x) + half_width));
-        auto y1 = static_cast<std::int32_t>(std::ceil(std::max(a.y, b.y) + half_width));
+        const float extent = width * 0.5f + 1.0f;
+        auto x0 = static_cast<std::int32_t>(std::floor(std::min(a.x, b.x) - extent));
+        auto y0 = static_cast<std::int32_t>(std::floor(std::min(a.y, b.y) - extent));
+        auto x1 = static_cast<std::int32_t>(std::ceil(std::max(a.x, b.x) + extent));
+        auto y1 = static_cast<std::int32_t>(std::ceil(std::max(a.y, b.y) + extent));
         x0 = std::clamp(x0, 0, framebuffer.width());
         y0 = std::clamp(y0, 0, framebuffer.height());
         x1 = std::clamp(x1, 0, framebuffer.width());
@@ -184,15 +206,124 @@ bool try_native_path_stroke(
         if (x0 >= x1 || y0 >= y1) return;
         ok = backend.fill_solid_shape_surface(
             framebuffer.surface_handle(), x0, y0, x1, y1,
-            Vec4{3.0f, width, 0.0f, 0.0f}, Vec4{a.x, a.y, b.x, b.y}, color).ok();
+            Vec4{3.0f, width, 1.0f, 0.0f}, Vec4{a.x, a.y, b.x, b.y}, color).ok();
         emitted = true;
     };
 
-    // Gate guarantees exactly one MoveTo + one LineTo; no Close/curve branch
-    // can reach this point (the approximate flattening paths were demolished
-    // with the pre-scan gate in 4f4a217d).
-    emit(move_point, line_point);
-    return emitted && ok;
+    if (path.stroke.dash_array.empty()) {
+        emit(points[0], points[1]);
+        return emitted && ok;
+    }
+
+    std::vector<std::pair<Vec2, Vec2>> contour_segments;
+    contour_segments.reserve(points.size());
+    std::vector<float> cumulative{0.0f};
+    cumulative.reserve(points.size() + (closed ? 1U : 0U));
+    for (std::size_t i = 1; i < points.size(); ++i) {
+        contour_segments.emplace_back(points[i - 1], points[i]);
+        cumulative.push_back(cumulative.back() + glm::length(points[i] - points[i - 1]));
+    }
+    if (closed) {
+        contour_segments.emplace_back(points.back(), points.front());
+        cumulative.push_back(cumulative.back() + glm::length(points.front() - points.back()));
+    }
+    const float contour_length = cumulative.back();
+    if (!std::isfinite(contour_length) || contour_length <= 1.0e-5f) return false;
+
+    std::vector<float> pattern = path.stroke.dash_array;
+    float pattern_length = 0.0f;
+    for (const float dash : pattern) {
+        if (!std::isfinite(dash) || dash < 0.0f) return false;
+        pattern_length += dash;
+    }
+    if (pattern.size() % 2U != 0U)
+        pattern.insert(pattern.end(), path.stroke.dash_array.begin(), path.stroke.dash_array.end());
+    if (pattern.size() != path.stroke.dash_array.size()) pattern_length *= 2.0f;
+    if (!std::isfinite(path.stroke.dash_offset) || !std::isfinite(pattern_length) ||
+        !std::isfinite(contour_length)) return false;
+    if (pattern_length <= 1.0e-5f) {
+        if (closed) return false;
+        emit(points[0], points[1]);
+        return emitted && ok;
+    }
+
+    const auto point_at_distance = [&](float distance) {
+        distance = std::clamp(distance, 0.0f, contour_length);
+        for (std::size_t i = 0; i < contour_segments.size(); ++i) {
+            const float start = cumulative[i], end = cumulative[i + 1];
+            if (distance <= end || i + 1 == contour_segments.size()) {
+                const float length = end - start;
+                const float t = length > 1.0e-5f ? (distance - start) / length : 0.0f;
+                return contour_segments[i].first +
+                    (contour_segments[i].second - contour_segments[i].first) * std::clamp(t, 0.0f, 1.0f);
+            }
+        }
+        return points.back();
+    };
+
+    std::vector<std::vector<Vec2>> dash_runs;
+    const float offset = std::fmod(path.stroke.dash_offset, pattern_length);
+    const float normalized_offset = offset < 0.0f ? offset + pattern_length : offset;
+    float cursor = -normalized_offset;
+    std::size_t pattern_index = 0;
+    bool on = true;
+    while (cursor < contour_length) {
+        const float next = cursor + pattern[pattern_index];
+        if (on) {
+            const float begin = std::max(0.0f, cursor);
+            const float end = std::min(contour_length, next);
+            if (end > begin + 1.0e-5f) {
+                std::vector<Vec2> run{point_at_distance(begin)};
+                for (std::size_t i = 1; i < points.size(); ++i) {
+                    if (cumulative[i] > begin + 1.0e-5f && cumulative[i] < end - 1.0e-5f) {
+                        run.push_back(points[i]);
+                    }
+                }
+                run.push_back(point_at_distance(end));
+                if (run.size() < 2) return false;
+                dash_runs.push_back(std::move(run));
+            }
+        }
+        cursor = next;
+        on = !on;
+        pattern_index = (pattern_index + 1U) % pattern.size();
+    }
+    if (dash_runs.empty()) return true;
+    std::vector<Vec2> screen_points;
+    std::vector<std::uint32_t> run_lengths;
+    std::size_t total_points=0;
+    for (const auto& run : dash_runs) total_points+=run.size();
+    screen_points.reserve(total_points);
+    run_lengths.reserve(dash_runs.size());
+    for (const auto& run : dash_runs) {
+        if (run.size()>std::numeric_limits<std::uint32_t>::max()) return false;
+        run_lengths.push_back(static_cast<std::uint32_t>(run.size()));
+        for (const Vec2 point : run) screen_points.push_back(transform(point));
+    }
+    float min_x=screen_points.front().x, min_y=screen_points.front().y;
+    float max_x=min_x, max_y=min_y;
+    for(const Vec2 point:screen_points) {
+        min_x=std::min(min_x,point.x); min_y=std::min(min_y,point.y);
+        max_x=std::max(max_x,point.x); max_y=std::max(max_y,point.y);
+    }
+    const float extent=width*0.5f+1.0f;
+    auto x0=static_cast<std::int32_t>(std::floor(min_x-extent));
+    auto y0=static_cast<std::int32_t>(std::floor(min_y-extent));
+    auto x1=static_cast<std::int32_t>(std::ceil(max_x+extent));
+    auto y1=static_cast<std::int32_t>(std::ceil(max_y+extent));
+    x0=std::clamp(x0,0,framebuffer.width()); y0=std::clamp(y0,0,framebuffer.height());
+    x1=std::clamp(x1,0,framebuffer.width()); y1=std::clamp(y1,0,framebuffer.height());
+    if(x0>=x1||y0>=y1) return true;
+    std::array<Vec2,8> fill_vertices{};
+    const bool has_fill=path.fill.enabled;
+    if(has_fill) {
+        if(points.size()>fill_vertices.size()) return false;
+        for(std::size_t i=0;i<points.size();++i) fill_vertices[i]=transform(points[i]);
+    }
+    const auto result=backend.fill_dashed_path_surface(
+        framebuffer.surface_handle(),x0,y0,x1,y1,width,color,screen_points,
+        run_lengths,has_fill,static_cast<std::uint32_t>(has_fill?points.size():0),fill_vertices);
+    return result.ok() && ok;
 }
 
 bool try_native_grid(

@@ -184,6 +184,7 @@
               "velocity_max": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
               "lifetime": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
               "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "blend_mode": { "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn", "subtract", "divide", "vivid_light", "pin_light", "linear_light", "hue", "saturation", "color", "luminosity"] },
               "gravity": { "type": "number" },
               "turbulence": { "type": "number", "minimum": 0 },
               "color_ramp": {
@@ -243,7 +244,9 @@
                 "required": ["color", "width"],
                 "properties": {
                   "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-                  "width": { "type": "number", "minimum": 0 }
+                  "width": { "type": "number", "minimum": 0 },
+                  "dash_array": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+                  "dash_offset": { "type": "number" }
                 }
               },
               "shadow": {
@@ -325,7 +328,7 @@
                         "position", "position_x", "position_y", "position_z",
                         "scale", "scale_x", "scale_y", "scale_z",
                         "rotation", "rotation_x", "rotation_y", "rotation_z",
-                        "opacity", "blur"
+                        "opacity", "blur", "stroke_dash_offset"
                       ]
                     },
                     "easing": {

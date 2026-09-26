@@ -55,6 +55,11 @@ enum class EffectType : uint8_t {
     Twirl           = 32,
     Bulge           = 33,
     MeshWarp        = 34,
+    Sharpen         = 35,
+    TurbulentDisplace = 36,
+    WaveWarp        = 37,
+    Ripple          = 38,
+    DisplacementMap = 39,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

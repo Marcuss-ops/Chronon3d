@@ -7,6 +7,10 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <bit>
+#include <cstring>
+#include <limits>
+
 namespace chronon3d::backends::vulkan {
 
 void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
@@ -119,6 +123,78 @@ void VulkanBackend::Impl::fill_solid_shape(
     }
     throw std::logic_error(
         "Vulkan fill_solid_shape requires an active frame batch");
+}
+
+void VulkanBackend::Impl::fill_dashed_path(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
+    float width, const Color& color, std::span<const Vec2> points,
+    std::span<const std::uint32_t> run_lengths, bool has_fill,
+    std::uint32_t fill_vertex_count, const std::array<Vec2, 8>& fill_vertices) {
+    if (!frame_batch.active)
+        throw std::logic_error("Vulkan dashed path requires an active frame batch");
+    if (points.empty() || run_lengths.empty() || run_lengths.size() > UINT32_MAX)
+        throw std::invalid_argument("Vulkan dashed path geometry is empty or too large");
+    std::size_t point_sum = 0;
+    for (const auto count : run_lengths) {
+        if (count < 2 || count > points.size() - point_sum)
+            throw std::invalid_argument("Vulkan dashed path run lengths are invalid");
+        point_sum += count;
+    }
+    if (point_sum != points.size())
+        throw std::invalid_argument("Vulkan dashed path run lengths do not cover all points");
+
+    // SSBO word layout: run count, one point count per run, then tightly
+    // packed xy float bit patterns for every point. This has no 128-byte push
+    // constant limit and lets one invocation preserve software first-hit order.
+    if (points.size() > (std::numeric_limits<std::size_t>::max() / 2U) - run_lengths.size() - 1U)
+        throw std::length_error("Vulkan dashed path geometry size overflow");
+    std::vector<std::uint32_t> words(1U + run_lengths.size() + 2U * points.size());
+    words[0] = static_cast<std::uint32_t>(run_lengths.size());
+    for (std::size_t i = 0; i < run_lengths.size(); ++i) words[1U + i] = run_lengths[i];
+    std::size_t cursor = 1U + run_lengths.size();
+    for (const auto point : points) {
+        if (!std::isfinite(point.x) || !std::isfinite(point.y))
+            throw std::invalid_argument("Vulkan dashed path points must be finite");
+        words[cursor++] = std::bit_cast<std::uint32_t>(point.x);
+        words[cursor++] = std::bit_cast<std::uint32_t>(point.y);
+    }
+    const VkDeviceSize bytes = static_cast<VkDeviceSize>(words.size() * sizeof(std::uint32_t));
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+    if (bytes > properties.limits.maxStorageBufferRange)
+        throw std::length_error("Vulkan dashed path exceeds maxStorageBufferRange");
+    if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
+        throw std::logic_error("Vulkan dashed path pass capacity exhausted");
+    const std::size_t buffer_slot = 1U + frame_batch.next_slot * kPathGeometryPassesPerSlot +
+                                    frame_batch.pass_count;
+    ensure_path_geometry_buffer(bytes, buffer_slot);
+    auto& geometry = path_geometry_buffers[buffer_slot];
+    if (!geometry.mapped)
+        throw std::logic_error("Vulkan dashed path geometry buffer is not mapped");
+    std::memcpy(geometry.mapped, words.data(), static_cast<std::size_t>(bytes));
+
+    auto& dst_image = resolve_image(destination);
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_dashed_path_descriptors(descriptors, dst_image, geometry.buffer);
+    const auto command = active_command_buffer();
+    emit_pass_sync(command, {&dst_image});
+    const VkBufferMemoryBarrier2KHR upload_barrier{
+        VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+        VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
+        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        geometry.buffer, 0, bytes};
+    emit_buffer_barriers2(command, std::span<const VkBufferMemoryBarrier2KHR>{&upload_barrier, 1});
+    std::array<Vec2, 8> vertices{};
+    for (std::size_t i = 0; i < fill_vertex_count; ++i) vertices[i] = fill_vertices[i];
+    record_fill_rect(command, descriptors, dst_image, x0, y0, x1, y1,
+                     color,
+                     Vec4{8.0f, width, static_cast<float>(fill_vertex_count), has_fill ? 1.0f : 0.0f},
+                     Vec4{0.0f}, vertices);
+    dst_image.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
 }
 
 void VulkanBackend::Impl::fill_path(runtime::RenderSurfaceHandle destination,

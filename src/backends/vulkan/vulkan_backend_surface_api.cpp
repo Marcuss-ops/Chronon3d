@@ -477,6 +477,29 @@ graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::fill_dashed_path_surface(
+    runtime::RenderSurfaceHandle destination,
+    std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
+    float width, const Color& color, std::span<const Vec2> points,
+    std::span<const std::uint32_t> run_lengths, bool has_fill,
+    std::uint32_t fill_vertex_count, const std::array<Vec2, 8>& fill_vertices) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->fill_dashed_path(destination, x0, y0, x1, y1, width, color,
+                                 points, run_lengths, has_fill, fill_vertex_count,
+                                 fill_vertices);
+    });
+#else
+    (void)destination; (void)x0; (void)y0; (void)x1; (void)y1; (void)width;
+    (void)color; (void)points; (void)run_lengths; (void)has_fill;
+    (void)fill_vertex_count; (void)fill_vertices;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::fill_dashed_path_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::fill_path_surface(
     runtime::RenderSurfaceHandle destination,
     std::span<const Vec2> vertices, const Color& color) {

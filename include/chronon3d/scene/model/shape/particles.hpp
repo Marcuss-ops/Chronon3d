@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/random/deterministic_random.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
 #include <algorithm>
@@ -12,6 +13,8 @@
 #include <vector>
 
 namespace chronon3d {
+
+enum class EmitterShape : std::uint8_t { Box, Ellipse, Edge, Path };
 
 /// Stateless CPU particle-emitter description. Samples are a pure function
 /// of this value, particle index, and absolute time; rendering frame order
@@ -29,6 +32,14 @@ struct ParticleEmitterParams {
     f32 size_max{1.0f};
     f32 gravity{0.0f};
     f32 turbulence{0.0f};
+    EmitterShape shape{EmitterShape::Box};
+    std::string path_id;
+    std::vector<Vec2> path_points;
+    std::string sprite_asset;
+    f32 sprite_scale_min{1.0f}, sprite_scale_max{1.0f};
+    f32 rotation_min{0.0f}, rotation_max{0.0f};
+    f32 angular_velocity_min{0.0f}, angular_velocity_max{0.0f};
+    BlendMode blend_mode{BlendMode::Normal};
 };
 
 struct ParticleSample {
@@ -39,6 +50,9 @@ struct ParticleSample {
     f32 size{1.0f};
     f32 age_seconds{0.0f};
     f32 life_fraction{0.0f};
+    f32 rotation{0.0f};
+    f32 angular_velocity{0.0f};
+    f32 sprite_scale{1.0f};
 };
 
 struct ParticleSampleResult {
@@ -75,14 +89,26 @@ namespace detail {
         !detail::finite_vec2(params.velocity_max) ||
         !std::isfinite(params.lifetime_min) || !std::isfinite(params.lifetime_max) ||
         !std::isfinite(params.size_min) || !std::isfinite(params.size_max) ||
-        !std::isfinite(params.gravity) || !std::isfinite(params.turbulence))
+        !std::isfinite(params.gravity) || !std::isfinite(params.turbulence) ||
+        !std::isfinite(params.sprite_scale_min) || !std::isfinite(params.sprite_scale_max) ||
+        !std::isfinite(params.rotation_min) || !std::isfinite(params.rotation_max) ||
+        !std::isfinite(params.angular_velocity_min) || !std::isfinite(params.angular_velocity_max))
         return "particle parameters must be finite";
     if (params.emitter_size.x < 0.0f || params.emitter_size.y < 0.0f ||
         params.lifetime_min <= 0.0f || params.lifetime_max < params.lifetime_min ||
         params.size_min < 0.0f || params.size_max < params.size_min ||
+        params.sprite_scale_min < 0.0f || params.sprite_scale_max < params.sprite_scale_min ||
+        params.rotation_max < params.rotation_min ||
+        params.angular_velocity_max < params.angular_velocity_min ||
         params.velocity_max.x < params.velocity_min.x ||
         params.velocity_max.y < params.velocity_min.y || params.turbulence < 0.0f)
         return "particle ranges must be ordered and non-negative where required";
+    if (params.shape == EmitterShape::Path && params.path_id.empty())
+        return "path emitter requires a path id";
+    if (params.shape == EmitterShape::Path && !params.path_points.empty() && params.path_points.size() < 2)
+        return "path emitter requires at least two resolved points";
+    for (const auto point : params.path_points)
+        if (!detail::finite_vec2(point)) return "particle path points must be finite";
     return {};
 }
 
@@ -98,8 +124,15 @@ namespace detail {
     if (!std::isfinite(seconds)) return fail("particle sample time must be finite");
     if (const auto error = validate_particle_emitter(params); !error.empty())
         return fail(error.c_str());
+    if (params.shape == EmitterShape::Path && params.path_points.size() < 2)
+        return fail("path emitter has no resolved path points");
 
     result.particles.reserve(params.count);
+    std::vector<float> path_lengths(params.path_points.size(), 0.0f);
+    for (std::size_t i=1; i<params.path_points.size(); ++i) {
+        const Vec2 d=params.path_points[i]-params.path_points[i-1];
+        path_lengths[i]=path_lengths[i-1]+std::sqrt(d.x*d.x+d.y*d.y);
+    }
     const random::Seed seed{params.seed};
     for (u32 index = 0; index < params.count; ++index) {
         const std::uint64_t stable_base = static_cast<std::uint64_t>(index) * 8U;
@@ -116,11 +149,27 @@ namespace detail {
         const auto random_at = [&](std::uint64_t slot) {
             return random::unit(seed, detail::particle_random_index(index, cycle, slot));
         };
-        const Vec2 spawn{
-            random::range(seed, detail::particle_random_index(index, cycle, 2U),
-                          -params.emitter_size.x * 0.5f, params.emitter_size.x * 0.5f),
-            random::range(seed, detail::particle_random_index(index, cycle, 3U),
-                          -params.emitter_size.y * 0.5f, params.emitter_size.y * 0.5f)};
+        const f32 u = random_at(2U), v = random_at(3U);
+        Vec2 spawn{(u-0.5f)*params.emitter_size.x, (v-0.5f)*params.emitter_size.y};
+        if (params.shape == EmitterShape::Ellipse) {
+            const f32 angle = u * 6.2831853071795864769f, radius = std::sqrt(v);
+            spawn = {std::cos(angle)*radius*params.emitter_size.x*0.5f,
+                     std::sin(angle)*radius*params.emitter_size.y*0.5f};
+        } else if (params.shape == EmitterShape::Edge) {
+            const f32 perimeter = 2.0f*(params.emitter_size.x+params.emitter_size.y);
+            const f32 distance = u*perimeter;
+            if (distance < params.emitter_size.x) spawn = {-params.emitter_size.x*0.5f+distance,-params.emitter_size.y*0.5f};
+            else if (distance < params.emitter_size.x+params.emitter_size.y) spawn = {params.emitter_size.x*0.5f,-params.emitter_size.y*0.5f+(distance-params.emitter_size.x)};
+            else if (distance < 2.0f*params.emitter_size.x+params.emitter_size.y) spawn = {params.emitter_size.x*0.5f-(distance-params.emitter_size.x-params.emitter_size.y),params.emitter_size.y*0.5f};
+            else spawn = {-params.emitter_size.x*0.5f,params.emitter_size.y*0.5f-(distance-2.0f*params.emitter_size.x-params.emitter_size.y)};
+        } else if (params.shape == EmitterShape::Path) {
+            const float target=u*path_lengths.back();
+            const auto upper=std::lower_bound(path_lengths.begin(), path_lengths.end(), target);
+            const std::size_t hi=std::clamp<std::size_t>(static_cast<std::size_t>(upper-path_lengths.begin()),1,path_lengths.size()-1);
+            const float span=path_lengths[hi]-path_lengths[hi-1];
+            const float t=span>0.0f?(target-path_lengths[hi-1])/span:0.0f;
+            spawn=params.path_points[hi-1]+(params.path_points[hi]-params.path_points[hi-1])*t;
+        }
         const Vec2 velocity{
             random::range(seed, detail::particle_random_index(index, cycle, 4U),
                           params.velocity_min.x, params.velocity_max.x),
@@ -138,14 +187,19 @@ namespace detail {
         const f32 size = random::range(seed,
             detail::particle_random_index(index, cycle, 8U),
             params.size_min, params.size_max);
+        const f32 rotation = random::range(seed, detail::particle_random_index(index, cycle, 9U), params.rotation_min, params.rotation_max);
+        const f32 angular_velocity = random::range(seed, detail::particle_random_index(index, cycle, 10U), params.angular_velocity_min, params.angular_velocity_max);
+        const f32 sprite_scale = random::range(seed, detail::particle_random_index(index, cycle, 11U), params.sprite_scale_min, params.sprite_scale_max);
         const Color color = params.color_ramp.color_stops.empty()
             ? Color{1.0f, 1.0f, 1.0f, 1.0f}
             : graphics::sample_gradient(params.color_ramp, life_fraction);
         if (!detail::finite_vec2(position) || !detail::finite_vec2(velocity) ||
-            !std::isfinite(size) || !detail::finite_color(color))
+            !std::isfinite(size) || !std::isfinite(rotation) || !std::isfinite(angular_velocity) ||
+            !std::isfinite(sprite_scale) || !detail::finite_color(color))
             return fail("particle integration produced a non-finite sample");
         result.particles.push_back(ParticleSample{
-            index, position, velocity, color, size, age, life_fraction});
+            index, position, velocity, color, size, age, life_fraction,
+            rotation + angular_velocity*age, angular_velocity, sprite_scale});
     }
     return result;
 }

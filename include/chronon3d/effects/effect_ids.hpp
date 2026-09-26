@@ -54,5 +54,10 @@ inline constexpr std::string_view DistortCornerPin = "distort.corner_pin";
 inline constexpr std::string_view DistortTwirl     = "distort.twirl";
 inline constexpr std::string_view DistortBulge     = "distort.bulge";
 inline constexpr std::string_view DistortMeshWarp  = "distort.mesh_warp";
+inline constexpr std::string_view StylizeSharpen = "sharpen";
+inline constexpr std::string_view DistortTurbulentDisplace = "distort.turbulent_displace";
+inline constexpr std::string_view DistortWaveWarp = "distort.wave_warp";
+inline constexpr std::string_view DistortRipple = "distort.ripple";
+inline constexpr std::string_view DistortDisplacementMap = "distort.displacement_map";
 
 } // namespace chronon3d::effects::ids

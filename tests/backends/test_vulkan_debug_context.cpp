@@ -3,6 +3,7 @@
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "src/backends/vulkan/debug/vulkan_debug_context.hpp"
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/backends/software/rasterizers/path_rasterizer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -183,6 +184,29 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
         PathCommand::cubic_to({12.0f, 20.0f}, {24.0f, 60.0f}, {40.0f, 40.0f})};
     stroked_path.shape.path().stroke.color = Color{0.8f, 0.2f, 0.8f, 1.0f};
 
+    RenderNode dashed_rect_path;
+    dashed_rect_path.shape.set_type(ShapeType::Path);
+    dashed_rect_path.shape.path().fill = Fill::solid_color(Color{0.1f, 0.2f, 0.3f, 1.0f});
+    dashed_rect_path.shape.path().commands = {
+        PathCommand::move_to({4.0f, 4.0f}), PathCommand::line_to({34.0f, 4.0f}),
+        PathCommand::line_to({34.0f, 28.0f}), PathCommand::line_to({4.0f, 28.0f}),
+        PathCommand::close()};
+    dashed_rect_path.shape.path().stroke.enabled = true;
+    dashed_rect_path.shape.path().stroke.width = 2.0f;
+    dashed_rect_path.shape.path().stroke.color = Color{0.9f, 0.7f, 0.2f, 1.0f};
+    dashed_rect_path.shape.path().stroke.dash_array = {7.0f, 3.0f, 2.0f};
+    dashed_rect_path.shape.path().stroke.dash_offset = 1.5f;
+
+    RenderNode dashed_open_path;
+    dashed_open_path.shape.set_type(ShapeType::Path);
+    dashed_open_path.shape.path().fill.enabled = false;
+    dashed_open_path.shape.path().commands = {
+        PathCommand::move_to({4.0f, 38.0f}), PathCommand::line_to({28.0f, 38.0f}),
+        PathCommand::line_to({28.0f, 54.0f}), PathCommand::line_to({52.0f, 54.0f})};
+    dashed_open_path.shape.path().stroke.width = 2.0f;
+    dashed_open_path.shape.path().stroke.color = Color{0.2f, 0.9f, 0.7f, 1.0f};
+    dashed_open_path.shape.path().stroke.dash_array = {5.0f, 2.0f, 1.0f};
+
     RenderNode filled_path;
     filled_path.shape.set_type(ShapeType::Path);
     filled_path.shape.path().fill = Fill::solid_color(Color{0.2f, 0.7f, 0.9f, 1.0f});
@@ -256,12 +280,104 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->draw_node(framebuffer, diagonal, state, camera, 96, 64);
     backend->draw_node(framebuffer, stroked_path, state, camera, 96, 64);
     backend->draw_node(framebuffer, filled_path, state, camera, 96, 64);
+    REQUIRE(backend->draw_node(framebuffer, dashed_rect_path, state, camera, 96, 64).ok());
+    REQUIRE(backend->draw_node(framebuffer, dashed_open_path, state, camera, 96, 64).ok());
     backend->end_frame_batch();
 
     const auto stats = backend->stats();
     // Basic fills/lines and the filled path take native passes; all nine
     // closed-shape stroke cases plus the cubic-stroke Path fail closed.
     CHECK(stats.passes_executed >= 6);
+    REQUIRE(backend->release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan long dashed polylines match the software stroke oracle") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    auto backend_base = make_vulkan_backend(0);
+    auto* backend = dynamic_cast<VulkanBackend*>(backend_base.get());
+    REQUIRE(backend != nullptr);
+
+    constexpr int width = 64;
+    constexpr int height = 24;
+    const runtime::RenderSurfaceHandle handle = 0xC3D100u;
+    const auto desc = runtime::SurfaceDesc::make(
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Generic,
+        runtime::LifetimeClass::FrameTransient,
+        runtime::ColorMetadata{});
+    REQUIRE(backend->create_surface(handle, desc).ok());
+    REQUIRE(backend->initialize_transparent_surface(handle).ok());
+
+    Framebuffer gpu(width, height);
+    gpu.set_surface_handle(handle);
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    Camera camera;
+    RenderNode node;
+    node.shape.set_type(ShapeType::Path);
+    node.shape.path().fill.enabled = false;
+    node.shape.path().stroke.width = 3.0f;
+    node.shape.path().stroke.color = Color{0.2f, 0.6f, 0.9f, 1.0f};
+    node.shape.path().stroke.dash_array = {200.0f, 1.0f};
+    node.shape.path().stroke.dash_offset = 1.5f;
+    node.shape.path().commands = {
+        PathCommand::move_to({2.0f, 2.0f}), PathCommand::line_to({10.0f, 22.0f}),
+        PathCommand::line_to({18.0f, 2.0f}), PathCommand::line_to({26.0f, 22.0f}),
+        PathCommand::line_to({34.0f, 2.0f}), PathCommand::line_to({42.0f, 22.0f}),
+        PathCommand::line_to({50.0f, 2.0f}), PathCommand::line_to({62.0f, 22.0f})};
+
+    RenderNode rectangle;
+    rectangle.shape.set_type(ShapeType::Path);
+    rectangle.shape.path().fill = Fill::solid_color(Color{0.1f, 0.25f, 0.4f, 1.0f});
+    rectangle.shape.path().stroke.width = 2.0f;
+    rectangle.shape.path().stroke.color = Color{0.9f, 0.7f, 0.2f, 1.0f};
+    rectangle.shape.path().stroke.dash_array = {110.0f, 2.0f};
+    rectangle.shape.path().stroke.dash_offset = 1.5f;
+    rectangle.shape.path().commands = {
+        PathCommand::move_to({8.0f, 4.0f}), PathCommand::line_to({36.0f, 4.0f}),
+        PathCommand::line_to({36.0f, 16.0f}), PathCommand::line_to({8.0f, 16.0f}),
+        PathCommand::close()};
+
+    RenderNode polygon;
+    polygon.shape.set_type(ShapeType::Path);
+    polygon.shape.path().fill = Fill::solid_color(Color{0.25f, 0.15f, 0.05f, 1.0f});
+    polygon.shape.path().stroke.width = 1.5f;
+    polygon.shape.path().stroke.color = Color{0.8f, 0.3f, 0.1f, 1.0f};
+    polygon.shape.path().stroke.dash_array = {70.0f, 2.0f};
+    polygon.shape.path().commands = {
+        PathCommand::move_to({10.0f, 5.0f}), PathCommand::line_to({28.0f, 5.0f}),
+        PathCommand::line_to({34.0f, 12.0f}), PathCommand::line_to({24.0f, 20.0f}),
+        PathCommand::line_to({8.0f, 16.0f}), PathCommand::close()};
+
+    Framebuffer oracle(width, height);
+    renderer::PathRasterizer::draw_path(oracle, node, state, camera, width, height);
+    renderer::PathRasterizer::draw_path(oracle, rectangle, state, camera, width, height);
+    renderer::PathRasterizer::draw_path(oracle, polygon, state, camera, width, height);
+    backend->begin_frame_batch();
+    const auto draw = backend->draw_node(gpu, node, state, camera, width, height);
+    const auto draw_rectangle = backend->draw_node(
+        gpu, rectangle, state, camera, width, height);
+    const auto draw_polygon = backend->draw_node(
+        gpu, polygon, state, camera, width, height);
+    backend->end_frame_batch();
+    REQUIRE(draw.ok());
+    REQUIRE(draw_rectangle.ok());
+    REQUIRE(draw_polygon.ok());
+
+    std::vector<float> rgba(static_cast<std::size_t>(width) * height * 4U);
+    REQUIRE(backend->download_surface(handle, rgba).ok());
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const Color expected = oracle.get_pixel(x, y);
+            const auto index = (static_cast<std::size_t>(y) * width + x) * 4U;
+            CHECK(rgba[index] == doctest::Approx(expected.r).epsilon(1e-5));
+            CHECK(rgba[index + 1] == doctest::Approx(expected.g).epsilon(1e-5));
+            CHECK(rgba[index + 2] == doctest::Approx(expected.b).epsilon(1e-5));
+            CHECK(rgba[index + 3] == doctest::Approx(expected.a).epsilon(1e-5));
+        }
+    }
     REQUIRE(backend->release_surface(handle).ok());
 }
 
