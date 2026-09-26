@@ -81,6 +81,9 @@ static inline void check_shape_assets(
         if (auto opt = resolver.resolve_lexical(p)) return opt->string();
         return p.empty() ? std::string{} : std::string{p};
     };
+    if (shape.type() == ShapeType::Mesh && shape.mesh_shape().inline_mesh) {
+        return;
+    }
     if (shape.type() == ShapeType::Image) {
         const std::string path = shape.image().path;
         if (!path.empty()) {

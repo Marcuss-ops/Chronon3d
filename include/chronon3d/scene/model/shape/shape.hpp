@@ -333,12 +333,15 @@ struct TiledImageShape {
 };
 
 /// Mesh payload — keeps the logical reference in the scene and receives
-/// prepared runtime data at the AssetResolver → RenderGraph boundary.
-/// There is no in-memory mesh escape hatch: every mesh must arrive as an
-/// `assets::PreparedMeshSourceRef` through the AssetResolver.
+/// prepared runtime data at the AssetResolver → RenderGraph boundary. The
+/// RenderPlan adapter may instead provide explicit inline triangle data; it
+/// does not create a logical asset reference or trigger I/O.
 struct MeshShape {
     assets::MeshRef reference{};
     assets::PreparedMeshSourceRef prepared{};
+    /// Optional explicit inline triangles. Used by the RenderPlan contract only;
+    /// asset-backed scene authoring continues to use PreparedMeshSourceRef.
+    std::shared_ptr<Mesh> inline_mesh{};
 };
 
 /// TextRun payload — carries a shared_ptr<TextRunShape> so TextRun has its

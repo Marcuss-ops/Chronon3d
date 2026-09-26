@@ -161,7 +161,7 @@
         "required": ["id", "type"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "type": { "enum": ["image", "video", "text", "color", "particles", "light"] },
+          "type": { "enum": ["image", "video", "text", "color", "particles", "light", "mesh"] },
           "asset": { "type": "string", "minLength": 1 },
           "source": { "type": "string", "minLength": 1 },
           "text": { "type": "string", "maxLength": 1048576 },
@@ -206,6 +206,25 @@
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
               "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+            }
+          },
+          "inline_mesh": {
+            "type": "object", "additionalProperties": false,
+            "required": ["vertices", "indices"],
+            "properties": {
+              "vertices": {
+                "type": "array", "minItems": 3, "maxItems": 250000,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["position"],
+                  "properties": {
+                    "position": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } },
+                    "normal": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number", "minimum": -1, "maximum": 1 } },
+                    "uv": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } }
+                  }
+                }
+              },
+              "indices": { "type": "array", "minItems": 3, "maxItems": 750000, "items": { "type": "integer", "minimum": 0, "maximum": 249999 } }
             }
           },
           "position": {
@@ -404,10 +423,14 @@
           {
             "if": { "properties": { "type": { "const": "particles" } }, "required": ["type"] },
             "then": { "required": ["particle_emitter"] }
-          },
-          {
-            "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] },
+          },          { "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] },
             "then": { "required": ["light"] }
+          },
+          { "if": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] },
+            "then": { "required": ["inline_mesh"], "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["source"] }] } }
+          },
+          { "if": { "required": ["inline_mesh"] },
+            "then": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] }
           }
         ]
       }

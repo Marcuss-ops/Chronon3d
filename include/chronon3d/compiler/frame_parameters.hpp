@@ -3,6 +3,7 @@
 #include <chronon3d/compiler/compiled_node.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/render_plan/inline_mesh.hpp>
 
 #include <array>
 #include <cstdint>
@@ -50,13 +51,19 @@ struct SampledShapeParameters {
     float opacity{1.0f};
 };
 
+struct SampledMeshParameters {
+    const render_plan::InlineMeshPlan* inline_mesh{nullptr};
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+};
+
 using SampledLayerPayload = std::variant<
     std::monostate,
     SampledColorParameters,
     SampledImageParameters,
     SampledVideoParameters,
     SampledTextParameters,
-    SampledShapeParameters>;
+    SampledShapeParameters,
+    SampledMeshParameters>;
 
 /// Frame-local values produced by the compiler IR sampler. This is
 /// deliberately CPU-only data: backend resources are resolved later by graph

@@ -8,6 +8,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/text/text_run_hash.hpp>
@@ -552,6 +553,19 @@ private:
             if (s.mesh_shape().prepared) {
                 seed = hash_combine(seed, hash_string(
                     s.mesh_shape().prepared->identity.cache_key()));
+            }
+            if (s.mesh_shape().inline_mesh) {
+                const auto& mesh = *s.mesh_shape().inline_mesh;
+                seed = hash_combine(seed, hash_string(mesh.name()));
+                seed = hash_combine(seed, hash_value(mesh.vertices().size()));
+                for (const auto& vertex : mesh.vertices()) {
+                    seed = hash_combine(seed, hash_vec3(vertex.position));
+                    seed = hash_combine(seed, hash_vec3(vertex.normal));
+                    seed = hash_combine(seed, hash_vec2(vertex.uv));
+                }
+                seed = hash_combine(seed, hash_value(mesh.indices().size()));
+                for (const auto index : mesh.indices())
+                    seed = hash_combine(seed, hash_value(index));
             }
             return seed;
         case ShapeType::FakeBox3D:

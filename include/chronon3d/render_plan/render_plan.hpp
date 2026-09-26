@@ -1,11 +1,13 @@
 #pragma once
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
+#include <chronon3d/render_plan/inline_mesh.hpp>
 #include <chronon3d/scene/model/shape/particles.hpp>
 #include <chronon3d/text/text_span_override.hpp>
 
@@ -24,8 +26,9 @@ namespace chronon3d::render_plan {
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
 inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment };
+enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
 enum class ShapeContentTypePlan : std::uint8_t { Rect, RoundedRect, Ellipse, Line, Path };
+enum class ShapeFillRulePlan : std::uint8_t { EvenOdd, NonZero };
 enum class ShapePathCommandTypePlan : std::uint8_t {
     MoveTo, LineTo, QuadraticTo, CubicTo, Close
 };
@@ -107,6 +110,7 @@ struct ShapeContentPlan {
     float radius{0.0f};
     std::optional<std::array<float, 4>> corner_radius;
     std::optional<std::array<float, 4>> fill_color;
+    ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
@@ -173,6 +177,20 @@ struct LayerStylePlan {
 
 // Generic concrete property track. `property` names engine properties only;
 // editorial ids (preset/unit/role/profile) are intentionally not representable.
+struct GradientKeyframePlan {
+    Frame frame{0};
+    graphics::GradientDefinition value;
+};
+
+// A complete fill gradient is sampled as one typed value per keyframe. Gradient
+// type and spread are invariant within a track; stop ramps and geometry are
+// interpolated between keys.
+struct GradientAnimationPlan {
+    std::vector<GradientKeyframePlan> keyframes;
+    std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
+};
+
 struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
@@ -293,6 +311,7 @@ struct LayerPlan {
     std::optional<LayerStylePlan> style;
     std::optional<MotionBlurPlan> motion_blur;
     std::optional<ShapeContentPlan> shape;
+    std::optional<InlineMeshPlan> inline_mesh;
     std::optional<ParticleEmitterParams> particle_emitter;
     std::optional<LightLayerPlan> light;
     struct PathMaskPlan {
@@ -302,7 +321,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -330,6 +349,11 @@ struct LayerPlan {
         float bloom_threshold{0.80f};
         float bloom_intensity{0.60f};
         float glow_intensity{0.25f};
+        std::array<float, 2> light_rays_origin{0.5f, 0.5f};
+        float light_rays_length{320.0f};
+        float light_rays_density{0.75f};
+        std::array<float, 4> light_rays_color{1.0f, 0.86f, 0.55f, 1.0f};
+        float light_rays_decay{0.92f};
         std::uint32_t seed{0};
         bool animated{false};
         bool rgb_noise{false};
@@ -400,6 +424,7 @@ struct LayerPlan {
     std::optional<TransitionPlan> transition_out;
     std::optional<FitMode> fit;
     std::optional<AnimationPlan> animation;
+    std::optional<GradientAnimationPlan> fill_gradient_animation;
     std::vector<TextAnimatorPlan> text_animators;
 
     std::optional<chronon3d::BlendMode> blend_mode;

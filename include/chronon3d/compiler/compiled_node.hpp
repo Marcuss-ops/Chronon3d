@@ -6,7 +6,7 @@ namespace chronon3d::compiler {
 
 using NodeId = std::uint32_t;
 
-enum class NodeKind : std::uint16_t { Unknown, Image, Video, Text, Color, Shape };
+enum class NodeKind : std::uint16_t { Unknown, Image, Video, Text, Color, Shape, Mesh };
 
 struct CompiledNode {
     NodeId id{0};

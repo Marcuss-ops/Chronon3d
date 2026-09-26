@@ -46,6 +46,18 @@ public:
         add_u32(bits);
     }
 
+    void add_double(double value) {
+        if (value == 0.0) value = 0.0;  // canonicalize -0
+        std::uint64_t bits = 0;
+        if (std::isnan(value)) {
+            bits = 0x7ff8000000000000ULL;
+        } else {
+            static_assert(sizeof(bits) == sizeof(value));
+            std::memcpy(&bits, &value, sizeof(bits));
+        }
+        add_u64(bits);
+    }
+
     void add_i64(std::int64_t value) {
         add_u64(static_cast<std::uint64_t>(value));
     }
@@ -119,8 +131,8 @@ void add_optional(CanonicalPlanWriter& out, const std::optional<T>& value, Add a
 // Cat-3 — the gradient identity field selection/order has ONE seat
 // (graphics::write_gradient_identity in <chronon3d/graphics/gradient.hpp>).
 // This sink only encodes that sequence into the canonical byte stream; the
-// stream is byte-identical to the historical inline lambdas, so the
-// "chronon.render-plan.content-fingerprint.v5" contract is unchanged.
+// stream is byte-identical to the historical inline lambdas; additive
+// render-plan fields are versioned by the current v8 token below.
 struct CanonicalGradientSink {
     CanonicalPlanWriter& out;
 
@@ -144,6 +156,19 @@ struct CanonicalGradientSink {
 void add_gradient(CanonicalPlanWriter& out, const graphics::GradientDefinition& value) {
     CanonicalGradientSink sink{out};
     graphics::write_gradient_identity(value, sink);
+}
+
+void add_gradient_animation(CanonicalPlanWriter& out,
+                            const GradientAnimationPlan& animation) {
+    out.add_string(animation.easing);
+    add_optional(out, animation.bezier_curve, [](auto& writer, const auto& curve) {
+        for (const auto value : curve) writer.add_float(value);
+    });
+    out.add_size(animation.keyframes.size());
+    for (const auto& key : animation.keyframes) {
+        out.add_frame(key.frame);
+        add_gradient(out, key.value);
+    }
 }
 
 void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
@@ -342,6 +367,17 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.asset);
     out.add_string(layer.source);
     out.add_string(layer.text);
+    out.add_bool(layer.inline_mesh.has_value());
+    if (layer.inline_mesh) {
+        out.add_size(layer.inline_mesh->vertices.size());
+        for (const auto& vertex : layer.inline_mesh->vertices) {
+            for (const float value : vertex.position) out.add_float(value);
+            for (const float value : vertex.normal) out.add_float(value);
+            for (const float value : vertex.uv) out.add_float(value);
+        }
+        out.add_size(layer.inline_mesh->indices.size());
+        for (const std::uint32_t index : layer.inline_mesh->indices) out.add_uint64(index);
+    }
     if (!layer.text_spans.empty()) {
       out.add_size(layer.text_spans.size());
       for (const auto& span : layer.text_spans) {
@@ -600,6 +636,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.radius);
                 out.add_float(effect.glow_intensity);
                 for (const auto value : effect.effect_color) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
+                for (const auto value : effect.light_rays_origin) out.add_float(value);
+                out.add_float(effect.light_rays_length);
+                out.add_float(effect.light_rays_density);
+                for (const auto value : effect.light_rays_color) out.add_float(value);
+                out.add_float(effect.light_rays_decay);
             } else if (effect.kind == LayerPlan::EffectKindPlan::Noise) {
                 out.add_float(effect.amount);
                 out.add_uint64(effect.seed);
@@ -698,7 +740,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         writer.add_size(animation.tracks.size());
         for (const auto& track : animation.tracks) add_track(writer, track);
     });
-
+    add_optional(out, layer.fill_gradient_animation,
+                 [](auto& writer, const GradientAnimationPlan& animation) {
+        add_gradient_animation(writer, animation);
+    });
     out.add_size(layer.text_animators.size());
     for (const auto& animator : layer.text_animators)
         add_text_animator(out, animator);
@@ -720,7 +765,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v9");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v10");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include <utility>
 
 namespace chronon3d {
@@ -219,6 +220,45 @@ LayerBuilder& LayerBuilder::mesh(std::string name, assets::MeshRef ref) {
     // attaches the immutable source later; this builder never resolves or
     // loads the filesystem asset.
     node.shape.mesh_shape().reference = assets::MeshRef{ref.path(), owner, ref.required()};
+    node.world_transform.position = {0.0f, 0.0f, 0.0f};
+    node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
+    node.surface_policy = SurfacePolicy::IntrinsicSize;
+    node.transform_policy = TransformPolicy::MatrixOnly;
+    m_layer.nodes.push_back(std::move(node));
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::inline_mesh(InlineMeshParams params) {
+    if (params.vertices.size() < 3 || params.vertices.size() > 250'000 ||
+        params.indices.size() < 3 || params.indices.size() > 750'000 ||
+        params.indices.size() % 3 != 0)
+        throw std::invalid_argument("LayerBuilder::inline_mesh: triangle geometry exceeds supported limits");
+    for (const auto index : params.indices)
+        if (index >= params.vertices.size())
+            throw std::invalid_argument("LayerBuilder::inline_mesh: index is outside the vertex array");
+    for (const auto& vertex : params.vertices) {
+        const auto bounded_finite = [](float value, float limit) {
+            return std::isfinite(value) && std::abs(value) <= limit;
+        };
+        if (!bounded_finite(vertex.position.x, 1'000'000.0f) ||
+            !bounded_finite(vertex.position.y, 1'000'000.0f) ||
+            !bounded_finite(vertex.position.z, 1'000'000.0f) ||
+            !bounded_finite(vertex.normal.x, 1.0f) ||
+            !bounded_finite(vertex.normal.y, 1.0f) ||
+            !bounded_finite(vertex.normal.z, 1.0f) ||
+            !bounded_finite(vertex.uv.x, 1'000'000.0f) ||
+            !bounded_finite(vertex.uv.y, 1'000'000.0f))
+            throw std::invalid_argument("LayerBuilder::inline_mesh: vertex components exceed the finite contract range");
+    }
+    auto* res = m_layer.nodes.get_allocator().resource();
+    RenderNode node(res);
+    node.name = std::pmr::string{params.name, res};
+    node.shape.set_type(ShapeType::Mesh);
+    node.shape.mesh_shape().inline_mesh = std::make_shared<Mesh>(params.name);
+    for (const auto& vertex : params.vertices)
+        node.shape.mesh_shape().inline_mesh->add_vertex(vertex);
+    for (const auto index : params.indices)
+        node.shape.mesh_shape().inline_mesh->add_index(index);
     node.world_transform.position = {0.0f, 0.0f, 0.0f};
     node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
     node.surface_policy = SurfacePolicy::IntrinsicSize;

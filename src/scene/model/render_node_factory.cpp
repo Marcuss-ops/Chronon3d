@@ -113,6 +113,7 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
     node.shape.path().commands = std::move(p.commands);
     node.shape.path().stroke = p.stroke;
     node.shape.path().fill = p.fill;
+    node.shape.path().fill_rule = p.fill_rule;
     node.shape.path().closed = p.closed;
     node.world_transform.position = p.pos;
     node.color = p.color;

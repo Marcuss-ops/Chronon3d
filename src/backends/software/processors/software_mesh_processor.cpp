@@ -17,8 +17,7 @@ public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         const auto& mesh_shape = node.shape.mesh_shape();
-        const auto source = mesh_shape.prepared;
-        if (!source) return;
+        if (!mesh_shape.prepared && !mesh_shape.inline_mesh) return;
 
         Color node_color = node.color.to_linear();
         node_color.a *= state.opacity;
@@ -39,37 +38,38 @@ public:
             depth_buffer = fallback_vec;
         }
 
-        // Meshes are always prepared sources: the in-memory `Mesh` escape hatch
-        // was demolished (TICKET-DEMOLITION-MESH-SHAPE-COMPAT).
-        for (const auto& part : source->parts) {
-            if (!part.geometry) continue;
-            Color color = node_color;
-            if (part.material_index &&
-                *part.material_index < source->materials.size()) {
-                const Color material =
-                    source->materials[*part.material_index].base_color_factor.to_linear();
-                color = Color{
-                    node_color.r * material.r,
-                    node_color.g * material.g,
-                    node_color.b * material.b,
-                    node_color.a * material.a};
-            }
+        if (mesh_shape.inline_mesh) {
             chronon3d::renderer::render_mesh_filled(
-                fb, *part.geometry, state.matrix, view, projection, color,
+                fb, *mesh_shape.inline_mesh, state.matrix, view, projection, node_color,
                 depth_buffer, camera.near_plane, camera.far_plane);
+        }
+        if (mesh_shape.prepared) {
+            for (const auto& part : mesh_shape.prepared->parts) {
+                if (!part.geometry) continue;
+                Color color = node_color;
+                if (part.material_index &&
+                    *part.material_index < mesh_shape.prepared->materials.size()) {
+                    const Color material = mesh_shape.prepared->materials[*part.material_index].base_color_factor.to_linear();
+                    color = Color{node_color.r * material.r, node_color.g * material.g,
+                                  node_color.b * material.b, node_color.a * material.a};
+                }
+                chronon3d::renderer::render_mesh_filled(
+                    fb, *part.geometry, state.matrix, view, projection, color,
+                    depth_buffer, camera.near_plane, camera.far_plane);
+            }
         }
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         const auto& mesh_shape = shape.mesh_shape();
-        if (!mesh_shape.prepared) return {0, 0, 0, 0};
+        if (!mesh_shape.prepared && !mesh_shape.inline_mesh) return {0, 0, 0, 0};
 
         raster::BBox result{0, 0, 0, 0};
         bool has_bbox = false;
-        for (const auto& part : mesh_shape.prepared->parts) {
-            if (!part.geometry || part.geometry->vertices().empty()) continue;
-            const auto part_bbox = bbox_for_mesh(*part.geometry, model, spread);
-            if (part_bbox.is_empty()) continue;
+        const auto merge_bbox = [&](const Mesh& mesh) {
+            if (mesh.vertices().empty()) return;
+            const auto part_bbox = bbox_for_mesh(mesh, model, spread);
+            if (part_bbox.is_empty()) return;
             if (!has_bbox) {
                 result = part_bbox;
                 has_bbox = true;
@@ -79,7 +79,11 @@ public:
                 result.x1 = std::max(result.x1, part_bbox.x1);
                 result.y1 = std::max(result.y1, part_bbox.y1);
             }
-        }
+        };
+        if (mesh_shape.inline_mesh) merge_bbox(*mesh_shape.inline_mesh);
+        if (mesh_shape.prepared)
+            for (const auto& part : mesh_shape.prepared->parts)
+                if (part.geometry) merge_bbox(*part.geometry);
         return has_bbox ? result : raster::BBox{0, 0, 0, 0};
     }
 

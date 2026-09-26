@@ -191,7 +191,7 @@ struct CompiledGradient {
 //   - render-plan content fingerprint:  src/render_plan/fingerprint.cpp
 //
 // Field selection AND order are part of the published fingerprint contract
-// ("chronon.render-plan.content-fingerprint.v5"): never reorder or extend
+// ("chronon3d.render-plan.content-fingerprint.v8"): never reorder or extend
 // this sequence without bumping that version token in fingerprint.cpp.
 //
 // Sink contract: `sink(field)` accepts GradientType, GradientSpread, Vec2,

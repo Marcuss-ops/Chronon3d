@@ -186,6 +186,8 @@ public:
     /// Add a logical mesh dependency and an unloaded Mesh render node.
     /// No filesystem access, parsing, or runtime resolution occurs here.
     LayerBuilder& mesh(std::string name, assets::MeshRef ref);
+    /// Add explicit in-memory static triangle geometry; no asset lookup occurs.
+    LayerBuilder& inline_mesh(InlineMeshParams params);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams params);
 
     // Canonical simple-text path.

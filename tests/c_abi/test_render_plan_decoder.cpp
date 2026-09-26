@@ -511,6 +511,162 @@ TEST_CASE("render plan decodes deterministic noise and procedural background eff
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
 }
 
+TEST_CASE("render plan V3 decodes bounded LightRays parameters and fingerprints each control") {
+    const auto rays_layer = nlohmann::json::parse(R"JSON({
+      "id":"rays","type":"color","color":[0,0,0,1],
+      "effects":[{"type":"light_rays","origin":[0.25,0.75],
+        "length":640,"density":1.5,"color":[1,0.8,0.4,0.9],"decay":0.8}]
+    })JSON");
+    auto source = render_plan_test::base_plan(nlohmann::json::array({rays_layer}));
+
+    // V2 remains closed: this V3-only effect is rejected when the producer
+    // explicitly labels the same payload as V2.
+    auto v2_source = source;
+    v2_source["schema"] = "chronon.render-plan.v2";
+    v2_source["version"] = 2;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(v2_source).has_value());
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    const auto& effect = decoded->layers[0].effects[0];
+    CHECK(effect.kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::LightRays);
+    CHECK(effect.light_rays_origin[0] == doctest::Approx(0.25f));
+    CHECK(effect.light_rays_origin[1] == doctest::Approx(0.75f));
+    CHECK(effect.light_rays_length == doctest::Approx(640.0f));
+    CHECK(effect.light_rays_density == doctest::Approx(1.5f));
+    CHECK(effect.light_rays_color[2] == doctest::Approx(0.4f));
+    CHECK(effect.light_rays_decay == doctest::Approx(0.8f));
+
+    const auto original_fingerprint = decoded->content_fingerprint;
+    const std::vector<std::pair<std::string, nlohmann::json>> changed_values{
+        {"origin", nlohmann::json::array({0.5, 0.5})},
+        {"length", nlohmann::json(320.0)}, {"density", nlohmann::json(2.0)},
+        {"color", nlohmann::json::array({0.5, 0.8, 0.4, 0.9})},
+        {"decay", nlohmann::json(0.7)}
+    };
+    for (const auto& [field, value] : changed_values) {
+        auto changed = source;
+        changed["layers"][0]["effects"][0][field] = value;
+        const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+        REQUIRE(changed_plan.has_value());
+        CHECK(changed_plan->content_fingerprint != original_fingerprint);
+    }
+
+    for (const auto& invalid : std::vector<nlohmann::json>{
+             {{"origin", nlohmann::json::array({-0.01, 0.5})}},
+             {{"origin", nlohmann::json::array({0.5, 1.01})}},
+             {{"length", 100001}}, {{"density", 8.01}},
+             {{"decay", -0.01}},
+             {{"color", nlohmann::json::array({1.0, 0.0, 0.0, 1.01})}}}) {
+        auto malformed = source;
+        for (auto it = invalid.begin(); it != invalid.end(); ++it)
+            malformed["layers"][0]["effects"][0][it.key()] = it.value();
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(malformed).has_value());
+    }
+}
+
+TEST_CASE("render plan V3 decodes animated solid fill and sorts keyframes") {
+    const auto color_layer = nlohmann::json::parse(R"JSON({
+      "id":"color","type":"color","color":[0,0,0,1],
+      "animation":{"tracks":[{"property":"fill_color","keyframes":[
+        {"frame":8,"value":[1,0,0,1]}, {"frame":0,"value":[0,0,1,1]}]}]}
+    })JSON");
+    auto source = render_plan_test::base_plan(nlohmann::json::array({color_layer}));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    const auto& keys = decoded->layers[0].animation->tracks[0].keyframes;
+    REQUIRE(keys.size() == 2);
+    CHECK(keys[0].frame == chronon3d::Frame{0});
+    CHECK(keys[1].frame == chronon3d::Frame{8});
+
+    auto duplicate = source;
+    duplicate["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["frame"] = 8;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(duplicate).has_value());
+}
+
+TEST_CASE("render plan V3 decodes typed built-in layer transitions and fingerprints parameters") {
+    const auto transition_layer = nlohmann::json::parse(R"JSON({
+      "id":"intro","type":"color","color":[1,1,1,1],
+      "transition_in":{"id":"slide","kind":"slide","duration_frames":15,"delay_frames":3,
+        "direction":"left","easing":"smoothstep","params":{"distance":0.75}},
+      "transition_out":{"id":"flash","kind":"flash","duration_frames":8,"params":{"color":"#FF8040"}}
+    })JSON");
+    auto source = render_plan_test::base_plan(nlohmann::json::array({transition_layer}));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].transition_in.has_value());
+    CHECK(decoded->layers[0].transition_in->kind == "slide");
+    CHECK(decoded->layers[0].transition_in->duration_frames == chronon3d::Frame{15});
+    CHECK(decoded->layers[0].transition_in->delay_frames == chronon3d::Frame{3});
+    CHECK(decoded->layers[0].transition_in->direction == "left");
+    CHECK(decoded->layers[0].transition_in->easing == "smoothstep");
+    CHECK(decoded->layers[0].transition_in->distance == doctest::Approx(0.75f));
+    REQUIRE(decoded->layers[0].transition_out.has_value());
+    CHECK(decoded->layers[0].transition_out->kind == "flash");
+    CHECK(decoded->layers[0].transition_out->color[1] == doctest::Approx(0.5019608f));
+    const auto original_fingerprint = decoded->content_fingerprint;
+
+    source["layers"][0]["transition_in"]["params"]["distance"] = 0.5;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != original_fingerprint);
+
+    source["layers"][0]["transition_in"]["params"]["unknown"] = 1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
+    const std::vector<std::string> transition_ids{
+        "none", "crossfade", "slide", "wipe_linear", "smooth_wipe",
+        "circle_iris", "flash", "procedural_remotion", "remotion"};
+    for (const auto& id : transition_ids) {
+        auto source = render_plan_test::base_plan(nlohmann::json::array({
+            {{"id", "transition-layer"}, {"type", "color"},
+             {"color", {1.0, 1.0, 1.0, 1.0}},
+             {"transition_in", {{"kind", id}, {"duration_frames", 1}}}}
+        }));
+        const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+        INFO("built-in transition id: " << id);
+        REQUIRE(decoded.has_value());
+        REQUIRE(decoded->layers[0].transition_in.has_value());
+        CHECK(decoded->layers[0].transition_in->kind == id);
+    }
+}
+
+TEST_CASE("render plan V3 animates gradient stops and rejects incompatible gradient tracks") {
+    auto first = render_plan_test::gradient();
+    auto second = first;
+    second["start"] = {0.2, 0.0};
+    second["end"] = {0.8, 0.0};
+    second["color_stops"][0]["color"] = {0.0, 1.0, 0.0, 1.0};
+    auto source = render_plan_test::base_plan(nlohmann::json::array({
+        render_plan_test::shape_layer({{"type", "rect"}, {"fill", first}})
+    }));
+    source["layers"][0]["fill_gradient_animation"] = {
+        {"easing", "linear"},
+        {"keyframes", nlohmann::json::array({
+            {{"frame", 0}, {"value", first}},
+            {{"frame", 8}, {"value", second}}
+        })}
+    };
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].fill_gradient_animation.has_value());
+    const auto fingerprint = decoded->content_fingerprint;
+    source["layers"][0]["fill_gradient_animation"]["keyframes"][1]["value"]["start"][0] = 0.3;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != fingerprint);
+
+    source["layers"][0]["fill_gradient_animation"]["keyframes"][1]["value"]["spread"] = "pad";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
 TEST_CASE("render plan requires adjustment layers to own only an effect stack") {
     const auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
@@ -528,9 +684,28 @@ TEST_CASE("render plan requires adjustment layers to own only an effect stack") 
     auto empty = source;
     empty["layers"][0]["effects"] = nlohmann::json::array();
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(empty).has_value());
-    auto drawable = source;
-    drawable["layers"][0]["text"] = "must not draw";
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(drawable).has_value());
+    const std::vector<std::pair<std::string, nlohmann::json>> forbidden_fields{
+        {"asset", "asset"}, {"source", "source"}, {"text", "must not draw"},
+        {"color", nlohmann::json::array({0, 0, 0, 1})}, {"shape", nlohmann::json::object()},
+        {"size", nlohmann::json::array({10, 10})}, {"particle_emitter", nlohmann::json::object()},
+        {"light", nlohmann::json::object()}, {"inline_mesh", nlohmann::json::object()},
+        {"position", nlohmann::json::array({0, 0})}, {"rotation", nlohmann::json::array({0})},
+        {"scale", nlohmann::json::array({1, 1})}, {"animation", nlohmann::json::object()},
+        {"text_animators", nlohmann::json::array()}, {"spans", nlohmann::json::array()},
+        {"style", nlohmann::json::object()}, {"fill_gradient_animation", nlohmann::json::object()},
+        {"motion_blur", nlohmann::json::object()}, {"mask", nlohmann::json::object()},
+        {"safe_insets", nlohmann::json::object()}, {"time_remap", nlohmann::json::object()},
+        {"track_matte", nlohmann::json::object()}, {"parent", "other"},
+        {"transition_in", nlohmann::json::object()}, {"transition_out", nlohmann::json::object()},
+        {"enable_3d", true}, {"screen_space", true}, {"depth_role", "overlay"},
+        {"depth_offset", 2}, {"radius", 2}, {"start_frame", 0}, {"duration_frames", 1},
+        {"fit", "cover"}, {"blend_mode", "normal"}, {"opacity", 1}, {"loop", true}};
+    for (const auto& [field, payload] : forbidden_fields) {
+        auto invalid = source;
+        invalid["layers"][0][field] = payload;
+        INFO("forbidden adjustment-layer field: " << field);
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid).has_value());
+    }
 }
 
 TEST_CASE("render plan decoder decodes concrete primitive layers") {

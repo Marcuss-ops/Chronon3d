@@ -9,6 +9,7 @@
 #include <nlohmann/json-schema.hpp>
 
 #include <sstream>
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -71,6 +72,10 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         if (!layer.is_object()) continue;
         if (layer.contains("animation"))
             strip_per_key_timing_for_v2_projection(layer["animation"]);
+        if (layer.value("type", std::string{}) == "mesh") {
+            layer["type"] = "color";
+            if (!layer.contains("color")) layer["color"] = {1.0, 1.0, 1.0, 1.0};
+        }
         const bool shape_layer = layer.value("type", std::string{}) == "shape";
         const bool adjustment_layer = layer.value("type", std::string{}) == "adjustment";
         if (shape_layer || adjustment_layer) {
@@ -107,7 +112,22 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
                 if (!stroke.contains("width")) stroke["width"] = 0.0;
             }
         }
+        // Layer-level fill tracks are V3 extensions. Remove only these tracks
+        // from the frozen V2 projection while retaining validation of all
+        // shared animation properties.
+        layer.erase("fill_gradient_animation");
+        layer.erase("transition_in");
+        layer.erase("transition_out");
+        if (layer.contains("animation") && layer["animation"].is_object() &&
+            layer["animation"].contains("tracks") && layer["animation"]["tracks"].is_array()) {
+            auto& tracks = layer["animation"]["tracks"];
+            tracks.erase(std::remove_if(tracks.begin(), tracks.end(), [](const auto& track) {
+                return track.is_object() && track.value("property", std::string{}) == "fill_color";
+            }), tracks.end());
+            if (tracks.empty()) layer.erase("animation");
+        }
         layer.erase("shape");
+        layer.erase("inline_mesh");
         layer.erase("parent");
         layer.erase("track_matte");
         layer.erase("time_remap");

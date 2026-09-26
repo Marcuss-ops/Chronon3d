@@ -1,11 +1,13 @@
 #include "render_plan_decoder_detail.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
 #include <chronon3d/scene/model/shape/path_operator.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <array>
 #include <cstdint>
 #include <string_view>
@@ -146,6 +148,20 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
             if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
                 throw std::runtime_error("transition color components must be finite in [0, 1]");
     return plan;
+}
+
+GradientAnimationPlan decode_gradient_animation(const nlohmann::json& value) {
+    GradientAnimationPlan animation;
+    animation.easing = value.value("easing", std::string{"linear"});
+    animation.bezier_curve = decode_bezier_curve(
+        value, animation.easing, "fill_gradient_animation");
+    for (const auto& key_value : value.at("keyframes")) {
+        GradientKeyframePlan key;
+        key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
+        key.value = decode_gradient_definition(key_value.at("value"));
+        animation.keyframes.push_back(std::move(key));
+    }
+    return animation;
 }
 
 TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
@@ -372,6 +388,66 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     }
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
+    if (layer.type == LayerType::Mesh) {
+        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "mask", "text_animators", "spans", "fill_gradient_animation"})
+            if (value.contains(key))
+                throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
+        if (value.contains("animation") && value.at("animation").is_object() &&
+            value.at("animation").contains("tracks") && !value.at("animation").at("tracks").empty())
+            throw std::runtime_error("mesh layers cannot contain per-vertex animation tracks");
+    }
+    if (layer.type == LayerType::Mesh && (!layer.asset.empty() || !layer.source.empty()))
+        throw std::runtime_error("mesh layers use inline geometry and cannot also carry asset or source references");
+    if (value.contains("inline_mesh")) {
+        if (layer.type != LayerType::Mesh)
+            throw std::runtime_error("inline_mesh is only valid for mesh layers");
+        const auto& raw_mesh = value.at("inline_mesh");
+        InlineMeshPlan mesh;
+        const auto& vertices = raw_mesh.at("vertices");
+        if (!vertices.is_array() || vertices.size() < 3 || vertices.size() > kInlineMeshMaxVertices)
+            throw std::runtime_error("inline_mesh.vertices count must be in [3, 250000]");
+        mesh.vertices.reserve(vertices.size());
+        for (const auto& raw_vertex : vertices) {
+            InlineMeshVertex vertex;
+            const auto read_components = [](const nlohmann::json& raw, auto& destination,
+                                            const char* field, float limit) {
+                if (!raw.is_array() || raw.size() != destination.size())
+                    throw std::runtime_error(std::string("inline_mesh vertex ") + field +
+                                             " has an invalid component count");
+                for (std::size_t i = 0; i < destination.size(); ++i) {
+                    destination[i] = raw.at(i).get<float>();
+                    if (!std::isfinite(destination[i]) || std::abs(destination[i]) > limit)
+                        throw std::runtime_error(std::string("inline_mesh vertex ") + field +
+                                                 " components are outside the finite contract range");
+                }
+            };
+            read_components(raw_vertex.at("position"), vertex.position, "position", 1'000'000.0f);
+            if (raw_vertex.contains("normal"))
+                read_components(raw_vertex.at("normal"), vertex.normal, "normal", 1.0f);
+            if (raw_vertex.contains("uv"))
+                read_components(raw_vertex.at("uv"), vertex.uv, "uv", 1'000'000.0f);
+            mesh.vertices.push_back(vertex);
+        }
+        const auto& indices = raw_mesh.at("indices");
+        if (!indices.is_array() || indices.size() < 3 ||
+            indices.size() > kInlineMeshMaxIndices || indices.size() % 3 != 0)
+            throw std::runtime_error("inline_mesh.indices count must be divisible by three and in [3, 750000]");
+        mesh.indices.reserve(indices.size());
+        for (const auto& raw_index : indices) {
+            if (!raw_index.is_number_unsigned() &&
+                (!raw_index.is_number_integer() || raw_index.get<std::int64_t>() < 0))
+                throw std::runtime_error("inline_mesh indices must be non-negative integers");
+            const auto index = raw_index.get<std::uint64_t>();
+            if (index > std::numeric_limits<std::uint32_t>::max())
+                throw std::runtime_error("inline_mesh index exceeds uint32 range");
+            if (index >= mesh.vertices.size())
+                throw std::runtime_error("inline_mesh index is outside the vertex array");
+            mesh.indices.push_back(static_cast<std::uint32_t>(index));
+        }
+        layer.inline_mesh = std::move(mesh);
+    } else if (layer.type == LayerType::Mesh) {
+        throw std::runtime_error("mesh layers require inline_mesh geometry");
+    }
     layer.text = value.value("text", std::string{});
     if (value.contains("spans")) {
         if (layer.type != LayerType::Text)
@@ -482,6 +558,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             if (detail::invalid_logical_path(*shape.lottie_asset) ||
                 std::filesystem::path(*shape.lottie_asset).extension() != ".json")
                 throw std::runtime_error("shape.lottie must be a relative logical .json path");
+        }
+
+        if (raw_shape.contains("fill_rule")) {
+            if (shape.type != ShapeContentTypePlan::Path)
+                throw std::runtime_error("shape.fill_rule is only valid for path shapes");
+            const auto fill_rule = raw_shape.at("fill_rule").get<std::string>();
+            if (fill_rule == "even_odd") shape.fill_rule = ShapeFillRulePlan::EvenOdd;
+            else if (fill_rule == "non_zero") shape.fill_rule = ShapeFillRulePlan::NonZero;
+            else throw std::runtime_error("shape.fill_rule must be 'even_odd' or 'non_zero'");
         }
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
@@ -974,6 +1059,40 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         }
         layer.shape = std::move(shape);
     }
+    if (value.contains("fill_gradient_animation")) {
+        if (layer.animation && std::any_of(layer.animation->tracks.begin(),
+                layer.animation->tracks.end(), [](const AnimationTrackPlan& track) {
+                    return track.property == "fill_color";
+                }))
+            throw std::runtime_error(
+                "fill_color and fill_gradient_animation tracks are mutually exclusive");
+        if (layer.type != LayerType::Shape || !layer.shape ||
+            layer.shape->type == ShapeContentTypePlan::Line ||
+            layer.shape->type == ShapeContentTypePlan::Path ||
+            !layer.shape->gradient) {
+            throw std::runtime_error(
+                "fill_gradient_animation requires a filled rect, rounded_rect, or ellipse shape");
+        }
+        auto animation = decode_gradient_animation(value.at("fill_gradient_animation"));
+        if (animation.keyframes.empty())
+            throw std::runtime_error("fill_gradient_animation requires keyframes");
+        const auto& base = *layer.shape->gradient;
+        const auto compatible = [&](const graphics::GradientDefinition& candidate) {
+            return candidate.type == base.type && candidate.spread == base.spread;
+        };
+        for (const auto& key : animation.keyframes) {
+            if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
+                !compatible(key.value))
+                throw std::runtime_error(
+                    "fill gradient keyframes must use the base gradient type and spread");
+        }
+        std::stable_sort(animation.keyframes.begin(), animation.keyframes.end(),
+            [](const auto& a, const auto& b) { return a.frame < b.frame; });
+        for (std::size_t index = 1; index < animation.keyframes.size(); ++index)
+            if (animation.keyframes[index - 1].frame == animation.keyframes[index].frame)
+                throw std::runtime_error("fill gradient keyframe frames must be unique");
+        layer.fill_gradient_animation = std::move(animation);
+    }
     if (value.contains("mask")) {
         const auto& raw_mask = value.at("mask");
         if (raw_mask.value("type", std::string{}) != "path")
@@ -1207,6 +1326,39 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
                     !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
                     throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
+            } else if (kind == "light_rays") {
+                effect.kind = LayerPlan::EffectKindPlan::LightRays;
+                if (raw_effect.contains("origin")) {
+                    const auto& origin = raw_effect.at("origin");
+                    if (!origin.is_array() || origin.size() != 2)
+                        throw std::runtime_error("Light rays origin must contain [x, y]");
+                    effect.light_rays_origin = {origin[0].get<float>(), origin[1].get<float>()};
+                }
+                effect.light_rays_length = raw_effect.value("length", 320.0f);
+                effect.light_rays_density = raw_effect.value("density", 0.75f);
+                effect.light_rays_decay = raw_effect.value("decay", 0.92f);
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Light rays color must contain RGBA");
+                    for (std::size_t i = 0; i < 4; ++i)
+                        effect.light_rays_color[i] = color[i].get<float>();
+                }
+                if (!std::isfinite(effect.light_rays_origin[0]) ||
+                    !std::isfinite(effect.light_rays_origin[1]) ||
+                    !std::isfinite(effect.light_rays_length) || effect.light_rays_length < 0.0f ||
+                    effect.light_rays_length > 100000.0f ||
+                    effect.light_rays_origin[0] < 0.0f || effect.light_rays_origin[0] > 1.0f ||
+                    effect.light_rays_origin[1] < 0.0f || effect.light_rays_origin[1] > 1.0f ||
+                    !std::isfinite(effect.light_rays_density) || effect.light_rays_density < 0.0f ||
+                    effect.light_rays_density > 8.0f ||
+                    !std::isfinite(effect.light_rays_decay) || effect.light_rays_decay < 0.0f ||
+                    effect.light_rays_decay > 1.0f ||
+                    std::any_of(effect.light_rays_color.begin(), effect.light_rays_color.end(),
+                        [](float component) {
+                            return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                        }))
+                    throw std::runtime_error("Light rays parameters are outside supported finite ranges");
             } else if (kind == "noise") {
                 effect.kind = LayerPlan::EffectKindPlan::Noise;
                 effect.amount = raw_effect.value("amount", 0.08f);
@@ -1369,12 +1521,13 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (layer.type == LayerType::Adjustment) {
         if (layer.effects.empty())
             throw std::runtime_error("adjustment layers require at least one effect");
-        for (const auto* content_key : {"asset", "source", "text", "shape",
-                                        "particle_emitter", "light"}) {
-            if (value.contains(content_key))
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            if (it.key() != "id" && it.key() != "type" && it.key() != "effects")
                 throw std::runtime_error(
-                    std::string("adjustment layers cannot contain '") + content_key + "'");
+                    "adjustment layers support only 'id', 'type', and a non-empty 'effects' stack; found '" +
+                    it.key() + "'");
         }
+        layer.type = LayerType::Adjustment;
     }
     if (value.contains("position")) {
         const auto& position = value.at("position");
@@ -1555,13 +1708,56 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         layer.animation = std::move(animation);
     }
     if (layer.animation) {
+        for (auto& track : layer.animation->tracks) {
+            if (track.property != "fill_color") continue;
+            std::stable_sort(track.keyframes.begin(), track.keyframes.end(),
+                [](const auto& left, const auto& right) {
+                    return left.frame < right.frame;
+                });
+        }
+        const AnimationTrackPlan* fill_color_track = nullptr;
         for (const auto& track : layer.animation->tracks) {
-            if (track.property != "stroke_dash_offset") continue;
-            if (!layer.shape || !layer.shape->stroke)
-                throw std::runtime_error("stroke_dash_offset animation requires a shape with a stroke");
-            for (const auto& key : track.keyframes)
-                if (key.value.size()!=1 || !std::isfinite(key.value.front()))
-                    throw std::runtime_error("stroke_dash_offset keyframes must be finite scalar values");
+            if (track.property == "stroke_dash_offset") {
+                if (!layer.shape || !layer.shape->stroke)
+                    throw std::runtime_error("stroke_dash_offset animation requires a shape with a stroke");
+                for (const auto& key : track.keyframes)
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()))
+                        throw std::runtime_error("stroke_dash_offset keyframes must be finite scalar values");
+            } else if (track.property == "fill_color") {
+                if (fill_color_track)
+                    throw std::runtime_error("layer has duplicate fill_color animation tracks");
+                fill_color_track = &track;
+                if (layer.fill_gradient_animation)
+                    throw std::runtime_error(
+                        "fill_color and fill_gradient_animation tracks are mutually exclusive");
+                if (layer.type == LayerType::Color) {
+                    // Color layers use this as their solid paint.
+                } else if (layer.type == LayerType::Shape && layer.shape &&
+                           (layer.shape->type == ShapeContentTypePlan::Rect ||
+                            layer.shape->type == ShapeContentTypePlan::RoundedRect ||
+                            layer.shape->type == ShapeContentTypePlan::Ellipse) &&
+                           layer.shape->fill_color && !layer.shape->gradient) {
+                    // Only explicit solid fills are animatable; gradients use
+                    // the typed fill_gradient_animation track instead.
+                } else {
+                    throw std::runtime_error(
+                        "fill_color animation requires a color layer or a solid filled rect, rounded_rect, or ellipse");
+                }
+                std::vector<std::int64_t> frames;
+                frames.reserve(track.keyframes.size());
+                for (const auto& key : track.keyframes) {
+                    if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
+                        key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                        [](float component) {
+                            return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                        }))
+                        throw std::runtime_error("fill_color keyframes require bounded frames and RGBA values in [0, 1]");
+                    frames.push_back(key.frame.integral());
+                }
+                std::sort(frames.begin(), frames.end());
+                if (std::adjacent_find(frames.begin(), frames.end()) != frames.end())
+                    throw std::runtime_error("fill_color keyframe frames must be unique");
+            }
         }
     }
     if (value.contains("motion_blur")) {
