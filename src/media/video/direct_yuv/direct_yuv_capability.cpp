@@ -3,6 +3,7 @@
 
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 
 #include <cmath>
@@ -53,6 +54,9 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
         query.mask_enabled = layer.mask.enabled();
         query.projection_enabled = layer.uses_2_5d_projection;
         query.blend = layer.blend_mode;
+        query.rgba_post_effects = std::any_of(
+            layer.effects().begin(), layer.effects().end(),
+            [](const EffectInstance& effect) { return effect.enabled; });
         // The text contract classifier owns the text-specific reason so the
         // reported class stays precise; the declared matrix owns the lane
         // decision it feeds.
