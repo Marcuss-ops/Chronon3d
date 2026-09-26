@@ -35,6 +35,26 @@ std::vector<validation::RawSchemaError> validate_against(
     return std::move(handler.errors);
 }
 
+void strip_per_key_timing_for_v2_projection(nlohmann::json& value,
+                                             bool keyframes = false) {
+    if (value.is_object()) {
+        for (auto it = value.begin(); it != value.end(); ++it)
+            strip_per_key_timing_for_v2_projection(it.value(), it.key() == "keyframes");
+    } else if (value.is_array()) {
+        if (keyframes) {
+            for (auto& key : value) {
+                if (key.is_object()) {
+                    key.erase("interpolation");
+                    key.erase("easing");
+                    key.erase("bezier_curve");
+                }
+            }
+        }
+        for (auto& item : value)
+            strip_per_key_timing_for_v2_projection(item, false);
+    }
+}
+
 nlohmann::json v2_projection(const nlohmann::json& root) {
     nlohmann::json projected = root;
     projected.erase("temporal_motion_blur");
@@ -44,9 +64,13 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
     projected["version"] = 2;
     if (!projected.contains("layers") || !projected["layers"].is_array())
         return projected;
+    if (projected.contains("camera_animation"))
+        strip_per_key_timing_for_v2_projection(projected["camera_animation"]);
 
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;
+        if (layer.contains("animation"))
+            strip_per_key_timing_for_v2_projection(layer["animation"]);
         const bool shape_layer = layer.value("type", std::string{}) == "shape";
         const bool adjustment_layer = layer.value("type", std::string{}) == "adjustment";
         if (shape_layer || adjustment_layer) {

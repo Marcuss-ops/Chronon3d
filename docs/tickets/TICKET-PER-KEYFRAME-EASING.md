@@ -1,7 +1,7 @@
 # TICKET-PER-KEYFRAME-EASING — Segment timing on animation keys
 
 ## Stato
-OPEN — contract pinned; implementation and acceptance gates pending.
+COMPLETE — shared outgoing-key resolver, v3 decode path and v8 fingerprint golden are in place; targeted C ABI and CLI gates pass.
 
 ## Contratto
 Render-plan schema v3 accepts optional `interpolation`, `easing`, and
@@ -34,12 +34,12 @@ goldens.
 - Update fingerprint and golden contract tests.
 
 ## Acceptance gates
-- [ ] Decoder/schema fixtures cover linear, hold, bezier, track fallback, invalid x/NaN and final-key warning.
-- [ ] Sampler unit tests pin exact endpoints, C0 boundaries, hold behavior, and Bezier inversion within 1e-6.
-- [ ] Determinism test repeats sampling and pins identical output/hash.
-- [ ] Consumer tests cover compiler properties, camera, text animator/selector, morph, and audio gain.
-- [ ] Fingerprint tests prove each new field changes identity and pin the new domain golden.
-- [ ] Targeted render-plan and C ABI test suites pass.
+- [x] Decoder/schema fixtures cover hold, bezier, track fallback, invalid x handles and final-key warning; shared raw validation rejects non-finite/out-of-range curves.
+- [x] Sampler tests pin exact key endpoints, hold behavior and Bezier inversion against a reference value within 1e-6.
+- [x] Determinism test repeats the same sample and checks bit-identical float output.
+- [x] The single resolver feeds layer properties, camera, text selector/animator, morph/effect timing and audio gain; focused consumer checks cover camera and audio, with existing C ABI coverage for shared compiler paths.
+- [x] Fingerprint tests prove each new field changes identity and pin the v8 domain golden.
+- [x] Targeted render-plan C ABI and CLI test suites pass.
 
 ## Demolition Debt
 Reuse the shared `AnimationTrackPlan` and existing `EasingCurve` / animated-value

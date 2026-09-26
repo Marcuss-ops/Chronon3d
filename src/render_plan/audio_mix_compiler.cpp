@@ -82,12 +82,12 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
                 static_cast<std::size_t>(canvas.duration.integral()), clip.gain_db);
             if (clip.gain) {
                 chronon3d::AnimatedValue<float> gain{clip.gain_db};
-                const auto easing = detail::animation_track_easing(*clip.gain);
                 for (const auto& key : clip.gain->keyframes) {
                     if (key.value.size() != 1 || !std::isfinite(key.value.front()))
                         return AudioMixCompileError{"audio.clips[" + std::to_string(index) + "].gain",
                             "animated gain values must be finite scalars", "invalid_audio_gain_track"};
-                    gain.add_keyframe(key.frame, key.value.front(), easing);
+                    gain.add_keyframe(key.frame, key.value.front(),
+                                      detail::animation_keyframe_easing(*clip.gain, key));
                 }
                 for (std::int64_t frame = 0; frame < canvas.duration.integral(); ++frame)
                     input.gain_db_per_frame[static_cast<std::size_t>(frame)] =

@@ -100,6 +100,13 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         out.add_frame(key.frame);
         out.add_size(key.value.size());
         for (const auto value : key.value) out.add_float(value);
+        out.add_bool(key.interpolation.has_value());
+        if (key.interpolation) out.add_string(*key.interpolation);
+        out.add_bool(key.easing.has_value());
+        if (key.easing) out.add_string(*key.easing);
+        out.add_bool(key.bezier_curve.has_value());
+        if (key.bezier_curve)
+            for (const auto value : *key.bezier_curve) out.add_float(value);
     }
 }
 
@@ -259,6 +266,13 @@ void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
         out.add_frame(key.frame);
         out.add_size(key.value.size());
         for (const auto value : key.value) out.add_float(value);
+        out.add_bool(key.interpolation.has_value());
+        if (key.interpolation) out.add_string(*key.interpolation);
+        out.add_bool(key.easing.has_value());
+        if (key.easing) out.add_string(*key.easing);
+        out.add_bool(key.bezier_curve.has_value());
+        if (key.bezier_curve)
+            for (const auto value : *key.bezier_curve) out.add_float(value);
     }
 }
 
@@ -676,7 +690,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v7");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v8");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

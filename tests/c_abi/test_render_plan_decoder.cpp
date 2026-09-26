@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 
 #include "test_render_plan_shape_helpers.hpp"
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
@@ -248,6 +249,83 @@ TEST_CASE("render plan decodes shutter-angle motion blur settings") {
     REQUIRE(diagonal_blur.has_value());
     CHECK(diagonal_blur->length == doctest::Approx(std::sqrt(125.0f)));
     CHECK(diagonal_blur->angle == doctest::Approx(std::atan2(5.0f, 10.0f) * 180.0f / 3.14159265358979323846f));
+}
+
+TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key overrides") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"animated","type":"shape","size":[10,10],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"opacity","easing":"linear","keyframes":[
+          {"frame":0,"value":0,"interpolation":"hold"},
+          {"frame":10,"value":1,"easing":"bezier","bezier_curve":[0.2,0.1,0.8,0.9]}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    if (!plan) INFO(plan.error().message);
+    REQUIRE(plan);
+    const auto& keys = plan->layers[0].animation->tracks[0].keyframes;
+    REQUIRE(keys.size() == 2);
+    CHECK(keys[0].interpolation == "hold");
+    CHECK(keys[1].easing == "bezier");
+    CHECK(std::count(plan->warnings.begin(), plan->warnings.end(),
+                     "animation_last_key_timing_ignored") == 1);
+
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["bezier_curve"] = {0.2, 0, 1.1, 1};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][0].erase("interpolation");
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["bezier_curve"] =
+        {0.2, std::numeric_limits<float>::quiet_NaN(), 0.8, 0.9};
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["easing"] = "bezier";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+}
+
+TEST_CASE("shared keyframe easing resolves hold and deterministic cubic curves") {
+    chronon3d::render_plan::AnimationTrackPlan track;
+    track.easing = "in_quad";
+    chronon3d::render_plan::AnimationKeyframePlan key;
+    key.interpolation = "hold";
+    CHECK(chronon3d::render_plan::detail::animation_keyframe_easing(track, key) ==
+          chronon3d::Easing::Hold);
+    key.interpolation.reset();
+    CHECK(chronon3d::render_plan::detail::animation_keyframe_easing(track, key) ==
+          chronon3d::Easing::InQuad);
+    key.easing = "bezier";
+    key.bezier_curve = std::array<float, 4>{0.2f, 0.1f, 0.8f, 0.9f};
+    const auto first = chronon3d::render_plan::detail::animation_keyframe_easing(track, key).apply(0.37f);
+    const auto second = chronon3d::render_plan::detail::animation_keyframe_easing(track, key).apply(0.37f);
+    CHECK(first == second);
+    CHECK(first == doctest::Approx(0.3544011f).epsilon(1e-6));
+    CHECK(chronon3d::render_plan::detail::animation_keyframe_easing(track, key).apply(0.0f) == 0.0f);
+    CHECK(chronon3d::render_plan::detail::animation_keyframe_easing(track, key).apply(1.0f) == 1.0f);
+    key.easing.reset();
+    key.bezier_curve.reset();
+    key.interpolation = "hold";
+    chronon3d::AnimatedValue<float> sampled{5.0f};
+    sampled.add_keyframe(chronon3d::Frame{0}, 10.0f,
+                         chronon3d::render_plan::detail::animation_keyframe_easing(track, key));
+    sampled.add_keyframe(chronon3d::Frame{10}, 20.0f, chronon3d::EasingCurve{});
+    CHECK(sampled.evaluate(0.0) == 10.0f);
+    CHECK(sampled.evaluate(5.0) == 10.0f);
+    CHECK(sampled.evaluate(10.0) == 20.0f);
+}
+
+TEST_CASE("camera consumer uses outgoing per-key interpolation") {
+    auto source = render_plan_test::base_plan();
+    source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
+        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1},
+        {"far", 10000}, {"zoom", 1}};
+    source["camera_animation"] = nlohmann::json::parse(R"JSON({"tracks":[{
+      "property":"camera_position_z","keyframes":[
+        {"frame":0,"value":-600,"interpolation":"hold"},
+        {"frame":10,"value":-1000}]}]})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan);
+    const auto descriptor = chronon3d::render_plan::detail::make_camera_descriptor(*plan);
+    REQUIRE(descriptor);
+    const auto* tracks = std::get_if<chronon3d::camera_v1::PoseTracksSource>(&descriptor->source);
+    REQUIRE(tracks);
+    CHECK(tracks->position.evaluate(5.0).z == doctest::Approx(-600.0f));
+    CHECK(tracks->position.evaluate(10.0).z == doctest::Approx(-1000.0f));
 }
 
 TEST_CASE("render plan exposes true temporal shutter accumulation settings") {

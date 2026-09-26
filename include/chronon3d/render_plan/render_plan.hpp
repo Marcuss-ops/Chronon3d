@@ -51,6 +51,9 @@ struct StrokeStyle {
 struct AnimationKeyframePlan {
     Frame frame{0};
     std::vector<float> value;
+    std::optional<std::string> interpolation;
+    std::optional<std::string> easing;
+    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 struct AnimationTrackPlan {
