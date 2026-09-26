@@ -294,7 +294,8 @@ TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
 }
 
 TEST_CASE("Legacy V2 plan fingerprint remains stable") {
-    // Pin the current v6 canonical writer output for a V2 plan with no
-    // optional shape or animation payload.
-    CHECK(legacy_fingerprint() == 10679552531090187648ULL);
+    // Pin the current v7 canonical writer output for a V2 plan with no
+    // optional shape or animation payload. The fingerprint domain changed
+    // with the audio mix contract.
+    CHECK(legacy_fingerprint() == 13161088221232037754ULL);
 }

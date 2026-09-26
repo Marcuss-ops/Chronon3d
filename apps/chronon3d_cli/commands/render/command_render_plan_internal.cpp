@@ -8,6 +8,7 @@
 #include "../../utils/video/copy_lane_coverage.hpp"
 #include "render_plan_preparation.hpp"
 
+#include <chronon3d/render_plan/audio_mix_compiler.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
@@ -22,6 +23,16 @@
 
 #include <chrono>
 #include <filesystem>
+#include <atomic>
+#include <cerrno>
+#include <vector>
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 #include <string>
 
 namespace chronon3d::cli {
@@ -49,6 +60,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.crf = args.video.crf >= 0 ? args.video.crf : args.crf;
     request.output.qp = args.video.qp;
     request.output.bitrate = args.video.bitrate;
+    request.output.gop_source = args.video.gop_source;
     request.output.audio_source_path = args.video.gop_source;
     request.output.audio_target_sample_rate = args.video.audio_sample_rate;
     request.output.gop_copy_only = args.video.gop_copy_only;
@@ -89,6 +101,87 @@ bool video_output(const std::string& path) {
            extension == ".mov";
 }
 
+int run_ffmpeg_child(const std::vector<std::string>& arguments) {
+    std::vector<const char*> argv;
+    argv.reserve(arguments.size() + 2);
+    argv.push_back("ffmpeg");
+    for (const auto& argument : arguments) argv.push_back(argument.c_str());
+    argv.push_back(nullptr);
+#if defined(_WIN32)
+    const intptr_t status = _spawnvp(_P_WAIT, "ffmpeg", argv.data());
+    return status < 0 ? 127 : static_cast<int>(status);
+#else
+    const pid_t child = fork();
+    if (child < 0) return 127;
+    if (child == 0) {
+        execvp("ffmpeg", const_cast<char* const*>(argv.data()));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno == EINTR) continue;
+        return 127;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return 127;
+#endif
+}
+
+struct TemporaryAudioMix {
+    std::filesystem::path path;
+    ~TemporaryAudioMix() {
+        if (!path.empty()) {
+            std::error_code ignored;
+            std::filesystem::remove(path, ignored);
+        }
+    }
+};
+
+std::optional<std::string> premix_plan_audio(
+    const render_plan::RenderPlan& plan,
+    const chronon3d::assets::AssetResolver& resolver,
+    TemporaryAudioMix& temporary,
+    int sample_rate) {
+    if (!plan.audio) return std::nullopt;
+    const auto compiled = render_plan::AudioMixCompiler::compile(
+        *plan.audio, plan.canvas, resolver, sample_rate);
+    if (!compiled) {
+        const auto& error = compiled.error();
+        return error.code + ": " + error.path + ": " + error.message;
+    }
+    static std::atomic<std::uint64_t> sequence{0};
+    temporary.path = std::filesystem::temp_directory_path() /
+        ("chronon-audio-mix-" + std::to_string(sequence.fetch_add(1)) + ".m4a");
+    std::error_code ignored;
+    std::filesystem::remove(temporary.path, ignored);
+    std::vector<std::string> args{"-hide_banner", "-v", "error", "-y"};
+    for (const auto& input : compiled->inputs) {
+        args.emplace_back("-i");
+        args.push_back(input.path);
+    }
+    args.emplace_back("-filter_complex");
+    args.push_back(compiled->filter_complex);
+    args.emplace_back("-map");
+    args.emplace_back("[out]");
+    args.emplace_back("-c:a");
+    args.emplace_back("aac");
+    args.emplace_back("-b:a");
+    args.emplace_back("192k");
+    args.emplace_back("-ar");
+    args.push_back(std::to_string(sample_rate));
+    args.push_back(temporary.path.string());
+    const int status = run_ffmpeg_child(args);
+    if (status != 0 || !std::filesystem::is_regular_file(temporary.path)) {
+        std::filesystem::remove(temporary.path, ignored);
+        temporary.path.clear();
+        return status == 127
+            ? std::optional<std::string>{"audio_ffmpeg_executable_missing"}
+            : std::optional<std::string>{"audio_ffmpeg_premix_failed"};
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& args) {
@@ -112,6 +205,16 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             return 1;
         }
         auto context = std::move(preparation).value();
+
+        if (context.decoded.audio &&
+            (!normalized_job.output.gop_source.empty() ||
+             !normalized_job.output.audio_source_path.empty())) {
+            spdlog::error("render-plan audio cannot be combined with --gop-source or a legacy audio source");
+            return 1;
+        }
+
+        TemporaryAudioMix temporary_audio_mix;
+        std::string audio_source_path = normalized_job.output.audio_source_path;
 
         const auto coverage = validate_copy_lane_coverage(
             context.decoded, normalized_job.output.gop_copy_only,
@@ -137,6 +240,23 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             output.find("####") == std::string::npos) {
             const auto extension = output.find_last_of('.');
             output.insert(extension == std::string::npos ? output.size() : extension, "_####");
+        }
+        if (context.decoded.audio) {
+            if ((!video_output(output) &&
+                 !video_sink_name_selects_video_lane(normalized_job.output.sink_type)) ||
+                normalized_job.output.sink_type == "raw") {
+                spdlog::error("[audio-plan] render-plan audio requires an encoded video output");
+                return 1;
+            }
+            const int mix_sample_rate = normalized_job.output.audio_target_sample_rate > 0
+                ? normalized_job.output.audio_target_sample_rate : 48000;
+            if (const auto error = premix_plan_audio(
+                    context.decoded, context.resolver, temporary_audio_mix,
+                    mix_sample_rate)) {
+                spdlog::error("[audio-plan] {}", *error);
+                return 1;
+            }
+            audio_source_path = temporary_audio_mix.path.string();
         }
         const auto first = normalized_job.frame_range
             ? normalized_job.frame_range->first : std::int64_t{0};
@@ -186,7 +306,10 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.video_settings.hardware_encoder = normalized_job.output.hardware_encoder;
         if (!normalized_job.output.encoder_backend.empty())
             request.video_settings.encoder_backend = normalized_job.output.encoder_backend;
-        request.video_settings.gop_source = normalized_job.output.audio_source_path;
+        request.video_settings.gop_source = !normalized_job.output.gop_source.empty()
+            ? normalized_job.output.gop_source
+            : normalized_job.output.audio_source_path;
+        request.video_settings.audio_source_path = audio_source_path;
         request.video_settings.audio_target_sample_rate =
             normalized_job.output.audio_target_sample_rate;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;

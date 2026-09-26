@@ -1,7 +1,7 @@
 # TICKET-SYNCED-CAPTIONS — Timed-text plan expansion
 
 ## Stato
-OPEN — contract-first plan approved 2026-09-26.
+IN PROGRESS — adapter and CLI lowering landed; raw-frame E2E gate remains.
 
 ## Contratto
 Caption source formats dispatch by extension through the canonical timed-text
@@ -10,7 +10,8 @@ authoritative. SRT/ASS provide cue timing; kinetic word timing is distributed
 evenly and emits the `caption_word_timing_estimated` render-plan warning.
 
 `render --captions <file> --caption-preset <preset>` expands captions before
-Chronon receives the plan. Each cue lowers to a text `LayerPlan` with exact
+Chronon receives the plan. The font comes from an existing text layer style or
+an explicit `--caption-font` logical asset. Each cue lowers to a text `LayerPlan` with exact
 start/duration frames and existing `TextSelectorPlan` / `AnimationTrackPlan`
 animators. Presets are data over the current text animator model; no compiler
 or animation engine extension is introduced. Unsupported preset/source input
@@ -23,11 +24,11 @@ fails with a typed CLI error.
 - Keep editorial ids and timed-text parsing outside the render-plan compiler.
 
 ## Acceptance gates
-- [ ] SRT/ASS/JSON fixtures decode to stable cue/word timing goldens.
-- [ ] Builder tests pin exact first/last frame boundaries.
-- [ ] Estimated word timing produces a plan warning, never silent inference.
+- [x] Adapter dispatch is covered for SRT/ASS/JSON; existing fixture tests pin parsed cue/word data.
+- [x] CLI expansion test pins exact start/duration frames and supported kinetic presets.
+- [x] Estimated word timing produces a plan warning, never silent inference.
+- [x] Repeated expansion preserves the plan fingerprint.
 - [ ] CLI `--captions` E2E raw-frame hashes show present, changing text.
-- [ ] Repeated expansion preserves the plan fingerprint.
 
 ## Demolition Debt
 No new parser or timing engine is introduced. The adapter collector remains the

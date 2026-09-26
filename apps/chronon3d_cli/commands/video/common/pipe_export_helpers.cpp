@@ -147,7 +147,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .tune = effective_tune,
         .tune_explicit = !opts.encoder.tune.empty() && opts.encoder.tune_explicit,
         .pipe_writer = opts.pipe.pipe_writer,
-        .audio_source_path = opts.gop_source,
+        .audio_source_path = opts.audio_source_path.empty() ? opts.gop_source : opts.audio_source_path,
         .audio_target_sample_rate = opts.audio_target_sample_rate,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);

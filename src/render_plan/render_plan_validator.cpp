@@ -38,6 +38,8 @@ std::vector<validation::RawSchemaError> validate_against(
 nlohmann::json v2_projection(const nlohmann::json& root) {
     nlohmann::json projected = root;
     projected.erase("temporal_motion_blur");
+    projected.erase("audio");
+    projected.erase("warnings");
     projected["schema"] = kRenderPlanSchemaV2;
     projected["version"] = 2;
     if (!projected.contains("layers") || !projected["layers"].is_array())

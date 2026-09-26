@@ -182,6 +182,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_int(fp, "out_qp", out.qp);
     append_int(fp, "out_bitrate", out.bitrate);
     append_field(fp, "out_audio_source", out.audio_source_path);
+    append_field(fp, "out_gop_source", out.gop_source);
     append_int(fp, "out_audio_target_sample_rate", out.audio_target_sample_rate);
     append_flag(fp, "out_gop_copy_only", out.gop_copy_only);
     append_int(fp, "out_changed_intervals_count",

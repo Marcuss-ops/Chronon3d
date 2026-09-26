@@ -604,3 +604,20 @@ TEST_CASE("hash_timed_text_document — different timing has different hash") {
 
     CHECK(hash_timed_text_document(a) != hash_timed_text_document(b));
 }
+
+TEST_CASE("timed text format dispatcher selects SRT ASS and JSON adapters") {
+    const auto srt = timed_text_from_format(
+        "1\n00:00:01,000 --> 00:00:02,000\nHello world\n", ".SRT");
+    REQUIRE(srt.cues.size() == 1);
+    CHECK(srt.source_format == "srt");
+    const auto ass = timed_text_from_format(
+        "[Script Info]\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Hello\n", "ass");
+    REQUIRE(ass.cues.size() == 1);
+    CHECK(ass.source_format == "ass");
+    const auto json = timed_text_from_format(
+        R"({"cues":[{"start":1,"end":2,"text":"Hello"}]})", "json");
+    REQUIRE(json.cues.size() == 1);
+    CHECK(json.source_format == "json");
+    CHECK(timed_text_from_format("anything", "xml").cues.empty());
+}

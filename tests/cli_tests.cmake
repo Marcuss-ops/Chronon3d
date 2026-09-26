@@ -68,7 +68,8 @@ chronon3d_add_test_suite(
     TIER SDK
     LINK_TARGETS ${_cli_tests_link_targets}
     SOURCES ${_cli_test_sources}
-            cli/test_render_request.cpp
+    cli/test_render_request.cpp
+    cli/test_caption_plan_expansion.cpp
 )
 
 # ── Daemon render-concurrency contract ──

@@ -20,6 +20,7 @@
 #include <chronon3d/core/types/types.hpp>  // f32, u64
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d {
@@ -183,5 +184,10 @@ struct TimedTextDocument {
 /// <marginV>,<effect>,<text>` rows, H:MM:SS.cc timestamps, and `\N`
 /// line breaks. Word timing is a uniform-split estimate (SRT parity).
 [[nodiscard]] TimedTextDocument timed_text_from_ass(const std::string& raw);
+
+/// Dispatch the canonical timed-text adapter by extension (with or without a
+/// leading dot). Supported formats are srt, vtt, ass, and json.
+[[nodiscard]] TimedTextDocument timed_text_from_format(
+    const std::string& raw, std::string_view extension);
 
 } // namespace chronon3d
