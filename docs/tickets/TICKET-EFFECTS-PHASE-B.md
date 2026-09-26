@@ -1,8 +1,9 @@
 # TICKET-EFFECTS-PHASE-B — Blur, drop shadow, bloom and GPU routing
 
 ## Stato
-CONTRACT APPROVED — software certification and capability routing are the
-next implementation phase after Glow V1.
+IN PROGRESS — initial DirectYUV RGBA routing and strict GPU fail-closed
+behavior are implemented; CPU certification and effect-specific GPU kernels
+remain open.
 
 ## Contratto
 
@@ -31,13 +32,16 @@ existing contracts; no silent parameter reinterpretation is allowed.
   scratch reuse without per-frame framebuffer allocation.
 - [ ] Spatial-halo tests prove changed/moved/shrunk effects clear both old and
   new dirty regions.
-- [ ] DirectYUV matrix maps each effect to FullGraph; Auto records the route,
-  RequireDirectYuv returns a typed capability error.
-- [ ] Vulkan dispatch has one explicit capability row per effect. Supported
-  kernels have CPU/GPU oracle parity and no readback; unsupported rows return
-  `UnsupportedCapability` before any pixel fallback.
+- [x] DirectYUV effect stacks map to FullGraph; Auto records the route,
+  RequireDirectYuv returns a typed capability error (composition capability
+  unit suite passed).
+- [ ] Vulkan dispatch has one explicit capability row per effect. Existing
+  native blur/glow paths remain available; strict GPU mode now returns
+  `UnsupportedCapability` whenever a stack cannot be handled natively, before
+  software fallback. Drop shadow/bloom kernels and parity gates remain open.
 - [ ] Build, focused effects/render-graph tests, and short landscape/portrait
-  videos pass.
+  videos pass for blur, shadow, and bloom. (Glow V1 already has separate
+  software/e2e coverage.)
 
 ## Demolition debt
 

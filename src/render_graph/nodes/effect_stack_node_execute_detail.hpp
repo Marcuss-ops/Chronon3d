@@ -176,14 +176,14 @@ NodeExecResult EffectStackNode::execute(
             native_handled = native_effects::try_native_full_frame_tint(
                 ctx, m_effects, *result, local_clip);
         }
-        if (!native_handled && !gpu_only_input) {
-            ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
-        }
-        if (gpu_only_input && !native_handled) {
+        if (ctx.policy.is_gpu_native_required() && !native_handled) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::UnsupportedCapability,
                 "EffectStackNode",
-                "strict native GPU effect could not be executed; refusing to return an uninitialized frame"}};
+                "strict native GPU effect could not be executed; refusing software fallback"}};
+        }
+        if (!native_handled && !gpu_only_input) {
+            ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
