@@ -17,7 +17,7 @@
 | Performance baseline | v1 exists and is locked for the software/CPU corpus; GPU-side certification still requires the appropriate build host |
 | GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
-| Current main | NOT CERTIFIED — all GitHub Actions jobs for `0674ac27` were blocked before runner startup on 2026-09-25 because account payments failed or the spending limit was reached; same-SHA CI/build/test evidence is still required |
+| Current main | `264b3c3d` — local same-SHA evidence PASSED on `linux-fast-dev` (c_abi 138/138, cli 85/85, arch 202/202, 6/6 fast gates) after `fix(render-plan)` v3 coherence closeout; GitHub CI same-SHA still pending (prev SHA `0674ac27` was blocked pre-runner by payment failure) |
 
 ## Area authority census
 
@@ -54,14 +54,15 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 
 | Area | Stato |
 |---|---|
+| Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
 | Text Core V1 | PASS (focused) |
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
-| Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) |
-| CI infrastructure | NOT CERTIFIED on current SHA until workflows complete |
+| Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) — plus 264b3c3d local same-SHA for render-plan layer of pipeline |
+| CI infrastructure | LOCAL green on 264b3c3d (c_abi/cli/arch + 6 fast gates); GitHub CI same-SHA still pending (prev `0674ac27` blocked pre-runner) |
 | Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
 | Packaging | PASS (historical/local evidence) |
 
@@ -81,6 +82,7 @@ documents and the git history.
 - 2026-09-24 — daemon IPC rejection resilience **CHIUSO**: un rigetto tipato di capability non deve uccidere il daemon (era stato osservato `ipc read reply: EOF` + restart del servizio). Il contenimento (`dispatch_request_safely`) è coperto da un test di integrazione sul transport reale (`tests/cli/test_daemon_ipc_exception_boundary.cpp`: rigetto → error envelope → `STATUS` Ok → render valido successivo → `Shutdown` pulito); `chronon3d_cli_tests` 82/82 casi, 1084/1084 assert.
 - 2026-09-24 — Vulkan animated-image residency **CHIUSO**: pixel probe 12/12 e strict capability routing (`full_graph_native`/`native_surface`, zero readback; animated strict respinto esplicito) certificati su RTX A4000; scheda rimossa a chiusura terminale (git history = archivio), regressioni permanenti in `tests/fixtures/animated_image_residency/run_pixel_probe.sh` e `tests/registry/test_backend_registry_vulkan_transforms.cpp`.
 - 2026-09-16 — text tile canary **CHIUSO 78/78** (era 65/78): il rosso era un **binario stantio** (`.ninja_log` 07:00 UTC vs ABI fix `5b59cfd48` 16:33 UTC, in un target che nessun gate ricostruiva), non un contratto rotto né un difetto driver/GPU — vedi [`evidence/text-tile-canary-2026-09-16.md`](evidence/text-tile-canary-2026-09-16.md). Promosso a gate GPU/WBH `tools/verify_text_tile_gpu_canary.sh`. Contestualmente il **raw sink** pre-encode (`--video-sink raw`, `2a5579985`) è atterrato come superficie di verità pixel per la lane video, e il difetto residuo della via immagine (PNG still/sequenza) è stato chiuso con la dichiarazione di lane non-canonica (profilo in [`evidence/image-path-defect-2026-09-16.md`](evidence/image-path-defect-2026-09-16.md); scheda in git history).
+- 2026-09-26 — render-plan v3 coherence **CHIUSO a 264b3c3d**: dedup `layer_transition`+`transition_in/out` last-wins, per-keyframe `interpolation/easing/bezier_curve` su `layers[].animation`, flash `color` hex `#RRGGBB`→linear via `parse_hex_color`, golden fingerprint v9→v10 `7068117211625980799`; `c_abi 138/138` e `cli 85/85` verdi, `arch 202/202` e `6/6` fast gates verdi sullo stesso SHA — vedi `git show 264b3c3dc`.
 
 ## Operating rule
 
