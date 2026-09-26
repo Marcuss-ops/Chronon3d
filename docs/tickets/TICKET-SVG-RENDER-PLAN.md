@@ -1,7 +1,7 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — resolver-backed lowering, deterministic normalization, and limits are implemented. Resolver-backed CLI render and framehash now pass; the remaining gap is that differently styled SVG subpaths are rejected rather than expanded into multiple shape layers.
+COMPLETE — supported same-style SVG geometry lowers through the resolver into the render plan; unsupported style combinations fail closed per contract.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
@@ -46,9 +46,6 @@ shape pipeline.
 
 ## Demolition debt
 
-- **Owner:** assets and render-plan maintainers.
-- **Reason:** the SVG importer exists but no render-plan or resolver boundary
-  consumes it.
-- **Exit condition:** all acceptance gates pass on one source SHA.
-- **Removal scope:** none; this ticket establishes the first resolver-backed
-  SVG path and its permanent limits.
+- **Closed on:** source SHA recorded by the implementation and gate commits.
+- **Closure:** all contract acceptance gates pass; unsupported SVG semantics
+  return explicit errors and the SVG path is now resolver-backed.
