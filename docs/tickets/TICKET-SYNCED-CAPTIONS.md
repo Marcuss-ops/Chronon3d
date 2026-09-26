@@ -1,7 +1,7 @@
 # TICKET-SYNCED-CAPTIONS — Timed-text plan expansion
 
 ## Stato
-IN PROGRESS — adapter and CLI lowering landed; raw-frame E2E gate remains.
+IN PROGRESS — adapter/CLI lowering and SRT raw-frame smoke pass; broader fixture/gate automation remains.
 
 ## Contratto
 Caption source formats dispatch by extension through the canonical timed-text
@@ -28,7 +28,7 @@ fails with a typed CLI error.
 - [x] CLI expansion test pins exact start/duration frames and supported kinetic presets.
 - [x] Estimated word timing produces a plan warning, never silent inference.
 - [x] Repeated expansion preserves the plan fingerprint.
-- [ ] CLI `--captions` E2E raw-frame hashes show present, changing text.
+- [x] CLI `--captions` SRT typewriter smoke renders MP4; decoded raw frame hashes change during the cue.
 
 ## Demolition Debt
 No new parser or timing engine is introduced. The adapter collector remains the
