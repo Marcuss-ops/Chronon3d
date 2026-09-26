@@ -158,6 +158,9 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
                      [](auto& nested, float value) { nested.add_float(value); });
         add_optional(writer, stroke.trim_end,
                      [](auto& nested, float value) { nested.add_float(value); });
+        writer.add_size(stroke.dash_array.size());
+        for (const float dash : stroke.dash_array) writer.add_float(dash);
+        writer.add_float(stroke.dash_offset);
         add_optional(writer, stroke.gradient,
                      [](auto& nested, const graphics::GradientDefinition& value) {
             add_gradient(nested, value);
@@ -358,6 +361,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             });
             add_optional(nested, stroke.trim_start, [](auto& w, float v) { w.add_float(v); });
             add_optional(nested, stroke.trim_end, [](auto& w, float v) { w.add_float(v); });
+            nested.add_size(stroke.dash_array.size());
+            for (const float dash : stroke.dash_array) nested.add_float(dash);
+            nested.add_float(stroke.dash_offset);
             add_optional(nested, stroke.gradient, [](auto& w,
                     const graphics::GradientDefinition& value) {
                 add_gradient(w, value);
@@ -448,6 +454,14 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(particles.size_max);
         out.add_float(particles.gravity);
         out.add_float(particles.turbulence);
+        out.add_uint64(static_cast<std::uint64_t>(particles.shape));
+        out.add_string(particles.path_id); out.add_string(particles.sprite_asset);
+        out.add_float(particles.sprite_scale_min); out.add_float(particles.sprite_scale_max);
+        out.add_float(particles.rotation_min); out.add_float(particles.rotation_max);
+        out.add_float(particles.angular_velocity_min); out.add_float(particles.angular_velocity_max);
+        out.add_enum(particles.blend_mode);
+        out.add_size(particles.path_points.size());
+        for (const auto point : particles.path_points) { out.add_float(point.x); out.add_float(point.y); }
         add_gradient(out, particles.color_ramp);
     }
     if (layer.light) {
@@ -543,10 +557,26 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.mesh_smoothness);
                 out.add_size(effect.mesh_offsets.size());
                 for (const auto value : effect.mesh_offsets) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Sharpen) {
+                out.add_float(effect.amount); out.add_float(effect.radius); out.add_float(effect.threshold);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::TurbulentDisplace) {
+                out.add_float(effect.amount); out.add_float(effect.warp_size); out.add_float(effect.warp_evolution);
+                out.add_float(effect.warp_speed); out.add_uint64(effect.warp_complexity);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::WaveWarp) {
+                out.add_uint64(effect.wave_type); for (auto v : effect.warp_direction) out.add_float(v);
+                out.add_float(effect.amount); out.add_float(effect.warp_wavelength); out.add_float(effect.warp_speed); out.add_float(effect.warp_phase);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Ripple) {
+                for(auto v:effect.warp_center) out.add_float(v); out.add_float(effect.warp_radius); out.add_float(effect.warp_speed);
+                out.add_float(effect.warp_width); out.add_float(effect.warp_height); out.add_float(effect.warp_damping);
+            } else if(effect.kind==LayerPlan::EffectKindPlan::DisplacementMap) {
+                out.add_string(effect.map_layer); out.add_float(effect.map_intensity_x);
+                out.add_float(effect.map_intensity_y); out.add_uint64(effect.map_channel);
 
             } else {
                 out.add_size(effect.block_size);
             }
+            add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});
+            add_optional(out,effect.time_curve,[](auto& w,const AnimationTrackPlan& track){add_track(w,track);});
         }
     }
 

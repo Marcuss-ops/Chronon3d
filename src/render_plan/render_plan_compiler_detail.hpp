@@ -7,6 +7,7 @@
 #include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/core/temporal_curve_1d.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <optional>
 #include <string_view>
@@ -28,5 +29,7 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             int canvas_height);
 [[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
 motion_blur_params_at(const LayerPlan& layer, double frame);
+[[nodiscard]] std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame);
+[[nodiscard]] chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track);
 
 }  // namespace chronon3d::render_plan::detail

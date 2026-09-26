@@ -164,6 +164,39 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         params.size_max = size[1].get<float>();
         params.gravity = raw.value("gravity", 0.0f);
         params.turbulence = raw.value("turbulence", 0.0f);
+        const auto shape_name = raw.value("shape", std::string{"box"});
+        if (shape_name == "ellipse") params.shape = EmitterShape::Ellipse;
+        else if (shape_name == "edge") params.shape = EmitterShape::Edge;
+        else if (shape_name == "path") params.shape = EmitterShape::Path;
+        else if (shape_name != "box") throw std::runtime_error("particle emitter shape must be box, ellipse, edge, or path");
+        params.path_id = raw.value("path_id", std::string{});
+        params.sprite_asset = raw.value("sprite_asset", std::string{});
+        if (raw.contains("blend_mode")) {
+            const auto mode=blend_mode(raw.at("blend_mode").get<std::string>());
+            if (!mode) throw std::runtime_error("particle emitter blend_mode is unsupported");
+            params.blend_mode=*mode;
+        }
+        if (raw.contains("sprite_scale")) {
+            const auto& range = raw.at("sprite_scale");
+            if (!range.is_array() || range.size()!=2) throw std::runtime_error("particle sprite_scale must be [min, max]");
+            params.sprite_scale_min=range[0].get<float>(); params.sprite_scale_max=range[1].get<float>();
+        }
+        if (raw.contains("rotation")) {
+            const auto& range = raw.at("rotation");
+            if (!range.is_array() || range.size()!=2) throw std::runtime_error("particle rotation must be [min, max]");
+            params.rotation_min=range[0].get<float>(); params.rotation_max=range[1].get<float>();
+        }
+        if (raw.contains("angular_velocity")) {
+            const auto& range = raw.at("angular_velocity");
+            if (!range.is_array() || range.size()!=2) throw std::runtime_error("particle angular_velocity must be [min, max]");
+            params.angular_velocity_min=range[0].get<float>(); params.angular_velocity_max=range[1].get<float>();
+        }
+        if (raw.contains("path_points")) {
+            for (const auto& point : raw.at("path_points")) {
+                if (!point.is_array() || point.size()!=2) throw std::runtime_error("particle path_points entries need two values");
+                params.path_points.push_back({point[0].get<float>(),point[1].get<float>()});
+            }
+        }
         if (raw.contains("color_ramp")) {
             std::vector<graphics::GradientStop> stops;
             for (const auto& stop : raw.at("color_ramp")) {
@@ -666,6 +699,21 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             if (stroke.contains("width")) decoded_stroke.width = stroke.at("width").get<float>();
             if (stroke.contains("trim_start")) decoded_stroke.trim_start = stroke.at("trim_start").get<float>();
             if (stroke.contains("trim_end")) decoded_stroke.trim_end = stroke.at("trim_end").get<float>();
+            if (stroke.contains("dash_array")) {
+                const auto& dash = stroke.at("dash_array");
+                if (!dash.is_array()) throw std::runtime_error("stroke.dash_array must be an array");
+                for (const auto& entry : dash) {
+                    const float value = entry.get<float>();
+                    if (!std::isfinite(value) || value < 0.0f)
+                        throw std::runtime_error("stroke.dash_array entries must be finite and >= 0");
+                    decoded_stroke.dash_array.push_back(value);
+                }
+            }
+            if (stroke.contains("dash_offset")) {
+                decoded_stroke.dash_offset = stroke.at("dash_offset").get<float>();
+                if (!std::isfinite(decoded_stroke.dash_offset))
+                    throw std::runtime_error("stroke.dash_offset must be finite");
+            }
             if (stroke.contains("gradient"))
                 decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
             if (decoded_stroke.gradient) {
@@ -800,6 +848,38 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (const auto& raw_effect : effects) {
             LayerPlan::EffectPlan effect;
             const auto kind = raw_effect.value("type", std::string{});
+            if (raw_effect.contains("time")) {
+                const auto& time=raw_effect.at("time");
+                if(!time.is_object()) throw std::runtime_error("effect time must be an object");
+                if(time.contains("posterize_fps")) {
+                    effect.posterize_fps=time.at("posterize_fps").get<float>();
+                    if(!std::isfinite(*effect.posterize_fps)||*effect.posterize_fps<=0.0f||*effect.posterize_fps>1000.0f)
+                        throw std::runtime_error("effect time posterize_fps must be finite and in (0, 1000]");
+                }
+                if(time.contains("curve")) {
+                    const auto& raw_curve=time.at("curve");
+                    if(!raw_curve.is_array()||raw_curve.size()<2) throw std::runtime_error("effect time curve must contain at least two keyframes");
+                    AnimationTrackPlan curve; curve.property="effect_time";
+                    curve.easing=time.value("easing",std::string{"linear"});
+                    curve.bezier_curve=decode_bezier_curve(time,curve.easing,"effect time");
+                    for(const auto& raw_key:raw_curve) {
+                        AnimationKeyframePlan key;
+                        key.frame=Frame{raw_key.at("frame").get<std::int64_t>()};
+                        const float v=raw_key.at("value").get<float>();
+                        if(key.frame.value<0||key.frame.value>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
+                            throw std::runtime_error("effect time curve keyframes require bounded frame values and values in [0, 1]");
+                        key.value={v}; curve.keyframes.push_back(std::move(key));
+                    }
+                    std::sort(curve.keyframes.begin(),curve.keyframes.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
+                    for(std::size_t i=1;i<curve.keyframes.size();++i)
+                        if(curve.keyframes[i-1].frame==curve.keyframes[i].frame) throw std::runtime_error("effect time curve frames must be unique");
+                    effect.time_curve=std::move(curve);
+                } else if(time.contains("easing")||time.contains("bezier_curve"))
+                    throw std::runtime_error("effect time easing requires a curve");
+                for(auto it=time.begin();it!=time.end();++it)
+                    if(it.key()!="posterize_fps"&&it.key()!="curve"&&it.key()!="easing"&&it.key()!="bezier_curve")
+                        throw std::runtime_error("unsupported effect time option: "+it.key());
+            }
             if (kind == "lut_3d") {
                 effect.kind = LayerPlan::EffectKindPlan::Lut3D;
                 effect.asset = raw_effect.at("asset").get<std::string>();
@@ -970,6 +1050,48 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     !std::isfinite(effect.contrast) || effect.contrast < 0.0f || effect.contrast > 16.0f ||
                     !std::isfinite(effect.brightness) || std::abs(effect.brightness) > 16.0f)
                     throw std::runtime_error("Fractal Noise parameters are outside supported finite ranges");
+            } else if (kind == "sharpen") {
+                effect.kind = LayerPlan::EffectKindPlan::Sharpen;
+                effect.amount = raw_effect.value("amount", 0.0f);
+                effect.radius = raw_effect.value("radius", 1.0f);
+                effect.threshold = raw_effect.value("threshold", 0.0f);
+                if (!std::isfinite(effect.amount) || effect.amount < -4.0f || effect.amount > 4.0f ||
+                    !std::isfinite(effect.radius) || effect.radius <= 0.0f || effect.radius > 64.0f ||
+                    !std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f)
+                    throw std::runtime_error("Invalid sharpen parameters");
+            } else if (kind == "turbulent_displace") {
+                effect.kind = LayerPlan::EffectKindPlan::TurbulentDisplace;
+                effect.amount=raw_effect.value("amount",0.1f); effect.warp_size=raw_effect.value("size",0.1f);
+                effect.warp_evolution=raw_effect.value("evolution",0.0f); effect.warp_speed=raw_effect.value("evolution_speed",0.0f);
+                effect.warp_complexity=raw_effect.value("complexity",2U);
+                if(!std::isfinite(effect.amount)||effect.amount<0||effect.amount>1||!std::isfinite(effect.warp_size)||effect.warp_size<=0||
+                   !std::isfinite(effect.warp_evolution)||!std::isfinite(effect.warp_speed)||effect.warp_complexity<1||effect.warp_complexity>16)
+                    throw std::runtime_error("Invalid turbulent displace parameters");
+            } else if (kind == "wave_warp") {
+                effect.kind=LayerPlan::EffectKindPlan::WaveWarp; effect.amount=raw_effect.value("amplitude",0.05f);
+                effect.warp_wavelength=raw_effect.value("wavelength",0.2f); effect.warp_speed=raw_effect.value("speed",1.0f); effect.warp_phase=raw_effect.value("phase",0.0f);
+                if(raw_effect.contains("direction")) { const auto& v=raw_effect.at("direction"); if(!v.is_array()||v.size()!=2) throw std::runtime_error("wave direction requires two values"); effect.warp_direction={v[0].get<float>(),v[1].get<float>()}; }
+                const auto type=raw_effect.value("wave_type",std::string{"sine"});
+                if(type=="triangle") effect.wave_type=1; else if(type=="square") effect.wave_type=2; else if(type=="saw") effect.wave_type=3; else if(type!="sine") throw std::runtime_error("Invalid wave type");
+                if(!std::isfinite(effect.amount)||!std::isfinite(effect.warp_wavelength)||effect.warp_wavelength<=0||!std::isfinite(effect.warp_speed)||!std::isfinite(effect.warp_phase)||!std::isfinite(effect.warp_direction[0])||!std::isfinite(effect.warp_direction[1])) throw std::runtime_error("Invalid wave warp parameters");
+            } else if (kind == "ripple") {
+                effect.kind=LayerPlan::EffectKindPlan::Ripple; effect.warp_radius=raw_effect.value("radius",0.25f);
+                effect.warp_speed=raw_effect.value("wave_speed",1.5f); effect.warp_width=raw_effect.value("width",0.1f);
+                effect.warp_height=raw_effect.value("wave_height",0.05f); effect.warp_damping=raw_effect.value("damping",0.5f);
+                if(raw_effect.contains("center")) { const auto& v=raw_effect.at("center"); if(!v.is_array()||v.size()!=2) throw std::runtime_error("ripple center requires two values"); effect.warp_center={v[0].get<float>(),v[1].get<float>()}; }
+                if(!std::isfinite(effect.warp_radius)||effect.warp_radius<=0||!std::isfinite(effect.warp_speed)||!std::isfinite(effect.warp_width)||effect.warp_width<=0||!std::isfinite(effect.warp_height)||!std::isfinite(effect.warp_damping)||effect.warp_damping<0||!std::isfinite(effect.warp_center[0])||!std::isfinite(effect.warp_center[1])) throw std::runtime_error("Invalid ripple parameters");
+            } else if(kind=="displacement_map") {
+                effect.kind=LayerPlan::EffectKindPlan::DisplacementMap;
+                effect.map_layer=raw_effect.at("map_layer").get<std::string>();
+                effect.map_intensity_x=raw_effect.value("intensity_x",0.05f);
+                effect.map_intensity_y=raw_effect.value("intensity_y",0.05f);
+                const auto channel=raw_effect.value("map_channel",std::string{"luma"});
+                if(channel=="red") effect.map_channel=1; else if(channel=="green") effect.map_channel=2;
+                else if(channel=="blue") effect.map_channel=3; else if(channel=="alpha") effect.map_channel=4;
+                else if(channel!="luma") throw std::runtime_error("Unsupported displacement map channel");
+                if(effect.map_layer.empty()||!std::isfinite(effect.map_intensity_x)||!std::isfinite(effect.map_intensity_y)||
+                   std::abs(effect.map_intensity_x)>4.0f||std::abs(effect.map_intensity_y)>4.0f)
+                    throw std::runtime_error("Invalid displacement map parameters");
             } else if (kind == "corner_pin") {
                 effect.kind = LayerPlan::EffectKindPlan::CornerPin;
                 const auto read_quad = [&](const char* key, std::size_t index) {
@@ -1235,6 +1357,16 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (const auto& track_value : value.at("animation").at("tracks"))
             animation.tracks.push_back(decode_animation_track(track_value));
         layer.animation = std::move(animation);
+    }
+    if (layer.animation) {
+        for (const auto& track : layer.animation->tracks) {
+            if (track.property != "stroke_dash_offset") continue;
+            if (!layer.shape || !layer.shape->stroke)
+                throw std::runtime_error("stroke_dash_offset animation requires a shape with a stroke");
+            for (const auto& key : track.keyframes)
+                if (key.value.size()!=1 || !std::isfinite(key.value.front()))
+                    throw std::runtime_error("stroke_dash_offset keyframes must be finite scalar values");
+        }
     }
     if (value.contains("motion_blur")) {
         const auto& raw = value.at("motion_blur");

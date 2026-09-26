@@ -5,6 +5,8 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <vector>
+#include <string>
+#include <unordered_map>
 
 namespace chronon3d::graph {
 
@@ -28,6 +30,7 @@ struct LayerGraphItem {
 
     usize        insertion_index{0};
     GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
+    std::unordered_map<std::string,GraphNodeId> displacement_map_nodes;
     bool         is_static{false};
 };
 

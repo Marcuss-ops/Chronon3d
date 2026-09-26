@@ -117,6 +117,40 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     CHECK(backend.draw_node_called == 1);
 }
 
+TEST_CASE("RenderGraph wires displacement map source as a second effect input") {
+    SceneBuilder builder;
+    builder.layer("subject", [](LayerBuilder& layer) {
+        layer.rect("subject-shape", {.size={24.0f,24.0f},.color=Color::white()});
+        layer.effect(DisplacementMapParams{.map_layer="map"});
+    });
+    builder.layer("map", [](LayerBuilder& layer) {
+        layer.rect("map-shape", {.size={24.0f,24.0f},.color=Color{0.5f,0.5f,0.5f,1.0f}});
+    });
+    auto scene=builder.build();
+    RenderGraphContext context{.frame_input={.width=64,.height=64}};
+    compiler::CompilerPassPipeline passes;
+    passes.add_default_passes();
+    const auto graph=passes.build(scene,context);
+    bool found_two_input_effect=false;
+    for(GraphNodeId id=0;id<graph.size();++id) {
+        if(dynamic_cast<const EffectStackNode*>(&graph.node(id)) && graph.inputs(id).size()>1)
+            found_two_input_effect=true;
+    }
+    CHECK(found_two_input_effect);
+
+    SceneBuilder cyclic_builder;
+    cyclic_builder.layer("a", [](LayerBuilder& layer) {
+        layer.rect("a-shape", {.size={8.0f,8.0f},.color=Color::red()});
+        layer.effect(DisplacementMapParams{.map_layer="b"});
+    });
+    cyclic_builder.layer("b", [](LayerBuilder& layer) {
+        layer.rect("b-shape", {.size={8.0f,8.0f},.color=Color::blue()});
+        layer.effect(DisplacementMapParams{.map_layer="a"});
+    });
+    auto cyclic_scene=cyclic_builder.build();
+    CHECK_THROWS((void)passes.build(cyclic_scene,context));
+}
+
 TEST_CASE("RenderBackend - failing draw_node reaches GraphExecutor as frame failure") {
     FailingBackend backend;
     cache::NodeCache cache;

@@ -196,6 +196,10 @@ struct VulkanBackend::Impl {
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> layer_instance_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> layer_instance_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> layer_instance_sizes{};
+    static constexpr std::size_t kPathGeometryPassesPerSlot = 256;
+    static constexpr std::size_t kPathGeometryRingSize =
+        FrameBatchState::kSlotCount * kPathGeometryPassesPerSlot + 1U;
+    std::array<VulkanBufferAllocation, kPathGeometryRingSize> path_geometry_buffers{};
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> text_run_dynamic_buffers{};
     std::array<std::uint64_t, kGlyphInstanceRingSize> text_run_dynamic_hashes{};
     std::array<VkDeviceSize, kGlyphInstanceRingSize> text_run_dynamic_sizes{};
@@ -562,6 +566,8 @@ struct VulkanBackend::Impl {
     void write_descriptors(VkDescriptorSet set,
                            const Image& destination, const Image& source);
     void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination);
+    void write_dashed_path_descriptors(VkDescriptorSet set, const Image& destination,
+                                       VkBuffer geometry_buffer);
     void bind_fill_rect_descriptors(const Image& destination);
     void write_matte_descriptors(VkDescriptorSet set, const Image& destination,
                                  const Image& target, const Image& matte);
@@ -766,6 +772,14 @@ struct VulkanBackend::Impl {
                           const Vec4& shape, const Vec4& line,
                           const Color& color,
                           const std::array<Vec2, 8>& vertices = {});
+    void fill_dashed_path(runtime::RenderSurfaceHandle destination,
+                          std::int32_t x0, std::int32_t y0,
+                          std::int32_t x1, std::int32_t y1,
+                          float width, const Color& color,
+                          std::span<const Vec2> points,
+                          std::span<const std::uint32_t> run_lengths,
+                          bool has_fill, std::uint32_t fill_vertex_count,
+                          const std::array<Vec2, 8>& fill_vertices);
     void fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color);
     void fill_grid(runtime::RenderSurfaceHandle destination,
@@ -817,6 +831,7 @@ struct VulkanBackend::Impl {
     void ensure_staging(VkDeviceSize bytes);
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index);
+    void ensure_path_geometry_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_text_run_dynamic_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_text_glyph_dynamic_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_text_tile_buffer(VkDeviceSize bytes, std::size_t index,

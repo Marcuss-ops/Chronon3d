@@ -176,6 +176,72 @@ TEST_CASE("EffectExecutionContext: context flows through renderer::apply_effect_
     CHECK(fb.pixels_row(0) != nullptr);
 }
 
+TEST_CASE("EffectInstance posterize fps remaps temporal processor context") {
+    ContextCapture captured;
+    SoftwareRegistry registry;
+    registry.register_effect(std::type_index(typeid(BlurParams)),
+        std::unique_ptr<EffectProcessor>(new ContextSpyProcessor(captured)));
+    EffectInstance effect{BlurParams{1.0f}};
+    effect.posterize_fps=8.0f;
+    effect.composition_fps=60.0;
+    EffectStack stack; stack.push_back(effect);
+    Framebuffer fb(2,2);
+    EffectExecutionContext context; context.time_seconds=0.1f; context.frame=6;
+    apply_effect_stack(fb,stack,context,registry);
+    CHECK(captured.time_seconds==doctest::Approx(0.125f));
+    CHECK(captured.frame==8);
+}
+
+TEST_CASE("EffectInstance time curve retimes effect parameters against composition duration") {
+    ContextCapture captured;
+    SoftwareRegistry registry;
+    registry.register_effect(std::type_index(typeid(BlurParams)),
+        std::unique_ptr<EffectProcessor>(new ContextSpyProcessor(captured)));
+    AnimatedValue<float> curve{0.0f};
+    curve.add_keyframe(Frame{0},0.0f,EasingCurve{Easing::Linear});
+    curve.add_keyframe(Frame{1},1.0f,EasingCurve{Easing::Linear});
+    EffectInstance effect{BlurParams{1.0f}};
+    effect.time_curve=TemporalCurve1D{std::move(curve)};
+    effect.time_duration_seconds=2.0;
+    effect.composition_fps=60.0;
+    EffectStack stack; stack.push_back(std::move(effect));
+    Framebuffer fb(2,2);
+    EffectExecutionContext context; context.time_seconds=0.5f; context.frame=30;
+    apply_effect_stack(fb,stack,context,registry);
+    CHECK(captured.time_seconds==doctest::Approx(0.5f));
+    CHECK(captured.frame==30);
+}
+
+TEST_CASE("FractalNoise posterize time produces stable 60fps framehash groups") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    EffectInstance effect{FractalNoiseParams{
+        .seed = 23, .octaves = 4, .frequency = 0.17f,
+        .amplitude = 1.0f, .evolution = 2.0f}};
+    effect.posterize_fps = 8.0f;
+    effect.composition_fps = 60.0;
+    EffectStack stack;
+    stack.push_back(effect);
+    std::vector<u64> hashes;
+    hashes.reserve(60);
+    for (int frame = 0; frame < 60; ++frame) {
+        Framebuffer fb(24, 16);
+        EffectExecutionContext context;
+        context.frame = Frame{frame};
+        context.time_seconds = static_cast<double>(frame) / 60.0;
+        apply_effect_stack(fb, stack, context, registry);
+        hashes.push_back(test::framebuffer_hash(fb));
+    }
+
+    // Round-to-nearest at 8fps changes bins at half-interval boundaries:
+    // frames 0..3 map to t=0, 4..11 to t=0.125, and 12..18 to t=0.25.
+    CHECK(hashes[0] == hashes[3]);
+    CHECK(hashes[4] == hashes[11]);
+    CHECK(hashes[12] == hashes[18]);
+    CHECK(hashes[0] != hashes[4]);
+    CHECK(hashes[11] != hashes[12]);
+}
+
 TEST_CASE("EffectExecutionContext: clip reaches internal dispatcher") {
     // Verify that the renderer::apply_effect_stack accepts a context with clip
     EffectStack stack;

@@ -548,6 +548,30 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
 
 }  // namespace
 
+std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame) {
+    if (!layer.animation || !layer.shape || !layer.shape->stroke) return std::nullopt;
+    const AnimationTrackPlan* found=nullptr;
+    for(const auto& track:layer.animation->tracks) if(track.property=="stroke_dash_offset") {
+        if(found) throw std::runtime_error("layer has overlapping stroke_dash_offset tracks");
+        found=&track;
+    }
+    if(!found) return std::nullopt;
+    chronon3d::AnimatedValue<float> value{layer.shape->stroke->dash_offset};
+    const auto easing=track_easing(found->easing,found->bezier_curve);
+    for(const auto& key:found->keyframes) value.add_keyframe(key.frame,scalar_value(key,"stroke_dash_offset"),easing);
+    const float result=value.evaluate(frame);
+    if(!std::isfinite(result)) throw std::runtime_error("animated stroke dash offset must be finite");
+    return result;
+}
+
+chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track) {
+    chronon3d::AnimatedValue<float> curve{0.0f};
+    const auto easing=track_easing(track.easing,track.bezier_curve);
+    for(const auto& key:track.keyframes)
+        curve.add_keyframe(key.frame,scalar_value(key,"effect_time"),easing);
+    return chronon3d::TemporalCurve1D{std::move(curve)};
+}
+
 chronon3d::EasingCurve camera_track_easing(std::string_view value) {
     return track_easing(value);
 }

@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include "src/backends/software/effects/render_effects_processor.hpp"
 
@@ -59,6 +60,34 @@ TEST_CASE("Mosaic samples stable canvas-aligned block centers") {
     CHECK(fb.get_pixel(0, 0).r == doctest::Approx(fb.get_pixel(1, 1).r));
     CHECK(fb.get_pixel(2, 0).r == doctest::Approx(fb.get_pixel(3, 1).r));
     CHECK(fb.get_pixel(0, 0).r != doctest::Approx(fb.get_pixel(2, 0).r));
+}
+
+TEST_CASE("Sharpen has an exact identity mode and honors its difference threshold") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer source(5,1);
+    source.set_pixel(0,0,Color{0,0,0,1}); source.set_pixel(1,0,Color{0,0,0,1});
+    source.set_pixel(2,0,Color{1,1,1,1}); source.set_pixel(3,0,Color{1,1,1,1});
+    source.set_pixel(4,0,Color{1,1,1,1});
+    const auto run=[&](SharpenParams params) {
+        Framebuffer result=source;
+        EffectStack stack; stack.emplace_back(params);
+        EffectScratchResources scratch;
+        effects::EffectExecutionContext context; context.effect_scratch=&scratch;
+        apply_effect_stack(result,stack,context,registry);
+        return result;
+    };
+    const auto identity=run(SharpenParams{.amount=0.0f});
+    const auto suppressed=run(SharpenParams{.amount=2.0f,.radius=1.0f,.threshold=1.0f});
+    const auto sharpened=run(SharpenParams{.amount=1.0f});
+    for(int x=0;x<source.width();++x) {
+        CHECK(identity.get_pixel(x,0).r==source.get_pixel(x,0).r);
+        CHECK(suppressed.get_pixel(x,0).r==source.get_pixel(x,0).r);
+        CHECK(identity.get_pixel(x,0).a==source.get_pixel(x,0).a);
+    }
+    CHECK(sharpened.get_pixel(1,0).r<source.get_pixel(1,0).r);
+    CHECK(sharpened.get_pixel(2,0).r>source.get_pixel(2,0).r);
+    CHECK(sharpened.get_pixel(2,0).a==source.get_pixel(2,0).a);
 }
 
 TEST_CASE("ThresholdFramehashCanary") {

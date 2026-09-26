@@ -69,6 +69,8 @@ public:
     [[nodiscard]] bool has_animation_curve() const {
         return m_curve != nullptr && m_curve->is_animated();
     }
+    [[nodiscard]] const EasingCurve& easing_curve() const noexcept { return m_easing; }
+    [[nodiscard]] const AnimatedValue<f32>* animation_curve() const noexcept { return m_curve.get(); }
 
     // Copy / move support (AnimatedValue<f32> is deep-copied via unique_ptr).
     TemporalCurve1D(const TemporalCurve1D& other)

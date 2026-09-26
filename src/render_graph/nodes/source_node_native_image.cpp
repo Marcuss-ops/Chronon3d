@@ -115,6 +115,10 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     RenderGraphContext& ctx, Framebuffer& fb,
     const RenderNode& node, const RenderState& state) {
     const auto& image = node.shape.image();
+    // Native image promotion has no per-image tint path. Preserve the
+    // software oracle for color-ramped particle sprites and other tinted images.
+    if (image.tint.r != 1.0f || image.tint.g != 1.0f ||
+        image.tint.b != 1.0f || image.tint.a != 1.0f) return false;
     if (native_surface_promotion_diag_enabled()) {
         spdlog::info("[native_image_diag] path='{}' matrix3=[{:.1f},{:.1f},{:.1f},{:.1f}] anchor=[{:.1f},{:.1f}] op={:.2f} state_op={:.2f}",
                      image.path, state.matrix[3][0], state.matrix[3][1], state.matrix[0][0], state.matrix[1][1],

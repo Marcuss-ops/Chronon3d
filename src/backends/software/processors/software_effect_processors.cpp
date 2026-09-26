@@ -16,6 +16,7 @@
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <stdexcept>
 
@@ -636,6 +637,65 @@ public:
     }
 };
 
+class SoftwareTurbulentDisplaceEffectProcessor final : public EffectProcessor { public:
+    void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
+        const auto* p=std::get_if<TurbulentDisplaceParams>(&params); if(!p) throw std::runtime_error("TurbulentDisplace processor received invalid parameters");
+        apply_turbulent_displace(fb,*p,ctx.time_seconds,*ctx.effect_scratch,ctx.clip);
+    }
+};
+class SoftwareWaveWarpEffectProcessor final : public EffectProcessor { public:
+    void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
+        const auto* p=std::get_if<WaveWarpParams>(&params); if(!p) throw std::runtime_error("WaveWarp processor received invalid parameters");
+        apply_wave_warp(fb,*p,ctx.time_seconds,*ctx.effect_scratch,ctx.clip);
+    }
+};
+class SoftwareRippleEffectProcessor final : public EffectProcessor { public:
+    void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
+        const auto* p=std::get_if<RippleParams>(&params); if(!p) throw std::runtime_error("Ripple processor received invalid parameters");
+        apply_ripple(fb,*p,ctx.time_seconds,*ctx.effect_scratch,ctx.clip);
+    }
+};
+class SoftwareDisplacementMapEffectProcessor final : public EffectProcessor { public:
+    void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
+        const auto* p=std::get_if<DisplacementMapParams>(&params);
+        if(!p) throw std::runtime_error("DisplacementMap processor received invalid parameters");
+        if(!ctx.second_input) throw std::runtime_error("DisplacementMap requires a resolved map-layer framebuffer");
+        apply_displacement_map(fb,*p,*ctx.second_input,*ctx.effect_scratch,ctx.clip);
+    }
+};
+
+class SoftwareSharpenEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& ctx) override {
+        const auto* p = std::get_if<SharpenParams>(&params);
+        if (!p) throw std::runtime_error("Sharpen processor received invalid parameters");
+        if (!std::isfinite(p->amount) || p->amount < -4.0f || p->amount > 4.0f ||
+            !std::isfinite(p->radius) || p->radius <= 0.0f || p->radius > 64.0f ||
+            !std::isfinite(p->threshold) || p->threshold < 0.0f || p->threshold > 1.0f)
+            throw std::invalid_argument("sharpen parameters are outside their valid ranges");
+        if (p->amount == 0.0f || fb.width() < 1 || fb.height() < 1) return;
+        Framebuffer source(fb.width(), fb.height());
+        source.blit(fb, 0, 0);
+        renderer::apply_blur(source, p->radius, ctx.clip, 2);
+        const int x0 = ctx.clip ? std::clamp(ctx.clip->x0, 0, fb.width()) : 0;
+        const int y0 = ctx.clip ? std::clamp(ctx.clip->y0, 0, fb.height()) : 0;
+        const int x1 = ctx.clip ? std::clamp(ctx.clip->x1, 0, fb.width()) : fb.width();
+        const int y1 = ctx.clip ? std::clamp(ctx.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) {
+            Color* dst = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                const Color center = fb.pixels_row(y)[x];
+                const Color blurred = source.pixels_row(y)[x];
+                float dr = center.r-blurred.r, dg = center.g-blurred.g, db = center.b-blurred.b;
+                if (std::sqrt(dr*dr + dg*dg + db*db) < p->threshold) dr = dg = db = 0.0f;
+                dst[x] = Color{center.r+p->amount*dr, center.g+p->amount*dg,
+                               center.b+p->amount*db, center.a};
+            }
+        }
+    }
+};
+
 // ── Factory functions ────────────────────────────────────────────────────────
 
 std::unique_ptr<EffectProcessor> create_blur_effect_processor() {
@@ -741,6 +801,14 @@ std::unique_ptr<EffectProcessor> create_bulge_effect_processor() {
 std::unique_ptr<EffectProcessor> create_mesh_warp_effect_processor() {
     return std::make_unique<SoftwareMeshWarpEffectProcessor>();
 }
+
+std::unique_ptr<EffectProcessor> create_sharpen_effect_processor() {
+    return std::make_unique<SoftwareSharpenEffectProcessor>();
+}
+std::unique_ptr<EffectProcessor> create_turbulent_displace_effect_processor() { return std::make_unique<SoftwareTurbulentDisplaceEffectProcessor>(); }
+std::unique_ptr<EffectProcessor> create_wave_warp_effect_processor() { return std::make_unique<SoftwareWaveWarpEffectProcessor>(); }
+std::unique_ptr<EffectProcessor> create_ripple_effect_processor() { return std::make_unique<SoftwareRippleEffectProcessor>(); }
+std::unique_ptr<EffectProcessor> create_displacement_map_effect_processor() { return std::make_unique<SoftwareDisplacementMapEffectProcessor>(); }
 
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor() {
     return std::make_unique<SoftwareThresholdEffectProcessor>();

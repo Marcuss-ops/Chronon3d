@@ -29,6 +29,27 @@ TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
     CHECK(node.color.r == doctest::Approx(Color::red().r));
 }
 
+TEST_CASE("RenderNodeFactory routes dashed rectangles through the canonical path stroker") {
+    auto* res = std::pmr::get_default_resource();
+    RectParams params;
+    params.size = {40.0f, 20.0f};
+    params.pos = {50.0f, 30.0f, 0.0f};
+    params.stroke.enabled = true;
+    params.stroke.width = 2.0f;
+    params.stroke.dash_array = {6.0f, 3.0f, 2.0f};
+    params.stroke.dash_offset = 1.5f;
+    const auto node = RenderNodeFactory::rect(res, "dashed", params);
+    REQUIRE(node.shape.type() == ShapeType::Path);
+    CHECK(node.shape.path().closed);
+    REQUIRE(node.shape.path().commands.size() == 5);
+    CHECK(node.shape.path().commands.front().p0.x == doctest::Approx(-20.0f));
+    CHECK(node.shape.path().commands.front().p0.y == doctest::Approx(-10.0f));
+    CHECK(node.shape.path().stroke.dash_array == params.stroke.dash_array);
+    CHECK(node.shape.path().stroke.dash_offset == doctest::Approx(1.5f));
+    CHECK(node.world_transform.position.x == doctest::Approx(50.0f));
+    CHECK(node.world_transform.position.y == doctest::Approx(30.0f));
+}
+
 TEST_CASE("RenderNodeFactory creates grid background nodes") {
     auto* res = std::pmr::get_default_resource();
     auto node = RenderNodeFactory::grid_background(res, "grid", GridBackgroundParams{

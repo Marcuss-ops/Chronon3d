@@ -344,3 +344,19 @@ CHRONON_EFFECT(
     DirtyPolicy::Preserve, BoundsPolicy::Preserve,
     false, false
 )
+
+CHRONON_EFFECT(35, Sharpen, SharpenParams, ids::StylizeSharpen, "Sharpen",
+    EffectCategory::Stylize, EffectStage::Adjustment, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+CHRONON_EFFECT(36, TurbulentDisplace, TurbulentDisplaceParams, ids::DistortTurbulentDisplace, "Turbulent Displace",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, true, false)
+CHRONON_EFFECT(37, WaveWarp, WaveWarpParams, ids::DistortWaveWarp, "Wave Warp",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, true, false)
+CHRONON_EFFECT(38, Ripple, RippleParams, ids::DistortRipple, "Ripple",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, true, false)
+CHRONON_EFFECT(39, DisplacementMap, DisplacementMapParams, ids::DistortDisplacementMap, "Displacement Map",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, true, false)

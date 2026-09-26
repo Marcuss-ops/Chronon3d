@@ -91,6 +91,14 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         }
         GraphNodeId effect_id = graph.add_node(std::move(effect_node), node_ctx);
         graph.connect(layer_output, effect_id);
+        if(effect.effect_type==effects::EffectType::DisplacementMap) {
+            const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
+            if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            const auto map=item.displacement_map_nodes.find(params->map_layer);
+            if(map==item.displacement_map_nodes.end())
+                throw std::runtime_error("DisplacementMap source layer was not materialized: "+params->map_layer);
+            graph.connect(map->second,effect_id);
+        }
         layer_output = effect_id;
     }
 

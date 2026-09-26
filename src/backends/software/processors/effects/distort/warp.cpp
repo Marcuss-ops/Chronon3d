@@ -1,8 +1,10 @@
 #include "warp.hpp"
+#include "../generate/fractal_noise.hpp"
 
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 
 namespace chronon3d::renderer {
@@ -103,7 +105,7 @@ void apply_corner_pin(Framebuffer& fb, const CornerPinParams& params,
                 row[x] = Color::transparent();
                 continue;
             }
-            row[x] = ctx.sampler.bilinear(u * w - 0.5f, v * h - 0.5f);
+            row[x] = ctx.sampler.bilinear(u * w, v * h);
         }
     }
 }
@@ -139,7 +141,7 @@ void apply_twirl(Framebuffer& fb, const TwirlParams& params,
             const float cos_t = std::cos(-theta), sin_t = std::sin(-theta);
             const float sx = dx * cos_t - dy * sin_t + cx;
             const float sy = dx * sin_t + dy * cos_t + cy;
-            row[x] = ctx.sampler.bilinear(sx - 0.5f, sy - 0.5f);
+            row[x] = ctx.sampler.bilinear(sx, sy);
         }
     }
 }
@@ -170,7 +172,7 @@ void apply_bulge(Framebuffer& fb, const BulgeParams& params,
             const float inv = (scale > kGeomEpsilon) ? 1.0f / scale : 0.0f;
             const float sx = dx * inv + cx;
             const float sy = dy * inv + cy;
-            row[x] = ctx.sampler.bilinear(sx - 0.5f, sy - 0.5f);
+            row[x] = ctx.sampler.bilinear(sx, sy);
         }
     }
 }
@@ -214,9 +216,92 @@ void apply_mesh_warp(Framebuffer& fb, const MeshWarpParams& params,
             const Vec2 displacement = top + (bottom - top) * fv;
             const float sx = static_cast<float>(x) + 0.5f - displacement.x * w;
             const float sy = static_cast<float>(y) + 0.5f - displacement.y * h;
-            row[x] = ctx.sampler.bilinear(sx - 0.5f, sy - 0.5f);
+            row[x] = ctx.sampler.bilinear(sx, sy);
         }
     }
+}
+
+void apply_turbulent_displace(Framebuffer& fb, const TurbulentDisplaceParams& p, float time,
+                              ::chronon3d::EffectScratchResources& scratch,
+                              const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(p.amount)||p.amount<0||p.amount>1||!std::isfinite(p.size)||p.size<=0||
+        !std::isfinite(p.evolution)||!std::isfinite(p.evolution_speed)||!std::isfinite(time)||p.complexity<1||p.complexity>16)
+        throw std::invalid_argument("turbulent displace parameters are invalid");
+    auto c=make_warp_context(fb,p.edge_mode,scratch,clip);
+    for(int y=c.y0;y<c.y1;++y) { Color* row=fb.pixels_row(y); for(int x=c.x0;x<c.x1;++x) {
+        float nx=(x+0.5f)*p.size+(p.evolution+p.evolution_speed*time), ny=(y+0.5f)*p.size;
+        float vx=0,vy=0,amp=0.5f,freq=1,total=0;
+        for(std::uint32_t octave=0;octave<p.complexity;++octave) {
+            vx+=evaluate_smooth_value_noise(nx*freq,ny*freq,octave)*amp;
+            vy+=evaluate_smooth_value_noise(nx*freq+37.2f,ny*freq-11.8f,octave+53U)*amp;
+            total+=amp; amp*=0.5f; freq*=2.0f;
+        }
+        const float scale=p.amount*static_cast<float>(std::min(c.w,c.h));
+        row[x]=c.sampler.bilinear(x+0.5f-vx/total*scale,y+0.5f-vy/total*scale);
+    }}
+}
+
+void apply_wave_warp(Framebuffer& fb, const WaveWarpParams& p, float time,
+                     ::chronon3d::EffectScratchResources& scratch,
+                     const std::optional<raster::BBox>& clip) {
+    const float len=std::sqrt(p.direction.x*p.direction.x+p.direction.y*p.direction.y);
+    if(!std::isfinite(len)||len<1e-6f||!std::isfinite(p.amplitude)||!std::isfinite(p.wavelength)||p.wavelength<=0||!std::isfinite(p.speed)||!std::isfinite(p.phase)||!std::isfinite(time))
+        throw std::invalid_argument("wave warp parameters are invalid");
+    auto c=make_warp_context(fb,p.edge_mode,scratch,clip); const Vec2 d=p.direction/len;
+    constexpr float tau=6.2831853071795864769f;
+    for(int y=c.y0;y<c.y1;++y) { Color* row=fb.pixels_row(y); for(int x=c.x0;x<c.x1;++x) {
+        const float px=(x+0.5f)/c.w, py=(y+0.5f)/c.h;
+        const float theta=tau*(px*d.x+py*d.y)/p.wavelength+p.phase+tau*p.speed*time;
+        float wave=std::sin(theta);
+        switch(p.type) { case WaveWarpParams::WaveType::Triangle: wave=2.0f/std::numbers::pi_v<float>*std::asin(wave); break;
+        case WaveWarpParams::WaveType::Square: wave=wave<0?-1.0f:1.0f; break;
+        case WaveWarpParams::WaveType::Saw: wave=2.0f*(theta/tau-std::floor(theta/tau+0.5f)); break; default: break; }
+        const float disp=wave*p.amplitude*std::min(c.w,c.h);
+        row[x]=c.sampler.bilinear(x+0.5f-d.x*disp,y+0.5f-d.y*disp);
+    }}
+}
+
+void apply_ripple(Framebuffer& fb, const RippleParams& p, float time,
+                  ::chronon3d::EffectScratchResources& scratch,
+                  const std::optional<raster::BBox>& clip) {
+    if(!std::isfinite(p.center.x)||!std::isfinite(p.center.y)||!std::isfinite(p.radius)||p.radius<=0||!std::isfinite(p.width)||p.width<=0||!std::isfinite(p.wave_height)||!std::isfinite(p.wave_speed)||!std::isfinite(p.damping)||p.damping<0||!std::isfinite(time))
+        throw std::invalid_argument("ripple parameters are invalid");
+    auto c=make_warp_context(fb,p.edge_mode,scratch,clip); const float m=std::min(c.w,c.h), cx=p.center.x*c.w,cy=p.center.y*c.h;
+    constexpr float tau=6.2831853071795864769f;
+    for(int y=c.y0;y<c.y1;++y) { Color* row=fb.pixels_row(y); for(int x=c.x0;x<c.x1;++x) {
+        const float dx=x+0.5f-cx,dy=y+0.5f-cy,r=std::sqrt(dx*dx+dy*dy), rn=r/m;
+        const float envelope=std::max(0.0f,1.0f-rn/p.radius);
+        const float disp=p.wave_height*m*std::sin(tau*rn/p.width-p.wave_speed*time)*std::exp(-p.damping*rn)*envelope;
+        const float inv=r>1e-6f?1.0f/r:0.0f;
+        row[x]=c.sampler.bilinear(x+0.5f-dx*inv*disp,y+0.5f-dy*inv*disp);
+    }}
+}
+
+void apply_displacement_map(Framebuffer& fb,const DisplacementMapParams& p,const Framebuffer& map,
+                            ::chronon3d::EffectScratchResources& scratch,
+                            const std::optional<raster::BBox>& clip) {
+    if(p.map_layer.empty()||!std::isfinite(p.intensity_x)||!std::isfinite(p.intensity_y)||
+       std::abs(p.intensity_x)>4.0f||std::abs(p.intensity_y)>4.0f||map.width()<=0||map.height()<=0)
+        throw std::invalid_argument("displacement map parameters or input surface are invalid");
+    auto c=make_warp_context(fb,p.edge_mode,scratch,clip);
+    sampling::Sampler2D map_sampler(map,sampling::EdgeMode::Clamp);
+    const float map_origin_x=static_cast<float>(fb.origin_x()-map.origin_x());
+    const float map_origin_y=static_cast<float>(fb.origin_y()-map.origin_y());
+    const float scale=static_cast<float>(std::min(fb.width(),fb.height()));
+    for(int y=c.y0;y<c.y1;++y) { Color* row=fb.pixels_row(y); for(int x=c.x0;x<c.x1;++x) {
+        const Color m=map_sampler.bilinear(map_origin_x+x+0.5f,map_origin_y+y+0.5f);
+        float channel=0.0f;
+        switch(p.channel) {
+            case DisplacementMapParams::Channel::Red: channel=m.r; break;
+            case DisplacementMapParams::Channel::Green: channel=m.g; break;
+            case DisplacementMapParams::Channel::Blue: channel=m.b; break;
+            case DisplacementMapParams::Channel::Alpha: channel=m.a; break;
+            case DisplacementMapParams::Channel::Luma: channel=0.2126f*m.r+0.7152f*m.g+0.0722f*m.b; break;
+        }
+        const float dx=(channel-0.5f)*p.intensity_x*scale;
+        const float dy=(channel-0.5f)*p.intensity_y*scale;
+        row[x]=c.sampler.bilinear(x+0.5f-dx,y+0.5f-dy);
+    }}
 }
 
 } // namespace chronon3d::renderer

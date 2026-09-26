@@ -409,6 +409,11 @@ public:
         std::int32_t, std::int32_t, const Vec4& shape,
         const Vec4& line, const Color&,
         const std::array<Vec2, 8>& vertices = {});
+    graph::RenderOpResult fill_dashed_path_surface(
+        runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
+        std::int32_t, std::int32_t, float, const Color&,
+        std::span<const Vec2>, std::span<const std::uint32_t>,
+        bool, std::uint32_t, const std::array<Vec2, 8>&);
     graph::RenderOpResult fill_path_surface(
         runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
     /// Native analytic grid background fill over the half-open destination

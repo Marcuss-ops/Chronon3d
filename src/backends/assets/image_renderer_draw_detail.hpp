@@ -62,7 +62,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     using_placeholder = false;
 #endif
 
-    const f32 final_opacity = image.opacity * state.opacity;
+    const f32 final_opacity = image.opacity * image.tint.a * state.opacity;
 
     // Handle ImageCrop (if enabled, crop origin and size are normalized relative to cached image)
     Vec2 original_source_size = Vec2(static_cast<float>(img_w), static_cast<float>(img_h));
@@ -173,7 +173,23 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const auto composite_start = profiling::now();
 
 #ifdef CHRONON3D_USE_BLEND2D
-    if (use_cached_fb && image.radius <= 0.0f) {
+    const bool has_tint = image.tint.r != 1.0f || image.tint.g != 1.0f ||
+                          image.tint.b != 1.0f || image.tint.a != 1.0f;
+    if (has_tint && cached && cached->fb_img && !using_placeholder) {
+        Framebuffer cropped(src_w, src_h);
+        cropped.set_opaque(false);
+        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                const Color* src = cached->fb_img->pixels_row(src_y + y) + src_x;
+                Color* dst = cropped.pixels_row(y);
+                for (int x = 0; x < src_w; ++x)
+                    dst[x] = Color{src[x].r * image.tint.r, src[x].g * image.tint.g,
+                                   src[x].b * image.tint.b, src[x].a};
+            }
+        });
+        if (scaled_radius > 0.0f) apply_rounded_coverage(cropped, scaled_radius);
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
+    } else if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     } else if (use_cached_fb && image.radius > 0.0f) {
         if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {
@@ -210,7 +226,23 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     }
 #else
     // Blend2D disabled: framebuffer-only compositing path
-    if (use_cached_fb && image.radius <= 0.0f) {
+    const bool has_tint = image.tint.r != 1.0f || image.tint.g != 1.0f ||
+                          image.tint.b != 1.0f || image.tint.a != 1.0f;
+    if (has_tint && cached && cached->fb_img && !using_placeholder) {
+        Framebuffer cropped(src_w, src_h);
+        cropped.set_opaque(false);
+        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                const Color* src = cached->fb_img->pixels_row(src_y + y) + src_x;
+                Color* dst = cropped.pixels_row(y);
+                for (int x = 0; x < src_w; ++x)
+                    dst[x] = Color{src[x].r * image.tint.r, src[x].g * image.tint.g,
+                                   src[x].b * image.tint.b, src[x].a};
+            }
+        });
+        if (scaled_radius > 0.0f) apply_rounded_coverage(cropped, scaled_radius);
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
+    } else if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &surface_state);
     } else if (use_cached_fb && image.radius > 0.0f) {
         if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {

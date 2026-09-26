@@ -41,12 +41,30 @@ void VulkanBackend::Impl::write_descriptors(VkDescriptorSet set,
 
 void VulkanBackend::Impl::write_fill_rect_descriptors(
     VkDescriptorSet set, const Image& destination) {
+    ensure_path_geometry_buffer(sizeof(std::uint32_t), 0);
     const VkDescriptorImageInfo dst_info{
         VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorBufferInfo geometry_info{path_geometry_buffers[0].buffer, 0,
+                                                VK_WHOLE_SIZE};
     const VkWriteDescriptorSet writes[] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
-         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr}};
-    vkUpdateDescriptorSets(device, 1, writes, 0, nullptr);
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &geometry_info, nullptr}};
+    vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
+}
+
+void VulkanBackend::Impl::write_dashed_path_descriptors(
+    VkDescriptorSet set, const Image& destination, VkBuffer geometry_buffer) {
+    const VkDescriptorImageInfo dst_info{
+        VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorBufferInfo geometry_info{geometry_buffer, 0, VK_WHOLE_SIZE};
+    const VkWriteDescriptorSet writes[] = {
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 4, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &geometry_info, nullptr}};
+    vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
 }
 
 void VulkanBackend::Impl::bind_fill_rect_descriptors(const Image& destination) {

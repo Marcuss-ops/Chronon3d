@@ -585,6 +585,9 @@ VulkanBackend::Impl::~Impl() {
                 memory_manager.destroy_buffer(text_tile_index_buffers[i]);
             }
         }
+        for (auto& buffer : path_geometry_buffers) {
+            if (buffer.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(buffer);
+        }
         for (auto& slot : uploads.slots) destroy_upload_slot(slot);
         descriptor_arena.destroy();
         for (auto& slot_fence : frame_batch.fences) {

@@ -1,6 +1,7 @@
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/vector/path_factories.hpp>
+#include "src/backends/software/rasterizers/path/path_stroke.hpp"
 #include <doctest/doctest.h>
 #include <cmath>
 #include <limits>
@@ -38,6 +39,18 @@ TEST_CASE("Path Utilities: Flattening") {
 TEST_CASE("Path Utilities: Polyline length") {
     std::vector<Vec2> points = {{0, 0}, {100, 0}, {100, 100}};
     CHECK(polyline_length(points) == doctest::Approx(200.0f));
+}
+
+TEST_CASE("Odd dash patterns repeat before splitting a polyline") {
+    const auto dashed = chronon3d::renderer::dash_polyline_points(
+        {{0.0f, 0.0f}, {10.0f, 0.0f}}, false, {3.0f, 2.0f, 1.0f}, 0.0f);
+    REQUIRE(dashed.size() == 3);
+    CHECK(dashed[0].front().x == doctest::Approx(0.0f));
+    CHECK(dashed[0].back().x == doctest::Approx(3.0f));
+    CHECK(dashed[1].front().x == doctest::Approx(5.0f));
+    CHECK(dashed[1].back().x == doctest::Approx(6.0f));
+    CHECK(dashed[2].front().x == doctest::Approx(9.0f));
+    CHECK(dashed[2].back().x == doctest::Approx(10.0f));
 }
 
 TEST_CASE("Path Utilities: Trim Polyline") {
