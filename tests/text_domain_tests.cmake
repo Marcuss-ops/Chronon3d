@@ -196,6 +196,18 @@ chronon3d_add_test_suite(
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/text_animator_property_tests.cpp
 )
 chronon3d_add_test_suite(
+    NAME chronon3d_text_selector_evaluate_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_selector_evaluate.cpp
+    EXTRA_LINK_TARGETS chronon3d_text_core
+)
+chronon3d_add_test_suite(
+    NAME chronon3d_gpu_text_selector_metadata_tests
+    TIER UNIT
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_gpu_text_selector_metadata.cpp
+    EXTRA_LINK_TARGETS chronon3d_runtime
+)
+chronon3d_add_test_suite(
     NAME chronon3d_builder_consumed_commit_validation_tests
     TIER INTEGRATION
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_builder_consumed_commit_validation.cpp
@@ -230,4 +242,6 @@ chronon3d_label_tests(text
     chronon3d_prewarm_text_layout_cache_tests
     chronon3d_video_flicker_fps_tests
     chronon3d_text_animator_property_tests
+    chronon3d_text_selector_evaluate_tests
+    chronon3d_gpu_text_selector_metadata_tests
     chronon3d_builder_consumed_commit_validation_tests)

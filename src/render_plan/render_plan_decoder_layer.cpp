@@ -1,5 +1,6 @@
 #include "render_plan_decoder_detail.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/scene/model/shape/path_operator.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -89,6 +90,20 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     selector.exclude_spaces = value.value("exclude_spaces", true);
     selector.randomize_order = value.value("randomize_order", false);
     selector.random_seed = value.value("random_seed", std::uint64_t{0});
+    selector.wiggly_frequency = value.value("wiggly_frequency", 1.0f);
+    selector.wiggly_amplitude = value.value("wiggly_amplitude", 0.25f);
+    selector.wiggly_seed = value.value("wiggly_seed", std::uint64_t{0});
+    if (selector.shape == "wiggly" &&
+        (!std::isfinite(selector.wiggly_frequency) || selector.wiggly_frequency <= 0.0f ||
+         selector.wiggly_frequency > 1000.0f ||
+         !std::isfinite(selector.wiggly_amplitude) || selector.wiggly_amplitude < 0.0f ||
+         selector.wiggly_amplitude > 1.0f))
+        throw std::runtime_error(
+            "text selector wiggly_frequency must be in (0, 1000] and wiggly_amplitude must be in [0, 1]");
+    if (selector.shape != "wiggly" &&
+        (value.contains("wiggly_frequency") || value.contains("wiggly_amplitude") ||
+         value.contains("wiggly_seed")))
+        throw std::runtime_error("wiggly selector parameters require shape='wiggly'");
     if (value.contains("semantic_id")) {
         selector.semantic_id = value.at("semantic_id").get<std::string>();
         if (selector.semantic_id->empty())
@@ -616,6 +631,91 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                             throw std::runtime_error("each merged subpath must begin with move_to");
                         total_commands += subpath.size();
                         decoded_op.paths.push_back(std::move(subpath));
+                    }
+                } else if (kind == "morph") {
+                    decoded_op.kind = PathOperatorKindPlan::Morph;
+                    if (!p.contains("target"))
+                        throw std::runtime_error("morph operator requires target commands");
+                    const auto& raw_target = p.at("target");
+                    if (!raw_target.is_array() || raw_target.empty() || raw_target.size() > 65536)
+                        throw std::runtime_error("morph target must contain between 1 and 65536 commands");
+                    for (const auto& raw_command : raw_target) {
+                        ShapePathCommandPlan command;
+                        const auto type = raw_command.at("type").get<std::string>();
+                        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+                        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+                        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+                        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+                        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+                        else throw std::runtime_error("unsupported morph path command: " + type);
+                        const auto read_point = [](const nlohmann::json& value,
+                                                   std::array<float, 2>& out) {
+                            if (!value.is_array() || value.size() != 2)
+                                throw std::runtime_error("morph path points must contain two values");
+                            out = {value[0].get<float>(), value[1].get<float>()};
+                        };
+                        const bool has_point = raw_command.contains("point");
+                        const bool has_c1 = raw_command.contains("control1");
+                        const bool has_c2 = raw_command.contains("control2");
+                        if (has_point) read_point(raw_command.at("point"), command.point);
+                        if (has_c1) read_point(raw_command.at("control1"), command.control1);
+                        if (has_c2) read_point(raw_command.at("control2"), command.control2);
+                        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
+                             command.type == ShapePathCommandTypePlan::LineTo) &&
+                            (!has_point || has_c1 || has_c2))
+                            throw std::runtime_error("morph move_to/line_to require point only");
+                        if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
+                            (!has_point || !has_c1 || has_c2))
+                            throw std::runtime_error("morph quadratic_to requires point and control1");
+                        if (command.type == ShapePathCommandTypePlan::CubicTo &&
+                            (!has_point || !has_c1 || !has_c2))
+                            throw std::runtime_error("morph cubic_to requires point and both controls");
+                        if (command.type == ShapePathCommandTypePlan::Close &&
+                            (has_point || has_c1 || has_c2))
+                            throw std::runtime_error("morph close accepts no coordinates");
+                        if ((command.type != ShapePathCommandTypePlan::Close &&
+                             !finite_point(command.point)) ||
+                            !finite_point(command.control1) || !finite_point(command.control2))
+                            throw std::runtime_error("morph path coordinates must be finite");
+                        decoded_op.morph_target.push_back(command);
+                    }
+                    std::vector<PathCommand> source_commands;
+                    source_commands.reserve(shape.path.size());
+                    const auto make_path_command = [](const ShapePathCommandPlan& command) {
+                        const Vec2 point{command.point[0], command.point[1]};
+                        const Vec2 control1{command.control1[0], command.control1[1]};
+                        const Vec2 control2{command.control2[0], command.control2[1]};
+                        switch (command.type) {
+                            case ShapePathCommandTypePlan::MoveTo: return PathCommand::move_to(point);
+                            case ShapePathCommandTypePlan::LineTo: return PathCommand::line_to(point);
+                            case ShapePathCommandTypePlan::QuadraticTo: return PathCommand::quadratic_to(control1, point);
+                            case ShapePathCommandTypePlan::CubicTo: return PathCommand::cubic_to(control1, control2, point);
+                            case ShapePathCommandTypePlan::Close: return PathCommand::close();
+                        }
+                        return PathCommand::close();
+                    };
+                    for (const auto& command : shape.path)
+                        source_commands.push_back(make_path_command(command));
+                    std::vector<PathCommand> target_commands;
+                    target_commands.reserve(decoded_op.morph_target.size());
+                    for (const auto& command : decoded_op.morph_target)
+                        target_commands.push_back(make_path_command(command));
+                    if (const auto topology_error = validate_morph_path_topology(
+                            source_commands, target_commands))
+                        throw std::runtime_error(*topology_error);
+                    decoded_op.morph_progress = p.value("progress", 0.0f);
+                    if (!std::isfinite(decoded_op.morph_progress) ||
+                        decoded_op.morph_progress < 0.0f || decoded_op.morph_progress > 1.0f)
+                        throw std::runtime_error("morph progress must be finite and in [0, 1]");
+                    if (p.contains("animation")) {
+                        auto animation = decode_animation_track(p.at("animation"));
+                        animation.property = "morph_progress";
+                        for (const auto& key : animation.keyframes) {
+                            if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                                key.value.front() < 0.0f || key.value.front() > 1.0f)
+                                throw std::runtime_error("morph animation keyframes require scalar progress in [0, 1]");
+                        }
+                        decoded_op.morph_animation = std::move(animation);
                     }
                 } else if (kind == "trim") {
                     decoded_op.kind = PathOperatorKindPlan::Trim;

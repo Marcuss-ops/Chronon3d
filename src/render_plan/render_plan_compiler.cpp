@@ -614,6 +614,35 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     } else if (op.kind == PathOperatorKindPlan::WigglePath) {
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
+                                    } else if (op.kind == PathOperatorKindPlan::Morph) {
+                                        MorphPathParams morph;
+                                        morph.progress = op.morph_progress;
+                                        morph.target.reserve(op.morph_target.size());
+                                        for (const auto& command : op.morph_target) {
+                                            const Vec2 point{command.point[0], command.point[1]};
+                                            const Vec2 c1{command.control1[0], command.control1[1]};
+                                            const Vec2 c2{command.control2[0], command.control2[1]};
+                                            switch (command.type) {
+                                                case ShapePathCommandTypePlan::MoveTo: morph.target.push_back(PathCommand::move_to(point)); break;
+                                                case ShapePathCommandTypePlan::LineTo: morph.target.push_back(PathCommand::line_to(point)); break;
+                                                case ShapePathCommandTypePlan::QuadraticTo: morph.target.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                                case ShapePathCommandTypePlan::CubicTo: morph.target.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                                case ShapePathCommandTypePlan::Close: morph.target.push_back(PathCommand::close()); break;
+                                            }
+                                        }
+                                        if (op.morph_animation) {
+                                            chronon3d::AnimatedValue<float> progress{op.morph_progress};
+                                            for (const auto& key : op.morph_animation->keyframes) {
+                                                if (key.value.size() != 1)
+                                                    throw std::runtime_error("morph animation keyframes require scalar progress");
+                                                progress.add_keyframe(
+                                                    key.frame, key.value.front(),
+                                                    detail::animation_track_easing(*op.morph_animation));
+                                            }
+                                            morph.progress = std::clamp(
+                                                progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                                        }
+                                        specs.push_back({PathOperatorKind::Morph, std::move(morph), 0});
                                     } else if (op.kind == PathOperatorKindPlan::Merge) {
                                         MergeParams merge;
                                         for (const auto& planned_path : op.paths) {

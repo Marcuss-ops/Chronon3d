@@ -43,6 +43,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d {
@@ -153,6 +155,11 @@ CompiledSelector compile_selector(
     std::string_view source,
     const PlacedGlyphRun* placed
 ) {
+    if (spec.shape == TextSelectorShape::Wiggly &&
+        !valid_wiggly_selector_params(spec.wiggly)) {
+        throw std::invalid_argument(
+            "wiggly selector frequency must be positive and amplitude must be in [0, 1]");
+    }
     CompiledSelector c;
     c.spec = &spec;
     if (spec.semantic_id) {
@@ -227,6 +234,9 @@ SelectorWeightParams bind_selector_runtime(
         false,
         true,
         std::abs(end - start) <= 1e-7f && start >= 100.0f,
+        spec.wiggly.frequency,
+        spec.wiggly.amplitude,
+        spec.wiggly.seed,
     };
 }
 
@@ -277,6 +287,11 @@ SelectorWeight selector_weight(
     const u32 glyph_index
 ) noexcept {
     if (!params.enabled) return 1.0f;
+    if (params.shape == TextSelectorShape::Wiggly &&
+        !valid_wiggly_selector_params(WigglySelectorParams{
+            params.wiggly_frequency, params.wiggly_amplitude,
+            params.wiggly_seed}))
+        return 0.0f;
 
     const f32 total = std::max(static_cast<f32>(params.total_units), 1.0f);
     const u32 position_index = params.use_ordered_index
@@ -300,9 +315,32 @@ SelectorWeight selector_weight(
         return 0.0f;
     }
 
-    return std::clamp(
-        detail::evaluate_selector_shape(params.shape, position, start, end) * amount,
-        0.0f, 1.0f);
+    f32 shaped = detail::evaluate_selector_shape(
+        params.shape == TextSelectorShape::Wiggly
+            ? TextSelectorShape::Smooth : params.shape,
+        position, start, end);
+    if (params.shape == TextSelectorShape::Wiggly) {
+        // Compute in double precision and validate before integer conversion:
+        // malformed low-level bindings must never cause an out-of-range cast.
+        const double phase = static_cast<double>(position_index) *
+                             static_cast<double>(params.wiggly_frequency);
+        if (!std::isfinite(phase) ||
+            phase < 0.0 ||
+            phase >= static_cast<double>(std::numeric_limits<std::int64_t>::max()))
+            return std::clamp(shaped * amount, 0.0f, 1.0f);
+        const auto lattice = static_cast<std::int64_t>(std::floor(phase));
+        const f32 fraction = static_cast<f32>(phase - static_cast<double>(lattice));
+        const f32 eased = fraction * fraction * (3.0f - 2.0f * fraction);
+        const f32 a = random::unit(random::Seed{params.wiggly_seed},
+                                   static_cast<u64>(lattice));
+        const f32 b = random::unit(random::Seed{params.wiggly_seed},
+                                   static_cast<u64>(lattice + 1));
+        const f32 noise = a + (b - a) * eased;
+        const f32 modulation =
+            1.0f - params.wiggly_amplitude + 2.0f * params.wiggly_amplitude * noise;
+        shaped *= modulation;
+    }
+    return std::clamp(shaped * amount, 0.0f, 1.0f);
 }
 
 std::vector<CompiledSelector> compile_selectors(

@@ -16,6 +16,7 @@ namespace chronon3d::render_plan::detail {
 
 [[nodiscard]] chronon3d::FitMode fit_mode(FitMode value);
 [[nodiscard]] chronon3d::EasingCurve camera_track_easing(std::string_view value);
+[[nodiscard]] chronon3d::EasingCurve animation_track_easing(const AnimationTrackPlan& track);
 [[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);

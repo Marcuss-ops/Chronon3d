@@ -240,6 +240,78 @@ void append_polyline(std::vector<PathCommand>& out, const std::vector<Vec2>& poi
     for (std::size_t i = 1; i < points.size(); ++i)
         if (points[i] != points[i - 1]) out.push_back(PathCommand::line_to(points[i]));
 }
+std::optional<std::string> validate_morph_path_topology_impl(
+    const std::vector<PathCommand>& source,
+    const std::vector<PathCommand>& target) {
+    if (source.empty() || source.size() != target.size())
+        return "path-morph paths must have equal non-empty command sequences";
+    bool source_open = false;
+    bool target_open = false;
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        const auto& from = source[index];
+        const auto& to = target[index];
+        if (from.type != to.type)
+            return "path-morph paths must have identical command topology";
+        const auto finite = [](const Vec2& point) {
+            return std::isfinite(point.x) && std::isfinite(point.y);
+        };
+        if (from.type == PathCommandType::MoveTo) {
+            // MoveTo also delimits open stroke contours; equal command
+            // topology preserves that correspondence without requiring Close.
+            source_open = target_open = true;
+            if (!finite(from.p0) || !finite(to.p0))
+                return "path-morph coordinates must be finite";
+        } else if (from.type == PathCommandType::Close) {
+            if (!source_open || !target_open)
+                return "path-morph close command has no active contour";
+            source_open = target_open = false;
+        } else {
+            if (!source_open || !target_open)
+                return "path-morph drawing command has no active contour";
+            if (!finite(from.p0) || !finite(to.p0))
+                return "path-morph coordinates must be finite";
+            if ((from.type == PathCommandType::QuadraticTo ||
+                 from.type == PathCommandType::CubicTo) &&
+                (!finite(from.p1) || !finite(to.p1)))
+                return "path-morph coordinates must be finite";
+            if (from.type == PathCommandType::CubicTo &&
+                (!finite(from.p2) || !finite(to.p2)))
+                return "path-morph coordinates must be finite";
+        }
+    }        return std::nullopt;
+}
+PathShape morph_path(const PathShape& source, const MorphPathParams& params) {
+    if (!std::isfinite(params.progress) || params.progress < 0.0f ||
+        params.progress > 1.0f)
+        throw std::invalid_argument("path-morph progress must be finite and in [0, 1]");
+    if (const auto error = validate_morph_path_topology_impl(source.commands, params.target))
+        throw std::invalid_argument(*error);
+
+    PathShape output = source;
+    const auto interpolate = [progress = static_cast<double>(params.progress)](Vec2 from, Vec2 to) {
+        // A convex interpolation of finite float endpoints is finite, but the
+        // intermediate `to - from` in glm::mix can overflow for opposite-sign
+        // large coordinates. Compute in double so extreme yet valid input
+        // cannot manufacture infinities in the lowered path.
+        const auto component = [progress](float a, float b) {
+            return static_cast<float>(static_cast<double>(a) +
+                (static_cast<double>(b) - static_cast<double>(a)) * progress);
+        };
+        return Vec2{component(from.x, to.x), component(from.y, to.y)};
+    };
+    for (std::size_t index = 0; index < output.commands.size(); ++index) {
+        auto& command = output.commands[index];
+        const auto& target = params.target[index];
+        if (command.type == PathCommandType::Close) continue;
+        command.p0 = interpolate(command.p0, target.p0);
+        if (command.type == PathCommandType::QuadraticTo ||
+            command.type == PathCommandType::CubicTo)
+            command.p1 = interpolate(command.p1, target.p1);
+        if (command.type == PathCommandType::CubicTo)
+            command.p2 = interpolate(command.p2, target.p2);
+    }
+    return output;
+}
 PathShape trim_path(const PathShape& source, const TrimPathParams& params) {
     if (!std::isfinite(params.start) || !std::isfinite(params.end) ||
         !std::isfinite(params.offset) || params.start < 0.0f || params.end > 1.0f ||
@@ -288,6 +360,11 @@ PathShape wiggle_path(const PathShape& source, const WigglePathParams& params,
     return output;
 }
 }
+std::optional<std::string> validate_morph_path_topology(
+    const std::vector<PathCommand>& source,
+    const std::vector<PathCommand>& target) {
+    return validate_morph_path_topology_impl(source, target);
+}
 std::vector<PathShape> apply_path_operators(const PathShape& input,
     const std::vector<PathOperatorSpec>& operators) {
     std::vector<PathShape> paths{input};
@@ -322,6 +399,10 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
             if (!std::holds_alternative<TrimPathParams>(op.params))
                 throw std::invalid_argument("trim-path parameters do not match operator kind");
             for (auto& path : paths) path = trim_path(path, std::get<TrimPathParams>(op.params));
+        } else if (op.kind == PathOperatorKind::Morph) {
+            if (!std::holds_alternative<MorphPathParams>(op.params))
+                throw std::invalid_argument("morph parameters do not match operator kind");
+            for (auto& path : paths) path = morph_path(path, std::get<MorphPathParams>(op.params));
         } else if (op.kind == PathOperatorKind::Merge) {
             if (!std::holds_alternative<MergeParams>(op.params))
                 throw std::invalid_argument("merge parameters do not match operator kind");

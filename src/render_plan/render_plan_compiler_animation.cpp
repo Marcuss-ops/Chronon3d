@@ -172,6 +172,7 @@ chronon3d::TextSelectorShape text_selector_shape(std::string_view value) {
     if (value == "triangle") return TextSelectorShape::Triangle;
     if (value == "round") return TextSelectorShape::Round;
     if (value == "smooth") return TextSelectorShape::Smooth;
+    if (value == "wiggly") return TextSelectorShape::Wiggly;
     throw std::runtime_error("unsupported text selector shape: " + std::string(value));
 }
 
@@ -279,6 +280,8 @@ chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan)
     selector.exclude_spaces = plan.exclude_spaces;
     selector.randomize_order = plan.randomize_order;
     selector.random_seed = plan.random_seed;
+    selector.wiggly = chronon3d::WigglySelectorParams{
+        plan.wiggly_frequency, plan.wiggly_amplitude, plan.wiggly_seed};
     return selector;
 }
 
@@ -574,6 +577,10 @@ chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& trac
 
 chronon3d::EasingCurve camera_track_easing(std::string_view value) {
     return track_easing(value);
+}
+
+chronon3d::EasingCurve animation_track_easing(const AnimationTrackPlan& track) {
+    return track_easing(track.easing, track.bezier_curve);
 }
 
 std::optional<chronon3d::camera_v1::CameraDescriptor>

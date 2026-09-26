@@ -162,6 +162,22 @@ chronon3d_add_test_suite(
 )
 target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
+# Offline ChrononMotion adapter contract: baked scenes enter the canonical
+# RenderPlan POD model before the renderer sees them; no motion solver runs in
+# the frame path. The sibling source tree is an explicit test source include.
+if(CHRONON3D_ENABLE_MOTION_ADAPTER)
+    # UNIT-tier defaults to the canonical chronon3d_pipeline object/interface
+    # boundary; the adapter is additive and remains an offline test dependency.
+    chronon3d_add_test_suite(
+        NAME chronon3d_motion_plan_adapter_tests
+        TIER UNIT
+        EXTRA_LINK_TARGETS chrononmotion_chronon3d_adapter
+        SOURCES scene/motion/test_offline_motion_plan_adapter.cpp
+    )
+    target_include_directories(chronon3d_motion_plan_adapter_tests PRIVATE
+        "${CMAKE_SOURCE_DIR}/../ChrononMotion3D/include")
+endif()
+
 # ── ADR-032 — contract-zone converters (chronon/abi.h motion handshake) ──────
 # POD purity, version handshake, kind mapping, matrix packing round-trip,
 # depth semantics, ContentRef extraction.
