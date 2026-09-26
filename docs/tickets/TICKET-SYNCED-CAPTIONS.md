@@ -1,7 +1,7 @@
 # TICKET-SYNCED-CAPTIONS — Timed-text plan expansion
 
 ## Stato
-IN PROGRESS — adapter/CLI lowering and SRT raw-frame smoke pass; broader fixture/gate automation remains.
+COMPLETE — adapter dispatch, CLI lowering, fixture checks, fingerprint stability and SRT raw-frame smoke gates pass.
 
 ## Contratto
 Caption source formats dispatch by extension through the canonical timed-text
