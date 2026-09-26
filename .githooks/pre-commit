@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
-# pre-commit — fast local checks run before every git commit.
-# Canonical authorities: doc SHA dedup, test hygiene, architecture registry.
+# pre-commit — slim (<2s): fail fast on obvious rot, no builds, no arch.
+#
+# 2026-09-26 slim (taglia senza pietà):
+#   Prima: check_doc_sha_dedup + check_test_hygiene (13s) + check_architecture (62s)
+#          = ~75s ad OGNI commit, anche per typo fix. Grasso puro.
+#   Ora:  2 gate <2s totali: dedup + conflict markers.
+#   Hygiene e arch restano nel pre-push (slim 6 gate, wall ~62s) e in CI FULL.
+#   Commit deve essere istantaneo; certificazione al push.
+#
+# Se vuoi un check locale più pesante prima del commit:
+#   bash tools/check_test_hygiene.sh && bash tools/check_architecture.py
 
-set -euo pipefail
+set -uo pipefail
 
-SCRIPT_DIR="$(git rev-parse --show-toplevel)/tools"
+ROOT="$(git rev-parse --show-toplevel)"
+SCRIPT_DIR="${ROOT}/tools"
 
-echo "pre-commit: running fast checks..."
+echo "pre-commit: running slim checks (dedup + conflict, <2s)..."
 
+# 1) conflict markers — 0s, blocca rebase/merge rotti prima di commit
+bash "${SCRIPT_DIR}/check_conflict_markers.sh" \
+    || { echo "pre-commit: GATE_FAIL on check_conflict_markers.sh" >&2; exit 1; }
+
+# 2) doc SHA dedup — 1s, blocca rot doc prima che diventi storia
 bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
-    || { echo "pre-commit: GATE_FAIL on check_doc_sha_dedup.sh (exit $?)" >&2; exit 1; }
+    || { echo "pre-commit: GATE_FAIL on check_doc_sha_dedup.sh" >&2; exit 1; }
 
-bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
-    || { echo "pre-commit: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
-
-python3 "${SCRIPT_DIR}/check_architecture.py" \
-    || { echo "pre-commit: GATE_FAIL on check_architecture.py (exit $?)" >&2; exit 1; }
-
-echo "pre-commit: fast checks PASSED"
+echo "pre-commit: slim checks PASSED (hygiene+arch al pre-push: bash tools/run_developer_gates.sh)"
 exit 0
