@@ -102,6 +102,8 @@ struct ShapeContentPlan {
     // Resolver-backed SVG reference. Expanded into path commands before the
     // composition compiler sees the plan.
     std::optional<std::string> svg_asset;
+    // Bounded Bodymovin source, lowered before plan compilation.
+    std::optional<std::string> lottie_asset;
     float radius{0.0f};
     std::optional<std::array<float, 4>> corner_radius;
     std::optional<std::array<float, 4>> fill_color;

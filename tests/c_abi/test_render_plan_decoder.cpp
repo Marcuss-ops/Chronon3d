@@ -37,6 +37,28 @@ TEST_CASE("render plan decoder constructs typed V2 plan") {
     CHECK(decoded->budget.max_temporal_pixels == 4096);
 }
 
+TEST_CASE("render plan v3 accepts resolver-backed Lottie shape assets") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"lottie","type":"shape","size":[100,100],
+        "shape":{"type":"path","lottie":"shapes/mark.json"}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const auto decode_message = decoded.has_value() ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_message);
+    REQUIRE(decoded->layers[0].shape.has_value());
+    CHECK(decoded->layers[0].shape->lottie_asset == "shapes/mark.json");
+    CHECK_FALSE(decoded->layers[0].shape->svg_asset.has_value());
+    auto changed = source;
+    changed["layers"][0]["shape"]["lottie"] = "shapes/other.json";
+    const auto changed_decoded = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_decoded.has_value());
+    CHECK(decoded->content_fingerprint != changed_decoded->content_fingerprint);
+}
+
 TEST_CASE("render plan v3 decodes audio mix, fingerprints it, and warns on clipped tail") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
