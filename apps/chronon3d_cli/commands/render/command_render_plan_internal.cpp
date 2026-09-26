@@ -242,6 +242,10 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             output.insert(extension == std::string::npos ? output.size() : extension, "_####");
         }
         if (context.decoded.audio) {
+            if (!is_native_encoder_transport(normalized_job.output.encoder_backend)) {
+                spdlog::error("[audio-plan] render-plan audio requires the native FFmpeg encoder");
+                return 1;
+            }
             if ((!video_output(output) &&
                  !video_sink_name_selects_video_lane(normalized_job.output.sink_type)) ||
                 normalized_job.output.sink_type == "raw") {

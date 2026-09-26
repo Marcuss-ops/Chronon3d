@@ -103,7 +103,9 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
                 if (input.source_end_sample >= 0)
                     graph << ":end_sample=" << input.source_end_sample;
                 graph << ",asetpts=PTS-STARTPTS,adelay="
-                      << input.timeline_start_sample << "S:all=1,volume='"
+                      << input.timeline_start_sample << "S:all=1,apad=whole_len="
+                      << spec.duration_samples << ",atrim=end_sample="
+                      << spec.duration_samples << ",volume='"
                       << sample_gain_expression(input.gain_db_per_frame, canvas.fps)
                       << "':eval=frame[" << label << "];";
                 if (clip.role == "voice") voice_labels.push_back(label);
@@ -119,12 +121,19 @@ Result<MixerSpec, AudioMixCompileError> AudioMixCompiler::compile(
         std::vector<std::string> final_labels;
         if (!music_labels.empty() && !voice_labels.empty()) {
             const float ratio = std::pow(10.0f, std::abs(mix.duck_amount_db) / 20.0f);
-            graph << "[music][voice]sidechaincompress=threshold=0.01:ratio="
+            // Keep the voice bus in the final mix while a separate copy drives
+            // the compressor. Explicitly splitting the label avoids FFmpeg's
+            // implicit multi-consumer handling, and padding both buses to the
+            // canvas prevents sidechaincompress from truncating the music at
+            // the last active voice sample.
+            graph << "[voice]asplit=2[voice_sidechain][voice_mix];"
+                  << "[music][voice_sidechain]sidechaincompress=threshold=0.01:ratio="
                   << ratio << ":attack=" << mix.duck_attack_ms
                   << ":release=" << mix.duck_release_ms << "[ducked_music];";
             final_labels.push_back("ducked_music");
+            final_labels.push_back("voice_mix");
         } else if (!music_labels.empty()) final_labels.push_back("music");
-        if (!voice_labels.empty()) final_labels.push_back("voice");
+        else if (!voice_labels.empty()) final_labels.push_back("voice");
         if (!sfx_labels.empty()) final_labels.push_back("sfx");
         if (final_labels.empty())
             return AudioMixCompileError{"audio.clips", "all audio clips are muted",
