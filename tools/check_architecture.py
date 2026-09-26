@@ -24,8 +24,21 @@ EXCLUDED_DIRS = {
 DEFAULT_SUFFIXES = {".h", ".hpp", ".hh", ".c", ".cc", ".cpp", ".cxx", ".inc"}
 
 
+# ── Read/strip/walk memoisation ──────────────────────────────────────────
+# The gate runs ~200 rules over the same tree; every rule used to re-read,
+# re-strip comments and re-walk the checkout. These caches only avoid
+# repeating identical work on immutable files — no match result changes.
+_RAW_CACHE: dict[Path, str] = {}
+_STRIP_CACHE: dict[int, tuple[str, str]] = {}
+_ITER_CACHE: dict[tuple[Any, ...], tuple[Path, ...]] = {}
+
+
 def read_text(path: Path) -> str:
-    return path.read_text(encoding="utf-8", errors="replace")
+    cached = _RAW_CACHE.get(path)
+    if cached is None:
+        cached = path.read_text(encoding="utf-8", errors="replace")
+        _RAW_CACHE[path] = cached
+    return cached
 
 
 _COMMENT_TOKEN_RE = re.compile(
@@ -38,7 +51,7 @@ _COMMENT_TOKEN_RE = re.compile(
 )
 
 
-def strip_comments(text: str) -> str:
+def _strip_comments_impl(text: str) -> str:
     """Regex equivalent of the previous per-character scanner.
 
     Comments are blanked out with spaces (newlines preserved so line/col
@@ -55,9 +68,34 @@ def strip_comments(text: str) -> str:
     return _COMMENT_TOKEN_RE.sub(repl, text)
 
 
+def strip_comments(text: str) -> str:
+    """Memoised wrapper around `_strip_comments_impl`.
+
+    Callers pass strings straight out of `read_text`, whose cached objects
+    live for the whole run, so each file is stripped exactly once instead of
+    once per rule. The cache entry keeps a reference to its input, which
+    pins the id()-based key for as long as the entry lives.
+    """
+    cached = _STRIP_CACHE.get(id(text))
+    if cached is not None and cached[0] is text:
+        return cached[1]
+    result = _strip_comments_impl(text)
+    _STRIP_CACHE[id(text)] = (text, result)
+    return result
+
+
 def iter_files(root: Path, paths: Iterable[str], extensions: list[str] | None = None) -> Iterable[Path]:
     suffixes = DEFAULT_SUFFIXES if not extensions else set(extensions)
     any_file = "*" in suffixes
+    key = (root, tuple(paths), None if extensions is None else tuple(extensions))
+    cached = _ITER_CACHE.get(key)
+    if cached is None:
+        cached = tuple(_walk_files(root, key[1], suffixes, any_file))
+        _ITER_CACHE[key] = cached
+    return iter(cached)
+
+
+def _walk_files(root: Path, paths: tuple[str, ...], suffixes: set[str], any_file: bool) -> Iterable[Path]:
     for rel in paths:
         base = root / rel
         if not base.exists():
@@ -227,12 +265,19 @@ class Runner:
                         hits.append(f"{rel}:{line_no}:{snippet}")
                         break
             else:
+                # A line can only be a hit when one of the rule's patterns
+                # matches it, so test the patterns first and consult the
+                # (usually longer) allow-line regexes only for lines that
+                # already matched. A line is a hit iff a pattern matches AND
+                # no allow pattern matches — the outcome is unchanged, the
+                # regex evaluations are not.
                 for line_no, line in enumerate(text.splitlines(), 1):
+                    if not any(rx.search(line) for rx in patterns):
+                        continue
                     if allow_lines and line_matches_any(line, allow_lines):
                         continue
-                    if any(rx.search(line) for rx in patterns):
-                        hits.append(f"{rel}:{line_no}:{line.strip()}")
-                        break
+                    hits.append(f"{rel}:{line_no}:{line.strip()}")
+                    break
         return hits
 
     def check_forbidden_path(self, rule: dict[str, Any]) -> None:

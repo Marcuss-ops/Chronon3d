@@ -1181,7 +1181,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         AnimationKeyframePlan key;
                         key.frame=Frame{raw_key.at("frame").get<std::int64_t>()};
                         const float v=raw_key.at("value").get<float>();
-                        if(key.frame.value<0||key.frame.value>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
+                        if(key.frame.integral()<0||key.frame.integral()>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
                             throw std::runtime_error("effect time curve keyframes require bounded frame values and values in [0, 1]");
                         key.value={v}; curve.keyframes.push_back(std::move(key));
                     }

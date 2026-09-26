@@ -194,7 +194,7 @@ private:
             if(const auto* curve=e.time_curve->animation_curve()) {
                 seed=hash_combine(seed,hash_value(curve->default_value()));
                 for(const auto& key:curve->keyframes()) {
-                    seed=hash_combine(seed,hash_value(key.frame.value));
+                    seed=hash_combine(seed,hash_value(key.frame.integral()));
                     seed=hash_combine(seed,hash_value(key.value));
                     seed=hash_combine(seed,hash_value(key.easing.preset));
                     if(key.easing.cubic) { seed=hash_combine(seed,hash_value(key.easing.cubic->x1)); seed=hash_combine(seed,hash_value(key.easing.cubic->y1)); seed=hash_combine(seed,hash_value(key.easing.cubic->x2)); seed=hash_combine(seed,hash_value(key.easing.cubic->y2)); }
