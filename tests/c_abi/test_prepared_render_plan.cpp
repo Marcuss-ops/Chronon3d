@@ -84,7 +84,9 @@ TEST_CASE("render-plan layer transitions lower into the existing scene layer spe
     params.height = decoded->canvas.height;
     auto scene = prepared->composition->evaluate(chronon3d::make_frame_context(params));
     REQUIRE(scene.layers().size() == 1);
-    CHECK(scene.layers()[0].transition_in.transition_id == "slide");
+    CHECK(chronon3d::layer_transition_kind(
+              scene.layers()[0].transition_in.transition_id) ==
+          chronon3d::LayerTransitionKind::Slide);
     CHECK(scene.layers()[0].transition_in.duration == doctest::Approx(0.2));
     CHECK(scene.layers()[0].transition_in.delay == doctest::Approx(1.0 / 30.0));
     const auto transition_hash = chronon3d::graph::hash_layer_transition_spec(
