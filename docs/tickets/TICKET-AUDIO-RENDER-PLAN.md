@@ -1,7 +1,7 @@
 # TICKET-AUDIO-RENDER-PLAN — Plan-driven audio mix
 
 ## Stato
-IN PROGRESS — contract approved; native-FFmpeg end-to-end gates remain.
+COMPLETE — contract, native-FFmpeg mix path, and acceptance gates verified.
 
 ## Contratto
 Render-plan v3 may carry an `audio` mix with ordered clips. Each clip has a
@@ -30,9 +30,21 @@ existing mux timebase to preserve current A/V synchronization.
 - [x] Fingerprint v7 golden updated with an explicit contract-change note.
 - [x] Mixer unit case pins frame-to-sample trims and voice duck graph.
 - [x] Native render smoke with two inputs yields one AAC stream; `ffprobe` confirms H.264 + AAC and matching 2.000 s durations.
-- [ ] `astats` RMS checks cover gain envelope and voice ducking segments.
-- [ ] F3.5 duration parity passes for plan audio and legacy source audio (plan-audio duration smoke passed; legacy parity gate pending).
-- [ ] No-native-FFmpeg and plan-audio plus legacy external audio fail closed (implementation present; dedicated rejection test pending).
+- [x] `astats` RMS checks cover gain envelope and voice ducking segments. For a 3 s
+  music/voice render at 48 kHz, AAC RMS was -19.61 dB over 0–0.8 s (ramp),
+  -28.14 dB over 1–1.8 s (music gain), and -28.17 dB over 2.2–2.8 s. The
+  300 Hz low-pass music band during voice measured -29.99 dB with ducking versus
+  -26.63 dB with the voice clip changed to SFX; both controls were -29.27 dB
+  after voice ended. This gate exposed and fixed short sidechain output and
+  implicit voice-label fan-out by padding each bus to canvas duration and
+  explicitly splitting the voice bus.
+- [x] F3.5 duration parity: plan audio output and legacy AAC source output both
+  contain H.264 + AAC streams at exactly 3.000 s (`ffprobe`). Plan mix has one
+  AAC stream at 48 kHz.
+- [x] Fail-closed checks: audio with missing `ffmpeg` exits 1 with
+  `audio_ffmpeg_executable_missing`; plan audio with `--gop-source` exits 1
+  with the explicit conflict error; plan audio with `--encoder-backend pipe`
+  exits 1 with `render-plan audio requires the native FFmpeg encoder`.
 
 ## Demolition Debt
 - **Owner:** Chronon media/render-plan maintainers.
