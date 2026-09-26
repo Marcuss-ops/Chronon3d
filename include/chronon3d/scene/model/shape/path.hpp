@@ -8,6 +8,11 @@
 
 namespace chronon3d {
 
+enum class PathFillRule : std::uint8_t {
+    EvenOdd,
+    NonZero,
+};
+
 enum class LineCap {
     Butt,
     Round,
@@ -40,6 +45,8 @@ struct PathShape {
     std::vector<PathCommand> commands;
     PathStroke stroke{};
     Fill fill{};
+    // Preserve the renderer's historical parity rule unless a caller opts in.
+    PathFillRule fill_rule{PathFillRule::EvenOdd};
     bool closed{false};
     std::vector<PathOperatorSpec> operators{};
     f32 opacity{1.0f};

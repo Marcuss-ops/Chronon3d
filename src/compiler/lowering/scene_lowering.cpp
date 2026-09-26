@@ -1,5 +1,7 @@
 #include "../compiler_stages.hpp"
 
+#include <cmath>
+#include <stdexcept>
 #include <utility>
 #include <string>
 #include <unordered_map>
@@ -10,6 +12,30 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
     out.layers.reserve(plan.layers.size());
     for (std::uint32_t i = 0; i < plan.layers.size(); ++i) {
         const auto& layer = plan.layers[i];
+        const auto invalid_payload = [&]() -> std::runtime_error {
+            return std::runtime_error("compiler lower_scene: inline mesh contract violation in layer '" + layer.id + "'");
+        };
+        if (layer.inline_mesh) {
+            if (layer.type != render_plan::LayerType::Mesh || !layer.asset.empty() ||
+                !layer.source.empty() || layer.inline_mesh->vertices.size() < 3 ||
+                layer.inline_mesh->vertices.size() > render_plan::kInlineMeshMaxVertices ||
+                layer.inline_mesh->indices.size() < 3 ||
+                layer.inline_mesh->indices.size() > render_plan::kInlineMeshMaxIndices ||
+                layer.inline_mesh->indices.size() % 3 != 0)
+                throw invalid_payload();
+            for (const auto& vertex : layer.inline_mesh->vertices) {
+                for (const float value : vertex.position)
+                    if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f) throw invalid_payload();
+                for (const float value : vertex.normal)
+                    if (!std::isfinite(value) || std::abs(value) > 1.0f) throw invalid_payload();
+                for (const float value : vertex.uv)
+                    if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f) throw invalid_payload();
+            }
+            for (const auto index : layer.inline_mesh->indices)
+                if (index >= layer.inline_mesh->vertices.size()) throw invalid_payload();
+        } else if (layer.type == render_plan::LayerType::Mesh) {
+            throw invalid_payload();
+        }
         NodeKind kind = NodeKind::Color;
         switch (layer.type) {
             case render_plan::LayerType::Image: kind = NodeKind::Image; break;
@@ -17,6 +43,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Text: kind = NodeKind::Text; break;
             case render_plan::LayerType::Color: kind = NodeKind::Color; break;
             case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
+            case render_plan::LayerType::Mesh: kind = NodeKind::Mesh; break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
@@ -49,6 +76,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.opacity = layer.opacity.value_or(1.0f);
         lowered.radius = layer.radius.value_or(0.0f);
         lowered.shape = layer.shape;
+        lowered.inline_mesh = layer.inline_mesh;
         if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {
             lowered.size = {static_cast<float>(plan.canvas.width),
                             static_cast<float>(plan.canvas.height)};

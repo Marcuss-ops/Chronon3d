@@ -3,6 +3,7 @@
 #include <string>
 #include <chronon3d/compiler/scene_materializer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
@@ -38,10 +39,6 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         ? Vec2{layer.size[0], layer.size[1]}
                         : Vec2{static_cast<float>(meta.width), static_cast<float>(meta.height)};
                     params.color = {layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
-                    // RectParams are authored around their local centre. A
-                    // full-canvas background has no explicit position, so
-                    // place its top-left at the canvas origin exactly as the
-                    // render-plan compatibility compiler does.
                     if (layer.position_dimensions < 2) {
                         builder.pin_to(Anchor::Center);
                         params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
@@ -70,6 +67,24 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 case NodeKind::Text:
                     builder.kind(LayerKind::Text);
                     break;
+                case NodeKind::Mesh: {
+                    if (!layer.inline_mesh)
+                        throw std::runtime_error("mesh layer '" + layer.name + "' has no inline geometry");
+                    InlineMeshParams params;
+                    params.name = layer.name;
+                    params.vertices.reserve(layer.inline_mesh->vertices.size());
+                    for (const auto& vertex : layer.inline_mesh->vertices)
+                        params.vertices.push_back(Vertex{
+                            Vec3{vertex.position[0], vertex.position[1], vertex.position[2]},
+                            Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
+                            Vec2{vertex.uv[0], vertex.uv[1]}});
+                    params.indices = layer.inline_mesh->indices;
+                    builder.accepts_lights(false).accepts_shadows(false);
+                    builder.inline_mesh(std::move(params));
+                    builder.last_node_handle().node().color = Color{
+                        layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                    break;
+                }
                 case NodeKind::Shape: {
                     const auto shape = layer.shape.value_or(render_plan::ShapeContentPlan{});
                     const Vec2 size = layer.size_dimensions == 2

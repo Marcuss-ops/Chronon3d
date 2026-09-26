@@ -20,11 +20,11 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/software_shape_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/software_utility_processors.cpp
 )
-if(CHRONON3D_ENABLE_MESH)
-    target_sources(chronon3d_backend_software PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/software_mesh_processor.cpp
-    )
-endif()
+# Inline RenderPlan meshes are a dependency-free software primitive; the
+# meshoptimizer feature controls optimization only, not drawing triangles.
+target_sources(chronon3d_backend_software PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/software_mesh_processor.cpp
+)
 
 add_subdirectory(image)
 add_subdirectory(text_run)
