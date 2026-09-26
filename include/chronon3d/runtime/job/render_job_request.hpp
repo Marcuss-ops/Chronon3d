@@ -36,6 +36,8 @@ struct OutputSpec {
     int qp{-1};
     std::int64_t bitrate{0};
     std::string audio_source_path;
+    /// Optional compressed video source used only by GOP smart-copy analysis.
+    std::string gop_source;
     /// Requested OUTPUT audio sample rate in Hz. 0 (the default) keeps the
     /// legacy copy semantics: the source audio stream is muxed verbatim and
     /// the artifact inherits the source rate. A positive value that differs

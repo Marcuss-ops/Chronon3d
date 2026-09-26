@@ -10,6 +10,7 @@
 #include "command_render_plan.hpp"
 #include "../../utils/project/chronon_project_render.hpp"
 #include "render_plan_preparation.hpp"
+#include "caption_plan_expansion.hpp"
 #include "../video/common/pipe_pixfmt_vocabulary.hpp"
 // ONE sink vocabulary for the --video-sink option checker (sink_options.hpp).
 #include "../video/common/sink_options.hpp"
@@ -40,6 +41,9 @@ struct RenderState {
     std::string props_file;
     std::string props_json;
     std::string plan_file;
+    std::string captions_file;
+    std::string caption_preset{"minimal_white"};
+    std::string caption_font;
     std::string prepared_package;
 
     // Raw CLI spellings live only at the CLI11 boundary. The callback parses
@@ -314,6 +318,9 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("render", "Render a composition");
     cmd->add_option("input", args.comp_id, "Composition name");
     cmd->add_option("--plan", state->plan_file, "Render a chronon.render-plan.v2 file through the canonical executor");
+    cmd->add_option("--captions", state->captions_file, "Timed text file (SRT, ASS, or JSON) expanded into text layers");
+    cmd->add_option("--caption-preset", state->caption_preset, "Caption motion preset: minimal_white, karaoke, word_pop, or typewriter");
+    cmd->add_option("--caption-font", state->caption_font, "Explicit logical font asset when the plan has no text style");
     cmd->add_option("--prepared-package", state->prepared_package,
                     "Immutable prepared overlay package sidecar");
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
@@ -400,19 +407,40 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             render_args.pipe_pixfmt_explicit = pipe_pixfmt->count() > 0;
         }
         if (!state->plan_file.empty()) {
+            CaptionPlanExpansion expanded_captions;
+            std::string active_plan = state->plan_file;
+            if (!state->captions_file.empty()) {
+                expanded_captions = expand_caption_plan(
+                    state->plan_file, state->captions_file, state->caption_preset,
+                    state->caption_font);
+                if (!expanded_captions.error.empty()) {
+                    spdlog::error("[captions] {}", expanded_captions.error);
+                    ctx.exit_code = 1;
+                    return;
+                }
+                active_plan = expanded_captions.plan_path.string();
+            }
             if (render_args.video_settings.dry_run) {
                 RenderPlanPreparationOptions options;
-                options.input = state->plan_file;
+                options.input = active_plan;
                 options.assets_root = render_args.assets_root;
                 options.prepared_package = state->prepared_package;
+                if (!state->captions_file.empty() && options.assets_root.empty() &&
+                    options.prepared_package.empty())
+                    options.assets_root = std::filesystem::absolute(state->plan_file)
+                        .parent_path().string();
                 ctx.exit_code = validate_render_plan(options);
                 return;
             }
             runtime::job::RenderJobRequest request;
-            request.plan_path = state->plan_file;
+            request.plan_path = active_plan;
             request.prepared_package_path = state->prepared_package;
             request.output_path = render_args.output;
             request.assets_root = render_args.assets_root;
+            if (!state->captions_file.empty() && request.assets_root.empty() &&
+                request.prepared_package_path.empty())
+                request.assets_root = std::filesystem::absolute(state->plan_file)
+                    .parent_path().string();
             request.backend = backend_cli_name(render_args.backend);
             request.report = render_args.report;
             request.trace.output = render_args.trace_output;
@@ -451,6 +479,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                 ? render_args.video_settings.qp : -1;
             request.output.bitrate = render_args.video_settings.bitrate_explicit
                 ? render_args.video_settings.bitrate : std::int64_t{0};
+            request.output.gop_source = render_args.video_settings.gop_source;
             request.output.audio_source_path = render_args.video_settings.gop_source;
             request.output.audio_target_sample_rate =
                 render_args.video_settings.audio_target_sample_rate;
@@ -482,6 +511,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(
                 ctx.registry, std::move(request), {}, std::move(video_execution));
+            return;
+        }
+        if (!state->captions_file.empty()) {
+            spdlog::error("--captions requires --plan so captions can be expanded before compilation");
+            ctx.exit_code = 1;
             return;
         }
         if (render_args.comp_id.empty()) {

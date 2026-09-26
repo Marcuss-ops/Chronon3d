@@ -1,7 +1,7 @@
 # TICKET-AUDIO-RENDER-PLAN — Plan-driven audio mix
 
 ## Stato
-OPEN — contract-first plan approved 2026-09-26.
+IN PROGRESS — contract approved; native-FFmpeg end-to-end gates remain.
 
 ## Contratto
 Render-plan v3 may carry an `audio` mix with ordered clips. Each clip has a
@@ -26,12 +26,13 @@ existing mux timebase to preserve current A/V synchronization.
 - Extend duration parity and output-contract verification.
 
 ## Acceptance gates
-- [ ] Decoder and validation unit cases, including out-of-canvas warning.
-- [ ] Fingerprint goldens updated with an explicit contract-change note.
+- [x] Decoder cases include validation and an out-of-canvas warning.
+- [x] Fingerprint v7 golden updated with an explicit contract-change note.
+- [x] Mixer unit case pins frame-to-sample trims and voice duck graph.
 - [ ] N-input mix integration yields one AAC stream; `ffprobe` confirms it.
 - [ ] `astats` RMS checks cover gain envelope and voice ducking segments.
 - [ ] F3.5 duration parity passes for plan audio and legacy source audio.
-- [ ] No-native-FFmpeg and plan-audio plus `--gop-source` fail with typed errors.
+- [ ] No-native-FFmpeg and plan-audio plus legacy external audio fail closed (implementation present; dedicated rejection test pending).
 
 ## Demolition Debt
 - **Owner:** Chronon media/render-plan maintainers.

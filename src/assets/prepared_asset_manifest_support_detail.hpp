@@ -69,6 +69,9 @@ struct RequestedAsset {
             if (effect.kind == render_plan::LayerPlan::EffectKindPlan::Lut3D)
                 add(effect.asset, PreparedAssetKind::Data);
     }
+    if (plan.audio)
+        for (const auto& clip : plan.audio->clips)
+            add(clip.asset, PreparedAssetKind::Audio);
     std::sort(result.begin(), result.end(), [](const auto& left, const auto& right) {
         if (left.logical_path != right.logical_path)
             return left.logical_path < right.logical_path;

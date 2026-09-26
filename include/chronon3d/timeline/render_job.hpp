@@ -73,6 +73,8 @@ struct VideoSettings {
     // Optional compressed source used by the GOP smart-copy planner.
     // Empty keeps the regular render path.
     std::string gop_source;
+    /// Dedicated audio input for muxing; independent of GOP analysis input.
+    std::string audio_source_path;
     /// Requested output audio sample rate (Hz). 0 keeps the copy path (the
     /// muxed artifact inherits the source rate); a positive rate that differs
     /// from the source makes the native mux resample the audio to that rate.

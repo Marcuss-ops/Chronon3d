@@ -21,6 +21,7 @@ set(_chronon3d_c_abi_links
     nlohmann_json::nlohmann_json)
 set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_decoder.cpp
+    c_abi/test_render_plan_audio_mix.cpp
     c_abi/test_render_plan_fingerprint_shape.cpp
     c_abi/test_render_plan_validator.cpp
     c_abi/test_render_plan_consolidation.cpp

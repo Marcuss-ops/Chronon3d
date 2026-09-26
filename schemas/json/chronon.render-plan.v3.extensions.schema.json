@@ -5,6 +5,54 @@
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
     "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "audio": {
+      "type": "object", "additionalProperties": false,
+      "required": ["clips"],
+      "properties": {
+        "master_gain_db": {"type": "number"},
+        "duck_amount_db": {"type": "number"},
+        "duck_attack_ms": {"type": "number", "minimum": 0},
+        "duck_release_ms": {"type": "number", "minimum": 0},
+        "clips": {
+          "type": "array", "minItems": 1, "maxItems": 256,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "asset"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1, "maxLength": 256},
+              "asset": {"type": "string", "minLength": 1, "maxLength": 4096},
+              "clip_in": {"type": "integer", "minimum": 0, "maximum": 1000000},
+              "clip_out": {"type": "integer", "minimum": 0, "maximum": 1000000},
+              "start": {"type": "integer", "minimum": 0, "maximum": 1000000},
+              "gain_db": {"type": "number"},
+              "muted": {"type": "boolean"},
+              "role": {"enum": ["music", "voice", "sfx"]},
+              "gain": {
+                "type": "object", "additionalProperties": false,
+                "required": ["keyframes"],
+                "properties": {
+                  "property": {"const": "gain_db"},
+                  "easing": {"$ref": "#/$defs/easing"},
+                  "bezier_curve": {"$ref": "#/$defs/bezier_curve"},
+                  "keyframes": {
+                    "type": "array", "minItems": 1,
+                    "items": {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["frame", "value"],
+                      "properties": {
+                        "frame": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                        "value": {"type": "number"}
+                      }
+                    }
+                  }
+                },
+                "allOf": [{"$ref": "#/$defs/bezier_easing_contract"}]
+              }
+            }
+          }
+        }
+      }
+    },
     "effect_time": {
       "type": "object", "additionalProperties": false,
       "properties": {
@@ -399,6 +447,8 @@
         "samples": { "type": "integer", "minimum": 2, "maximum": 64 }
       }
     },
+    "audio": {"$ref": "#/$defs/audio"},
+    "warnings": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 256}},
     "layers": {
       "type": "array",
       "items": {

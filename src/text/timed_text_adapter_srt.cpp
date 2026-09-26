@@ -119,4 +119,9 @@ TimedTextDocument timed_text_from_srt(const std::string& raw) {
     return doc;
 }
 
+TimedTextDocument timed_text_from_format(
+    const std::string& raw, std::string_view extension) {
+    return timed_text_adapter_detail::dispatch_format(raw, extension);
+}
+
 } // namespace chronon3d
