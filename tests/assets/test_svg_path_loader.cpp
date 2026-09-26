@@ -340,3 +340,32 @@ TEST_CASE("SVG imported coordinates are quantized to four decimal places") {
     CHECK(result.paths[0].commands[0].p0.x == doctest::Approx(0.1235f));
     CHECK(result.paths[0].commands[0].p0.y == doctest::Approx(0.9877f));
 }
+
+TEST_CASE("SVG importer enforces byte, command, coordinate, and malformed XML limits") {
+    const auto run = [](const std::string& filename, const std::string& contents) {
+        { std::ofstream out(filename, std::ios::binary); out << contents; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto too_large = run("temp_test_svg_bytes.svg",
+        "<svg>" + std::string(8U * 1024U * 1024U, ' ') + "</svg>");
+    CHECK_FALSE(too_large.ok);
+    CHECK(too_large.error.find("8 MiB") != std::string::npos);
+
+    std::string path_data = "M0 0";
+    for (std::size_t i = 0; i < 65537; ++i) path_data += " L1 1";
+    const auto too_many_commands = run("temp_test_svg_commands.svg",
+        "<svg><path d=\"" + path_data + "\"/></svg>");
+    CHECK_FALSE(too_many_commands.ok);
+    CHECK(too_many_commands.error.find("command count exceeds 65536") != std::string::npos);
+
+    const auto out_of_bounds = run("temp_test_svg_bounds.svg",
+        R"svg(<svg><path transform="translate(200001 0)" d="M0 0L1 1"/></svg>)svg");
+    CHECK_FALSE(out_of_bounds.ok);
+    CHECK(out_of_bounds.error.find("coordinate exceeds") != std::string::npos);
+
+    const auto malformed = run("temp_test_svg_malformed.svg", "<svg><path></svg>");
+    CHECK_FALSE(malformed.ok);
+    CHECK_FALSE(malformed.error.empty());
+}
