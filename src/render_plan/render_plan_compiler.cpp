@@ -30,8 +30,149 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 #include <spdlog/spdlog.h>
+
+namespace {
+using json = nlohmann::json;
+
+std::optional<std::string> expand_static_lottie(
+    chronon3d::render_plan::ShapeContentPlan& shape,
+    const std::filesystem::path& path) {
+    std::error_code ec;
+    const auto bytes = std::filesystem::file_size(path, ec);
+    if (ec || bytes > 10ULL * 1024ULL * 1024ULL)
+        return std::string("Lottie source is missing or exceeds the 10 MiB input limit");
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return std::string("Lottie source could not be opened");
+    try {
+        const auto doc = json::parse(input);
+        if (!doc.is_object() || doc.value("v", std::string{}).empty() ||
+            !doc.contains("layers") || !doc["layers"].is_array() ||
+            doc["layers"].size() != 1)
+            return std::string("supported Lottie requires one shape layer and a version field");
+        const auto& layer = doc["layers"][0];
+        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 ||
+            layer.contains("masksProperties") || layer.contains("ef") ||
+            layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
+            return std::string("Lottie layer type, masks, effects, expressions, or time remap are unsupported");
+        const auto property_is = [](const json& owner, const char* key,
+                                    std::initializer_list<float> expected) {
+            if (!owner.contains(key) || !owner[key].is_object() ||
+                !owner[key].contains("a") || owner[key]["a"] != 0 ||
+                !owner[key].contains("k")) return false;
+            const auto& v = owner[key]["k"];
+            if (expected.size() == 1 && v.is_number())
+                return std::abs(v.get<float>() - *expected.begin()) < 1e-6f;
+            if (!v.is_array() ||
+                (v.size() != expected.size() &&
+                 !(expected.size() == 2 && v.size() == 3) &&
+                 !(expected.size() == 3 && v.size() == 2))) return false;
+            std::size_t i = 0;
+            for (const float want : expected) {
+                if (i >= v.size()) break;
+                if (!v[i].is_number() || !std::isfinite(v[i].get<float>()) ||
+                    std::abs(v[i].get<float>() - want) >= 1e-6f) return false;
+                ++i;
+            }
+            if (v.size() == 3 && expected.size() == 2)
+                return v[2].is_number() && std::abs(v[2].get<float>()) < 1e-6f;
+            return true;
+        };
+        const auto identity_transform = [&](const json& transform) {
+            return property_is(transform, "a", {0.0f, 0.0f}) &&
+                   property_is(transform, "p", {0.0f, 0.0f, 0.0f}) &&
+                   property_is(transform, "s", {100.0f, 100.0f, 100.0f}) &&
+                   property_is(transform, "r", {0.0f}) &&
+                   property_is(transform, "o", {100.0f});
+        };
+        if (!layer.contains("ks") || !layer["ks"].is_object() ||
+            !identity_transform(layer["ks"]))
+            return std::string("animated or non-identity Lottie layer transforms are unsupported by this lowering");
+        if (!layer.contains("shapes") || !layer["shapes"].is_array() ||
+            layer["shapes"].size() > 256)
+            return std::string("Lottie shape list is missing or exceeds 256 items");
+        const json* path_shape = nullptr;
+        const json* fill = nullptr;
+        for (const auto& item : layer["shapes"]) {
+            if (!item.is_object() || item.contains("exp"))
+                return std::string("malformed Lottie shape item or expression");
+            const auto type = item.value("ty", std::string{});
+            if (type == "sh") {
+                if (path_shape) return std::string("multiple Lottie paths are unsupported in a single shape layer");
+                path_shape = &item;
+            } else if (type == "fl") {
+                if (fill) return std::string("multiple Lottie fills are unsupported");
+                fill = &item;
+            } else if (type == "tr") {
+                if (!identity_transform(item))
+                    return std::string("animated or non-identity Lottie shape transforms are unsupported by this lowering");
+                continue;
+            } else {
+                return std::string("Lottie supports only static path, fill, and transform shapes in this lowering");
+            }
+        }
+        if (!path_shape || !path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
+            return std::string("Lottie path geometry is missing");
+        const auto& geometry = (*path_shape)["ks"]["k"];
+        if (!geometry.is_object() || !geometry.contains("v") || !geometry.contains("i") ||
+            !geometry.contains("o") || !geometry["v"].is_array() ||
+            geometry["v"].size() < 2 || geometry["v"].size() > 65536 ||
+            !geometry["i"].is_array() || !geometry["o"].is_array() ||
+            geometry["i"].size() != geometry["v"].size() ||
+            geometry["o"].size() != geometry["v"].size())
+            return std::string("Lottie static path vertex and tangent arrays are invalid or over limit");
+        using namespace chronon3d::render_plan;
+        const auto point = [](const json& value, std::array<float, 2>& out) -> bool {
+            if (!value.is_array() || value.size() != 2) return false;
+            for (std::size_t i = 0; i < 2; ++i) {
+                if (!value[i].is_number()) return false;
+                const float v = value[i].get<float>();
+                if (!std::isfinite(v) || std::abs(v) > 100000.0f) return false;
+                out[i] = std::round(v * 10000.0f) / 10000.0f;
+            }
+            return true;
+        };
+        for (std::size_t i = 0; i < geometry["v"].size(); ++i) {
+            std::array<float, 2> vertex{}, outgoing{}, incoming{};
+            if (!point(geometry["v"][i], vertex) || !point(geometry["o"][i], outgoing) ||
+                !point(geometry["i"][i], incoming))
+                return std::string("Lottie path contains non-finite or out-of-bounds coordinates");
+            if (i == 0) {
+                shape.path.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
+                continue;
+            }
+            const auto& prior = geometry["v"][i - 1];
+            std::array<float, 2> prior_v{}, prior_o{};
+            if (!point(prior, prior_v) || !point(geometry["o"][i - 1], prior_o))
+                return std::string("Lottie path contains invalid outgoing tangent");
+            const std::array<float, 2> c1{std::round((prior_v[0] + prior_o[0]) * 10000.0f) / 10000.0f,
+                                            std::round((prior_v[1] + prior_o[1]) * 10000.0f) / 10000.0f};
+            const std::array<float, 2> c2{std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
+                                            std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f};
+            shape.path.push_back({ShapePathCommandTypePlan::CubicTo, vertex, c1, c2});
+        }
+        if (geometry.value("c", false)) shape.path.push_back({ShapePathCommandTypePlan::Close});
+        if (fill) {
+            const auto& k = (*fill)["c"]["k"];
+            if (!k.is_array() || k.size() < 4 || (*fill).value("r", 1) != 1)
+                return std::string("Lottie fill must be static RGBA in RGB color space");
+            std::array<float, 4> color{};
+            for (std::size_t i = 0; i < 4; ++i) {
+                if (!k[i].is_number()) return std::string("Lottie fill has invalid color values");
+                color[i] = k[i].get<float>();
+                if (!std::isfinite(color[i]) || color[i] < 0 || color[i] > 1)
+                    return std::string("Lottie fill color must be finite and between zero and one");
+            }
+            shape.fill_color = color;
+        }
+        return std::nullopt;
+    } catch (const std::exception& error) {
+        return std::string("malformed Lottie JSON: ") + error.what();
+    }
+}
+}
 
 namespace chronon3d::render_plan {
 
@@ -43,6 +184,20 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     try {
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
+        for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
+            auto& layer = plan.layers[layer_index];
+            if (!layer.shape || !layer.shape->lottie_asset) continue;
+            const auto logical = *layer.shape->lottie_asset;
+            const auto resolved = resolver.resolve_logical(logical);
+            if (!resolved)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
+                    "Lottie asset could not be resolved within the mounted asset root",
+                    "lottie_asset_unresolved", "render-plan-lottie"};
+            auto lowered = expand_static_lottie(*layer.shape, *resolved);
+            if (lowered)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
+                    *lowered, "lottie_unsupported_or_invalid", "render-plan-lottie"};
+        }
 #if defined(CHRONON3D_ENABLE_SVG)
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];

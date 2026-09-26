@@ -474,6 +474,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 std::filesystem::path(*shape.svg_asset).extension() != ".svg")
                 throw std::runtime_error("shape.asset must be a relative logical .svg path");
         }
+        if (raw_shape.contains("lottie")) {
+            if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path") ||
+                raw_shape.contains("asset"))
+                throw std::runtime_error("shape.lottie is only valid for path shapes and cannot be combined with path commands or SVG");
+            shape.lottie_asset = raw_shape.at("lottie").get<std::string>();
+            if (detail::invalid_logical_path(*shape.lottie_asset) ||
+                std::filesystem::path(*shape.lottie_asset).extension() != ".json")
+                throw std::runtime_error("shape.lottie must be a relative logical .json path");
+        }
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");
@@ -569,7 +578,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             }
         }
         if ((shape.type == ShapeContentTypePlan::Line ||
-             (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset)) && shape.path.empty())
+             (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset &&
+              !shape.lottie_asset)) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");
         if (raw_shape.contains("operators")) {
             const auto& raw_ops = raw_shape.at("operators");

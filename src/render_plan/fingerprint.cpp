@@ -402,6 +402,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         add_optional(out, shape.svg_asset, [](auto& nested, const std::string& asset) {
             nested.add_string(asset);
         });
+        add_optional(out, shape.lottie_asset, [](auto& nested, const std::string& asset) {
+            nested.add_string(asset);
+        });
         out.add_float(shape.radius);
         if (shape.corner_radius) {
             out.add_bool(true);
