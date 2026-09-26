@@ -1,7 +1,7 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — resolver-backed lowering, deterministic normalization, and limits are implemented. End-to-end framehash and malformed/missing integration gates remain open.
+IN PROGRESS — resolver-backed lowering, deterministic normalization, and limits are implemented. Resolver-backed CLI render and framehash now pass; the remaining gap is that differently styled SVG subpaths are rejected rather than expanded into multiple shape layers.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
@@ -34,11 +34,13 @@ shape pipeline.
   missing/escaped references fail closed. Malformed and `<text>` loader tests pass.
 - [x] Geometry fixtures cover path commands, arcs, transforms, document order,
   and 1e-4 quantization.
-- [x] Resource-limit fixture covers 100k XML nodes; bytes, command count and
-  out-of-bound coordinate checks are implemented but need dedicated fixtures.
+- [x] Resource-limit fixtures cover 8 MiB input, 100k XML nodes, 65536 path
+  commands, and out-of-bound coordinates.
 - [x] The SVG source digest enters the prepared manifest; normalized lowered
   commands enter the content fingerprint. Unit coverage verifies plan fingerprint behavior.
-- [ ] End-to-end CLI render-plan SVG produces a non-empty deterministic frame hash.
+- [x] End-to-end CLI plan render produces a visible 64x64 PNG; decoding it to
+  tightly packed RGBA and running `tools/raw_frame_hash.py` produced frame hash
+  `4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe` twice.
 - [x] Focused SVG importer and C ABI/render-plan tests pass. Relevant renderer
   suite passed before enabling SVG; rerun after remaining integration gates.
 
