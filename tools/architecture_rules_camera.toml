@@ -28,6 +28,14 @@ scan_paths = ["include", "src", "tests", "apps", "content"]
 allow_list = [
   'tests/(?:renderer/camera/test_(?:animated_camera|lens_model|dof)\.cpp|scene/camera_rig_tests\.cpp|scene/camera/test_camera_descriptor_adapters\.cpp)',
 ]
+# The retired Chronon3d CameraRig stays banned. ChrononMotion3D owns its own
+# chrononmotion::motion::CameraRig (a different type in a different library);
+# lines that name the chrononmotion type or include its header are not this
+# rule's target.
+allow_line_patterns = [
+  '#include\s*[<"]chrononmotion/',
+  'chrononmotion::[A-Za-z0-9_:]*CameraRig\b',
+]
 skip_comments = true
 
 [[scan]]

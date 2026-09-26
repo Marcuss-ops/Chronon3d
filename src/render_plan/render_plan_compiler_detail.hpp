@@ -33,6 +33,10 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
 [[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
 motion_blur_params_at(const LayerPlan& layer, double frame);
 [[nodiscard]] std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame);
+[[nodiscard]] std::optional<chronon3d::Color> fill_color_at(
+    const LayerPlan& layer, double frame, chronon3d::Color base);
+[[nodiscard]] std::optional<graphics::GradientDefinition> fill_gradient_at(
+    const LayerPlan& layer, double frame);
 [[nodiscard]] chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track);
 
 }  // namespace chronon3d::render_plan::detail

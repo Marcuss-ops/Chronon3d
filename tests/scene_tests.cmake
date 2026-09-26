@@ -175,7 +175,7 @@ if(CHRONON3D_ENABLE_MOTION_ADAPTER)
         SOURCES scene/motion/test_offline_motion_plan_adapter.cpp
     )
     target_include_directories(chronon3d_motion_plan_adapter_tests PRIVATE
-        "${CMAKE_SOURCE_DIR}/../ChrononMotion3D/include")
+        "${_chrononmotion_dir}/include")
 endif()
 
 # ── ADR-032 — contract-zone converters (chronon/abi.h motion handshake) ──────

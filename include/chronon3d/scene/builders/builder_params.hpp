@@ -5,3 +5,4 @@
 #include <chronon3d/scene/builders/params/media_params.hpp>
 #include <chronon3d/scene/builders/params/text_params.hpp>
 #include <chronon3d/scene/builders/params/three_d_params.hpp>
+#include <chronon3d/scene/builders/params/inline_mesh_params.hpp>

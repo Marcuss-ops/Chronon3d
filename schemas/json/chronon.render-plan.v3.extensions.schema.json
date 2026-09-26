@@ -99,6 +99,28 @@
       "type": "array", "minItems": 4, "maxItems": 4,
       "items": { "type": "number", "minimum": -10, "maximum": 10 }
     },
+    "layer_transition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "enum": ["none", "crossfade", "slide", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"] },
+        "direction": { "enum": ["none", "left", "right", "up", "down", "in", "out"] },
+        "duration": { "type": "number", "minimum": 0, "maximum": 3600 },
+        "delay": { "type": "number", "minimum": 0, "maximum": 3600 },
+        "easing": { "enum": ["linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic", "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine", "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic", "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce", "smoothstep", "hold"] },
+        "params": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "id": { "const": "slide" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "distance": { "type": "number", "minimum": 0, "maximum": 100 } } } } } },
+        { "if": { "properties": { "id": { "const": "smooth_wipe" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "feather": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } } } } } },
+        { "if": { "properties": { "id": { "const": "circle_iris" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "center": { "$ref": "#/$defs/point" }, "feather": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } } } } } },
+        { "if": { "properties": { "id": { "const": "flash" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" } } } } } },
+        { "if": { "properties": { "id": { "const": "procedural_remotion" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "seed": { "type": "number" } } } } } },
+        { "if": { "properties": { "id": { "const": "remotion" } }, "required": ["id"] }, "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": { "speed": { "type": "number", "exclusiveMinimum": 0 }, "direction": { "type": "number" }, "angle": { "type": "number" } } } } } },        { "if": { "properties": { "id": { "enum": ["none", "crossfade", "wipe_linear"] } }, "required": ["id"] }, "then": { "not": { "required": ["params"] } } },
+        { "if": { "required": ["params"] }, "then": { "properties": { "id": { "enum": ["slide", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"] } } } }
+
+      ]
+    },
     "bezier_easing_contract": {
       "allOf": [
         { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"] } },
@@ -333,6 +355,7 @@
         "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path"] },
         "asset": { "type": "string", "minLength": 1, "pattern": "\\.svg$" },
         "lottie": { "type": "string", "minLength": 1, "pattern": "\\.json$" },
+        "fill_rule": { "enum": ["even_odd", "non_zero"] },
         "radius": { "type": "number", "minimum": 0 },
         "corner_radius": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0 } },
         "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
@@ -496,13 +519,32 @@
       "items": {
         "type": "object",
         "properties": {
-          "type": { "enum": ["image", "video", "text", "color", "shape", "particles", "light", "adjustment"] },
+          "type": { "enum": ["image", "video", "text", "color", "shape", "particles", "light", "adjustment", "mesh"] },
           "light": {
             "type": "object", "additionalProperties": false,
             "properties": {
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
               "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+            }
+          },
+          "inline_mesh": {
+            "type": "object", "additionalProperties": false,
+            "required": ["vertices", "indices"],
+            "properties": {
+              "vertices": {
+                "type": "array", "minItems": 3, "maxItems": 250000,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["position"],
+                  "properties": {
+                    "position": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } },
+                    "normal": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number", "minimum": -1, "maximum": 1 } },
+                    "uv": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } }
+                  }
+                }
+              },
+              "indices": { "type": "array", "minItems": 3, "maxItems": 750000, "items": { "type": "integer", "minimum": 0, "maximum": 249999 } }
             }
           },
           "safe_insets": {
@@ -595,6 +637,8 @@
           "transition_in": { "$ref": "#/$defs/transition" },
           "transition_out": { "$ref": "#/$defs/transition" },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "transition_in": { "$ref": "#/$defs/layer_transition" },
+          "transition_out": { "$ref": "#/$defs/layer_transition" },
           "track_matte": {
             "type": "object", "additionalProperties": false,
             "required": ["source", "type"],
@@ -644,6 +688,68 @@
             "not": { "required": ["freeze_frame", "animation"] }
           },
           "shape": { "$ref": "#/$defs/shape" },
+          "animation": {
+            "type": "object", "additionalProperties": false,
+            "required": ["tracks"],
+            "properties": {
+              "tracks": {
+                "type": "array", "minItems": 1,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["property", "keyframes"],
+                  "properties": {
+                    "property": { "enum": ["position", "position_x", "position_y", "position_z", "scale", "scale_x", "scale_y", "scale_z", "rotation", "rotation_x", "rotation_y", "rotation_z", "opacity", "blur", "stroke_dash_offset", "fill_color"] },
+                    "easing": { "$ref": "#/$defs/easing" },
+                    "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                    "keyframes": {
+                      "type": "array", "minItems": 1, "maxItems": 65536,
+                      "items": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["frame", "value"],
+                        "properties": {
+                          "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                          "value": {
+                            "oneOf": [
+                              { "type": "number" },
+                              { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "allOf": [
+                    { "$ref": "#/$defs/bezier_easing_contract" },
+                    {
+                      "if": { "properties": { "property": { "const": "fill_color" } }, "required": ["property"] },
+                      "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "$ref": "#/$defs/rgba" } } } } } }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "fill_gradient_animation": {
+            "description": "Each keyframe contains a complete fill GradientDefinition. Color-stop colors are authored in sRGB; colors and opacity are interpolated over the union of sorted stop positions, geometry is linearly interpolated, and type and spread remain fixed for the track. The base shape.fill must also be a gradient of the same type and spread. Interpolation uses the standard linear temporal easing by default.",
+            "type": "object", "additionalProperties": false,
+            "required": ["keyframes"],
+            "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
+            "properties": {
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "keyframes": {
+                "type": "array", "minItems": 1, "maxItems": 65536,
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["frame", "value"],
+                  "properties": {
+                    "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                    "value": { "$ref": "#/$defs/gradient" }
+                  }
+                }
+              }
+            }
+          },
           "text_animators": {
             "type": "array", "items": { "$ref": "#/$defs/text_animator" }
           },
@@ -756,6 +862,19 @@
                   "intensity": { "type": "number", "minimum": 0, "maximum": 4 },
                   "color": { "type": "array", "minItems": 4, "maxItems": 4,
                              "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "light_rays" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "origin": { "type": "array", "minItems": 2, "maxItems": 2,
+                              "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+                  "length": { "type": "number", "minimum": 0, "maximum": 100000 },
+                  "density": { "type": "number", "minimum": 0, "maximum": 8 },
+                  "color": { "$ref": "#/$defs/rgba" },
+                  "decay": { "type": "number", "minimum": 0, "maximum": 1 }
                 }
               },
               { "type": "object", "additionalProperties": false,
@@ -919,10 +1038,13 @@
           }
         },
         "allOf": [
+          { "if": { "required": ["fill_gradient_animation"] }, "then": { "properties": { "type": { "const": "shape" }, "shape": { "required": ["fill"] } }, "required": ["type", "shape"] } },
           { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } },
           { "if": { "properties": { "type": { "const": "particles" } }, "required": ["type"] }, "then": { "required": ["particle_emitter"] } },
           { "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] }, "then": { "required": ["light"] } },
-          { "if": { "properties": { "type": { "const": "adjustment" } }, "required": ["type"] }, "then": { "required": ["effects"], "properties": { "effects": { "minItems": 1 } } } },
+          { "if": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] }, "then": { "required": ["inline_mesh"], "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["source"] }] } } },
+          { "if": { "required": ["inline_mesh"] }, "then": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] } },
+          { "if": { "properties": { "type": { "const": "adjustment" } }, "required": ["type"] }, "then": { "required": ["id", "effects"], "properties": { "id": {}, "type": {}, "effects": { "minItems": 1 } }, "additionalProperties": false } },
           { "if": { "required": ["time_remap"] }, "then": { "properties": { "type": { "const": "video" } } } }
         ]
       }

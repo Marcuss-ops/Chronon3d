@@ -99,6 +99,11 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 sampled.payload = SampledShapeParameters{
                     layer.size, layer.color, layer.opacity};
                 break;
+            case NodeKind::Mesh:
+                sampled.payload = SampledMeshParameters{
+                    layer.inline_mesh ? &*layer.inline_mesh : nullptr,
+                    layer.color};
+                break;
             case NodeKind::Unknown:
                 break;
         }

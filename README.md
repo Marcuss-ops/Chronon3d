@@ -82,6 +82,18 @@ receives only opaque content identity, Chronon-produced metrics and final
 transforms. Any cluster-level animation is evaluated here from Chronon-owned
 stable element IDs, never reconstructed by a consumer.
 
+ChrononMotion3D is an authoring-time producer: its offline physics/IK/PCM/flow/
+SVG bakers emit sampled data, and its optional RenderPlanLowering adapter
+lowers integer-frame poses to typed RenderPlan v2/v3. The adapter is not linked
+into Chronon3d's renderer or frame path. Its bounded static glTF/GLB reader
+produces geometry-only `Mesh` nodes on the Motion side; Chronon retains ownership
+of materials and render assets. The sibling adapter test sends emitted V2/V3 data through both Chronon3d's
+canonical schema validator and typed decoder, including camera animation and V3
+Merge/Morph operators. Geometry output remains Motion-side authoring data; it is
+not a promise that a GPU-backed mesh layer is part of the RenderPlan ABI. The
+opt-in build switch is `CHRONON3D_ENABLE_MOTION_ADAPTER=ON`; CI's focused adapter
+target is enabled only in the explicitly configured interoperability lane.
+
 - una sola pipeline render compilata;
 - una sola pipeline testuale canonica;
 - una sola pipeline camera `CameraDescriptor → CameraProgram`;

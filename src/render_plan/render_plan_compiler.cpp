@@ -1,5 +1,7 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/effects/cube_lut.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <cmath>
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
@@ -452,6 +454,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         .intensity = effect.glow_intensity,
                         .color = Color{effect.effect_color[0], effect.effect_color[1],
                                        effect.effect_color[2], effect.effect_color[3]}});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
+                    prepared_effects[index].emplace_back(LightRaysParams{
+                        .origin = Vec2{effect.light_rays_origin[0], effect.light_rays_origin[1]},
+                        .length = effect.light_rays_length,
+                        .density = effect.light_rays_density,
+                        .color = Color{effect.light_rays_color[0], effect.light_rays_color[1],
+                                       effect.light_rays_color[2], effect.light_rays_color[3]},
+                        .decay = effect.light_rays_decay});
                 } else if (effect.kind == LayerPlan::EffectKindPlan::Noise) {
                     prepared_effects[index].emplace_back(NoiseParams{
                         .amount = effect.amount,
@@ -598,7 +608,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     // changes their pose, not their albedo, so keep them out
                     // of the scene lighting pass (which otherwise grays light
                     // product imagery and its transparent edge pixels).
-                    if ((layer.type == LayerType::Image || layer.type == LayerType::Shape) && layer.enable_3d)
+                    if ((layer.type == LayerType::Image || layer.type == LayerType::Shape ||
+                         layer.type == LayerType::Mesh) && layer.enable_3d)
                         builder.accepts_lights(false).accepts_shadows(false);
                     switch (layer.type) {
                         case LayerType::Image: {
@@ -658,6 +669,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                        static_cast<float>(plan.canvas.height)};
                             params.color = {layer.color[0], layer.color[1],
                                             layer.color[2], layer.color[3]};
+                            if (const auto animated = detail::fill_color_at(
+                                    layer, ctx.effective_frame(),
+                                    Color{params.color.r, params.color.g,
+                                          params.color.b, params.color.a}))
+                                params.color = *animated;
                             if (layer.position_dimensions < 2) {
                                 builder.pin_to(Anchor::Center);
                                 params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
@@ -725,6 +741,24 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             // from preceding layers and intentionally draw no
                             // source geometry of their own.
                             break;
+                        case LayerType::Mesh: {
+                            if (!layer.inline_mesh)
+                                throw std::runtime_error("mesh layer '" + layer.id + "' has no inline geometry");
+                            InlineMeshParams params;
+                            params.name = layer.id;
+                            params.vertices.reserve(layer.inline_mesh->vertices.size());
+                            for (const auto& vertex : layer.inline_mesh->vertices)
+                                params.vertices.push_back(Vertex{
+                                    Vec3{vertex.position[0], vertex.position[1], vertex.position[2]},
+                                    Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
+                                    Vec2{vertex.uv[0], vertex.uv[1]}});
+                            params.indices = layer.inline_mesh->indices;
+                            builder.accepts_lights(false).accepts_shadows(false);
+                            builder.inline_mesh(std::move(params));
+                            builder.last_node_handle().node().color = Color{
+                                layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                            break;
+                        }
                         case LayerType::Shape: {
                             if (!layer.shape)
                                 throw std::runtime_error("shape layer '" + layer.id + "' has no shape payload");
@@ -733,16 +767,20 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 ? Vec2{layer.size[0], layer.size[1]}
                                 : Vec2{static_cast<float>(plan.canvas.width),
                                        static_cast<float>(plan.canvas.height)};
-                            const Color base_color{layer.color[0], layer.color[1],
-                                                   layer.color[2], layer.color[3]};
+                            const Color authored_color{layer.color[0], layer.color[1],
+                                                       layer.color[2], layer.color[3]};
+                            const Color base_color = detail::fill_color_at(
+                                layer, ctx.effective_frame(), authored_color).value_or(authored_color);
+                            const auto animated_gradient = detail::fill_gradient_at(
+                                layer, ctx.effective_frame());
+                            const auto& active_gradient = animated_gradient
+                                ? animated_gradient : shape.gradient;
                             std::optional<graphics::FillStyle> fill;
-                            if (shape.gradient) {
+                            if (active_gradient) {
                                 fill = graphics::FillStyle::solid(base_color);
-                                fill->gradient = shape.gradient;
+                                fill->gradient = *active_gradient;
                             } else if (shape.fill_color) {
-                                fill = graphics::FillStyle::solid(Color{
-                                    (*shape.fill_color)[0], (*shape.fill_color)[1],
-                                    (*shape.fill_color)[2], (*shape.fill_color)[3]});
+                                fill = graphics::FillStyle::solid(base_color);
                             }
                             graphics::StrokeStyle stroke;
                             if (shape.stroke) {
@@ -817,14 +855,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                                 break;
                                         }
                                     }
-                                    if (shape.gradient) {
+                                    if (active_gradient) {
                                         params.fill.enabled = true;
-                                        params.fill.type = fill_type_for_gradient(shape.gradient->type);
-                                        params.fill.gradient = *shape.gradient;
+                                        params.fill.type = fill_type_for_gradient(active_gradient->type);
+                                        params.fill.gradient = *active_gradient;
                                     } else if (shape.fill_color) {
-                                        params.fill = Fill::solid_color(Color{
-                                            (*shape.fill_color)[0], (*shape.fill_color)[1],
-                                            (*shape.fill_color)[2], (*shape.fill_color)[3]});
+                                        // Path fill RGB/alpha lives in its Fill payload; node.color
+                                        // supplies only the layer-opacity multiplier to draw_path().
+                                        params.fill = Fill::solid_color(base_color);
                                     }
                                     params.stroke = stroke.to_path_stroke();
                                     params.pos = {0.0f, 0.0f, 0.0f};
@@ -1110,6 +1148,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 const bool full_canvas_backdrop = has_3d_layer &&
                     layer.type != LayerType::Text &&
                     layer.type != LayerType::Shape &&
+
                     layer.position_dimensions == 0 &&
                     (layer.size_dimensions != 2 ||
                      (layer.size[0] >= static_cast<float>(plan.canvas.width) &&

@@ -41,6 +41,15 @@
       }
     },
     {
+      "name": "linux-ci-motion-adapter",
+      "inherits": "linux-ci",
+      "displayName": "Linux CI RenderPlan Motion Adapter Interoperability",
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_MOTION_ADAPTER": "ON",
+        "CHRONONMOTION_SOURCE_DIR": "${sourceDir}/../ChrononMotion3D"
+      }
+    },
+    {
       "name": "linux-ci-full-validation",
       "inherits": "base-linux",
       "displayName": "Linux CI Full Validation",
@@ -177,6 +186,12 @@
       "jobs": 14
     },
     {
+      "name": "linux-ci-motion-adapter",
+      "configurePreset": "linux-ci-motion-adapter",
+      "targets": ["chronon3d_motion_plan_adapter_tests"],
+      "jobs": 14
+    },
+    {
       "name": "linux-ci-full-validation",
       "configurePreset": "linux-ci-full-validation",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
@@ -221,6 +236,11 @@
     {
       "name": "linux-ci-release-build-test",
       "configurePreset": "linux-ci-release-build",
+      "output": {"outputOnFailure": true}
+    },
+    {
+      "name": "linux-ci-motion-adapter-test",
+      "configurePreset": "linux-ci-motion-adapter",
       "output": {"outputOnFailure": true}
     },
     {

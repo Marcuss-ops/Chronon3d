@@ -44,6 +44,7 @@ enum class TransitionDirection {
     if (str == "insine" || str == "in_sine") return Easing::InSine;
     if (str == "outsine" || str == "out_sine") return Easing::OutSine;
     if (str == "inoutsine" || str == "in_out_sine") return Easing::InOutSine;
+    if (str == "smoothstep") return Easing::Smoothstep;
     if (str == "inback" || str == "in_back") return Easing::InBack;
     if (str == "outback" || str == "out_back") return Easing::OutBack;
     if (str == "inoutback" || str == "in_out_back") return Easing::InOutBack;

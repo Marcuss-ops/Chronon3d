@@ -353,3 +353,27 @@ TEST_CASE("Fingerprint v9 domain golden is pinned") {
     // Per-key timing and transition fields advanced the canonical contract.
     CHECK(legacy_fingerprint() == 12360396897713678385ULL);
 }
+TEST_CASE("LightRays controls affect render-plan fingerprints") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "rays"}, {"type", "color"}, {"color", {0, 0, 0, 1}},
+         {"effects", {{{"type", "light_rays"}, {"origin", {0.2, 0.7}},
+                       {"length", 240}, {"density", 1.25},
+                       {"color", {1, 0.8, 0.6, 0.75}}, {"decay", 0.85}}}}}
+    }));
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    const auto fingerprint = first->content_fingerprint;
+    const std::vector<std::pair<std::string, nlohmann::json>> mutations{
+        {"origin", {0.3, 0.7}}, {"length", 241}, {"density", 1.5},
+        {"color", {0.9, 0.8, 0.6, 0.75}}, {"decay", 0.8}
+    };
+    for (const auto& [field, value] : mutations) {
+        auto changed = plan;
+        changed["layers"][0]["effects"][0][field] = value;
+        const auto decoded = render_plan::decode_render_plan(changed);
+        REQUIRE(decoded);
+        CHECK(decoded->content_fingerprint != fingerprint);
+    }
+}
+
+

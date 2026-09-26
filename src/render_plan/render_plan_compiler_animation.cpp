@@ -431,6 +431,9 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         } else if (track.property == "blur") {
             if (blur_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
             blur_track = &track;
+        } else if (track.property == "fill_color") {
+            // Paint tracks are sampled into the per-frame source node by the
+            // render-plan scene callback, not lowered as transform animation.
         } else {
             throw std::runtime_error("unsupported primitive animation property: " + track.property);
         }
@@ -600,6 +603,156 @@ chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& trac
 chronon3d::EasingCurve animation_keyframe_easing(
     const AnimationTrackPlan& track, const AnimationKeyframePlan& key) {
     return keyframe_easing(track, key);
+}
+
+std::optional<chronon3d::Color> fill_color_at(
+    const LayerPlan& layer, double frame, chronon3d::Color base) {
+    if (!layer.animation) return std::nullopt;
+    const AnimationTrackPlan* track = nullptr;
+    for (const auto& candidate : layer.animation->tracks) {
+        if (candidate.property != "fill_color") continue;
+        if (track) throw std::runtime_error("layer has duplicate fill_color animation tracks");
+        track = &candidate;
+    }
+    if (!track || track->keyframes.empty()) return std::nullopt;
+
+    std::vector<const AnimationKeyframePlan*> keys;
+    keys.reserve(track->keyframes.size());
+    for (const auto& key : track->keyframes) keys.push_back(&key);
+    std::stable_sort(keys.begin(), keys.end(), [](const auto* left, const auto* right) {
+        return left->frame < right->frame;
+    });
+    const auto color = [](const AnimationKeyframePlan& key) {
+        if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                [](float component) {
+                    return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                }))
+            throw std::runtime_error("fill_color keyframes require finite RGBA values in [0, 1]");
+        return chronon3d::Color{key.value[0], key.value[1], key.value[2], key.value[3]};
+    };
+    for (std::size_t index = 1; index < keys.size(); ++index)
+        if (keys[index - 1]->frame == keys[index]->frame)
+            throw std::runtime_error("fill_color keyframe frames must be unique");
+    const auto easing = track_easing(track->easing, track->bezier_curve);
+    chronon3d::Color sampled = base;
+    const double first_frame = static_cast<double>(keys.front()->frame.integral());
+    if (frame < first_frame) {
+        const float t = first_frame <= 0.0 ? 1.0f : static_cast<float>(
+            std::clamp(frame / first_frame, 0.0, 1.0));
+        sampled = easing.preset == chronon3d::Easing::Hold && !easing.cubic
+            ? base
+            : chronon3d::lerp(base, color(*keys.front()),
+                              std::clamp(easing.apply(t), 0.0f, 1.0f));
+    } else if (frame >= static_cast<double>(keys.back()->frame.integral())) {
+        sampled = color(*keys.back());
+    } else {
+        for (std::size_t index = 1; index < keys.size(); ++index) {
+            const double start = static_cast<double>(keys[index - 1]->frame.integral());
+            const double end = static_cast<double>(keys[index]->frame.integral());
+            if (frame >= end) continue;
+            const float t = end <= start ? 1.0f : static_cast<float>(
+                std::clamp((frame - start) / (end - start), 0.0, 1.0));
+            sampled = easing.preset == chronon3d::Easing::Hold && !easing.cubic
+                ? color(*keys[index - 1])
+                : chronon3d::lerp(
+                    color(*keys[index - 1]), color(*keys[index]),
+                    std::clamp(easing.apply(t), 0.0f, 1.0f));
+            break;
+        }
+    }
+    if (!std::isfinite(sampled.r) || !std::isfinite(sampled.g) ||
+        !std::isfinite(sampled.b) || !std::isfinite(sampled.a))
+        throw std::runtime_error("animated fill_color must be finite");
+    return sampled;
+}
+
+namespace {
+
+graphics::GradientDefinition interpolate_authored_gradient(
+    const graphics::GradientDefinition& a,
+    const graphics::GradientDefinition& b,
+    float amount) {
+    graphics::GradientDefinition result = a;
+    std::vector<float> color_positions;
+    color_positions.reserve(a.color_stops.size() + b.color_stops.size());
+    for (const auto& stop : a.color_stops) color_positions.push_back(stop.position);
+    for (const auto& stop : b.color_stops) color_positions.push_back(stop.position);
+    std::sort(color_positions.begin(), color_positions.end());
+    color_positions.erase(std::unique(color_positions.begin(), color_positions.end()),
+                          color_positions.end());
+    result.color_stops.clear();
+    result.color_stops.reserve(color_positions.size());
+    for (const float position : color_positions) {
+        const auto left = graphics::detail::sample_color_stops(a.color_stops, position);
+        const auto right = graphics::detail::sample_color_stops(b.color_stops, position);
+        result.color_stops.push_back({position,
+            chronon3d::lerp(left, right, amount).to_srgb()});
+    }
+
+    if (!a.opacity_stops.empty() || !b.opacity_stops.empty()) {
+        std::vector<float> opacity_positions{0.0f, 1.0f};
+        for (const auto& stop : a.opacity_stops) opacity_positions.push_back(stop.position);
+        for (const auto& stop : b.opacity_stops) opacity_positions.push_back(stop.position);
+        std::sort(opacity_positions.begin(), opacity_positions.end());
+        opacity_positions.erase(std::unique(opacity_positions.begin(), opacity_positions.end()),
+                                opacity_positions.end());
+        result.opacity_stops.clear();
+        result.opacity_stops.reserve(opacity_positions.size());
+        for (const float position : opacity_positions) {
+            const float left = a.opacity_stops.empty()
+                ? 1.0f : graphics::detail::sample_opacity_stops(a.opacity_stops, position);
+            const float right = b.opacity_stops.empty()
+                ? 1.0f : graphics::detail::sample_opacity_stops(b.opacity_stops, position);
+            result.opacity_stops.push_back({position, left + (right - left) * amount});
+        }
+    }
+
+    const auto mix = [amount](float x, float y) { return x + (y - x) * amount; };
+    result.start = {mix(a.start.x, b.start.x), mix(a.start.y, b.start.y)};
+    result.end = {mix(a.end.x, b.end.x), mix(a.end.y, b.end.y)};
+    result.center = {mix(a.center.x, b.center.x), mix(a.center.y, b.center.y)};
+    result.radius = mix(a.radius, b.radius);
+    result.angle = mix(a.angle, b.angle);
+    return result;
+}
+
+}  // namespace
+
+std::optional<graphics::GradientDefinition> fill_gradient_at(
+    const LayerPlan& layer, double frame) {
+    if (!layer.shape || !layer.shape->gradient) return std::nullopt;
+    const auto& base = *layer.shape->gradient;
+    if (!layer.fill_gradient_animation || layer.fill_gradient_animation->keyframes.empty())
+        return base;
+    const auto& track = *layer.fill_gradient_animation;
+    std::vector<const GradientKeyframePlan*> keys;
+    keys.reserve(track.keyframes.size());
+    for (const auto& key : track.keyframes) keys.push_back(&key);
+    std::stable_sort(keys.begin(), keys.end(), [](const auto* left, const auto* right) {
+        return left->frame < right->frame;
+    });
+    const auto easing = track_easing(track.easing, track.bezier_curve);
+    const auto interpolate = [&](const graphics::GradientDefinition& a,
+                                 const graphics::GradientDefinition& b,
+                                 double start, double end) {
+        const float t = static_cast<float>(std::clamp(
+            (frame - start) / (end - start), 0.0, 1.0));
+        const float eased = easing.apply(t);
+        return interpolate_authored_gradient(a, b, std::clamp(eased, 0.0f, 1.0f));
+    };
+    const double first_frame = static_cast<double>(keys.front()->frame.integral());
+    if (frame < first_frame) {
+        if (first_frame <= 0.0) return keys.front()->value;
+        if (easing.preset == chronon3d::Easing::Hold && !easing.cubic)
+            return base;
+        return interpolate(base, keys.front()->value, 0.0, first_frame);
+    }
+    for (std::size_t index = 1; index < keys.size(); ++index) {
+        const double start = static_cast<double>(keys[index - 1]->frame.integral());
+        const double end = static_cast<double>(keys[index]->frame.integral());
+        if (frame < end) return interpolate(keys[index - 1]->value, keys[index]->value, start, end);
+    }
+    return keys.back()->value;
 }
 
 std::optional<chronon3d::camera_v1::CameraDescriptor>

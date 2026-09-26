@@ -1,6 +1,7 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -63,6 +64,7 @@ std::optional<PlanDecodeError> validate_render_budget(
 
     std::uint64_t text_bytes = 0;
     std::uint64_t asset_reference_bytes = 0;
+    std::uint64_t inline_mesh_bytes = 0;
     const auto add_bytes = [](std::uint64_t& total, std::size_t value,
                               std::uint64_t limit) {
         if (total > limit || static_cast<std::uint64_t>(value) > limit - total)
@@ -74,6 +76,30 @@ std::optional<PlanDecodeError> validate_render_budget(
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
         const auto& layer = plan.layers[index];
         const auto prefix = "layers[" + std::to_string(index) + "]";
+        if (layer.type == LayerType::Adjustment) {
+            const bool has_non_default_size = layer.size != std::array<float, 2>{0, 0};
+            const bool has_non_default_color = layer.color != std::array<float, 4>{1, 1, 1, 1};
+            const bool has_non_default_position = layer.position != std::array<float, 3>{0, 0, 0};
+            const bool has_non_default_scale = layer.scale != std::array<float, 3>{1, 1, 1};
+            const bool has_non_default_rotation = layer.rotation != std::array<float, 3>{0, 0, 0};
+            if (layer.effects.empty() || !layer.asset.empty() || !layer.source.empty() ||
+                !layer.text.empty() || !layer.text_spans.empty() || !layer.font.empty() ||
+                layer.style || layer.motion_blur || layer.shape || layer.inline_mesh ||
+                layer.particle_emitter || layer.light || layer.path_mask || has_non_default_size ||
+                has_non_default_color || has_non_default_position || has_non_default_scale ||
+                has_non_default_rotation || layer.size_dimensions != 0 ||
+                layer.position_dimensions != 0 || layer.scale_dimensions != 0 ||
+                layer.rotation_dimensions != 0 ||
+                layer.enable_3d || layer.screen_space || layer.safe_insets || layer.depth_role ||
+                layer.depth_offset != 0.0f || layer.radius || layer.start_frame ||
+                layer.duration_frames || layer.fit || layer.animation ||
+                layer.fill_gradient_animation || !layer.text_animators.empty() ||
+                layer.blend_mode || layer.opacity || layer.loop || layer.parent ||
+                layer.track_matte || layer.time_remap || layer.transition_in || layer.transition_out) {
+                return fail(prefix,
+                    "adjustment layers require a non-empty effect stack and cannot carry drawable, transform, timing, compositing, or relationship properties");
+            }
+        }
         if (layer.start_frame && layer.start_frame->integral() < 0)
             return fail(prefix + ".start_frame", "layer start frame cannot be negative");
         if (layer.duration_frames && layer.duration_frames->integral() <= 0)
@@ -91,6 +117,51 @@ std::optional<PlanDecodeError> validate_render_budget(
             if (!add_bytes(asset_reference_bytes, reference->size(),
                            budget.max_asset_reference_bytes))
                 return fail("layers[]", "render budget max_asset_reference_bytes exceeded");
+        }
+
+        if (layer.inline_mesh) {
+            const auto& mesh = *layer.inline_mesh;
+            if (layer.type != LayerType::Mesh)
+                return fail(prefix + ".inline_mesh", "inline_mesh is valid only for mesh layers");
+            if (mesh.vertices.size() < 3 || mesh.vertices.size() > kInlineMeshMaxVertices)
+                return fail(prefix + ".inline_mesh.vertices", "vertex count must be in [3, 250000]");
+            if (mesh.indices.size() < 3 || mesh.indices.size() > kInlineMeshMaxIndices ||
+                mesh.indices.size() % 3 != 0)
+                return fail(prefix + ".inline_mesh.indices", "triangle index count must be divisible by three and in [3, 750000]");
+            if ((layer.type != LayerType::Mesh && layer.inline_mesh) ||
+                (layer.type == LayerType::Mesh &&
+                 (layer.shape || layer.particle_emitter || layer.light || !layer.text.empty() ||
+                  layer.style || !layer.effects.empty() || layer.path_mask ||
+                  (layer.animation && !layer.animation->tracks.empty()))))
+                return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
+            constexpr std::uint64_t kBytesPerVertex = sizeof(InlineMeshVertex);
+            constexpr std::uint64_t kBytesPerIndex = sizeof(std::uint32_t);
+            const auto vertex_count = static_cast<std::uint64_t>(mesh.vertices.size());
+            const auto index_count = static_cast<std::uint64_t>(mesh.indices.size());
+            if (vertex_count > kInlineMeshMaxAggregateBytes / kBytesPerVertex ||
+                index_count > (kInlineMeshMaxAggregateBytes - vertex_count * kBytesPerVertex) / kBytesPerIndex)
+                return fail(prefix + ".inline_mesh", "inline mesh payload exceeds the 64 MiB aggregate byte limit");
+            const std::uint64_t mesh_bytes = vertex_count * kBytesPerVertex + index_count * kBytesPerIndex;
+            if (inline_mesh_bytes > kInlineMeshMaxAggregateBytes - mesh_bytes)
+                return fail("layers[].inline_mesh", "render budget aggregate inline mesh bytes exceed 64 MiB");
+            inline_mesh_bytes += mesh_bytes;
+            for (std::size_t vertex_index = 0; vertex_index < mesh.vertices.size(); ++vertex_index) {
+                const auto& vertex = mesh.vertices[vertex_index];
+                for (const float component : vertex.position)
+                    if (!std::isfinite(component) || std::abs(component) > 1'000'000.0f)
+                        return fail(prefix + ".inline_mesh.vertices[].position", "position components must be finite and within [-1000000, 1000000]");
+                for (const float component : vertex.normal)
+                    if (!std::isfinite(component) || std::abs(component) > 1.0f)
+                        return fail(prefix + ".inline_mesh.vertices[].normal", "normal components must be finite and within [-1, 1]");
+                for (const float component : vertex.uv)
+                    if (!std::isfinite(component) || std::abs(component) > 1'000'000.0f)
+                        return fail(prefix + ".inline_mesh.vertices[].uv", "UV components must be finite and within [-1000000, 1000000]");
+            }
+            for (const std::uint32_t index_value : mesh.indices)
+                if (index_value >= mesh.vertices.size())
+                    return fail(prefix + ".inline_mesh.indices[]", "index is outside the vertex array");
+        } else if (layer.type == LayerType::Mesh) {
+            return fail(prefix + ".inline_mesh", "mesh layers require inline triangle geometry");
         }
 
         for (const auto value : layer.size)

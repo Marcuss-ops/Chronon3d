@@ -60,8 +60,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
-            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests" \
+            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests" \
             --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
+      - name: Run RenderPlan v2/v3 adapter interoperability gate
+        if: runner.os == 'Linux'
+        run: |
+          cmake --preset linux-ci-motion-adapter
+          cmake --build --preset linux-ci-motion-adapter --target chronon3d_motion_plan_adapter_tests
+          ctest --preset linux-ci-motion-adapter-test -R '^chronon3d_motion_plan_adapter_tests$' --output-on-failure
 
       - name: Run Tests (Full — Push)
         if: github.event_name != 'pull_request'

@@ -60,6 +60,7 @@ struct PathParams {
     std::vector<PathCommand> commands;
     PathStroke stroke{};
     Fill fill{};
+    PathFillRule fill_rule{PathFillRule::EvenOdd};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     bool closed{false};

@@ -4,8 +4,10 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
 #include <chronon3d/render_plan/subtitle_style.hpp>
+#include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
@@ -334,6 +336,151 @@ TEST_CASE("render plan compiles semantic word fill-color animator") {
     CHECK(evaluated_color.b == doctest::Approx(0.0f));
 }
 
+TEST_CASE("render plan evaluates animated solid fills and typed transitions per frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "animated-solid-transition";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{12}};
+    LayerPlan shape;
+    shape.id = "paint";
+    shape.type = LayerType::Shape;
+    shape.size = {24.0f, 24.0f};
+    shape.size_dimensions = 2;
+    shape.shape = ShapeContentPlan{};
+    shape.shape->type = ShapeContentTypePlan::Rect;
+    shape.shape->fill_color = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f};
+    AnimationTrackPlan fill;
+    fill.property = "fill_color";
+    fill.keyframes = {{Frame{0}, {0.0f, 0.0f, 0.0f, 1.0f}},
+                      {Frame{10}, {1.0f, 0.0f, 0.0f, 1.0f}}};
+    shape.animation = AnimationPlan{.tracks = {fill}};
+    TransitionPlan transition;
+    transition.id = "slide";
+    transition.kind = "slide";
+    transition.duration_frames = Frame{15};  // 0.5 s at 30 fps
+    transition.direction = "left";
+    transition.distance = 0.5f;
+    shape.transition_in = transition;
+    plan.layers.push_back(shape);
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto frame0 = evaluate(prepared->compiled_composition,
+                                 CompositionEvaluateContext{}, Frame{0});
+    const auto frame5 = evaluate(prepared->compiled_composition,
+                                 CompositionEvaluateContext{}, Frame{5});
+    REQUIRE(frame0);
+    REQUIRE(frame5);
+    REQUIRE(frame0->scene.layers().size() == 1);
+    REQUIRE(frame5->scene.layers().size() == 1);
+    const auto& layer0 = frame0->scene.layers()[0];
+    const auto& layer5 = frame5->scene.layers()[0];
+    REQUIRE(layer0.nodes.size() == 1);
+    REQUIRE(layer5.nodes.size() == 1);
+    CHECK(layer0.nodes[0].fill.solid.r == doctest::Approx(0.0f));
+    CHECK(layer5.nodes[0].fill.solid.r == doctest::Approx(0.5f));
+    CHECK(layer_transition_kind(layer0.transition_in.transition_id) ==
+          LayerTransitionKind::Slide);
+    CHECK(std::get<SlideParams>(layer0.transition_in.parameters).distance == doctest::Approx(0.5f));
+}
+
+TEST_CASE("render plan fill and gradient tracks clamp eased values and hold as steps") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    LayerPlan solid;
+    solid.type = LayerType::Color;
+    solid.color = {0.0f, 0.0f, 1.0f, 1.0f};
+    AnimationTrackPlan fill;
+    fill.property = "fill_color";
+    fill.easing = "hold";
+    fill.keyframes = {{Frame{5}, {1.0f, 0.0f, 0.0f, 1.0f}},
+                      {Frame{10}, {0.0f, 1.0f, 0.0f, 1.0f}}};
+    solid.animation = AnimationPlan{.tracks = {fill}};
+    const auto before = chronon3d::render_plan::detail::fill_color_at(
+        solid, 2.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+    REQUIRE(before.has_value());
+    CHECK(before->b == doctest::Approx(1.0f));
+    const auto held = chronon3d::render_plan::detail::fill_color_at(
+        solid, 7.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+    REQUIRE(held.has_value());
+    CHECK(held->r == doctest::Approx(1.0f));
+    CHECK(held->g == doctest::Approx(0.0f));
+    const auto last = chronon3d::render_plan::detail::fill_color_at(
+        solid, 10.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+    REQUIRE(last.has_value());
+    CHECK(last->g == doctest::Approx(1.0f));
+
+    const auto gradient = [](Color first) {
+        return graphics::GradientDefinition::linear(
+            {0.0f, 0.0f}, {1.0f, 0.0f},
+            {{0.0f, first}, {1.0f, Color::white()}},
+            graphics::GradientSpread::Pad);
+    };
+    LayerPlan gradient_layer;
+    gradient_layer.type = LayerType::Shape;
+    gradient_layer.shape = ShapeContentPlan{};
+    gradient_layer.shape->gradient = gradient(Color::blue());
+    GradientAnimationPlan gradient_track;
+    gradient_track.easing = "hold";
+    gradient_track.keyframes = {
+        {Frame{5}, gradient(Color::red())},
+        {Frame{10}, gradient(Color::green())}};
+    gradient_layer.fill_gradient_animation = gradient_track;
+    const auto gradient_before = chronon3d::render_plan::detail::fill_gradient_at(gradient_layer, 2.0);
+    REQUIRE(gradient_before.has_value());
+    CHECK(gradient_before->color_stops[0].color.b == doctest::Approx(1.0f));
+    const auto gradient_held = chronon3d::render_plan::detail::fill_gradient_at(gradient_layer, 7.0);
+    REQUIRE(gradient_held.has_value());
+    CHECK(gradient_held->color_stops[0].color.r == doctest::Approx(1.0f));
+    CHECK(gradient_held->color_stops[0].color.g == doctest::Approx(0.0f));
+}
+
+TEST_CASE("render plan evaluates animated gradient color ramps in authored sRGB") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "animated-gradient-ramp";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{10}};
+    const auto make_gradient = [](Color first, Color last, float start_x) {
+        return graphics::GradientDefinition::linear(
+            {start_x, 0.0f}, {1.0f, 0.0f},
+            {{0.0f, first}, {1.0f, last}}, graphics::GradientSpread::Reflect);
+    };
+    LayerPlan shape;
+    shape.id = "gradient";
+    shape.type = LayerType::Shape;
+    shape.size = {32.0f, 32.0f};
+    shape.size_dimensions = 2;
+    shape.shape = ShapeContentPlan{};
+    shape.shape->type = ShapeContentTypePlan::Rect;
+    shape.shape->gradient = make_gradient(Color::red(), Color::blue(), 0.0f);
+    GradientAnimationPlan animation;
+    animation.keyframes = {
+        {Frame{0}, make_gradient(Color::red(), Color::blue(), 0.0f)},
+        {Frame{10}, make_gradient(Color::green(), Color::white(), 0.5f)}};
+    shape.fill_gradient_animation = animation;
+    plan.layers.push_back(shape);
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{5});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto& fill = evaluated->scene.layers()[0].nodes[0].fill;
+    REQUIRE(fill.gradient.type == graphics::GradientType::Linear);
+    CHECK(fill.gradient.start.x == doctest::Approx(0.25f));
+    REQUIRE(fill.gradient.color_stops.size() == 2);
+    CHECK(fill.gradient.color_stops[0].color.r == doctest::Approx(0.7353569f).epsilon(0.002f));
+    CHECK(fill.gradient.color_stops[0].color.g == doctest::Approx(0.7353569f).epsilon(0.002f));
+}
+
 TEST_CASE("render plan resolves grow-and-shrink text height before evaluation") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -576,6 +723,85 @@ TEST_CASE("render plan lowers fractal noise to the generate effect stack") {
     CHECK(noise->octaves == 5);
     CHECK(noise->evolution == doctest::Approx(0.5f));
     CHECK(noise->color_mode == NoiseColorMode::RGB);
+}
+
+TEST_CASE("render plan lowers LightRays parameters into the effect stack") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "light-rays-plan";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "rays";
+    layer.type = LayerType::Color;
+    layer.color = {0.0f, 0.0f, 0.0f, 1.0f};
+    LayerPlan::EffectPlan rays;
+    rays.kind = LayerPlan::EffectKindPlan::LightRays;
+    rays.light_rays_origin = {0.2f, 0.7f};
+    rays.light_rays_length = 240.0f;
+    rays.light_rays_density = 1.25f;
+    rays.light_rays_color = {0.9f, 0.8f, 0.6f, 0.75f};
+    rays.light_rays_decay = 0.85f;
+    layer.effects.push_back(rays);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* decoded = std::get_if<LightRaysParams>(&effects[0].params);
+    REQUIRE(decoded);
+    CHECK(decoded->origin.x == doctest::Approx(0.2f));
+    CHECK(decoded->origin.y == doctest::Approx(0.7f));
+    CHECK(decoded->length == doctest::Approx(240.0f));
+    CHECK(decoded->density == doctest::Approx(1.25f));
+    CHECK(decoded->color.r == doctest::Approx(0.9f));
+    CHECK(decoded->color.a == doctest::Approx(0.75f));
+    CHECK(decoded->decay == doctest::Approx(0.85f));
+}
+
+TEST_CASE("render plan adjustment layers reject drawable and compositor state in direct plans") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    const auto rejected = [](const LayerPlan& invalid_layer) {
+        RenderPlan plan;
+        plan.job_id = "invalid-adjustment";
+        plan.canvas = {.width = 16, .height = 16,
+                       .fps = FrameRate{24, 1}, .duration = Frame{1}};
+        LayerPlan base;
+        base.id = "base";
+        base.type = LayerType::Color;
+        base.color = {0, 0, 0, 1};
+        plan.layers.push_back(base);
+        plan.layers.push_back(invalid_layer);
+        assets::AssetResolver resolver;
+        return compile_render_plan(plan, resolver);
+    };
+    LayerPlan valid;
+    valid.id = "adjustment";
+    valid.type = LayerType::Adjustment;
+    valid.effects.push_back({.kind = LayerPlan::EffectKindPlan::Noise});
+    REQUIRE(rejected(valid));
+
+    auto with_opacity = valid;
+    with_opacity.opacity = 1.0f;
+    CHECK_FALSE(rejected(with_opacity));
+    auto with_position = valid;
+    with_position.position = {1.0f, 0.0f, 0.0f};
+    with_position.position_dimensions = 2;
+    CHECK_FALSE(rejected(with_position));
+    auto with_compositing = valid;
+    with_compositing.blend_mode = BlendMode::Normal;
+    CHECK_FALSE(rejected(with_compositing));
+    auto without_effect = valid;
+    without_effect.effects.clear();
+    CHECK_FALSE(rejected(without_effect));
 }
 
 TEST_CASE("render plan adjustment layer applies grain without drawing content") {
