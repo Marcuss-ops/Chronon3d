@@ -20,6 +20,6 @@ fi
 echo "check_cli_tests: building chronon3d_cli_tests (${JOBS} jobs)"
 cmake --build "${BUILD_DIR}" --target chronon3d_cli_tests -j "${JOBS}"
 
-echo "check_cli_tests: running chronon3d_cli_tests"
-ctest --test-dir "${BUILD_DIR}" -R '^chronon3d_cli_tests$' --output-on-failure
+echo "check_cli_tests: running chronon3d_cli_tests (-j${JOBS})"
+ctest --test-dir "${BUILD_DIR}" -R '^chronon3d_cli_tests$' -j"${JOBS}" --output-on-failure
 echo "check_cli_tests: PASS"
