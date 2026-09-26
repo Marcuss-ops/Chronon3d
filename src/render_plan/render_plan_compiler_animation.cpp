@@ -60,6 +60,29 @@ chronon3d::EasingCurve track_easing(
     throw std::runtime_error("unsupported animation easing: " + std::string(value));
 }
 
+chronon3d::EasingCurve keyframe_easing(const AnimationTrackPlan& track,
+                                       const AnimationKeyframePlan& key) {
+    if (key.interpolation) {
+        if (key.easing || key.bezier_curve)
+            throw std::runtime_error("keyframe interpolation cannot be combined with easing or bezier_curve");
+        if (*key.interpolation == "linear") return {chronon3d::Easing::Linear};
+        if (*key.interpolation == "hold") return {chronon3d::Easing::Hold};
+        if (*key.interpolation == "bezier") {
+            if (!key.bezier_curve)
+                throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve");
+            return track_easing("bezier", key.bezier_curve);
+        }
+        throw std::runtime_error("unsupported keyframe interpolation: " + *key.interpolation);
+    }
+    if (key.easing || key.bezier_curve) {
+        if (key.bezier_curve && !key.easing)
+            throw std::runtime_error("per-key bezier_curve requires easing='bezier'");
+        return track_easing(key.easing.value_or(track.easing),
+                            key.bezier_curve ? key.bezier_curve : track.bezier_curve);
+    }
+    return track_easing(track.easing, track.bezier_curve);
+}
+
 float scalar_value(const AnimationKeyframePlan& key, std::string_view property) {
     if (key.value.size() != 1)
         throw std::runtime_error("animation property '" + std::string(property) +
@@ -82,8 +105,12 @@ chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
 }
 
 struct PositionAnimationData {
-    std::vector<std::pair<Frame, chronon3d::Vec3>> keyframes;
-    chronon3d::EasingCurve easing{};
+    struct Keyframe {
+        Frame frame;
+        chronon3d::Vec3 value;
+        chronon3d::EasingCurve easing;
+    };
+    std::vector<Keyframe> keyframes;
 };
 
 PositionAnimationData position_animation_data(const LayerPlan& layer,
@@ -126,12 +153,14 @@ PositionAnimationData position_animation_data(const LayerPlan& layer,
                 throw std::runtime_error(
                     "position component tracks must share keyframes and easing");
             for (std::size_t index = 0; index < reference->keyframes.size(); ++index)
-                if (component->keyframes[index].frame != reference->keyframes[index].frame)
+                if (component->keyframes[index].frame != reference->keyframes[index].frame ||
+                    component->keyframes[index].interpolation != reference->keyframes[index].interpolation ||
+                    component->keyframes[index].easing != reference->keyframes[index].easing ||
+                    component->keyframes[index].bezier_curve != reference->keyframes[index].bezier_curve)
                     throw std::runtime_error(
                         "position component tracks must share keyframes and easing");
         }
     }
-    result.easing = track_easing(reference->easing, reference->bezier_curve);
     const auto& reference_keys = reference->keyframes;
     result.keyframes.reserve(reference_keys.size());
     for (std::size_t index = 0; index < reference_keys.size(); ++index) {
@@ -148,7 +177,8 @@ PositionAnimationData position_animation_data(const LayerPlan& layer,
                 else value.z += offset;
             }
         }
-        result.keyframes.emplace_back(reference_keys[index].frame, value);
+        result.keyframes.push_back({reference_keys[index].frame, value,
+                                    keyframe_easing(*reference, reference_keys[index])});
     }
     return result;
 }
@@ -202,7 +232,7 @@ chronon3d::AnimatedValue<T> animated_text_value(
     const AnimationTrackPlan& track, T fallback, std::string_view property) {
     chronon3d::AnimatedValue<T> result{fallback};
     for (const auto& key : track.keyframes) {
-        const auto easing = track_easing(track.easing, track.bezier_curve);
+        const auto easing = keyframe_easing(track, key);
         if constexpr (std::is_same_v<T, float>) {
             result.add_keyframe(key.frame, scalar_value(key, property), easing);
         } else {
@@ -226,7 +256,7 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_rotation(
             throw std::runtime_error(
                 "animation property 'rotation' requires scalar or 3-component keyframe values");
         }
-        result.add_keyframe(key.frame, value, track_easing(track.easing, track.bezier_curve));
+        result.add_keyframe(key.frame, value, keyframe_easing(track, key));
     }
     return result;
 }
@@ -243,7 +273,7 @@ chronon3d::AnimatedValue<chronon3d::Color> animated_text_color(
         result.add_keyframe(
             key.frame,
             chronon3d::Color{key.value[0], key.value[1], key.value[2], key.value[3]},
-            track_easing(track.easing, track.bezier_curve));
+            keyframe_easing(track, key));
     }
     return result;
 }
@@ -260,7 +290,7 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_vec3_component(
             value.y = scalar_value(key, property);
         else
             value.z = scalar_value(key, property);
-        result.add_keyframe(key.frame, value, track_easing(track.easing, track.bezier_curve));
+        result.add_keyframe(key.frame, value, keyframe_easing(track, key));
     }
     return result;
 }
@@ -416,9 +446,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     auto make_scalar_eval = [](const AnimationTrackPlan* track, float fallback) -> std::optional<chronon3d::AnimatedValue<float>> {
         if (!track) return std::nullopt;
         chronon3d::AnimatedValue<float> anim(fallback);
-        const auto easing = track_easing(track->easing, track->bezier_curve);
         for (const auto& key : track->keyframes) {
-            anim.add_keyframe(key.frame, scalar_value(key, track->property), easing);
+            anim.add_keyframe(key.frame, scalar_value(key, track->property), keyframe_easing(*track, key));
         }
         return anim;
     };
@@ -432,7 +461,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             if (t) {
                 for (const auto& k : t->keyframes) {
                     if (k.frame == f) {
-                        const auto curve = track_easing(t->easing, t->bezier_curve);
+                        const auto curve = keyframe_easing(*t, k);
                         if (curve != chronon3d::Easing::Linear || result == chronon3d::Easing::Linear) {
                             result = curve;
                         }
@@ -446,9 +475,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (pos_tracks.full) {
         auto& animated = builder.position_anim();
         animated.set(base_position);
-        const auto easing = track_easing(pos_tracks.full->easing, pos_tracks.full->bezier_curve);
         for (const auto& key : pos_tracks.full->keyframes) {
-            animated.add_keyframe(key.frame, vector_value(key, pos_tracks.full->property, base_position), easing);
+            animated.add_keyframe(key.frame, vector_value(key, pos_tracks.full->property, base_position), keyframe_easing(*pos_tracks.full, key));
         }
     } else if (pos_tracks.x || pos_tracks.y || pos_tracks.z) {
         auto& animated = builder.position_anim();
@@ -476,9 +504,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (scale_tracks.full) {
         auto& animated = builder.scale_anim();
         animated.set(base_scale);
-        const auto easing = track_easing(scale_tracks.full->easing, scale_tracks.full->bezier_curve);
         for (const auto& key : scale_tracks.full->keyframes) {
-            animated.add_keyframe(key.frame, vector_value(key, scale_tracks.full->property, base_scale), easing);
+            animated.add_keyframe(key.frame, vector_value(key, scale_tracks.full->property, base_scale), keyframe_easing(*scale_tracks.full, key));
         }
     } else if (scale_tracks.x || scale_tracks.y || scale_tracks.z) {
         auto& animated = builder.scale_anim();
@@ -506,9 +533,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (rot_tracks.full) {
         auto& animated = builder.rotate_anim();
         animated.set(base_rotation);
-        const auto easing = track_easing(rot_tracks.full->easing, rot_tracks.full->bezier_curve);
         for (const auto& key : rot_tracks.full->keyframes) {
-            animated.add_keyframe(key.frame, vector_value(key, rot_tracks.full->property, base_rotation), easing);
+            animated.add_keyframe(key.frame, vector_value(key, rot_tracks.full->property, base_rotation), keyframe_easing(*rot_tracks.full, key));
         }
     } else if (rot_tracks.x || rot_tracks.y || rot_tracks.z) {
         auto& animated = builder.rotate_anim();
@@ -534,18 +560,16 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     }
 
     if (opacity_track) {
-        const auto easing = track_easing(opacity_track->easing, opacity_track->bezier_curve);
         auto& animated = builder.opacity_anim();
         animated.set(layer.opacity.value_or(1.0f));
         for (const auto& key : opacity_track->keyframes)
-            animated.add_keyframe(key.frame, scalar_value(key, opacity_track->property), easing);
+            animated.add_keyframe(key.frame, scalar_value(key, opacity_track->property), keyframe_easing(*opacity_track, key));
     }
     if (blur_track) {
-        const auto easing = track_easing(blur_track->easing, blur_track->bezier_curve);
         auto& animated = builder.blur_anim();
         animated.set(0.0f);
         for (const auto& key : blur_track->keyframes)
-            animated.add_keyframe(key.frame, scalar_value(key, blur_track->property), easing);
+            animated.add_keyframe(key.frame, scalar_value(key, blur_track->property), keyframe_easing(*blur_track, key));
     }
 }
 
@@ -560,8 +584,7 @@ std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame)
     }
     if(!found) return std::nullopt;
     chronon3d::AnimatedValue<float> value{layer.shape->stroke->dash_offset};
-    const auto easing=track_easing(found->easing,found->bezier_curve);
-    for(const auto& key:found->keyframes) value.add_keyframe(key.frame,scalar_value(key,"stroke_dash_offset"),easing);
+    for(const auto& key:found->keyframes) value.add_keyframe(key.frame,scalar_value(key,"stroke_dash_offset"),keyframe_easing(*found,key));
     const float result=value.evaluate(frame);
     if(!std::isfinite(result)) throw std::runtime_error("animated stroke dash offset must be finite");
     return result;
@@ -569,18 +592,14 @@ std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame)
 
 chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track) {
     chronon3d::AnimatedValue<float> curve{0.0f};
-    const auto easing=track_easing(track.easing,track.bezier_curve);
     for(const auto& key:track.keyframes)
-        curve.add_keyframe(key.frame,scalar_value(key,"effect_time"),easing);
+        curve.add_keyframe(key.frame,scalar_value(key,"effect_time"),keyframe_easing(track,key));
     return chronon3d::TemporalCurve1D{std::move(curve)};
 }
 
-chronon3d::EasingCurve camera_track_easing(std::string_view value) {
-    return track_easing(value);
-}
-
-chronon3d::EasingCurve animation_track_easing(const AnimationTrackPlan& track) {
-    return track_easing(track.easing, track.bezier_curve);
+chronon3d::EasingCurve animation_keyframe_easing(
+    const AnimationTrackPlan& track, const AnimationKeyframePlan& key) {
+    return keyframe_easing(track, key);
 }
 
 std::optional<chronon3d::camera_v1::CameraDescriptor>
@@ -611,11 +630,14 @@ make_camera_descriptor(const RenderPlan& plan) {
     tracks.fov_deg = chronon3d::AnimatedValue<float>{source_plan.fov_deg};
     tracks.zoom = chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom};
     for (const auto& track : *plan.camera_animation) {
+        AnimationTrackPlan easing_track;
+        easing_track.easing = track.easing;
+        easing_track.bezier_curve = track.bezier_curve;
         for (const auto& key : track.keyframes) {
             if (key.value.size() != 1)
                 throw std::runtime_error("camera track keyframes require scalar values");
             const auto value = key.value.front();
-            const auto easing = track_easing(track.easing, track.bezier_curve);
+            const auto easing = keyframe_easing(easing_track, key);
             switch (track.property) {
                 case CameraPropertyPlan::PositionX: {
                     auto current = descriptor.base.position;
@@ -720,8 +742,7 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
             auto& remap = builder.time_remap_anim();
             for (const auto& key : layer.time_remap->animation->keyframes)
                 remap.add_keyframe(key.frame, scalar_value(key, "time_remap"),
-                                   track_easing(layer.time_remap->animation->easing,
-                                                layer.time_remap->animation->bezier_curve));
+                                   keyframe_easing(*layer.time_remap->animation, key));
         }
     }
     if (layer.enable_3d) builder.enable_3d();
@@ -762,8 +783,8 @@ std::optional<chronon3d::DirectionalBlurParams> motion_blur_params_at(
     chronon3d::AnimatedValue<chronon3d::Vec3> position{base};
     const auto data = position_animation_data(layer, base);
     if (data.keyframes.empty()) return std::nullopt;
-    for (const auto& [key_frame, value] : data.keyframes)
-        position.add_keyframe(key_frame, value, data.easing);
+    for (const auto& key : data.keyframes)
+        position.add_keyframe(key.frame, key.value, key.easing);
     const double half_exposure_frames =
         static_cast<double>(layer.motion_blur->shutter_angle) / 720.0;
     const auto delta = position.evaluate(frame + half_exposure_frames) -

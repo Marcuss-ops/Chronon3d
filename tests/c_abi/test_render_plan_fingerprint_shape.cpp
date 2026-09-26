@@ -293,9 +293,29 @@ TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
     CHECK(changed->content_fingerprint != fingerprint);
 }
 
-TEST_CASE("Legacy V2 plan fingerprint remains stable") {
-    // Pin the current v7 canonical writer output for a V2 plan with no
-    // optional shape or animation payload. The fingerprint domain changed
-    // with the audio mix contract.
-    CHECK(legacy_fingerprint() == 13161088221232037754ULL);
+TEST_CASE("Per-key timing fields participate in render-plan fingerprint") {
+    auto plan = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    plan["layers"][0]["animation"] = nlohmann::json::parse(
+        R"({"tracks":[{"property":"opacity","keyframes":[
+            {"frame":0,"value":0.0},{"frame":10,"value":1.0}]}]})");
+    const auto initial = render_plan::decode_render_plan(plan);
+    REQUIRE(initial);
+    const auto baseline = initial->content_fingerprint;
+    const std::vector<nlohmann::json> changes{
+        [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["interpolation"] = "hold"; return p; }(plan),
+        [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["easing"] = "in_quad"; return p; }(plan),
+        [](auto p) { auto& k=p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]; k["easing"]="bezier"; k["bezier_curve"]={0.2,0.0,0.8,1.0}; return p; }(plan)
+    };
+    for (const auto& changed : changes) {
+        const auto decoded = render_plan::decode_render_plan(changed);
+        if (!decoded) INFO(decoded.error().message);
+        REQUIRE(decoded);
+        CHECK(decoded->content_fingerprint != baseline);
+    }
+}
+
+TEST_CASE("Fingerprint v8 domain golden is pinned") {
+    // Per-key timing fields advanced the canonical fingerprint contract.
+    CHECK(legacy_fingerprint() == 11739327424026991172ULL);
 }

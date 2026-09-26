@@ -41,7 +41,10 @@
                       "required": ["frame", "value"],
                       "properties": {
                         "frame": {"type": "integer", "minimum": 0, "maximum": 1000000},
-                        "value": {"type": "number"}
+                        "value": {"type": "number"},
+                        "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                        "easing": { "$ref": "#/$defs/easing" },
+                        "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
                       }
                     }
                   }
@@ -57,7 +60,7 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "posterize_fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
-        "curve": { "type": "array", "minItems": 2, "items": { "type": "object", "additionalProperties": false, "required": ["frame", "value"], "properties": { "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "value": { "type": "number", "minimum": 0, "maximum": 1 } } } },
+        "curve": { "type": "array", "minItems": 2, "items": { "type": "object", "additionalProperties": false, "required": ["frame", "value"], "properties": { "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "value": { "type": "number", "minimum": 0, "maximum": 1 }, "interpolation": { "enum": ["linear", "hold", "bezier"] }, "easing": { "$ref": "#/$defs/easing" }, "bezier_curve": { "$ref": "#/$defs/bezier_curve" } } } },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
       },
@@ -108,7 +111,10 @@
                   { "type": "number" },
                   { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                 ]
-              }
+              },
+              "interpolation": { "enum": ["linear", "hold", "bezier"] },
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
             }
           }
         }
@@ -170,7 +176,10 @@
                   { "type": "number" },
                   { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                 ]
-              }
+              },
+              "interpolation": { "enum": ["linear", "hold", "bezier"] },
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
             }
           }
         }
@@ -409,7 +418,10 @@
                               "required": ["frame", "value"],
                               "properties": {
                                 "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
-                                "value": { "type": "number", "minimum": 0, "maximum": 1 }
+                                "value": { "type": "number", "minimum": 0, "maximum": 1 },
+                                "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                                "easing": { "$ref": "#/$defs/easing" },
+                                "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
                               }
                             }
                           }
@@ -587,7 +599,11 @@
                       "properties": {
                         "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
                         "value": { "type": "number", "minimum": 0, "maximum": 1000000 }
-                      }
+                      ,
+                "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                "easing": { "$ref": "#/$defs/easing" },
+                "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+              }
                     }
                   }
                 }

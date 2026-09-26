@@ -230,6 +230,20 @@ std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
             if (!raw_value.is_number())
                 throw std::runtime_error("camera animation keyframe values must be scalar numbers");
             key.value.push_back(raw_value.get<float>());
+            if (raw_key.contains("interpolation")) key.interpolation = raw_key.at("interpolation").get<std::string>();
+            if (raw_key.contains("easing")) key.easing = raw_key.at("easing").get<std::string>();
+            if (raw_key.contains("bezier_curve")) {
+                const auto& raw_curve = raw_key.at("bezier_curve");
+                if (!raw_curve.is_array() || raw_curve.size() != 4)
+                    throw std::runtime_error("camera keyframe bezier_curve must contain [x1, y1, x2, y2]");
+                std::array<float, 4> curve{};
+                for (std::size_t i = 0; i < curve.size(); ++i) curve[i] = raw_curve.at(i).get<float>();
+                if (!std::all_of(curve.begin(), curve.end(), [](float v) { return std::isfinite(v); }) ||
+                    curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+                    curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+                    throw std::runtime_error("camera keyframe bezier_curve handles are out of range");
+                key.bezier_curve = curve;
+            }
             track.keyframes.push_back(std::move(key));
         }
         tracks.push_back(std::move(track));
