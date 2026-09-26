@@ -349,9 +349,10 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
     CHECK_FALSE(render_plan::decode_render_plan(wrong_parameter));
 }
 
-TEST_CASE("Fingerprint v9 domain golden is pinned") {
-    // Per-key timing and transition fields advanced the canonical contract.
-    CHECK(legacy_fingerprint() == 12360396897713678385ULL);
+TEST_CASE("Fingerprint v10 domain golden is pinned") {
+    // Per-key timing, transitions, audio mix, inline mesh and gradient
+    // animation advanced the canonical contract past the v9 golden.
+    CHECK(legacy_fingerprint() == 7068117211625980799ULL);
 }
 TEST_CASE("LightRays controls affect render-plan fingerprints") {
     auto plan = render_plan_test::base_plan(nlohmann::json::array({
