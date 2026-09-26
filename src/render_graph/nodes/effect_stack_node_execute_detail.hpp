@@ -140,7 +140,8 @@ NodeExecResult EffectStackNode::execute(
             .effect_processors = ctx.node_exec.current_effect_processors,
                 .processor_snapshot = ctx.node_exec.processor_snapshot,
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled,
-                .temporal_history_key = m_temporal_history_key
+            .temporal_history_key = m_temporal_history_key
+            , .second_input = inputs.size() > 1 ? inputs[1].get() : nullptr
 
         };
         // A producer may already have an authoritative native surface even

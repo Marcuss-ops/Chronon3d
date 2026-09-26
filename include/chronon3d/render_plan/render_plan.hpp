@@ -44,6 +44,8 @@ struct StrokeStyle {
     std::optional<float> trim_end;
     std::optional<std::array<float, 4>> solid_color;
     std::optional<graphics::GradientDefinition> gradient;
+    std::vector<float> dash_array;
+    float dash_offset{0.0f};
 };
 
 struct PathRepeaterPlan {
@@ -266,7 +268,7 @@ struct LayerPlan {
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -307,6 +309,15 @@ struct LayerPlan {
         float evolution{0.0f};
         float contrast{1.0f};
         float brightness{0.0f};
+        float warp_size{0.1f}, warp_evolution{0.0f}, warp_speed{0.0f}, warp_wavelength{0.2f}, warp_phase{0.0f}, warp_width{0.1f}, warp_height{0.05f}, warp_damping{0.5f};
+        std::uint32_t warp_complexity{2};
+        std::array<float, 2> warp_direction{1.0f, 0.0f};
+        std::uint8_t wave_type{0};
+        std::optional<float> posterize_fps;
+        std::optional<AnimationTrackPlan> time_curve;
+        std::string map_layer;
+        float map_intensity_x{0.05f}, map_intensity_y{0.05f};
+        std::uint8_t map_channel{0};
         // Warp family — quad corners (TL, TR, BR, BL as x,y pairs), radial
         // controls and the mesh-warp control grid.
         std::array<float, 8> quad{0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};

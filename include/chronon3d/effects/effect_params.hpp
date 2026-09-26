@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace chronon3d {
 
@@ -299,6 +300,29 @@ struct MeshWarpParams {
     sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
 };
 
+struct SharpenParams { float amount{0.0f}; float radius{1.0f}; float threshold{0.0f}; };
+struct TurbulentDisplaceParams {
+    float amount{0.1f}, size{0.1f}, evolution{0.0f}, evolution_speed{0.0f};
+    std::uint32_t complexity{2}; sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+struct WaveWarpParams {
+    enum class WaveType : std::uint8_t { Sine, Triangle, Square, Saw };
+    WaveType type{WaveType::Sine}; Vec2 direction{1.0f, 0.0f};
+    float amplitude{0.05f}, wavelength{0.2f}, speed{1.0f}, phase{0.0f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+struct RippleParams {
+    Vec2 center{0.5f, 0.5f}; float radius{0.25f}, wave_speed{1.5f}, width{0.1f}, wave_height{0.05f}, damping{0.5f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+struct DisplacementMapParams {
+    enum class Channel : std::uint8_t { Luma, Red, Green, Blue, Alpha };
+    std::string map_layer;
+    float intensity_x{0.05f}, intensity_y{0.05f};
+    Channel channel{Channel::Luma};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -337,7 +361,8 @@ using EffectParams = std::variant<
     CornerPinParams,
     TwirlParams,
     BulgeParams,
-    MeshWarpParams
+    MeshWarpParams,
+    SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams
 >;
 
 } // namespace chronon3d

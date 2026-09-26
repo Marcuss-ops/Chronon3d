@@ -18,6 +18,7 @@
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/core/temporal_curve_1d.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
 
 #include <memory>
@@ -150,10 +151,16 @@ public:
         Vec2 offset, Color color = {0, 0, 0, 0.35f}, f32 radius = 12.0f);
     LayerBuilder& backdrop_blur(BackdropBlurParams params);
     template <typename Params>
-    LayerBuilder& effect(Params params) {
+    LayerBuilder& effect(Params params, std::optional<float> posterize_fps = std::nullopt,
+                         std::optional<TemporalCurve1D> time_curve = std::nullopt,
+                         double time_duration_seconds = 0.0, double composition_fps = 0.0) {
         const auto& entry = effects::catalog_entry(effects::effect_type_v<Params>);
-        m_layer.effects().push_back(effects::EffectInstance{
-            entry.to_descriptor(), std::move(params)});
+        effects::EffectInstance instance{entry.to_descriptor(), std::move(params)};
+        instance.posterize_fps=posterize_fps;
+        instance.time_curve=std::move(time_curve);
+        instance.time_duration_seconds=time_duration_seconds;
+        instance.composition_fps=composition_fps;
+        m_layer.effects().push_back(std::move(instance));
         return *this;
     }
     LayerBuilder& bloom(

@@ -259,6 +259,7 @@ struct ImageShape {
     f32 opacity{1.0f};
     f32 radius{0.0f};
     ImageDecodeOptions decode_options{};
+    Color tint{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 struct FakeBox3DShape {

@@ -163,6 +163,23 @@ void VulkanBackend::Impl::ensure_layer_instance_buffer(VkDeviceSize bytes,
     layer_instance_sizes[index] = 0;
 }
 
+void VulkanBackend::Impl::ensure_path_geometry_buffer(VkDeviceSize bytes,
+                                                       std::size_t index) {
+    if (index >= kPathGeometryRingSize) index = 0;
+    if (path_geometry_buffers[index].size >= bytes) return;
+    if (path_geometry_buffers[index].buffer != VK_NULL_HANDLE)
+        memory_manager.destroy_buffer(path_geometry_buffers[index]);
+    const VkBufferCreateInfo info{
+        VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+    path_geometry_buffers[index] =
+        memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
+    if (debug_context)
+        debug_context->set_buffer_name(path_geometry_buffers[index].buffer,
+                                       "Chronon3D.Buffer.PathGeometry");
+}
+
 void VulkanBackend::Impl::ensure_text_run_dynamic_buffer(VkDeviceSize bytes,
                                                           std::size_t index) {
     if (index >= kGlyphInstanceRingSize) index = 0;

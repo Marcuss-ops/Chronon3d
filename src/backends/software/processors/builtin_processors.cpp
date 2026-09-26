@@ -66,6 +66,11 @@ std::unique_ptr<EffectProcessor> create_corner_pin_effect_processor();
 std::unique_ptr<EffectProcessor> create_twirl_effect_processor();
 std::unique_ptr<EffectProcessor> create_bulge_effect_processor();
 std::unique_ptr<EffectProcessor> create_mesh_warp_effect_processor();
+std::unique_ptr<EffectProcessor> create_sharpen_effect_processor();
+std::unique_ptr<EffectProcessor> create_turbulent_displace_effect_processor();
+std::unique_ptr<EffectProcessor> create_wave_warp_effect_processor();
+std::unique_ptr<EffectProcessor> create_ripple_effect_processor();
+std::unique_ptr<EffectProcessor> create_displacement_map_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -98,6 +103,11 @@ void register_builtin_processors(SoftwareRegistry& registry) {
 
     // Effects
     registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
+    registry.register_effect_processor<SharpenParams>(create_sharpen_effect_processor());
+    registry.register_effect_processor<TurbulentDisplaceParams>(create_turbulent_displace_effect_processor());
+    registry.register_effect_processor<WaveWarpParams>(create_wave_warp_effect_processor());
+    registry.register_effect_processor<RippleParams>(create_ripple_effect_processor());
+    registry.register_effect_processor<DisplacementMapParams>(create_displacement_map_effect_processor());
     registry.register_effect_processor<TintParams>(create_tint_effect_processor());
     registry.register_effect_processor<BrightnessParams>(create_brightness_effect_processor());
     registry.register_effect_processor<ContrastParams>(create_contrast_effect_processor());

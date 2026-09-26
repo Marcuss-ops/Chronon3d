@@ -255,6 +255,17 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
                     "track_matte_source_missing", "render-plan-relations"};
             }
         }
+        for(const auto& effect:layer.effects) {
+            if(effect.kind!=LayerPlan::EffectKindPlan::DisplacementMap) continue;
+            if(effect.map_layer==layer.id)
+                return PlanDecodeError{"layers["+std::to_string(index)+"].effects.map_layer",
+                    "a layer cannot use itself as its displacement map",
+                    "displacement_map_self_reference","render-plan-relations"};
+            if(!by_id.contains(effect.map_layer))
+                return PlanDecodeError{"layers["+std::to_string(index)+"].effects.map_layer",
+                    "displacement map layer id does not exist: "+effect.map_layer,
+                    "displacement_map_source_missing","render-plan-relations"};
+        }
     }
 
     std::vector<std::uint8_t> state(plan.layers.size(), 0);
@@ -404,6 +415,51 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             }
             plan.layers.push_back(std::move(layer));
             ++layer_index;
+        }
+
+        for (auto& particle_layer : plan.layers) {
+            if (!particle_layer.particle_emitter ||
+                particle_layer.particle_emitter->shape != EmitterShape::Path) continue;
+            const auto source=std::find_if(plan.layers.begin(),plan.layers.end(),[&](const LayerPlan& candidate) {
+                return candidate.id==particle_layer.particle_emitter->path_id;
+            });
+            if(source==plan.layers.end() || !source->shape || source->shape->type!=ShapeContentTypePlan::Path)
+                return PlanDecodeError{"layers[].particle_emitter.path_id",
+                    "path emitter source must name a path shape layer",
+                    "particle_path_source_missing","render-plan-relations"};
+            auto& points=particle_layer.particle_emitter->path_points;
+            points.clear();
+            chronon3d::Vec2 current{0.0f,0.0f}, subpath_start{0.0f,0.0f};
+            bool has_current=false;
+            const auto append=[&](chronon3d::Vec2 point) {
+                const auto differs=[&] {
+                    const float dx=points.back().x-point.x,dy=points.back().y-point.y;
+                    return std::sqrt(dx*dx+dy*dy)>1.0e-5f;
+                };
+                if(points.empty() || differs()) points.push_back(point);
+            };
+            for(const auto& command:source->shape->path) {
+                const chronon3d::Vec2 end{command.point[0],command.point[1]};
+                if(command.type==ShapePathCommandTypePlan::MoveTo) {
+                    current=end; subpath_start=end; has_current=true; append(end);
+                } else if(command.type==ShapePathCommandTypePlan::LineTo && has_current) {
+                    current=end; append(end);
+                } else if(command.type==ShapePathCommandTypePlan::QuadraticTo && has_current) {
+                    const chronon3d::Vec2 control{command.control1[0],command.control1[1]}, start=current;
+                    for(int step=1;step<=16;++step) { const float t=step/16.0f,u=1.0f-t; append(u*u*start+2*u*t*control+t*t*end); }
+                    current=end;
+                } else if(command.type==ShapePathCommandTypePlan::CubicTo && has_current) {
+                    const chronon3d::Vec2 c1{command.control1[0],command.control1[1]},c2{command.control2[0],command.control2[1]},start=current;
+                    for(int step=1;step<=24;++step) { const float t=step/24.0f,u=1.0f-t; append(u*u*u*start+3*u*u*t*c1+3*u*t*t*c2+t*t*t*end); }
+                    current=end;
+                } else if(command.type==ShapePathCommandTypePlan::Close && has_current) {
+                    append(subpath_start); current=subpath_start;
+                }
+            }
+            if(points.size()<2)
+                return PlanDecodeError{"layers[].particle_emitter.path_id",
+                    "resolved path must contain at least two distinct points",
+                    "particle_path_degenerate","render-plan-relations"};
         }
 
         if (const auto relation_error = validate_render_plan_layer_relations(plan))

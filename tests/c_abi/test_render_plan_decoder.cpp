@@ -255,16 +255,19 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
         "count":200,"seed":4728,"emitter_size":[640,360],
         "velocity_min":[-8,-20],"velocity_max":[8,-4],
         "lifetime":[3,8],"size":[2,14],"gravity":1.5,"turbulence":0.35,
+        "blend_mode":"add",
         "color_ramp":[{"position":0,"color":[0.6,0.5,0.4,0]},
                        {"position":1,"color":[0.8,0.7,0.6,1]}]}}],
       "output":{"path":"out.png"}})JSON");
     const auto plan = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(plan.has_value());
+    const std::string decode_error=plan.has_value()?std::string{}:plan.error().message;
+    REQUIRE_MESSAGE(plan.has_value(),decode_error);
     REQUIRE(plan->layers.size() == 1);
     CHECK(plan->layers[0].type == chronon3d::render_plan::LayerType::Particles);
     REQUIRE(plan->layers[0].particle_emitter.has_value());
     CHECK(plan->layers[0].particle_emitter->count == 200);
     CHECK(plan->layers[0].particle_emitter->seed == 4728);
+    CHECK(plan->layers[0].particle_emitter->blend_mode == chronon3d::BlendMode::Add);
     REQUIRE(plan->layers[0].particle_emitter->color_ramp.color_stops.size() == 2);
 
     auto changed = source;
@@ -273,6 +276,15 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
     REQUIRE(changed_plan.has_value());
     CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
 
+    changed = source;
+    changed["layers"][0]["particle_emitter"]["blend_mode"] = "screen";
+    const auto changed_blend = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_blend.has_value());
+    CHECK(changed_blend->content_fingerprint != plan->content_fingerprint);
+    changed["layers"][0]["particle_emitter"]["blend_mode"] = "unsupported";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+
+    changed = source;
     changed["layers"][0]["particle_emitter"]["velocity_max"][0] = -9;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
 }
@@ -509,6 +521,42 @@ TEST_CASE("render plan rejects unknown text animator properties") {
     ])JSON");
 
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan decodes animated dash offsets and effect time controls into fingerprints") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"path","type":"shape","size":[64,64],"shape":{
+        "type":"path","path":[{"type":"move_to","point":[0,0]},
+          {"type":"line_to","point":[32,0]}],
+        "stroke":{"width":2,"dash_array":[5,2,1],"dash_offset":0,
+          "color":"#FFFFFF"}},
+        "animation":{"tracks":[{"property":"stroke_dash_offset","keyframes":[
+          {"frame":0,"value":0},{"frame":29,"value":12}]}]},
+        "effects":[{"type":"noise","amount":0.1,"size":1,"seed":4,
+          "animated":true,"time":{"posterize_fps":8,"curve":[
+            {"frame":0,"value":0},{"frame":29,"value":1}],"easing":"out_cubic"}}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan=chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].shape->stroke.has_value());
+    CHECK(plan->layers[0].shape->stroke->dash_array==std::vector<float>{5,2,1});
+    CHECK(plan->layers[0].effects[0].posterize_fps==doctest::Approx(8.0f));
+    REQUIRE(plan->layers[0].effects[0].time_curve.has_value());
+    const auto offset=chronon3d::render_plan::detail::stroke_dash_offset_at(plan->layers[0],15.0);
+    REQUIRE(offset.has_value());
+    CHECK(*offset>0.0f);
+    auto changed=source;
+    changed["layers"][0]["shape"]["stroke"]["dash_array"][0]=6;
+    auto changed_plan=chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint!=changed_plan->content_fingerprint);
+    changed=source;
+    changed["layers"][0]["effects"][0]["time"]["posterize_fps"]=12;
+    changed_plan=chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint!=changed_plan->content_fingerprint);
 }
 
 TEST_CASE("render plan decoder accepts bounded repeater operators and rejects unknown kinds") {

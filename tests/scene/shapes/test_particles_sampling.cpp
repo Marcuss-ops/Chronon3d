@@ -94,3 +94,47 @@ TEST_CASE("particle sampler rejects finite parameters that overflow integration"
     CHECK_FALSE(result.ok());
     CHECK(result.error == "particle integration produced a non-finite sample");
 }
+
+TEST_CASE("particle emitter shapes and angular motion remain deterministic") {
+    auto params=dust_emitter();
+    params.count=200;
+    params.lifetime_min=params.lifetime_max=100.0f;
+    params.shape=chronon3d::EmitterShape::Edge;
+    params.velocity_min=params.velocity_max={0.0f,0.0f};
+    params.gravity=0.0f; params.turbulence=0.0f;
+    params.rotation_min=params.rotation_max=0.25f;
+    params.angular_velocity_min=params.angular_velocity_max=2.0f;
+    params.sprite_scale_min=params.sprite_scale_max=1.5f;
+    const auto edge=chronon3d::sample_particles(params,0.1);
+    const auto again=chronon3d::sample_particles(params,0.1);
+    REQUIRE(edge.ok()); REQUIRE(again.ok());
+    for(std::size_t i=0;i<edge.particles.size();++i) {
+        const auto& p=edge.particles[i]; const auto& q=again.particles[i];
+        CHECK(p.position.x==q.position.x); CHECK(p.rotation==q.rotation);
+        CHECK(p.angular_velocity==2.0f); CHECK(p.sprite_scale==1.5f);
+        const bool on_vertical=std::abs(std::abs(p.position.x)-params.emitter_size.x*0.5f)<1.0e-3f;
+        const bool on_horizontal=std::abs(std::abs(p.position.y)-params.emitter_size.y*0.5f)<1.0e-3f;
+        CHECK((on_vertical || on_horizontal));
+    }
+    const auto later=chronon3d::sample_particles(params,0.2);
+    REQUIRE(later.ok());
+    for(std::size_t i=0;i<edge.particles.size();++i) {
+        if(later.particles[i].age_seconds>=edge.particles[i].age_seconds)
+            CHECK(later.particles[i].rotation-edge.particles[i].rotation==
+                  doctest::Approx(2.0f*(later.particles[i].age_seconds-edge.particles[i].age_seconds)));
+    }
+}
+
+TEST_CASE("path particle emitter samples by polyline arc length") {
+    chronon3d::ParticleEmitterParams params;
+    params.count=1000; params.seed=73; params.lifetime_min=params.lifetime_max=100.0f;
+    params.shape=chronon3d::EmitterShape::Path; params.path_id="source-path";
+    params.path_points={{0,0},{10,0},{10,90}};
+    const auto result=chronon3d::sample_particles(params,0.0);
+    REQUIRE(result.ok());
+    std::size_t on_short_segment=0;
+    for(const auto& particle:result.particles)
+        if(particle.position.y==doctest::Approx(0.0f)) ++on_short_segment;
+    CHECK(on_short_segment>60);
+    CHECK(on_short_segment<140);
+}

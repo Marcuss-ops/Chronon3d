@@ -14,6 +14,8 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <span>
 #include <string>
+#include <functional>
+#include <unordered_set>
 
 namespace chronon3d::graph::detail {
 
@@ -35,6 +37,53 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
 
     // Storage for sub-pipelines of layers referenced by clip transitions.
     std::unordered_map<std::string, GraphNodeId> clip_sub_pipelines;
+    std::unordered_map<std::string, GraphNodeId> displacement_source_pipelines;
+    std::unordered_set<std::string> displacement_sources_in_progress;
+    std::function<GraphNodeId(const std::string&)> displacement_source_node;
+    displacement_source_node=[&](const std::string& name) {
+        if(const auto found=displacement_source_pipelines.find(name);found!=displacement_source_pipelines.end())
+            return found->second;
+        const auto source=ctx.name_to_resolved.find(name);
+        if(source==ctx.name_to_resolved.end()||!source->second->layer->active_at(rctx.frame_input.frame))
+            throw std::runtime_error("DisplacementMap source layer is missing or inactive: "+name);
+        if(!displacement_sources_in_progress.insert(name).second)
+            throw std::runtime_error("DisplacementMap layer references form a cycle at: "+name);
+        if(source->second->layer->kind==LayerKind::Adjustment)
+            throw std::runtime_error("DisplacementMap source cannot be an adjustment layer: "+name);
+        auto source_item=detail::make_item_for_matte_source(*source->second,rctx,cam25d,ctx.is_static_cache);
+        for(const auto& effect:source->second->layer->effects()) {
+            if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
+            const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
+            if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            source_item.displacement_map_nodes.emplace(
+                params->map_layer,displacement_source_node(params->map_layer));
+        }
+        if(source->second->layer->track_matte.active()) {
+            const std::string matte_name(source->second->layer->track_matte.source_layer);
+            const auto matte=ctx.name_to_resolved.find(matte_name);
+            if(matte==ctx.name_to_resolved.end()||!matte->second->layer->active_at(rctx.frame_input.frame))
+                throw std::runtime_error("DisplacementMap source track-matte layer is missing or inactive: "+matte_name);
+            auto matte_item=detail::make_item_for_matte_source(
+                *matte->second,rctx,cam25d,ctx.is_static_cache);
+            source_item.matte_node=detail::build_matte_sub_pipeline(graph,matte_item,rctx);
+        }
+        BuilderContext node_ctx{
+            .layer_id=name,
+            .opacity_evaluator=[opacity=source->second->layer->anim_transform.opacity](const RenderFrameInfo& info) {
+                return opacity.evaluate(info.sample_time);
+            },
+            .layer_index=static_cast<std::uint32_t>(source->second->insertion_index),
+            .item_index=0,
+        };
+        const auto node=detail::build_layer_output_node(
+            graph,source_item,rctx,cam25d,std::span<const ShadowCasterInfo>{},
+            ctx.scene->depth_grade(),node_ctx);
+        if(node==k_invalid_node)
+            throw std::runtime_error("DisplacementMap source layer produced no image output: "+name);
+        displacement_sources_in_progress.erase(name);
+        displacement_source_pipelines.emplace(name,node);
+        return node;
+    };
 
     // ── append_item lambda ─────────────────────────────────────────────
     // Per-layer: culling, matte sub-pipeline, then full layer pipeline.
@@ -88,6 +137,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                     graph, matte_item, rctx);
             }
         }
+        for(const auto& effect:item.layer->effects()) {
+            if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
+            const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
+            if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            item.displacement_map_nodes.emplace(params->map_layer,
+                displacement_source_node(params->map_layer));
+        }
         detail::append_layer_pipeline(
             graph, item, ctx.current_output, rctx, cam25d, casters,
             ctx.scene->depth_grade());
@@ -130,6 +186,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
 
         const bool is_static_val = ctx.is_static_cache.at(name);
         LayerGraphItem item = make_layer_graph_item(rl, cam25d, rctx, is_static_val);
+
+        for(const auto& effect:rl.layer->effects()) {
+            if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
+            const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
+            if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            item.displacement_map_nodes.emplace(params->map_layer,displacement_source_node(params->map_layer));
+        }
 
         // Resolve track-matte source for this sub-pipeline if needed.
         if (rl.layer->track_matte.active()) {

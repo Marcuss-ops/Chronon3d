@@ -56,7 +56,8 @@ public:
     [[nodiscard]] bool is_color_only() const {
         for (const auto& effect : m_effects)
             if (effect.enabled && (effect.effect_type == effects::EffectType::Echo ||
-                                   effect.effect_type == effects::EffectType::Mosaic)) return false;
+                                   effect.effect_type == effects::EffectType::Mosaic ||
+                                   effect.effect_type == effects::EffectType::DisplacementMap)) return false;
         return compute_max_effect_spread() <= 0.0f;
     }
 

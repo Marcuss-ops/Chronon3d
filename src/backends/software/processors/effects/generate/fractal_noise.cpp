@@ -50,6 +50,10 @@ float fractal(float x, float y, const FractalNoiseParams& p, uint32_t channel_se
 
 } // namespace
 
+float evaluate_smooth_value_noise(float x,float y,std::uint32_t seed) {
+    return smooth_value_noise(x,y,seed);
+}
+
 void apply_fractal_noise(Framebuffer& fb, const FractalNoiseParams& params,
                          float time_seconds, const std::optional<raster::BBox>& clip) {
     const int width = fb.width();

@@ -17,7 +17,7 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     EffectCatalog catalog;
 
     const auto available_ids = catalog.available();
-    REQUIRE(available_ids.size() == 30);
+    REQUIRE(available_ids.size() == 39);
     CHECK(catalog.contains(effect_ids::BlurGaussian));
     CHECK(catalog.contains(effect_ids::ColorBrightness));
     CHECK(catalog.contains(effect_ids::ColorContrast));

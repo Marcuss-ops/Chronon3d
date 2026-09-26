@@ -18,6 +18,26 @@ RenderNode RenderNodeFactory::base(std::pmr::memory_resource* res, std::string n
 
 RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string name, const RectParams& p) {
     auto node = base(res, std::move(name));
+    if (!p.stroke.dash_array.empty()) {
+        // Dashed rectangles use the canonical path stroker so software and
+        // Vulkan consume the same perimeter arc-length dash sequence.
+        node.shape.set_type(ShapeType::Path);
+        auto& path = node.shape.path();
+        const Vec2 half = p.size * 0.5f;
+        path.commands = {
+            PathCommand::move_to({-half.x, -half.y}),
+            PathCommand::line_to({ half.x, -half.y}),
+            PathCommand::line_to({ half.x,  half.y}),
+            PathCommand::line_to({-half.x,  half.y}),
+            PathCommand::close()};
+        path.stroke = p.stroke.to_path_stroke();
+        path.fill = p.fill.has_value() ? p.fill->to_fill() : Fill::solid_color(p.color);
+        path.closed = true;
+        node.world_transform.position = p.pos;
+        node.color = p.color;
+        node.fill = path.fill;
+        return node;
+    }
     node.shape.set_type(ShapeType::Rect);
     node.shape.rect().size = p.size;
     node.shape.rect().stroke = p.stroke.to_shape_stroke();
@@ -119,9 +139,11 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     node.shape.image().opacity = p.opacity;
     node.shape.image().radius = p.radius;
     node.shape.image().decode_options = p.decode_options;
+    node.shape.image().tint = p.tint;
     node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
+    node.world_transform.rotation = glm::angleAxis(p.rotation_radians, Vec3(0.0f, 0.0f, 1.0f));
     node.color = Color{1, 1, 1, p.opacity};
     return node;
 }

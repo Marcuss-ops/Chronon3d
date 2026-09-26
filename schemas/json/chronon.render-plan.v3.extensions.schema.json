@@ -5,6 +5,17 @@
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
     "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "effect_time": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "posterize_fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "curve": { "type": "array", "minItems": 2, "items": { "type": "object", "additionalProperties": false, "required": ["frame", "value"], "properties": { "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "value": { "type": "number", "minimum": 0, "maximum": 1 } } } },
+        "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+      },
+      "anyOf": [{ "required": ["posterize_fps"] }, { "required": ["curve"] }],
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }]
+    },
     "bezier_curve": {
       "type": "array", "minItems": 4, "maxItems": 4,
       "items": { "type": "number", "minimum": -10, "maximum": 10 }
@@ -201,6 +212,8 @@
         "width": { "type": "number", "minimum": 0 },
         "trim_start": { "type": "number", "minimum": 0, "maximum": 1 },
         "trim_end": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dash_array": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+        "dash_offset": { "type": "number" },
         "gradient": { "$ref": "#/$defs/gradient" }
       },
       "not": { "required": ["color", "gradient"] }
@@ -381,6 +394,14 @@
               "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
               "gravity": { "type": "number" },
               "turbulence": { "type": "number", "minimum": 0 },
+              "shape": { "enum": ["box", "ellipse", "edge", "path"] },
+              "path_id": { "type": "string" },
+              "path_points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+              "sprite_asset": { "type": "string" },
+              "blend_mode": { "enum": ["normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "difference", "exclusion", "soft_light", "hard_light", "color_dodge", "color_burn", "subtract", "divide", "vivid_light", "pin_light", "linear_light", "hue", "saturation", "color", "luminosity"] },
+              "sprite_scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } },
+              "rotation": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+              "angular_velocity": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
               "color_ramp": {
                 "type": "array", "minItems": 2, "maxItems": 256,
                 "items": {
@@ -506,6 +527,7 @@
                 "required": ["type", "asset"],
                 "properties": {
                   "type": { "const": "lut_3d" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "asset": { "type": "string", "minLength": 1, "maxLength": 4096 },
                   "amount": { "type": "number", "minimum": 0, "maximum": 1 }
                 }
@@ -514,6 +536,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "echo" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "echoes": { "type": "integer", "minimum": 1, "maximum": 8 },
                   "decay": { "type": "number", "minimum": 0, "maximum": 1 },
                   "time_offset_frames": { "type": "integer", "minimum": 1, "maximum": 120 }
@@ -523,6 +546,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "keying" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "mode": { "enum": ["luma", "chroma"] },
                   "key_color": { "type": "array", "minItems": 3, "maxItems": 4,
                                  "items": { "type": "number", "minimum": 0, "maximum": 1 } },
@@ -541,6 +565,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "threshold" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
                   "softness": { "type": "number", "minimum": 0, "maximum": 1 }
                 }
@@ -549,6 +574,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "mosaic" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "block_size": { "type": "integer", "minimum": 1, "maximum": 512 }
                 }
               },
@@ -556,6 +582,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "gaussian_blur" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "radius": { "type": "number", "minimum": 0, "maximum": 256 }
                 }
               },
@@ -563,6 +590,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "drop_shadow" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "radius": { "type": "number", "minimum": 0, "maximum": 256 },
                   "offset": { "type": "array", "minItems": 2, "maxItems": 2,
                               "items": { "type": "number", "minimum": -10000, "maximum": 10000 } },
@@ -574,6 +602,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "bloom" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
                   "radius": { "type": "number", "minimum": 0, "maximum": 256 },
                   "intensity": { "type": "number", "minimum": 0, "maximum": 4 }
@@ -583,6 +612,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "glow" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "radius": { "type": "number", "minimum": 0, "maximum": 256 },
                   "intensity": { "type": "number", "minimum": 0, "maximum": 4 },
                   "color": { "type": "array", "minItems": 4, "maxItems": 4,
@@ -593,6 +623,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "noise" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "amount": { "type": "number", "minimum": 0, "maximum": 1 },
                   "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
                   "animated": { "type": "boolean" },
@@ -607,6 +638,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "corner_pin" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "top_left": { "type": "array", "minItems": 2, "maxItems": 2,
                                 "items": { "type": "number", "minimum": -4, "maximum": 4 } },
                   "top_right": { "type": "array", "minItems": 2, "maxItems": 2,
@@ -621,6 +653,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "fractal_noise" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
                   "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
                   "frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 10 },
@@ -635,6 +668,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "twirl" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "center": { "type": "array", "minItems": 2, "maxItems": 2,
                               "items": { "type": "number" } },
                   "angle_degrees": { "type": "number", "minimum": -3600, "maximum": 3600 },
@@ -646,6 +680,7 @@
                 "required": ["type"],
                 "properties": {
                   "type": { "const": "bulge" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "center": { "type": "array", "minItems": 2, "maxItems": 2,
                               "items": { "type": "number" } },
                   "amount": { "type": "number", "minimum": -1, "maximum": 1 },
@@ -656,11 +691,65 @@
                 "required": ["type", "offsets"],
                 "properties": {
                   "type": { "const": "mesh_warp" },
+                  "time": { "$ref": "#/$defs/effect_time" },
                   "cols": { "type": "integer", "minimum": 2, "maximum": 32 },
                   "rows": { "type": "integer", "minimum": 2, "maximum": 32 },
                   "smoothness": { "type": "number", "minimum": 0, "maximum": 1 },
                   "offsets": { "type": "array", "minItems": 8, "maxItems": 2048,
                                "items": { "type": "number", "minimum": -4, "maximum": 4 } }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "sharpen" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "amount": { "type": "number", "minimum": -4, "maximum": 4 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 64 },
+                  "threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "turbulent_displace" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "size": { "type": "number", "exclusiveMinimum": 0 },
+                  "evolution": { "type": "number" }, "evolution_speed": { "type": "number" },
+                  "complexity": { "type": "integer", "minimum": 1, "maximum": 16 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "wave_warp" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "wave_type": { "enum": ["sine", "triangle", "square", "saw"] },
+                  "direction": { "$ref": "#/$defs/point" }, "amplitude": { "type": "number" },
+                  "wavelength": { "type": "number", "exclusiveMinimum": 0 },
+                  "speed": { "type": "number" }, "phase": { "type": "number" }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "ripple" },
+                  "time": { "$ref": "#/$defs/effect_time" }, "center": { "$ref": "#/$defs/point" },
+                  "radius": { "type": "number", "exclusiveMinimum": 0 }, "wave_speed": { "type": "number" },
+                  "width": { "type": "number", "exclusiveMinimum": 0 }, "wave_height": { "type": "number" },
+                  "damping": { "type": "number", "minimum": 0 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type", "map_layer"],
+                "properties": {
+                  "type": { "const": "displacement_map" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "map_layer": { "type": "string", "minLength": 1 },
+                  "intensity_x": { "type": "number", "minimum": -4, "maximum": 4 },
+                  "intensity_y": { "type": "number", "minimum": -4, "maximum": 4 },
+                  "map_channel": { "enum": ["luma", "red", "green", "blue", "alpha"] }
                 }
               }
             ] }

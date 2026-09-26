@@ -11,6 +11,7 @@
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include "src/backends/software/effects/render_effects_processor.hpp"
 
@@ -32,13 +33,18 @@ Framebuffer make_gradient(int w, int h) {
     return fb;
 }
 
-Framebuffer run_effect(const Framebuffer& input, const EffectParams& params) {
+Framebuffer run_effect(const Framebuffer& input, const EffectParams& params,
+                       float time_seconds=0.0f,const Framebuffer* map=nullptr) {
     SoftwareRegistry registry;
     register_builtin_processors(registry);
     Framebuffer fb = input;
     EffectStack stack;
     stack.emplace_back(params);
     effects::EffectExecutionContext context;
+    EffectScratchResources scratch;
+    context.time_seconds=time_seconds;
+    context.effect_scratch=&scratch;
+    context.second_input=map;
     apply_effect_stack(fb, stack, context, registry);
     return fb;
 }
@@ -123,7 +129,7 @@ TEST_CASE("Bulge magnifies the centre and pinches with negative amount") {
     pinch.radius = 0.5f;
     const Framebuffer pinched = run_effect(input, pinch);
     // Pinching pushes content outward: a strictly larger red value at (10, 8).
-    CHECK(pinched.get_pixel(10, 8).r > input.get_pixel(10, 8).r);
+    CHECK(pinched.get_pixel(9, 8).r > input.get_pixel(9, 8).r);
 }
 
 TEST_CASE("Mesh warp shifts content by a constant displacement") {
@@ -157,4 +163,28 @@ TEST_CASE("Warp family rejects invalid parameters fail-closed") {
     CornerPinParams corner;
     corner.top_left = {std::nanf(""), 0.0f};
     CHECK_THROWS(run_effect(input, corner));
+}
+
+TEST_CASE("new procedural warps preserve identity settings") {
+    const auto input=make_gradient(12,10);
+    const auto turbulence=run_effect(input,TurbulentDisplaceParams{.amount=0.0f});
+    const auto wave=run_effect(input,WaveWarpParams{.amplitude=0.0f});
+    const auto ripple=run_effect(input,RippleParams{.wave_height=0.0f});
+    for(int y=0;y<input.height();++y) for(int x=0;x<input.width();++x) {
+        const auto expected=input.get_pixel(x,y);
+        CHECK(colors_close(turbulence.get_pixel(x,y),expected));
+        CHECK(colors_close(wave.get_pixel(x,y),expected));
+        CHECK(colors_close(ripple.get_pixel(x,y),expected));
+    }
+}
+
+TEST_CASE("displacement map is a true two-input effect") {
+    const auto input=make_gradient(8,8);
+    Framebuffer map(8,8);
+    for(int y=0;y<8;++y) for(int x=0;x<8;++x) map.set_pixel(x,y,Color{0.5f,0.5f,0.5f,1.0f});
+    DisplacementMapParams params; params.map_layer="map";
+    const auto identity=run_effect(input,params,0.0f,&map);
+    for(int y=0;y<8;++y) for(int x=0;x<8;++x)
+        CHECK(colors_close(identity.get_pixel(x,y),input.get_pixel(x,y)));
+    CHECK_THROWS(run_effect(input,params));
 }

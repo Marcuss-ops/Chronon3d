@@ -25,6 +25,9 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
+layout(binding = 4, std430) readonly buffer DashedPathGeometry {
+    uint words[];
+} dashed_path;
 
 layout(push_constant) uniform FillRectParams {
     ivec4 rect;   // x0, y0, x1, y1 (half-open, destination pixel space)
@@ -148,6 +151,68 @@ void main() {
         }
         return;
     }
+    if (params.shape.x > 7.5 && params.shape.x < 8.5) {
+        // Dashed path rasterization. CPU computes dash intervals and uploads
+        // every run to one storage buffer. A pixel uses the first covered run
+        // and first covered segment, matching software's path order exactly.
+        bool has_fill = params.shape.w > 0.5;
+        if (has_fill) {
+            bool inside = false;
+            int fill_count = clamp(int(params.shape.z + 0.5), 3, 8);
+            for (int i = 0, j = fill_count - 1; i < fill_count; j = i++) {
+                vec2 a = params.vertices[i];
+                vec2 b = params.vertices[j];
+                bool crosses = ((a.y > p.y) != (b.y > p.y)) &&
+                    (p.x < (b.x - a.x) * (p.y - a.y) /
+                        (b.y - a.y) + a.x);
+                if (crosses) inside = !inside;
+            }
+            if (inside) return;
+        }
+
+        float half_width = params.shape.y * 0.5;
+        uint run_count = dashed_path.words[0];
+        uint point_cursor = 1u + run_count;
+        for (uint run = 0u; run < run_count; ++run) {
+            uint point_count = dashed_path.words[1u + run];
+            float coverage = 0.0;
+            for (uint i = 0u; i + 1u < point_count; ++i) {
+                vec2 a = vec2(uintBitsToFloat(dashed_path.words[point_cursor + i * 2u]),
+                              uintBitsToFloat(dashed_path.words[point_cursor + i * 2u + 1u]));
+                vec2 b = vec2(uintBitsToFloat(dashed_path.words[point_cursor + (i + 1u) * 2u]),
+                              uintBitsToFloat(dashed_path.words[point_cursor + (i + 1u) * 2u + 1u]));
+                vec2 delta = b - a;
+                float length_squared = dot(delta, delta);
+                float raw_t = length_squared > 0.000001
+                    ? dot(p - a, delta) / length_squared : -1.0;
+                if (raw_t < 0.0 || raw_t > 1.0) continue;
+                float distance_to_axis = distance(p, a + delta * raw_t);
+                coverage = clamp((half_width + 1.0 - distance_to_axis) * 0.5,
+                                 0.0, 1.0);
+                if (coverage > 0.0) break;
+            }
+            if (coverage <= 0.0) {
+                for (uint i = 1u; i + 1u < point_count; ++i) {
+                    uint point_word = point_cursor + i * 2u;
+                    vec2 join = vec2(uintBitsToFloat(dashed_path.words[point_word]),
+                                     uintBitsToFloat(dashed_path.words[point_word + 1u]));
+                    float distance_to_join = distance(p, join);
+                    coverage = clamp((half_width + 1.0 - distance_to_join) * 0.5,
+                                     0.0, 1.0);
+                    if (coverage > 0.0) break;
+                }
+            }
+            if (coverage > 0.0) {
+                vec4 source = params.color * coverage;
+                vec4 destination = imageLoad(dst_image, pixel);
+                imageStore(dst_image, pixel, source + destination * (1.0 - source.a));
+                return;
+            }
+            point_cursor += point_count * 2u;
+        }
+        return;
+    }
+
     if (params.shape.x > 4.5) {
         // ── Analytic grid background (software-kernel replica) ────────
         // Evaluates the same per-pixel feather weights as the CPU
@@ -215,6 +280,25 @@ void main() {
         vec2 b = params.line.zw;
         vec2 delta = b - a;
         float length_squared = dot(delta, delta);
+        if (params.shape.z > 0.5) {
+            float raw_t = length_squared > 0.000001
+                ? dot(p - a, delta) / length_squared
+                : -1.0;
+            // Path strokes use butt caps. The one-pixel linear edge ramp
+            // matches software segment_coverage() and blends coverage over
+            // the destination instead of replacing it.
+            if (raw_t < 0.0 || raw_t > 1.0) return;
+            float distance_to_axis = distance(p, a + delta * raw_t);
+            float half_width = params.shape.y * 0.5;
+            float coverage = clamp((half_width + 1.0 - distance_to_axis) * 0.5,
+                                   0.0, 1.0);
+            if (coverage <= 0.0) return;
+            vec4 source = params.color * coverage;
+            vec4 destination = imageLoad(dst_image, pixel);
+            imageStore(dst_image, pixel,
+                       source + destination * (1.0 - source.a));
+            return;
+        }
         float t = length_squared > 0.000001
             ? clamp(dot(p - a, delta) / length_squared, 0.0, 1.0)
             : 0.0;

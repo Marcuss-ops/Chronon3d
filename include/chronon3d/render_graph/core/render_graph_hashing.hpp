@@ -181,6 +181,25 @@ private:
             continue;
         }
         seed = hash_combine(seed, hash_string(e.descriptor.id));
+        seed = hash_combine(seed, hash_value(e.posterize_fps.has_value()));
+        if (e.posterize_fps) seed = hash_combine(seed, hash_value(*e.posterize_fps));
+        seed = hash_combine(seed,hash_value(e.time_duration_seconds));
+        seed = hash_combine(seed,hash_value(e.composition_fps));
+        seed = hash_combine(seed,hash_value(e.time_curve.has_value()));
+        if(e.time_curve) {
+            const auto& base=e.time_curve->easing_curve();
+            seed=hash_combine(seed,hash_value(base.preset));
+            if(base.cubic) { seed=hash_combine(seed,hash_value(base.cubic->x1)); seed=hash_combine(seed,hash_value(base.cubic->y1)); seed=hash_combine(seed,hash_value(base.cubic->x2)); seed=hash_combine(seed,hash_value(base.cubic->y2)); }
+            if(const auto* curve=e.time_curve->animation_curve()) {
+                seed=hash_combine(seed,hash_value(curve->default_value()));
+                for(const auto& key:curve->keyframes()) {
+                    seed=hash_combine(seed,hash_value(key.frame.value));
+                    seed=hash_combine(seed,hash_value(key.value));
+                    seed=hash_combine(seed,hash_value(key.easing.preset));
+                    if(key.easing.cubic) { seed=hash_combine(seed,hash_value(key.easing.cubic->x1)); seed=hash_combine(seed,hash_value(key.easing.cubic->y1)); seed=hash_combine(seed,hash_value(key.easing.cubic->x2)); seed=hash_combine(seed,hash_value(key.easing.cubic->y2)); }
+                }
+            }
+        }
         using enum effects::EffectType;
         switch (e.effect_type) {
         case Blur: {
@@ -358,6 +377,42 @@ private:
             }
             break;
         }
+        case Sharpen: {
+            if (auto* p=std::get_if<SharpenParams>(&e.params)) {
+                seed=hash_combine(seed,hash_value(p->amount)); seed=hash_combine(seed,hash_value(p->radius));
+                seed=hash_combine(seed,hash_value(p->threshold));
+            } break;
+        }
+        case TurbulentDisplace: {
+            if(auto* p=std::get_if<TurbulentDisplaceParams>(&e.params)) {
+                seed=hash_combine(seed,hash_value(p->amount)); seed=hash_combine(seed,hash_value(p->size));
+                seed=hash_combine(seed,hash_value(p->evolution)); seed=hash_combine(seed,hash_value(p->evolution_speed));
+                seed=hash_combine(seed,hash_value(p->complexity)); seed=hash_combine(seed,hash_value(p->edge_mode));
+            } break;
+        }
+        case WaveWarp: {
+            if(auto* p=std::get_if<WaveWarpParams>(&e.params)) {
+                seed=hash_combine(seed,hash_value(p->type)); seed=hash_combine(seed,hash_value(p->direction.x));
+                seed=hash_combine(seed,hash_value(p->direction.y)); seed=hash_combine(seed,hash_value(p->amplitude));
+                seed=hash_combine(seed,hash_value(p->wavelength)); seed=hash_combine(seed,hash_value(p->speed));
+                seed=hash_combine(seed,hash_value(p->phase)); seed=hash_combine(seed,hash_value(p->edge_mode));
+            } break;
+        }
+        case Ripple: {
+            if(auto* p=std::get_if<RippleParams>(&e.params)) {
+                seed=hash_combine(seed,hash_value(p->center.x)); seed=hash_combine(seed,hash_value(p->center.y));
+                seed=hash_combine(seed,hash_value(p->radius)); seed=hash_combine(seed,hash_value(p->wave_speed));
+                seed=hash_combine(seed,hash_value(p->width)); seed=hash_combine(seed,hash_value(p->wave_height));
+                seed=hash_combine(seed,hash_value(p->damping)); seed=hash_combine(seed,hash_value(p->edge_mode));
+            } break;
+        }
+        case DisplacementMap: {
+            if(auto* p=std::get_if<DisplacementMapParams>(&e.params)) {
+                seed=hash_combine(seed,hash_string(p->map_layer));
+                seed=hash_combine(seed,hash_value(p->intensity_x)); seed=hash_combine(seed,hash_value(p->intensity_y));
+                seed=hash_combine(seed,hash_value(p->channel)); seed=hash_combine(seed,hash_value(p->edge_mode));
+            } break;
+        }
         case Mosaic: {
             if (auto* p = std::get_if<MosaicParams>(&e.params))
                 seed = hash_combine(seed, hash_value(p->block_size));
@@ -473,11 +528,13 @@ private:
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image().path.data(), s.image().path.size()));
             seed = hash_combine(seed, hash_vec2(s.image().size));
-            return hash_combine(seed, hash_bytes(&s.image().opacity, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.image().opacity, sizeof(f32)));
+            return hash_combine(seed, hash_color(s.image().tint));
         case ShapeType::TiledImage:
             seed = hash_combine(seed, hash_bytes(s.tiled_image().image.path.data(), s.tiled_image().image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.tiled_image().image.size));
-            return hash_combine(seed, hash_bytes(&s.tiled_image().image.opacity, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.tiled_image().image.opacity, sizeof(f32)));
+            return hash_combine(seed, hash_color(s.tiled_image().image.tint));
         case ShapeType::GridBackground:
             seed = hash_combine(seed, hash_vec2(s.grid_background().size));
             seed = hash_combine(seed, hash_vec2(s.grid_background().offset));
