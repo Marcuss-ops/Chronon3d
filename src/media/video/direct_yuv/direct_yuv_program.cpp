@@ -67,6 +67,7 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
                                  "unsupported_feature", "cuda_interop_not_compiled"};
     return nullptr;
+}
 #else
     if (!compiled.composition) {
         reason = runtime::LaneReason{runtime::LaneDecision::Failed,
