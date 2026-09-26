@@ -177,10 +177,17 @@ NodeExecResult EffectStackNode::execute(
                 ctx, m_effects, *result, local_clip);
         }
         if (ctx.policy.is_gpu_native_required() && !native_handled) {
+            std::string capability_message =
+                "strict native GPU effect could not be executed; refusing software fallback";
+            if (m_effects.size() == 1) {
+                if (const auto* row = gpu_effect_capability(m_effects[0].effect_type))
+                    capability_message = std::string(row->diagnostic) +
+                        "; strict native GPU policy refuses software fallback";
+            }
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::UnsupportedCapability,
                 "EffectStackNode",
-                "strict native GPU effect could not be executed; refusing software fallback"}};
+                std::move(capability_message)}};
         }
         if (!native_handled && !gpu_only_input) {
             ctx.backend->apply_effect_stack(*result, m_effects, effect_context);

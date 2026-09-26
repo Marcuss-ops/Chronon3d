@@ -85,7 +85,11 @@ void apply_shadow_effect(
                     if (dx >= x_min_pad && dx < x_max_pad && dy >= y_min_pad && dy < y_max_pad) {
                         Color* shadow_row = shadow_map.pixels_row(dy - y_min_pad);
                         const float alpha = std::min(1.0f, c.a * p.color.a * opacity_scale);
-                        shadow_row[dx - x_min_pad] = {p.color.r, p.color.g, p.color.b, alpha};
+                        // Framebuffer storage is canonical premultiplied
+                        // linear RGBA; the authored shadow color is straight.
+                        shadow_row[dx - x_min_pad] = {
+                            p.color.r * alpha, p.color.g * alpha,
+                            p.color.b * alpha, alpha};
                     }
                 }
             }

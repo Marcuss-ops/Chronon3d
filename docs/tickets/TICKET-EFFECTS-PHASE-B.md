@@ -1,9 +1,10 @@
 # TICKET-EFFECTS-PHASE-B — Blur, drop shadow, bloom and GPU routing
 
 ## Stato
-IN PROGRESS — initial DirectYUV RGBA routing and strict GPU fail-closed
-behavior are implemented; CPU certification and effect-specific GPU kernels
-remain open.
+IN PROGRESS — CPU contracts, spatial halos, and explicit Vulkan capability
+rows are implemented. Vulkan blur/glow remain native; drop shadow and bloom
+are explicitly unsupported in strict GPU mode. Video E2E and pixel parity
+gates remain open.
 
 ## Contratto
 
@@ -27,21 +28,24 @@ existing contracts; no silent parameter reinterpretation is allowed.
 
 ## Acceptance gates
 
-- [ ] CPU contract tests for each effect: neutral parameter identity, alpha
+- [x] CPU contract tests for each effect: neutral parameter identity, alpha
   edges, landscape/portrait bounds, deterministic repeated pixels, and warmed
   scratch reuse without per-frame framebuffer allocation.
-- [ ] Spatial-halo tests prove changed/moved/shrunk effects clear both old and
+- [x] Spatial-halo tests prove changed/moved/shrunk effects clear both old and
   new dirty regions.
 - [x] DirectYUV effect stacks map to FullGraph; Auto records the route,
   RequireDirectYuv returns a typed capability error (composition capability
   unit suite passed).
-- [ ] Vulkan dispatch has one explicit capability row per effect. Existing
+- [x] Vulkan dispatch has one explicit capability row per effect. Existing
   native blur/glow paths remain available; strict GPU mode now returns
   `UnsupportedCapability` whenever a stack cannot be handled natively, before
-  software fallback. Drop shadow/bloom kernels and parity gates remain open.
+  software fallback. Drop shadow/bloom remain typed `UnsupportedCapability`;
+  blur/glow use native zero-readback dispatch. Pixel parity is still open.
 - [ ] Build, focused effects/render-graph tests, and short landscape/portrait
-  videos pass for blur, shadow, and bloom. (Glow V1 already has separate
-  software/e2e coverage.)
+  videos pass for blur, shadow, and bloom. Focused effects and render-graph
+  suites pass; current video CLI rebuild is blocked by 8.1 GB available disk
+  space being insufficient for the large static archive link. (Glow V1 has
+  separate software/video coverage.)
 
 ## Demolition debt
 
