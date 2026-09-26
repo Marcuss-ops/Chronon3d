@@ -52,7 +52,9 @@ TEST_CASE("audio mix compiler uses exact frame sample trims and deterministic du
     CHECK(compiled->inputs[0].source_end_sample == 48000);
     CHECK(compiled->inputs[0].timeline_start_sample == 24000);
     CHECK(compiled->filter_complex.find("atrim=start_sample=24000:end_sample=48000") != std::string::npos);
+    CHECK(compiled->filter_complex.find("apad=whole_len=48000,atrim=end_sample=48000") != std::string::npos);
     CHECK(compiled->filter_complex.find("sidechaincompress") != std::string::npos);
+    CHECK(compiled->filter_complex.find("[voice]asplit=2[voice_sidechain][voice_mix]") != std::string::npos);
     REQUIRE(compiled->inputs[1].gain_db_per_frame.size() == 30);
     CHECK(compiled->inputs[1].gain_db_per_frame[5] == doctest::Approx(0.0f));
     CHECK(compiled->inputs[1].gain_db_per_frame[10] == doctest::Approx(-12.0f));
