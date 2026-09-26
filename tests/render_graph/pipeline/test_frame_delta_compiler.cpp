@@ -343,6 +343,38 @@ TEST_CASE("FrameDeltaCompiler unions old and new bounds for movement") {
     CHECK(delta.dirty_bounds->x1 == 60);
 }
 
+TEST_CASE("FrameDeltaCompiler redraws the old glow halo when effect bounds shrink") {
+    // The bbox collector includes each frame's effect support. A shrinking
+    // glow therefore changes the stored bbox and must dirty both old and new
+    // extents so pixels from the previous halo are cleared.
+    std::unordered_map<std::string, LayerBBoxState> previous{
+        {"neon", layer(BBox{10, 10, 50, 50})}};
+    auto current_layer = layer(BBox{35, 35, 65, 65});
+    previous["neon"].semantic_fingerprints_valid = true;
+    current_layer.semantic_fingerprints_valid = true;
+    previous["neon"].semantic_presence = chronon3d::SemanticEffects;
+    current_layer.semantic_presence = chronon3d::SemanticEffects;
+    previous["neon"].effects_hash = 101;
+    current_layer.effects_hash = 202;
+    std::unordered_map<std::string, LayerBBoxState> current{
+        {"neon", current_layer}};
+    chronon3d::graph::detail::FrameDeltaCompileOptions options;
+    options.spatial_halo = [](std::string_view) {
+        return chronon3d::graph::detail::FrameDeltaCompileOptions::SpatialHalo{
+            8, 8, 8, 8};
+    };
+
+    const auto delta = FrameDeltaCompiler::compile(
+        chronon3d::Frame{12}, current, previous, false, 100, 100,
+        nullptr, options);
+
+    REQUIRE(delta.dirty_bounds.has_value());
+    CHECK(delta.dirty_bounds->x0 <= 10);
+    CHECK(delta.dirty_bounds->y0 <= 10);
+    CHECK(delta.dirty_bounds->x1 >= 50);
+    CHECK(delta.dirty_bounds->y1 >= 50);
+}
+
 TEST_CASE("FrameDeltaCompiler marks additions, removals, and tiles") {
     std::unordered_map<std::string, LayerBBoxState> previous{
         {"old", layer(BBox{0, 0, 16, 16})}};

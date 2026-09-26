@@ -9,6 +9,7 @@
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -57,13 +58,14 @@ namespace {
 // Keeping the result premultiplied is essential: transparent glyph edges must
 // not leak dark RGB into the halo and the compositor must not multiply alpha
 // a second time.
-void apply_gaussian_blur_linear_premultiplied(Framebuffer& fb, float sigma) {
+void apply_gaussian_blur_linear_premultiplied(
+    Framebuffer& fb, float sigma, std::vector<float>& kernel) {
     const int w = fb.width();
     const int h = fb.height();
     if (w <= 0 || h <= 0 || sigma <= 0.0f) return;
 
     const int radius = std::max(1, static_cast<int>(std::ceil(sigma * 3.0f)));
-    std::vector<float> kernel(static_cast<std::size_t>(radius * 2 + 1));
+    kernel.resize(static_cast<std::size_t>(radius * 2 + 1));
     float sum = 0.0f;
     for (int i = -radius; i <= radius; ++i) {
         const float weight = std::exp(-0.5f * (static_cast<float>(i * i) / (sigma * sigma)));
@@ -159,7 +161,8 @@ struct GlowAccumResult {
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
     bool source_is_alpha_mask,
-    const chronon3d::DebugConfig* debug_cfg = nullptr) {
+    const chronon3d::DebugConfig* debug_cfg,
+    std::vector<float>* kernel_scratch) {
     const i32 w = fb.width(), h = fb.height();
     int debug_pass_counter = 0;
     const float extent = effects::spatial_halo_extent(
@@ -215,6 +218,8 @@ struct GlowAccumResult {
     glow_acc_fb->clear({0,0,0,0});
     auto pass_fb = acquire_temp_framebuffer(roi_w, roi_h);
     pass_fb->clear({0,0,0,0});
+    std::vector<float> local_kernel;
+    std::vector<float>& kernel = kernel_scratch ? *kernel_scratch : local_kernel;
 
     const float r = base_radius;
     if (r >= 0.5f && p.intensity > 0.0f) {
@@ -238,7 +243,8 @@ struct GlowAccumResult {
         // One separable Gaussian creates a clean halo without layered
         // lobes or preview/final quality variants.
         apply_gaussian_blur_linear_premultiplied(*pass_fb,
-                                                 std::max(0.5f, r / 3.0f));
+                                                 std::max(0.5f, r / 3.0f),
+                                                 kernel);
         accumulate_glow_pass(*glow_acc_fb, *pass_fb, p);
 
         if (debug_cfg && debug_cfg->glow()) {
@@ -263,9 +269,11 @@ struct GlowAccumResult {
 void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                     const std::optional<raster::BBox>& clip,
                     bool source_is_alpha_mask,
-                    const chronon3d::DebugConfig* debug_cfg = nullptr) {
+                    const chronon3d::DebugConfig* debug_cfg,
+                    std::vector<float>* kernel_scratch) {
     const i32 w = fb.width(), h = fb.height();
-    auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask, debug_cfg);
+    auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask,
+                                      debug_cfg, kernel_scratch);
     if (!acc) return;
 
     // Composite the accumulated glow back into the source framebuffer.
@@ -412,7 +420,8 @@ namespace chronon3d::renderer {
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
     bool source_is_alpha_mask,
-    const chronon3d::DebugConfig* debug_cfg);  // default = nullptr lives on defn
+    const chronon3d::DebugConfig* debug_cfg,
+    std::vector<float>* kernel_scratch);
 }
 
 // ── GlowPipeline::render() — unified entry point (Item 17) ────────────
@@ -461,7 +470,11 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
         // Glow-only path: return accumulated glow WITHOUT compositing
         // into the source.  Used by text_glow.cpp which composites the
         // glow behind the text.
-        auto glow_only = renderer::run_glow_accumulate(*work_fb, *input.source, p, input.clip, true, debug_cfg);
+        auto* kernel_scratch = ctx.effect_scratch
+            ? &ctx.effect_scratch->glow_kernel_scratch() : nullptr;
+        auto glow_only = renderer::run_glow_accumulate(
+            *work_fb, *input.source, p, input.clip, true, debug_cfg,
+            kernel_scratch);
         if (glow_only) {
             bbox = *glow_only;
         }
@@ -472,7 +485,10 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
             Color* dst_row = work_fb->pixels_row(y);
             std::copy_n(src_row, w, dst_row);
         }
-        renderer::run_glow_pipeline(*work_fb, p, input.clip, false, debug_cfg);
+        auto* kernel_scratch = ctx.effect_scratch
+            ? &ctx.effect_scratch->glow_kernel_scratch() : nullptr;
+        renderer::run_glow_pipeline(*work_fb, p, input.clip, false, debug_cfg,
+                                    kernel_scratch);
     }
 
     return {std::move(result), bbox};
@@ -487,8 +503,11 @@ namespace chronon3d::renderer {
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip,
                        bool source_is_alpha_mask,
-                       const chronon3d::DebugConfig* debug_cfg) {
-    run_layer_mode(fb, p, clip, source_is_alpha_mask, debug_cfg);
+                       const chronon3d::DebugConfig* debug_cfg,
+                       std::vector<float>* kernel_scratch) {
+    if (p.radius <= 0.0f || p.intensity <= 0.0f) return;
+    run_layer_mode(fb, p, clip, source_is_alpha_mask, debug_cfg,
+                   kernel_scratch);
 }
 
 void run_bloom_effect(Framebuffer& fb, const BloomParams& params,
@@ -507,8 +526,10 @@ void run_bloom_effect(Framebuffer& fb, const BloomParams& params,
     const GlowPipeline& p,
     const std::optional<raster::BBox>& clip,
     bool source_is_alpha_mask,
-    const chronon3d::DebugConfig* debug_cfg = nullptr) {
-    auto acc = build_glow_accumulator(source, p, clip, source_is_alpha_mask, debug_cfg);
+    const chronon3d::DebugConfig* debug_cfg,
+    std::vector<float>* kernel_scratch) {
+    auto acc = build_glow_accumulator(source, p, clip, source_is_alpha_mask,
+                                      debug_cfg, kernel_scratch);
     if (!acc) return std::nullopt;
 
     // Copy accumulated glow into glow_dst (same size, positioned at ROI)
