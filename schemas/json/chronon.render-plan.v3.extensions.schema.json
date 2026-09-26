@@ -135,7 +135,10 @@
         "id": { "type": "string" },
         "semantic_id": { "type": "string", "minLength": 1, "maxLength": 256 },
         "unit": { "enum": ["glyph", "grapheme", "character", "word", "line"] },
-        "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth"] },
+        "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth", "wiggly"] },
+        "wiggly_frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "wiggly_amplitude": { "type": "number", "minimum": 0, "maximum": 1 },
+        "wiggly_seed": { "type": "integer", "minimum": 0 },
         "order": { "enum": ["forward", "reverse", "from_center", "to_center", "random"] },
         "combine": { "enum": ["replace", "add", "subtract", "intersect", "min", "max"] },
         "start": { "$ref": "#/$defs/selector_track" },
@@ -145,7 +148,16 @@
         "exclude_spaces": { "type": "boolean" },
         "randomize_order": { "type": "boolean" },
         "random_seed": { "type": "integer", "minimum": 0 }
-      }
+      },
+      "allOf": [{
+        "if": { "properties": { "shape": { "const": "wiggly" } }, "required": ["shape"] },
+        "then": {},
+        "else": { "not": { "anyOf": [
+          { "required": ["wiggly_frequency"] },
+          { "required": ["wiggly_amplitude"] },
+          { "required": ["wiggly_seed"] }
+        ] } }
+      }]
     },
     "text_animator": {
       "type": "object", "additionalProperties": false,
@@ -245,7 +257,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["kind", "params"],
             "properties": {
-              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat", "twist", "wiggle_path", "merge", "trim"] },
+              "kind": { "enum": ["repeater", "round_corners", "zig_zag", "offset_path", "pucker_bloat", "twist", "wiggle_path", "merge", "trim", "morph"] },
               "params": {
                 "oneOf": [
                   {
@@ -326,6 +338,35 @@
                       "start": { "type": "number", "minimum": 0, "maximum": 1 },
                       "end": { "type": "number", "minimum": 0, "maximum": 1 },
                       "offset": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+                    }
+                  },
+                  {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["target"],
+                    "properties": {
+                      "target": { "type": "array", "minItems": 1, "maxItems": 65536,
+                                    "items": { "$ref": "#/$defs/path_command" } },
+                      "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+                      "animation": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["keyframes"],
+                        "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
+                        "properties": {
+                          "easing": { "$ref": "#/$defs/easing" },
+                          "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                          "keyframes": {
+                            "type": "array", "minItems": 1, "maxItems": 65536,
+                            "items": {
+                              "type": "object", "additionalProperties": false,
+                              "required": ["frame", "value"],
+                              "properties": {
+                                "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                                "value": { "type": "number", "minimum": 0, "maximum": 1 }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 ]

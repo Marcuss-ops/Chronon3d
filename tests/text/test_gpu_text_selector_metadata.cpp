@@ -18,6 +18,12 @@ TEST_CASE("GPU text selector flags preserve ABI fields and pin bit positions") {
     CHECK(((packed >> 4u) & 0x7u) == static_cast<std::uint32_t>(TextSelectorUnit::Word));
     CHECK(((packed >> 7u) & 0x7u) == static_cast<std::uint32_t>(TextSelectorOrder::FromCenter));
 
+    constexpr auto no_wiggly_gpu_shape = pack_text_selector_metadata(
+        base, static_cast<std::uint32_t>(TextSelectorUnit::Glyph),
+        static_cast<std::uint32_t>(TextSelectorOrder::Forward),
+        TextSelectorShape::Wiggly);
+    CHECK(unpack_text_selector_shape(no_wiggly_gpu_shape) == TextSelectorShape::Square);
+
     constexpr auto glyph = pack_mtsdf_glyph_unit_flags(1u, 0x1234u);
     CHECK(glyph == static_cast<std::uint16_t>(1u | (0x1234u << 1u)));
     CHECK(unpack_mtsdf_glyph_unit_index(static_cast<std::uint16_t>(glyph)) == 0x1234u);
@@ -68,8 +74,10 @@ TEST_CASE("GPU CPU selector weight supports word, line, and center-out order") {
         const SelectorWeightParams reference{
             shape, 0.0f, 80.0f, 0.0f, 73.0f, 5u, 0u, true, true, false};
         for (std::uint32_t glyph = 0; glyph < 5u; ++glyph) {
+            auto glyph_reference = reference;
+            glyph_reference.ordered_index = glyph;
             CHECK(gpu_text_selector_weight(run, glyph) ==
-                  doctest::Approx(selector_weight(reference, glyph)));
+                  doctest::Approx(selector_weight(glyph_reference, glyph)));
         }
     }
 }

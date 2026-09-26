@@ -226,6 +226,9 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         out.add_bool(selector.exclude_spaces);
         out.add_bool(selector.randomize_order);
         out.add_uint64(selector.random_seed);
+        out.add_float(selector.wiggly_frequency);
+        out.add_float(selector.wiggly_amplitude);
+        out.add_uint64(selector.wiggly_seed);
         add_optional(out, selector.semantic_id, [](auto& writer, const std::string& value) {
             writer.add_string(value);
         });
@@ -414,6 +417,20 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(op.trim_start);
                 out.add_float(op.trim_end);
                 out.add_float(op.trim_offset);
+                continue;
+            }
+            if (op.kind == PathOperatorKindPlan::Morph) {
+                out.add_size(op.morph_target.size());
+                for (const auto& command : op.morph_target) {
+                    out.add_enum(command.type);
+                    for (const auto value : command.point) out.add_float(value);
+                    for (const auto value : command.control1) out.add_float(value);
+                    for (const auto value : command.control2) out.add_float(value);
+                }
+                out.add_float(op.morph_progress);
+                add_optional(out, op.morph_animation, [](auto& nested, const AnimationTrackPlan& track) {
+                    add_track(nested, track);
+                });
                 continue;
             }
             if (op.kind == PathOperatorKindPlan::Merge) {

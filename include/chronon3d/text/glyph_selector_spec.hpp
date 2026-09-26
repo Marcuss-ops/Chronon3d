@@ -14,6 +14,7 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/core/types/types.hpp>
 
+#include <cmath>
 #include <string>
 #include <optional>
 
@@ -37,8 +38,27 @@ enum class TextSelectorShape {
     RampDown,   // linear ramp 1→0 from start to end
     Triangle,   // linear ramp up then down, peak at midpoint
     Round,      // smoothstep-like curve
-    Smooth      // cubic smooth ease curve (After Effects "Smooth")
+    Smooth,     // cubic smooth ease curve (After Effects "Smooth")
+    Wiggly      // deterministic per-unit varying selection weight
 };
+
+/// Additional deterministic modulation used by the Wiggly selector shape.
+/// Frequency is measured in noise cycles per selected unit (0, 1000];
+/// amplitude scales the modulation around the underlying shape weight and is
+/// constrained to [0, 1].
+struct WigglySelectorParams {
+    f32 frequency{1.0f};
+    f32 amplitude{0.25f};
+    u64 seed{0};
+};
+
+[[nodiscard]] inline bool valid_wiggly_selector_params(
+    const WigglySelectorParams& params) noexcept {
+    return std::isfinite(params.frequency) && params.frequency > 0.0f &&
+           params.frequency <= 1000.0f &&
+           std::isfinite(params.amplitude) && params.amplitude >= 0.0f &&
+           params.amplitude <= 1.0f;
+}
 
 // ── TextSelectorOrder — traversal direction ──────────────────────────────
 
@@ -80,6 +100,9 @@ struct SelectorWeightParams {
     bool use_ordered_index{false};
     bool enabled{false};
     bool window_completed{false};
+    f32 wiggly_frequency{1.0f};
+    f32 wiggly_amplitude{0.25f};
+    u64 wiggly_seed{0};
 };
 
 // ── GlyphSelectorSpec — declarative selector description ─────────────────
@@ -107,6 +130,7 @@ struct GlyphSelectorSpec {
     bool exclude_spaces{true};                   // skip whitespace-only units
     bool randomize_order{false};                 // use deterministic shuffle
     u64  random_seed{0};                         // seed for deterministic shuffle
+    WigglySelectorParams wiggly{};                // used only when shape == Wiggly
     std::optional<std::string> semantic_id;       // target one named semantic span
 };
 
