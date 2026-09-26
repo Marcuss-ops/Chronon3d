@@ -417,6 +417,26 @@ struct OutputSpec {
     std::string profile_id;
 };
 
+struct AudioClipPlan {
+    std::string id;
+    std::string asset;
+    std::optional<Frame> clip_in;
+    std::optional<Frame> clip_out;
+    std::optional<Frame> start;
+    float gain_db{0.0f};
+    bool muted{false};
+    std::optional<AnimationTrackPlan> gain;
+    std::string role{"music"};
+};
+
+struct AudioMixPlan {
+    std::vector<AudioClipPlan> clips;
+    float master_gain_db{0.0f};
+    float duck_amount_db{-9.0f};
+    float duck_attack_ms{120.0f};
+    float duck_release_ms{400.0f};
+};
+
 struct RenderPlan {
     std::string schema{kRenderPlanSchemaV2};
     std::string job_id{"chronon_plan"};
@@ -428,6 +448,7 @@ struct RenderPlan {
     std::optional<CameraPlan> camera;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::vector<LayerPlan> layers;
+    std::optional<AudioMixPlan> audio;
     std::shared_ptr<const PreparedOverlayPackage> prepared_overlay_package{};
     OutputSpec output;
     RenderBudget budget{};

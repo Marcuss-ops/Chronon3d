@@ -6,6 +6,7 @@
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 
 #include <utility>
+#include <algorithm>
 #include <limits>
 #include <type_traits>
 #include <cmath>
@@ -33,6 +34,36 @@ TEST_CASE("render plan decoder constructs typed V2 plan") {
     CHECK(decoded->layers[0].start_frame->integral() == 3);
     CHECK(decoded->output.codec == chronon3d::render_plan::VideoCodec::H264);
     CHECK(decoded->budget.max_temporal_pixels == 4096);
+}
+
+TEST_CASE("render plan v3 decodes audio mix, fingerprints it, and warns on clipped tail") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "audio":{"master_gain_db":-2,"duck_amount_db":-8,"duck_attack_ms":100,
+        "duck_release_ms":350,"clips":[{"id":"bed","asset":"audio/music.wav",
+          "clip_in":0,"clip_out":20,"start":4,"gain_db":-3,"role":"music",
+          "gain":{"property":"gain_db","keyframes":[
+            {"frame":0,"value":-3},{"frame":10,"value":-6}]}}]},
+      "layers":[],"output":{"path":"out.mp4"}
+    })JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->audio.has_value());
+    REQUIRE(decoded->audio->clips.size() == 1);
+    CHECK(decoded->audio->clips[0].asset == "audio/music.wav");
+    CHECK(decoded->audio->clips[0].clip_out->integral() == 20);
+    CHECK(decoded->audio->clips[0].gain->property == "gain_db");
+    CHECK(std::find(decoded->warnings.begin(), decoded->warnings.end(),
+                    "audio_clip_tail_clipped:bed") != decoded->warnings.end());
+    auto changed = source;
+    changed["audio"]["clips"][0]["gain_db"] = -4;
+    const auto changed_decoded = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_decoded.has_value());
+    CHECK(decoded->content_fingerprint != changed_decoded->content_fingerprint);
+    source["audio"]["clips"][0]["gain_db"] = "loud";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
 TEST_CASE("render plan text spans preserve byte ranges and affect deterministic fingerprint") {

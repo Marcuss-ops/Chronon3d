@@ -262,6 +262,27 @@ void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
     }
 }
 
+void add_audio_mix(CanonicalPlanWriter& out, const AudioMixPlan& mix) {
+    out.add_size(mix.clips.size());
+    for (const auto& clip : mix.clips) {
+        out.add_string(clip.id);
+        out.add_string(clip.asset);
+        add_optional(out, clip.clip_in, [](auto& writer, Frame value) { writer.add_frame(value); });
+        add_optional(out, clip.clip_out, [](auto& writer, Frame value) { writer.add_frame(value); });
+        add_optional(out, clip.start, [](auto& writer, Frame value) { writer.add_frame(value); });
+        out.add_float(clip.gain_db);
+        out.add_bool(clip.muted);
+        out.add_string(clip.role);
+        add_optional(out, clip.gain, [](auto& writer, const AnimationTrackPlan& track) {
+            add_track(writer, track);
+        });
+    }
+    out.add_float(mix.master_gain_db);
+    out.add_float(mix.duck_amount_db);
+    out.add_float(mix.duck_attack_ms);
+    out.add_float(mix.duck_release_ms);
+}
+
 void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
@@ -655,7 +676,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v6");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v7");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);
@@ -676,6 +697,9 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
                      writer.add_size(tracks.size());
                      for (const auto& track : tracks) add_camera_track(writer, track);
                  });
+    add_optional(out, plan.audio, [](auto& writer, const AudioMixPlan& mix) {
+        add_audio_mix(writer, mix);
+    });
     out.add_uint64(plan.budget.max_temporal_pixels);
     out.add_size(plan.layers.size());
     for (const auto& layer : plan.layers) add_layer(out, layer);

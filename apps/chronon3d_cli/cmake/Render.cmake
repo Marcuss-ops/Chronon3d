@@ -11,6 +11,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_graph.cpp
     commands/render/command_render_plan.cpp
     commands/render/command_render_plan_internal.cpp
+    commands/render/caption_plan_expansion.cpp
     commands/render/render_plan_preparation.cpp
     commands/render/render_plan_inspection.cpp
     commands/render/command_inspect_plan.cpp

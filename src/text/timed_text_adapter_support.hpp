@@ -7,8 +7,23 @@
 #include <cmath>
 #include <string>
 #include <string_view>
+#include <cctype>
 
 namespace chronon3d::timed_text_adapter_detail {
+
+[[nodiscard]] inline TimedTextDocument dispatch_format(
+    const std::string& raw, std::string_view extension) {
+    if (!extension.empty() && extension.front() == '.') extension.remove_prefix(1);
+    std::string normalized;
+    normalized.reserve(extension.size());
+    for (const unsigned char ch : extension)
+        normalized.push_back(static_cast<char>(std::tolower(ch)));
+    if (normalized == "srt") return timed_text_from_srt(raw);
+    if (normalized == "vtt") return timed_text_from_vtt(raw);
+    if (normalized == "ass" || normalized == "ssa") return timed_text_from_ass(raw);
+    if (normalized == "json") return timed_text_from_json(raw);
+    return {};
+}
 
 struct AdapterDocumentBuilder {
     TimedTextDocument document;

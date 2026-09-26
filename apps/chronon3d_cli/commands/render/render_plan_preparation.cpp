@@ -294,6 +294,12 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
                 ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
 
         auto plan = std::move(decoded).value();
+#if !defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+        if (plan.audio)
+            return render_plan::PlanDecodeError{
+                "audio", "render-plan audio requires native FFmpeg support",
+                "audio_native_ffmpeg_required", "render-plan-audio"};
+#endif
         std::optional<PreparedOverlayPackageSummary> prepared_package;
         if (!options.prepared_package.empty()) {
             prepared_package = read_prepared_package(
