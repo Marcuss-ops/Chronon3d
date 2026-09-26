@@ -15,14 +15,14 @@ concurrency:
 
 jobs:
   developer-gates:
-    name: Canonical developer gate manifest
+    name: Canonical developer gate manifest (FULL)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run canonical developer gates
-        run: bash tools/run_developer_gates.sh origin main
+      - name: Run canonical developer gates (FULL — 13 gates)
+        run: bash tools/run_developer_gates.sh --full origin main

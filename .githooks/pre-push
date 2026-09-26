@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# pre-push — developer gate chain run before every git push.
+# pre-push — slim developer gate chain (6 gate veloci, ~80s wall).
 #
-# Delegates to tools/run_developer_gates.sh (the canonical single source
-# of truth for the 8 developer gates).  Receives remote name from git.
+# 2026-09-26 slim (taglia senza pietà):
+#   default = 6 gate (<90s). Full certificazione:
+#     CHRONON3D_PRE_PUSH_FULL=1 git push
+#     bash tools/run_developer_gates.sh --full origin main
+#   CI (`developer-gates.yml --full`) copre sempre i 13 gate.
 #
-# Git passes the remote name as $1 and the remote URL as $2.
+# Delegates to tools/run_developer_gates.sh (SSOT: tools/gates/manifest.sh).
+# Git passes remote name as $1 and URL as $2.
 # ═══════════════════════════════════════════════════════════════════════════
 
-set -euo pipefail
+set -uo pipefail
 
 REMOTE="${1:-origin}"
 SCRIPT_DIR="$(git rev-parse --show-toplevel)/tools"
 
-echo "pre-push: running developer gate chain (via run_developer_gates.sh ${REMOTE})..."
+# runner honours CHRONON3D_PRE_PUSH_FULL + --full; hook just forwards.
+echo "pre-push: running developer gate chain (slim=6, full: CHRONON3D_PRE_PUSH_FULL=1)..."
 bash "${SCRIPT_DIR}/run_developer_gates.sh" "${REMOTE}" \
-    || { echo "pre-push: GATE_FAIL — push aborted" >&2; exit 1; }
+    || { echo "pre-push: GATE_FAIL — push aborted (hint: CHRONON3D_PRE_PUSH_FULL=1 git push for full)" >&2; exit 1; }
 
 echo "pre-push: developer gate chain PASSED"
 exit 0
