@@ -111,6 +111,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         layer.erase("parent");
         layer.erase("track_matte");
         layer.erase("time_remap");
+        layer.erase("transition_in");
+        layer.erase("transition_out");
         // V3-only fields are validated by the extension schema below.
         layer.erase("safe_insets");
         layer.erase("font");

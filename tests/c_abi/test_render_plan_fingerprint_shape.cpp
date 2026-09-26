@@ -315,7 +315,41 @@ TEST_CASE("Per-key timing fields participate in render-plan fingerprint") {
     }
 }
 
-TEST_CASE("Fingerprint v8 domain golden is pinned") {
-    // Per-key timing fields advanced the canonical fingerprint contract.
-    CHECK(legacy_fingerprint() == 11739327424026991172ULL);
+TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
+    plan["layers"][0]["duration_frames"] = 12;
+    plan["layers"][0]["transition_in"] = {
+        {"id", "reveal"}, {"kind", "slide"}, {"duration_frames", 6},
+        {"delay_frames", 1}, {"easing", "out_cubic"}, {"direction", "left"},
+        {"params", {{"distance", 1.25}}}};
+    const auto decoded = render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].transition_in);
+    CHECK(decoded->layers[0].transition_in->duration_frames == Frame{6});
+    const auto baseline = decoded->content_fingerprint;
+    plan["layers"][0]["transition_in"]["params"]["distance"] = 1.5;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != baseline);
+
+    plan["layers"][0]["duration_frames"] = 6;
+    CHECK_FALSE(render_plan::decode_render_plan(plan));
+    plan["layers"][0]["duration_frames"] = 12;
+    plan["layers"][0]["transition_in"]["kind"] = "missing_kind";
+    CHECK_FALSE(render_plan::decode_render_plan(plan));
+    for (const auto* kind : {"none", "crossfade", "slide", "wipe_linear", "smooth_wipe",
+                             "circle_iris", "flash", "procedural_remotion", "remotion"}) {
+        auto supported = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
+        supported["layers"][0]["transition_in"] = {{"kind", kind}, {"duration_frames", 1}};
+        CHECK(render_plan::decode_render_plan(supported));
+    }
+    auto wrong_parameter = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
+    wrong_parameter["layers"][0]["transition_in"] = {
+        {"kind", "crossfade"}, {"duration_frames", 1}, {"params", {{"distance", 2.0}}}};
+    CHECK_FALSE(render_plan::decode_render_plan(wrong_parameter));
+}
+
+TEST_CASE("Fingerprint v9 domain golden is pinned") {
+    // Per-key timing and transition fields advanced the canonical contract.
+    CHECK(legacy_fingerprint() == 12360396897713678385ULL);
 }

@@ -714,10 +714,41 @@ void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& l
         builder.animator(compile_text_animator(animator));
 }
 
+chronon3d::LayerTransitionSpec compile_transition(const TransitionPlan& plan, FrameRate fps) {
+    chronon3d::LayerTransitionSpec spec;
+    spec.transition_id = plan.kind;
+    spec.duration = static_cast<double>(plan.duration_frames.integral()) * fps.den() / fps.num();
+    spec.delay = static_cast<double>(plan.delay_frames.integral()) * fps.den() / fps.num();
+    spec.easing = chronon3d::string_to_easing(plan.easing);
+    spec.direction = plan.direction.empty()
+        ? chronon3d::TransitionDirection::None
+        : chronon3d::string_to_transition_direction(plan.direction);
+    if (plan.kind == "crossfade") spec.parameters = chronon3d::CrossfadeParams{};
+    else if (plan.kind == "slide") spec.parameters = chronon3d::SlideParams{plan.distance};
+    else if (plan.kind == "wipe_linear") spec.parameters = chronon3d::WipeLinearParams{};
+    else if (plan.kind == "smooth_wipe") spec.parameters = chronon3d::SmoothWipeParams{plan.feather};
+    else if (plan.kind == "circle_iris")
+        spec.parameters = chronon3d::CircleIrisParams{{plan.center[0], plan.center[1]}, plan.feather};
+    else if (plan.kind == "flash")
+        spec.parameters = chronon3d::FlashParams{{plan.color[0], plan.color[1], plan.color[2], plan.color[3]}};
+    else if (plan.kind == "procedural_remotion")
+        spec.parameters = chronon3d::ProceduralRemotionParams{
+            plan.seed,
+            {plan.inner_color[0], plan.inner_color[1], plan.inner_color[2], plan.inner_color[3]},
+            {plan.mid_color[0], plan.mid_color[1], plan.mid_color[2], plan.mid_color[3]},
+            {plan.outer_color[0], plan.outer_color[1], plan.outer_color[2], plan.outer_color[3]}};
+    else if (plan.kind == "remotion")
+        spec.parameters = chronon3d::RemotionParams{plan.speed, plan.remotion_direction, plan.angle};
+    return spec;
+}
+
 void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
-                            int canvas_height) {
+                            int canvas_height,
+                            FrameRate fps) {
+    if (layer.transition_in) builder.transition_in(compile_transition(*layer.transition_in, fps));
+    if (layer.transition_out) builder.transition_out(compile_transition(*layer.transition_out, fps));
     if (layer.parent) builder.parent(*layer.parent);
     if (layer.track_matte) {
         switch (layer.track_matte->type) {

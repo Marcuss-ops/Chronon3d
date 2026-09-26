@@ -7,9 +7,11 @@
 #include <array>
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include "test_render_plan_shape_helpers.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -56,6 +58,36 @@ void write_asset(const std::filesystem::path& root, std::string contents) {
 }
 
 } // namespace
+
+TEST_CASE("render-plan layer transitions lower into the existing scene layer spec") {
+    auto source = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    source["layers"][0]["transition_in"] = {
+        {"kind", "slide"}, {"duration_frames", 6}, {"delay_frames", 1},
+        {"direction", "left"}, {"params", {{"distance", 1.25}}}};
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    chronon3d::assets::AssetResolver resolver;
+    const auto prepared = chronon3d::render_plan::compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+
+    chronon3d::FrameContextParams params;
+    params.global_time = chronon3d::SampleTime::from_frame(0.0, decoded->canvas.fps);
+    params.duration = decoded->canvas.duration;
+    params.width = decoded->canvas.width;
+    params.height = decoded->canvas.height;
+    auto scene = prepared->composition->evaluate(chronon3d::make_frame_context(params));
+    REQUIRE(scene.layers().size() == 1);
+    CHECK(scene.layers()[0].transition_in.transition_id == "slide");
+    CHECK(scene.layers()[0].transition_in.duration == doctest::Approx(0.2));
+    CHECK(scene.layers()[0].transition_in.delay == doctest::Approx(1.0 / 30.0));
+    const auto transition_hash = chronon3d::graph::hash_layer_transition_spec(
+        scene.layers()[0].transition_in);
+    auto changed_spec = scene.layers()[0].transition_in;
+    changed_spec.parameters = chronon3d::SlideParams{1.5f};
+    CHECK(chronon3d::graph::hash_layer_transition_spec(changed_spec) != transition_hash);
+}
 
 TEST_CASE("all text backends share one linear-domain color packer") {
     const chronon3d::Color color{0.2158605f, 0.5f, 1.0f, 0.5f};
