@@ -29,9 +29,9 @@ existing mux timebase to preserve current A/V synchronization.
 - [x] Decoder cases include validation and an out-of-canvas warning.
 - [x] Fingerprint v7 golden updated with an explicit contract-change note.
 - [x] Mixer unit case pins frame-to-sample trims and voice duck graph.
-- [ ] N-input mix integration yields one AAC stream; `ffprobe` confirms it.
+- [x] Native render smoke with two inputs yields one AAC stream; `ffprobe` confirms H.264 + AAC and matching 2.000 s durations.
 - [ ] `astats` RMS checks cover gain envelope and voice ducking segments.
-- [ ] F3.5 duration parity passes for plan audio and legacy source audio.
+- [ ] F3.5 duration parity passes for plan audio and legacy source audio (plan-audio duration smoke passed; legacy parity gate pending).
 - [ ] No-native-FFmpeg and plan-audio plus legacy external audio fail closed (implementation present; dedicated rejection test pending).
 
 ## Demolition Debt
