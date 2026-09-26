@@ -588,26 +588,26 @@ TEST_CASE("render plan V3 decodes animated solid fill and sorts keyframes") {
 }
 
 TEST_CASE("render plan V3 decodes typed built-in layer transitions and fingerprints parameters") {
-    const auto transition_layer = nlohmann::json::parse(R"JSON({
-      "id":"intro","type":"color","color":[1,1,1,1],
-      "transition_in":{"id":"slide","kind":"slide","duration_frames":15,"delay_frames":3,
-        "direction":"left","easing":"smoothstep","params":{"distance":0.75}},
-      "transition_out":{"id":"flash","kind":"flash","duration_frames":8,"params":{"color":"#FF8040"}}
-    })JSON");
-    auto source = render_plan_test::base_plan(nlohmann::json::array({transition_layer}));
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"intro","type":"color","color":[1,1,1,1],"duration_frames":30,
+        "transition_in":{"id":"slide","kind":"slide","duration_frames":6,"delay_frames":3,"direction":"left","easing":"smoothstep","params":{"distance":0.75}},
+        "transition_out":{"id":"flash","kind":"flash","duration_frames":8,"params":{"color":"#FF8040"}}}],
+      "output":{"path":"out.png"}})JSON");
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     const std::string decode_error = decoded ? std::string{} : decoded.error().message;
     REQUIRE_MESSAGE(decoded.has_value(), decode_error);
     REQUIRE(decoded->layers[0].transition_in.has_value());
     CHECK(decoded->layers[0].transition_in->kind == "slide");
-    CHECK(decoded->layers[0].transition_in->duration_frames == chronon3d::Frame{15});
+    CHECK(decoded->layers[0].transition_in->duration_frames == chronon3d::Frame{6});
     CHECK(decoded->layers[0].transition_in->delay_frames == chronon3d::Frame{3});
     CHECK(decoded->layers[0].transition_in->direction == "left");
     CHECK(decoded->layers[0].transition_in->easing == "smoothstep");
     CHECK(decoded->layers[0].transition_in->distance == doctest::Approx(0.75f));
     REQUIRE(decoded->layers[0].transition_out.has_value());
     CHECK(decoded->layers[0].transition_out->kind == "flash");
-    CHECK(decoded->layers[0].transition_out->color[1] == doctest::Approx(0.5019608f));
+    CHECK(decoded->layers[0].transition_out->color[1] == doctest::Approx(0.2158605f));
     const auto original_fingerprint = decoded->content_fingerprint;
 
     source["layers"][0]["transition_in"]["params"]["distance"] = 0.5;

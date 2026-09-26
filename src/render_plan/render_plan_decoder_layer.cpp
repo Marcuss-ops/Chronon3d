@@ -125,7 +125,16 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
         for (std::size_t i = 0; i < 2; ++i) plan.center[i] = params.at("center").at(i).get<float>();
     const auto read_color = [&](const char* key, std::array<float, 4>& target) {
         if (!params.contains(key)) return;
-        for (std::size_t i = 0; i < 4; ++i) target[i] = params.at(key).at(i).get<float>();
+        const auto& raw = params.at(key);
+        if (raw.is_string()) {
+            const auto parsed = parse_hex_color(raw.get<std::string>());
+            if (!parsed) throw std::runtime_error(std::string(key) + " must be a #RRGGBB hex or RGBA array");
+            target = {parsed->r, parsed->g, parsed->b, parsed->a};
+            return;
+        }
+        if (!raw.is_array() || raw.size() != 4)
+            throw std::runtime_error(std::string(key) + " must be a #RRGGBB hex or RGBA array");
+        for (std::size_t i = 0; i < 4; ++i) target[i] = raw.at(i).get<float>();
     };
     read_color("color", plan.color);
     read_color("inner_color", plan.inner_color);
