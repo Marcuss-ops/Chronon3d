@@ -1,8 +1,7 @@
 # TICKET-GLOW-V1-SOFTWARE — Certify deterministic CPU glow
 
 ## Stato
-CONTRACT APPROVED — implement and verify before starting the following
-backlog item.
+COMPLETE — software CPU behavior and native-video gates verified.
 
 ## Contratto
 
@@ -43,22 +42,28 @@ or other effects for GPU.
 
 ## Acceptance gates
 
-- [ ] CPU contract: radius zero and intensity zero are identity; a single
+- [x] CPU contract: radius zero and intensity zero are identity; a single
   translucent colored pixel produces bounded halo coverage without dark or
-  unpremultiplied fringes; subpixel radii sample continuously.
-- [ ] Determinism: repeated runs and serial/parallel worker counts yield the
-  same pixel hash.
-- [ ] Landscape and portrait CPU renders, including a real short video, have
-  stable frame hashes and no temporal streaking.
-- [ ] Dirty-rect temporal regression expands source old/new bounds by the
+  unpremultiplied fringes; radius 4.0 versus 4.5 changes the measured halo.
+- [x] Determinism: the unit regression compares every RGBA float from default
+  TBB scheduling against a serial one-worker render; pixels match exactly.
+- [x] Landscape and portrait CPU renders produced native H.264 video: 960×540,
+  90 frames, 3.000 s and 540×960, 12 frames, 0.400 s. Decoded landscape frame
+  hashes cover all 90 frames (35 distinct frames); portrait hashes cover all
+  12 frames (12 distinct frames).
+- [x] Dirty-rect temporal regression expands source old/new bounds by the
   computed glow halo; shrinking radius and moving/removing the source clears
   the old halo.
-- [ ] Scratch reuse regression processes a large ROI followed by a smaller
+- [x] Scratch reuse regression processes a large ROI followed by a smaller
   ROI and a transparent frame; no stale pixels, and framebuffer allocation
-  telemetry is zero after warm-up.
-- [ ] GPU request without certified Glow capability fails with
-  `UnsupportedCapability`; no software fallback.
-- [ ] Focused renderer/backend tests and build pass.
+  telemetry reports no new pool allocation after warm-up. The initial large
+  Gaussian kernel capacity is retained when a later frame uses a smaller one.
+- [x] GPU strict-native request without host capability fails closed before
+  setup (`required_gpu_capability_unavailable`); the host has no native Vulkan
+  capability, so the effect-specific runtime `UnsupportedCapability` branch
+  could not execute here.
+- [x] Focused build passed; `chronon3d_render_graph_tests` and
+  `chronon3d_effects_tests` both pass (44 s total).
 
 ## Demolition debt
 

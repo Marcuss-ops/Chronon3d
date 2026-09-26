@@ -42,6 +42,7 @@
 #include <string>
 #include <deque>
 #include <unordered_map>
+#include <thread>
 #include <mutex>
 #include <spdlog/spdlog.h>
 
@@ -141,6 +142,10 @@ struct EffectScratchResources {
     std::vector<float> row_src, row_dst, col_src, col_dst;
     // Directional blur taps are packed as dx, dy, weight triples.
     std::vector<float> directional_taps;
+    // Per-worker Gaussian taps for Glow. Each worker retains capacity across
+    // frames without sharing a mutable vector between concurrent layers.
+    std::shared_ptr<std::mutex> glow_kernel_mutex{std::make_shared<std::mutex>()};
+    std::unordered_map<std::thread::id, std::vector<float>> glow_kernels;
     // Radial blur stores only the per-sample parametric values. Offsets still
     // depend on the current pixel's vector from the blur centre, so this LUT
     // is shared by every pixel without pretending dx/dy are global.
@@ -178,12 +183,21 @@ struct EffectScratchResources {
                               static_cast<std::size_t>(height));
     }
 
+    [[nodiscard]] std::vector<float>& glow_kernel_scratch() {
+        std::lock_guard lock(*glow_kernel_mutex);
+        return glow_kernels[std::this_thread::get_id()];
+    }
+
     void reset() {
         framebuffer.reset();
         framebuffer_b.reset();
         original_alpha.clear();
         row_src.clear(); row_dst.clear(); col_src.clear(); col_dst.clear();
         directional_taps.clear();
+        {
+            std::lock_guard lock(*glow_kernel_mutex);
+            glow_kernels.clear();
+        }
         radial_taps.clear();
         {
             std::lock_guard lock(*echo_history_mutex);
