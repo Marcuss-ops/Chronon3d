@@ -71,6 +71,22 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
         } else {
             key.value.push_back(raw.get<float>());
         }
+        if (key_value.contains("interpolation"))
+            key.interpolation = key_value.at("interpolation").get<std::string>();
+        if (key_value.contains("easing"))
+            key.easing = key_value.at("easing").get<std::string>();
+        if (key_value.contains("bezier_curve"))
+            key.bezier_curve = decode_bezier_curve(key_value, "bezier", "animation keyframe");
+        if (key.interpolation && *key.interpolation != "linear" &&
+            *key.interpolation != "hold" && *key.interpolation != "bezier")
+            throw std::runtime_error("keyframe interpolation must be linear, hold, or bezier");
+        if (key.interpolation && (key.easing || key.bezier_curve))
+            throw std::runtime_error("keyframe interpolation cannot be combined with easing or bezier_curve");
+        if (key.interpolation == "bezier" && !key.bezier_curve)
+            throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve");
+        if (key.interpolation != "bezier" &&
+            ((key.easing == "bezier") != key.bezier_curve.has_value()))
+            throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
         track.keyframes.push_back(std::move(key));
     }
     return track;
@@ -277,6 +293,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 } else {
                     key.value.push_back(raw.get<float>());
                 }
+                if (key_value.contains("interpolation")) key.interpolation = key_value.at("interpolation").get<std::string>();
+                if (key_value.contains("easing")) key.easing = key_value.at("easing").get<std::string>();
+                if (key_value.contains("bezier_curve"))
+                    key.bezier_curve = decode_bezier_curve(key_value, "bezier", "time_remap keyframe");
                 if (!std::isfinite(key.value.front()) || key.value.front() < 0.0f ||
                     key.value.front() > 1000000.0f)
                     throw std::runtime_error("time_remap source frame values must be finite and in [0, 1000000]");

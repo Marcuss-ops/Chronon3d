@@ -110,28 +110,28 @@ struct CubicBezier {
 
         // Try Newton-Raphson method (typically 4-8 iterations are enough)
         f32 u = t;
+        bool newton_valid = true;
         for (int i = 0; i < 8; ++i) {
-            f32 x_val = sample_curve_x(u) - t;
-            if (std::abs(x_val) < 1e-6f) {
-                return sample_curve_y(u);
+            const f32 x_val = sample_curve_x(u) - t;
+            const f32 derivative = sample_curve_derivative_x(u);
+            if (std::abs(derivative) < 1e-6f) {
+                newton_valid = false;
+            } else {
+                const f32 candidate = u - x_val / derivative;
+                if (candidate < 0.0f || candidate > 1.0f) newton_valid = false;
+                else u = candidate;
             }
-            f32 dVal = sample_curve_derivative_x(u);
-            if (std::abs(dVal) < 1e-6f) {
-                break;
-            }
-            u -= x_val / dVal;
         }
+        if (newton_valid && std::abs(sample_curve_x(u) - t) < 1e-6f)
+            return sample_curve_y(u);
 
         // Bisection fallback
         f32 t0 = 0.0f;
         f32 t1 = 1.0f;
-        u = t;
+        u = 0.5f;
 
-        while (t0 < t1) {
+        for (int i = 0; i < 24; ++i) {
             f32 x_val = sample_curve_x(u);
-            if (std::abs(x_val - t) < 1e-6f) {
-                return sample_curve_y(u);
-            }
             if (t > x_val) {
                 t0 = u;
             } else {
@@ -140,7 +140,7 @@ struct CubicBezier {
             u = (t1 + t0) * 0.5f;
         }
 
-        return sample_curve_y(u);
+        return sample_curve_y((t0 + t1) * 0.5f);
     }
 };
 

@@ -637,7 +637,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                                     throw std::runtime_error("morph animation keyframes require scalar progress");
                                                 progress.add_keyframe(
                                                     key.frame, key.value.front(),
-                                                    detail::animation_track_easing(*op.morph_animation));
+                                                    detail::animation_keyframe_easing(*op.morph_animation, key));
                                             }
                                             morph.progress = std::clamp(
                                                 progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);

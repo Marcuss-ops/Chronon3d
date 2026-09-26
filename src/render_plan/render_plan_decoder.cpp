@@ -54,6 +54,71 @@ std::optional<std::string> find_3d_track(const nlohmann::json& layer) {
     return std::nullopt;
 }
 
+void collect_final_key_timing_warnings(const nlohmann::json& value,
+                                       std::vector<std::string>& warnings,
+                                       bool keyframes = false) {
+    if (value.is_object()) {
+        for (auto it = value.begin(); it != value.end(); ++it)
+            collect_final_key_timing_warnings(it.value(), warnings, it.key() == "keyframes");
+    } else if (value.is_array()) {
+        if (keyframes && !value.empty() && value.back().is_object() &&
+            (value.back().contains("interpolation") || value.back().contains("easing") ||
+             value.back().contains("bezier_curve")))
+            warnings.emplace_back("animation_last_key_timing_ignored");
+        for (const auto& item : value) collect_final_key_timing_warnings(item, warnings, false);
+    }
+}
+
+void validate_per_key_timing(const nlohmann::json& value, bool keyframes = false) {
+    if (value.is_object()) {
+        for (auto it = value.begin(); it != value.end(); ++it)
+            validate_per_key_timing(it.value(), it.key() == "keyframes");
+        return;
+    }
+    if (!value.is_array()) return;
+    if (keyframes) {
+        for (const auto& key : value) {
+            if (!key.is_object()) continue;
+            const auto interpolation = key.value("interpolation", std::string{});
+            const auto easing = key.value("easing", std::string{});
+            const bool has_curve = key.contains("bezier_curve");
+            if (!interpolation.empty() && interpolation != "linear" &&
+                interpolation != "hold" && interpolation != "bezier")
+                throw std::runtime_error("keyframe interpolation must be linear, hold, or bezier");
+            if (!interpolation.empty()) {
+                if ((interpolation == "bezier") != has_curve || !easing.empty())
+                    throw std::runtime_error("keyframe interpolation requires only its matching bezier_curve");
+            } else if ((easing == "bezier") != has_curve) {
+                throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
+            }
+            if (!easing.empty() && easing != "linear" && easing != "in_quad" &&
+                easing != "out_quad" && easing != "in_out_quad" && easing != "in_cubic" &&
+                easing != "out_cubic" && easing != "in_out_cubic" && easing != "in_expo" &&
+                easing != "out_expo" && easing != "in_out_expo" && easing != "in_sine" &&
+                easing != "out_sine" && easing != "in_out_sine" && easing != "in_back" &&
+                easing != "out_back" && easing != "in_out_back" && easing != "in_elastic" &&
+                easing != "out_elastic" && easing != "in_out_elastic" && easing != "in_bounce" &&
+                easing != "out_bounce" && easing != "in_out_bounce" && easing != "smoothstep" &&
+                easing != "hold" && easing != "bezier")
+                throw std::runtime_error("unsupported per-key animation easing: " + easing);
+            if (has_curve) {
+                const auto& curve = key.at("bezier_curve");
+                if (!curve.is_array() || curve.size() != 4)
+                    throw std::runtime_error("per-key bezier_curve must contain [x1, y1, x2, y2]");
+                const auto x1 = curve.at(0).get<float>();
+                const auto y1 = curve.at(1).get<float>();
+                const auto x2 = curve.at(2).get<float>();
+                const auto y2 = curve.at(3).get<float>();
+                if (!std::isfinite(x1) || !std::isfinite(y1) || !std::isfinite(x2) ||
+                    !std::isfinite(y2) || x1 < 0.0f || x1 > 1.0f || x2 < 0.0f ||
+                    x2 > 1.0f || y1 < -10.0f || y1 > 10.0f || y2 < -10.0f || y2 > 10.0f)
+                    throw std::runtime_error("per-key bezier_curve handles are out of range");
+            }
+        }
+    }
+    for (const auto& item : value) validate_per_key_timing(item, false);
+}
+
 bool has_explicit_3d_vector(const nlohmann::json& layer, const char* key) {
     return layer.contains(key) && layer.at(key).is_array() &&
            layer.at(key).size() >= 3;
@@ -304,6 +369,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         return PlanDecodeError{"", validation.format()};
 
     try {
+        validate_per_key_timing(resolved_root);
         RenderPlan plan;
         plan.warnings.reserve(resolved.unused.size());
         for (const auto& name : resolved.unused)
@@ -311,6 +377,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         if (resolved_root.contains("warnings"))
             for (const auto& warning : resolved_root.at("warnings"))
                 plan.warnings.push_back(warning.get<std::string>());
+        collect_final_key_timing_warnings(resolved_root, plan.warnings);
         plan.schema = resolved_root.at("schema").get<std::string>();
         plan.job_id = resolved_root.value("job_id", std::string{"chronon_plan"});
         const auto& canvas = resolved_root.at("canvas");
@@ -397,6 +464,20 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                             return PlanDecodeError{"audio.clips[].gain.keyframes", "frames must be non-negative and values finite",
                                 "invalid_audio_gain_keyframe", "render-plan-audio"};
                         key.value = {value};
+                        if (raw_key.contains("interpolation")) key.interpolation = raw_key.at("interpolation").get<std::string>();
+                        if (raw_key.contains("easing")) key.easing = raw_key.at("easing").get<std::string>();
+                        if (raw_key.contains("bezier_curve")) {
+                            const auto& raw_curve = raw_key.at("bezier_curve");
+                            if (!raw_curve.is_array() || raw_curve.size() != 4)
+                                throw std::runtime_error("audio gain keyframe bezier_curve must contain four values");
+                            std::array<float, 4> curve{};
+                            for (std::size_t i = 0; i < curve.size(); ++i) curve[i] = raw_curve.at(i).get<float>();
+                            if (!std::all_of(curve.begin(), curve.end(), [](float v) { return std::isfinite(v); }) ||
+                                curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
+                                curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
+                                throw std::runtime_error("audio gain keyframe bezier_curve handles are out of range");
+                            key.bezier_curve = curve;
+                        }
                         track.keyframes.push_back(std::move(key));
                     }
                     if (track.keyframes.empty())
