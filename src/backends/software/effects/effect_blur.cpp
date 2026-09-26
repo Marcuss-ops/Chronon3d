@@ -93,7 +93,10 @@ static void apply_fullres_blur(Framebuffer& fb, i32 r, int blur_passes,
                 }
                 const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
                 for (i32 x = x0; x < x1; ++x) {
-                    tmp_row[x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
+                    tmp_row[x] = {std::max(0.0f, sum.r * inv),
+                                  std::max(0.0f, sum.g * inv),
+                                  std::max(0.0f, sum.b * inv),
+                                  std::clamp(sum.a * inv, 0.0f, 1.0f)};
                     const Color add = src_row[std::min(x + r + 1, w - 1)];
                     const Color rem = src_row[std::max(x - r,     0)];
                     sum.r += add.r - rem.r; sum.g += add.g - rem.g;
@@ -115,7 +118,10 @@ static void apply_fullres_blur(Framebuffer& fb, i32 r, int blur_passes,
                 const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
                 for (i32 y = y0; y < y1; ++y) {
                     Color* fb_row = fb.pixels_row(y);
-                    fb_row[x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
+                    fb_row[x] = {std::max(0.0f, sum.r * inv),
+                                 std::max(0.0f, sum.g * inv),
+                                 std::max(0.0f, sum.b * inv),
+                                 std::clamp(sum.a * inv, 0.0f, 1.0f)};
                     const Color add = tmp.pixels_row(std::min(y + r + 1, h - 1))[x];
                     const Color rem = tmp.pixels_row(std::max(y - r,     0))[x];
                     sum.r += add.r - rem.r; sum.g += add.g - rem.g;

@@ -526,6 +526,39 @@ TEST_CASE("FrameDeltaCompiler applies anisotropic effect halos") {
     CHECK(delta.dirty_bounds->y1 == 69);
 }
 
+TEST_CASE("FrameDeltaCompiler clears old and new effect bounds when moved or shrunk") {
+    using Halo = chronon3d::graph::detail::FrameDeltaCompileOptions::SpatialHalo;
+    const auto assert_union = [&](BBox previous_bbox, BBox current_bbox, Halo halo,
+                                  BBox expected) {
+        auto previous_layer = layer(previous_bbox);
+        auto current_layer = layer(current_bbox);
+        current_layer.content_hash++;
+        chronon3d::graph::detail::FrameDeltaCompileOptions options;
+        options.full_frame_threshold = 0.0;
+        options.spatial_halo = [halo](std::string_view) { return halo; };
+        const auto delta = FrameDeltaCompiler::compile(
+            chronon3d::Frame{10}, {{"effect", current_layer}},
+            {{"effect", previous_layer}}, false, 160, 120, nullptr, options);
+        REQUIRE(delta.dirty_bounds.has_value());
+        CHECK(delta.dirty_bounds->x0 == expected.x0);
+        CHECK(delta.dirty_bounds->y0 == expected.y0);
+        CHECK(delta.dirty_bounds->x1 == expected.x1);
+        CHECK(delta.dirty_bounds->y1 == expected.y1);
+    };
+
+    // The previous halo lies left of the moved effect; both states must be
+    // repainted. This models changing or removing a wide glow/shadow.
+    assert_union(BBox{50, 35, 100, 85}, BBox{110, 40, 120, 50},
+        Halo{.left = 12, .top = 8, .right = 16, .bottom = 10},
+        BBox{38, 27, 136, 95});
+
+    // Shrinking a wide effect keeps the old expanded edge dirty while adding
+    // the new compact bounds.
+    assert_union(BBox{20, 20, 90, 80}, BBox{40, 35, 60, 55},
+        Halo{.left = 30, .top = 25, .right = 30, .bottom = 25},
+        BBox{0, 0, 120, 105});
+}
+
 TEST_CASE("FrameDeltaCompiler normalizes full-frame damage and tiles") {
     const TileGrid grid(64, 64, 16);
     const auto delta = FrameDeltaCompiler::compile(
