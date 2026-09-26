@@ -244,6 +244,26 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
     for (const auto& track : animator.properties) add_track(out, track);
 }
 
+void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) {
+    out.add_string(transition.id);
+    out.add_string(transition.kind);
+    out.add_frame(transition.duration_frames);
+    out.add_frame(transition.delay_frames);
+    out.add_string(transition.easing);
+    out.add_string(transition.direction);
+    out.add_float(transition.distance);
+    out.add_float(transition.feather);
+    for (const auto value : transition.center) out.add_float(value);
+    for (const auto value : transition.color) out.add_float(value);
+    out.add_float(transition.seed);
+    for (const auto value : transition.inner_color) out.add_float(value);
+    for (const auto value : transition.mid_color) out.add_float(value);
+    for (const auto value : transition.outer_color) out.add_float(value);
+    out.add_float(transition.speed);
+    out.add_float(transition.remotion_direction);
+    out.add_float(transition.angle);
+}
+
 void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_string(camera.type);
     for (const auto value : camera.position) out.add_float(value);
@@ -660,6 +680,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                  [](auto& writer, Frame value) { writer.add_frame(value); });
     add_optional(out, layer.duration_frames,
                  [](auto& writer, Frame value) { writer.add_frame(value); });
+    add_optional(out, layer.transition_in,
+                 [](auto& writer, const TransitionPlan& value) { add_transition(writer, value); });
+    add_optional(out, layer.transition_out,
+                 [](auto& writer, const TransitionPlan& value) { add_transition(writer, value); });
     add_optional(out, layer.fit,
                  [](auto& writer, FitMode value) { writer.add_enum(value); });
 
@@ -690,7 +714,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v8");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v9");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

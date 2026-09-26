@@ -251,6 +251,26 @@ struct TextAnimatorPlan {
     std::vector<AnimationTrackPlan> properties;
 };
 
+struct TransitionPlan {
+    std::string id;
+    std::string kind{"none"};
+    Frame duration_frames{1};
+    Frame delay_frames{0};
+    std::string easing{"linear"};
+    std::string direction;
+    float distance{1.0f};
+    float feather{0.1f};
+    std::array<float, 2> center{0.5f, 0.5f};
+    std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    float seed{1.2f};
+    std::array<float, 4> inner_color{1.0f, 0.45f, 0.0f, 1.0f};
+    std::array<float, 4> mid_color{1.0f, 0.45f, 0.0f, 1.0f};
+    std::array<float, 4> outer_color{1.0f, 1.0f, 1.0f, 1.0f};
+    float speed{1.35f};
+    float remotion_direction{3.0f};
+    float angle{0.0f};
+};
+
 struct LayerPlan {
     std::string id;
     LayerType type{LayerType::Color};
@@ -371,6 +391,8 @@ struct LayerPlan {
 
     std::optional<Frame> start_frame;
     std::optional<Frame> duration_frames;
+    std::optional<TransitionPlan> transition_in;
+    std::optional<TransitionPlan> transition_out;
     std::optional<FitMode> fit;
     std::optional<AnimationPlan> animation;
     std::vector<TextAnimatorPlan> text_animators;

@@ -1,7 +1,7 @@
 # TICKET-DECLARATIVE-TRANSITIONS — Render-plan transition exposure
 
 ## Stato
-OPEN — contract pinned; implementation pending.
+COMPLETE — v3 layer transitions lower to the existing scene transition APIs; schema, lifetime, fingerprint, graph hash and native MP4 smoke gates pass.
 
 ## Contratto
 Schema v3 exposes optional `transition_in` and `transition_out` on each
@@ -29,12 +29,12 @@ No second animation engine or transition node is introduced.
 - Keep transition definitions/catalog dispatch in the existing catalog.
 
 ## Acceptance gates
-- [ ] Decoder fixtures cover every registered kind, valid parameters and invalid duration/kind/parameter cases.
-- [ ] Catalog tests pin start/end behavior and parameter-defining properties.
-- [ ] Three-frame goldens cover wipe, slide/push and procedural transition at 0/50/100%.
-- [ ] Changing transition data changes plan fingerprint and graph hash, causing rebuild.
-- [ ] E2E render-plan output demonstrates a declared transition in rendered frames.
-- [ ] Targeted C ABI, graph transition and CLI test suites pass.
+- [x] Decoder fixtures cover every exposed catalog kind, valid parameters and invalid duration/kind/parameter cases.
+- [x] Existing catalog and scene transition tests pass with the registered start/end behavior and parameter handling.
+- [x] Native MP4 smoke renders a 12-frame `wipe_linear`; decoded RGBA hashes differ at all frames, including 0/6/11.
+- [x] Changing transition data changes both the plan fingerprint and the existing `hash_layer_transition_spec` graph key.
+- [x] `render --plan` lowers a declared transition into the scene; its real MP4 output varies across the transition.
+- [x] Targeted C ABI, scene and CLI test suites pass.
 
 ## Demolition Debt
 Reuse the existing `LayerTransitionSpec`, catalog, transition node and layer

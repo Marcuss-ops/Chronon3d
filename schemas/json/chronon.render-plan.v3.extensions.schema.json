@@ -5,6 +5,34 @@
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
     "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "transition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "duration_frames"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 256 },
+        "kind": { "enum": ["none", "crossfade", "slide", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"] },
+        "duration_frames": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "delay_frames": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "easing": { "$ref": "#/$defs/easing" },
+        "direction": { "enum": ["left", "right", "up", "down", "in", "out"] },
+        "params": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "distance": { "type": "number", "minimum": 0, "maximum": 4 },
+            "feather": { "type": "number", "minimum": 0, "maximum": 1 },
+            "center": { "$ref": "#/$defs/point" },
+            "color": { "$ref": "#/$defs/rgba" },
+            "seed": { "type": "number" },
+            "inner_color": { "$ref": "#/$defs/rgba" },
+            "mid_color": { "$ref": "#/$defs/rgba" },
+            "outer_color": { "$ref": "#/$defs/rgba" },
+            "speed": { "type": "number", "exclusiveMinimum": 0 },
+            "remotion_direction": { "type": "number" },
+            "angle": { "type": "number" }
+          }
+        }
+      }
+    },
     "audio": {
       "type": "object", "additionalProperties": false,
       "required": ["clips"],
@@ -562,6 +590,8 @@
               "samples": { "type": "integer", "minimum": 1, "maximum": 64 }
             }
           },
+          "transition_in": { "$ref": "#/$defs/transition" },
+          "transition_out": { "$ref": "#/$defs/transition" },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
           "track_matte": {
             "type": "object", "additionalProperties": false,
