@@ -84,6 +84,9 @@ struct LayerYuvQuery {
     /// generic RGBA/host texture claim: the DirectYUV kernel needs the shared
     /// PreparedTextRun/MTSDF ABI.
     bool prepared_mtsdf{false};
+    /// Any enabled post effect outside a dedicated direct-NV12 kernel must
+    /// use the faithful FullGraph RGBA composition lane.
+    bool rgba_post_effects{false};
     /// True only when the prepared run's remaining style semantics lower
     /// faithfully (no gradient paint, no premium material, no animated or
     /// dissolving document, and at most one enabled drop shadow, which the
@@ -99,6 +102,7 @@ struct LayerYuvQuery {
 /// fused NV12 kernels implement (`composite_direct_nv12*`).
 [[nodiscard]] inline DirectYuvSupport classify_direct_yuv(
     const LayerYuvQuery& query) noexcept {
+    if (query.rgba_post_effects) return DirectYuvSupport::RequiresFullFrame;
     const bool structural = query.two_d_transform &&
                             !query.mask_enabled && !query.projection_enabled &&
                             query.single_shape_node;

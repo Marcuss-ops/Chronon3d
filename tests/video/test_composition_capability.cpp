@@ -136,6 +136,24 @@ TEST_CASE("composition capability: shapes and RGB effects need full frame RGBA")
     blur.effect = DirectYuvEffectClass::ComplexRgbaEffect;
     CHECK(classify_direct_yuv(blur) == DirectYuvSupport::RequiresFullFrame);
 
+    for (const auto effect : {DirectYuvEffectClass::ImageOverlay,
+                              DirectYuvEffectClass::TextOverlay,
+                              DirectYuvEffectClass::BasicShapeOverlay}) {
+        LayerYuvQuery effected;
+        effected.effect = effect;
+        effected.gpu_resident = true;
+        effected.prepared_mtsdf = effect == DirectYuvEffectClass::TextOverlay;
+        effected.text_style_representable = true;
+        effected.rgba_post_effects = true;
+        CHECK(classify_direct_yuv(effected) == DirectYuvSupport::RequiresFullFrame);
+        CHECK(resolve_direct_yuv_support(effected, DirectYuvPolicy::Auto).reason ==
+              "requires_full_frame_rgba");
+        const auto required = resolve_direct_yuv_support(
+            effected, DirectYuvPolicy::Require);
+        CHECK_FALSE(required.eligible);
+        CHECK(required.hard_fail);
+    }
+
     LayerYuvQuery cpu;
     cpu.effect = DirectYuvEffectClass::CpuEffect;
     CHECK(classify_direct_yuv(cpu) == DirectYuvSupport::CpuOnly);
