@@ -76,6 +76,58 @@ RenderPlan typed_mesh_plan() {
 
 }  // namespace
 
+TEST_CASE("inline mesh lighting is an opt-in V3 contract and changes plan identity") {
+    auto json = base_mesh_plan();
+    json["lighting_rig"] = {
+        {"key_direction", {-0.4, 0.8, -0.4}},
+        {"key_color", {1.0, 0.9, 0.8, 1.0}},
+        {"key_intensity", 0.9},
+        {"ambient_color", {0.2, 0.3, 0.4, 1.0}},
+        {"ambient_intensity", 0.2},
+        {"rim_enabled", true}, {"rim_color", {0.2, 0.7, 1.0, 1.0}},
+        {"rim_intensity", 0.4}, {"rim_power", 2.5}
+    };
+    json["layers"][0]["inline_mesh"]["material"] = {
+        {"diffuse", 0.8}, {"specular", 0.5}, {"shininess", 48.0},
+        {"rim_intensity", 1.2}, {"base_color", {0.8, 0.4, 0.2, 1.0}}
+    };
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+    REQUIRE(decoded->lighting_rig);
+    REQUIRE(decoded->layers[0].inline_mesh->material);
+    CHECK(decoded->layers[0].inline_mesh->material->specular == doctest::Approx(0.5f));
+    CHECK(decoded->layers[0].lighting_rig->rim_enabled);
+    const auto repeated = decode_render_plan(json);
+    REQUIRE(repeated);
+    CHECK(decoded->content_fingerprint == repeated->content_fingerprint);
+
+    auto changed_material = json;
+    changed_material["layers"][0]["inline_mesh"]["material"]["shininess"] = 64.0;
+    const auto changed = decode_render_plan(changed_material);
+    REQUIRE(changed);
+    CHECK(decoded->content_fingerprint != changed->content_fingerprint);
+
+    auto invalid = json;
+    invalid["layers"][0]["inline_mesh"]["material"]["diffuse"] = 1.5;
+    CHECK_FALSE(validate_render_plan(invalid).ok());
+
+    auto v2 = base_mesh_plan(kRenderPlanSchemaV2);
+    v2["lighting_rig"] = json["lighting_rig"];
+    CHECK_FALSE(validate_render_plan(v2).ok());
+}
+
+TEST_CASE("inline mesh lighting defaults remain unlit and typed materials validate") {
+    auto decoded = decode_render_plan(base_mesh_plan());
+    REQUIRE(decoded);
+    CHECK_FALSE(decoded->layers[0].inline_mesh->material);
+
+    auto plan = typed_mesh_plan();
+    plan.layers[0].inline_mesh->material = InlineMeshMaterialPlan{};
+    REQUIRE_FALSE(validate_render_budget(plan));
+    plan.layers[0].inline_mesh->material->rim_intensity = std::numeric_limits<float>::infinity();
+    CHECK(validate_render_budget(plan));
+}
+
 TEST_CASE("inline mesh validates and decodes in both RenderPlan schema versions") {
     for (const auto* schema : {kRenderPlanSchemaV2, kRenderPlanSchemaV3}) {
         const auto json = base_mesh_plan(schema);
@@ -188,6 +240,8 @@ TEST_CASE("inline mesh bytes affect stable plan fingerprint and typed compiler I
     CHECK(first->content_fingerprint != changed->content_fingerprint);
 
     auto plan = typed_mesh_plan();
+    plan.layers[0].inline_mesh->material = InlineMeshMaterialPlan{};
+    plan.lighting_rig = LightingRigPlan{};
     plan.content_fingerprint = compute_render_plan_content_fingerprint(plan);
     assets::AssetResolver resolver;
     const auto compiled = compiler::compile(plan, resolver);
@@ -212,4 +266,8 @@ TEST_CASE("inline mesh bytes affect stable plan fingerprint and typed compiler I
     REQUIRE(node.shape.mesh_shape().inline_mesh);
     CHECK(node.shape.mesh_shape().inline_mesh->vertices().size() == 3);
     CHECK(node.shape.mesh_shape().inline_mesh->indices() == std::vector<u32>{0, 1, 2});
+    REQUIRE(node.inline_mesh_material);
+    CHECK(node.inline_mesh_material->specular == doctest::Approx(0.25f));
+    CHECK(scene.light_context().enabled);
+    CHECK(scene.rim_light().enabled == plan.lighting_rig->rim_enabled);
 }

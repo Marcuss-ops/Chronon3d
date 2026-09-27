@@ -233,6 +233,8 @@ NodeExecResult SourceNode::execute(
         state.opacity = opacity;
         state.shape_processor = ctx.node_exec.current_shape_processor;
         state.processor_snapshot = ctx.node_exec.processor_snapshot;
+        state.light_context = ctx.frame_input.light_context;
+        state.rim_light = ctx.frame_input.rim_light;
         state.world_matrix = base_matrix;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
 

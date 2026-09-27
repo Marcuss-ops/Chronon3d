@@ -98,6 +98,7 @@ SoftwareRenderer* setup_render_graph_context(
     }
 
     ctx.frame_input.light_context = scene.light_context();
+    ctx.frame_input.rim_light = scene.rim_light();
 
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {

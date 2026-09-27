@@ -46,8 +46,11 @@ normalize_render_job(
             RenderJobRequestErrorCode::InvalidBackend,
             "render job backend must be auto, software, or vulkan");
     }
+    // A Vulkan daemon can execute an explicit software request for a
+    // per-job fallback. A software-only host still cannot promise Vulkan.
     if (capabilities.backend != "auto" && request.backend != "auto" &&
-        request.backend != capabilities.backend) {
+        request.backend != capabilities.backend &&
+        !(request.backend == "software" && capabilities.backend == "vulkan")) {
         return make_render_job_request_error(
             RenderJobRequestErrorCode::InvalidBackend,
             "render job backend does not match the host backend");

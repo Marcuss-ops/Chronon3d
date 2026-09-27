@@ -776,6 +776,30 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 throw std::runtime_error("inline_mesh index is outside the vertex array");
             mesh.indices.push_back(static_cast<std::uint32_t>(index));
         }
+        if (raw_mesh.contains("material")) {
+            const auto& raw_material = raw_mesh.at("material");
+            InlineMeshMaterialPlan material;
+            material.diffuse = raw_material.value("diffuse", material.diffuse);
+            material.specular = raw_material.value("specular", material.specular);
+            material.shininess = raw_material.value("shininess", material.shininess);
+            material.rim_intensity = raw_material.value("rim_intensity", material.rim_intensity);
+            if (raw_material.contains("base_color")) {
+                const auto& color = raw_material.at("base_color");
+                std::array<float, 4> decoded{};
+                for (std::size_t component = 0; component < decoded.size(); ++component)
+                    decoded[component] = color.at(component).get<float>();
+                material.base_color = decoded;
+            }
+            if (!std::isfinite(material.diffuse) || material.diffuse < 0.0f || material.diffuse > 1.0f ||
+                !std::isfinite(material.specular) || material.specular < 0.0f || material.specular > 1.0f ||
+                !std::isfinite(material.shininess) || material.shininess < 1.0f || material.shininess > 1024.0f ||
+                !std::isfinite(material.rim_intensity) || material.rim_intensity < 0.0f || material.rim_intensity > 16.0f)
+                throw std::runtime_error("inline_mesh.material values are outside their supported ranges");
+            if (material.base_color && !std::all_of(material.base_color->begin(), material.base_color->end(),
+                    [](float component) { return std::isfinite(component) && component >= 0.0f && component <= 1.0f; }))
+                throw std::runtime_error("inline_mesh.material.base_color components must be finite and in [0, 1]");
+            mesh.material = material;
+        }
         layer.inline_mesh = std::move(mesh);
     } else if (layer.type == LayerType::Mesh) {
         throw std::runtime_error("mesh layers require inline_mesh geometry");
@@ -878,8 +902,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         else if (shape_type == "arrow") shape.type = ShapeContentTypePlan::Arrow;
         else if (shape_type == "arc") shape.type = ShapeContentTypePlan::Arc;
         else if (shape_type == "grid") shape.type = ShapeContentTypePlan::Grid;
-        else if (shape_type == "dot_grid") shape.type = ShapeContentTypePlan::DotGrid;
+        else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
         else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
+        else if (shape_type == "world_map" || shape_type == "worldmap") shape.type = ShapeContentTypePlan::WorldMap;
+        else if (shape_type == "chart") shape.type = ShapeContentTypePlan::Chart;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
@@ -1100,6 +1126,247 @@ LayerPlan decode_layer(const nlohmann::json& value) {
              (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset &&
               !shape.lottie_asset)) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");
+        // ── Star / Polygon: points, inner_ratio, rotation ───────────────
+        if (shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon) {
+            if (raw_shape.contains("points")) {
+                const int pts = raw_shape.at("points").get<int>();
+                if (pts < 3 || pts > 64)
+                    throw std::runtime_error("shape.points must be in [3, 64]");
+                shape.points = pts;
+            } else {
+                shape.points = (shape.type == ShapeContentTypePlan::Star ? 5 : 6);
+            }
+            if (raw_shape.contains("inner_radius_ratio")) {
+                shape.inner_radius_ratio = raw_shape.at("inner_radius_ratio").get<float>();
+            }
+            if (raw_shape.contains("innerRatio"))
+                shape.inner_radius_ratio = raw_shape.at("innerRatio").get<float>();
+            if (!std::isfinite(shape.inner_radius_ratio) || shape.inner_radius_ratio < 0.05f || shape.inner_radius_ratio > 0.95f)
+                throw std::runtime_error("shape.inner_radius_ratio must be finite in [0.05, 0.95]");
+            if (raw_shape.contains("shape_rotation_deg"))
+                shape.shape_rotation_deg = raw_shape.at("shape_rotation_deg").get<float>();
+            if (raw_shape.contains("rotation_deg"))
+                shape.shape_rotation_deg = raw_shape.at("rotation_deg").get<float>();
+            if (!std::isfinite(shape.shape_rotation_deg))
+                throw std::runtime_error("shape_rotation_deg must be finite");
+            // Forbid unrelated payloads
+            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                throw std::runtime_error("star/polygon shapes cannot carry path/asset/lottie");
+        }
+        // ── Arrow ─────────────────────────────────────────────────────────
+        if (shape.type == ShapeContentTypePlan::Arrow) {
+            if (raw_shape.contains("arrow_head_length"))
+                shape.arrow_head_length = raw_shape.at("arrow_head_length").get<float>();
+            if (raw_shape.contains("head_length"))
+                shape.arrow_head_length = raw_shape.at("head_length").get<float>();
+            if (raw_shape.contains("arrow_head_width"))
+                shape.arrow_head_width = raw_shape.at("arrow_head_width").get<float>();
+            if (raw_shape.contains("head_width"))
+                shape.arrow_head_width = raw_shape.at("head_width").get<float>();
+            if (raw_shape.contains("arrow_shaft_width"))
+                shape.arrow_shaft_width = raw_shape.at("arrow_shaft_width").get<float>();
+            if (raw_shape.contains("shaft_width"))
+                shape.arrow_shaft_width = raw_shape.at("shaft_width").get<float>();
+            if (raw_shape.contains("arrow_direction"))
+                shape.arrow_direction = raw_shape.at("arrow_direction").get<std::string>();
+            if (raw_shape.contains("direction"))
+                shape.arrow_direction = raw_shape.at("direction").get<std::string>();
+            if (shape.arrow_head_length && (!std::isfinite(*shape.arrow_head_length) || *shape.arrow_head_length <= 0.0f || *shape.arrow_head_length > 10000.0f))
+                throw std::runtime_error("arrow_head_length must be finite in (0, 10000]");
+            if (shape.arrow_head_width && (!std::isfinite(*shape.arrow_head_width) || *shape.arrow_head_width <= 0.0f || *shape.arrow_head_width > 10000.0f))
+                throw std::runtime_error("arrow_head_width must be finite in (0, 10000]");
+            if (!std::isfinite(shape.arrow_shaft_width) || shape.arrow_shaft_width <= 0.0f || shape.arrow_shaft_width > 10000.0f)
+                throw std::runtime_error("arrow_shaft_width must be finite in (0, 10000]");
+            if (shape.arrow_direction != "right" && shape.arrow_direction != "left" &&
+                shape.arrow_direction != "up" && shape.arrow_direction != "down" &&
+                shape.arrow_direction != "both")
+                throw std::runtime_error("arrow_direction must be right, left, up, down, or both");
+            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                throw std::runtime_error("arrow shapes cannot carry path/asset/lottie");
+        }
+        // ── Grid / DotGrid ────────────────────────────────────────────────
+        if (shape.type == ShapeContentTypePlan::Grid || shape.type == ShapeContentTypePlan::DotGrid) {
+            if (raw_shape.contains("grid_spacing"))
+                shape.grid_spacing = raw_shape.at("grid_spacing").get<float>();
+            if (raw_shape.contains("spacing"))
+                shape.grid_spacing = raw_shape.at("spacing").get<float>();
+            if (!std::isfinite(shape.grid_spacing) || shape.grid_spacing < 4.0f || shape.grid_spacing > 512.0f)
+                throw std::runtime_error("grid_spacing must be finite in [4, 512]");
+            if (shape.type == ShapeContentTypePlan::Grid) {
+                if (raw_shape.contains("grid_line_width"))
+                    shape.grid_line_width = raw_shape.at("grid_line_width").get<float>();
+                if (raw_shape.contains("line_width"))
+                    shape.grid_line_width = raw_shape.at("line_width").get<float>();
+                if (!std::isfinite(shape.grid_line_width) || shape.grid_line_width < 0.25f || shape.grid_line_width > 32.0f)
+                    throw std::runtime_error("grid_line_width must be finite in [0.25, 32]");
+            } else {
+                if (raw_shape.contains("dot_radius"))
+                    shape.dot_radius = raw_shape.at("dot_radius").get<float>();
+                if (raw_shape.contains("radius")) // arc-style radius alias not applicable
+                    ; // keep dot_radius separate; radius alias already handled above as shape.radius
+                if (raw_shape.contains("dotRadius"))
+                    shape.dot_radius = raw_shape.at("dotRadius").get<float>();
+                if (!std::isfinite(shape.dot_radius) || shape.dot_radius < 0.5f || shape.dot_radius > 64.0f)
+                    throw std::runtime_error("dot_radius must be finite in [0.5, 64]");
+            }
+            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                throw std::runtime_error("grid/dot_grid shapes cannot carry path/asset/lottie");
+        }
+        // ── Arc ───────────────────────────────────────────────────────────
+        if (shape.type == ShapeContentTypePlan::Arc) {
+            if (raw_shape.contains("arc_start_deg"))
+                shape.arc_start_deg = raw_shape.at("arc_start_deg").get<float>();
+            if (raw_shape.contains("start_deg"))
+                shape.arc_start_deg = raw_shape.at("start_deg").get<float>();
+            if (raw_shape.contains("arc_sweep_deg"))
+                shape.arc_sweep_deg = raw_shape.at("arc_sweep_deg").get<float>();
+            if (raw_shape.contains("sweep_deg"))
+                shape.arc_sweep_deg = raw_shape.at("sweep_deg").get<float>();
+            if (raw_shape.contains("arc_thickness"))
+                shape.arc_thickness = raw_shape.at("arc_thickness").get<float>();
+            if (raw_shape.contains("thickness"))
+                shape.arc_thickness = raw_shape.at("thickness").get<float>();
+            if (!std::isfinite(shape.arc_start_deg))
+                throw std::runtime_error("arc_start_deg must be finite");
+            if (!std::isfinite(shape.arc_sweep_deg) || shape.arc_sweep_deg < 1.0f || shape.arc_sweep_deg > 359.9f)
+                throw std::runtime_error("arc_sweep_deg must be finite in [1, 359.9]");
+            if (!std::isfinite(shape.arc_thickness) || shape.arc_thickness < 0.0f || shape.arc_thickness > 10000.0f)
+                throw std::runtime_error("arc_thickness must be finite in [0, 10000]");
+            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                throw std::runtime_error("arc shapes cannot carry path/asset/lottie");
+        }
+        // ── WorldMap ──────────────────────────────────────────────────────
+        if (raw_shape.contains("world_map") || shape.type == ShapeContentTypePlan::WorldMap) {
+            WorldMapPlan wm;
+            const auto& src = raw_shape.contains("world_map") ? raw_shape.at("world_map") : raw_shape;
+            if (src.contains("projection")) wm.projection = src.at("projection").get<std::string>();
+            if (wm.projection != "mercator" && wm.projection != "equirectangular" && wm.projection != "equirect")
+                throw std::runtime_error("world_map projection must be mercator or equirectangular");
+            if (wm.projection == "equirect") wm.projection = "equirectangular";
+            if (src.contains("center")) {
+                const auto& c = src.at("center");
+                if (!c.is_array() || c.size() != 2) throw std::runtime_error("world_map center must be [lon, lat]");
+                wm.center = {c[0].get<float>(), c[1].get<float>()};
+            }
+            if (!std::isfinite(wm.center[0]) || !std::isfinite(wm.center[1]) ||
+                wm.center[0] < -180.0f || wm.center[0] > 180.0f ||
+                wm.center[1] < -90.0f || wm.center[1] > 90.0f)
+                throw std::runtime_error("world_map center lon in [-180,180] lat in [-90,90]");
+            if (src.contains("zoom")) wm.zoom = src.at("zoom").get<float>();
+            if (!std::isfinite(wm.zoom) || wm.zoom < 1.0f || wm.zoom > 8.0f)
+                throw std::runtime_error("world_map zoom must be finite in [1, 8]");
+            if (src.contains("highlight")) {
+                const auto& hl = src.at("highlight");
+                if (!hl.is_array() || hl.size() > 64) throw std::runtime_error("world_map highlight must be array of at most 64 ISO codes");
+                for (const auto& code : hl) wm.highlight.push_back(code.get<std::string>());
+            }
+            if (src.contains("highlight_color")) wm.highlight_color = src.at("highlight_color").get<std::string>();
+            if (src.contains("highlightColor")) wm.highlight_color = src.at("highlightColor").get<std::string>();
+            if (src.contains("route")) {
+                const auto& route = src.at("route");
+                if (!route.is_array() || route.size() > 256) throw std::runtime_error("world_map route must be array of at most 256 lon/lat pairs");
+                for (const auto& pt : route) {
+                    if (!pt.is_array() || pt.size() != 2) throw std::runtime_error("world_map route entries must be [lon, lat]");
+                    float lon = pt[0].get<float>(); float lat = pt[1].get<float>();
+                    if (!std::isfinite(lon) || !std::isfinite(lat) || lon < -180.0f || lon > 180.0f || lat < -90.0f || lat > 90.0f)
+                        throw std::runtime_error("world_map route lon/lat out of range");
+                    wm.route.push_back({lon, lat});
+                }
+            }
+            if (src.contains("dots")) wm.dots = src.at("dots").get<bool>();
+            // WorldMap is either primary type or additive payload; merge
+            shape.world_map = std::move(wm);
+            if (shape.type == ShapeContentTypePlan::WorldMap) {
+                // primary — forbid path/asset/lottie handled via world_map object
+                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                    throw std::runtime_error("world_map shape cannot carry path/asset/lottie");
+            }
+        }
+        // ── Chart ─────────────────────────────────────────────────────────
+        if (raw_shape.contains("chart") || shape.type == ShapeContentTypePlan::Chart) {
+            ChartPlan chart;
+            const auto& src = raw_shape.contains("chart") ? raw_shape.at("chart") : raw_shape;
+            if (src.contains("chart_type")) chart.chart_type = src.at("chart_type").get<std::string>();
+            if (src.contains("type")) chart.chart_type = src.at("type").get<std::string>();
+            if (chart.chart_type != "bar" && chart.chart_type != "line" && chart.chart_type != "pie")
+                throw std::runtime_error("chart type must be bar, line, or pie");
+            if (src.contains("data")) {
+                const auto& data = src.at("data");
+                if (!data.is_array() || data.size() == 0 || data.size() > 256) throw std::runtime_error("chart data must be array of 1..256 values");
+                for (const auto& v : data) {
+                    float fv = v.get<float>();
+                    if (!std::isfinite(fv)) throw std::runtime_error("chart data values must be finite");
+                    chart.data.push_back(fv);
+                }
+            } else if (shape.type == ShapeContentTypePlan::Chart) {
+                throw std::runtime_error("chart shape requires data array");
+            }
+            if (src.contains("colors")) {
+                const auto& colors = src.at("colors");
+                if (!colors.is_array() || colors.size() > 256) throw std::runtime_error("chart colors must be array of at most 256 RGBA entries");
+                for (const auto& c : colors) {
+                    if (!c.is_array() || c.size() != 4) throw std::runtime_error("chart color must be RGBA array");
+                    std::array<float,4> rgba{};
+                    for (size_t i=0;i<4;++i) {
+                        rgba[i]=c[i].get<float>();
+                        if (!std::isfinite(rgba[i])||rgba[i]<0.0f||rgba[i]>1.0f) throw std::runtime_error("chart color components must be in [0,1]");
+                    }
+                    chart.colors.push_back(rgba);
+                }
+            }
+            if (src.contains("value_format")) chart.value_format = src.at("value_format").get<std::string>();
+            if (src.contains("bar_gap")) chart.bar_gap = src.at("bar_gap").get<float>();
+            if (!std::isfinite(chart.bar_gap) || chart.bar_gap < 0.0f || chart.bar_gap > 0.5f)
+                throw std::runtime_error("chart bar_gap must be in [0, 0.5]");
+            if (src.contains("line_width")) chart.line_width = src.at("line_width").get<float>();
+            if (!std::isfinite(chart.line_width) || chart.line_width <= 0.0f || chart.line_width > 64.0f)
+                throw std::runtime_error("chart line_width must be in (0, 64]");
+            if (src.contains("donut")) chart.donut = src.at("donut").get<bool>();
+            if (src.contains("donut_inner_ratio")) chart.donut_inner_ratio = src.at("donut_inner_ratio").get<float>();
+            if (!std::isfinite(chart.donut_inner_ratio) || chart.donut_inner_ratio < 0.1f || chart.donut_inner_ratio > 0.9f)
+                throw std::runtime_error("chart donut_inner_ratio must be in [0.1, 0.9]");
+            shape.chart = std::move(chart);
+            if (shape.type == ShapeContentTypePlan::Chart) {
+                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                    throw std::runtime_error("chart shape cannot carry path/asset/lottie");
+            }
+        }
+        // ── DeviceFrame (additive, not primary shape type) ───────────────
+        if (raw_shape.contains("device_frame")) {
+            const auto& src = raw_shape.at("device_frame");
+            if (!src.is_object()) throw std::runtime_error("device_frame must be an object");
+            DeviceFramePlan df;
+            if (src.contains("frame_type")) df.frame_type = src.at("frame_type").get<std::string>();
+            if (src.contains("type")) df.frame_type = src.at("type").get<std::string>();
+            if (df.frame_type != "browser" && df.frame_type != "phone" && df.frame_type != "window")
+                throw std::runtime_error("device_frame type must be browser, phone, or window");
+            if (src.contains("radius")) df.radius = src.at("radius").get<float>();
+            if (src.contains("border_width")) df.border_width = src.at("border_width").get<float>();
+            if (!std::isfinite(df.radius) || df.radius < 0.0f || df.radius > 512.0f) throw std::runtime_error("device_frame radius out of range");
+            if (!std::isfinite(df.border_width) || df.border_width < 0.0f || df.border_width > 64.0f) throw std::runtime_error("device_frame border_width out of range");
+            if (src.contains("border_color")) df.border_color = src.at("border_color").get<std::string>();
+            if (src.contains("show_chrome")) df.show_chrome = src.at("show_chrome").get<bool>();
+            shape.device_frame = std::move(df);
+        }
+        // ── Counter (additive) ────────────────────────────────────────────
+        if (raw_shape.contains("counter")) {
+            const auto& src = raw_shape.at("counter");
+            if (!src.is_object()) throw std::runtime_error("counter must be an object");
+            CounterPlan cp;
+            if (src.contains("from")) cp.from = src.at("from").get<float>();
+            if (src.contains("to")) cp.to = src.at("to").get<float>();
+            if (!std::isfinite(cp.from) || !std::isfinite(cp.to)) throw std::runtime_error("counter from/to must be finite");
+            if (src.contains("format")) cp.format = src.at("format").get<std::string>();
+            if (cp.format != "plain" && cp.format != "currency" && cp.format != "percent" && cp.format != "compact")
+                throw std::runtime_error("counter format must be plain, currency, percent, or compact");
+            if (src.contains("currency")) cp.currency = src.at("currency").get<std::string>();
+            if (src.contains("decimals")) cp.decimals = src.at("decimals").get<int>();
+            if (cp.decimals < 0 || cp.decimals > 6) throw std::runtime_error("counter decimals must be in [0, 6]");
+            if (src.contains("prefix")) cp.prefix = src.at("prefix").get<std::string>();
+            if (src.contains("suffix")) cp.suffix = src.at("suffix").get<std::string>();
+            if (cp.prefix.size() > 32 || cp.suffix.size() > 32) throw std::runtime_error("counter prefix/suffix max 32 chars");
+            shape.counter = std::move(cp);
+        }
         if (raw_shape.contains("operators")) {
             const auto& raw_ops = raw_shape.at("operators");
             if (!raw_ops.is_array() || raw_ops.size() > 16)
@@ -2033,6 +2300,38 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     effect.mesh_offsets.push_back(component);
                 }
 
+            } else if (kind == "chromatic_aberration" || kind == "chromatic") {
+                effect.kind = LayerPlan::EffectKindPlan::ChromaticAberration;
+                effect.amount = raw_effect.value("amount", 2.0f);
+                effect.warp_direction = {raw_effect.value("offset_r", 2.0f), raw_effect.value("offset_b", -2.0f)};
+                if (raw_effect.contains("offset")) {
+                    const auto& off = raw_effect.at("offset");
+                    if (!off.is_array() || off.size() != 2) throw std::runtime_error("chromatic offset must be [r, b]");
+                    effect.warp_direction = {off[0].get<float>(), off[1].get<float>()};
+                }
+                if (!std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 64.0f ||
+                    !std::isfinite(effect.warp_direction[0]) || std::abs(effect.warp_direction[0]) > 64.0f ||
+                    !std::isfinite(effect.warp_direction[1]) || std::abs(effect.warp_direction[1]) > 64.0f)
+                    throw std::runtime_error("chromatic aberration offset out of range");
+            } else if (kind == "vignette") {
+                effect.kind = LayerPlan::EffectKindPlan::Vignette;
+                effect.amount = raw_effect.value("amount", 0.5f);
+                effect.warp_radius = raw_effect.value("radius", 0.5f);
+                effect.warp_falloff = raw_effect.value("softness", 0.5f);
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4) throw std::runtime_error("vignette color must be RGBA");
+                    for (size_t i=0;i<4;++i) { effect.effect_color[i]=color[i].get<float>(); if(!std::isfinite(effect.effect_color[i])||effect.effect_color[i]<0||effect.effect_color[i]>1) throw std::runtime_error("vignette color components must be in [0,1]"); }
+                }
+                if (!std::isfinite(effect.amount)||effect.amount<0||effect.amount>1||!std::isfinite(effect.warp_radius)||effect.warp_radius<0||effect.warp_radius>2||!std::isfinite(effect.warp_falloff)||effect.warp_falloff<0||effect.warp_falloff>1)
+                    throw std::runtime_error("vignette amount/radius/softness out of range");
+            } else if (kind == "halftone") {
+                effect.kind = LayerPlan::EffectKindPlan::Halftone;
+                effect.amount = raw_effect.value("amount", 4.0f);
+                effect.warp_angle = raw_effect.value("angle", 45.0f);
+                effect.warp_size = raw_effect.value("size", 4.0f);
+                if (!std::isfinite(effect.amount)||effect.amount<=0||effect.amount>64||!std::isfinite(effect.warp_angle)||!std::isfinite(effect.warp_size)||effect.warp_size<=0||effect.warp_size>256)
+                    throw std::runtime_error("halftone amount/size/angle out of range");
             } else throw std::runtime_error("unsupported layer effect type");
             layer.effects.push_back(std::move(effect));
         }

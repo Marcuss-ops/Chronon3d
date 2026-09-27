@@ -85,6 +85,8 @@ std::optional<PlanDecodeError> validate_render_budget(
             if (layer.effects.empty() || !layer.asset.empty() || !layer.source.empty() ||
                 !layer.text.empty() || !layer.text_spans.empty() || !layer.font.empty() ||
                 layer.style || layer.motion_blur || layer.shape || layer.inline_mesh ||
+                (layer.inline_mesh && layer.inline_mesh->material) ||
+                plan.lighting_rig ||
                 layer.particle_emitter || layer.light || layer.path_mask || !layer.masks.empty() || has_non_default_size ||
                 has_non_default_color || has_non_default_position || has_non_default_scale ||
                 has_non_default_rotation || layer.size_dimensions != 0 ||
@@ -123,6 +125,17 @@ std::optional<PlanDecodeError> validate_render_budget(
             const auto& mesh = *layer.inline_mesh;
             if (layer.type != LayerType::Mesh)
                 return fail(prefix + ".inline_mesh", "inline_mesh is valid only for mesh layers");
+            if (mesh.material) {
+                const auto& material = *mesh.material;
+                if (!std::isfinite(material.diffuse) || material.diffuse < 0.0f || material.diffuse > 1.0f ||
+                    !std::isfinite(material.specular) || material.specular < 0.0f || material.specular > 1.0f ||
+                    !std::isfinite(material.shininess) || material.shininess < 1.0f || material.shininess > 1024.0f ||
+                    !std::isfinite(material.rim_intensity) || material.rim_intensity < 0.0f || material.rim_intensity > 16.0f)
+                    return fail(prefix + ".inline_mesh.material", "material values are outside their finite supported ranges");
+                if (material.base_color && !std::all_of(material.base_color->begin(), material.base_color->end(),
+                        [](float value) { return std::isfinite(value) && value >= 0.0f && value <= 1.0f; }))
+                    return fail(prefix + ".inline_mesh.material.base_color", "components must be finite and in [0, 1]");
+            }
             if (mesh.vertices.size() < 3 || mesh.vertices.size() > kInlineMeshMaxVertices)
                 return fail(prefix + ".inline_mesh.vertices", "vertex count must be in [3, 250000]");
             if (mesh.indices.size() < 3 || mesh.indices.size() > kInlineMeshMaxIndices ||

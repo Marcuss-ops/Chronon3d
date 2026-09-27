@@ -782,6 +782,16 @@ private:
     seed = hash_combine(seed, hash_shape(n.shape));
     seed = hash_combine(seed, hash_color(n.color));
     seed = hash_combine(seed, hash_fill(n.fill));
+    seed = hash_combine(seed, hash_value(n.inline_mesh_material.has_value()));
+    if (n.inline_mesh_material) {
+        seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->diffuse, sizeof(float)));
+        seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->specular, sizeof(float)));
+        seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->shininess, sizeof(float)));
+        seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->rim_intensity, sizeof(float)));
+        seed = hash_combine(seed, hash_value(n.inline_mesh_material->base_color.has_value()));
+        if (n.inline_mesh_material->base_color)
+            seed = hash_combine(seed, hash_color(*n.inline_mesh_material->base_color));
+    }
     seed = hash_combine(seed, hash_value(n.visible));
     seed = hash_combine(seed, hash_surface_policy(n.surface_policy));
     seed = hash_combine(seed, hash_transform_policy(n.transform_policy));

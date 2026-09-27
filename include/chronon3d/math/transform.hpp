@@ -4,6 +4,8 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/render_graph/processor_handle.hpp>
+#include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <cstdint>
 #include <memory>
@@ -115,6 +117,8 @@ struct RenderState {
     renderer::ProjectionContext projection{};
     Mat4 world_matrix{1.0f};
     bool uses_2_5d_projection{false};
+    rendering::LightContext light_context{};
+    rendering::RimLight rim_light{};
 
     // Set by the renderer when the layer has an active mask.
     // Both fields propagate from layer_state → node_state via combine().
@@ -161,6 +165,8 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .opacity          = parent.opacity * child.opacity,
         .processor_snapshot = parent.processor_snapshot,
         .shape_processor  = parent.shape_processor,
+        .light_context = parent.light_context,
+        .rim_light = parent.rim_light,
         .mask             = parent.mask,
         .layer_inv_matrix = parent.layer_inv_matrix,
         .mask_alpha_cache = parent.mask_alpha_cache,

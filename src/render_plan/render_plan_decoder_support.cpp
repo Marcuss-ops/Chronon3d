@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <stdexcept>
+#include <set>
 #include <array>
 #include <algorithm>
 #include <cmath>

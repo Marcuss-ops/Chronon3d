@@ -19,8 +19,18 @@ namespace {
 
 chronon3d::EasingCurve track_easing(
     std::string_view value,
-    const std::optional<std::array<float, 4>>& bezier_curve = std::nullopt) {
+    const std::optional<std::array<float, 4>>& bezier_curve = std::nullopt,
+    const std::optional<render_plan::SpringPlan>& spring = std::nullopt) {
     using chronon3d::Easing;
+    if (value == "spring") {
+        if (spring) {
+            // Spring is baked via sample_spring at evaluation time; the track easing itself stays linear.
+            // Per-key spring interpolation is handled in the evaluator.
+            return {Easing::Linear};
+        }
+        throw std::runtime_error("easing='spring' requires a spring object");
+    }
+    if (spring) throw std::runtime_error("spring object requires easing='spring'");
     if (value == "bezier") {
         if (!bezier_curve)
             throw std::runtime_error("easing='bezier' requires bezier_curve [x1, y1, x2, y2]");
@@ -64,6 +74,12 @@ chronon3d::EasingCurve track_easing(
 
 chronon3d::EasingCurve keyframe_easing(const AnimationTrackPlan& track,
                                        const AnimationKeyframePlan& key) {
+    if (key.spring || track.spring) {
+        // Spring tracks use linear segment easing; the spring physics is applied at evaluation.
+        if (key.spring && key.easing && *key.easing != "spring") throw std::runtime_error("per-key spring requires easing='spring'");
+        if (key.spring && key.bezier_curve) throw std::runtime_error("per-key spring cannot be combined with bezier_curve");
+        return {chronon3d::Easing::Linear};
+    }
     if (key.interpolation) {
         if (key.easing || (key.bezier_curve && *key.interpolation != "bezier") ||
             (key.bezier_curve && (key.temporal_in_dx || key.temporal_in_dy ||
@@ -83,12 +99,13 @@ chronon3d::EasingCurve keyframe_easing(const AnimationTrackPlan& track,
             return chronon3d::EasingCurve{chronon3d::Easing::Linear};
         throw std::runtime_error("unsupported keyframe interpolation: " + *key.interpolation);
     }
-    if (key.easing || key.bezier_curve) {
+    if (key.easing || key.bezier_curve || key.spring) {
         if (key.bezier_curve && !key.easing)
             throw std::runtime_error("per-key bezier_curve requires easing='bezier'");
         if (key.easing == "spring") return {chronon3d::Easing::Linear};
         return track_easing(key.easing.value_or(track.easing),
-                            key.bezier_curve ? key.bezier_curve : track.bezier_curve);
+                            key.bezier_curve ? key.bezier_curve : track.bezier_curve,
+                            key.spring ? key.spring : track.spring);
     }
     if (track.easing == "spring") return {chronon3d::Easing::Linear};
     return track_easing(track.easing, track.bezier_curve);

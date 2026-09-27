@@ -4,6 +4,7 @@
 #include "render_plan_decoder_detail.hpp"
 
 #include <nlohmann/json.hpp>
+#include <glm/geometric.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -647,6 +648,47 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         }
         if (resolved_root.contains("camera"))
             plan.camera = detail::decode_camera(resolved_root.at("camera"));
+        if (resolved_root.contains("lighting_rig")) {
+            if (plan.schema != kRenderPlanSchemaV3)
+                return PlanDecodeError{"lighting_rig", "lighting_rig is available only in render-plan V3", "v3_lighting_in_v2", "render-plan-lighting"};
+            const auto& raw = resolved_root.at("lighting_rig");
+            LightingRigPlan rig;
+            const auto read_array = [&](const char* key, auto& target) {
+                if (!raw.contains(key)) return;
+                for (std::size_t i = 0; i < target.size(); ++i)
+                    target[i] = raw.at(key).at(i).get<float>();
+            };
+            const auto read_color = [&](const char* key, auto& target) {
+                if (!raw.contains(key)) return;
+                const auto& color = raw.at(key);
+                for (std::size_t i = 0; i < target.size(); ++i)
+                    target[i] = color.at(i).get<float>();
+            };
+            read_array("key_direction", rig.key_direction);
+            read_color("key_color", rig.key_color);
+            read_color("ambient_color", rig.ambient_color);
+            read_color("rim_color", rig.rim_color);
+            rig.key_intensity = raw.value("key_intensity", rig.key_intensity);
+            rig.ambient_intensity = raw.value("ambient_intensity", rig.ambient_intensity);
+            rig.rim_enabled = raw.value("rim_enabled", rig.rim_enabled);
+            rig.rim_intensity = raw.value("rim_intensity", rig.rim_intensity);
+            rig.rim_power = raw.value("rim_power", rig.rim_power);
+            const auto finite_range = [](float value, float low, float high) {
+                return std::isfinite(value) && value >= low && value <= high;
+            };
+            if (!std::all_of(rig.key_direction.begin(), rig.key_direction.end(),
+                    [](float value) { return std::isfinite(value) && std::abs(value) <= 1.0f; }) ||
+                std::sqrt(rig.key_direction[0] * rig.key_direction[0] + rig.key_direction[1] * rig.key_direction[1] + rig.key_direction[2] * rig.key_direction[2]) < 1e-6f ||
+                !std::all_of(rig.key_color.begin(), rig.key_color.end(), [](float v) { return std::isfinite(v) && v >= 0 && v <= 1; }) ||
+                !std::all_of(rig.ambient_color.begin(), rig.ambient_color.end(), [](float v) { return std::isfinite(v) && v >= 0 && v <= 1; }) ||
+                !std::all_of(rig.rim_color.begin(), rig.rim_color.end(), [](float v) { return std::isfinite(v) && v >= 0 && v <= 1; }) ||
+                !finite_range(rig.key_intensity, 0.0f, 16.0f) ||
+                !finite_range(rig.ambient_intensity, 0.0f, 16.0f) ||
+                !finite_range(rig.rim_intensity, 0.0f, 16.0f) ||
+                !finite_range(rig.rim_power, 1e-6f, 32.0f))
+                return PlanDecodeError{"lighting_rig", "lighting rig values are outside their supported finite ranges", "invalid_lighting_rig", "render-plan-lighting"};
+            plan.lighting_rig = rig;
+        }
         if (resolved_root.contains("camera_animation")) {
             if (!plan.camera)
                 return PlanDecodeError{"camera_animation",
