@@ -39,6 +39,24 @@
 #include <blend2d.h>
 #endif
 
+TEST_CASE("GPU command planner records bloom inputs and both scratch images") {
+    using namespace chronon3d::runtime;
+    const ResourceDesc desc{8, 8, PixelFormat::Rgba32Float,
+                            ResourceUsage::Storage,
+                            LifetimeClass::FrameTransient,
+                            8U * 8U * 4U * sizeof(float)};
+    GpuCommandPlanner planner;
+    planner.declare_surface(921, desc);
+    planner.declare_surface(922, desc);
+    planner.declare_surface(923, desc);
+    planner.declare_surface(924, desc);
+    planner.bloom(BloomPass{921, 922, 923, 924, 0.75f, 12.0f, 0.8f});
+    const auto plan = planner.build();
+    REQUIRE(plan.passes.passes.size() == 1);
+    CHECK(plan.passes.passes[0].kind == GpuPassKind::Bloom);
+    CHECK(plan.transitions.size() >= 3);
+}
+
 #include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
 
 namespace {

@@ -9,6 +9,7 @@ set(_chronon3d_shaders
     transform
     affine_transform
     blur
+    bloom_threshold
     color_adjust
     lighting
     matte
@@ -42,6 +43,7 @@ set(_chronon3d_shader_abi_prefixes
     transform:Transform
     affine_transform:AffineTransform
     blur:Blur
+    bloom_threshold:BloomThreshold
     color_adjust:ColorAdjust
     lighting:Lighting
     matte:Matte

@@ -121,6 +121,45 @@ TEST_CASE(
     CHECK(approx_equal(stored_line, expected_line));
 }
 
+TEST_CASE("GRID-KERNEL V2: edge fade, major glow, and isometric style render deterministically") {
+    constexpr int width = 96;
+    constexpr int height = 96;
+    const c3d::raster::BBox full{0, 0, width, height};
+    c3d::RenderState state;
+    c3d::GridBackgroundShape grid;
+    grid.size = {static_cast<float>(width), static_cast<float>(height)};
+    grid.bg_color = {0.0f, 0.0f, 0.0f, 1.0f};
+    grid.grid_color = {1.0f, 1.0f, 1.0f, 0.8f};
+    grid.centered = false;
+    grid.spacing = 16.0f;
+    grid.minor_thickness = 2.0f;
+    grid.major_thickness = 3.0f;
+    grid.major_every = 4;
+
+    c3d::Framebuffer ortho(width, height);
+    c3d::renderer::render_grid_background_kernel(ortho, grid, full, state);
+    grid.edge_fade = 24.0f;
+    grid.major_glow = 10.0f;
+    c3d::Framebuffer faded_glow(width, height);
+    c3d::renderer::render_grid_background_kernel(faded_glow, grid, full, state);
+    CHECK(pixel_at(faded_glow, 0, 0).r < pixel_at(ortho, 0, 0).r);
+    CHECK(pixel_at(faded_glow, 4, 4).r > pixel_at(ortho, 4, 4).r);
+
+    grid.edge_fade = 0.0f;
+    grid.major_glow = 0.0f;
+    grid.style = c3d::GridStyle::Isometric;
+    c3d::Framebuffer iso(width, height);
+    c3d::renderer::render_grid_background_kernel(iso, grid, full, state);
+    bool differs = false;
+    for (int y = 0; y < height && !differs; ++y)
+        for (int x = 0; x < width; ++x)
+            if (!approx_equal(pixel_at(ortho, x, y), pixel_at(iso, x, y))) {
+                differs = true;
+                break;
+            }
+    CHECK(differs);
+}
+
 // ─── 2. major_thickness == 0 disables major lines (no ghost feathers) ──────
 TEST_CASE(
     "GRID-KERNEL SEMANTICS: major_thickness==0 renders identical to "

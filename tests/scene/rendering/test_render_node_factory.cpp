@@ -62,10 +62,16 @@ TEST_CASE("RenderNodeFactory creates grid background nodes") {
         .major_thickness = 2.0f,
         .major_every     = 4,
         .centered        = true,
+        .edge_fade       = 120.0f,
+        .major_glow      = 8.0f,
+        .style           = GridStyle::Isometric,
     });
     CHECK(node.shape.type() == ShapeType::GridBackground);
     CHECK(node.shape.grid_background().size.x == doctest::Approx(1920.0f));
     CHECK(node.shape.grid_background().offset.x == doctest::Approx(24.0f));
+    CHECK(node.shape.grid_background().edge_fade == doctest::Approx(120.0f));
+    CHECK(node.shape.grid_background().major_glow == doctest::Approx(8.0f));
+    CHECK(node.shape.grid_background().style == GridStyle::Isometric);
     CHECK(node.world_transform.position.x == doctest::Approx(0.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(0.0f));
     CHECK(node.surface_policy == SurfacePolicy::ViewportSize);

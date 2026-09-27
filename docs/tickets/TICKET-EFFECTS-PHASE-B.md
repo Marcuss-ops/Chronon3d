@@ -2,8 +2,8 @@
 
 ## Stato
 IN PROGRESS — CPU contracts, spatial halos, and explicit Vulkan capability
-rows are implemented. Vulkan blur/glow remain native; drop shadow and bloom
-are explicitly unsupported in strict GPU mode. Video E2E and pixel parity
+rows are implemented. Vulkan blur/glow/bloom have native zero-readback paths;
+drop shadow remains unsupported in strict GPU mode. Video E2E and pixel parity
 gates remain open.
 
 ## Contratto
@@ -36,11 +36,11 @@ existing contracts; no silent parameter reinterpretation is allowed.
 - [x] DirectYUV effect stacks map to FullGraph; Auto records the route,
   RequireDirectYuv returns a typed capability error (composition capability
   unit suite passed).
-- [x] Vulkan dispatch has one explicit capability row per effect. Existing
-  native blur/glow paths remain available; strict GPU mode now returns
-  `UnsupportedCapability` whenever a stack cannot be handled natively, before
-  software fallback. Drop shadow/bloom remain typed `UnsupportedCapability`;
-  blur/glow use native zero-readback dispatch. Pixel parity is still open.
+- [x] Vulkan dispatch has one explicit capability row per effect. Native
+  blur/glow and the newly added bright-pass/blur/add bloom path use zero-readback
+  dispatch; drop shadow remains typed `UnsupportedCapability`. Strict GPU mode
+  still refuses any stack that cannot be handled natively. Bloom pixel parity
+  is still open.
 - [ ] Build, focused effects/render-graph tests, and short landscape/portrait
   videos pass for blur, shadow, and bloom. Focused effects and render-graph
   suites pass; current video CLI rebuild is blocked by 8.1 GB available disk

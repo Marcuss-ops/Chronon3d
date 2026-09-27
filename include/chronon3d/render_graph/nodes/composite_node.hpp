@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/scene/model/layer/backdrop_blur.hpp>
+#include <array>
 #include <atomic>
 #include <span>
 
@@ -94,9 +95,10 @@ public:
             const auto bytes = [](float value) {
                 return hash_bytes(&value, sizeof(value));
             };
-            params_hash = hash_combine(
-                params_hash, hash_combine(bytes(blur.blur),
-                    hash_combine(bytes(blur.brightness), bytes(blur.saturation))));
+            for (const float value : std::array{blur.blur, blur.brightness,
+                    blur.saturation, blur.rim_light, blur.refraction,
+                    blur.surface_noise})
+                params_hash = hash_combine(params_hash, bytes(value));
         }
         return cache::NodeCacheKey{
             .scope = "composite",

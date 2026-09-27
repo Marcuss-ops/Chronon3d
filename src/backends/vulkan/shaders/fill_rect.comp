@@ -224,6 +224,8 @@ void main() {
         float grid_size_x = params.vertices[2].x;
         float grid_size_y = params.vertices[2].y;
         bool centered = params.vertices[3].x > 0.5;
+        float edge_fade = max(params.vertices[3].y, 0.0);
+        float major_glow = max(params.vertices[4].x, 0.0);
 
         float minor_step = max(params.shape.y, 1.0);
         bool use_major = params.shape.z > 1.0 && params.line.w > 0.0;
@@ -237,6 +239,12 @@ void main() {
             // intentionally NOT applied here.
             float gx = float(pixel.x) - origin_x - params.line.x;
             float gy = float(pixel.y) - origin_y - params.line.y;
+            if (params.shape.w > 0.5) {
+                vec2 iso = vec2(0.8660254037844386 * gx + 0.5 * gy,
+                                -0.5 * gx + 0.8660254037844386 * gy);
+                gx = iso.x;
+                gy = iso.y;
+            }
 
             float minor_w = max(
                 grid_line_weight(grid_cell_distance(gx, minor_step), params.line.z),
@@ -246,19 +254,38 @@ void main() {
                       grid_line_weight(grid_cell_distance(gy, major_step), params.line.w))
                 : 0.0;
 
+            float edge_weight = 1.0;
+            if (edge_fade > 0.0) {
+                float edge_x = smoothstep(0.0, edge_fade,
+                    max(min(float(pixel.x), grid_size_x - 1.0 - float(pixel.x)), 0.0));
+                float edge_y = smoothstep(0.0, edge_fade,
+                    max(min(float(pixel.y), grid_size_y - 1.0 - float(pixel.y)), 0.0));
+                edge_weight = edge_x * edge_y;
+            }
+
             // params.color.a carries grid.a * opacity (minor base alpha).
-            float minor_alpha = minor_w * params.color.a;
-            float major_alpha = major_w * min(1.0, params.color.a * 4.0);
+            float minor_alpha = minor_w * params.color.a * edge_weight;
+            float major_alpha = major_w * min(1.0, params.color.a * 4.0) * edge_weight;
             float line_alpha = max(minor_alpha, major_alpha);
 
             vec3 bg_premul = bg_rgb * bg_alpha;
+            float glow_alpha = 0.0;
+            if (major_glow > 0.0 && use_major) {
+                float major_distance = min(grid_cell_distance(gx, major_step),
+                                           grid_cell_distance(gy, major_step));
+                float glow_ratio = major_distance / major_glow;
+                glow_alpha = min(1.0, params.color.a * 4.0) * 0.35 *
+                    exp(-0.5 * glow_ratio * glow_ratio) * edge_weight;
+            }
+            vec3 under_rgb = params.color.rgb * glow_alpha + bg_premul * (1.0 - glow_alpha);
+            float under_alpha = glow_alpha + bg_alpha * (1.0 - glow_alpha);
             vec4 out_pixel;
             if (line_alpha <= 0.0) {
-                out_pixel = vec4(bg_premul, bg_alpha);
+                out_pixel = vec4(under_rgb, under_alpha);
             } else {
                 out_pixel.rgb = params.color.rgb * line_alpha +
-                                bg_premul * (1.0 - line_alpha);
-                out_pixel.a = line_alpha + bg_alpha * (1.0 - line_alpha);
+                                under_rgb * (1.0 - line_alpha);
+                out_pixel.a = line_alpha + under_alpha * (1.0 - line_alpha);
             }
             imageStore(dst_image, pixel, out_pixel);
         }

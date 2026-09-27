@@ -76,6 +76,11 @@ struct GridBackgroundParams {
     f32 major_thickness{2.75f};
     i32 major_every{4};
     bool centered{true};
+    // Fade grid strokes toward the viewport edges. Zero keeps the legacy
+    // uniform grid; positive values are measured in logical pixels.
+    f32 edge_fade{0.0f};
+    f32 major_glow{0.0f};
+    GridStyle style{GridStyle::Orthogonal};
 };
 
 } // namespace chronon3d

@@ -14,6 +14,18 @@ layout(push_constant) uniform CompositeParams {
     ivec2 dispatch_origin;
 } params;
 
+vec4 blend_separable(vec4 src, vec4 dst, int mode) {
+    float sa = clamp(src.a, 0.0, 1.0);
+    float da = clamp(dst.a, 0.0, 1.0);
+    if (sa <= 0.0) return dst;
+    vec3 blended;
+    if (mode == 3) blended = src.rgb * dst.rgb; // software premul contract
+    else if (mode == 4) blended = src.rgb + dst.rgb - src.rgb * dst.rgb;
+    else blended = mix(2.0 * src.rgb * dst.rgb,
+        1.0 - 2.0 * (1.0 - src.rgb) * (1.0 - dst.rgb), step(vec3(0.5), dst.rgb));
+    return vec4(blended, sa + da * (1.0 - sa));
+}
+
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(dst_image);
@@ -22,9 +34,15 @@ void main() {
         float(pixel.x) >= params.clip_rect.z || float(pixel.y) >= params.clip_rect.w) return;
     vec4 src = imageLoad(src_image, pixel);
     vec4 dst = imageLoad(dst_image, pixel);
-    imageStore(dst_image, pixel, params.blend_mode == 2
-        ? src
-        : (params.blend_mode == 1
-            ? src * params.tint * params.source_scale + dst
-            : src + dst * (1.0 - src.a)));
+    vec4 result;
+    if (params.blend_mode == 2) result = src;
+    else if (params.blend_mode == 1) result = src * params.tint * params.source_scale + dst;
+    else if (params.blend_mode == 6) {
+        result.rgb = dst.rgb + src.rgb * params.source_scale;
+        result.a = max(dst.a, clamp(src.a * params.source_scale, 0.0, 1.0));
+    }
+    else if (params.blend_mode >= 3 && params.blend_mode <= 5)
+        result = blend_separable(src, dst, params.blend_mode);
+    else result = src + dst * (1.0 - src.a);
+    imageStore(dst_image, pixel, result);
 }

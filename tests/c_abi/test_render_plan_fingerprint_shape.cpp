@@ -4,6 +4,7 @@
 
 #include <chronon3d/render_plan/render_plan.hpp>
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -130,13 +131,18 @@ TEST_CASE("Multiple shadows affect the render plan fingerprint") {
 
 TEST_CASE("Backdrop blur settings affect the render plan fingerprint") {
     auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rounded_rect"}})});
-    plan["layers"][0]["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0}}}};
+    plan["layers"][0]["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0},
+        {"rim_light", 0.4}, {"refraction", 1.0}, {"surface_noise", 0.02}}}};
     auto first = render_plan::decode_render_plan(plan);
     REQUIRE(first);
-    plan["layers"][0]["style"]["backdrop"]["brightness"] = 1.2;
-    auto second = render_plan::decode_render_plan(plan);
-    REQUIRE(second);
-    CHECK(first->content_fingerprint != second->content_fingerprint);
+    for (const auto& [field, value] : std::array<std::pair<const char*, double>, 3>{{
+             {"rim_light", 0.8}, {"refraction", 2.0}, {"surface_noise", 0.04}}}) {
+        auto changed = plan;
+        changed["layers"][0]["style"]["backdrop"][field] = value;
+        auto second = render_plan::decode_render_plan(changed);
+        REQUIRE(second);
+        CHECK(first->content_fingerprint != second->content_fingerprint);
+    }
 }
 
 TEST_CASE("Repeater parameters affect render plan fingerprint") {
@@ -470,10 +476,9 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
     CHECK_FALSE(render_plan::decode_render_plan(wrong_parameter));
 }
 
-TEST_CASE("Fingerprint v10 domain golden is pinned") {
-    // Per-key timing, transitions, audio mix, inline mesh and gradient
-    // animation advanced the canonical contract past the v9 golden.
-    CHECK(legacy_fingerprint() == 7068117211625980799ULL);
+TEST_CASE("Fingerprint v19 domain golden is pinned") {
+    // Glass backdrop controls extend the canonical render-plan identity.
+    CHECK(legacy_fingerprint() == 3179087526655253714ULL);
 }
 TEST_CASE("LightRays controls affect render-plan fingerprints") {
     auto plan = render_plan_test::base_plan(nlohmann::json::array({

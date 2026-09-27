@@ -7,6 +7,7 @@
 #include "transform_comp_spv.hpp"
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
+#include "bloom_threshold_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "lighting_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
@@ -23,7 +24,7 @@ namespace chronon3d::backends::vulkan {
 
     // register_kernel_or_throw() — single authority for the
     // create-pipeline → register-in-registry → destroy-on-reject dance that
-    // each of the 12 compute kernels previously duplicated by hand.
+    // each of the 13 compute kernels previously duplicated by hand.
     void register_kernel_or_throw(
         GpuKernelRegistry& registry, VkDevice device,
         GpuKernelId id, VkPipeline pipeline, const char* pipeline_name) {
@@ -265,6 +266,28 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::Blur, blur_pipeline, "Blur");
         if (debug_context) debug_context->set_pipeline_name(blur_pipeline, "Chronon3D.Pipeline.Blur");
+
+        const VkShaderModuleCreateInfo bloom_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_bloom_threshold_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_bloom_threshold_comp_spv)};
+        VkShaderModule bloom_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &bloom_shader_info, nullptr, &bloom_shader),
+              "vkCreateShaderModule(bloom threshold)");
+        const VkPipelineShaderStageCreateInfo bloom_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, bloom_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo bloom_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            bloom_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline bloom_pipeline = VK_NULL_HANDLE;
+        const VkResult bloom_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &bloom_pipeline_info, nullptr, &bloom_pipeline);
+        vkDestroyShaderModule(device, bloom_shader, nullptr);
+        check(bloom_result, "vkCreateComputePipelines(bloom threshold)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::BloomThreshold, bloom_pipeline, "BloomThreshold");
+        if (debug_context) debug_context->set_pipeline_name(bloom_pipeline, "Chronon3D.Pipeline.BloomThreshold");
 
         const VkShaderModuleCreateInfo color_adjust_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

@@ -50,6 +50,18 @@ vec4 sample_bilinear(vec2 source, ivec2 size) {
                mix(imageLoad(src_image, p01), imageLoad(src_image, p11), f.x), f.y);
 }
 
+vec4 blend_separable(vec4 src, vec4 dst, uint mode) {
+    float sa = clamp(src.a, 0.0, 1.0);
+    float da = clamp(dst.a, 0.0, 1.0);
+    if (sa <= 0.0) return dst;
+    vec3 blended;
+    if (mode == 3u) blended = src.rgb * dst.rgb;
+    else if (mode == 4u) blended = src.rgb + dst.rgb - src.rgb * dst.rgb;
+    else blended = mix(2.0 * src.rgb * dst.rgb,
+        1.0 - 2.0 * (1.0 - src.rgb) * (1.0 - dst.rgb), step(vec3(0.5), dst.rgb));
+    return vec4(blended, sa + da * (1.0 - sa));
+}
+
 void main() {
     ivec2 pixel = params.dispatch_origin + ivec2(gl_GlobalInvocationID.xy);
     ivec2 dst_size = imageSize(dst_image);
@@ -100,6 +112,8 @@ void main() {
             } else if (inst.blend_mode == 2u) {
                 // Replace
                 accum = src_col;
+            } else if (inst.blend_mode >= 3u && inst.blend_mode <= 5u) {
+                accum = blend_separable(src_col, accum, inst.blend_mode);
             } else {
                 // Normal Source-Over (premultiplied RGBA)
                 accum = src_col + accum * (1.0 - src_col.a);

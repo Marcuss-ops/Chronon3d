@@ -386,6 +386,9 @@ bool try_native_grid(
     params.major_thickness = grid.major_thickness;
     params.major_every = grid.major_every;
     params.centered = grid.centered;
+    params.edge_fade = grid.edge_fade;
+    params.major_glow = grid.major_glow;
+    params.style = static_cast<std::uint32_t>(grid.style);
     params.opacity = state.opacity;
     return backend.fill_grid_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1, params).ok();

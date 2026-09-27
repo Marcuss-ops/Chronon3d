@@ -13,7 +13,9 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 namespace chronon3d::graphics {
@@ -191,7 +193,7 @@ struct CompiledGradient {
 //   - render-plan content fingerprint:  src/render_plan/fingerprint.cpp
 //
 // Field selection AND order are part of the published fingerprint contract
-// ("chronon3d.render-plan.content-fingerprint.v8"): never reorder or extend
+// ("chronon3d.render-plan.content-fingerprint.v18"): never reorder or extend
 // this sequence without bumping that version token in fingerprint.cpp.
 //
 // Sink contract: `sink(field)` accepts GradientType, GradientSpread, Vec2,
@@ -354,6 +356,29 @@ namespace detail {
             gradient.opacity_stops, wrapped);
     }
     return result;
+}
+
+/// Apply stable 8x8 ordered dithering to a sampled linear-light gradient.
+/// This is a renderer quality adjustment, not authored scene state, so it has
+/// no effect on plan fingerprints. Coordinates are pixel-space coordinates.
+[[nodiscard]] inline Color dither_gradient_sample(Color color, f32 x, f32 y) noexcept {
+    constexpr std::array<std::uint8_t, 64> bayer{
+         0, 32,  8, 40,  2, 34, 10, 42,
+        48, 16, 56, 24, 50, 18, 58, 26,
+        12, 44,  4, 36, 14, 46,  6, 38,
+        60, 28, 52, 20, 62, 30, 54, 22,
+         3, 35, 11, 43,  1, 33,  9, 41,
+        51, 19, 59, 27, 49, 17, 57, 25,
+        15, 47,  7, 39, 13, 45,  5, 37,
+        63, 31, 55, 23, 61, 29, 53, 21};
+    const auto ix = static_cast<unsigned>(static_cast<std::int64_t>(std::floor(x))) & 7u;
+    const auto iy = static_cast<unsigned>(static_cast<std::int64_t>(std::floor(y))) & 7u;
+    const f32 offset = ((static_cast<f32>(bayer[iy * 8u + ix]) + 0.5f) / 64.0f - 0.5f)
+        / 255.0f;
+    color.r = std::clamp(color.r + offset, 0.0f, 1.0f);
+    color.g = std::clamp(color.g + offset, 0.0f, 1.0f);
+    color.b = std::clamp(color.b + offset, 0.0f, 1.0f);
+    return color;
 }
 
 [[nodiscard]] inline Color sample_compiled_gradient_radial(

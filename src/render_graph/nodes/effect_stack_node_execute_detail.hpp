@@ -168,7 +168,7 @@ NodeExecResult EffectStackNode::execute(
         // The native glow entry point owns its capability guard. Unsupported
         // backends fall through to their registered software processor.
         if (!native_handled) {
-            native_handled = native_effects::try_native_full_frame_glow(
+            native_handled = native_effects::try_native_full_frame_glow_or_bloom(
             ctx, m_effects, *result, native_clip, native_source,
                 native_source_available ? inputs[0].get() : nullptr);
         }

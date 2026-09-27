@@ -63,6 +63,7 @@ public:
     }
 
     void add_uint64(std::uint64_t value) { add_u64(value); }
+    void add_uint32(std::uint32_t value) { add_u32(value); }
 
     void add_size(std::size_t value) {
         add_u64(static_cast<std::uint64_t>(value));
@@ -177,7 +178,7 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
 // (graphics::write_gradient_identity in <chronon3d/graphics/gradient.hpp>).
 // This sink only encodes that sequence into the canonical byte stream; the
 // stream is byte-identical to the historical inline lambdas; additive
-// render-plan fields are versioned by the current v8 token below.
+// render-plan fields are versioned by the current v19 token below.
 struct CanonicalGradientSink {
     CanonicalPlanWriter& out;
 
@@ -269,6 +270,9 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         out.add_float(backdrop.blur);
         out.add_float(backdrop.brightness);
         out.add_float(backdrop.saturation);
+        out.add_float(backdrop.rim_light);
+        out.add_float(backdrop.refraction);
+        out.add_float(backdrop.surface_noise);
     }
     add_optional(out, style.glow, [](auto& writer, const GlowStyle& glow) {
         writer.add_float(glow.radius);
@@ -836,6 +840,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.radius);
                 out.add_float(effect.glow_intensity);
                 for (const auto value : effect.effect_color) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
+                out.add_float(effect.radius);
+                out.add_float(effect.softness);
+                out.add_float(effect.amount);
+                for (const auto value : effect.effect_color) out.add_float(value);
             } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
                 for (const auto value : effect.light_rays_origin) out.add_float(value);
                 out.add_float(effect.light_rays_length);
@@ -987,7 +996,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v18");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v19");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

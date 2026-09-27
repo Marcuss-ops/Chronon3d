@@ -148,8 +148,13 @@ bool GraphExecutor::execute(
                     return backend.glow_surfaces(
                         params.destination, params.source, params.scratch_horizontal,
                         params.scratch_vertical, params.radius, params.intensity,
-                        Color{params.tint[0], params.tint[1], params.tint[2],
-                              params.tint[3]});
+                              Color{params.tint[0], params.tint[1], params.tint[2],
+                                    params.tint[3]});
+                } else if constexpr (std::is_same_v<P, runtime::BloomPass>) {
+                    return backend.bloom_surfaces(
+                        params.destination, params.source, params.scratch_horizontal,
+                        params.scratch_vertical, params.threshold, params.radius,
+                        params.intensity);
                 } else if constexpr (std::is_same_v<P, runtime::YuvOverlayPass>) {
                     return backend.yuv_overlay_surface(
                         params.destination, params.source, params.format,

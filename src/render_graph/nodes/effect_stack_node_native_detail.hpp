@@ -11,9 +11,8 @@ bool clip_covers_result(const std::optional<raster::BBox>& clip,
            clip->x1 >= bounds.x1 && clip->y1 >= bounds.y1;
 }
 
-// Native and software paths implement the same one-Gaussian Glow contract;
-// this optimization has no quality-mode gate.
-bool try_native_full_frame_glow(RenderGraphContext& ctx,
+// Native Glow/Bloom use caller-planned full-frame surfaces and scratch images.
+bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
                                 const std::optional<raster::BBox>& clip,
@@ -25,15 +24,23 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         return false;
     }
     const auto& instance = effect_stack[0];
-    if (!instance.enabled || instance.effect_type != effects::EffectType::Glow) return false;
-    const auto* params = std::get_if<GlowParams>(&instance.params);
-    const bool valid_glow = params && std::isfinite(params->radius) &&
-        std::isfinite(params->intensity) &&
-        std::isfinite(params->color.r) && std::isfinite(params->color.g) &&
-        std::isfinite(params->color.b) && std::isfinite(params->color.a) &&
-        params->radius >= 0.0f && params->radius <= 64.0f &&
-        params->intensity >= 0.0f;
-    if (!valid_glow) {
+    if (!instance.enabled) return false;
+    const auto* glow_params = std::get_if<GlowParams>(&instance.params);
+    const auto* bloom_params = std::get_if<BloomParams>(&instance.params);
+    if ((instance.effect_type != effects::EffectType::Glow || !glow_params) &&
+        (instance.effect_type != effects::EffectType::Bloom || !bloom_params))
+        return false;
+    const float radius = glow_params ? glow_params->radius : bloom_params->radius;
+    const float intensity = glow_params ? glow_params->intensity : bloom_params->intensity;
+    const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
+        radius >= 0.0f && radius <= 64.0f && intensity >= 0.0f && intensity <= 4.0f &&
+        (!bloom_params || (std::isfinite(bloom_params->threshold) &&
+                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f)) &&
+        (!glow_params || (std::isfinite(glow_params->color.r) &&
+                          std::isfinite(glow_params->color.g) &&
+                          std::isfinite(glow_params->color.b) &&
+                          std::isfinite(glow_params->color.a)));
+    if (!valid_params) {
         return false;
     }
 
@@ -130,13 +137,14 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
         return false;
     }
 
-    // A single native Gaussian pass matches the software glow contract.
-    const auto glow = ctx.backend->glow_surfaces(
-        output, source, horizontal, vertical, params->radius,
-        params->intensity, params->color);
-    if (!glow.ok()) {
-        spdlog::error("[native-glow] radius={} failed: {}",
-                      params->radius, glow.error().message);
+    const auto native_effect = glow_params
+        ? ctx.backend->glow_surfaces(output, source, horizontal, vertical,
+                                     radius, intensity, glow_params->color)
+        : ctx.backend->bloom_surfaces(output, source, horizontal, vertical,
+                                      bloom_params->threshold, radius, intensity);
+    if (!native_effect.ok()) {
+        spdlog::error("[native-effect] radius={} failed: {}",
+                      radius, native_effect.error().message);
         cleanup();
         return false;
     }
@@ -151,6 +159,22 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     ctx.surface_registry->release(vertical);
     result.set_surface_handle(output);
     return true;
+}
+
+// Compatibility entry point used by the adjustment-node implementation.
+bool try_native_full_frame_glow(RenderGraphContext& ctx,
+                                const EffectStack& effect_stack,
+                                Framebuffer& result,
+                                const std::optional<raster::BBox>& clip,
+                                runtime::RenderSurfaceHandle existing_source,
+                                const Framebuffer* existing_source_framebuffer) {
+    if (effect_stack.size() != 1 ||
+        effect_stack[0].effect_type != effects::EffectType::Glow) {
+        return false;
+    }
+    return try_native_full_frame_glow_or_bloom(
+        ctx, effect_stack, result, clip, existing_source,
+        existing_source_framebuffer);
 }
 
 bool try_native_full_frame_tint(RenderGraphContext& ctx,

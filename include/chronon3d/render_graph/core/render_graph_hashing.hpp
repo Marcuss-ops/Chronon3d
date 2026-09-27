@@ -579,7 +579,10 @@ private:
             seed = hash_combine(seed, hash_bytes(&s.grid_background().minor_thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_every, sizeof(i32)));
-            return hash_combine(seed, hash_bytes(&s.grid_background().centered, sizeof(bool)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background().centered, sizeof(bool)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background().edge_fade, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background().major_glow, sizeof(f32)));
+            return hash_combine(seed, hash_value(s.grid_background().style));
         case ShapeType::Mesh:
             seed = hash_combine(seed, hash_string(s.mesh_shape().reference.path()));
             seed = hash_combine(seed, hash_string(s.mesh_shape().reference.owner()));

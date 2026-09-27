@@ -15,6 +15,7 @@
 #endif
 
 #include <array>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <span>
@@ -388,11 +389,13 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
     runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
     BlendMode mode, CompositeOperator op,
     const std::optional<raster::BBox>& clip) {
-    if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
+    if ((mode != BlendMode::Normal && mode != BlendMode::Add &&
+         mode != BlendMode::Multiply && mode != BlendMode::Screen &&
+         mode != BlendMode::Overlay) ||
         op != CompositeOperator::SourceOver) {
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
-            "VulkanBackend::composite_surfaces: only Normal/Add SourceOver is implemented"));
+            "VulkanBackend::composite_surfaces: blend mode/operator is unsupported"));
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
@@ -534,7 +537,8 @@ graph::RenderOpResult VulkanBackend::fill_grid_surface(
     const Color line_color{grid_linear.r, grid_linear.g, grid_linear.b,
                            minor_alpha};
     const Vec4 shape{5.0f, std::max(params.spacing, 1.0f),
-                     static_cast<float>(params.major_every), 0.0f};
+                     static_cast<float>(params.major_every),
+                     params.style == 1U ? 1.0f : 0.0f};
     const Vec4 line{params.offset.x, params.offset.y,
                     std::max(params.minor_thickness, 0.0f),
                     std::max(params.major_thickness, 0.0f)};
@@ -542,7 +546,11 @@ graph::RenderOpResult VulkanBackend::fill_grid_surface(
     vertices[0] = Vec2{bg_linear.r, bg_linear.g};
     vertices[1] = Vec2{bg_linear.b, bg_alpha};
     vertices[2] = Vec2{params.size.x, params.size.y};
-    vertices[3] = Vec2{params.centered ? 1.0f : 0.0f, 0.0f};
+    const float edge_fade = std::isfinite(params.edge_fade)
+        ? std::max(params.edge_fade, 0.0f) : 0.0f;
+    vertices[3] = Vec2{params.centered ? 1.0f : 0.0f, edge_fade};
+    vertices[4] = Vec2{std::isfinite(params.major_glow)
+        ? std::max(params.major_glow, 0.0f) : 0.0f, 0.0f};
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_grid(destination, x0, y0, x1, y1,
@@ -625,6 +633,28 @@ graph::RenderOpResult VulkanBackend::glow_surfaces(
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::glow_surfaces: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::bloom_surfaces(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle scratch_horizontal,
+    runtime::RenderSurfaceHandle scratch_vertical,
+    float threshold, float radius, float intensity) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 4> touched{
+        destination, source, scratch_horizontal, scratch_vertical};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->bloom(destination, source, scratch_horizontal, scratch_vertical,
+                      threshold, radius, intensity);
+    });
+#else
+    (void)destination; (void)source; (void)scratch_horizontal;
+    (void)scratch_vertical; (void)threshold; (void)radius; (void)intensity;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::bloom_surfaces: Vulkan support is disabled"));
 #endif
 }
 
@@ -752,6 +782,15 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
     std::span<const runtime::RenderSurfaceHandle> resources,
     std::span<const float> transforms,
     std::span<const float> paints) {
+    for (const auto& instance : instances) {
+        if (instance.blend != BlendMode::Normal && instance.blend != BlendMode::Add &&
+            instance.blend != BlendMode::Multiply && instance.blend != BlendMode::Screen &&
+            instance.blend != BlendMode::Overlay) {
+            return graph::RenderOpResult(graph::make_render_backend_error(
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "VulkanBackend::execute_layer_batch: blend mode is unsupported"));
+        }
+    }
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Every layer source surface is resolved through resolve_image() by the
     // op, so the compiled resource table is part of the leased read set.

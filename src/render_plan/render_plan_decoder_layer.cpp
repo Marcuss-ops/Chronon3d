@@ -721,7 +721,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     if (layer.type == LayerType::Mesh) {
-        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
+        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "background_look", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
             if (value.contains(key))
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
         if (value.contains("animation") && value.at("animation").is_object() &&
@@ -2112,6 +2112,26 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
                     !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
                     throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
+            } else if (kind == "vignette") {
+                effect.kind = LayerPlan::EffectKindPlan::Vignette;
+                effect.effect_color = {0.0f, 0.0f, 0.0f, 1.0f};
+                effect.radius = raw_effect.value("radius", 0.5f);
+                effect.softness = raw_effect.value("softness", 0.5f);
+                effect.amount = raw_effect.value("amount", 1.0f);
+                if (raw_effect.contains("color")) {
+                    const auto& color = raw_effect.at("color");
+                    if (!color.is_array() || color.size() != 4)
+                        throw std::runtime_error("Vignette color must contain [r, g, b, a]");
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        effect.effect_color[i] = color.at(i).get<float>();
+                        if (!std::isfinite(effect.effect_color[i]) || effect.effect_color[i] < 0.0f || effect.effect_color[i] > 1.0f)
+                            throw std::runtime_error("Vignette color components must be in [0, 1]");
+                    }
+                }
+                if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 1.0f ||
+                    !std::isfinite(effect.softness) || effect.softness < 0.0f || effect.softness > 1.0f ||
+                    !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
+                    throw std::runtime_error("Vignette radius, softness, and amount must be in [0, 1]");
             } else if (kind == "light_rays") {
                 effect.kind = LayerPlan::EffectKindPlan::LightRays;
                 if (raw_effect.contains("origin")) {
@@ -2336,11 +2356,112 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             layer.effects.push_back(std::move(effect));
         }
     }
+    if (value.contains("background_look")) {
+        const auto& raw_look = value.at("background_look");
+        if (!raw_look.is_object())
+            throw std::runtime_error("background_look must be an object");
+        const auto look_type = raw_look.value("type", std::string{});
+        const auto add_effect = [&](LayerPlan::EffectPlan effect) {
+            if (layer.effects.size() >= 64)
+                throw std::runtime_error("background_look expansion exceeds the 64-effect layer limit");
+            layer.effects.push_back(std::move(effect));
+        };
+        if (look_type == "film_grade") {
+            LayerPlan::EffectPlan grain;
+            grain.kind = LayerPlan::EffectKindPlan::Noise;
+            grain.amount = raw_look.value("grain", 0.06f);
+            grain.seed = raw_look.value("seed", std::uint32_t{0});
+            grain.noise_size = raw_look.value("grain_size", 1.0f);
+            grain.grain_shadow_response = raw_look.value("shadow_response", 0.7f);
+            grain.grain_midtone_response = raw_look.value("midtone_response", 1.0f);
+            grain.grain_highlight_response = raw_look.value("highlight_response", 0.65f);
+            if (!std::isfinite(grain.amount) || grain.amount < 0.0f || grain.amount > 1.0f ||
+                !std::isfinite(grain.noise_size) || grain.noise_size <= 0.0f || grain.noise_size > 128.0f ||
+                !std::isfinite(grain.grain_shadow_response) || grain.grain_shadow_response < 0.0f || grain.grain_shadow_response > 4.0f ||
+                !std::isfinite(grain.grain_midtone_response) || grain.grain_midtone_response < 0.0f || grain.grain_midtone_response > 4.0f ||
+                !std::isfinite(grain.grain_highlight_response) || grain.grain_highlight_response < 0.0f || grain.grain_highlight_response > 4.0f)
+                throw std::runtime_error("film_grade grain settings are outside supported ranges");
+            add_effect(std::move(grain));
+            LayerPlan::EffectPlan vignette;
+            vignette.kind = LayerPlan::EffectKindPlan::Vignette;
+            vignette.effect_color = {0.0f, 0.0f, 0.0f, 1.0f};
+            vignette.amount = raw_look.value("vignette", 0.22f);
+            vignette.radius = raw_look.value("vignette_radius", 0.72f);
+            vignette.softness = raw_look.value("vignette_softness", 0.55f);
+            if (!std::isfinite(vignette.amount) || vignette.amount < 0.0f || vignette.amount > 1.0f ||
+                !std::isfinite(vignette.radius) || vignette.radius < 0.0f || vignette.radius > 1.0f ||
+                !std::isfinite(vignette.softness) || vignette.softness < 0.0f || vignette.softness > 1.0f)
+                throw std::runtime_error("film_grade vignette settings are outside [0, 1]");
+            add_effect(std::move(vignette));
+            if (raw_look.contains("lut")) {
+                LayerPlan::EffectPlan lut;
+                lut.kind = LayerPlan::EffectKindPlan::Lut3D;
+                lut.asset = raw_look.at("lut").get<std::string>();
+                lut.amount = raw_look.value("lut_amount", 1.0f);
+                if (lut.asset.empty() || !std::isfinite(lut.amount) || lut.amount < 0.0f || lut.amount > 1.0f)
+                    throw std::runtime_error("film_grade LUT requires a non-empty asset and amount in [0, 1]");
+                if (layer.effects.size() >= 64)
+                    throw std::runtime_error("background_look expansion exceeds the 64-effect layer limit");
+                layer.effects.insert(layer.effects.end() - 2, std::move(lut));
+            }
+        } else if (look_type == "aurora") {
+            LayerPlan::EffectPlan noise;
+            noise.kind = LayerPlan::EffectKindPlan::FractalNoise;
+            noise.seed = raw_look.value("seed", std::uint32_t{0});
+            noise.octaves = raw_look.value("octaves", 5U);
+            noise.frequency = raw_look.value("frequency", 0.009f);
+            noise.amplitude = raw_look.value("amplitude", 0.55f);
+            noise.evolution = raw_look.value("evolution", 0.12f);
+            noise.contrast = raw_look.value("contrast", 1.4f);
+            noise.rgb_noise = true;
+            if (noise.octaves == 0 || noise.octaves > 16 || !std::isfinite(noise.frequency) || noise.frequency <= 0.0f || noise.frequency > 10.0f ||
+                !std::isfinite(noise.amplitude) || noise.amplitude < 0.0f || noise.amplitude > 4.0f || !std::isfinite(noise.evolution) || std::abs(noise.evolution) > 10000.0f ||
+                !std::isfinite(noise.contrast) || noise.contrast < 0.0f || noise.contrast > 16.0f)
+                throw std::runtime_error("aurora settings are outside supported FractalNoise ranges");
+            add_effect(std::move(noise));
+            LayerPlan::EffectPlan warp;
+            warp.kind = LayerPlan::EffectKindPlan::WaveWarp;
+            warp.amount = raw_look.value("warp", 0.025f);
+            warp.warp_wavelength = raw_look.value("wavelength", 0.35f);
+            warp.warp_speed = raw_look.value("speed", 0.3f);
+            warp.wave_type = 0;
+            if (!std::isfinite(warp.amount) || std::abs(warp.amount) > 1.0f || !std::isfinite(warp.warp_wavelength) || warp.warp_wavelength <= 0.0f ||
+                !std::isfinite(warp.warp_speed) || std::abs(warp.warp_speed) > 1000.0f)
+                throw std::runtime_error("aurora warp settings are outside supported WaveWarp ranges");
+            add_effect(std::move(warp));
+        } else if (look_type == "liquid") {
+            LayerPlan::EffectPlan wave;
+            wave.kind = LayerPlan::EffectKindPlan::WaveWarp;
+            wave.amount = raw_look.value("amplitude", 0.025f);
+            wave.warp_wavelength = raw_look.value("wavelength", 0.2f);
+            wave.warp_speed = raw_look.value("speed", 0.8f);
+            if (!std::isfinite(wave.amount) || std::abs(wave.amount) > 1.0f || !std::isfinite(wave.warp_wavelength) || wave.warp_wavelength <= 0.0f ||
+                !std::isfinite(wave.warp_speed) || std::abs(wave.warp_speed) > 1000.0f)
+                throw std::runtime_error("liquid settings are outside supported WaveWarp ranges");
+            add_effect(std::move(wave));
+            LayerPlan::EffectPlan ripple;
+            ripple.kind = LayerPlan::EffectKindPlan::Ripple;
+            ripple.warp_center = {0.5f, 0.5f};
+            ripple.warp_radius = raw_look.value("radius", 0.55f);
+            ripple.warp_speed = raw_look.value("ripple_speed", 0.35f);
+            ripple.warp_width = raw_look.value("ripple_width", 0.08f);
+            ripple.warp_height = raw_look.value("ripple_height", 0.015f);
+            ripple.warp_damping = raw_look.value("damping", 0.6f);
+            if (!std::isfinite(ripple.warp_radius) || ripple.warp_radius <= 0.0f || ripple.warp_radius > 2.0f ||
+                !std::isfinite(ripple.warp_speed) || std::abs(ripple.warp_speed) > 1000.0f || !std::isfinite(ripple.warp_width) || ripple.warp_width <= 0.0f ||
+                !std::isfinite(ripple.warp_height) || std::abs(ripple.warp_height) > 1.0f || !std::isfinite(ripple.warp_damping) || ripple.warp_damping < 0.0f || ripple.warp_damping > 1.0f)
+                throw std::runtime_error("liquid ripple settings are outside supported ranges");
+            add_effect(std::move(ripple));
+        } else {
+            throw std::runtime_error("background_look.type must be film_grade, aurora, or liquid");
+        }
+    }
     if (layer.type == LayerType::Adjustment) {
         if (layer.effects.empty())
             throw std::runtime_error("adjustment layers require at least one effect");
         for (auto it = value.begin(); it != value.end(); ++it) {
-            if (it.key() != "id" && it.key() != "type" && it.key() != "effects")
+            if (it.key() != "id" && it.key() != "type" && it.key() != "effects" &&
+                it.key() != "background_look")
                 throw std::runtime_error(
                     "adjustment layers support only 'id', 'type', and a non-empty 'effects' stack; found '" +
                     it.key() + "'");
@@ -2474,10 +2595,16 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             backdrop.blur = raw_backdrop.at("blur").get<float>();
             backdrop.brightness = raw_backdrop.value("brightness", 1.0f);
             backdrop.saturation = raw_backdrop.value("saturation", 1.0f);
+            backdrop.rim_light = raw_backdrop.value("rim_light", 0.0f);
+            backdrop.refraction = raw_backdrop.value("refraction", 0.0f);
+            backdrop.surface_noise = raw_backdrop.value("surface_noise", 0.0f);
             if (!std::isfinite(backdrop.blur) || backdrop.blur < 0.0f || backdrop.blur > 64.0f ||
                 !std::isfinite(backdrop.brightness) || backdrop.brightness < 0.0f || backdrop.brightness > 4.0f ||
-                !std::isfinite(backdrop.saturation) || backdrop.saturation < 0.0f || backdrop.saturation > 4.0f)
-                throw std::runtime_error("style.backdrop blur, brightness, and saturation must be finite and within supported bounds");
+                !std::isfinite(backdrop.saturation) || backdrop.saturation < 0.0f || backdrop.saturation > 4.0f ||
+                !std::isfinite(backdrop.rim_light) || backdrop.rim_light < 0.0f || backdrop.rim_light > 2.0f ||
+                !std::isfinite(backdrop.refraction) || backdrop.refraction < 0.0f || backdrop.refraction > 4.0f ||
+                !std::isfinite(backdrop.surface_noise) || backdrop.surface_noise < 0.0f || backdrop.surface_noise > 0.1f)
+                throw std::runtime_error("style.backdrop controls are non-finite or outside supported bounds");
             style_plan.backdrop = backdrop;
         }
         if (style.contains("glow")) {

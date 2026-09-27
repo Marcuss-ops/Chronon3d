@@ -103,8 +103,6 @@ struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     PathRepeaterPlan repeater{};
     float radius{0.0f};
-    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
-    bool device_frame_chrome{true};
     float size{0.0f};
     float points_per_unit{0.1f};
     bool smooth{false};
@@ -182,6 +180,8 @@ struct ShapeContentPlan {
     std::optional<std::string> lottie_asset;
     float radius{0.0f};
     std::optional<std::array<float, 4>> corner_radius;
+    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
+    bool device_frame_chrome{true};
     std::optional<std::array<float, 4>> fill_color;
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;
@@ -241,6 +241,9 @@ struct BackdropBlurStyle {
     float blur{16.0f};
     float brightness{1.0f};
     float saturation{1.0f};
+    float rim_light{0.0f};
+    float refraction{0.0f};
+    float surface_noise{0.0f};
 };
 
 // Per-text halo parameters. This is distinct from ShadowStyle: shadow is a

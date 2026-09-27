@@ -421,9 +421,9 @@ TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key over
     if (!timing_plan) INFO(timing_plan.error().message);
     REQUIRE(timing_plan);
     {
-    const auto& keys2 = timing_plan->layers[0].animation->tracks[0].keyframes;
-    CHECK(keys2[0].interpolation == "auto_bezier");
-    CHECK(keys2[1].roving);
+        const auto& timing_keys = timing_plan->layers[0].animation->tracks[0].keyframes;
+        CHECK(timing_keys[0].interpolation == "auto_bezier");
+        CHECK(timing_keys[1].roving);
     }
 
     source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["interpolation"] = "bezier";
@@ -686,6 +686,40 @@ TEST_CASE("render plan decodes deterministic noise and procedural background eff
     changed = source;
     changed["layers"][0]["effects"][1]["shadow_response"] = 5.0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+}
+
+TEST_CASE("render plan expands typed cinematic background looks into fingerprinted effects") {
+    const auto base = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"background","type":"shape","size":[640,360],
+        "shape":{"type":"rect","fill":[0,0,0,1]},
+        "background_look":{"type":"film_grade","grain":0.04,"seed":73,"vignette":0.18}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(base);
+    if (!plan) INFO(plan.error().message);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].effects.size() == 2);
+    CHECK(plan->layers[0].effects[0].kind ==
+          chronon3d::render_plan::LayerPlan::EffectKindPlan::Noise);
+    CHECK(plan->layers[0].effects[1].kind ==
+          chronon3d::render_plan::LayerPlan::EffectKindPlan::Vignette);
+    auto changed = base;
+    changed["layers"][0]["background_look"]["seed"] = 74;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
+
+    for (const auto& look : {
+             nlohmann::json{{"type", "aurora"}},
+             nlohmann::json{{"type", "liquid"}}}) {
+        auto variant = base;
+        variant["layers"][0]["background_look"] = look;
+        const auto decoded = chronon3d::render_plan::decode_render_plan(variant);
+        if (!decoded) INFO(decoded.error().message);
+        REQUIRE(decoded.has_value());
+        CHECK(decoded->layers[0].effects.size() == 2);
+    }
 }
 
 TEST_CASE("render plan V3 decodes bounded LightRays parameters and fingerprints each control") {
@@ -2195,12 +2229,22 @@ TEST_CASE("Render plan declares PNG sequence and GIF output formats") {
 
 TEST_CASE("Backdrop blur is accepted only on shape layers with bounded parameters") {
     auto shape = render_plan_test::shape_layer({{"type", "rounded_rect"}});
-    shape["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0}}}};
+    shape["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0},
+        {"rim_light", 0.65}, {"refraction", 1.25}, {"surface_noise", 0.025}}}};
     auto plan = render_plan_test::base_plan({shape});
     auto decoded = chronon3d::render_plan::decode_render_plan(plan);
     REQUIRE(decoded);
     REQUIRE(decoded->layers[0].style->backdrop);
     CHECK(decoded->layers[0].style->backdrop->blur == doctest::Approx(16.0f));
+    CHECK(decoded->layers[0].style->backdrop->rim_light == doctest::Approx(0.65f));
+    CHECK(decoded->layers[0].style->backdrop->refraction == doctest::Approx(1.25f));
+    CHECK(decoded->layers[0].style->backdrop->surface_noise == doctest::Approx(0.025f));
+    for (const auto& [field, value] : std::array<std::pair<const char*, double>, 3>{{
+             {"rim_light", 2.1}, {"refraction", 4.1}, {"surface_noise", 0.11}}}) {
+        auto invalid = plan;
+        invalid["layers"][0]["style"]["backdrop"][field] = value;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+    }
     plan["layers"][0]["style"]["backdrop"]["blur"] = 65.0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
     plan = render_plan_test::base_plan({{{"id", "txt"}, {"type", "text"}, {"text", "x"},

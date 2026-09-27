@@ -30,7 +30,16 @@ struct ErrorHandler final : nlohmann::json_schema::basic_error_handler {
 
 std::vector<validation::RawSchemaError> validate_against(
     const nlohmann::json& instance, const nlohmann::json& schema) {
-    nlohmann::json_schema::json_validator validator(schema);
+    const nlohmann::json_schema::schema_loader loader =
+        [](const nlohmann::json_uri& id, nlohmann::json& loaded) {
+            if (id.path().ends_with("chronon.render-plan.v2.schema.json")) {
+                loaded = render_plan_v2_schema();
+                return;
+            }
+            throw std::runtime_error("unsupported embedded render-plan schema reference: " +
+                                     id.location());
+        };
+    nlohmann::json_schema::json_validator validator(schema, loader);
     ErrorHandler handler;
     validator.validate(instance, handler);
     return std::move(handler.errors);
@@ -124,6 +133,9 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // from the frozen V2 projection while retaining validation of all
         // shared animation properties.
         layer.erase("fill_gradient_animation");
+        // Typed background looks are expanded by the V3 decoder and are not
+        // representable in the frozen V2 projection.
+        layer.erase("background_look");
         layer.erase("transition_in");
         layer.erase("transition_out");
         if (layer.contains("animation") && layer["animation"].is_object() &&

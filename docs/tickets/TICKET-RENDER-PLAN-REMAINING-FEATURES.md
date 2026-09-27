@@ -175,6 +175,18 @@ tests authored but not executed remain marked `NOT RUN`.
 
 ## Progress log
 
+- **v9 — 2026-09-27:** started the cinematic-background follow-up in the
+  available Chronon3D checkout: added deterministic ordered gradient dither,
+  GridBackground edge fade/major glow/isometric geometry with CPU and Vulkan
+  shader replicas, typed `background_look` expansion for film_grade/aurora/
+  liquid, Vignette lowering, fingerprint v19, glass backdrop rim/refraction/noise,
+  and GPU Multiply/Screen/Overlay
+  shader modes. Added Vulkan bright-pass thresholding and native bloom dispatch
+  through the effect stack and command planner. Focused regressions are
+  authored; builds and Vulkan parity are pending. The bounded particle/bokeh
+  contract is in [TICKET-CINEMATIC-PARTICLES-BOKEH](TICKET-CINEMATIC-PARTICLES-BOKEH.md);
+  ChrononMotion3D/OfflineBaking is not present in this checkout.
+
 - **v8 — 2026-09-27:** completed the source-level acceptance audit and closed
   the available Flow/Grid runtime contract. Chart data morph and PCM baking are
   recorded as unavailable because their typed chart and OfflineBaking/audio

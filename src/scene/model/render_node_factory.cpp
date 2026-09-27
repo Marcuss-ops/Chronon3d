@@ -184,6 +184,9 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     node.shape.grid_background().major_thickness = p.major_thickness;
     node.shape.grid_background().major_every = p.major_every;
     node.shape.grid_background().centered = p.centered;
+    node.shape.grid_background().edge_fade = p.edge_fade;
+    node.shape.grid_background().major_glow = p.major_glow;
+    node.shape.grid_background().style = p.style;
     node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
     node.color = p.bg_color;
     return node;
