@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/presets/text/motion.hpp>
+#include <chronon3d/presets/text/text_motion.hpp>
 
 using namespace chronon3d;
 
