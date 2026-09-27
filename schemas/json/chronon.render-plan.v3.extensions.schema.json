@@ -66,13 +66,19 @@
                     "type": "array", "minItems": 1,
                     "items": {
                       "type": "object", "additionalProperties": false,
+                      "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
                       "required": ["frame", "value"],
                       "properties": {
-                        "frame": {"type": "integer", "minimum": 0, "maximum": 1000000},
-                        "value": {"type": "number"},
-                        "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                        "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                        "value": { "type": "number" },
+                        "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
                         "easing": { "$ref": "#/$defs/easing" },
-                        "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+                        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                        "roving": { "type": "boolean", "default": false },
+                        "temporal_in_dx": { "type": "number" },
+                        "temporal_in_dy": { "type": "number" },
+                        "temporal_out_dx": { "type": "number" },
+                        "temporal_out_dy": { "type": "number" }
                       }
                     }
                   }
@@ -88,7 +94,25 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "posterize_fps": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
-        "curve": { "type": "array", "minItems": 2, "items": { "type": "object", "additionalProperties": false, "required": ["frame", "value"], "properties": { "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "value": { "type": "number", "minimum": 0, "maximum": 1 }, "interpolation": { "enum": ["linear", "hold", "bezier"] }, "easing": { "$ref": "#/$defs/easing" }, "bezier_curve": { "$ref": "#/$defs/bezier_curve" } } } },
+        "curve": { "type": "array", "minItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+            "required": ["frame", "value"],
+            "properties": {
+              "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "value": { "type": "number", "minimum": 0, "maximum": 1 },
+              "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "roving": { "type": "boolean", "default": false },
+              "temporal_in_dx": { "type": "number" },
+              "temporal_in_dy": { "type": "number" },
+              "temporal_out_dx": { "type": "number" },
+              "temporal_out_dy": { "type": "number" }
+            }
+          }
+        },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
       },
@@ -102,8 +126,55 @@
     "bezier_easing_contract": {
       "allOf": [
         { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"] } },
-        { "if": { "required": ["bezier_curve"] }, "then": { "properties": { "easing": { "const": "bezier" } }, "required": ["easing"] } }
+        { "if": { "required": ["bezier_curve"], "properties": { "bezier_curve": { "type": "array" } } }, "then": { "properties": { "easing": { "const": "bezier" } }, "required": ["easing"] } }
       ]
+    },
+    "per_keyframe_timing_contract": {
+      "allOf": [
+        { "if": { "required": ["interpolation"], "properties": { "interpolation": { "enum": ["linear", "hold", "auto_bezier"] } } }, "then": { "not": { "anyOf": [{ "required": ["easing"] }, { "required": ["bezier_curve"] }, { "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] } } },
+        { "if": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } } }, "then": { "anyOf": [{ "required": ["bezier_curve"] }, { "required": ["temporal_in_dx", "temporal_in_dy"] }, { "required": ["temporal_out_dx", "temporal_out_dy"] }], "not": { "required": ["easing"] } } },
+        { "if": { "required": ["bezier_curve"] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }, { "properties": { "roving": { "const": true } } }] } } },
+        { "if": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "properties": { "roving": { "const": true } } } } },
+        { "if": { "required": ["roving"], "properties": { "roving": { "const": true } } }, "then": { "not": { "anyOf": [{ "required": ["bezier_curve"] }, { "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] } } },
+        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"], "not": { "anyOf": [{ "required": ["interpolation"] }, { "properties": { "roving": { "const": true } }] } } } }
+      ]
+    },
+    "camera_track": {
+      "type": "object", "additionalProperties": false,
+      "required": ["property", "keyframes"],
+      "properties": {
+        "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom"] },
+        "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+        "keyframes": {
+          "type": "array", "minItems": 1, "maxItems": 65536,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+            "required": ["frame", "value"],
+            "properties": {
+              "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "value": { "type": "number" },
+              "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "roving": { "type": "boolean", "default": false },
+              "temporal_in_dx": { "type": "number" },
+              "temporal_in_dy": { "type": "number" },
+              "temporal_out_dx": { "type": "number" },
+              "temporal_out_dy": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "camera_animation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tracks"],
+      "properties": {
+        "tracks": { "type": "array", "minItems": 1, "maxItems": 256,
+          "items": { "$ref": "#/$defs/camera_track" } }
+      }
     },
     "easing": {
       "enum": [
@@ -131,6 +202,7 @@
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "additionalProperties": false,
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
             "required": ["frame", "value"],
             "properties": {
               "frame": { "type": "integer", "minimum": 0 },
@@ -140,9 +212,14 @@
                   { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                 ]
               },
-              "interpolation": { "enum": ["linear", "hold", "bezier"] },
+              "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
               "easing": { "$ref": "#/$defs/easing" },
-              "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "roving": { "type": "boolean", "default": false },
+              "temporal_in_dx": { "type": "number" },
+              "temporal_in_dy": { "type": "number" },
+              "temporal_out_dx": { "type": "number" },
+              "temporal_out_dy": { "type": "number" }
             }
           }
         }
@@ -196,6 +273,7 @@
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "additionalProperties": false,
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
             "required": ["frame", "value"],
             "properties": {
               "frame": { "type": "integer", "minimum": 0 },
@@ -205,9 +283,14 @@
                   { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                 ]
               },
-              "interpolation": { "enum": ["linear", "hold", "bezier"] },
+              "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
               "easing": { "$ref": "#/$defs/easing" },
-              "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "roving": { "type": "boolean", "default": false },
+              "temporal_in_dx": { "type": "number" },
+              "temporal_in_dy": { "type": "number" },
+              "temporal_out_dx": { "type": "number" },
+              "temporal_out_dy": { "type": "number" }
             }
           }
         }
@@ -446,13 +529,19 @@
                             "type": "array", "minItems": 1, "maxItems": 65536,
                             "items": {
                               "type": "object", "additionalProperties": false,
+                              "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
                               "required": ["frame", "value"],
                               "properties": {
                                 "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
                                 "value": { "type": "number", "minimum": 0, "maximum": 1 },
-                                "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                                "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
                                 "easing": { "$ref": "#/$defs/easing" },
-                                "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+                                "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                                "roving": { "type": "boolean", "default": false },
+                                "temporal_in_dx": { "type": "number" },
+                                "temporal_in_dy": { "type": "number" },
+                                "temporal_out_dx": { "type": "number" },
+                                "temporal_out_dy": { "type": "number" }
                               }
                             }
                           }
@@ -483,6 +572,8 @@
       "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
       "additionalProperties": { "type": ["string", "number"] }
     },
+    "camera": { "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera" },
+    "camera_animation": { "$ref": "#/$defs/camera_animation" },
     "temporal_motion_blur": {
       "type": "object", "additionalProperties": false,
       "properties": {
@@ -647,15 +738,20 @@
                     "type": "array", "minItems": 1, "maxItems": 65536,
                     "items": {
                       "type": "object", "additionalProperties": false,
+                      "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
                       "required": ["frame", "value"],
                       "properties": {
                         "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
-                        "value": { "type": "number", "minimum": 0, "maximum": 1000000 }
-                      ,
-                "interpolation": { "enum": ["linear", "hold", "bezier"] },
-                "easing": { "$ref": "#/$defs/easing" },
-                "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
-              }
+                        "value": { "type": "number", "minimum": 0, "maximum": 1000000 },
+                        "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+                        "easing": { "$ref": "#/$defs/easing" },
+                        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                        "roving": { "type": "boolean", "default": false },
+                        "temporal_in_dx": { "type": "number" },
+                        "temporal_in_dy": { "type": "number" },
+                        "temporal_out_dx": { "type": "number" },
+                        "temporal_out_dy": { "type": "number" }
+                      }
                     }
                   }
                 }
@@ -672,6 +768,7 @@
                 "type": "array", "minItems": 1,
                 "items": {
                   "type": "object", "additionalProperties": false,
+                  "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
                   "required": ["property", "keyframes"],
                   "properties": {
                     "property": { "enum": ["position", "position_x", "position_y", "position_z", "scale", "scale_x", "scale_y", "scale_z", "rotation", "rotation_x", "rotation_y", "rotation_z", "opacity", "blur", "stroke_dash_offset", "fill_color"] },
@@ -681,6 +778,7 @@
                       "type": "array", "minItems": 1, "maxItems": 65536,
                       "items": {
                         "type": "object", "additionalProperties": false,
+                        "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
                         "required": ["frame", "value"],
                         "properties": {
                           "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
@@ -690,9 +788,14 @@
                               { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "number" } }
                             ]
                           },
-                          "interpolation": { "enum": ["linear", "hold", "bezier"] },
+                          "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
                           "easing": { "$ref": "#/$defs/easing" },
-                          "bezier_curve": { "$ref": "#/$defs/bezier_curve" }
+                          "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                          "roving": { "type": "boolean", "default": false },
+                          "temporal_in_dx": { "type": "number" },
+                          "temporal_in_dy": { "type": "number" },
+                          "temporal_out_dx": { "type": "number" },
+                          "temporal_out_dy": { "type": "number" }
                         }
                       }
                     }
@@ -715,12 +818,12 @@
             "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
             "properties": {
               "easing": { "$ref": "#/$defs/easing" },
-              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
-              "keyframes": {
-                "type": "array", "minItems": 1, "maxItems": 65536,
-                "items": {
-                  "type": "object", "additionalProperties": false,
-                  "required": ["frame", "value"],
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },                        "keyframes": {
+                          "type": "array", "minItems": 1, "maxItems": 65536,
+                          "items": {
+                            "type": "object", "additionalProperties": false,
+                            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+                            "required": ["frame", "value"],
                   "properties": {
                     "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
                     "value": { "$ref": "#/$defs/gradient" }

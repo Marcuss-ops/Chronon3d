@@ -305,7 +305,10 @@ TEST_CASE("Per-key timing fields participate in render-plan fingerprint") {
     const std::vector<nlohmann::json> changes{
         [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["interpolation"] = "hold"; return p; }(plan),
         [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["easing"] = "in_quad"; return p; }(plan),
-        [](auto p) { auto& k=p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]; k["easing"]="bezier"; k["bezier_curve"]={0.2,0.0,0.8,1.0}; return p; }(plan)
+        [](auto p) { auto& k=p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]; k["easing"]="bezier"; k["bezier_curve"]={0.2,0.0,0.8,1.0}; return p; }(plan),
+        [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["roving"] = true; return p; }(plan),
+        [](auto p) { auto& k=p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]; k["interpolation"]="bezier"; k["temporal_out_dx"]=2.0; k["temporal_out_dy"]=0.5; return p; }(plan),
+        [](auto p) { p["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["interpolation"] = "auto_bezier"; return p; }(plan)
     };
     for (const auto& changed : changes) {
         const auto decoded = render_plan::decode_render_plan(changed);

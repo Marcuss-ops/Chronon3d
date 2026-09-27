@@ -1297,6 +1297,45 @@ TEST_CASE("render_plan_compiler: animation tracks map to animated transforms") {
     CHECK(evaluated.value().scene.layers().front().anim_transform.opacity.is_animated());
 }
 
+TEST_CASE("render_plan_compiler: scalar temporal handles and AutoBezier lower to AnimatedValue") {
+    using namespace chronon3d;
+    assets::AssetResolver resolver;
+    render_plan::LayerPlan layer;
+    layer.id = "scalar-timing";
+    layer.type = render_plan::LayerType::Color;
+    layer.color = {1, 1, 1, 1};
+    render_plan::AnimationTrackPlan track;
+    track.property = "opacity";
+    render_plan::AnimationKeyframePlan start;
+    start.frame = Frame{0};
+    start.value = {0.0f};
+    start.interpolation = "auto_bezier";
+    render_plan::AnimationKeyframePlan middle;
+    middle.frame = Frame{10};
+    middle.value = {0.5f};
+    middle.roving = true;
+    render_plan::AnimationKeyframePlan end;
+    end.frame = Frame{20};
+    end.value = {1.0f};
+    track.keyframes = {start, middle, end};
+    layer.animation = render_plan::AnimationPlan{.tracks = {track}};
+    render_plan::RenderPlan plan;
+    plan.job_id = "scalar-timing";
+    plan.canvas = {.width = 320, .height = 180, .fps = FrameRate{30, 1},
+                   .duration = Frame{20}};
+    plan.layers.push_back(std::move(layer));
+    auto prepared = render_plan::compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{5});
+    REQUIRE(evaluated);
+    const auto& opacity = evaluated.value().scene.layers().front().anim_transform.opacity;
+    REQUIRE(opacity.keyframes().size() == 3);
+    CHECK(opacity.keyframes()[1].interp == InterpMode::AutoBezier);
+    CHECK(opacity.keyframes()[1].roving);
+    CHECK(opacity.keyframes()[1].frame == Frame{10});
+}
+
 TEST_CASE("render_plan_compiler: position_x and position_y merge correctly (diagonal drift)") {
     chronon3d::assets::AssetResolver resolver;
 

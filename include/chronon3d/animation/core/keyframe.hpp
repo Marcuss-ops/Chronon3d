@@ -50,6 +50,12 @@ struct Keyframe {
     f32 temporal_out_dx{0.0f};
     f32 temporal_out_dy{0.0f};
 
+    // Vector-valued temporal handles used by vector AutoBezier tracks. Authored
+    // scalar dy values are broadcast when no component-wise handle is present.
+    T temporal_in_value{};
+    T temporal_out_value{};
+    bool has_vector_temporal_handles{false};
+
     // Spatial bezier handles: offsets from `value` that control the shape
     // of the cubic bezier path through this keyframe.
     // out_handle → outgoing tangent (pulls the curve toward this point)
