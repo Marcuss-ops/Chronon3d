@@ -8,6 +8,7 @@
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/math/color.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -16,6 +17,19 @@
 #include <vector>
 
 namespace chronon3d::assets {
+
+inline constexpr std::uint64_t kMeshLoaderV1MaxGlbBytes = 64ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t kMeshLoaderV1MaxJsonBytes = 16ULL * 1024ULL * 1024ULL;
+inline constexpr std::size_t kMeshLoaderV1MaxNodes = 100000;
+inline constexpr std::size_t kMeshLoaderV1MaxScenes = 4096;
+inline constexpr std::size_t kMeshLoaderV1MaxSceneDepth = 256;
+inline constexpr std::size_t kMeshLoaderV1MaxInstances = 4096;
+inline constexpr std::size_t kMeshLoaderV1MaxParts = 8192;
+inline constexpr std::size_t kMeshLoaderV1MaxVertices = 1000000;
+inline constexpr std::size_t kMeshLoaderV1MaxIndices = 3000000;
+inline constexpr std::size_t kMeshLoaderV1MaxMaterials = 4096;
+inline constexpr std::size_t kMeshLoaderV1MaxImages = 256;
+inline constexpr std::size_t kMeshLoaderV1MaxTextures = 256;
 
 /// Stable preparation identity for a resolved mesh asset.
 /// The content digest is authoritative; path/size/time are retained for
@@ -45,7 +59,15 @@ struct MeshLoadError {
     std::string message;
 };
 
-/// One prepared primitive from a GLB mesh.
+/// One prepared primitive from a static GLB scene instance. MeshLoader V1
+/// accepts self-contained GLB up to 64 MiB (JSON chunk up to 16 MiB), with
+/// TRIANGLES primitives, POSITION and optional NORMAL/TEXCOORD_0, indices,
+/// base-color materials, embedded PNG/JPEG images, and static node transforms.
+/// It caps scenes, scene nodes/depth, mesh instances/parts, aggregate
+/// vertices/indices, materials, images, and textures using the
+/// `kMeshLoaderV1Max*` constants below. glTF JSON + external
+/// buffers, animation clips, skins, and morph targets are outside this static
+/// preparation contract.
 struct MeshPart {
     std::string name;
     std::shared_ptr<const Mesh> geometry;

@@ -419,6 +419,21 @@ private:
                 seed = hash_combine(seed, hash_value(p->block_size));
             break;
         }
+        case ChromaticAberration: {
+            if (auto* p = std::get_if<ChromaticAberrationParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->red_offset));
+                seed = hash_combine(seed, hash_value(p->blue_offset));
+            }
+            break;
+        }
+        case Halftone: {
+            if (auto* p = std::get_if<HalftoneParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->size));
+                seed = hash_combine(seed, hash_value(p->angle_degrees));
+                seed = hash_combine(seed, hash_value(p->amount));
+            }
+            break;
+        }
         case Unknown:
             break;
         }
@@ -437,11 +452,30 @@ private:
     seed = hash_combine(seed, hash_value(m.feather));
     seed = hash_combine(seed, hash_value(m.expansion));
     seed = hash_combine(seed, hash_value(m.inverted));
+    seed = hash_combine(seed, hash_value(m.path.size()));
     for (const auto& command : m.path) {
         seed = hash_combine(seed, hash_value(static_cast<int>(command.type)));
         seed = hash_combine(seed, hash_vec2(command.p0));
         seed = hash_combine(seed, hash_vec2(command.p1));
         seed = hash_combine(seed, hash_vec2(command.p2));
+    }
+    seed = hash_combine(seed, hash_value(m.operations.size()));
+    for (const auto& operation : m.operations) {
+        seed = hash_combine(seed, hash_value(static_cast<int>(operation.mode)));
+        seed = hash_combine(seed, hash_value(static_cast<int>(operation.type)));
+        seed = hash_combine(seed, hash_vec3(operation.pos));
+        seed = hash_combine(seed, hash_vec2(operation.size));
+        seed = hash_combine(seed, hash_value(operation.radius));
+        seed = hash_combine(seed, hash_value(operation.feather));
+        seed = hash_combine(seed, hash_value(operation.expansion));
+        seed = hash_combine(seed, hash_value(operation.inverted));
+        seed = hash_combine(seed, hash_value(operation.path.size()));
+        for (const auto& command : operation.path) {
+            seed = hash_combine(seed, hash_value(static_cast<int>(command.type)));
+            seed = hash_combine(seed, hash_vec2(command.p0));
+            seed = hash_combine(seed, hash_vec2(command.p1));
+            seed = hash_combine(seed, hash_vec2(command.p2));
+        }
     }
     return seed;
 }

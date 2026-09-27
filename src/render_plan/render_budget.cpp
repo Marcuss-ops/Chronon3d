@@ -85,7 +85,7 @@ std::optional<PlanDecodeError> validate_render_budget(
             if (layer.effects.empty() || !layer.asset.empty() || !layer.source.empty() ||
                 !layer.text.empty() || !layer.text_spans.empty() || !layer.font.empty() ||
                 layer.style || layer.motion_blur || layer.shape || layer.inline_mesh ||
-                layer.particle_emitter || layer.light || layer.path_mask || has_non_default_size ||
+                layer.particle_emitter || layer.light || layer.path_mask || !layer.masks.empty() || has_non_default_size ||
                 has_non_default_color || has_non_default_position || has_non_default_scale ||
                 has_non_default_rotation || layer.size_dimensions != 0 ||
                 layer.position_dimensions != 0 || layer.scale_dimensions != 0 ||
@@ -131,7 +131,7 @@ std::optional<PlanDecodeError> validate_render_budget(
             if ((layer.type != LayerType::Mesh && layer.inline_mesh) ||
                 (layer.type == LayerType::Mesh &&
                  (layer.shape || layer.particle_emitter || layer.light || !layer.text.empty() ||
-                  layer.style || !layer.effects.empty() || layer.path_mask ||
+                  layer.style || !layer.effects.empty() || layer.path_mask || !layer.masks.empty() ||
                   (layer.animation && !layer.animation->tracks.empty()))))
                 return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
             constexpr std::uint64_t kBytesPerVertex = sizeof(InlineMeshVertex);
@@ -180,10 +180,35 @@ std::optional<PlanDecodeError> validate_render_budget(
 
         if (layer.animation) {
             for (const auto& track : layer.animation->tracks) {
+                const auto valid_spring = [](const SpringPlan& spring) {
+                    return is_valid_spring_config(spring) && spring.mass <= 10000.0f &&
+                        spring.stiffness <= 100000.0f && spring.damping <= 100000.0f &&
+                        std::abs(spring.initial_velocity) <= 1000000.0f;
+                };
+                if (track.spring && !valid_spring(*track.spring))
+                    return fail(prefix + ".animation.tracks[].spring", "spring config is outside supported finite bounds");
+                if (track.spring && track.easing != "spring")
+                    return fail(prefix + ".animation.tracks[].spring", "track spring config requires spring easing");
                 if (track.keyframes.empty())
                     return fail(prefix + ".animation.tracks", "tracks require at least one keyframe");
+                if (track.easing == "spring" && track.keyframes.size() < 2)
+                    return fail(prefix + ".animation.tracks", "spring segment requires positive frame span");
                 Frame previous{-1};
-                for (const auto& key : track.keyframes) {
+                for (std::size_t key_index = 0; key_index < track.keyframes.size(); ++key_index) {
+                    const auto& key = track.keyframes[key_index];
+                    if (key.spring && !valid_spring(*key.spring))
+                        return fail(prefix + ".animation.tracks[].keyframes[].spring", "spring config is outside supported finite bounds");
+                    if (key.spring && key.easing != "spring" &&
+                        !(track.easing == "spring" && !key.easing))
+                        return fail(prefix + ".animation.tracks[].keyframes[].spring", "keyframe spring config requires spring easing");
+                    if (key_index + 1 < track.keyframes.size() &&
+                        (key.easing == "spring" || (!key.easing && track.easing == "spring")) &&
+                        key.frame >= track.keyframes[key_index + 1].frame)
+                        return fail(prefix + ".animation.tracks[].keyframes", "spring segment requires positive frame span");
+                    if (key_index + 1 < track.keyframes.size() &&
+                        (key.easing == "spring" || (!key.easing && track.easing == "spring")) &&
+                        !key.spring && !track.spring)
+                        return fail(prefix + ".animation.tracks[].keyframes[].spring", "spring segment requires a config on its keyframe or track");
                     if (key.frame.integral() < 0 || key.frame.integral() > duration_value)
                         return fail(prefix + ".animation.tracks[].keyframes[].frame",
                                     "keyframe frame " + std::to_string(key.frame.integral()) +
@@ -205,6 +230,9 @@ std::optional<PlanDecodeError> validate_render_budget(
                                 component, "layers[].animation.tracks[].keyframes[].value"))
                             return invalid;
                 }
+                if (!track.keyframes.empty() &&
+                    (track.keyframes.back().easing == "spring" || track.keyframes.back().spring))
+                    return fail(prefix + ".animation.tracks[].keyframes", "spring segment requires positive frame span");
             }
         }
     }

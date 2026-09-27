@@ -8,10 +8,33 @@
 
 #include <utility>
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <cmath>
+#include <string>
 #include <nlohmann/json.hpp>
+
+TEST_CASE("V3 flow and grid layouts decode with bounded contracts and fingerprint inputs") {
+    auto source=nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"card","type":"color","flow":{"group_id":"cards","axis":"row","gap":8,"cell_size":[120,80],"justify":"space_between"}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto decoded=chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].flow_layout);
+    CHECK(decoded->layers[0].flow_layout->group_id=="cards");
+    auto changed=source; changed["layers"][0]["flow"]["gap"]=16;
+    const auto other=chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(other);
+    CHECK(decoded->content_fingerprint!=other->content_fingerprint);
+    auto invalid=source; invalid["layers"][0]["grid_layout"]={{"group_id","cards"},{"columns",0}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+}
 
 TEST_CASE("render plan decoder constructs typed V2 plan") {
     const nlohmann::json source = {
@@ -243,7 +266,7 @@ TEST_CASE("render plan decodes shutter-angle motion blur settings") {
     CHECK(plan->layers[0].motion_blur->shutter_angle == doctest::Approx(180.0f));
     CHECK(plan->layers[0].motion_blur->samples == 12);
     const auto blur = chronon3d::render_plan::detail::motion_blur_params_at(
-        plan->layers[0], 12.0);
+        plan->layers[0], 12.0, chronon3d::FrameRate{24, 1});
     REQUIRE(blur.has_value());
     CHECK(blur->length == doctest::Approx(10.0f));
     CHECK(blur->angle == doctest::Approx(0.0f));
@@ -267,10 +290,95 @@ TEST_CASE("render plan decodes shutter-angle motion blur settings") {
     const auto diagonal_plan = chronon3d::render_plan::decode_render_plan(diagonal);
     REQUIRE(diagonal_plan.has_value());
     const auto diagonal_blur = chronon3d::render_plan::detail::motion_blur_params_at(
-        diagonal_plan->layers[0], 12.0);
+        diagonal_plan->layers[0], 12.0, chronon3d::FrameRate{24, 1});
     REQUIRE(diagonal_blur.has_value());
     CHECK(diagonal_blur->length == doctest::Approx(std::sqrt(125.0f)));
     CHECK(diagonal_blur->angle == doctest::Approx(std::atan2(5.0f, 10.0f) * 180.0f / 3.14159265358979323846f));
+}
+
+TEST_CASE("render plan animation loop modes decode and affect plan identity") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":60},
+      "layers":[{"id":"loop","type":"shape","size":[8,8],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"position_x","loop_mode":"cycle","keyframes":[
+          {"frame":0,"value":0},{"frame":10,"value":20}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto cycle = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(cycle.has_value());
+    CHECK(cycle->layers[0].animation->tracks[0].loop_mode == "cycle");
+
+    source["layers"][0]["animation"]["tracks"][0]["loop_mode"] = "pingpong";
+    const auto pingpong = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(pingpong.has_value());
+    CHECK(pingpong->content_fingerprint != cycle->content_fingerprint);
+
+    source["layers"][0]["animation"]["tracks"][0]["loop_mode"] = "offset";
+    const auto offset = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(offset.has_value());
+    CHECK(offset->layers[0].animation->tracks[0].loop_mode == "offset");
+
+    source["layers"][0]["animation"]["tracks"][0]["loop_mode"] = "repeat";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+
+    source["layers"][0]["animation"]["tracks"][0]["property"] = "fill_color";
+    source["layers"][0]["animation"]["tracks"][0]["loop_mode"] = "offset";
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["value"] = {1, 1, 1, 1};
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["value"] = {0, 0, 0, 1};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan decodes bounded wiggle drivers and fingerprints their seed") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":60},
+      "layers":[{"id":"wiggle","type":"shape","size":[8,8],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"opacity","wiggle":{"frequency":2,"amplitude":0.2,"seed":42},
+          "keyframes":[{"frame":0,"value":0.5},{"frame":30,"value":0.5}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].animation->tracks[0];
+    REQUIRE(track.wiggle.has_value());
+    CHECK(track.wiggle->frequency == doctest::Approx(2.0f));
+    CHECK(track.wiggle->amplitude == doctest::Approx(0.2f));
+    CHECK(track.wiggle->seed == 42);
+
+    source["layers"][0]["animation"]["tracks"][0]["wiggle"]["seed"] = 43;
+    const auto changed_seed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed_seed.has_value());
+    CHECK(changed_seed->content_fingerprint != decoded->content_fingerprint);
+    source["layers"][0]["animation"]["tracks"][0]["wiggle"]["frequency"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0]["animation"]["tracks"][0]["wiggle"]["frequency"] = 2;
+    source["layers"][0]["animation"]["tracks"][0]["property"] = "position";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan auto_orient requires position motion and excludes rotation tracks") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":32,"height":32,"fps_num":30,"fps_den":1,"duration_frames":20},
+      "layers":[{"id":"oriented","type":"shape","size":[8,8],"shape":{"type":"rect"},
+        "auto_orient":true,
+        "animation":{"tracks":[{"property":"position","keyframes":[
+          {"frame":0,"value":[0,0]},{"frame":10,"value":[10,10]}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->layers[0].auto_orient);
+    source["layers"][0]["auto_orient"] = false;
+    const auto fixed_rotation = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(fixed_rotation.has_value());
+    CHECK(fixed_rotation->content_fingerprint != decoded->content_fingerprint);
+    source["layers"][0]["auto_orient"] = true;
+
+    source["layers"][0]["animation"]["tracks"].push_back({
+        {"property", "rotation_z"}, {"keyframes", {{{"frame", 0}, {"value", 0}}, {{"frame", 10}, {"value", 1}}}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0]["animation"]["tracks"].erase(1);
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"].erase(1);
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
 TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key overrides") {
@@ -731,6 +839,19 @@ TEST_CASE("render plan V3 animates gradient stops and rejects incompatible gradi
     REQUIRE(changed.has_value());
     CHECK(changed->content_fingerprint != fingerprint);
 
+    auto changed_geometry = source;
+    changed_geometry["layers"][0]["masks"][1]["size"][0] = 44;
+    const auto changed_geometry_decoded = chronon3d::render_plan::decode_render_plan(changed_geometry);
+    REQUIRE(changed_geometry_decoded.has_value());
+    CHECK(changed_geometry_decoded->content_fingerprint != changed->content_fingerprint);
+    auto changed_order = source;
+    const auto second_mask = changed_order["layers"][0]["masks"][1];
+    changed_order["layers"][0]["masks"][1] = changed_order["layers"][0]["masks"][2];
+    changed_order["layers"][0]["masks"][2] = second_mask;
+    const auto changed_order_decoded = chronon3d::render_plan::decode_render_plan(changed_order);
+    REQUIRE(changed_order_decoded.has_value());
+    CHECK(changed_order_decoded->content_fingerprint != changed->content_fingerprint);
+
     source["layers"][0]["fill_gradient_animation"]["keyframes"][1]["value"]["spread"] = "pad";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
@@ -762,6 +883,7 @@ TEST_CASE("render plan requires adjustment layers to own only an effect stack") 
         {"text_animators", nlohmann::json::array()}, {"spans", nlohmann::json::array()},
         {"style", nlohmann::json::object()}, {"fill_gradient_animation", nlohmann::json::object()},
         {"motion_blur", nlohmann::json::object()}, {"mask", nlohmann::json::object()},
+        {"masks", nlohmann::json::array()},
         {"safe_insets", nlohmann::json::object()}, {"time_remap", nlohmann::json::object()},
         {"track_matte", nlohmann::json::object()}, {"parent", "other"},
         {"transition_in", nlohmann::json::object()}, {"transition_out", nlohmann::json::object()},
@@ -945,7 +1067,8 @@ TEST_CASE("render plan decodes animated dash offsets and effect time controls in
     CHECK(plan->layers[0].shape->stroke->dash_array==std::vector<float>{5,2,1});
     CHECK(plan->layers[0].effects[0].posterize_fps==doctest::Approx(8.0f));
     REQUIRE(plan->layers[0].effects[0].time_curve.has_value());
-    const auto offset=chronon3d::render_plan::detail::stroke_dash_offset_at(plan->layers[0],15.0);
+    const auto offset=chronon3d::render_plan::detail::stroke_dash_offset_at(
+        plan->layers[0], 15.0, chronon3d::FrameRate{30, 1});
     REQUIRE(offset.has_value());
     CHECK(*offset>0.0f);
     auto changed=source;
@@ -999,10 +1122,16 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
           {"kind":"merge","params":{"paths":[[{"type":"move_to","point":[10,10]},
             {"type":"quadratic_to","point":[12,12],"control1":[12,10]},
             {"type":"close"}]]}},
-          {"kind":"trim","params":{"start":0.25,"end":0.75,"offset":0.1}}]},
+          {"kind":"trim","params":{"start":0.25,"end":0.75,"offset":0.1,
+            "animation":{"keyframes":[{"frame":0,"value":[0.25,0.25,0]},
+                                         {"frame":10,"value":[0.25,0.75,0.1]}]}}}]},
       "mask":{"type":"path","path":[{"type":"move_to","point":[-4,-4]},
         {"type":"line_to","point":[4,-4]},{"type":"line_to","point":[4,4]},
         {"type":"line_to","point":[-4,4]},{"type":"close"}],
+        "target_path":[{"type":"move_to","point":[-8,-8]},
+        {"type":"line_to","point":[8,-8]},{"type":"line_to","point":[8,8]},
+        {"type":"line_to","point":[-8,8]},{"type":"close"}],
+        "animation":{"keyframes":[{"frame":0,"value":0},{"frame":12,"value":1}]},
         "feather":2,"expansion":1}}],
       "output":{"path":"out.png"}
     })JSON");
@@ -1040,11 +1169,153 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     CHECK(decoded->layers[0].shape->operators[8].trim_start == doctest::Approx(0.25f));
     CHECK(decoded->layers[0].shape->operators[8].trim_end == doctest::Approx(0.75f));
     CHECK(decoded->layers[0].shape->operators[8].trim_offset == doctest::Approx(0.1f));
+    REQUIRE(decoded->layers[0].shape->operators[8].trim_animation.has_value());
+    CHECK(decoded->layers[0].shape->operators[8].trim_animation->keyframes.size() == 2);
     REQUIRE(decoded->layers[0].path_mask.has_value());
     CHECK(decoded->layers[0].path_mask->feather == doctest::Approx(2));
     CHECK(decoded->layers[0].path_mask->path.size() == 5);
+    REQUIRE(decoded->layers[0].path_mask->morph_animation.has_value());
+    CHECK(decoded->layers[0].path_mask->morph_target.size() == 5);
+    CHECK(decoded->layers[0].path_mask->morph_animation->keyframes.size() == 2);
+    const auto mask_fingerprint = decoded->content_fingerprint;
+    auto changed_mask = source;
+    changed_mask["layers"][0]["mask"]["target_path"][1]["point"][0] = 12;
+    const auto changed_mask_decoded = chronon3d::render_plan::decode_render_plan(changed_mask);
+    REQUIRE(changed_mask_decoded.has_value());
+    CHECK(changed_mask_decoded->content_fingerprint != mask_fingerprint);
     source["layers"][0]["shape"]["operators"][8]["kind"] = "future_operator";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan validates matte dependency cycles before lowering") {
+    const auto layer = [](const char* id, const char* source) {
+        nlohmann::json value{{"id", id}, {"type", "color"}, {"color", {1, 1, 1, 1}}};
+        if (source)
+            value["track_matte"] = {{"source", source}, {"type", "alpha"}};
+        return value;
+    };
+    const auto valid = render_plan_test::base_plan(
+        nlohmann::json::array({layer("content", "matte"), layer("matte", nullptr)}));
+    const auto valid_result = chronon3d::render_plan::decode_render_plan(valid);
+    REQUIRE(valid_result.has_value());
+    CHECK(valid_result->layers[0].track_matte->type ==
+          chronon3d::render_plan::TrackMatteTypePlan::Alpha);
+
+    const auto missing = render_plan_test::base_plan(
+        nlohmann::json::array({layer("content", "not-present")}));
+    const auto missing_result = chronon3d::render_plan::decode_render_plan(missing);
+    REQUIRE_FALSE(missing_result.has_value());
+    CHECK(missing_result.error().code == "track_matte_source_missing");
+
+    const auto cyclic = render_plan_test::base_plan(
+        nlohmann::json::array({layer("a", "b"), layer("b", "a")}));
+    const auto cyclic_result = chronon3d::render_plan::decode_render_plan(cyclic);
+    REQUIRE_FALSE(cyclic_result.has_value());
+    CHECK(cyclic_result.error().code == "layer_dependency_cycle");
+}
+
+TEST_CASE("render plan decodes and fingerprints all alpha and luma matte modes") {
+    const std::array<std::pair<const char*, chronon3d::render_plan::TrackMatteTypePlan>, 4> modes{{
+        {"alpha", chronon3d::render_plan::TrackMatteTypePlan::Alpha},
+        {"alpha_inverted", chronon3d::render_plan::TrackMatteTypePlan::AlphaInverted},
+        {"luma", chronon3d::render_plan::TrackMatteTypePlan::Luma},
+        {"luma_inverted", chronon3d::render_plan::TrackMatteTypePlan::LumaInverted}}};
+    std::optional<std::uint64_t> previous;
+    for (const auto& [name, expected] : modes) {
+        auto source = render_plan_test::base_plan(nlohmann::json::array({
+            { {"id", "content"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+              {"track_matte", {{"source", "matte"}, {"type", name}}} },
+            { {"id", "matte"}, {"type", "color"}, {"color", {1, 1, 1, 1}} }}));
+        const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+        REQUIRE(decoded.has_value());
+        REQUIRE(decoded->layers[0].track_matte.has_value());
+        CHECK(decoded->layers[0].track_matte->type == expected);
+        if (previous) CHECK(decoded->content_fingerprint != *previous);
+        previous = decoded->content_fingerprint;
+    }
+}
+
+TEST_CASE("render plan decodes bounded ordered mask stacks and fingerprints every operation") {
+    auto source = render_plan_test::base_plan(nlohmann::json::array({{
+        {"id", "masked"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+        {"masks", nlohmann::json::array({
+            {{"type", "rect"}, {"mode", "add"}, {"size", {80, 60}}, {"position", {2, 3}}},
+            {{"type", "ellipse"}, {"mode", "intersect"}, {"size", {48, 32}}, {"inverted", true}},
+            {{"type", "rounded_rect"}, {"mode", "subtract"}, {"size", {20, 18}}, {"radius", 4}},
+            {{"type", "path"}, {"mode", "difference"},
+             {"path", {{{"type", "move_to"}, {"point", {-4, -4}}},
+                       {{"type", "line_to"}, {"point", {4, -4}}},
+                       {{"type", "line_to"}, {"point", {0, 4}}},
+                       {{"type", "close"}}}}}
+        })}
+    }}));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers.size() == 1);
+    REQUIRE(decoded->layers[0].masks.size() == 4);
+    CHECK(decoded->layers[0].masks[0].type == "rect");
+    CHECK(decoded->layers[0].masks[1].mode == "intersect");
+    CHECK(decoded->layers[0].masks[1].inverted);
+    CHECK(decoded->layers[0].masks[2].mode == "subtract");
+    CHECK(decoded->layers[0].masks[3].mode == "difference");
+    const auto fingerprint = decoded->content_fingerprint;
+
+    source["layers"][0]["masks"][2]["mode"] = "add";
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != fingerprint);
+
+    source["layers"][0]["masks"][0]["mode"] = "subtract";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0].erase("masks");
+    source["layers"][0]["masks"] = nlohmann::json::array({
+        {{"type", "ellipse"}, {"mode", "add"}, {"size", {-2, 4}}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0]["masks"] = nlohmann::json::array();
+    for (int index = 0; index < 17; ++index)
+        source["layers"][0]["masks"].push_back(
+            {{"type", "rect"}, {"mode", "add"}, {"size", {2, 2}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 decodes a bounded spring segment and its config") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"spring","type":"shape","size":[8,8],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"position_y","easing":"spring",
+          "spring":{"mass":1,"stiffness":300,"damping":12,"initial_velocity":0},
+          "keyframes":[{"frame":0,"value":-300},{"frame":10,"value":0}]}]}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    const auto& track = decoded->layers[0].animation->tracks[0];
+    CHECK(track.easing == "spring");
+    REQUIRE(track.spring.has_value());
+    CHECK(track.spring->stiffness == doctest::Approx(300.0f));
+    auto invalid_config = source;
+    invalid_config["layers"][0]["animation"]["tracks"][0]["spring"]["mass"] = 0.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_config));
+    auto zero_span = source;
+    zero_span["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["frame"] = 0;
+    const auto rejected_span = chronon3d::render_plan::decode_render_plan(zero_span);
+    CHECK_FALSE(rejected_span);
+    if (!rejected_span)
+        CHECK(rejected_span.error().message.find("spring segment requires positive frame span") !=
+              std::string::npos);
+}
+
+TEST_CASE("render plan V3 rejects unimplemented primitive and counter payloads") {
+    for (const auto* type : {"world_map", "chart", "counter"}) {
+        auto source = render_plan_test::base_plan({
+            render_plan_test::shape_layer({{"type", type}})});
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+    }
+    auto counter_payload = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"},
+            {"counter", {{"from", 0}, {"to", 100}}}})});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(counter_payload));
 }
 
 TEST_CASE("render plan V3 decodes animated path morphs and fingerprints their full semantics") {
@@ -1159,6 +1430,45 @@ TEST_CASE("render plan decodes bounded Threshold and Mosaic parameters") {
     CHECK(decoded->layers[0].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Mosaic);
     CHECK(decoded->layers[0].effects[1].block_size == 12);
     plan["layers"][0]["effects"][1]["block_size"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("render plan decodes bounded Chromatic Aberration and Halftone") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "styled"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "chromatic_aberration"}, {"red_offset", 3.5}, {"blue_offset", -4.0}},
+                       {{"type", "halftone"}, {"size", 12}, {"angle", 22.5}, {"amount", 0.8}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 2);
+    CHECK(decoded->layers[0].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::ChromaticAberration);
+    CHECK(decoded->layers[0].effects[0].chromatic_red_offset == doctest::Approx(3.5f));
+    CHECK(decoded->layers[0].effects[0].chromatic_blue_offset == doctest::Approx(-4.0f));
+    CHECK(decoded->layers[0].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Halftone);
+    CHECK(decoded->layers[0].effects[1].halftone_size == 12);
+    plan["layers"][0]["effects"][0]["red_offset"] = 129.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+    plan["layers"][0]["effects"][0]["red_offset"] = 2.0;
+    plan["layers"][0]["effects"][1]["amount"] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+}
+
+TEST_CASE("render plan decodes bounded Directional and Radial Blur effects") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "blurred"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "directional_blur"}, {"angle", 30.0}, {"length", 24.0}, {"samples", 8}},
+                       {{"type", "radial_blur"}, {"center", {0.25, 0.75}}, {"amount", 0.8},
+                        {"render_samples", 12}, {"preview_samples", 6}}}}}
+    }));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 2);
+    CHECK(decoded->layers[0].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::DirectionalBlur);
+    CHECK(decoded->layers[0].effects[0].directional_length == doctest::Approx(24.0f));
+    CHECK(decoded->layers[0].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::RadialBlur);
+    CHECK(decoded->layers[0].effects[1].radial_center[1] == doctest::Approx(0.75f));
+    plan["layers"][0]["effects"][1]["center"][0] = 1.1;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
 }
 
@@ -1643,7 +1953,7 @@ TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it"
     CHECK(far_plan->content_fingerprint != near_plan->content_fingerprint);
 }
 
-TEST_CASE("V3 render-plan decoder accepts all five concrete shape contents") {
+TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
     using namespace chronon3d;
     struct ShapeCase {
         const char* name;
@@ -1667,7 +1977,25 @@ TEST_CASE("V3 render-plan decoder accepts all five concrete shape contents") {
                              {{"type", "quadratic_to"}, {"control1", {10, 20}}, {"point", {20, 0}}},
                              {{"type", "cubic_to"}, {"control1", {25, -5}}, {"control2", {35, 5}}, {"point", {40, 0}}},
                              {{"type", "close"}}}}},
-         render_plan::ShapeContentTypePlan::Path}
+         render_plan::ShapeContentTypePlan::Path},
+        {"star", {{"type", "star"}, {"points", 7}, {"inner_radius_ratio", 0.4}},
+         render_plan::ShapeContentTypePlan::Star},
+        {"polygon", {{"type", "polygon"}, {"points", 6}, {"rotation_degrees", 15.0}},
+         render_plan::ShapeContentTypePlan::Polygon},
+        {"arrow", {{"type", "arrow"}, {"shaft_ratio", 0.3}, {"head_ratio", 0.8}},
+         render_plan::ShapeContentTypePlan::Arrow},
+        {"arc", {{"type", "arc"}, {"start_degrees", 10.0}, {"sweep_degrees", 180.0},
+                  {"stroke", {{"color", "#FFFFFF"}, {"width", 2.0}}}},
+         render_plan::ShapeContentTypePlan::Arc},
+        {"grid", {{"type", "grid"}, {"spacing", 10.0},
+                   {"stroke", {{"color", "#FFFFFF"}, {"width", 1.0}}}},
+         render_plan::ShapeContentTypePlan::Grid},
+        {"dot_grid", {{"type", "dot_grid"}, {"spacing", 10.0}, {"dot_radius", 2.0},
+                       {"fill", {1.0, 0.0, 0.0, 1.0}}},
+         render_plan::ShapeContentTypePlan::DotGrid},
+        {"device_frame", {{"type", "device_frame"}, {"device", "browser"},
+                           {"chrome", true}, {"fill", {0.1, 0.2, 0.3, 1.0}}},
+         render_plan::ShapeContentTypePlan::DeviceFrame}
     };
     for (const auto& test : cases) {
         INFO("shape content: " << test.name);
@@ -1679,6 +2007,13 @@ TEST_CASE("V3 render-plan decoder accepts all five concrete shape contents") {
         REQUIRE(decoded->layers.size() == 1);
         REQUIRE(decoded->layers[0].shape);
         CHECK(decoded->layers[0].shape->type == test.expected);
+        if (test.expected == render_plan::ShapeContentTypePlan::Star ||
+            test.expected == render_plan::ShapeContentTypePlan::Polygon ||
+            test.expected == render_plan::ShapeContentTypePlan::Arrow ||
+            test.expected == render_plan::ShapeContentTypePlan::Arc ||
+            test.expected == render_plan::ShapeContentTypePlan::Grid ||
+            test.expected == render_plan::ShapeContentTypePlan::DotGrid)
+            CHECK(decoded->layers[0].shape->path.size() >= 3);
         if (test.expected == render_plan::ShapeContentTypePlan::RoundedRect)
             CHECK(decoded->layers[0].shape->radius == doctest::Approx(8.0f));
         if (test.expected == render_plan::ShapeContentTypePlan::Rect)
@@ -1695,6 +2030,13 @@ TEST_CASE("V3 render-plan decoder accepts all five concrete shape contents") {
     REQUIRE_FALSE(unknown);
     CHECK(unknown.error().message.find("layers[0].shape.type") != std::string::npos);
     CHECK(unknown.error().message.find("required enum") != std::string::npos);
+
+    auto unbounded_grid = render_plan_test::shape_layer({{"type", "grid"}, {"spacing", 0.0001},
+        {"stroke", {{"color", "#FFFFFF"}}}});
+    CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({unbounded_grid})));
+    auto unbounded_dots = render_plan_test::shape_layer({{"type", "dot_grid"}, {"spacing", 0.1},
+        {"dot_radius", 0.02}, {"fill", {1.0, 1.0, 1.0, 1.0}}});
+    CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({unbounded_dots})));
 }
 
 TEST_CASE("V3 shape path commands decode in order and malformed commands fail closed") {

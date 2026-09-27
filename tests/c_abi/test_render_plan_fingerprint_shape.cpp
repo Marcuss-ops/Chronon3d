@@ -229,6 +229,56 @@ TEST_CASE("Repeater parameters affect render plan fingerprint") {
     CHECK(changed_compound->content_fingerprint != compound_fingerprint);
 }
 
+TEST_CASE("Trim animation payload affects render plan fingerprint") {
+    auto plan = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"shape","type":"shape","size":[32,32],"shape":{
+        "type":"path","path":[{"type":"move_to","point":[0,0]},
+          {"type":"line_to","point":[8,0]}],
+        "operators":[{"kind":"trim","params":{"start":0,"end":1,
+          "animation":{"keyframes":[{"frame":0,"value":[0,0]},
+                                       {"frame":10,"value":[0,0.75]}]}}}]}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto initial = render_plan::decode_render_plan(plan);
+    REQUIRE(initial);
+    const auto fingerprint = initial->content_fingerprint;
+    plan["layers"][0]["shape"]["operators"][0]["params"]["animation"]["keyframes"][1]["value"][1] = 0.5;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+}
+
+TEST_CASE("Spring track and keyframe configs affect render plan fingerprint") {
+    auto plan = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"spring","type":"shape","size":[8,8],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"position_y","easing":"spring",
+          "spring":{"mass":1,"stiffness":300,"damping":12},
+          "keyframes":[{"frame":0,"value":-300,"easing":"spring",
+            "spring":{"mass":1,"stiffness":250,"damping":18}},
+            {"frame":10,"value":0}]}]}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto initial = render_plan::decode_render_plan(plan);
+    REQUIRE(initial);
+    const auto fingerprint = initial->content_fingerprint;
+    plan["layers"][0]["animation"]["tracks"][0]["spring"]["stiffness"] = 301;
+    const auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+    plan["layers"][0]["animation"]["tracks"][0]["spring"]["stiffness"] = 300;
+    const auto restored = render_plan::decode_render_plan(plan);
+    REQUIRE(restored);
+    const auto track_config_fingerprint = restored->content_fingerprint;
+    plan["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["spring"]["stiffness"] = 251;
+    const auto changed_key_config = render_plan::decode_render_plan(plan);
+    REQUIRE(changed_key_config);
+    CHECK(changed_key_config->content_fingerprint != track_config_fingerprint);
+}
+
 TEST_CASE("Path mask geometry and softness affect render plan fingerprint") {
     auto plan = render_plan_test::base_plan(nlohmann::json::parse(R"JSON([
       {"id":"masked","type":"color","color":[1,1,1,1],"mask":{
@@ -291,6 +341,74 @@ TEST_CASE("Threshold and Mosaic controls affect render plan fingerprint") {
     const auto changed = render_plan::decode_render_plan(plan);
     REQUIRE(changed);
     CHECK(changed->content_fingerprint != fingerprint);
+}
+
+TEST_CASE("Chromatic Aberration and Halftone controls affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "styled"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "chromatic_aberration"}}, {{"type", "halftone"}}}}}
+    }));
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    const auto baseline = first->content_fingerprint;
+    plan["layers"][0]["effects"][0]["red_offset"] = 6.0;
+    auto changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != baseline);
+    plan["layers"][0]["effects"][0]["red_offset"] = 2.0;
+    plan["layers"][0]["effects"][1]["angle"] = 30.0;
+    changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != baseline);
+}
+
+TEST_CASE("generated path shape parameters affect the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer(
+        {{"type", "star"}, {"points", 5}, {"inner_radius_ratio", 0.5}})});
+    const auto original = render_plan::decode_render_plan(plan);
+    REQUIRE(original);
+    const auto fingerprint = original->content_fingerprint;
+    plan["layers"][0]["shape"]["points"] = 7;
+    const auto modified = render_plan::decode_render_plan(plan);
+    REQUIRE(modified);
+    CHECK(modified->content_fingerprint != fingerprint);
+}
+
+TEST_CASE("device frame variant and chrome flag affect the render plan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer(
+        {{"type", "device_frame"}, {"device", "phone"}, {"chrome", true},
+         {"fill", {0.2, 0.3, 0.4, 1.0}}})});
+    const auto original = render_plan::decode_render_plan(plan);
+    REQUIRE(original);
+    const auto fingerprint = original->content_fingerprint;
+    plan["layers"][0]["shape"]["chrome"] = false;
+    auto modified = render_plan::decode_render_plan(plan);
+    REQUIRE(modified);
+    CHECK(modified->content_fingerprint != fingerprint);
+    plan["layers"][0]["shape"]["chrome"] = true;
+    plan["layers"][0]["shape"]["device"] = "browser";
+    modified = render_plan::decode_render_plan(plan);
+    REQUIRE(modified);
+    CHECK(modified->content_fingerprint != fingerprint);
+}
+
+TEST_CASE("Directional and Radial Blur controls affect render plan fingerprint") {
+    auto plan = render_plan_test::base_plan(nlohmann::json::array({
+        {{"id", "blurred"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
+         {"effects", {{{"type", "directional_blur"}}, {{"type", "radial_blur"}}}}}
+    }));
+    const auto original = render_plan::decode_render_plan(plan);
+    REQUIRE(original);
+    const auto fingerprint = original->content_fingerprint;
+    plan["layers"][0]["effects"][0]["length"] = 20.0;
+    auto modified = render_plan::decode_render_plan(plan);
+    REQUIRE(modified);
+    CHECK(modified->content_fingerprint != fingerprint);
+    plan["layers"][0]["effects"][0]["length"] = 0.0;
+    plan["layers"][0]["effects"][1]["amount"] = 0.8;
+    modified = render_plan::decode_render_plan(plan);
+    REQUIRE(modified);
+    CHECK(modified->content_fingerprint != fingerprint);
 }
 
 TEST_CASE("Per-key timing fields participate in render-plan fingerprint") {
@@ -379,5 +497,3 @@ TEST_CASE("LightRays controls affect render-plan fingerprints") {
         CHECK(decoded->content_fingerprint != fingerprint);
     }
 }
-
-

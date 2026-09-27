@@ -34,4 +34,18 @@ LayerBuilder& LayerBuilder::fit_text() {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::flow_layout(LayoutFlow flow) {
+    m_layer.layout.enabled = true;
+    m_layer.layout.grid.reset();
+    m_layer.layout.flow = std::move(flow);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::grid_layout(LayoutGrid grid) {
+    m_layer.layout.enabled = true;
+    m_layer.layout.flow.reset();
+    m_layer.layout.grid = std::move(grid);
+    return *this;
+}
+
 } // namespace chronon3d

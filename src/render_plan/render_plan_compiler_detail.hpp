@@ -21,7 +21,7 @@ namespace chronon3d::render_plan::detail {
 [[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);
-void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer);
+void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer, FrameRate fps);
 void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer);
 [[nodiscard]] chronon3d::TextDefinition materialize_text(
     const LayerPlan& layer, const chronon3d::CanvasInfo& canvas);
@@ -31,10 +31,11 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             int canvas_height,
                             FrameRate fps);
 [[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
-motion_blur_params_at(const LayerPlan& layer, double frame);
-[[nodiscard]] std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame);
+motion_blur_params_at(const LayerPlan& layer, double frame, FrameRate fps);
+[[nodiscard]] std::optional<float> stroke_dash_offset_at(
+    const LayerPlan& layer, double frame, FrameRate fps);
 [[nodiscard]] std::optional<chronon3d::Color> fill_color_at(
-    const LayerPlan& layer, double frame, chronon3d::Color base);
+    const LayerPlan& layer, double frame, chronon3d::Color base, FrameRate fps);
 [[nodiscard]] std::optional<graphics::GradientDefinition> fill_gradient_at(
     const LayerPlan& layer, double frame);
 [[nodiscard]] chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track);

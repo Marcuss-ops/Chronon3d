@@ -104,6 +104,8 @@ public:
     LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
     LayerBuilder& fit_text();
+    LayerBuilder& flow_layout(LayoutFlow flow);
+    LayerBuilder& grid_layout(LayoutGrid grid);
 
     // Explicit node-level access. Shape creation remains LayerBuilder-based;
     // node mutation is always performed through this handle.
@@ -131,7 +133,9 @@ public:
     LayerBuilder& mask_rect(RectMaskParams params);
     LayerBuilder& mask_rounded_rect(RoundedRectMaskParams params);
     LayerBuilder& mask_circle(CircleMaskParams params);
+    LayerBuilder& mask_ellipse(EllipseMaskParams params);
     LayerBuilder& mask_path(PathMaskParams params);
+    LayerBuilder& mask_composite(Mask mask);
     LayerBuilder& track_matte_alpha(std::string source_layer_name);
     LayerBuilder& track_matte_alpha_inverted(std::string source_layer_name);
     LayerBuilder& track_matte_luma(std::string source_layer_name);

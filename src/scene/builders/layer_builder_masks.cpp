@@ -16,32 +16,57 @@ namespace chronon3d {
 // ── Mask ──────────────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::mask_rect(RectMaskParams p) {
+    m_layer.mask.operations.clear();
+    m_layer.mask.path.clear();
     m_layer.mask.type = MaskType::Rect;
     m_layer.mask.size = p.size;
     m_layer.mask.pos = p.pos;
+    m_layer.mask.feather = p.feather;
+    m_layer.mask.expansion = p.expansion;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::mask_rounded_rect(RoundedRectMaskParams p) {
+    m_layer.mask.operations.clear();
+    m_layer.mask.path.clear();
     m_layer.mask.type = MaskType::RoundedRect;
     m_layer.mask.size = p.size;
     m_layer.mask.radius = p.radius;
     m_layer.mask.pos = p.pos;
+    m_layer.mask.feather = p.feather;
+    m_layer.mask.expansion = p.expansion;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
+    m_layer.mask.operations.clear();
+    m_layer.mask.path.clear();
     m_layer.mask.type = MaskType::Circle;
     m_layer.mask.size = {p.radius * 2.0f, p.radius * 2.0f};
     m_layer.mask.radius = p.radius;
     m_layer.mask.pos = p.pos;
+    m_layer.mask.feather = p.feather;
+    m_layer.mask.expansion = p.expansion;
+    m_layer.mask.inverted = p.inverted;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::mask_ellipse(EllipseMaskParams p) {
+    m_layer.mask.operations.clear();
+    m_layer.mask.path.clear();
+    m_layer.mask.type = MaskType::Ellipse;
+    m_layer.mask.size = p.size;
+    m_layer.mask.pos = p.pos;
+    m_layer.mask.feather = p.feather;
+    m_layer.mask.expansion = p.expansion;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::mask_path(PathMaskParams p) {
+    m_layer.mask.operations.clear();
     m_layer.mask.type = MaskType::Path;
     m_layer.mask.path = std::move(p.commands);
     m_layer.mask.pos = p.pos;
@@ -79,6 +104,11 @@ LayerBuilder& LayerBuilder::mask_path(PathMaskParams p) {
     }
     m_layer.mask.pos += Vec3{center, 0.0f};
     m_layer.mask.size = {max_x - min_x, max_y - min_y};
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::mask_composite(Mask mask) {
+    m_layer.mask = std::move(mask);
     return *this;
 }
 

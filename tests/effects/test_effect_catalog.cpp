@@ -17,7 +17,7 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     EffectCatalog catalog;
 
     const auto available_ids = catalog.available();
-    REQUIRE(available_ids.size() == 39);
+    REQUIRE(available_ids.size() == 41);
     CHECK(catalog.contains(effect_ids::BlurGaussian));
     CHECK(catalog.contains(effect_ids::ColorBrightness));
     CHECK(catalog.contains(effect_ids::ColorContrast));
@@ -30,6 +30,8 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(catalog.contains(effect_ids::LightBloom));
     CHECK(catalog.contains(effect_ids::LightDropShadow));
     CHECK(catalog.contains(effect_ids::LightGlow));
+    CHECK(catalog.contains(effect_ids::StylizeChromaticAberration));
+    CHECK(catalog.contains(effect_ids::StylizeHalftone));
 
     const auto& blur = catalog.get(effect_ids::BlurGaussian);
     CHECK(blur.category == EffectCategory::Blur);

@@ -128,8 +128,12 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // Mask coordinates are authored in the layer's centered local space,
         // while MaskNode samples canvas pixels.  Convert the resolved layer
         // translation back to the centered origin before rasterizing it.
-        mask.pos.x += item.transform.position.x - ctx.frame_input.width * 0.5f;
-        mask.pos.y += item.transform.position.y - ctx.frame_input.height * 0.5f;
+        const Vec3 offset{
+            item.transform.position.x - ctx.frame_input.width * 0.5f,
+            item.transform.position.y - ctx.frame_input.height * 0.5f,
+            0.0f};
+        mask.pos += offset;
+        for (auto& operation : mask.operations) operation.pos += offset;
     }
 
     const bool is_static = layer.cache_static || item.is_static;

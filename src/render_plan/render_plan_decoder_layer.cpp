@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include <chronon3d/render_plan/shape_path_generator.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
 #include <chronon3d/scene/model/shape/path_operator.hpp>
@@ -54,6 +55,167 @@ std::optional<Frame> optional_frame(const nlohmann::json& object, const char* ke
     return Frame{object.at(key).get<std::int64_t>()};
 }
 
+SpringPlan decode_spring(const nlohmann::json& value, std::string_view field) {
+    if (!value.is_object())
+        throw std::runtime_error(std::string(field) + " must be an object");
+    SpringPlan spring;
+    spring.mass = value.value("mass", spring.mass);
+    spring.stiffness = value.value("stiffness", spring.stiffness);
+    spring.damping = value.value("damping", spring.damping);
+    spring.initial_velocity = value.value("initial_velocity", spring.initial_velocity);
+    if (!is_valid_spring_config(spring) || spring.mass > 10000.0f ||
+        spring.stiffness > 100000.0f || spring.damping > 100000.0f ||
+        std::abs(spring.initial_velocity) > 1000000.0f)
+        throw std::runtime_error(std::string(field) + " has invalid mass, stiffness, damping, or initial_velocity");
+    return spring;
+}
+
+std::vector<ShapePathCommandPlan> decode_closed_mask_path(const nlohmann::json& raw_path) {
+    if (!raw_path.is_array() || raw_path.empty() || raw_path.size() > 65536)
+        throw std::runtime_error("path mask requires between 1 and 65536 commands");
+    std::vector<ShapePathCommandPlan> path;
+    path.reserve(raw_path.size());
+    bool open = false;
+    std::size_t closed = 0;
+    const auto read_point = [](const nlohmann::json& point, std::array<float, 2>& out) {
+        if (!point.is_array() || point.size() != 2)
+            throw std::runtime_error("path mask coordinates require two values");
+        out = {point[0].get<float>(), point[1].get<float>()};
+    };
+    for (const auto& raw : raw_path) {
+        ShapePathCommandPlan command;
+        const auto type = raw.at("type").get<std::string>();
+        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+        else throw std::runtime_error("unsupported path mask command: " + type);
+        const bool point = raw.contains("point");
+        const bool c1 = raw.contains("control1");
+        const bool c2 = raw.contains("control2");
+        if (point) read_point(raw.at("point"), command.point);
+        if (c1) read_point(raw.at("control1"), command.control1);
+        if (c2) read_point(raw.at("control2"), command.control2);
+        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
+             command.type == ShapePathCommandTypePlan::LineTo) && (!point || c1 || c2))
+            throw std::runtime_error("path mask move_to/line_to require point only");
+        if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!point || !c1 || c2))
+            throw std::runtime_error("path mask quadratic_to requires point and control1");
+        if (command.type == ShapePathCommandTypePlan::CubicTo && (!point || !c1 || !c2))
+            throw std::runtime_error("path mask cubic_to requires point and both controls");
+        if (command.type == ShapePathCommandTypePlan::Close && (point || c1 || c2))
+            throw std::runtime_error("path mask close accepts no coordinates");
+        for (const auto* coordinates : {&command.point, &command.control1, &command.control2})
+            if (!std::isfinite((*coordinates)[0]) || !std::isfinite((*coordinates)[1]) ||
+                std::abs((*coordinates)[0]) > 1000000.0f || std::abs((*coordinates)[1]) > 1000000.0f)
+                throw std::runtime_error("path mask coordinates must be finite and within [-1000000, 1000000]");
+        if (command.type == ShapePathCommandTypePlan::MoveTo) {
+            if (open) throw std::runtime_error("path mask subpaths must close before move_to");
+            open = true;
+        }
+        if (command.type == ShapePathCommandTypePlan::Close) {
+            if (!open) throw std::runtime_error("path mask close has no open subpath");
+            open = false;
+            ++closed;
+        }
+        path.push_back(command);
+    }
+    if (open || closed == 0)
+        throw std::runtime_error("path mask subpaths must be closed");
+    return path;
+}
+
+AnimationTrackPlan decode_animation_track(const nlohmann::json& value);
+
+std::vector<PathCommand> mask_path_commands(const std::vector<ShapePathCommandPlan>& path) {
+    std::vector<PathCommand> commands;
+    commands.reserve(path.size());
+    for (const auto& command : path) {
+        const Vec2 point{command.point[0], command.point[1]};
+        const Vec2 c1{command.control1[0], command.control1[1]};
+        const Vec2 c2{command.control2[0], command.control2[1]};
+        switch (command.type) {
+            case ShapePathCommandTypePlan::MoveTo: commands.push_back(PathCommand::move_to(point)); break;
+            case ShapePathCommandTypePlan::LineTo: commands.push_back(PathCommand::line_to(point)); break;
+            case ShapePathCommandTypePlan::QuadraticTo: commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+            case ShapePathCommandTypePlan::CubicTo: commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+            case ShapePathCommandTypePlan::Close: commands.push_back(PathCommand::close()); break;
+        }
+    }
+    return commands;
+}
+
+LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
+    if (!raw.is_object()) throw std::runtime_error("mask stack entries must be objects");
+    LayerPlan::PathMaskPlan mask;
+    mask.type = raw.at("type").get<std::string>();
+    mask.mode = raw.at("mode").get<std::string>();
+    if (mask.type != "path" && mask.type != "rect" &&
+        mask.type != "rounded_rect" && mask.type != "ellipse")
+        throw std::runtime_error("unsupported mask geometry: " + mask.type);
+    if (mask.mode != "add" && mask.mode != "subtract" &&
+        mask.mode != "intersect" && mask.mode != "difference")
+        throw std::runtime_error("unsupported mask combination mode: " + mask.mode);
+    const auto read_vec2 = [&](const char* key, std::array<float, 2>& output,
+                               bool strictly_positive) {
+        if (!raw.contains(key)) return;
+        const auto& value = raw.at(key);
+        if (!value.is_array() || value.size() != 2)
+            throw std::runtime_error(std::string("mask ") + key + " requires [x, y]");
+        output = {value[0].get<float>(), value[1].get<float>()};
+        for (const float component : output)
+            if (!std::isfinite(component) || (strictly_positive ? component <= 0.0f : std::abs(component) > 1000000.0f))
+                throw std::runtime_error(std::string("mask ") + key + " values are outside supported bounds");
+        if (strictly_positive && (output[0] > 1000000.0f || output[1] > 1000000.0f))
+            throw std::runtime_error(std::string("mask ") + key + " values exceed supported bounds");
+    };
+    read_vec2("position", mask.position, false);
+    read_vec2("size", mask.size, true);
+    mask.radius = raw.value("radius", 0.0f);
+    mask.feather = raw.value("feather", 0.0f);
+    mask.expansion = raw.value("expansion", 0.0f);
+    mask.inverted = raw.value("inverted", false);
+    if (!std::isfinite(mask.radius) || mask.radius < 0.0f || mask.radius > 500000.0f ||
+        !std::isfinite(mask.feather) || mask.feather < 0.0f || mask.feather > 1000000.0f ||
+        !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f)
+        throw std::runtime_error("mask radius, feather, and expansion must be finite and bounded");
+    if (mask.type == "path") {
+        if (raw.contains("size") || raw.contains("radius"))
+            throw std::runtime_error("path mask geometry derives its bounds from path commands");
+        mask.path = decode_closed_mask_path(raw.at("path"));
+        if (raw.contains("target_path")) {
+            mask.morph_target = decode_closed_mask_path(raw.at("target_path"));
+            const auto source = mask_path_commands(mask.path);
+            const auto target = mask_path_commands(mask.morph_target);
+            const auto topology_error = validate_morph_path_topology(source, target);
+            if (topology_error)
+                throw std::runtime_error("mask target_path topology must match path");
+            if (!raw.contains("animation"))
+                throw std::runtime_error("mask target_path requires animation");
+            auto animation = decode_animation_track(raw.at("animation"));
+            animation.property = "mask_morph";
+            if (animation.keyframes.empty())
+                throw std::runtime_error("mask path animation requires keyframes");
+            for (const auto& key : animation.keyframes)
+                if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                    key.value.front() < 0.0f || key.value.front() > 1.0f)
+                    throw std::runtime_error("mask path animation requires scalar progress in [0,1]");
+            mask.morph_animation = std::move(animation);
+        } else if (raw.contains("animation")) {
+            throw std::runtime_error("mask path animation requires target_path");
+        }
+    } else {
+        if (raw.contains("path") || raw.contains("target_path") || raw.contains("animation"))
+            throw std::runtime_error("only path masks accept path commands or morph animation");
+        if (mask.type == "rounded_rect" && mask.radius > std::min(mask.size[0], mask.size[1]) * 0.5f)
+            throw std::runtime_error("rounded_rect mask radius cannot exceed half its smaller dimension");
+        if (mask.type != "rounded_rect" && raw.contains("radius"))
+            throw std::runtime_error("radius is only valid for rounded_rect masks");
+    }
+    return mask;
+}
+
 AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     AnimationTrackPlan track;
     // 'property' is optional: text-selector bounds (start/end/offset/amount)
@@ -64,6 +226,48 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
     // confusing decode failure.
     track.property = value.value("property", std::string{});
     track.easing = value.value("easing", std::string{"linear"});
+    track.loop_mode = value.value("loop_mode", std::string{"none"});
+    if (track.loop_mode != "none" && track.loop_mode != "cycle" &&
+        track.loop_mode != "pingpong" && track.loop_mode != "offset")
+        throw std::runtime_error("unsupported animation loop_mode: " + track.loop_mode);
+    if (track.loop_mode == "offset" && track.property == "fill_color")
+        throw std::runtime_error("animation loop_mode='offset' requires a numeric or vector property");
+    if (value.contains("wiggle")) {
+        const auto& raw_wiggle = value.at("wiggle");
+        if (!raw_wiggle.is_object())
+            throw std::runtime_error("animation wiggle driver must be an object");
+        for (auto field = raw_wiggle.begin(); field != raw_wiggle.end(); ++field)
+            if (field.key() != "frequency" && field.key() != "amplitude" && field.key() != "seed")
+                throw std::runtime_error("animation wiggle driver contains an unsupported field: " + field.key());
+        AnimationTrackPlan::WiggleDriverPlan driver;
+        driver.frequency = raw_wiggle.value("frequency", driver.frequency);
+        driver.amplitude = raw_wiggle.value("amplitude", driver.amplitude);
+        driver.seed = raw_wiggle.value("seed", driver.seed);
+        if (!std::isfinite(driver.frequency) || driver.frequency <= 0.0f ||
+            driver.frequency > 1000.0f || !std::isfinite(driver.amplitude) ||
+            std::abs(driver.amplitude) > 10000.0f)
+            throw std::runtime_error("animation wiggle frequency/amplitude is outside supported bounds");
+        if (track.property != "opacity" && track.property != "blur" &&
+            track.property != "tracking" && track.property != "stroke_dash_offset")
+            throw std::runtime_error("animation wiggle driver requires a scalar opacity, blur, tracking, or stroke_dash_offset property");
+        track.wiggle = driver;
+    }
+    if (track.easing != "linear" && track.easing != "in_quad" && track.easing != "out_quad" &&
+        track.easing != "in_out_quad" && track.easing != "in_cubic" &&
+        track.easing != "out_cubic" && track.easing != "in_out_cubic" &&
+        track.easing != "in_expo" && track.easing != "out_expo" &&
+        track.easing != "in_out_expo" && track.easing != "in_sine" &&
+        track.easing != "out_sine" && track.easing != "in_out_sine" &&
+        track.easing != "in_back" && track.easing != "out_back" &&
+        track.easing != "in_out_back" && track.easing != "in_elastic" &&
+        track.easing != "out_elastic" && track.easing != "in_out_elastic" &&
+        track.easing != "in_bounce" && track.easing != "out_bounce" &&
+        track.easing != "in_out_bounce" && track.easing != "smoothstep" &&
+        track.easing != "hold" && track.easing != "bezier" && track.easing != "spring")
+        throw std::runtime_error("unsupported animation easing: " + track.easing);
+    if (value.contains("spring")) track.spring = decode_spring(value.at("spring"), "animation track spring");
+    if (track.easing != "spring" && track.spring)
+        throw std::runtime_error("animation spring config requires easing='spring'");
     track.bezier_curve = decode_bezier_curve(value, track.easing, "animation track");
     for (const auto& key_value : value.at("keyframes")) {
         AnimationKeyframePlan key;
@@ -78,6 +282,7 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
             key.interpolation = key_value.at("interpolation").get<std::string>();
         if (key_value.contains("easing"))
             key.easing = key_value.at("easing").get<std::string>();
+        if (key_value.contains("spring")) key.spring = decode_spring(key_value.at("spring"), "animation keyframe spring");
         if (key_value.contains("bezier_curve"))
             key.bezier_curve = decode_bezier_curve(key_value, "bezier", "animation keyframe");
         if (key_value.contains("roving") && !key_value.at("roving").is_boolean())
@@ -109,8 +314,11 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
             *key.easing != "in_elastic" && *key.easing != "out_elastic" &&
             *key.easing != "in_out_elastic" && *key.easing != "in_bounce" &&
             *key.easing != "out_bounce" && *key.easing != "in_out_bounce" &&
-            *key.easing != "smoothstep" && *key.easing != "hold" && *key.easing != "bezier")
+            *key.easing != "smoothstep" && *key.easing != "hold" &&
+            *key.easing != "bezier" && *key.easing != "spring")
             throw std::runtime_error("unsupported per-key animation easing: " + *key.easing);
+        if (key.spring && key.easing != "spring" && track.easing != "spring")
+            throw std::runtime_error("per-key spring config requires easing='spring'");
         if (key.interpolation && *key.interpolation != "linear" &&
             *key.interpolation != "hold" && *key.interpolation != "bezier" &&
             *key.interpolation != "auto_bezier")
@@ -147,9 +355,26 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
             throw std::runtime_error("auto_bezier cannot be combined with easing or authored handles");
         track.keyframes.push_back(std::move(key));
     }
+    if (track.easing == "spring" && track.keyframes.size() < 2)
+        throw std::runtime_error("spring segment requires positive frame span");
+    for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index)
+        if ((track.keyframes[index].easing == "spring" ||
+             (!track.keyframes[index].easing && track.easing == "spring")) &&
+            track.keyframes[index].frame >= track.keyframes[index + 1].frame)
+            throw std::runtime_error("spring segment requires positive frame span");
+    if (!track.keyframes.empty() &&
+        (track.keyframes.back().easing == "spring" || track.keyframes.back().spring))
+        throw std::runtime_error("spring segment requires positive frame span");
     for (std::size_t index = 1; index < track.keyframes.size(); ++index)
         if (track.keyframes[index - 1].frame == track.keyframes[index].frame)
             throw std::runtime_error("animation keyframe frames must be unique");
+    for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index) {
+        const auto& key = track.keyframes[index];
+        const bool spring_segment = key.easing == "spring" ||
+            (!key.easing && track.easing == "spring");
+        if (spring_segment && !key.spring && !track.spring)
+            throw std::runtime_error("spring segment requires a config on its keyframe or track");
+    }
     return track;
 }
 
@@ -287,6 +512,40 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
+    const auto parse_layout_vec2 = [](const nlohmann::json& raw, const char* key) {
+        const auto& v = raw.at(key);
+        if (!v.is_array() || v.size() != 2) throw std::runtime_error(std::string("layout.") + key + " must be [x,y]");
+        std::array<float,2> result{v[0].get<float>(),v[1].get<float>()};
+        if (!std::isfinite(result[0]) || !std::isfinite(result[1]) || result[0] < 0 || result[1] < 0)
+            throw std::runtime_error(std::string("layout.") + key + " values must be finite and non-negative");
+        return result;
+    };
+    if (value.contains("flow")) {
+        const auto& raw=value.at("flow"); LayerPlan::FlowLayoutPlan p;
+        p.group_id=raw.at("group_id").get<std::string>(); p.axis=raw.value("axis",p.axis);
+        p.align=raw.value("align",p.align); p.justify=raw.value("justify",p.justify);
+        p.gap=raw.value("gap",0.0f); p.wrap=raw.value("wrap",false);
+        if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        static constexpr std::array<std::string_view,2> axes{"row","column"};
+        static constexpr std::array<std::string_view,4> aligns{"start","center","end","stretch"};
+        static constexpr std::array<std::string_view,6> justifies{"start","center","end","space_between","space_around","space_evenly"};
+        if (p.group_id.empty() || p.group_id.size()>256 || !std::isfinite(p.gap) || p.gap<0 || p.gap>1000000 ||
+            std::find(axes.begin(),axes.end(),p.axis)==axes.end() || std::find(aligns.begin(),aligns.end(),p.align)==aligns.end() || std::find(justifies.begin(),justifies.end(),p.justify)==justifies.end())
+            throw std::runtime_error("flow layout has invalid group, axis, alignment, justification, or gap");
+        layer.flow_layout=std::move(p);
+    }
+    if (value.contains("grid_layout")) {
+        const auto& raw=value.at("grid_layout"); LayerPlan::GridLayoutPlan p;
+        p.group_id=raw.at("group_id").get<std::string>(); p.fit=raw.value("fit",p.fit);
+        p.columns=raw.value("columns",1); p.rows=raw.value("rows",1);
+        if (raw.contains("gap")) p.gap=parse_layout_vec2(raw,"gap");
+        if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        if (p.group_id.empty() || p.group_id.size()>256 || p.columns<1 || p.columns>4096 || p.rows<1 || p.rows>4096 ||
+            (p.fit!="auto" && p.fit!="fixed_columns" && p.fit!="fixed_rows"))
+            throw std::runtime_error("grid layout has invalid group, dimensions, or fit");
+        layer.grid_layout=std::move(p);
+    }
+    if (layer.flow_layout && layer.grid_layout) throw std::runtime_error("a layer cannot belong to flow and grid layouts simultaneously");
     if (value.contains("transition_in")) layer.transition_in = decode_transition(value.at("transition_in"));
     if (value.contains("transition_out")) layer.transition_out = decode_transition(value.at("transition_out"));
     if (value.contains("light")) {
@@ -462,7 +721,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     if (layer.type == LayerType::Mesh) {
-        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "mask", "text_animators", "spans", "fill_gradient_animation"})
+        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
             if (value.contains(key))
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
         if (value.contains("animation") && value.at("animation").is_object() &&
@@ -614,6 +873,13 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         else if (shape_type == "ellipse") shape.type = ShapeContentTypePlan::Ellipse;
         else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
         else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
+        else if (shape_type == "star") shape.type = ShapeContentTypePlan::Star;
+        else if (shape_type == "polygon") shape.type = ShapeContentTypePlan::Polygon;
+        else if (shape_type == "arrow") shape.type = ShapeContentTypePlan::Arrow;
+        else if (shape_type == "arc") shape.type = ShapeContentTypePlan::Arc;
+        else if (shape_type == "grid") shape.type = ShapeContentTypePlan::Grid;
+        else if (shape_type == "dot_grid") shape.type = ShapeContentTypePlan::DotGrid;
+        else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
@@ -672,6 +938,98 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         }
         if (shape.type == ShapeContentTypePlan::Line && !raw_shape.contains("stroke"))
             throw std::runtime_error("line shapes require a stroke");
+        if ((shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
+             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Arc) &&
+            (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie")))
+            throw std::runtime_error("procedural shapes cannot be combined with authored path or asset data");
+        const bool procedural = shape.type == ShapeContentTypePlan::Star ||
+            shape.type == ShapeContentTypePlan::Polygon || shape.type == ShapeContentTypePlan::Arrow ||
+            shape.type == ShapeContentTypePlan::Arc || shape.type == ShapeContentTypePlan::Grid ||
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::DeviceFrame;
+        if (shape.type != ShapeContentTypePlan::DeviceFrame &&
+            (raw_shape.contains("device") || raw_shape.contains("chrome")))
+            throw std::runtime_error("device and chrome options are only valid for device_frame");
+        if (shape.type == ShapeContentTypePlan::DeviceFrame && raw_shape.contains("operators"))
+            throw std::runtime_error("device_frame does not accept path operators");
+        if (procedural && (raw_shape.contains("radius") || raw_shape.contains("corner_radius")))
+            throw std::runtime_error("procedural shapes do not accept rounded-rectangle radius fields");
+        if (shape.type == ShapeContentTypePlan::Star &&
+            (raw_shape.contains("shaft_ratio") || raw_shape.contains("head_ratio") ||
+             raw_shape.contains("start_degrees") || raw_shape.contains("sweep_degrees") ||
+             raw_shape.contains("segments")))
+            throw std::runtime_error("star received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::Polygon &&
+            (raw_shape.contains("inner_radius_ratio") || raw_shape.contains("shaft_ratio") ||
+             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
+             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
+            throw std::runtime_error("polygon received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::Arrow &&
+            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
+             raw_shape.contains("rotation_degrees") || raw_shape.contains("start_degrees") ||
+             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
+            throw std::runtime_error("arrow received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::Arc &&
+            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
+             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
+             raw_shape.contains("head_ratio") || raw_shape.contains("fill") || value.contains("color")))
+            throw std::runtime_error("arc received parameters for another procedural shape or a fill");
+        if (shape.type == ShapeContentTypePlan::Grid &&
+            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
+             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
+             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
+             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments") ||
+             raw_shape.contains("dot_radius") || raw_shape.contains("fill") || value.contains("color")))
+            throw std::runtime_error("grid accepts spacing and stroke only");
+        if (shape.type == ShapeContentTypePlan::DotGrid &&
+            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
+             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
+             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
+             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
+            throw std::runtime_error("dot_grid received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::DeviceFrame &&
+            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
+             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
+             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
+             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments") ||
+             raw_shape.contains("spacing") || raw_shape.contains("dot_radius")))
+            throw std::runtime_error("device_frame received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::Star) {
+            const auto points = raw_shape.value("points", 5u);
+            const auto inner = raw_shape.value("inner_radius_ratio", 0.5f);
+            const auto rotation = raw_shape.value("rotation_degrees", 0.0f);
+            shape.path = make_star_path(layer.size[0], layer.size[1], points, inner, rotation);
+        } else if (shape.type == ShapeContentTypePlan::Polygon) {
+            shape.path = make_polygon_path(layer.size[0], layer.size[1],
+                raw_shape.value("points", 6u), raw_shape.value("rotation_degrees", 0.0f));
+        } else if (shape.type == ShapeContentTypePlan::Arrow) {
+            shape.path = make_arrow_path(layer.size[0], layer.size[1],
+                raw_shape.value("shaft_ratio", 0.28f), raw_shape.value("head_ratio", 0.75f));
+        } else if (shape.type == ShapeContentTypePlan::Arc) {
+            if (!raw_shape.contains("stroke"))
+                throw std::runtime_error("arc shapes require a stroke");
+            shape.path = make_arc_path(layer.size[0], layer.size[1],
+                raw_shape.value("start_degrees", 0.0f), raw_shape.value("sweep_degrees", 270.0f),
+                raw_shape.value("segments", 64u));
+        } else if (shape.type == ShapeContentTypePlan::Grid) {
+            if (!raw_shape.contains("stroke"))
+                throw std::runtime_error("grid shapes require a stroke");
+            shape.path = make_grid_path(layer.size[0], layer.size[1],
+                raw_shape.value("spacing", 16.0f));
+        } else if (shape.type == ShapeContentTypePlan::DotGrid) {
+            if (!raw_shape.contains("fill"))
+                throw std::runtime_error("dot_grid shapes require a fill");
+            const float spacing = raw_shape.value("spacing", 16.0f);
+            const float radius = raw_shape.value("dot_radius", spacing * 0.12f);
+            shape.path = make_dot_grid_path(layer.size[0], layer.size[1], spacing, radius);
+        } else if (shape.type == ShapeContentTypePlan::DeviceFrame) {
+            const auto device = raw_shape.value("device", std::string{"phone"});
+            if (device == "phone") shape.device_frame_kind = DeviceFrameKindPlan::Phone;
+            else if (device == "browser") shape.device_frame_kind = DeviceFrameKindPlan::Browser;
+            else throw std::runtime_error("device_frame device must be 'phone' or 'browser'");
+            shape.device_frame_chrome = raw_shape.value("chrome", true);
+            if (!raw_shape.contains("fill"))
+                throw std::runtime_error("device_frame requires shape.fill for the screen");
+        }
         if (raw_shape.contains("fill") && raw_shape.at("fill").is_array()) {
             // Shape-local fill is canonical. Legacy layer.color is only an alias
             // for plans that omit shape.fill; it never overrides explicit fill.
@@ -736,6 +1094,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             }
         }
         if ((shape.type == ShapeContentTypePlan::Line ||
+             shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
+             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Arc ||
+             shape.type == ShapeContentTypePlan::Grid || shape.type == ShapeContentTypePlan::DotGrid ||
              (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset &&
               !shape.lottie_asset)) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");
@@ -983,6 +1344,20 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                         decoded_op.trim_end < decoded_op.trim_start ||
                         std::abs(decoded_op.trim_offset) > 1000000.0f)
                         throw std::runtime_error("invalid trim-path parameters");
+                    if (p.contains("animation")) {
+                        auto animation = decode_animation_track(p.at("animation"));
+                        animation.property = "trim";
+                        for (const auto& key : animation.keyframes) {
+                            if (key.value.empty() || key.value.size() > 3 ||
+                                (key.value.size() > 0 &&
+                                 (!std::isfinite(key.value[0]) || key.value[0] < 0.0f || key.value[0] > 1.0f)) ||
+                                (key.value.size() > 1 &&
+                                 (!std::isfinite(key.value[1]) || key.value[1] < 0.0f || key.value[1] > 1.0f)) ||
+                                (key.value.size() > 2 && !std::isfinite(key.value[2])))
+                                throw std::runtime_error("trim animation keyframes require 1..3 finite values [start, end, offset]");
+                        }
+                        decoded_op.trim_animation = std::move(animation);
+                    }
                 } else {
                     throw std::runtime_error("unsupported path operator: " + kind);
                 }
@@ -1142,6 +1517,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (layer.type != LayerType::Shape || !layer.shape ||
             layer.shape->type == ShapeContentTypePlan::Line ||
             layer.shape->type == ShapeContentTypePlan::Path ||
+            layer.shape->type == ShapeContentTypePlan::Arc ||
+            layer.shape->type == ShapeContentTypePlan::Grid ||
             !layer.shape->gradient) {
             throw std::runtime_error(
                 "fill_gradient_animation requires a filled rect, rounded_rect, or ellipse shape");
@@ -1166,6 +1543,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 throw std::runtime_error("fill gradient keyframe frames must be unique");
         layer.fill_gradient_animation = std::move(animation);
     }
+    if (value.contains("mask") && value.contains("masks"))
+        throw std::runtime_error("use either legacy mask or ordered masks, not both");
     if (value.contains("mask")) {
         const auto& raw_mask = value.at("mask");
         if (raw_mask.value("type", std::string{}) != "path")
@@ -1177,57 +1556,75 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (!std::isfinite(mask.feather) || mask.feather < 0.0f || mask.feather > 1000000.0f ||
             !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f)
             throw std::runtime_error("path mask feather and expansion must be finite and bounded");
-        const auto& raw_path = raw_mask.at("path");
-        if (!raw_path.is_array() || raw_path.empty() || raw_path.size() > 65536)
-            throw std::runtime_error("path mask requires between 1 and 65536 commands");
-        bool has_open_subpath = false;
-        std::size_t closed_subpaths = 0;
-        for (const auto& raw_command : raw_path) {
-            ShapePathCommandPlan command;
-            const auto type = raw_command.at("type").get<std::string>();
-            if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-            else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-            else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-            else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-            else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-            else throw std::runtime_error("unsupported path mask command: " + type);
-            const auto read_point = [](const nlohmann::json& point, std::array<float, 2>& out) {
-                if (!point.is_array() || point.size() != 2)
-                    throw std::runtime_error("path mask coordinates require two values");
-                out = {point[0].get<float>(), point[1].get<float>()};
-            };
-            const bool has_point = raw_command.contains("point");
-            const bool has_c1 = raw_command.contains("control1");
-            const bool has_c2 = raw_command.contains("control2");
-            if (has_point) read_point(raw_command.at("point"), command.point);
-            if (has_c1) read_point(raw_command.at("control1"), command.control1);
-            if (has_c2) read_point(raw_command.at("control2"), command.control2);
-            if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-                 command.type == ShapePathCommandTypePlan::LineTo) && (!has_point || has_c1 || has_c2))
-                throw std::runtime_error("path mask move_to/line_to require point only");
-            if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!has_point || !has_c1 || has_c2))
-                throw std::runtime_error("path mask quadratic_to requires point and control1");
-            if (command.type == ShapePathCommandTypePlan::CubicTo && (!has_point || !has_c1 || !has_c2))
-                throw std::runtime_error("path mask cubic_to requires point and both controls");
-            if (command.type == ShapePathCommandTypePlan::Close && (has_point || has_c1 || has_c2))
-                throw std::runtime_error("path mask close accepts no coordinates");
-            for (const auto* pair : {&command.point, &command.control1, &command.control2})
-                if (!std::isfinite((*pair)[0]) || !std::isfinite((*pair)[1]))
-                    throw std::runtime_error("path mask coordinates must be finite");
-            if (command.type == ShapePathCommandTypePlan::MoveTo) {
-                if (has_open_subpath) throw std::runtime_error("path mask subpaths must close before move_to");
-                has_open_subpath = true;
-            }
-            if (command.type == ShapePathCommandTypePlan::Close) {
-                if (!has_open_subpath) throw std::runtime_error("path mask close has no open subpath");
-                has_open_subpath = false;
-                ++closed_subpaths;
-            }
-            mask.path.push_back(command);
+        mask.path = decode_closed_mask_path(raw_mask.at("path"));
+        if (raw_mask.contains("target_path")) {
+            mask.morph_target = decode_closed_mask_path(raw_mask.at("target_path"));
+            if (const auto error = validate_morph_path_topology(
+                    [&] {
+                        std::vector<PathCommand> source;
+                        source.reserve(mask.path.size());
+                        for (const auto& command : mask.path) {
+                            const Vec2 point{command.point[0], command.point[1]};
+                            const Vec2 c1{command.control1[0], command.control1[1]};
+                            const Vec2 c2{command.control2[0], command.control2[1]};
+                            switch (command.type) {
+                                case ShapePathCommandTypePlan::MoveTo: source.push_back(PathCommand::move_to(point)); break;
+                                case ShapePathCommandTypePlan::LineTo: source.push_back(PathCommand::line_to(point)); break;
+                                case ShapePathCommandTypePlan::QuadraticTo: source.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                case ShapePathCommandTypePlan::CubicTo: source.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                case ShapePathCommandTypePlan::Close: source.push_back(PathCommand::close()); break;
+                            }
+                        }
+                        return source;
+                    }(),
+                    [&] {
+                        std::vector<PathCommand> target;
+                        target.reserve(mask.morph_target.size());
+                        for (const auto& command : mask.morph_target) {
+                            const Vec2 point{command.point[0], command.point[1]};
+                            const Vec2 c1{command.control1[0], command.control1[1]};
+                            const Vec2 c2{command.control2[0], command.control2[1]};
+                            switch (command.type) {
+                                case ShapePathCommandTypePlan::MoveTo: target.push_back(PathCommand::move_to(point)); break;
+                                case ShapePathCommandTypePlan::LineTo: target.push_back(PathCommand::line_to(point)); break;
+                                case ShapePathCommandTypePlan::QuadraticTo: target.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                case ShapePathCommandTypePlan::CubicTo: target.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                case ShapePathCommandTypePlan::Close: target.push_back(PathCommand::close()); break;
+                            }
+                        }
+                        return target;
+                    }()))
+                throw std::runtime_error("path mask target_path topology must match path");
+            if (!raw_mask.contains("animation"))
+                throw std::runtime_error("path mask target_path requires an animation track");
+            auto animation = decode_animation_track(raw_mask.at("animation"));
+            animation.property = "mask_morph";
+            for (const auto& key : animation.keyframes)
+                if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                    key.value.front() < 0.0f || key.value.front() > 1.0f)
+                    throw std::runtime_error("path mask animation requires scalar progress in [0,1]");
+            if (animation.keyframes.empty())
+                throw std::runtime_error("path mask animation requires keyframes");
+            mask.morph_animation = std::move(animation);
+        } else if (raw_mask.contains("animation")) {
+            throw std::runtime_error("path mask animation requires target_path");
         }
-        if (has_open_subpath || closed_subpaths == 0)
-            throw std::runtime_error("path mask subpaths must be closed");
         layer.path_mask = std::move(mask);
+    }
+    if (value.contains("masks")) {
+        const auto& raw_masks = value.at("masks");
+        if (!raw_masks.is_array() || raw_masks.empty() || raw_masks.size() > 16)
+            throw std::runtime_error("masks must contain between 1 and 16 ordered entries");
+        layer.masks.reserve(raw_masks.size());
+        std::size_t total_mask_commands = 0;
+        for (const auto& raw_mask : raw_masks) {
+            layer.masks.push_back(decode_mask_plan(raw_mask));
+            total_mask_commands += layer.masks.back().path.size() + layer.masks.back().morph_target.size();
+            if (total_mask_commands > 65536)
+                throw std::runtime_error("mask stack total path command limit is 65536");
+        }
+        if (layer.masks.front().mode != "add")
+            throw std::runtime_error("the first mask stack entry must use mode add");
     }
     if (value.contains("effects")) {
         const auto& effects = value.at("effects");
@@ -1343,6 +1740,55 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 effect.block_size = raw_effect.value("block_size", 8u);
                 if (effect.block_size == 0 || effect.block_size > 512)
                     throw std::runtime_error("Mosaic block_size must be in [1, 512]");
+            } else if (kind == "chromatic_aberration") {
+                effect.kind = LayerPlan::EffectKindPlan::ChromaticAberration;
+                effect.chromatic_red_offset = raw_effect.value("red_offset", 2.0f);
+                effect.chromatic_blue_offset = raw_effect.value("blue_offset", -2.0f);
+                if (!std::isfinite(effect.chromatic_red_offset) ||
+                    !std::isfinite(effect.chromatic_blue_offset) ||
+                    std::abs(effect.chromatic_red_offset) > 128.0f ||
+                    std::abs(effect.chromatic_blue_offset) > 128.0f)
+                    throw std::runtime_error("Chromatic Aberration offsets must be finite and within [-128, 128]");
+            } else if (kind == "halftone") {
+                effect.kind = LayerPlan::EffectKindPlan::Halftone;
+                effect.halftone_size = raw_effect.value("size", 8u);
+                effect.halftone_angle = raw_effect.value("angle", 0.0f);
+                effect.halftone_amount = raw_effect.value("amount", 1.0f);
+                if (effect.halftone_size == 0 || effect.halftone_size > 128 ||
+                    !std::isfinite(effect.halftone_angle) ||
+                    !std::isfinite(effect.halftone_amount) ||
+                    effect.halftone_amount < 0.0f || effect.halftone_amount > 1.0f)
+                    throw std::runtime_error("Halftone requires size in [1, 128], finite angle, and amount in [0, 1]");
+            } else if (kind == "directional_blur") {
+                effect.kind = LayerPlan::EffectKindPlan::DirectionalBlur;
+                effect.directional_angle = raw_effect.value("angle", 0.0f);
+                effect.directional_length = raw_effect.value("length", 0.0f);
+                effect.directional_samples = raw_effect.value("samples", 0);
+                if (!std::isfinite(effect.directional_angle) ||
+                    std::abs(effect.directional_angle) > 3600.0f ||
+                    !std::isfinite(effect.directional_length) ||
+                    effect.directional_length < 0.0f || effect.directional_length > 2048.0f ||
+                    effect.directional_samples < 0 || effect.directional_samples > 256)
+                    throw std::runtime_error("Directional Blur parameters are outside supported bounds");
+            } else if (kind == "radial_blur") {
+                effect.kind = LayerPlan::EffectKindPlan::RadialBlur;
+                if (raw_effect.contains("center")) {
+                    const auto& center = raw_effect.at("center");
+                    if (!center.is_array() || center.size() != 2)
+                        throw std::runtime_error("Radial Blur center requires [x, y]");
+                    effect.radial_center = {center[0].get<float>(), center[1].get<float>()};
+                }
+                effect.radial_amount = raw_effect.value("amount", 0.0f);
+                effect.radial_render_samples = raw_effect.value("render_samples", 8);
+                effect.radial_preview_samples = raw_effect.value("preview_samples", 4);
+                if (!std::isfinite(effect.radial_center[0]) || effect.radial_center[0] < 0.0f ||
+                    effect.radial_center[0] > 1.0f || !std::isfinite(effect.radial_center[1]) ||
+                    effect.radial_center[1] < 0.0f || effect.radial_center[1] > 1.0f ||
+                    !std::isfinite(effect.radial_amount) || effect.radial_amount < 0.0f ||
+                    effect.radial_amount > 10.0f || effect.radial_render_samples < 2 ||
+                    effect.radial_render_samples > 256 || effect.radial_preview_samples < 2 ||
+                    effect.radial_preview_samples > 128)
+                    throw std::runtime_error("Radial Blur parameters are outside supported bounds");
             } else if (kind == "gaussian_blur") {
                 effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
                 effect.radius = raw_effect.value("radius", 8.0f);
@@ -1780,6 +2226,36 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             animation.tracks.push_back(decode_animation_track(track_value));
         layer.animation = std::move(animation);
     }
+    layer.auto_orient = value.value("auto_orient", false);
+    if (layer.auto_orient) {
+        bool has_position = false;
+        bool has_position_span = false;
+        bool has_rotation = false;
+        if (layer.animation) {
+            for (const auto& track : layer.animation->tracks) {
+                has_position |= track.property == "position" || track.property == "position_x" ||
+                    track.property == "position_y" || track.property == "position_z";
+                has_rotation |= track.property == "rotation" || track.property == "rotation_x" ||
+                    track.property == "rotation_y" || track.property == "rotation_z";
+            }
+        }
+        if (!has_position)
+            throw std::runtime_error("auto_orient requires an animated position track");
+        if (has_rotation)
+            throw std::runtime_error("auto_orient cannot be combined with explicit rotation tracks");
+        for (const auto& track : layer.animation->tracks)
+            if (track.property == "position" || track.property == "position_x" ||
+                track.property == "position_y" || track.property == "position_z") {
+                if (track.keyframes.size() >= 2 &&
+                    track.keyframes.back().frame.integral() > track.keyframes.front().frame.integral())
+                    has_position_span = true;
+                if (track.keyframes.size() >= 2 &&
+                    track.keyframes.back().frame.integral() - track.keyframes.front().frame.integral() > 65535)
+                    throw std::runtime_error("auto_orient position track span exceeds 65535 frames");
+            }
+        if (!has_position_span)
+            throw std::runtime_error("auto_orient requires a position track spanning at least two frames");
+    }
     if (layer.animation) {
         for (auto& track : layer.animation->tracks) {
             if (track.property != "fill_color") continue;
@@ -1808,13 +2284,17 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 } else if (layer.type == LayerType::Shape && layer.shape &&
                            (layer.shape->type == ShapeContentTypePlan::Rect ||
                             layer.shape->type == ShapeContentTypePlan::RoundedRect ||
-                            layer.shape->type == ShapeContentTypePlan::Ellipse) &&
+                            layer.shape->type == ShapeContentTypePlan::Ellipse ||
+                            layer.shape->type == ShapeContentTypePlan::Star ||
+                            layer.shape->type == ShapeContentTypePlan::Polygon ||
+                            layer.shape->type == ShapeContentTypePlan::Arrow ||
+                            layer.shape->type == ShapeContentTypePlan::DotGrid) &&
                            layer.shape->fill_color && !layer.shape->gradient) {
                     // Only explicit solid fills are animatable; gradients use
                     // the typed fill_gradient_animation track instead.
                 } else {
                     throw std::runtime_error(
-                        "fill_color animation requires a color layer or a solid filled rect, rounded_rect, or ellipse");
+                        "fill_color animation requires a color layer or a solid filled closed shape");
                 }
                 std::vector<std::int64_t> frames;
                 frames.reserve(track.keyframes.size());

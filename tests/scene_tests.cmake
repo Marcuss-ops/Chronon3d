@@ -48,6 +48,8 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_SCENE_LINK_TARGETS}
     SOURCES
         scene/layout/test_scene_builder.cpp
+        scene/test_idle_motion_presets.cpp
+        scene/test_text_motion_presets.cpp
         scene/test_fullscreen_rect_modular_bbox.cpp
         scene/shapes/test_path_utils.cpp
         scene/shapes/test_shape_model.cpp

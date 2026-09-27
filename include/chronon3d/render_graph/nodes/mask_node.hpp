@@ -102,26 +102,10 @@ private:
         if (!modular_coordinates) {
             return rasterize_mask_alpha(m_mask, Mat4{1.0f}, width, height);
         }
-
-        auto fb = std::make_shared<Framebuffer>(width, height);
-        fb->clear(Color::transparent());
-
-        const f32 cx = modular_coordinates ? static_cast<f32>(canvas_width) * 0.5f : 0.0f;
-        const f32 cy = modular_coordinates ? static_cast<f32>(canvas_height) * 0.5f : 0.0f;
-
-        for (i32 y = 0; y < height; ++y) {
-            Color* row = fb->pixels_row(y);
-            const f32 global_y = static_cast<f32>(origin_y + y);
-            for (i32 x = 0; x < width; ++x) {
-                const f32 global_x = static_cast<f32>(origin_x + x);
-                Vec2 local{global_x - cx, global_y - cy};
-                if (mask_contains_local_point(m_mask, local)) {
-                    row[x] = {1.0f, 1.0f, 1.0f, 1.0f};
-                }
-            }
-        }
-
-        return fb;
+        Mat4 layer_inverse{1.0f};
+        layer_inverse[3].x = static_cast<f32>(origin_x) - static_cast<f32>(canvas_width) * 0.5f;
+        layer_inverse[3].y = static_cast<f32>(origin_y) - static_cast<f32>(canvas_height) * 0.5f;
+        return rasterize_mask_alpha(m_mask, layer_inverse, width, height);
     }
 
     [[nodiscard]] std::uint64_t mask_alpha_cache_key(

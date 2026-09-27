@@ -54,6 +54,8 @@ TEST_CASE("EffectCatalog: EffectType numeric values are stable") {
     static_assert(static_cast<uint8_t>(EffectType::Keying)           == 28);
     static_assert(static_cast<uint8_t>(EffectType::Threshold)         == 29);
     static_assert(static_cast<uint8_t>(EffectType::Mosaic)            == 30);
+    static_assert(static_cast<uint8_t>(EffectType::ChromaticAberration) == 40);
+    static_assert(static_cast<uint8_t>(EffectType::Halftone) == 41);
 
     // Verify that the enum values we use in code match the expected numeric range
     CHECK(static_cast<uint8_t>(EffectType::Unknown) == 0);
@@ -92,6 +94,8 @@ TEST_CASE("EffectCatalog: effect_type_for maps param type to EffectType") {
     CHECK(effect_type_for<KeyingParams>::value          == EffectType::Keying);
     CHECK(effect_type_for<ThresholdParams>::value        == EffectType::Threshold);
     CHECK(effect_type_for<MosaicParams>::value           == EffectType::Mosaic);
+    CHECK(effect_type_for<ChromaticAberrationParams>::value == EffectType::ChromaticAberration);
+    CHECK(effect_type_for<HalftoneParams>::value == EffectType::Halftone);
 }
 
 // =============================================================================
@@ -143,6 +147,8 @@ TEST_CASE("EffectCatalog: roundtrip Type->Params->Type is identity") {
     test_roundtrip.operator()<EffectType::Fill>();
     test_roundtrip.operator()<EffectType::Noise>();
     test_roundtrip.operator()<EffectType::Offset>();
+    test_roundtrip.operator()<EffectType::ChromaticAberration>();
+    test_roundtrip.operator()<EffectType::Halftone>();
 }
 
 // =============================================================================

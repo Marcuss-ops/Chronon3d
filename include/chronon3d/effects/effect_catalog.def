@@ -360,3 +360,10 @@ CHRONON_EFFECT(38, Ripple, RippleParams, ids::DistortRipple, "Ripple",
 CHRONON_EFFECT(39, DisplacementMap, DisplacementMapParams, ids::DistortDisplacementMap, "Displacement Map",
     EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
     AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, true, false)
+
+CHRONON_EFFECT(40, ChromaticAberration, ChromaticAberrationParams, ids::StylizeChromaticAberration, "Chromatic Aberration",
+    EffectCategory::Stylize, EffectStage::Adjustment, EffectDomain::Spatial,
+    AlphaPolicy::Preserve, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+CHRONON_EFFECT(41, Halftone, HalftoneParams, ids::StylizeHalftone, "Halftone",
+    EffectCategory::Stylize, EffectStage::Adjustment, EffectDomain::Spatial,
+    AlphaPolicy::Preserve, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
