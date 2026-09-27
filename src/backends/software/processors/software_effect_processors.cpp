@@ -506,6 +506,88 @@ public:
     }
 };
 
+class SoftwareChromaticAberrationEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ChromaticAberrationParams>(&params);
+        if (!p) throw std::runtime_error("ChromaticAberration processor received invalid parameters");
+        if (!std::isfinite(p->red_offset) || !std::isfinite(p->blue_offset) ||
+            std::abs(p->red_offset) > 128.0f || std::abs(p->blue_offset) > 128.0f)
+            throw std::runtime_error("ChromaticAberration offsets must be finite and within [-128, 128]");
+        const Framebuffer source = fb;
+        int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, x1);
+            y0 = std::clamp(context.clip->y0, 0, y1);
+            x1 = std::clamp(context.clip->x1, 0, x1);
+            y1 = std::clamp(context.clip->y1, 0, y1);
+        }
+        const int red = static_cast<int>(std::lround(p->red_offset));
+        const int blue = static_cast<int>(std::lround(p->blue_offset));
+        for (int y = y0; y < y1; ++y) {
+            Color* dst = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                const Color center = source.get_pixel(x, y);
+                const Color r = source.get_pixel(std::clamp(x + red, 0, fb.width() - 1), y);
+                const Color b = source.get_pixel(std::clamp(x + blue, 0, fb.width() - 1), y);
+                const float red_channel = center.a > 1.0e-8f && r.a > 1.0e-8f
+                    ? (r.r / r.a) * center.a : 0.0f;
+                const float blue_channel = center.a > 1.0e-8f && b.a > 1.0e-8f
+                    ? (b.b / b.a) * center.a : 0.0f;
+                dst[x] = {red_channel, center.g, blue_channel, center.a};
+            }
+        }
+    }
+};
+
+class SoftwareHalftoneEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<HalftoneParams>(&params);
+        if (!p) throw std::runtime_error("Halftone processor received invalid parameters");
+        if (p->size == 0 || p->size > 128 || !std::isfinite(p->angle_degrees) ||
+            !std::isfinite(p->amount) || p->amount < 0.0f || p->amount > 1.0f)
+            throw std::runtime_error("Halftone requires size in [1, 128], finite angle, and amount in [0, 1]");
+        const Framebuffer source = fb;
+        int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, x1);
+            y0 = std::clamp(context.clip->y0, 0, y1);
+            x1 = std::clamp(context.clip->x1, 0, x1);
+            y1 = std::clamp(context.clip->y1, 0, y1);
+        }
+        const float cell = static_cast<float>(p->size);
+        const float angle = p->angle_degrees * 0.01745329251994329577f;
+        const float cs = std::cos(angle), sn = std::sin(angle);
+        const auto luma_at = [&](int x, int y) {
+            const Color c = source.get_pixel(std::clamp(x, 0, fb.width() - 1),
+                                             std::clamp(y, 0, fb.height() - 1));
+            if (c.a <= 1.0e-8f) return 1.0f;
+            return std::clamp((0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b) / c.a,
+                              0.0f, 1.0f);
+        };
+        for (int y = y0; y < y1; ++y) {
+            Color* dst = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                const float rx = cs * static_cast<float>(x) + sn * static_cast<float>(y);
+                const float ry = -sn * static_cast<float>(x) + cs * static_cast<float>(y);
+                const float cx = (std::floor(rx / cell) + 0.5f) * cell;
+                const float cy = (std::floor(ry / cell) + 0.5f) * cell;
+                const int sample_x = static_cast<int>(std::lround(cs * cx - sn * cy));
+                const int sample_y = static_cast<int>(std::lround(sn * cx + cs * cy));
+                const float luma = luma_at(sample_x, sample_y);
+                const float radius = std::sqrt(1.0f - luma) * cell * 0.5f * p->amount;
+                const float dx = rx - cx, dy = ry - cy;
+                const Color original = source.get_pixel(x, y);
+                const float ink = dx * dx + dy * dy < radius * radius ? 0.0f : 1.0f;
+                dst[x] = {original.a * ink, original.a * ink, original.a * ink, original.a};
+            }
+        }
+    }
+};
+
 class SoftwareLightRaysEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -819,6 +901,14 @@ std::unique_ptr<EffectProcessor> create_threshold_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_mosaic_effect_processor() {
     return std::make_unique<SoftwareMosaicEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_chromatic_aberration_effect_processor() {
+    return std::make_unique<SoftwareChromaticAberrationEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_halftone_effect_processor() {
+    return std::make_unique<SoftwareHalftoneEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_light_rays_effect_processor() {

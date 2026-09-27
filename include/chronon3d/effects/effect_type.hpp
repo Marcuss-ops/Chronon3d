@@ -60,6 +60,8 @@ enum class EffectType : uint8_t {
     WaveWarp        = 37,
     Ripple          = 38,
     DisplacementMap = 39,
+    ChromaticAberration = 40,
+    Halftone = 41,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/path_commands.hpp>
+#include <cstdint>
 #include <type_traits>
 #include <vector>
 
@@ -13,7 +14,22 @@ enum class MaskType {
     Rect,
     RoundedRect,
     Circle,
-    Path
+    Path,
+    Ellipse
+};
+
+enum class MaskCombineMode : std::uint8_t { Add, Subtract, Intersect, Difference };
+
+struct MaskOperation {
+    MaskCombineMode mode{MaskCombineMode::Add};
+    MaskType type{MaskType::None};
+    Vec3 pos{0.0f, 0.0f, 0.0f};
+    Vec2 size{0.0f, 0.0f};
+    f32 radius{0.0f};
+    std::vector<PathCommand> path;
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
+    bool inverted{false};
 };
 
 struct Mask {
@@ -33,8 +49,11 @@ struct Mask {
     f32 feather{0.0f};
     f32 expansion{0.0f};
     bool inverted{false};
+    // Additional ordered shapes are composited with the legacy primary mask.
+    // Keeping the primary fields preserves source and binary-facing APIs.
+    std::vector<MaskOperation> operations;
 
-    [[nodiscard]] bool enabled() const { return type != MaskType::None; }
+    [[nodiscard]] bool enabled() const { return type != MaskType::None || !operations.empty(); }
 };
 
 // Params used in LayerBuilder API
@@ -42,6 +61,8 @@ struct RectMaskParams {
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
     bool inverted{false};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
 };
 
 struct RoundedRectMaskParams {
@@ -49,11 +70,23 @@ struct RoundedRectMaskParams {
     f32  radius{8.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
     bool inverted{false};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
 };
 
 struct CircleMaskParams {
     f32  radius{50.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
+    bool inverted{false};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
+};
+
+struct EllipseMaskParams {
+    Vec2 size{100.0f, 100.0f};
+    Vec3 pos{0.0f, 0.0f, 0.0f};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
     bool inverted{false};
 };
 

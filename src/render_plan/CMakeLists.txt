@@ -7,6 +7,8 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
     render_budget.cpp
+    spring_bake.cpp
+    shape_path_generator.cpp
     fingerprint.cpp
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp

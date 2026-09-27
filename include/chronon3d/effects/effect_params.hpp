@@ -210,6 +210,17 @@ struct MosaicParams {
     std::uint32_t block_size{8};
 };
 
+struct ChromaticAberrationParams {
+    float red_offset{2.0f};
+    float blue_offset{-2.0f};
+};
+
+struct HalftoneParams {
+    std::uint32_t size{8};
+    float angle_degrees{0.0f};
+    float amount{1.0f};
+};
+
 struct LightRaysParams {
     Vec2 origin{0.5f, 0.5f};
     float length{320.0f};
@@ -362,7 +373,8 @@ using EffectParams = std::variant<
     TwirlParams,
     BulgeParams,
     MeshWarpParams,
-    SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams
+    SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
+    ChromaticAberrationParams, HalftoneParams
 >;
 
 } // namespace chronon3d

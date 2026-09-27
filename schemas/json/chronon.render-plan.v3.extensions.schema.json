@@ -4,7 +4,8 @@
   "title": "Chronon3D Render Plan V3 Shape and Gradient Extensions",
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
-    "point": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "point": { "type": "array", "minItems": 2, "maxItems": 2,
+                "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } },
     "transition": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "duration_frames"],
@@ -136,7 +137,13 @@
         { "if": { "required": ["bezier_curve"] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }, { "properties": { "roving": { "const": true } } }] } } },
         { "if": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "properties": { "roving": { "const": true } } } } },
         { "if": { "required": ["roving"], "properties": { "roving": { "const": true } } }, "then": { "not": { "anyOf": [{ "required": ["bezier_curve"] }, { "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] } } },
-        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"], "not": { "anyOf": [{ "required": ["interpolation"] }, { "properties": { "roving": { "const": true } }] } } } }
+        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"], "not": { "anyOf": [{ "required": ["interpolation"] }, { "properties": { "roving": { "const": true } } }] } } }
+      ]
+    },
+    "per_keyframe_spring_contract": {
+      "allOf": [
+        { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
+        { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } }
       ]
     },
     "camera_track": {
@@ -188,6 +195,24 @@
         "smoothstep", "hold", "bezier"
       ]
     },
+    "animation_easing": { "oneOf": [ { "$ref": "#/$defs/easing" }, { "const": "spring" } ] },
+    "spring_config": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mass": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "default": 1 },
+        "stiffness": { "type": "number", "exclusiveMinimum": 0, "maximum": 100000, "default": 100 },
+        "damping": { "type": "number", "minimum": 0, "maximum": 100000, "default": 15 },
+        "initial_velocity": { "type": "number", "minimum": -1000000, "maximum": 1000000, "default": 0 }
+      }
+    },
+    "wiggle_driver": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000, "default": 2 },
+        "amplitude": { "type": "number", "minimum": -10000, "maximum": 10000, "default": 30 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 }
+      }
+    },
     "animator_property_track": {
       "description": "V3 override of the V2 animator property track. The property vocabulary is the V2 set plus the per-glyph 'rotation' and 'fill_color' tracks; V2 plans keep the frozen V2 enum and cannot use them.",
       "type": "object", "additionalProperties": false,
@@ -196,13 +221,16 @@
         "property": {
           "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "rotation", "fill_color"]
         },
-        "easing": { "$ref": "#/$defs/easing" },
+        "easing": { "$ref": "#/$defs/animation_easing" },
+        "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+        "spring": { "$ref": "#/$defs/spring_config" },
+        "wiggle": { "$ref": "#/$defs/wiggle_driver" },
         "keyframes": {
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "additionalProperties": false,
-            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }, { "$ref": "#/$defs/per_keyframe_spring_contract" }],
             "required": ["frame", "value"],
             "properties": {
               "frame": { "type": "integer", "minimum": 0 },
@@ -213,8 +241,9 @@
                 ]
               },
               "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
-              "easing": { "$ref": "#/$defs/easing" },
+              "easing": { "$ref": "#/$defs/animation_easing" },
               "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "spring": { "$ref": "#/$defs/spring_config" },
               "roving": { "type": "boolean", "default": false },
               "temporal_in_dx": { "type": "number" },
               "temporal_in_dy": { "type": "number" },
@@ -226,6 +255,8 @@
       },
       "allOf": [
         { "$ref": "#/$defs/bezier_easing_contract" },
+        { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
+        { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } },
         {
           "if": { "properties": { "property": { "const": "fill_color" } }, "required": ["property"] },
           "then": {
@@ -267,13 +298,15 @@
       "required": ["keyframes"],
       "properties": {
         "property": { "type": "string" },
-        "easing": { "$ref": "#/$defs/easing" },
+        "easing": { "$ref": "#/$defs/animation_easing" },
+        "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
+        "spring": { "$ref": "#/$defs/spring_config" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": {
           "type": "array", "minItems": 1,
           "items": {
             "type": "object", "additionalProperties": false,
-            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }, { "$ref": "#/$defs/per_keyframe_spring_contract" }],
             "required": ["frame", "value"],
             "properties": {
               "frame": { "type": "integer", "minimum": 0 },
@@ -284,8 +317,9 @@
                 ]
               },
               "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
-              "easing": { "$ref": "#/$defs/easing" },
+              "easing": { "$ref": "#/$defs/animation_easing" },
               "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "spring": { "$ref": "#/$defs/spring_config" },
               "roving": { "type": "boolean", "default": false },
               "temporal_in_dx": { "type": "number" },
               "temporal_in_dy": { "type": "number" },
@@ -295,7 +329,11 @@
           }
         }
       },
-      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }]
+      "allOf": [
+        { "$ref": "#/$defs/bezier_easing_contract" },
+        { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
+        { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } }
+      ]
     },
     "text_selector": {
       "type": "object", "additionalProperties": false,
@@ -413,7 +451,7 @@
       "required": ["type"],
       "not": { "required": ["radius", "corner_radius"] },
       "properties": {
-        "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path"] },
+        "type": { "enum": ["rect", "rounded_rect", "ellipse", "line", "path", "star", "polygon", "arrow", "arc", "grid", "dot_grid", "device_frame"] },
         "asset": { "type": "string", "minLength": 1, "pattern": "\\.svg$" },
         "lottie": { "type": "string", "minLength": 1, "pattern": "\\.json$" },
         "fill_rule": { "enum": ["even_odd", "non_zero"] },
@@ -422,6 +460,18 @@
         "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
         "stroke": { "$ref": "#/$defs/stroke" },
         "path": { "type": "array", "minItems": 1, "maxItems": 65536, "items": { "$ref": "#/$defs/path_command" } },
+        "points": { "type": "integer", "minimum": 3, "maximum": 256 },
+        "inner_radius_ratio": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "rotation_degrees": { "type": "number", "minimum": -100000, "maximum": 100000 },
+        "shaft_ratio": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "head_ratio": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "start_degrees": { "type": "number", "minimum": -100000, "maximum": 100000 },
+        "sweep_degrees": { "type": "number", "exclusiveMinimum": -360, "maximum": 360 },
+        "segments": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "spacing": { "type": "number", "exclusiveMinimum": 0, "maximum": 100000 },
+        "dot_radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 100000 },
+        "device": { "enum": ["phone", "browser"] },
+        "chrome": { "type": "boolean", "default": true },
         "operators": {
           "type": "array", "maxItems": 16,
           "items": {
@@ -508,7 +558,40 @@
                     "properties": {
                       "start": { "type": "number", "minimum": 0, "maximum": 1 },
                       "end": { "type": "number", "minimum": 0, "maximum": 1 },
-                      "offset": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+                      "offset": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+                      "animation": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["keyframes"],
+                        "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
+                        "properties": {
+                          "easing": { "$ref": "#/$defs/easing" },
+                          "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
+                          "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                          "keyframes": {
+                            "type": "array", "minItems": 1, "maxItems": 65536,
+                            "items": {
+                              "type": "object", "additionalProperties": false,
+                              "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+                              "required": ["frame", "value"],
+                              "properties": {
+                                "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                                "value": { "oneOf": [
+                                  { "type": "number" },
+                                  { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "number" } }
+                                ] },
+                                "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+                                "easing": { "$ref": "#/$defs/easing" },
+                                "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                                "roving": { "type": "boolean", "default": false },
+                                "temporal_in_dx": { "type": "number" },
+                                "temporal_in_dy": { "type": "number" },
+                                "temporal_out_dx": { "type": "number" },
+                                "temporal_out_dy": { "type": "number" }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   },
                   {
@@ -524,6 +607,7 @@
                         "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
                         "properties": {
                           "easing": { "$ref": "#/$defs/easing" },
+                          "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
                           "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
                           "keyframes": {
                             "type": "array", "minItems": 1, "maxItems": 65536,
@@ -558,6 +642,11 @@
       "allOf": [
         { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] }, "then": { "oneOf": [{"required":["path"],"not":{"anyOf":[{"required":["asset"]},{"required":["lottie"]}]}},{"required":["asset"],"not":{"anyOf":[{"required":["path"]},{"required":["lottie"]}]}},{"required":["lottie"],"not":{"anyOf":[{"required":["path"]},{"required":["asset"]}]}}] } },
         { "if": { "properties": { "type": { "const": "line" } }, "required": ["type"] }, "then": { "required": ["path", "stroke"] } },
+        { "if": { "properties": { "type": { "enum": ["star", "polygon", "arrow", "arc", "grid", "dot_grid", "device_frame"] } }, "required": ["type"] }, "then": { "not": { "anyOf": [{"required":["path"]},{"required":["asset"]},{"required":["lottie"]},{"required":["radius"]},{"required":["corner_radius"]}] } } },
+        { "if": { "properties": { "type": { "const": "arc" } }, "required": ["type"] }, "then": { "required": ["stroke"], "not": {"required":["fill"]} } },
+        { "if": { "properties": { "type": { "const": "grid" } }, "required": ["type"] }, "then": { "required": ["stroke"], "not": {"anyOf":[{"required":["fill"]},{"required":["dot_radius"]}] } } },
+        { "if": { "properties": { "type": { "const": "dot_grid" } }, "required": ["type"] }, "then": { "required": ["fill"] } },
+        { "if": { "properties": { "type": { "const": "device_frame" } }, "required": ["type"] }, "then": { "required": ["fill"] } },
         { "if": { "properties": { "type": { "enum": ["rect", "rounded_rect", "ellipse"] } }, "required": ["type"] }, "then": { "not": { "required": ["path"] } } }
       ]
     }
@@ -588,6 +677,25 @@
       "items": {
         "type": "object",
         "properties": {
+          "flow": {
+            "type": "object", "additionalProperties": false, "required": ["group_id"],
+            "properties": {
+              "group_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "axis": { "enum": ["row", "column"] }, "align": { "enum": ["start", "center", "end", "stretch"] },
+              "justify": { "enum": ["start", "center", "end", "space_between", "space_around", "space_evenly"] },
+              "gap": { "type": "number", "minimum": 0, "maximum": 1000000 }, "wrap": { "type": "boolean" },
+              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } }
+            }
+          },
+          "grid_layout": {
+            "type": "object", "additionalProperties": false, "required": ["group_id"],
+            "properties": {
+              "group_id": { "type": "string", "minLength": 1, "maxLength": 256 }, "fit": { "enum": ["auto", "fixed_columns", "fixed_rows"] },
+              "columns": { "type": "integer", "minimum": 1, "maximum": 4096 }, "rows": { "type": "integer", "minimum": 1, "maximum": 4096 },
+              "gap": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } },
+              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } }
+            }
+          },
           "type": { "enum": ["image", "video", "text", "color", "shape", "particles", "light", "adjustment", "mesh"] },
           "light": {
             "type": "object", "additionalProperties": false,
@@ -703,6 +811,7 @@
               "samples": { "type": "integer", "minimum": 1, "maximum": 64 }
             }
           },
+          "auto_orient": { "type": "boolean", "default": false },
           "transition_in": { "$ref": "#/$defs/transition" },
           "transition_out": { "$ref": "#/$defs/transition" },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
@@ -772,13 +881,16 @@
                   "required": ["property", "keyframes"],
                   "properties": {
                     "property": { "enum": ["position", "position_x", "position_y", "position_z", "scale", "scale_x", "scale_y", "scale_z", "rotation", "rotation_x", "rotation_y", "rotation_z", "opacity", "blur", "stroke_dash_offset", "fill_color"] },
-                    "easing": { "$ref": "#/$defs/easing" },
+                    "easing": { "$ref": "#/$defs/animation_easing" },
+                    "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
                     "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                    "spring": { "$ref": "#/$defs/spring_config" },
+                    "wiggle": { "$ref": "#/$defs/wiggle_driver" },
                     "keyframes": {
                       "type": "array", "minItems": 1, "maxItems": 65536,
                       "items": {
                         "type": "object", "additionalProperties": false,
-                        "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }],
+                        "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }, { "$ref": "#/$defs/per_keyframe_spring_contract" }],
                         "required": ["frame", "value"],
                         "properties": {
                           "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
@@ -789,8 +901,9 @@
                             ]
                           },
                           "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
-                          "easing": { "$ref": "#/$defs/easing" },
+                          "easing": { "$ref": "#/$defs/animation_easing" },
                           "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+                          "spring": { "$ref": "#/$defs/spring_config" },
                           "roving": { "type": "boolean", "default": false },
                           "temporal_in_dx": { "type": "number" },
                           "temporal_in_dy": { "type": "number" },
@@ -802,6 +915,8 @@
                   },
                   "allOf": [
                     { "$ref": "#/$defs/bezier_easing_contract" },
+                    { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
+                    { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } },
                     {
                       "if": { "properties": { "property": { "const": "fill_color" } }, "required": ["property"] },
                       "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "$ref": "#/$defs/rgba" } } } } } }
@@ -842,9 +957,55 @@
               "type": { "const": "path" },
               "path": { "type": "array", "minItems": 1, "maxItems": 65536,
                         "items": { "$ref": "#/$defs/path_command" } },
+              "target_path": { "type": "array", "minItems": 1, "maxItems": 65536,
+                               "items": { "$ref": "#/$defs/path_command" } },
+              "animation": { "$ref": "#/$defs/selector_track" },
               "feather": { "type": "number", "minimum": 0, "maximum": 1000000 },
               "expansion": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
               "inverted": { "type": "boolean" }
+            },
+            "allOf": [
+              { "if": { "required": ["target_path"] }, "then": { "required": ["animation"] } },
+              { "if": { "required": ["animation"] }, "then": { "required": ["target_path"] } }
+            ]
+          },
+          "masks": {
+            "description": "Ordered mask stack. The first entry seeds the stack and must use add; later operations compose alpha in declaration order. Difference is the symmetric difference of alpha coverage.",
+            "type": "array", "minItems": 1, "maxItems": 16,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "mode"],
+              "properties": {
+                "type": { "enum": ["path", "rect", "rounded_rect", "ellipse"] },
+                "mode": { "enum": ["add", "subtract", "intersect", "difference"] },
+                "path": { "type": "array", "minItems": 1, "maxItems": 65536,
+                          "items": { "$ref": "#/$defs/path_command" } },
+                "target_path": { "type": "array", "minItems": 1, "maxItems": 65536,
+                                 "items": { "$ref": "#/$defs/path_command" } },
+                "animation": { "$ref": "#/$defs/selector_track" },
+                "position": { "type": "array", "minItems": 2, "maxItems": 2,
+                               "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } },
+                "size": { "type": "array", "minItems": 2, "maxItems": 2,
+                           "items": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 } },
+                "radius": { "type": "number", "minimum": 0, "maximum": 500000 },
+                "feather": { "type": "number", "minimum": 0, "maximum": 1000000 },
+                "expansion": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+                "inverted": { "type": "boolean" }
+              },
+              "allOf": [
+                { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] },
+                  "then": { "required": ["path"] } },
+                { "if": { "properties": { "type": { "const": "rect" } }, "required": ["type"] },
+                  "then": { "required": ["size"] } },
+                { "if": { "properties": { "type": { "const": "rounded_rect" } }, "required": ["type"] },
+                  "then": { "required": ["size", "radius"] } },
+                { "if": { "properties": { "type": { "const": "ellipse" } }, "required": ["type"] },
+                  "then": { "required": ["size"] } },
+                { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] },
+                  "then": { "not": { "anyOf": [{ "required": ["size"] }, { "required": ["radius"] }] } } },
+                { "if": { "required": ["target_path"] }, "then": { "required": ["animation", "path"] } },
+                { "if": { "required": ["animation"] }, "then": { "required": ["target_path", "path"] } }
+              ]
             }
           },
           "effects": {
@@ -903,6 +1064,47 @@
                   "type": { "const": "mosaic" },
                   "time": { "$ref": "#/$defs/effect_time" },
                   "block_size": { "type": "integer", "minimum": 1, "maximum": 512 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "chromatic_aberration" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "red_offset": { "type": "number", "minimum": -128, "maximum": 128 },
+                  "blue_offset": { "type": "number", "minimum": -128, "maximum": 128 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "halftone" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "size": { "type": "integer", "minimum": 1, "maximum": 128 },
+                  "angle": { "type": "number" },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "directional_blur" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "angle": { "type": "number", "minimum": -3600, "maximum": 3600 },
+                  "length": { "type": "number", "minimum": 0, "maximum": 2048 },
+                  "samples": { "type": "integer", "minimum": 0, "maximum": 256 }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                  "type": { "const": "radial_blur" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "center": { "type": "array", "minItems": 2, "maxItems": 2,
+                              "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 10 },
+                  "render_samples": { "type": "integer", "minimum": 2, "maximum": 256 },
+                  "preview_samples": { "type": "integer", "minimum": 2, "maximum": 128 }
                 }
               },
               { "type": "object", "additionalProperties": false,

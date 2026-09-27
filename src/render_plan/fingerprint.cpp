@@ -103,6 +103,22 @@ private:
 void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
     out.add_string(track.property);
     out.add_string(track.easing);
+    out.add_string(track.loop_mode);
+    if (track.wiggle) {
+        out.add_bool(true);
+        out.add_float(track.wiggle->frequency);
+        out.add_float(track.wiggle->amplitude);
+        out.add_u32(track.wiggle->seed);
+    } else {
+        out.add_bool(false);
+    }
+    if (track.spring) {
+        out.add_bool(true);
+        out.add_float(track.spring->mass);
+        out.add_float(track.spring->stiffness);
+        out.add_float(track.spring->damping);
+        out.add_float(track.spring->initial_velocity);
+    }
     if (track.bezier_curve) {
         out.add_bool(true);
         for (const auto value : *track.bezier_curve) out.add_float(value);
@@ -116,6 +132,13 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         if (key.interpolation) out.add_string(*key.interpolation);
         out.add_bool(key.easing.has_value());
         if (key.easing) out.add_string(*key.easing);
+        if (key.spring) {
+            out.add_bool(true);
+            out.add_float(key.spring->mass);
+            out.add_float(key.spring->stiffness);
+            out.add_float(key.spring->damping);
+            out.add_float(key.spring->initial_velocity);
+        }
         out.add_bool(key.bezier_curve.has_value());
         if (key.bezier_curve)
             for (const auto value : *key.bezier_curve) out.add_float(value);
@@ -363,6 +386,14 @@ void add_audio_mix(CanonicalPlanWriter& out, const AudioMixPlan& mix) {
 void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
+    add_optional(out, layer.flow_layout, [](auto& w, const LayerPlan::FlowLayoutPlan& p) {
+        w.add_string(p.group_id); w.add_string(p.axis); w.add_string(p.align); w.add_string(p.justify);
+        w.add_float(p.gap); w.add_bool(p.wrap); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+    });
+    add_optional(out, layer.grid_layout, [](auto& w, const LayerPlan::GridLayoutPlan& p) {
+        w.add_string(p.group_id); w.add_string(p.fit); w.add_uint64(static_cast<std::uint64_t>(p.columns)); w.add_uint64(static_cast<std::uint64_t>(p.rows));
+        w.add_float(p.gap[0]); w.add_float(p.gap[1]); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+    });
     add_optional(out, layer.parent, [](auto& writer, const std::string& value) {
         writer.add_string(value);
     });
@@ -453,6 +484,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     if (layer.shape) {
         const auto& shape = *layer.shape;
         out.add_enum(shape.type);
+        if (shape.type == ShapeContentTypePlan::DeviceFrame) {
+            out.add_enum(shape.device_frame_kind);
+            out.add_bool(shape.device_frame_chrome);
+        }
         add_optional(out, shape.svg_asset, [](auto& nested, const std::string& asset) {
             nested.add_string(asset);
         });
@@ -494,6 +529,27 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control1) out.add_float(value);
             for (const auto value : command.control2) out.add_float(value);
         }
+        out.add_size(shape.imported_subpaths.size());
+        for (const auto& subpath : shape.imported_subpaths) {
+            add_optional(out, subpath.fill_color, [](auto& writer, const auto& color) {
+                for (const auto component : color) writer.add_float(component);
+            });
+            add_optional(out, subpath.stroke, [](auto& writer, const StrokeStyle& stroke) {
+                add_optional(writer, stroke.width, [](auto& nested, float value) {
+                    nested.add_float(value);
+                });
+                add_optional(writer, stroke.solid_color, [](auto& nested, const auto& color) {
+                    for (const auto component : color) nested.add_float(component);
+                });
+            });
+            out.add_size(subpath.path.size());
+            for (const auto& command : subpath.path) {
+                out.add_enum(command.type);
+                for (const auto value : command.point) out.add_float(value);
+                for (const auto value : command.control1) out.add_float(value);
+                for (const auto value : command.control2) out.add_float(value);
+            }
+        }
         out.add_size(shape.operators.size());
         for (const auto& op : shape.operators) {
             out.add_enum(op.kind);
@@ -532,6 +588,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(op.trim_start);
                 out.add_float(op.trim_end);
                 out.add_float(op.trim_offset);
+                if (op.trim_animation) {
+                    // Keep the v11 byte stream for static trim operators.
+                    out.add_bool(true);
+                    add_track(out, *op.trim_animation);
+                }
                 continue;
             }
             if (op.kind == PathOperatorKindPlan::Morph) {
@@ -603,6 +664,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     }
     if (layer.path_mask) {
         out.add_bool(true);
+        out.add_string(layer.path_mask->type);
+        out.add_string(layer.path_mask->mode);
+        for (const auto value : layer.path_mask->position) out.add_float(value);
+        for (const auto value : layer.path_mask->size) out.add_float(value);
+        out.add_float(layer.path_mask->radius);
         out.add_float(layer.path_mask->feather);
         out.add_float(layer.path_mask->expansion);
         out.add_bool(layer.path_mask->inverted);
@@ -613,6 +679,39 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             for (const auto value : command.control1) out.add_float(value);
             for (const auto value : command.control2) out.add_float(value);
         }
+        out.add_size(layer.path_mask->morph_target.size());
+        for (const auto& command : layer.path_mask->morph_target) {
+            out.add_enum(command.type);
+            for (const auto value : command.point) out.add_float(value);
+            for (const auto value : command.control1) out.add_float(value);
+            for (const auto value : command.control2) out.add_float(value);
+        }
+        add_optional(out, layer.path_mask->morph_animation,
+            [](auto& writer, const AnimationTrackPlan& animation) { add_track(writer, animation); });
+    }
+    out.add_size(layer.masks.size());
+    for (const auto& mask : layer.masks) {
+        out.add_string(mask.type);
+        out.add_string(mask.mode);
+        for (const auto value : mask.position) out.add_float(value);
+        for (const auto value : mask.size) out.add_float(value);
+        out.add_float(mask.radius);
+        out.add_float(mask.feather);
+        out.add_float(mask.expansion);
+        out.add_bool(mask.inverted);
+        const auto add_mask_commands = [&](const auto& commands) {
+            out.add_size(commands.size());
+            for (const auto& command : commands) {
+                out.add_enum(command.type);
+                for (const auto value : command.point) out.add_float(value);
+                for (const auto value : command.control1) out.add_float(value);
+                for (const auto value : command.control2) out.add_float(value);
+            }
+        };
+        add_mask_commands(mask.path);
+        add_mask_commands(mask.morph_target);
+        add_optional(out, mask.morph_animation,
+            [](auto& writer, const AnimationTrackPlan& animation) { add_track(writer, animation); });
     }
     if (!layer.effects.empty()) {
         out.add_bool(true);
@@ -709,7 +808,23 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             } else if(effect.kind==LayerPlan::EffectKindPlan::DisplacementMap) {
                 out.add_string(effect.map_layer); out.add_float(effect.map_intensity_x);
                 out.add_float(effect.map_intensity_y); out.add_uint64(effect.map_channel);
-
+            } else if (effect.kind == LayerPlan::EffectKindPlan::ChromaticAberration) {
+                out.add_float(effect.chromatic_red_offset);
+                out.add_float(effect.chromatic_blue_offset);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Halftone) {
+                out.add_size(effect.halftone_size);
+                out.add_float(effect.halftone_angle);
+                out.add_float(effect.halftone_amount);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::DirectionalBlur) {
+                out.add_float(effect.directional_angle);
+                out.add_float(effect.directional_length);
+                out.add_size(static_cast<std::size_t>(effect.directional_samples));
+            } else if (effect.kind == LayerPlan::EffectKindPlan::RadialBlur) {
+                out.add_float(effect.radial_center[0]);
+                out.add_float(effect.radial_center[1]);
+                out.add_float(effect.radial_amount);
+                out.add_size(static_cast<std::size_t>(effect.radial_render_samples));
+                out.add_size(static_cast<std::size_t>(effect.radial_preview_samples));
             } else {
                 out.add_size(effect.block_size);
             }
@@ -773,6 +888,7 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     add_optional(out, layer.opacity,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_bool(layer.loop);
+    out.add_bool(layer.auto_orient);
 }
 
 }  // namespace
@@ -783,7 +899,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v11");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v17");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

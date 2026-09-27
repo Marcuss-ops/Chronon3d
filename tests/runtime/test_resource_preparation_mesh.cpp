@@ -119,6 +119,34 @@ std::filesystem::path write_node_transform_glb() {
     return path;
 }
 
+std::filesystem::path write_glb_document_fixture(std::string json,
+                                                  std::string_view label) {
+    while (json.size() % 4 != 0) json.push_back(' ');
+    std::vector<std::byte> file;
+    const auto total_length = static_cast<std::uint32_t>(12 + 8 + json.size() + 8 + 4);
+    append_u32(file, 0x46546C67U);
+    append_u32(file, 2U);
+    append_u32(file, total_length);
+    append_u32(file, static_cast<std::uint32_t>(json.size()));
+    append_u32(file, 0x4E4F534AU);
+    file.insert(file.end(), reinterpret_cast<const std::byte*>(json.data()),
+                reinterpret_cast<const std::byte*>(json.data() + json.size()));
+    append_u32(file, 4U);
+    append_u32(file, 0x004E4942U);
+    file.insert(file.end(), 4, std::byte{0});
+
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto path = std::filesystem::temp_directory_path() /
+        ("chronon3d-preparation-" + std::string(label) + "-" +
+         std::to_string(unique) + ".glb");
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output.good()) throw std::runtime_error("could not create GLB fixture");
+    output.write(reinterpret_cast<const char*>(file.data()),
+                 static_cast<std::streamsize>(file.size()));
+    if (!output.good()) throw std::runtime_error("could not write GLB fixture");
+    return path;
+}
+
 } // namespace
 
 #ifdef CHRONON3D_ENABLE_MESH
@@ -210,6 +238,126 @@ TEST_CASE("MeshLoader rejects a primitive material index outside the prepared ma
     CHECK(result.error().code == chronon3d::assets::MeshLoadErrorCode::InvalidGeometry);
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("MeshLoader rejects animated and skinned GLB data instead of silently treating it as static") {
+    for (const auto& unsupported_member : {std::string{"\"animations\":[{}],"},
+                                           std::string{"\"skins\":[{}],"}}) {
+        const auto path = write_triangle_glb();
+        std::ifstream input(path, std::ios::binary);
+        std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        const auto insert_at = bytes.find("\"buffers\"");
+        REQUIRE(insert_at != std::string::npos);
+        bytes.insert(insert_at, unsupported_member);
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        REQUIRE(output.good());
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        REQUIRE(output.good());
+        output.close();
+
+        chronon3d::assets::AssetResolver resolver;
+        resolver.mount(path.parent_path());
+        const chronon3d::assets::InternalAssetRef ref{
+            chronon3d::assets::AssetKind::Mesh, path.filename().string(), "mesh/unsupported-motion", true};
+        const auto result = chronon3d::assets::MeshLoader::load(ref, resolver);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == chronon3d::assets::MeshLoadErrorCode::InvalidGeometry);
+        CHECK(result.error().message.find("static MeshLoader contract") != std::string::npos);
+        std::error_code ignored;
+        std::filesystem::remove(path, ignored);
+    }
+}
+
+TEST_CASE("MeshLoader rejects GLB input above its byte budget before hashing or parsing") {
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto path = std::filesystem::temp_directory_path() /
+        ("chronon3d-preparation-oversized-" + std::to_string(unique) + ".glb");
+    {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        REQUIRE(output.good());
+        output.seekp(static_cast<std::streamoff>(chronon3d::assets::kMeshLoaderV1MaxGlbBytes));
+        output.put('\0');
+        REQUIRE(output.good());
+    }
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(path.parent_path());
+    const chronon3d::assets::InternalAssetRef ref{
+        chronon3d::assets::AssetKind::Mesh, path.filename().string(), "mesh/oversized", true};
+    const auto result = chronon3d::assets::MeshLoader::load(ref, resolver);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == chronon3d::assets::MeshLoadErrorCode::UnsupportedGlb);
+    CHECK(result.error().message.find("64 MiB") != std::string::npos);
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+}
+
+TEST_CASE("MeshLoader bounds GLB JSON expansion and scene node arrays") {
+    const auto load = [](const std::filesystem::path& path, std::string logical) {
+        chronon3d::assets::AssetResolver resolver;
+        resolver.mount(path.parent_path());
+        const chronon3d::assets::InternalAssetRef ref{
+            chronon3d::assets::AssetKind::Mesh, path.filename().string(),
+            std::move(logical), true};
+        return chronon3d::assets::MeshLoader::load(ref, resolver);
+    };
+
+    const auto oversized_json = write_glb_document_fixture(
+        std::string(static_cast<std::size_t>(
+            chronon3d::assets::kMeshLoaderV1MaxJsonBytes + 4), ' '), "large-json");
+    const auto json_result = load(oversized_json, "mesh/large-json");
+    REQUIRE_FALSE(json_result.has_value());
+    CHECK(json_result.error().message.find("16 MiB") != std::string::npos);
+    std::error_code ignored;
+    std::filesystem::remove(oversized_json, ignored);
+
+    std::string node_document =
+        R"({"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[]}],"nodes":[)";
+    for (std::size_t i = 0; i <= chronon3d::assets::kMeshLoaderV1MaxNodes; ++i) {
+        if (i != 0) node_document.push_back(',');
+        node_document += "{}";
+    }
+    node_document += R"(],"meshes":[],"buffers":[{"byteLength":4}]})";
+    const auto oversized_nodes = write_glb_document_fixture(
+        std::move(node_document), "large-node-array");
+    const auto node_result = load(oversized_nodes, "mesh/large-node-array");
+    REQUIRE_FALSE(node_result.has_value());
+    CHECK(node_result.error().message.find("node count exceeds") != std::string::npos);
+    std::filesystem::remove(oversized_nodes, ignored);
+
+    const auto oversized_vertices = write_glb_document_fixture(
+        R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":4}],"bufferViews":[{"buffer":0,"byteLength":4},{"buffer":0,"byteOffset":0,"byteLength":4}],"accessors":[{"bufferView":0,"componentType":5126,"count":1000001,"type":"VEC3"},{"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}],"meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}]})",
+        "large-vertex-count");
+    const auto vertex_result = load(oversized_vertices, "mesh/large-vertex-count");
+    REQUIRE_FALSE(vertex_result.has_value());
+    CHECK(vertex_result.error().message.find("aggregate vertex count exceeds") != std::string::npos);
+    std::filesystem::remove(oversized_vertices, ignored);
+
+    const auto reject_document = [&](std::string document, std::string label,
+                                     std::string_view expected_error) {
+        const auto path = write_glb_document_fixture(std::move(document), label);
+        const auto result = load(path, "mesh/" + label);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().message.find(expected_error) != std::string::npos);
+        std::filesystem::remove(path, ignored);
+    };
+    reject_document(
+        R"({"asset":{"version":"2.0"},"extensionsUsed":["KHR_draco_mesh_compression"],"meshes":[],"buffers":[{"byteLength":4}]})",
+        "extension-contract", "extensions are not supported");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"meshes":[],"buffers":[{"byteLength":4,"uri":"mesh.bin"}]})",
+        "external-buffer", "external GLB buffers");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"materials":[{"pbrMetallicRoughness":{"metallicFactor":0.5}}],"meshes":[],"buffers":[{"byteLength":4}]})",
+        "material-contract", "PBR property is not supported");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":4}],"bufferViews":[{"buffer":0,"byteLength":4}],"images":[{"bufferView":0,"mimeType":"image/webp"}],"meshes":[]})",
+        "image-mime-contract", "only image/png and image/jpeg");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":4}],"bufferViews":[{"buffer":0,"byteLength":4}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"TANGENT":0},"indices":0}]}]})",
+        "attribute-contract", "primitive attribute is not supported");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":4}],"bufferViews":[{"buffer":0,"byteLength":4}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","sparse":{}}],"meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":0}]}]})",
+        "sparse-accessor", "sparse GLB accessors are not supported");
 }
 
 TEST_CASE("ResourcePreparation::prepare loads GLB into PreparedAssets and reuses cache") {

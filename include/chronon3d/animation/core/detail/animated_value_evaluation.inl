@@ -21,8 +21,8 @@
 //   prefix added for out-of-line definitions).
 //
 // NOTE on the LoopMode block
-//   `evaluate_base_double(...)` carries a small `if (m_loop_mode == LoopMode::Loop)`
-//   block and a corresponding PingPong block.  These are KEPT INSIDE
+//   `evaluate_base_double(...)` carries the LoopMode remapping for Loop,
+//   PingPong, and Offset. These are KEPT INSIDE
 //   `evaluate_base_double(...)` rather than extracted into a dedicated
 //   `animated_value_looping.inl`.  Cutting a `LoopMode` block out of the
 //   middle of a function body via `#include` is an archaic C-style
@@ -61,6 +61,7 @@ template <AnimatableValue T>
     const double range   = end_f - start_f;
 
     double eval_frame = frame;
+    double offset_cycles = 0.0;
 
     if (m_loop_mode == LoopMode::Loop && range > 0) {
         if (frame < start_f) {
@@ -77,10 +78,24 @@ template <AnimatableValue T>
         } else {
             eval_frame = end_f - offset;
         }
+    } else if (m_loop_mode == LoopMode::Offset && range > 0) {
+        offset_cycles = std::floor((frame - start_f) / range);
+        double offset = std::fmod(frame - start_f, range);
+        if (offset < 0.0) offset += range;
+        eval_frame = start_f + offset;
     } else {
         if (frame <= start_f) return m_keyframes.front().value;
         if (frame >= end_f)   return m_keyframes.back().value;
     }
+
+    auto apply_cycle_offset = [&](const T& value) -> T {
+        if (m_loop_mode != LoopMode::Offset || offset_cycles == 0.0) return value;
+        if constexpr (std::is_arithmetic_v<T> || is_glm_vec_type_v<T>)
+            return value + (m_keyframes.back().value - m_keyframes.front().value) *
+                static_cast<f32>(offset_cycles);
+        else
+            throw std::runtime_error("offset loop mode requires a numeric or vector value");
+    };
 
     // Linear scan for keyframe segment (uses > to correctly handle
     // duplicate frames — matches upper_bound behavior).
@@ -93,7 +108,7 @@ template <AnimatableValue T>
         idx = i + 1;
     }
     if (idx + 1 >= m_keyframes.size()) {
-        return m_keyframes.back().value;
+        return apply_cycle_offset(m_keyframes.back().value);
     }
 
     const auto& prev = m_keyframes[idx];
@@ -106,13 +121,13 @@ template <AnimatableValue T>
     const f32 t = static_cast<f32>((eval_frame - prev_f) / (next_f - prev_f));
 
     // Hold interpolation: value jumps at keyframe.
-    if (prev.interp == InterpMode::Hold) return prev.value;
+    if (prev.interp == InterpMode::Hold) return apply_cycle_offset(prev.value);
 
     // Temporal cubic interpolation works component-wise for scalars and GLM
     // vectors with a shared solved time parameter.
     if constexpr (std::is_arithmetic_v<T> || is_glm_vec_type_v<T>) {
         if (prev.interp == InterpMode::Bezier || prev.interp == InterpMode::AutoBezier)
-            return eval_temporal_bezier(prev, next, t);
+            return apply_cycle_offset(eval_temporal_bezier(prev, next, t));
     }
 
     // Spatial bezier path: when handles are present, use CubicBezier3D
@@ -127,14 +142,15 @@ template <AnimatableValue T>
             const Vec3 p2 = next.value + next.in_handle;
             // De Casteljau evaluation
             const f32 u = 1.0f - eased_t;
-            return u * u * u * p0
+            return apply_cycle_offset(u * u * u * p0
                  + 3.0f * u * u * eased_t * p1
                  + 3.0f * u * eased_t * eased_t * p2
-                 + eased_t * eased_t * eased_t * p3;
+                 + eased_t * eased_t * eased_t * p3);
         }
     }
 
-    return interpolate_values(prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing);
+    return apply_cycle_offset(interpolate_values(
+        prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing));
 }
 
 // should_cache_double — shared cache-check for Frame + SampleTime paths.

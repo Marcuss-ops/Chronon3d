@@ -62,6 +62,48 @@ TEST_CASE("Mosaic samples stable canvas-aligned block centers") {
     CHECK(fb.get_pixel(0, 0).r != doctest::Approx(fb.get_pixel(2, 0).r));
 }
 
+TEST_CASE("Chromatic aberration shifts red and blue independently and respects clip") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(5, 1);
+    for (int x = 0; x < 5; ++x)
+        fb.set_pixel(x, 0, Color{static_cast<float>(x), 10.0f + x, 20.0f + x, 1.0f});
+    EffectStack stack;
+    stack.emplace_back(ChromaticAberrationParams{.red_offset = 1.0f, .blue_offset = -1.0f});
+    effects::EffectExecutionContext context;
+    context.clip = raster::BBox{1, 0, 4, 1};
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(1, 0).r == doctest::Approx(2.0f));
+    CHECK(fb.get_pixel(1, 0).g == doctest::Approx(11.0f));
+    CHECK(fb.get_pixel(1, 0).b == doctest::Approx(20.0f));
+    CHECK(fb.get_pixel(0, 0).r == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Halftone is deterministic, keeps alpha, and leaves white cells uninked") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(16, 8);
+    for (int y = 0; y < 8; ++y) for (int x = 0; x < 16; ++x) {
+        const float value = x < 8 ? 0.0f : 0.75f;
+        fb.set_pixel(x, y, Color{value * 0.75f, value * 0.75f, value * 0.75f, 0.75f});
+    }
+    EffectStack stack;
+    stack.emplace_back(HalftoneParams{.size = 8, .angle_degrees = 0.0f, .amount = 1.0f});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(4, 4).r == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(4, 4).a == doctest::Approx(0.75f));
+    CHECK(fb.get_pixel(12, 4).r == doctest::Approx(0.75f));
+    const Color first = fb.get_pixel(1, 1);
+    Framebuffer repeat(16, 8);
+    for (int y = 0; y < 8; ++y) for (int x = 0; x < 16; ++x) {
+        const float value = x < 8 ? 0.0f : 0.75f;
+        repeat.set_pixel(x, y, Color{value * 0.75f, value * 0.75f, value * 0.75f, 0.75f});
+    }
+    apply_effect_stack(repeat, stack, context, registry);
+    CHECK(repeat.get_pixel(1, 1).r == doctest::Approx(first.r));
+}
+
 TEST_CASE("Sharpen has an exact identity mode and honors its difference threshold") {
     SoftwareRegistry registry;
     register_builtin_processors(registry);

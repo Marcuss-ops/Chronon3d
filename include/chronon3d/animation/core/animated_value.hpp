@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
+#include <stdexcept>
 
 // Helper: detect glm vector types (vec2, vec3, vec4) for spatial roving.
 template<typename T>
@@ -41,7 +42,8 @@ inline T lerp(const T& a, const T& b, f32 t) {
 enum class LoopMode {
     Hold,
     Loop,
-    PingPong
+    PingPong,
+    Offset
 };
 
 struct AnimationEvalContext {

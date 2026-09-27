@@ -25,6 +25,14 @@ Result<PreparedMeshSourceRef, MeshLoadError> MeshLoader::load(
         return MeshLoadError{MeshLoadErrorCode::MissingAsset, ref.path,
                              "mesh asset not found: " + ref.path};
     }
+    std::error_code size_error;
+    const auto size = std::filesystem::file_size(*resolved, size_error);
+    if (size_error)
+        return MeshLoadError{MeshLoadErrorCode::ReadFailed, ref.path,
+                             "could not stat GLB before preparation"};
+    if (size > kMeshLoaderV1MaxGlbBytes)
+        return MeshLoadError{MeshLoadErrorCode::UnsupportedGlb, ref.path,
+                             "GLB exceeds the 64 MiB MeshLoader V1 input limit"};
     MeshIdentity identity;
     try {
         identity = identity_for(*resolved);
