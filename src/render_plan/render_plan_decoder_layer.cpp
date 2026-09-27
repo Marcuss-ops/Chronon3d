@@ -80,18 +80,76 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
             key.easing = key_value.at("easing").get<std::string>();
         if (key_value.contains("bezier_curve"))
             key.bezier_curve = decode_bezier_curve(key_value, "bezier", "animation keyframe");
+        if (key_value.contains("roving") && !key_value.at("roving").is_boolean())
+            throw std::runtime_error("roving must be a boolean");
+        key.roving = key_value.value("roving", false);
+        if (key_value.contains("temporal_in_dx")) key.temporal_in_dx = key_value.at("temporal_in_dx").get<float>();
+        if (key_value.contains("temporal_in_dy")) key.temporal_in_dy = key_value.at("temporal_in_dy").get<float>();
+        if (key_value.contains("temporal_out_dx")) key.temporal_out_dx = key_value.at("temporal_out_dx").get<float>();
+        if (key_value.contains("temporal_out_dy")) key.temporal_out_dy = key_value.at("temporal_out_dy").get<float>();
+        for (const auto handle : {key.temporal_in_dx, key.temporal_in_dy,
+                                  key.temporal_out_dx, key.temporal_out_dy})
+            if (handle && !std::isfinite(*handle))
+                throw std::runtime_error("temporal bezier handles must be finite");
+        if (key.temporal_in_dx.has_value() != key.temporal_in_dy.has_value() ||
+            key.temporal_out_dx.has_value() != key.temporal_out_dy.has_value())
+            throw std::runtime_error("temporal handle dx and dy must be provided together");
+        if (key.temporal_in_dx && *key.temporal_in_dx > 0.0f)
+            throw std::runtime_error("temporal_in_dx must be non-positive");
+        if (key.temporal_out_dx && *key.temporal_out_dx < 0.0f)
+            throw std::runtime_error("temporal_out_dx must be non-negative");
+        if (key.easing && *key.easing != "linear" && *key.easing != "in_quad" &&
+            *key.easing != "out_quad" && *key.easing != "in_out_quad" &&
+            *key.easing != "in_cubic" && *key.easing != "out_cubic" &&
+            *key.easing != "in_out_cubic" && *key.easing != "in_expo" &&
+            *key.easing != "out_expo" && *key.easing != "in_out_expo" &&
+            *key.easing != "in_sine" && *key.easing != "out_sine" &&
+            *key.easing != "in_out_sine" && *key.easing != "in_back" &&
+            *key.easing != "out_back" && *key.easing != "in_out_back" &&
+            *key.easing != "in_elastic" && *key.easing != "out_elastic" &&
+            *key.easing != "in_out_elastic" && *key.easing != "in_bounce" &&
+            *key.easing != "out_bounce" && *key.easing != "in_out_bounce" &&
+            *key.easing != "smoothstep" && *key.easing != "hold" && *key.easing != "bezier")
+            throw std::runtime_error("unsupported per-key animation easing: " + *key.easing);
         if (key.interpolation && *key.interpolation != "linear" &&
-            *key.interpolation != "hold" && *key.interpolation != "bezier")
-            throw std::runtime_error("keyframe interpolation must be linear, hold, or bezier");
-        if (key.interpolation && (key.easing || key.bezier_curve))
-            throw std::runtime_error("keyframe interpolation cannot be combined with easing or bezier_curve");
-        if (key.interpolation == "bezier" && !key.bezier_curve)
-            throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve");
-        if (key.interpolation != "bezier" &&
-            ((key.easing == "bezier") != key.bezier_curve.has_value()))
+            *key.interpolation != "hold" && *key.interpolation != "bezier" &&
+            *key.interpolation != "auto_bezier")
+            throw std::runtime_error("keyframe interpolation must be linear, hold, bezier, or auto_bezier");
+        if (key.interpolation == "auto_bezier" &&
+            (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy || key.bezier_curve))
+            throw std::runtime_error("auto_bezier cannot be combined with authored Bezier data");
+        if (key.interpolation == "bezier" && key.bezier_curve &&
+            (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy))
+            throw std::runtime_error("bezier_curve and temporal handles cannot be combined on one keyframe");
+        if ((key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy) &&
+            (key.interpolation != "bezier" || key.bezier_curve))
+            throw std::runtime_error("temporal handles require interpolation='bezier' without bezier_curve");
+        const bool has_temporal_handles = key.temporal_in_dx || key.temporal_in_dy ||
+            key.temporal_out_dx || key.temporal_out_dy;
+
+        if (key.roving && (has_temporal_handles || key.bezier_curve))
+            throw std::runtime_error("roving keyframes cannot contain authored Bezier handles");
+        if (key.interpolation && key.easing)
+            throw std::runtime_error("keyframe interpolation cannot be combined with easing");
+        if (key.interpolation == "bezier" && !key.bezier_curve && !has_temporal_handles)
+            throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve or temporal handles");
+        if (key.interpolation && *key.interpolation != "bezier" && key.bezier_curve)
+            throw std::runtime_error("bezier_curve requires interpolation='bezier'");
+        if (!key.interpolation && ((key.easing == "bezier") != key.bezier_curve.has_value()))
             throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
+        if (key.interpolation && key.easing)
+            throw std::runtime_error("keyframe interpolation cannot be combined with easing");
+        if (key.roving && (key.interpolation == "bezier" || key.interpolation == "auto_bezier" ||
+                           has_temporal_handles || key.bezier_curve))
+            throw std::runtime_error("roving cannot be combined with authored or automatic Bezier timing");
+        if (key.interpolation == "auto_bezier" &&
+            (key.easing || key.bezier_curve || has_temporal_handles))
+            throw std::runtime_error("auto_bezier cannot be combined with easing or authored handles");
         track.keyframes.push_back(std::move(key));
     }
+    for (std::size_t index = 1; index < track.keyframes.size(); ++index)
+        if (track.keyframes[index - 1].frame == track.keyframes[index].frame)
+            throw std::runtime_error("animation keyframe frames must be unique");
     return track;
 }
 
@@ -376,8 +434,14 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 } else {
                     key.value.push_back(raw.get<float>());
                 }
-                if (key_value.contains("interpolation")) key.interpolation = key_value.at("interpolation").get<std::string>();
-                if (key_value.contains("easing")) key.easing = key_value.at("easing").get<std::string>();
+                if (key_value.contains("roving") || key_value.contains("temporal_in_dx") ||
+                    key_value.contains("temporal_in_dy") || key_value.contains("temporal_out_dx") ||
+                    key_value.contains("temporal_out_dy"))
+                    throw std::runtime_error("time_remap keyframes do not support roving or temporal handles");
+                if (key_value.contains("interpolation"))
+                    key.interpolation = key_value.at("interpolation").get<std::string>();
+                if (key_value.contains("easing"))
+                    key.easing = key_value.at("easing").get<std::string>();
                 if (key_value.contains("bezier_curve"))
                     key.bezier_curve = decode_bezier_curve(key_value, "bezier", "time_remap keyframe");
                 if (!std::isfinite(key.value.front()) || key.value.front() < 0.0f ||

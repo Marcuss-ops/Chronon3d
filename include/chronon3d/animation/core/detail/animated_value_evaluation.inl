@@ -108,11 +108,11 @@ template <AnimatableValue T>
     // Hold interpolation: value jumps at keyframe.
     if (prev.interp == InterpMode::Hold) return prev.value;
 
-    // Temporal bezier interpolation (arithmetic/scalar types).
-    if constexpr (std::is_arithmetic_v<T>) {
-        if (prev.interp == InterpMode::Bezier || prev.interp == InterpMode::AutoBezier) {
+    // Temporal cubic interpolation works component-wise for scalars and GLM
+    // vectors with a shared solved time parameter.
+    if constexpr (std::is_arithmetic_v<T> || is_glm_vec_type_v<T>) {
+        if (prev.interp == InterpMode::Bezier || prev.interp == InterpMode::AutoBezier)
             return eval_temporal_bezier(prev, next, t);
-        }
     }
 
     // Spatial bezier path: when handles are present, use CubicBezier3D
