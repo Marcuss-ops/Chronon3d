@@ -299,6 +299,74 @@ TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key over
         {0.2, std::numeric_limits<float>::quiet_NaN(), 0.8, 0.9};
     source["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["easing"] = "bezier";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+
+    source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"animated","type":"shape","size":[10,10],"shape":{"type":"rect"},
+        "animation":{"tracks":[{"property":"opacity","keyframes":[
+          {"frame":0,"value":0,"interpolation":"auto_bezier"},
+          {"frame":5,"value":1,"interpolation":"linear","roving":true},
+          {"frame":10,"value":0}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto timing_plan = chronon3d::render_plan::decode_render_plan(source);
+    if (!timing_plan) INFO(timing_plan.error().message);
+    REQUIRE(timing_plan);
+    const auto& keys = timing_plan->layers[0].animation->tracks[0].keyframes;
+    CHECK(keys[0].interpolation == "auto_bezier");
+    CHECK(keys[1].roving);
+
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["interpolation"] = "bezier";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["interpolation"] = "linear";
+    source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["temporal_in_dx"] = -2;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+}
+
+TEST_CASE("per-key temporal handles, roving and AutoBezier preserve AnimatedValue semantics") {
+    using namespace chronon3d;
+
+    chronon3d::render_plan::
+    AnimatedValue<float> custom{0.0f};
+    chronon3d::render_plan::AnimationKeyframePlan a;
+    a.frame = Frame{0};
+    a.value = {0.0f};
+    a.interpolation = "bezier";
+    a.temporal_out_dx = 3.0f;
+    a.temporal_out_dy = 0.0f;
+    chronon3d::render_plan::AnimationKeyframePlan b;
+    b.frame = Frame{10};
+    b.value = {10.0f};
+    b.interpolation = "bezier";
+    b.temporal_in_dx = -3.0f;
+    b.temporal_in_dy = -5.0f;
+    custom.add_keyframe(a.frame, 0.0f, InterpMode::Bezier,
+        0.0f, 0.0f, *a.temporal_out_dx, *a.temporal_out_dy);
+    custom.add_keyframe(b.frame, 10.0f, InterpMode::Bezier,
+        *b.temporal_in_dx, *b.temporal_in_dy, 0.0f, 0.0f);
+    CHECK(custom.evaluate(5.0) != doctest::Approx(5.0f));
+
+    AnimatedValue<float> auto_curve{0.0f};
+    auto_curve.add_keyframe(Frame{0}, 0.0f, InterpMode::AutoBezier, 0, 0, 0, 0);
+    auto_curve.add_keyframe(Frame{10}, 2.0f, InterpMode::AutoBezier, 0, 0, 0, 0);
+    auto_curve.add_keyframe(Frame{20}, 10.0f, InterpMode::AutoBezier, 0, 0, 0, 0);
+    auto_curve.compute_auto_beziers();
+    CHECK(auto_curve.evaluate(5.0) > 0.0f);
+    CHECK(auto_curve.evaluate(5.0) == auto_curve.evaluate(5.0));
+
+    AnimatedValue<float> roving{0.0f};
+    roving.add_keyframe(Frame{0}, 0.0f);
+    roving.add_keyframe(Frame{2}, 2.0f, EasingCurve{}, true);
+    roving.add_keyframe(Frame{8}, 8.0f, EasingCurve{}, true);
+    roving.add_keyframe(Frame{12}, 12.0f);
+    roving.compute_roving();
+    CHECK(roving.keyframes()[1].frame == Frame{2});
+    CHECK(roving.keyframes()[2].frame == Frame{8});
+    roving.add_keyframe(Frame{4}, 3.0f, EasingCurve{}, true);
+    roving.compute_roving();
+    CHECK(roving.keyframes()[1].frame == Frame{3});
+    CHECK(roving.keyframes()[2].frame == Frame{4});
+    CHECK(roving.keyframes()[3].frame == Frame{8});
 }
 
 TEST_CASE("shared keyframe easing resolves hold and deterministic cubic curves") {

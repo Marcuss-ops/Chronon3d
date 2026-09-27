@@ -57,6 +57,11 @@ struct AnimationKeyframePlan {
     std::optional<std::string> interpolation;
     std::optional<std::string> easing;
     std::optional<std::array<float, 4>> bezier_curve;
+    bool roving{false};
+    std::optional<float> temporal_in_dx;
+    std::optional<float> temporal_in_dy;
+    std::optional<float> temporal_out_dx;
+    std::optional<float> temporal_out_dy;
 };
 
 struct AnimationTrackPlan {

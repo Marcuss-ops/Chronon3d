@@ -148,21 +148,25 @@ public:
 
     /// Add a keyframe with InterpMode + temporal tangent handles.
     void add_keyframe(Frame frame, const T& value, InterpMode interp,
-                       f32 in_dx, f32 in_dy, f32 out_dx, f32 out_dy) {
-        m_keyframes.emplace_back(frame, value, EasingCurve{Easing::Linear}, false);
-        m_keyframes.back().interp = interp;
-        m_keyframes.back().temporal_in_dx = in_dx;
-        m_keyframes.back().temporal_in_dy = in_dy;
-        m_keyframes.back().temporal_out_dx = out_dx;
-        m_keyframes.back().temporal_out_dy = out_dy;
+                       f32 in_dx, f32 in_dy, f32 out_dx, f32 out_dy,
+                       bool roving = false,
+                       EasingCurve easing = EasingCurve{Easing::Linear}) {
+        if (m_keyframes.empty() && m_has_explicit_baseline && frame > Frame{0}) {
+            m_keyframes.emplace_back(Frame{0}, m_default_value,
+                                     EasingCurve{Easing::Linear}, false);
+        }
+        m_keyframes.emplace_back(frame, value, easing, roving);
+        auto inserted = std::prev(m_keyframes.end());
+        inserted->interp = interp;
+        inserted->temporal_in_dx = in_dx;
+        inserted->temporal_in_dy = in_dy;
+        inserted->temporal_out_dx = out_dx;
+        inserted->temporal_out_dy = out_dy;
         std::sort(m_keyframes.begin(), m_keyframes.end());
         if (interp == InterpMode::AutoBezier) m_auto_bezier_dirty = true;
+        if (roving) m_roving_dirty = true;
     }
 
-    // Canonical fluent form for adding a keyframe — returns *this to
-    // enable chaining (e.g. `lb.position_anim().key(0, ...).key(30, ...)`).
-    // The void-returning `add_keyframe()` overloads above remain available
-    // for non-chaining call sites; both share the same insertion semantics.
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
         return *this;
@@ -197,6 +201,24 @@ public:
     /// Like AnimationCurve::compute_auto_beziers() — only meaningful for
     /// arithmetic (scalar) types.
     void compute_auto_beziers() const;
+
+    /// Add a temporal keyframe with vector-valued incoming and outgoing
+    /// tangent offsets. Scalar overload remains unchanged for backward compatibility.
+    void add_vector_temporal_keyframe(Frame frame, const T& value, InterpMode interp,
+                                      f32 in_dx, const T& in_dy,
+                                      f32 out_dx, const T& out_dy,
+                                      bool roving = false,
+                                      EasingCurve easing = EasingCurve{Easing::Linear})
+        requires is_glm_vec_type_v<T> {
+        add_keyframe(frame, value, interp, in_dx, 0.0f, out_dx, 0.0f, roving, easing);
+        const auto inserted = std::find_if(m_keyframes.rbegin(), m_keyframes.rend(),
+            [frame](const auto& keyframe) { return keyframe.frame == frame; });
+        if (inserted != m_keyframes.rend()) {
+            inserted->temporal_in_value = in_dy;
+            inserted->temporal_out_value = out_dy;
+            inserted->has_vector_temporal_handles = true;
+        }
+    }
 
     // Set a constant value (clears all keyframes and expressions).
     AnimatedValue& set(const T& value) {

@@ -48,6 +48,11 @@ void strip_per_key_timing_for_v2_projection(nlohmann::json& value,
                     key.erase("interpolation");
                     key.erase("easing");
                     key.erase("bezier_curve");
+                    key.erase("roving");
+                    key.erase("temporal_in_dx");
+                    key.erase("temporal_in_dy");
+                    key.erase("temporal_out_dx");
+                    key.erase("temporal_out_dy");
                 }
             }
         }
@@ -67,6 +72,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         return projected;
     if (projected.contains("camera_animation"))
         strip_per_key_timing_for_v2_projection(projected["camera_animation"]);
+    projected.erase("camera");
+    projected.erase("camera_animation");
 
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;
