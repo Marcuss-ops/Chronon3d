@@ -39,9 +39,22 @@ public:
         }
 
         if (mesh_shape.inline_mesh) {
-            chronon3d::renderer::render_mesh_filled(
-                fb, *mesh_shape.inline_mesh, state.matrix, view, projection, node_color,
-                depth_buffer, camera.near_plane, camera.far_plane);
+            if (node.inline_mesh_material) {
+                Color base = node_color;
+                if (node.inline_mesh_material->base_color) {
+                    const Color tint = node.inline_mesh_material->base_color->to_linear();
+                    base = Color{node_color.r * tint.r, node_color.g * tint.g,
+                                 node_color.b * tint.b, node_color.a * tint.a};
+                }
+                chronon3d::renderer::render_mesh_filled_lit(
+                    fb, *mesh_shape.inline_mesh, state.matrix, view, projection, base,
+                    depth_buffer, state.light_context, state.rim_light,
+                    *node.inline_mesh_material, camera.near_plane, camera.far_plane);
+            } else {
+                chronon3d::renderer::render_mesh_filled(
+                    fb, *mesh_shape.inline_mesh, state.matrix, view, projection, node_color,
+                    depth_buffer, camera.near_plane, camera.far_plane);
+            }
         }
         if (mesh_shape.prepared) {
             for (const auto& part : mesh_shape.prepared->parts) {

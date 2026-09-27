@@ -13,6 +13,7 @@
 #include <string>
 #include <memory_resource>
 #include <variant>
+#include <optional>
 
 namespace chronon3d {
 
@@ -43,6 +44,15 @@ struct RenderNode {
     Color color{1, 1, 1, 1};
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
+    // Inline mesh shading is opt-in; absent keeps the historical flat path.
+    struct InlineMeshMaterial {
+        f32 diffuse{1.0f};
+        f32 specular{0.25f};
+        f32 shininess{32.0f};
+        f32 rim_intensity{1.0f};
+        std::optional<Color> base_color;
+    };
+    std::optional<InlineMeshMaterial> inline_mesh_material;
     // Mesh moved to Shape::MeshShape (shape variant index 13).
     // Access via: node.shape.mesh_shape().prepared / .reference
     f32 corner_radius{0.0f};

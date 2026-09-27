@@ -420,9 +420,11 @@ TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key over
     const auto timing_plan = chronon3d::render_plan::decode_render_plan(source);
     if (!timing_plan) INFO(timing_plan.error().message);
     REQUIRE(timing_plan);
-    const auto& keys = timing_plan->layers[0].animation->tracks[0].keyframes;
-    CHECK(keys[0].interpolation == "auto_bezier");
-    CHECK(keys[1].roving);
+    {
+    const auto& keys2 = timing_plan->layers[0].animation->tracks[0].keyframes;
+    CHECK(keys2[0].interpolation == "auto_bezier");
+    CHECK(keys2[1].roving);
+    }
 
     source["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["interpolation"] = "bezier";
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
@@ -434,7 +436,6 @@ TEST_CASE("v3 keyframes decode outgoing timing and report ignored final-key over
 TEST_CASE("per-key temporal handles, roving and AutoBezier preserve AnimatedValue semantics") {
     using namespace chronon3d;
 
-    chronon3d::render_plan::
     AnimatedValue<float> custom{0.0f};
     chronon3d::render_plan::AnimationKeyframePlan a;
     a.frame = Frame{0};

@@ -717,6 +717,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         mesh.offsets.push_back(Vec2{effect.mesh_offsets[i], effect.mesh_offsets[i + 1]});
                     prepared_effects[index].emplace_back(std::move(mesh));
 
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
+                    prepared_effects[index].emplace_back(VignetteEffectParams{
+                        .amount = effect.amount, .radius = effect.warp_radius, .softness = effect.warp_falloff,
+                        .color = Color{effect.effect_color[0], effect.effect_color[1], effect.effect_color[2], effect.effect_color[3]}});
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
@@ -737,6 +741,21 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             scene.font_engine(font_engine.get());
+            if (plan.lighting_rig) {
+                const auto& source = *plan.lighting_rig;
+                chronon3d::rendering::LightingRig rig;
+                rig.key_direction = chronon3d::rendering::safe_normalize(Vec3{
+                    source.key_direction[0], source.key_direction[1], source.key_direction[2]});
+                rig.key_color = Color{source.key_color[0], source.key_color[1], source.key_color[2], source.key_color[3]};
+                rig.key_intensity = source.key_intensity;
+                rig.ambient_color = Color{source.ambient_color[0], source.ambient_color[1], source.ambient_color[2], source.ambient_color[3]};
+                rig.ambient_intensity = source.ambient_intensity;
+                rig.rim.enabled = source.rim_enabled;
+                rig.rim.color = Color{source.rim_color[0], source.rim_color[1], source.rim_color[2], source.rim_color[3]};
+                rig.rim.intensity = source.rim_intensity;
+                rig.rim.power = source.rim_power;
+                scene.apply_lighting_rig(rig);
+            }
 
             // Render-plan text positions are converted to centre-relative
             // layer coordinates by apply_layer_primitives(). Keep the
@@ -953,8 +972,21 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             params.indices = layer.inline_mesh->indices;
                             builder.accepts_lights(false).accepts_shadows(false);
                             builder.inline_mesh(std::move(params));
-                            builder.last_node_handle().node().color = Color{
-                                layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                            auto& node = builder.last_node_handle().node();
+                            node.color = Color{layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                            if (layer.inline_mesh->material) {
+                                const auto& source = *layer.inline_mesh->material;
+                                RenderNode::InlineMeshMaterial material;
+                                material.diffuse = source.diffuse;
+                                material.specular = source.specular;
+                                material.shininess = source.shininess;
+                                material.rim_intensity = source.rim_intensity;
+                                if (source.base_color)
+                                    material.base_color = Color{(*source.base_color)[0], (*source.base_color)[1],
+                                                                (*source.base_color)[2], (*source.base_color)[3]};
+                                node.inline_mesh_material = material;
+                                builder.accepts_lights(true);
+                            }
                             break;
                         }
                         case LayerType::Shape: {

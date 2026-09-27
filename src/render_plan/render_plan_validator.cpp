@@ -74,6 +74,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         strip_per_key_timing_for_v2_projection(projected["camera_animation"]);
     projected.erase("camera");
     projected.erase("camera_animation");
+    projected.erase("lighting_rig");
 
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;

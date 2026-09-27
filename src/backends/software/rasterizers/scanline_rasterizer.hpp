@@ -36,6 +36,9 @@ void fill_triangle(Framebuffer& fb, std::span<const Vec3, 3> v, const Color& col
 /// space and inverted per pixel before the shared depth test.
 void fill_triangle_perspective(Framebuffer& fb, std::span<const Vec3, 3> v,
                                const Color& color, std::span<float> depth_buffer);
+void fill_triangle_perspective_gradient(Framebuffer& fb, std::span<const Vec3, 3> v,
+                                        std::span<const Color, 3> colors,
+                                        std::span<float> depth_buffer);
 
 void fill_gradient_triangle(Framebuffer& fb, std::span<const Vec3, 3> v, std::span<const Color, 3> colors,
                              std::span<float> depth_buffer);

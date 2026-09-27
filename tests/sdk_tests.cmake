@@ -23,6 +23,7 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_decoder.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
+    c_abi/test_render_plan_inline_mesh.cpp
     c_abi/test_render_plan_audio_mix.cpp
     c_abi/test_render_plan_fingerprint_shape.cpp
     c_abi/test_render_plan_validator.cpp

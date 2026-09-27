@@ -57,6 +57,7 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
@@ -208,6 +209,7 @@ struct FrameInput {
     bool has_camera_2_5d{false};
     renderer::ProjectionContext projection_ctx{};
     rendering::LightContext light_context{};
+    rendering::RimLight rim_light{};
 
     /// Canonical accessor for the per-composition assets directory.
     [[nodiscard]] const std::string& assets_root() const noexcept {
