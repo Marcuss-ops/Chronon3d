@@ -2,6 +2,7 @@
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
 #include <chronon3d/geometry/mesh.hpp>
+#include <chronon3d/rendering/lighting_eval.hpp>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -25,6 +26,16 @@ constexpr usize kMaxClipVerts = 6;
 
 struct StackPolygon {
     std::array<ViewVertex, kMaxClipVerts> verts;
+    usize size{0};
+};
+
+struct LitVertex {
+    ViewVertex view_position;
+    Color color;
+};
+
+struct LitStackPolygon {
+    std::array<LitVertex, kMaxClipVerts> verts;
     usize size{0};
 };
 
@@ -60,6 +71,43 @@ bool clip_polygon(StackPolygon& polygon, const auto& signed_distance) {
         }
     }
     polygon.verts = clipped;
+    polygon.size = clipped_size;
+    return true;
+}
+
+bool clip_lit_polygon(LitStackPolygon& polygon, const auto& signed_distance) {
+    if (polygon.size == 0) return true;
+    std::array<LitVertex, kMaxClipVerts> clipped;
+    usize clipped_size = 0;
+    const auto interpolate = [](const LitVertex& a, const LitVertex& b, float t) {
+        return LitVertex{a.view_position + t * (b.view_position - a.view_position),
+            Color{a.color.r + t * (b.color.r - a.color.r),
+                  a.color.g + t * (b.color.g - a.color.g),
+                  a.color.b + t * (b.color.b - a.color.b),
+                  a.color.a + t * (b.color.a - a.color.a)}};
+    };
+    for (usize i = 0; i < polygon.size; ++i) {
+        const auto& a = polygon.verts[i];
+        const auto& b = polygon.verts[(i + 1) % polygon.size];
+        const float da = signed_distance(a.view_position);
+        const float db = signed_distance(b.view_position);
+        const bool inside_a = da >= 0.0f, inside_b = db >= 0.0f;
+        if (inside_a && inside_b) {
+            if (clipped_size >= kMaxClipVerts) return false;
+            clipped[clipped_size++] = b;
+        } else if (inside_a != inside_b) {
+            const float denominator = da - db;
+            if (std::abs(denominator) > 1e-7f) {
+                if (clipped_size >= kMaxClipVerts) return false;
+                clipped[clipped_size++] = interpolate(a, b, da / denominator);
+            }
+            if (inside_b) {
+                if (clipped_size >= kMaxClipVerts) return false;
+                clipped[clipped_size++] = b;
+            }
+        }
+    }
+    for (usize i = 0; i < clipped_size; ++i) polygon.verts[i] = clipped[i];
     polygon.size = clipped_size;
     return true;
 }
@@ -112,6 +160,39 @@ void render_clipped_triangle(
     for (usize i = 1; i + 1 < projected_size; ++i) {
         Vec3 triangle[3] = {projected[0], projected[i], projected[i + 1]};
         fill_triangle_perspective(fb, triangle, color, depth_buffer);
+    }
+}
+
+void render_clipped_lit_triangle(
+    Framebuffer& fb, const std::array<LitVertex, 3>& triangle,
+    const Mat4& projection, std::span<float> depth_buffer,
+    float near_plane, float far_plane) {
+    LitStackPolygon polygon;
+    for (usize i = 0; i < 3; ++i) polygon.verts[i] = triangle[i];
+    polygon.size = 3;
+    if (!clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return -near_plane - v.z; })) return;
+    if (!clip_lit_polygon(polygon, [far_plane](const ViewVertex& v) { return v.z + far_plane; })) return;
+    if (polygon.size < 3) return;
+
+    std::array<Vec3, kMaxClipVerts> projected;
+    std::array<Color, kMaxClipVerts> colors;
+    for (usize i = 0; i < polygon.size; ++i) {
+        const auto& vertex = polygon.verts[i];
+        const float depth = -vertex.view_position.z;
+        if (!(depth > 0.0f) || !std::isfinite(depth)) return;
+        const Vec4 clip = projection * vertex.view_position;
+        if (!(clip.w > 1e-6f) || !std::isfinite(clip.w)) return;
+        const Vec2 ndc{clip.x / clip.w, clip.y / clip.w};
+        if (!std::isfinite(ndc.x) || !std::isfinite(ndc.y)) return;
+        projected[i] = {(ndc.x + 1.0f) * 0.5f * static_cast<float>(fb.width()),
+                        (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(fb.height()),
+                        1.0f / depth};
+        colors[i] = vertex.color;
+    }
+    for (usize i = 1; i + 1 < polygon.size; ++i) {
+        const std::array<Vec3, 3> positions{projected[0], projected[i], projected[i + 1]};
+        const std::array<Color, 3> triangle_colors{colors[0], colors[i], colors[i + 1]};
+        fill_triangle_perspective_gradient(fb, positions, triangle_colors, depth_buffer);
     }
 }
 
@@ -172,6 +253,62 @@ void render_mesh_filled(
         render_clipped_triangle(
             fb, view_triangle, proj, color, depth_buffer,
             near_plane, far_plane);
+    }
+}
+
+void render_mesh_filled_lit(
+    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+    const Mat4& view, const Mat4& proj, const Color& color,
+    std::span<float> depth_buffer, const rendering::LightContext& light,
+    const rendering::RimLight& rim, const RenderNode::InlineMeshMaterial& source_material,
+    f32 near_plane, f32 far_plane)
+{
+    const auto& vertices = mesh.vertices();
+    const auto& indices = mesh.indices();
+    if (vertices.empty() || indices.size() < 3 || !light.enabled) return;
+    Material2_5D material;
+    material.accepts_lights = true;
+    material.diffuse = source_material.diffuse;
+    material.specular = source_material.specular;
+    material.shininess = source_material.shininess;
+    material.ambient_multiplier = 1.0f;
+    rendering::RimLight active_rim = rim;
+    if (active_rim.enabled) active_rim.intensity *= source_material.rim_intensity;
+    Color base = color;
+    if (source_material.base_color) {
+        const Color tint = source_material.base_color->to_linear();
+        base.r *= tint.r;
+        base.g *= tint.g;
+        base.b *= tint.b;
+        base.a *= tint.a;
+    }
+    const Mat4 view_model = view * model;
+    near_plane = std::max(near_plane, 1e-5f);
+    far_plane = std::max(far_plane, near_plane + 1e-5f);
+    for (usize i = 0; i + 2 < indices.size(); i += 3) {
+        const u32 ia = indices[i], ib = indices[i + 1], ic = indices[i + 2];
+        if (ia >= vertices.size() || ib >= vertices.size() || ic >= vertices.size()) continue;
+        const std::array<u32, 3> ids{ia, ib, ic};
+        const auto world_position = [&](u32 id) {
+            const Vec4 p = model * Vec4(vertices[id].position, 1.0f);
+            return std::abs(p.w) > 1e-6f ? Vec3{p.x / p.w, p.y / p.w, p.z / p.w} : Vec3{p};
+        };
+        const Vec3 p0 = world_position(ia), p1 = world_position(ib), p2 = world_position(ic);
+        const Vec3 face_normal = rendering::safe_normalize(glm::cross(p1 - p0, p2 - p0));
+        std::array<LitVertex, 3> triangle;
+        for (usize corner = 0; corner < 3; ++corner) {
+            const u32 id = ids[corner];
+            const Vec3 input_normal = vertices[id].normal;
+            const Vec3 normal = glm::dot(input_normal, input_normal) > 1e-8f
+                ? rendering::transform_normal(model, input_normal) : face_normal;
+            Color lit = glm::dot(input_normal, input_normal) > 1e-8f
+                ? rendering::evaluate_lighting(base, normal, light, material,
+                    active_rim.enabled ? &active_rim : nullptr)
+                : base;
+            lit.a *= 1.0f;
+            triangle[corner] = {view_model * Vec4(vertices[id].position, 1.0f), lit};
+        }
+        render_clipped_lit_triangle(fb, triangle, proj, depth_buffer, near_plane, far_plane);
     }
 }
 

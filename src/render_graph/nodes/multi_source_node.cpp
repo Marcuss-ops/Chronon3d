@@ -333,6 +333,8 @@ NodeExecResult MultiSourceNode::execute(
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
+            state.light_context = ctx.frame_input.light_context;
+            state.rim_light = ctx.frame_input.rim_light;
             const auto placement = detail::evaluate_source_payload_placement(
                 item.matrix,
                 item.opacity,

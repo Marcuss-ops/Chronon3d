@@ -1,0 +1,272 @@
+{
+  "schema_version": "renderinggen.preset-render-manifest.v1",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1
+  },
+  "background": {
+    "kind": "color",
+    "color": [
+      0.9333333333333333,
+      0.9450980392156862,
+      0.9058823529411765,
+      1.0
+    ]
+  },
+  "output_root": "phrase_preview_batch_1920x1080",
+  "assets_root": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d",
+  "jobs": [
+    {
+      "id": "phrase-01-typewriter_clean",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "typewriter_clean",
+      "text": "OLHA ISSO!",
+      "duration_ms": 4500,
+      "output": "phrase-01-typewriter_clean.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-02-typewriter_glitch",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "typewriter_glitch",
+      "text": "Ciao mondo",
+      "duration_ms": 4500,
+      "output": "phrase-02-typewriter_glitch.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-03-typewriter_pop",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "typewriter_pop",
+      "text": "O maior arrependimento da minha vida",
+      "duration_ms": 4500,
+      "output": "phrase-03-typewriter_pop.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-04-typewriter_tracking",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "typewriter_tracking",
+      "text": "La vita è un viaggio straordinario.",
+      "duration_ms": 4500,
+      "output": "phrase-04-typewriter_tracking.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-05-precision_word_stagger",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "precision_word_stagger",
+      "text": "The remarkable discovery changed how researchers understand ancient life.",
+      "duration_ms": 4500,
+      "output": "phrase-05-precision_word_stagger.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-06-masked_vertical_lift",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "masked_vertical_lift",
+      "text": "We built a garden for the neighbors. The garden brought people together.",
+      "duration_ms": 4500,
+      "output": "phrase-06-masked_vertical_lift.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-07-kinetic_keyword_lock",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "kinetic_keyword_lock",
+      "text": "Questa frase è molto lunga e dovrebbe restringersi automaticamente senza uscire dal riquadro previsto dal preset",
+      "duration_ms": 4500,
+      "output": "phrase-07-kinetic_keyword_lock.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-08-apple_focus_rise",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_focus_rise",
+      "text": "Può contenere due frasi. Una dopo l'altra, senza sovrapporsi mai.",
+      "duration_ms": 4500,
+      "output": "phrase-08-apple_focus_rise.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-09-apple_soft_scale",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_soft_scale",
+      "text": "OLHA ISSO!",
+      "duration_ms": 4500,
+      "output": "phrase-09-apple_soft_scale.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-10-apple_word_cascade",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_word_cascade",
+      "text": "Ciao mondo",
+      "duration_ms": 4500,
+      "output": "phrase-10-apple_word_cascade.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-11-apple_line_cascade",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_line_cascade",
+      "text": "O maior arrependimento da minha vida",
+      "duration_ms": 4500,
+      "output": "phrase-11-apple_line_cascade.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-12-apple_precision_type",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_precision_type",
+      "text": "La vita è un viaggio straordinario.",
+      "duration_ms": 4500,
+      "output": "phrase-12-apple_precision_type.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-13-apple_tracking_reveal",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_tracking_reveal",
+      "text": "The remarkable discovery changed how researchers understand ancient life.",
+      "duration_ms": 4500,
+      "output": "phrase-13-apple_tracking_reveal.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-14-apple_expand_from_center",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_expand_from_center",
+      "text": "We built a garden for the neighbors. The garden brought people together.",
+      "duration_ms": 4500,
+      "output": "phrase-14-apple_expand_from_center.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-15-apple_compress_in",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_compress_in",
+      "text": "Questa frase è molto lunga e dovrebbe restringersi automaticamente senza uscire dal riquadro previsto dal preset",
+      "duration_ms": 4500,
+      "output": "phrase-15-apple_compress_in.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-16-apple_scale_push",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_scale_push",
+      "text": "Può contenere due frasi. Una dopo l'altra, senza sovrapporsi mai.",
+      "duration_ms": 4500,
+      "output": "phrase-16-apple_scale_push.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-17-apple_scale_settle",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_scale_settle",
+      "text": "OLHA ISSO!",
+      "duration_ms": 4500,
+      "output": "phrase-17-apple_scale_settle.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-18-apple_word_pulse",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_word_pulse",
+      "text": "Ciao mondo",
+      "duration_ms": 4500,
+      "output": "phrase-18-apple_word_pulse.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-19-apple_vertical_glyph_lift",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_vertical_glyph_lift",
+      "text": "O maior arrependimento da minha vida",
+      "duration_ms": 4500,
+      "output": "phrase-19-apple_vertical_glyph_lift.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-20-apple_line_sweep",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_line_sweep",
+      "text": "La vita è un viaggio straordinario.",
+      "duration_ms": 4500,
+      "output": "phrase-20-apple_line_sweep.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-21-apple_hero_statement",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_hero_statement",
+      "text": "The remarkable discovery changed how researchers understand ancient life.",
+      "duration_ms": 4500,
+      "output": "phrase-21-apple_hero_statement.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "phrase-22-apple_cinematic_exit",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_cinematic_exit",
+      "text": "We built a garden for the neighbors. The garden brought people together.",
+      "duration_ms": 4500,
+      "output": "phrase-22-apple_cinematic_exit.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "extra-01-two-sentences-long",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "typewriter_clean",
+      "text": "We built a garden for the neighbors. The garden brought people together. Everyone found a place.",
+      "duration_ms": 4500,
+      "output": "extra-01-two-sentences-long.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "extra-02-very-long-single",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "apple_hero_statement",
+      "text": "The remarkable discovery changed how researchers understand ancient life and opened new perspectives for future generations.",
+      "duration_ms": 4500,
+      "output": "extra-02-very-long-single.mp4",
+      "drive_subfolder": ""
+    },
+    {
+      "id": "extra-03-italian-accents-long",
+      "template_id": "IMPORTANT_PHRASE",
+      "preset_id": "phrase_default",
+      "motion_id": "precision_word_stagger",
+      "text": "Può contenere una frase intera molto lunga con accenti e parole naturali senza perdere una parola, anche se supera le sei parole del limite precedente.",
+      "duration_ms": 4500,
+      "output": "extra-03-italian-accents-long.mp4",
+      "drive_subfolder": ""
+    }
+  ]
+}

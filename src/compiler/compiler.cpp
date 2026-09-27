@@ -75,6 +75,7 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     data->metadata.assets_root = resolver.mount_root().string();
     data->metadata.asset_manifest = std::move(asset_res).value();
     data->metadata.render_budget = lower_budget(plan.budget);
+    data->metadata.lighting_rig = plan.lighting_rig;
 
     stages::lower_scene(plan, *data);
     stages::lower_animation(plan, *data);

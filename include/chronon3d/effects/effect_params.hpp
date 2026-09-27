@@ -333,6 +333,9 @@ struct DisplacementMapParams {
     Channel channel{Channel::Luma};
     sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
 };
+// Vignette is the only WIP-local parameter type kept here; the Chromatic
+// Aberration and Halftone structs above are the canonical (upstream) ones.
+struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
@@ -374,7 +377,7 @@ using EffectParams = std::variant<
     BulgeParams,
     MeshWarpParams,
     SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
-    ChromaticAberrationParams, HalftoneParams
+    ChromaticAberrationParams, VignetteEffectParams, HalftoneParams
 >;
 
 } // namespace chronon3d

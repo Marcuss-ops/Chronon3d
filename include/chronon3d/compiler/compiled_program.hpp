@@ -5,8 +5,10 @@
 #include <chronon3d/compiler/compiled_resource.hpp>
 #include <chronon3d/compiler/compiled_layer.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/render_plan/render_plan.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -62,6 +64,7 @@ struct ProgramMetadata {
     assets::ContentDigest content_digest{};
     assets::ContentDigest request_digest{};
     RenderBudget render_budget{};
+    std::optional<render_plan::LightingRigPlan> lighting_rig;
 };
 
 struct ProgramFingerprint {

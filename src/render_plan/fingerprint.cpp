@@ -100,6 +100,19 @@ private:
     std::pmr::vector<std::byte> bytes_;
 };
 
+template <typename T, typename Add>
+void add_optional(CanonicalPlanWriter& out, const std::optional<T>& value, Add add) {
+    out.add_bool(value.has_value());
+    if (value) add(out, *value);
+}
+
+void add_spring(CanonicalPlanWriter& out, const SpringPlan& spring) {
+    out.add_float(spring.mass);
+    out.add_float(spring.stiffness);
+    out.add_float(spring.damping);
+    out.add_float(spring.initial_velocity);
+}
+
 void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
     out.add_string(track.property);
     out.add_string(track.easing);
@@ -108,7 +121,7 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         out.add_bool(true);
         out.add_float(track.wiggle->frequency);
         out.add_float(track.wiggle->amplitude);
-        out.add_u32(track.wiggle->seed);
+        out.add_uint64(track.wiggle->seed);
     } else {
         out.add_bool(false);
     }
@@ -123,6 +136,9 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         out.add_bool(true);
         for (const auto value : *track.bezier_curve) out.add_float(value);
     }
+    add_optional(out, track.spring, [](auto& writer, const SpringPlan& spring) {
+        add_spring(writer, spring);
+    });
     out.add_size(track.keyframes.size());
     for (const auto& key : track.keyframes) {
         out.add_frame(key.frame);
@@ -151,13 +167,10 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         if (key.temporal_out_dx) out.add_float(*key.temporal_out_dx);
         out.add_bool(key.temporal_out_dy.has_value());
         if (key.temporal_out_dy) out.add_float(*key.temporal_out_dy);
+        add_optional(out, key.spring, [](auto& writer, const SpringPlan& spring) {
+            add_spring(writer, spring);
+        });
     }
-}
-
-template <typename T, typename Add>
-void add_optional(CanonicalPlanWriter& out, const std::optional<T>& value, Add add) {
-    out.add_bool(value.has_value());
-    if (value) add(out, *value);
 }
 
 // Cat-3 — the gradient identity field selection/order has ONE seat
@@ -426,6 +439,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         }
         out.add_size(layer.inline_mesh->indices.size());
         for (const std::uint32_t index : layer.inline_mesh->indices) out.add_uint64(index);
+        add_optional(out, layer.inline_mesh->material, [](auto& writer, const InlineMeshMaterialPlan& material) {
+            writer.add_float(material.diffuse);
+            writer.add_float(material.specular);
+            writer.add_float(material.shininess);
+            writer.add_float(material.rim_intensity);
+            add_optional(writer, material.base_color, [](auto& nested, const auto& color) {
+                for (const float value : color) nested.add_float(value);
+            });
+        });
     }
     if (!layer.text_spans.empty()) {
       out.add_size(layer.text_spans.size());
@@ -549,6 +571,67 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const auto value : command.control1) out.add_float(value);
                 for (const auto value : command.control2) out.add_float(value);
             }
+        }
+        // ── Additive web-cool fields (v12): only emitted when present, so legacy v11 plans stay byte-identical.
+        if (shape.points || shape.world_map || shape.chart || shape.device_frame || shape.counter ||
+            shape.arrow_head_length || shape.arrow_head_width ||
+            shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
+            shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Grid ||
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc ||
+            shape.type == ShapeContentTypePlan::WorldMap || shape.type == ShapeContentTypePlan::Chart) {
+            out.add_bool(true);
+            add_optional(out, shape.points, [](auto& writer, int value) { writer.add_i64(value); });
+            out.add_float(shape.inner_radius_ratio);
+            out.add_float(shape.shape_rotation_deg);
+            add_optional(out, shape.arrow_head_length, [](auto& writer, float value) { writer.add_float(value); });
+            add_optional(out, shape.arrow_head_width, [](auto& writer, float value) { writer.add_float(value); });
+            out.add_float(shape.arrow_shaft_width);
+            out.add_string(shape.arrow_direction);
+            out.add_float(shape.grid_spacing);
+            out.add_float(shape.grid_line_width);
+            out.add_float(shape.dot_radius);
+            out.add_float(shape.arc_start_deg);
+            out.add_float(shape.arc_sweep_deg);
+            out.add_float(shape.arc_thickness);
+            add_optional(out, shape.world_map, [](auto& writer, const WorldMapPlan& wm) {
+                writer.add_string(wm.projection);
+                for (auto v : wm.center) writer.add_float(v);
+                writer.add_float(wm.zoom);
+                writer.add_size(wm.highlight.size());
+                for (const auto& code : wm.highlight) writer.add_string(code);
+                writer.add_string(wm.highlight_color);
+                writer.add_size(wm.route.size());
+                for (const auto& pt : wm.route) { writer.add_float(pt[0]); writer.add_float(pt[1]); }
+                writer.add_bool(wm.dots);
+            });
+            add_optional(out, shape.chart, [](auto& writer, const ChartPlan& chart) {
+                writer.add_string(chart.chart_type);
+                writer.add_size(chart.data.size());
+                for (auto v : chart.data) writer.add_float(v);
+                writer.add_size(chart.colors.size());
+                for (const auto& c : chart.colors) for (auto v : c) writer.add_float(v);
+                writer.add_string(chart.value_format);
+                writer.add_float(chart.bar_gap);
+                writer.add_float(chart.line_width);
+                writer.add_bool(chart.donut);
+                writer.add_float(chart.donut_inner_ratio);
+            });
+            add_optional(out, shape.device_frame, [](auto& writer, const DeviceFramePlan& df) {
+                writer.add_string(df.frame_type);
+                writer.add_float(df.radius);
+                writer.add_float(df.border_width);
+                writer.add_string(df.border_color);
+                writer.add_bool(df.show_chrome);
+            });
+            add_optional(out, shape.counter, [](auto& writer, const CounterPlan& cp) {
+                writer.add_float(cp.from);
+                writer.add_float(cp.to);
+                writer.add_string(cp.format);
+                writer.add_string(cp.currency);
+                writer.add_i64(cp.decimals);
+                writer.add_string(cp.prefix);
+                writer.add_string(cp.suffix);
+            });
         }
         out.add_size(shape.operators.size());
         for (const auto& op : shape.operators) {
@@ -825,6 +908,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.radial_amount);
                 out.add_size(static_cast<std::size_t>(effect.radial_render_samples));
                 out.add_size(static_cast<std::size_t>(effect.radial_preview_samples));
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
+                out.add_float(effect.amount);
+                out.add_float(effect.warp_radius);
+                out.add_float(effect.warp_falloff);
+                for (const auto component : effect.effect_color) out.add_float(component);
             } else {
                 out.add_size(effect.block_size);
             }
@@ -899,7 +987,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v17");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v18");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);
@@ -920,6 +1008,17 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
                      writer.add_size(tracks.size());
                      for (const auto& track : tracks) add_camera_track(writer, track);
                  });
+    add_optional(out, plan.lighting_rig, [](auto& writer, const LightingRigPlan& rig) {
+        for (const float value : rig.key_direction) writer.add_float(value);
+        for (const float value : rig.key_color) writer.add_float(value);
+        writer.add_float(rig.key_intensity);
+        for (const float value : rig.ambient_color) writer.add_float(value);
+        writer.add_float(rig.ambient_intensity);
+        writer.add_bool(rig.rim_enabled);
+        for (const float value : rig.rim_color) writer.add_float(value);
+        writer.add_float(rig.rim_intensity);
+        writer.add_float(rig.rim_power);
+    });
     add_optional(out, plan.audio, [](auto& writer, const AudioMixPlan& mix) {
         add_audio_mix(writer, mix);
     });

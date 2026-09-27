@@ -2100,9 +2100,9 @@ TEST_CASE("render plan flow layout reaches the runtime scene and changes placeme
     REQUIRE(layers.size()==3);
     CHECK(layers[0].layout.flow.has_value());
     CHECK(layers[1].layout.flow->group_id=="cards");
-    const auto p0=layers[0].anim_transform.position.evaluate(Frame{0});
-    const auto p1=layers[1].anim_transform.position.evaluate(Frame{0});
-    const auto p2=layers[2].anim_transform.position.evaluate(Frame{0});
+    const auto p0=layers[0].anim_transform.position.evaluate(0.0);
+    const auto p1=layers[1].anim_transform.position.evaluate(0.0);
+    const auto p2=layers[2].anim_transform.position.evaluate(0.0);
     CHECK(p0.x<p1.x);
     CHECK(p1.x<p2.x);
     CHECK(p0.y==doctest::Approx(p1.y));

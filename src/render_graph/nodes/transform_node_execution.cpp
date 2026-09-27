@@ -272,25 +272,36 @@ NodeExecResult TransformNode::execute(
                 ctx.backend != nullptr,
                 ctx.surface_registry != nullptr);
             if (native_path == detail::TransformExecutionPath::NativeSurface) {
+                const auto terminal_encode_surface =
+                    ctx.policy.native_video_encode_surface;
+                const bool terminal_destination =
+                    result->surface_handle() == terminal_encode_surface &&
+                    terminal_encode_surface != runtime::kInvalidRenderSurfaceHandle;
+                runtime::RenderSurfaceHandle handle = terminal_destination
+                    ? terminal_encode_surface
+                    : runtime::kInvalidRenderSurfaceHandle;
                 const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
                     static_cast<std::uint32_t>(result->width()),
                     static_cast<std::uint32_t>(result->height()),
                     runtime::PixelFormat::Rgba32Float,
                     runtime::ResourceUsage::Storage,
                     runtime::LifetimeClass::FrameTransient);
-                const auto handle = ctx.surface_registry->create(desc);
-                const auto created = handle != runtime::kInvalidRenderSurfaceHandle
-                    ? ctx.backend->create_surface(handle, desc)
-                    : RenderOpResult(make_render_backend_error(
-                        RenderBackendErrorCode::InvalidInput,
-                        "TransformNode: unable to allocate native output handle"));
+                const auto created = [&]() {
+                    if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
+                    handle = ctx.surface_registry->create(desc);
+                    return handle != runtime::kInvalidRenderSurfaceHandle
+                        ? ctx.backend->create_surface(handle, desc)
+                        : RenderOpResult(make_render_backend_error(
+                            RenderBackendErrorCode::InvalidInput,
+                            "TransformNode: unable to allocate native output handle"));
+                }();
                 if (created.ok()) {
                     const auto transformed = ctx.backend->transform_surface(
                         handle, input->surface_handle(),
                         input->origin_x() + itx - result->origin_x(),
                         input->origin_y() + ity - result->origin_y(), opacity);
                     if (transformed.ok()) {
-                        result->set_surface_handle(handle);
+                        if (!terminal_destination) result->set_surface_handle(handle);
                         return NodeExecResult{std::move(result)};
                     }
                     spdlog::warn("[transform-native] integer transform failed node='{}' source={} dest={} error='{}'",
@@ -300,7 +311,8 @@ NodeExecResult TransformNode::execute(
                     spdlog::warn("[transform-native] integer output surface creation failed node='{}' error='{}'",
                                  name(), created.error().message);
                 }
-                if (handle != runtime::kInvalidRenderSurfaceHandle) {
+                if (!terminal_destination &&
+                    handle != runtime::kInvalidRenderSurfaceHandle) {
                     (void)ctx.backend->release_surface(handle);
                     ctx.surface_registry->release(handle);
                 }
@@ -391,28 +403,41 @@ NodeExecResult TransformNode::execute(
             transform.clip_rect[3] = static_cast<std::int32_t>(local_clip.y1);
         }
 
+        const auto terminal_encode_surface =
+            ctx.policy.native_video_encode_surface;
+        const bool terminal_destination =
+            result->surface_handle() == terminal_encode_surface &&
+            terminal_encode_surface != runtime::kInvalidRenderSurfaceHandle;
+        runtime::RenderSurfaceHandle handle = terminal_destination
+            ? terminal_encode_surface
+            : runtime::kInvalidRenderSurfaceHandle;
         const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
             static_cast<std::uint32_t>(result->width()),
             static_cast<std::uint32_t>(result->height()),
             runtime::PixelFormat::Rgba32Float,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::FrameTransient);
-        const auto handle = ctx.surface_registry->create(desc);
-        const auto created = handle != runtime::kInvalidRenderSurfaceHandle
-            ? ctx.backend->create_surface(handle, desc)
-            : RenderOpResult(make_render_backend_error(
-                RenderBackendErrorCode::InvalidInput,
-                "TransformNode: unable to allocate native affine output handle"));
+        const auto created = [&]() {
+            if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
+            handle = ctx.surface_registry->create(desc);
+            return handle != runtime::kInvalidRenderSurfaceHandle
+                ? ctx.backend->create_surface(handle, desc)
+                : RenderOpResult(make_render_backend_error(
+                    RenderBackendErrorCode::InvalidInput,
+                    "TransformNode: unable to allocate native affine output handle"));
+        }();
         if (created.ok()) {
             // A new storage image has undefined contents. The affine pass
             // writes only its clipped/source-covered rectangle, so establish
             // transparent pixels before dispatch to prevent an opaque black
             // ROI from reaching the final composite.
-            const auto cleared = ctx.backend->initialize_transparent_surface(handle);
+            const auto cleared = terminal_destination
+                ? RenderOpResult{RenderOpOutcome{}}
+                : ctx.backend->initialize_transparent_surface(handle);
             const auto transformed = ctx.backend->transform_surface_affine(
                 handle, input->surface_handle(), transform);
             if (cleared.ok() && transformed.ok()) {
-                result->set_surface_handle(handle);
+                if (!terminal_destination) result->set_surface_handle(handle);
                 return NodeExecResult{std::move(result)};
             }
             if (!cleared.ok()) {
@@ -426,7 +451,8 @@ NodeExecResult TransformNode::execute(
             spdlog::warn("[transform-native] affine output surface creation failed node='{}' error='{}'",
                          name(), created.error().message);
         }
-        if (handle != runtime::kInvalidRenderSurfaceHandle) {
+        if (!terminal_destination &&
+            handle != runtime::kInvalidRenderSurfaceHandle) {
             (void)ctx.backend->release_surface(handle);
             ctx.surface_registry->release(handle);
         }

@@ -49,6 +49,7 @@ GraphPreflightReport debug_preflight_render_graph(
     ctx.asset_resolver = asset_resolver;
     ctx.policy.diagnostics_enabled = true;
     ctx.frame_input.light_context = scene.light_context();
+    ctx.frame_input.rim_light = scene.rim_light();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
         ctx.frame_input.camera_2_5d      = resolved_camera.camera;

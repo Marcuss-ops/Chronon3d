@@ -34,6 +34,7 @@ std::string debug_scene_graph(
     );
     
     ctx.frame_input.light_context = scene.light_context();
+    ctx.frame_input.rim_light = scene.rim_light();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
         ctx.frame_input.camera_2_5d = resolved_camera.camera;
@@ -73,6 +74,7 @@ SceneGraphStats analyze_scene_graph(
     auto ctx = make_graph_context(backend, node_cache, camera, width, height,
                                    frame, frame_time, settings, registry, video_decoder, fps);
     ctx.frame_input.light_context = scene.light_context();
+    ctx.frame_input.rim_light = scene.rim_light();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
         ctx.frame_input.camera_2_5d  = resolved_camera.camera;

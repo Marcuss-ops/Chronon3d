@@ -610,6 +610,21 @@ TEST_CASE("strict hot-path derives the canonical native lane unless explicit") {
     CHECK(pinned->output.encoder_backend == "pipe");
 }
 
+TEST_CASE("Vulkan host accepts an explicit per-job software fallback") {
+    const JobCaps vulkan_host{"vulkan"};
+    auto request = cli_request_for("software", "none", "pipe", "auto");
+    request.requirements.gpu_required = false;
+    request.requirements.cpu_fallback_allowed = true;
+    request.requirements.composition_required = true;
+    request.requirements.video_source_required = true;
+
+    const auto normalized =
+        c3d::runtime::job::normalize_render_job(request, vulkan_host);
+    REQUIRE(normalized.has_value());
+    CHECK(normalized->backend == "software");
+    CHECK(normalized->output.encoder_backend == "pipe");
+}
+
 TEST_CASE("render_job_fingerprint discriminates semantic axes") {
     const JobCaps vulkan_host{"vulkan"};
     JobRequest base = cli_request_for("vulkan", "nvenc", "native",
