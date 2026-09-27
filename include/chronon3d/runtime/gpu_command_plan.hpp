@@ -45,6 +45,7 @@ enum class GpuPassKind : std::uint8_t {
     // through a plan pass). The value stays reserved so a future pass cannot
     // silently inherit it.
     YuvOverlay = 11,
+    Bloom = 12,
 };
 
 struct CompositePass {
@@ -78,6 +79,15 @@ struct GlowPass {
     float radius{0.0f};
     float intensity{0.0f};
     float tint[4]{1.0f, 1.0f, 1.0f, 1.0f};
+};
+struct BloomPass {
+    RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle source{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle scratch_horizontal{kInvalidRenderSurfaceHandle};
+    RenderSurfaceHandle scratch_vertical{kInvalidRenderSurfaceHandle};
+    float threshold{0.8f};
+    float radius{24.0f};
+    float intensity{0.6f};
 };
 struct ColorAdjustPass {
     RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};
@@ -133,7 +143,7 @@ struct YuvOverlayPass {
 };
 using GpuPassParams = std::variant<
     CompositePass, TransformPass, AffineTransformPass, BlurPass,
-    GlowPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass,
+    GlowPass, BloomPass, ColorAdjustPass, MattePass, FusedCompositePass, LayerBatchPass,
     ScalePass, YuvOverlayPass>;
 
 struct GpuPass {
@@ -202,6 +212,11 @@ inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
     out.push_back(p.scratch_horizontal); out.push_back(p.scratch_vertical);
 }
 inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
+                                 const BloomPass& p) {
+    out.push_back(p.destination); out.push_back(p.source);
+    out.push_back(p.scratch_horizontal); out.push_back(p.scratch_vertical);
+}
+inline void collect_surface_refs(std::vector<RenderSurfaceHandle>& out,
                                  const ColorAdjustPass& p) {
     out.push_back(p.destination); out.push_back(p.source);
 }
@@ -253,6 +268,13 @@ inline void collect_accesses(std::vector<DesiredAccess>& out,
 }
 inline void collect_accesses(std::vector<DesiredAccess>& out,
                              const GlowPass& p) {
+    add_access(out, p.destination, true, true);
+    add_access(out, p.source, true, false);
+    add_access(out, p.scratch_horizontal, false, true);
+    add_access(out, p.scratch_vertical, false, true);
+}
+inline void collect_accesses(std::vector<DesiredAccess>& out,
+                             const BloomPass& p) {
     add_access(out, p.destination, true, true);
     add_access(out, p.source, true, false);
     add_access(out, p.scratch_horizontal, false, true);
@@ -341,6 +363,7 @@ public:
     void affine(AffineTransformPass pass) { append(GpuPass{GpuPassKind::AffineTransform, std::move(pass)}); }
     void blur(BlurPass pass) { append(GpuPass{GpuPassKind::Blur, std::move(pass)}); }
     void glow(GlowPass pass) { append(GpuPass{GpuPassKind::Glow, std::move(pass)}); }
+    void bloom(BloomPass pass) { append(GpuPass{GpuPassKind::Bloom, std::move(pass)}); }
     void color_adjust(ColorAdjustPass pass) { append(GpuPass{GpuPassKind::ColorAdjust, std::move(pass)}); }
     void matte(MattePass pass) { append(GpuPass{GpuPassKind::Matte, std::move(pass)}); }
     void fused_composite(FusedCompositePass pass) { append(GpuPass{GpuPassKind::FusedComposite, std::move(pass)}); }

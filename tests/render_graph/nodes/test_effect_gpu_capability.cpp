@@ -20,8 +20,8 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
 
     const auto* bloom = graph::gpu_effect_capability(EffectType::Bloom);
     REQUIRE(bloom != nullptr);
-    CHECK(bloom->route == GpuEffectRoute::Unsupported);
-    CHECK(bloom->diagnostic.find("not implemented") != std::string_view::npos);
+    CHECK(bloom->route == GpuEffectRoute::NativeZeroReadback);
+    CHECK(bloom->diagnostic.find("bright-pass") != std::string_view::npos);
 
     CHECK(graph::gpu_effect_capability(EffectType::Unknown) == nullptr);
 }

@@ -77,7 +77,8 @@ namespace {
         t = gradient.radius > kPathEpsilon ? distance / gradient.radius : 0.0f;
     }
 
-    Color c = graphics::sample_compiled_gradient(gradient, t);
+    Color c = graphics::dither_gradient_sample(
+        graphics::sample_compiled_gradient(gradient, t), p.x, p.y);
     c.a *= opacity;
     return c;
 }
@@ -364,7 +365,8 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
     const Vec2 normalized{
         (p.x - static_cast<f32>(bbox.x0)) / w,
         (p.y - static_cast<f32>(bbox.y0)) / h};
-    Color c = sample_gradient_at(fill.gradient, normalized);
+    Color c = graphics::dither_gradient_sample(
+        sample_gradient_at(fill.gradient, normalized), p.x, p.y);
     c.a *= opacity;
     return c;
 }

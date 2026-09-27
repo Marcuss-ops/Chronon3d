@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <span>
 #include <stdexcept>
 
@@ -93,6 +94,15 @@ ClipTransitionNode::ClipTransitionNode(std::string name, ClipTransitionSpec spec
     , m_spec(std::move(spec))
     , m_from(from)
     , m_duration(duration) {
+    if (m_spec.kind == ClipTransitionKind::LightLeak &&
+        (!std::isfinite(m_spec.leak_intensity) || m_spec.leak_intensity < 0.0f ||
+         m_spec.leak_intensity > 4.0f || !std::isfinite(m_spec.leak_spread) ||
+         m_spec.leak_spread <= 0.0f || m_spec.leak_spread > 2.0f ||
+         !std::isfinite(m_spec.center.x) || !std::isfinite(m_spec.center.y) ||
+         m_spec.center.x < 0.0f || m_spec.center.x > 1.0f ||
+         m_spec.center.y < 0.0f || m_spec.center.y > 1.0f)) {
+        throw std::invalid_argument("LightLeak intensity, spread, and center are outside supported bounds");
+    }
 }
 
 cache::NodeCacheKey ClipTransitionNode::cache_key(const RenderGraphContext& ctx) const {
@@ -119,6 +129,8 @@ cache::NodeCacheKey ClipTransitionNode::cache_key(const RenderGraphContext& ctx)
     params_hash = hash_combine(params_hash, static_cast<u64>(m_spec.flash_color.g * 255.0f));
     params_hash = hash_combine(params_hash, static_cast<u64>(m_spec.flash_color.b * 255.0f));
     params_hash = hash_combine(params_hash, static_cast<u64>(m_spec.flash_color.a * 255.0f));
+    params_hash = hash_combine(params_hash, hash_value(m_spec.leak_intensity));
+    params_hash = hash_combine(params_hash, hash_value(m_spec.leak_spread));
     key.params_hash = params_hash;
 
     return key;
@@ -380,22 +392,43 @@ NodeExecResult ClipTransitionNode::execute(
         }
 
         case ClipTransitionKind::LightLeak: {
-            // The visible leak is authored as animated scene layers. Keep
-            // this framebuffer node as the inexpensive A/B dissolve beneath
-            // them; a per-pixel procedural shader here is far too expensive
-            // for the software video renderer.
             const float one_minus_p = 1.0f - p;
+            const float pulse = std::max(0.0f, std::sin(std::numbers::pi_v<float> * p));
+            const float sigma = std::max(m_spec.leak_spread, 0.02f);
+            Vec2 entry = m_spec.center;
+            switch (m_spec.direction) {
+                case TransitionDirection::Right: entry.x = 1.0f; break;
+                case TransitionDirection::Left: entry.x = 0.0f; break;
+                case TransitionDirection::Down: entry.y = 1.0f; break;
+                case TransitionDirection::Up: entry.y = 0.0f; break;
+                default: entry = Vec2{1.0f, 0.0f}; break;
+            }
+            const Vec2 target = m_spec.center;
+            const Vec2 hot = entry * one_minus_p + target * p;
             for (int y = 0; y < out_h; ++y) {
                 Color* row_out = out->pixels_row(y);
                 for (int x = 0; x < out_w; ++x) {
                     const Color ca = sample_at(*a, x, y, out_w, out_h);
                     const Color cb = sample_at(*b, x, y, out_w, out_h);
-                    row_out[x] = Color{
+                    Color result{
                         ca.r * one_minus_p + cb.r * p,
                         ca.g * one_minus_p + cb.g * p,
                         ca.b * one_minus_p + cb.b * p,
                         ca.a * one_minus_p + cb.a * p,
                     };
+                    const float u = (static_cast<float>(x) + 0.5f) * inv_w;
+                    const float v = (static_cast<float>(y) + 0.5f) * inv_h;
+                    const float dx = (u - hot.x) / sigma;
+                    const float dy = (v - hot.y) / sigma;
+                    const float core = std::exp(-0.5f * (dx * dx + dy * dy));
+                    const float streak = std::exp(-0.5f *
+                        std::pow((v - hot.y) / std::max(sigma * 0.10f, inv_h), 2.0f));
+                    const float leak = std::clamp(m_spec.leak_intensity, 0.0f, 4.0f) *
+                        pulse * (core * 0.8f + streak * 0.2f);
+                    result.r += m_spec.flash_color.r * leak;
+                    result.g += m_spec.flash_color.g * leak;
+                    result.b += m_spec.flash_color.b * leak;
+                    row_out[x] = result;
                 }
             }
             return NodeExecResult{std::move(out)};

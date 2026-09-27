@@ -209,6 +209,9 @@ struct NativeGridFillParams {
     float major_thickness{2.75f};
     int major_every{4};
     bool centered{true};
+    float edge_fade{0.0f};
+    float major_glow{0.0f};
+    std::uint32_t style{0};
     float opacity{1.0f};
 };
 
@@ -437,6 +440,10 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&) override;
+    graph::RenderOpResult bloom_surfaces(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, float, float) override;
     graph::RenderOpResult color_adjust_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&, float) override;

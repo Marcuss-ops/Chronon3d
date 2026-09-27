@@ -77,6 +77,7 @@ chronon3d_add_test_suite(
         render_graph/features/test_transition_certification.cpp
         render_graph/features/test_unified_transform_path.cpp
         render_graph/nodes/test_mask_node_rg_integration.cpp
+        render_graph/nodes/test_glass_backdrop_rg_integration.cpp
         render_graph/nodes/test_clear_policy.cpp
         render_graph/nodes/test_transform_policy.cpp
         render_graph/executor/test_fused_batch_policy.cpp

@@ -48,8 +48,10 @@ enum class ClipTransitionFitPolicy : std::uint8_t {
 ///   - center:    normalised centre for Iris and Zoom ([0,1], default 0.5,0.5).
 ///   - feather:   edge softness for Wipe and Iris (relative to smaller
 ///                screen dimension, default 0.1).
-///   - flash_color: tint used by Flash (default white).
+///   - flash_color: tint used by Flash and LightLeak (default white).
 ///   - zoom_scale:  maximum extra scale applied by Zoom (default 2.0).
+///   - leak_intensity: additive peak strength for LightLeak (default 0.85).
+///   - leak_spread: normalized elliptical radius for LightLeak (default 0.5).
 struct ClipTransitionSpec {
     ClipTransitionKind kind{ClipTransitionKind::Cut};
     Easing easing{Easing::Linear};
@@ -59,6 +61,8 @@ struct ClipTransitionSpec {
     float feather = 0.1f;
     Color flash_color = Color::white();
     float zoom_scale = 2.0f;
+    float leak_intensity = 0.85f;
+    float leak_spread = 0.5f;
 };
 
 /// Scene-level relationship that wires two named layers through a

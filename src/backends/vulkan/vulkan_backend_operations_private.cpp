@@ -8,6 +8,7 @@
 #include "vulkan_backend_impl.hpp"
 
 #include <bit>
+#include <cmath>
 #include <cstring>
 #include <limits>
 
@@ -31,7 +32,9 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
             std::to_string(src_image.height) +
             (src_image.initialized ? "" : " src-uninitialized"));
     }
-    const std::int32_t blend_mode = replace ? 2 : (mode == BlendMode::Add ? 1 : 0);
+    const std::int32_t blend_mode = replace ? 2 :
+        (mode == BlendMode::Add ? 1 : mode == BlendMode::Multiply ? 3 :
+         mode == BlendMode::Screen ? 4 : mode == BlendMode::Overlay ? 5 : 0);
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
@@ -402,6 +405,93 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
     }
 
     throw std::logic_error("Vulkan glow requires an active frame batch");
+}
+
+void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
+                                runtime::RenderSurfaceHandle source,
+                                runtime::RenderSurfaceHandle scratch_horizontal,
+                                runtime::RenderSurfaceHandle scratch_vertical,
+                                float threshold, float radius, float intensity) {
+    if (!std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f ||
+        !std::isfinite(radius) || radius < 0.0f || radius > 64.0f ||
+        !std::isfinite(intensity) || intensity < 0.0f || intensity > 4.0f) {
+        throw std::invalid_argument("Vulkan bloom parameters are outside supported ranges");
+    }
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& horizontal = resolve_image(scratch_horizontal);
+    auto& vertical = resolve_image(scratch_vertical);
+    if (!src_image.initialized || !dst.initialized ||
+        src_image.width != dst.width || src_image.height != dst.height ||
+        horizontal.width != src_image.width || horizontal.height != src_image.height ||
+        vertical.width != src_image.width || vertical.height != src_image.height) {
+        throw std::invalid_argument("Vulkan bloom surfaces have incompatible dimensions");
+    }
+    if (!frame_batch.active)
+        throw std::logic_error("Vulkan bloom requires an active frame batch");
+
+    const auto threshold_descriptor = allocate_pass_descriptor_set();
+    write_descriptors(threshold_descriptor, horizontal, src_image);
+    VkDescriptorSet horizontal_blur_descriptor = VK_NULL_HANDLE;
+    VkDescriptorSet vertical_blur_descriptor = VK_NULL_HANDLE;
+    if (radius > 0.0f) {
+        horizontal_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
+        vertical_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(vertical_blur_descriptor, horizontal, vertical);
+    }
+    const auto composite_descriptor = allocate_pass_descriptor_set();
+    write_descriptors(composite_descriptor, dst, horizontal);
+    const auto command = active_command_buffer();
+    emit_pass_sync(command, {&dst, &src_image, &horizontal, &vertical});
+    record_bloom_threshold(command, threshold_descriptor, horizontal, src_image, threshold);
+    horizontal.initialized = true;
+
+    runtime::ResourceTransition ready_for_read;
+    ready_for_read.range = runtime::image_range(runtime::ResourceAspect::Color);
+    ready_for_read.before = runtime::ResourceState{
+        .stages = runtime::PipelineStage::ComputeShader,
+        .access = runtime::AccessMask::ShaderWrite,
+        .layout = runtime::ResourceLayout::General,
+        .queue = runtime::QueueClass::Compute,
+    };
+    ready_for_read.after = runtime::ResourceState{
+        .stages = runtime::PipelineStage::ComputeShader,
+        .access = runtime::AccessMask::ShaderRead,
+        .layout = runtime::ResourceLayout::General,
+        .queue = runtime::QueueClass::Compute,
+    };
+    if (radius > 0.0f) {
+        emit_resource_transition(command, horizontal.image, ready_for_read);
+        record_blur(command, horizontal_blur_descriptor, vertical, horizontal, radius, true);
+        vertical.initialized = true;
+        emit_resource_transition(command, vertical.image, ready_for_read);
+        runtime::ResourceTransition horizontal_for_write = ready_for_read;
+        horizontal_for_write.before = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderRead,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        horizontal_for_write.after = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderWrite,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        emit_resource_transition(command, horizontal.image, horizontal_for_write);
+        record_blur(command, vertical_blur_descriptor, horizontal, vertical, radius, false);
+        horizontal.initialized = true;
+        emit_resource_transition(command, horizontal.image, ready_for_read);
+    } else {
+        emit_resource_transition(command, horizontal.image, ready_for_read);
+    }
+    constexpr float identity_tint[4]{1.0f, 1.0f, 1.0f, 1.0f};
+    record_composite(command, composite_descriptor, dst, horizontal,
+                     6, intensity, identity_tint);
+    dst.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
 }
 
 void VulkanBackend::Impl::color_adjust(

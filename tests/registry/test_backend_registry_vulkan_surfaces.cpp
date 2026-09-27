@@ -481,4 +481,69 @@ TEST_CASE("Vulkan source-over composite matches SoftwareCompositor oracle") {
         }
     }
 }
+
+TEST_CASE("Vulkan Multiply, Screen, and Overlay composite match premultiplied software equations") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::JobPersistent, 0};
+    const std::vector<float> destination{0.4f, 0.6f, 0.2f, 1.0f};
+    const std::vector<float> source{0.8f, 0.3f, 0.4f, 1.0f};
+    const std::array<std::pair<chronon3d::BlendMode, std::array<float, 3>>, 3> cases{{
+        {chronon3d::BlendMode::Multiply, {0.32f, 0.18f, 0.08f}},
+        {chronon3d::BlendMode::Screen, {0.88f, 0.72f, 0.52f}},
+        {chronon3d::BlendMode::Overlay, {0.64f, 0.44f, 0.16f}},
+    }};
+    REQUIRE(backend.create_surface(901, desc).ok());
+    REQUIRE(backend.create_surface(902, desc).ok());
+    for (const auto& [mode, expected] : cases) {
+        REQUIRE(backend.upload_surface(901, desc, destination).ok());
+        REQUIRE(backend.upload_surface(902, desc, source).ok());
+        REQUIRE(backend.composite_surfaces(
+            901, 902, mode, chronon3d::CompositeOperator::SourceOver).ok());
+        std::vector<float> output(4);
+        REQUIRE(backend.download_surface(901, output).ok());
+        CHECK(output[0] == doctest::Approx(expected[0]));
+        CHECK(output[1] == doctest::Approx(expected[1]));
+        CHECK(output[2] == doctest::Approx(expected[2]));
+        CHECK(output[3] == doctest::Approx(1.0f));
+    }
+    REQUIRE(backend.release_surface(901).ok());
+    REQUIRE(backend.release_surface(902).ok());
+}
+
+TEST_CASE("Vulkan bloom bright-pass preserves source and adds only thresholded light") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::JobPersistent, 0};
+    const std::vector<float> source{1.0f, 0.4f, 0.2f, 1.0f};
+    const std::vector<float> empty(4, 0.0f);
+    constexpr float threshold = 0.5f;
+    constexpr float intensity = 1.0f;
+    constexpr float luminance = 0.2126f + 0.4f * 0.7152f + 0.2f * 0.0722f;
+    constexpr float contribution = (luminance - threshold) / (1.0f - threshold);
+    const std::array<float, 3> expected{
+        1.0f + contribution,
+        0.4f + 0.4f * contribution,
+        0.2f + 0.2f * contribution};
+    for (const auto handle : {911U, 912U, 913U, 914U})
+        REQUIRE(backend.create_surface(handle, desc).ok());
+    REQUIRE(backend.upload_surface(911, desc, source).ok());
+    REQUIRE(backend.upload_surface(912, desc, source).ok());
+    REQUIRE(backend.upload_surface(913, desc, empty).ok());
+    REQUIRE(backend.upload_surface(914, desc, empty).ok());
+    REQUIRE(backend.bloom_surfaces(911, 912, 913, 914,
+                                    threshold, 0.0f, intensity).ok());
+    std::vector<float> output(4);
+    REQUIRE(backend.download_surface(911, output).ok());
+    CHECK(output[0] == doctest::Approx(expected[0]).epsilon(1e-5));
+    CHECK(output[1] == doctest::Approx(expected[1]).epsilon(1e-5));
+    CHECK(output[2] == doctest::Approx(expected[2]).epsilon(1e-5));
+    CHECK(output[3] == doctest::Approx(1.0f));
+    for (const auto handle : {911U, 912U, 913U, 914U})
+        REQUIRE(backend.release_surface(handle).ok());
+}
 #endif

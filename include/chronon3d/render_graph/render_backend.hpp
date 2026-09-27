@@ -541,6 +541,19 @@ public:
             "RenderBackend::glow_surfaces: native surfaces are not supported"));
     }
 
+    /// Apply bright-pass thresholding, separable Gaussian blur, and additive
+    /// bloom using the caller-planned scratch surfaces.
+    virtual RenderOpResult bloom_surfaces(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*scratch_horizontal*/,
+        runtime::RenderSurfaceHandle /*scratch_vertical*/,
+        float /*threshold*/, float /*radius*/, float /*intensity*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::bloom_surfaces: native surfaces are not supported"));
+    }
+
     /// Apply brightness/contrast/tint to native surfaces without a CPU
     /// readback. The source and destination may be distinct transient slots.
     /// Composite a YUV-native overlay into an NV12/P010 destination. The

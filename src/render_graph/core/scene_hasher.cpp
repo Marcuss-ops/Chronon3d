@@ -30,6 +30,8 @@ uint64_t hash_clip_transition(const SceneClipTransition& transition) {
     h = hash_combine(h, hash_vec2(transition.spec.center));
     h = hash_combine(h, hash_value(transition.spec.feather));
     h = hash_combine(h, hash_color(transition.spec.flash_color));
+    h = hash_combine(h, hash_value(transition.spec.leak_intensity));
+    h = hash_combine(h, hash_value(transition.spec.leak_spread));
     h = hash_combine(h, hash_value(transition.spec.zoom_scale));
     h = hash_combine(h, hash_value(static_cast<int64_t>(transition.from)));
     h = hash_combine(h, hash_value(static_cast<int64_t>(transition.duration)));

@@ -695,6 +695,50 @@
       "items": {
         "type": "object",
         "properties": {
+          "background_look": {
+            "oneOf": [
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"], "properties": {
+                  "type": { "const": "film_grade" },
+                  "grain": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+                  "grain_size": { "type": "number", "exclusiveMinimum": 0, "maximum": 128 },
+                  "shadow_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "midtone_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "highlight_response": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "vignette": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "vignette_radius": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "vignette_softness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "lut": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                  "lut_amount": { "type": "number", "minimum": 0, "maximum": 1 }
+                } },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"], "properties": {
+                  "type": { "const": "aurora" },
+                  "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+                  "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
+                  "frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 10 },
+                  "amplitude": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "evolution": { "type": "number", "minimum": -10000, "maximum": 10000 },
+                  "contrast": { "type": "number", "minimum": 0, "maximum": 16 },
+                  "warp": { "type": "number", "minimum": -1, "maximum": 1 },
+                  "wavelength": { "type": "number", "exclusiveMinimum": 0 },
+                  "speed": { "type": "number", "minimum": -1000, "maximum": 1000 }
+                } },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"], "properties": {
+                  "type": { "const": "liquid" },
+                  "amplitude": { "type": "number", "minimum": -1, "maximum": 1 },
+                  "wavelength": { "type": "number", "exclusiveMinimum": 0 },
+                  "speed": { "type": "number", "minimum": -1000, "maximum": 1000 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 },
+                  "ripple_speed": { "type": "number", "minimum": -1000, "maximum": 1000 },
+                  "ripple_width": { "type": "number", "exclusiveMinimum": 0, "maximum": 2 },
+                  "ripple_height": { "type": "number", "minimum": -1, "maximum": 1 },
+                  "damping": { "type": "number", "minimum": 0, "maximum": 1 }
+                } }
+            ]
+          },
           "flow": {
             "type": "object", "additionalProperties": false, "required": ["group_id"],
             "properties": {
@@ -1179,6 +1223,17 @@
               { "type": "object", "additionalProperties": false,
                 "required": ["type"],
                 "properties": {
+                  "type": { "const": "vignette" },
+                  "time": { "$ref": "#/$defs/effect_time" },
+                  "radius": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "softness": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "amount": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "color": { "$ref": "#/$defs/rgba" }
+                }
+              },
+              { "type": "object", "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
                   "type": { "const": "light_rays" },
                   "time": { "$ref": "#/$defs/effect_time" },
                   "origin": { "type": "array", "minItems": 2, "maxItems": 2,
@@ -1337,7 +1392,10 @@
                 "properties": {
                   "blur": { "type": "number", "minimum": 0, "maximum": 64 },
                   "brightness": { "type": "number", "minimum": 0, "maximum": 4 },
-                  "saturation": { "type": "number", "minimum": 0, "maximum": 4 }
+                  "saturation": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "rim_light": { "type": "number", "minimum": 0, "maximum": 2 },
+                  "refraction": { "type": "number", "minimum": 0, "maximum": 4 },
+                  "surface_noise": { "type": "number", "minimum": 0, "maximum": 0.1 }
                 }
               },
               "stroke": {

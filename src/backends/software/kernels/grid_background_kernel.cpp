@@ -52,6 +52,7 @@ inline f32 cell_distance(f32 value, f32 step) noexcept {
 struct ColumnWeight {
     f32 minor{0.0f};
     f32 major{0.0f};
+    f32 edge{1.0f};
     bool active{false};
 };
 
@@ -120,6 +121,14 @@ void render_grid_background_kernel(
     const f32 origin_y            = grid.centered ? half_h : 0.0f;
     const f32 offset_x            = grid.offset.x;
     const f32 offset_y            = grid.offset.y;
+    const f32 edge_fade           = std::isfinite(grid.edge_fade)
+        ? std::max(grid.edge_fade, 0.0f) : 0.0f;
+    const f32 major_glow          = std::isfinite(grid.major_glow)
+        ? std::max(grid.major_glow, 0.0f) : 0.0f;
+    const bool glow_enabled       = major_glow > 0.0f && use_major;
+    const bool is_isometric       = grid.style == GridStyle::Isometric;
+    constexpr f32 kIsoCos         = 0.8660254037844386f;
+    constexpr f32 kIsoSin         = 0.5f;
 
     // ── Mask setup ────────────────────────────────────────────────────────
     const Color* mask_pixels = nullptr;
@@ -162,6 +171,12 @@ void render_grid_background_kernel(
         ColumnWeight cw;
         cw.minor  = line_weight(minor_dx, minor_thickness);
         cw.major  = use_major ? line_weight(major_dx, major_thickness) : 0.0f;
+        if (edge_fade > 0.0f) {
+            const f32 edge_distance = std::max(0.0f, std::min(
+                static_cast<f32>(x), grid.size.x - 1.0f - static_cast<f32>(x)));
+            const f32 t = std::clamp(edge_distance / edge_fade, 0.0f, 1.0f);
+            cw.edge = t * t * (3.0f - 2.0f * t);
+        }
         cw.active = (cw.minor > 0.0f || cw.major > 0.0f);
 
         cols[static_cast<usize>(x - x0)] = cw;
@@ -206,7 +221,15 @@ void render_grid_background_kernel(
                 const f32 row_major_w = use_major
                     ? line_weight(cell_distance(gy, major_step), major_thickness)
                     : 0.0f;
-                const bool row_active = (row_minor_w > 0.0f || row_major_w > 0.0f);
+                f32 row_edge = 1.0f;
+                if (edge_fade > 0.0f) {
+                    const f32 edge_distance = std::max(0.0f, std::min(
+                        static_cast<f32>(y), grid.size.y - 1.0f - static_cast<f32>(y)));
+                    const f32 t = std::clamp(edge_distance / edge_fade, 0.0f, 1.0f);
+                    row_edge = t * t * (3.0f - 2.0f * t);
+                }
+                const bool row_active = is_isometric || glow_enabled ||
+                    row_minor_w > 0.0f || row_major_w > 0.0f;
 
                 if (row_active) {
                     // ── Full horizontal scan: row has a grid line ──────────
@@ -217,8 +240,33 @@ void render_grid_background_kernel(
                         }
 
                         const auto& cw = (*cols_storage)[static_cast<usize>(x - x0)];
-                        const f32 minor_alpha = std::max(row_minor_w, cw.minor) * minor_adj.a;
-                        const f32 major_alpha = std::max(row_major_w, cw.major) * major_adj.a;
+                        const f32 edge_weight = row_edge * cw.edge;
+                        const f32 gx = static_cast<f32>(x) - origin_x - offset_x;
+                        const f32 gy = static_cast<f32>(y) - origin_y - offset_y;
+                        const f32 grid_x = is_isometric ? kIsoCos * gx + kIsoSin * gy : gx;
+                        const f32 grid_y = is_isometric ? -kIsoSin * gx + kIsoCos * gy : gy;
+                        const f32 minor_w = is_isometric
+                            ? std::max(line_weight(cell_distance(grid_x, minor_step), minor_thickness),
+                                       line_weight(cell_distance(grid_y, minor_step), minor_thickness))
+                            : std::max(row_minor_w, cw.minor);
+                        const f32 major_w = is_isometric
+                            ? (use_major ? std::max(line_weight(cell_distance(grid_x, major_step), major_thickness),
+                                                    line_weight(cell_distance(grid_y, major_step), major_thickness)) : 0.0f)
+                            : std::max(row_major_w, cw.major);
+                        if (glow_enabled) {
+                            const f32 distance = std::min(cell_distance(grid_x, major_step),
+                                                          cell_distance(grid_y, major_step));
+                            const f32 normalized = distance / major_glow;
+                            const f32 glow_alpha = major_adj.a * 0.35f *
+                                std::exp(-0.5f * normalized * normalized) * edge_weight;
+                            if (glow_alpha > 0.0f) {
+                                Color glow = major_adj;
+                                glow.a = glow_alpha;
+                                row[x] = compositor::blend_normal(glow, row[x]);
+                            }
+                        }
+                        const f32 minor_alpha = minor_w * minor_adj.a * edge_weight;
+                        const f32 major_alpha = major_w * major_adj.a * edge_weight;
 
                         if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
 
@@ -238,8 +286,8 @@ void render_grid_background_kernel(
 
                         const auto& cw = (*cols_storage)[static_cast<usize>(x - x0)];
                         // row weights are zero since row_active == false
-                        const f32 minor_alpha = cw.minor * minor_adj.a;
-                        const f32 major_alpha = cw.major * major_adj.a;
+                        const f32 minor_alpha = cw.minor * minor_adj.a * row_edge * cw.edge;
+                        const f32 major_alpha = cw.major * major_adj.a * row_edge * cw.edge;
 
                         if (major_alpha <= 0.0f && minor_alpha <= 0.0f) continue;
 
