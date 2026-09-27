@@ -707,6 +707,9 @@ struct VulkanBackend::Impl {
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
                      float radius, bool horizontal);
+    void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                const Image& destination, const Image& source,
+                                float threshold);
     void record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
@@ -801,6 +804,11 @@ struct VulkanBackend::Impl {
               runtime::RenderSurfaceHandle scratch_horizontal,
               runtime::RenderSurfaceHandle scratch_vertical,
               float radius, float intensity, const Color& tint);
+    void bloom(runtime::RenderSurfaceHandle destination,
+               runtime::RenderSurfaceHandle source,
+               runtime::RenderSurfaceHandle scratch_horizontal,
+               runtime::RenderSurfaceHandle scratch_vertical,
+               float threshold, float radius, float intensity);
     void color_adjust(runtime::RenderSurfaceHandle destination,
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,

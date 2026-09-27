@@ -146,7 +146,10 @@ void VulkanBackend::Impl::execute_layer_batch(
                 dispatch_y1 = std::max(
                     dispatch_y1, static_cast<std::int32_t>(std::ceil(dy1)));
             }
-            gpu_inst.blend_mode = (inst.blend == BlendMode::Add) ? 1u : 0u;
+            gpu_inst.blend_mode = inst.blend == BlendMode::Add ? 1u :
+                inst.blend == BlendMode::Multiply ? 3u :
+                inst.blend == BlendMode::Screen ? 4u :
+                inst.blend == BlendMode::Overlay ? 5u : 0u;
             gpu_inst.resource_idx = inst.resource_index;
         }
 

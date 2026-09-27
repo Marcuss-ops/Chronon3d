@@ -1,6 +1,7 @@
 #include "render_plan_decoder_detail.hpp"
 
 #include <nlohmann/json.hpp>
+#include <set>
 
 #include <filesystem>
 #include <stdexcept>

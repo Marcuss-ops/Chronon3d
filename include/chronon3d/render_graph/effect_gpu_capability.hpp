@@ -28,8 +28,8 @@ inline constexpr std::array<GpuEffectCapabilityRow, 5>
          "Vulkan glow dispatch"},
         {effects::EffectType::DropShadow, GpuEffectRoute::Unsupported,
          "Vulkan drop-shadow kernel is not implemented"},
-        {effects::EffectType::Bloom, GpuEffectRoute::Unsupported,
-         "Vulkan bloom kernel is not implemented"},
+        {effects::EffectType::Bloom, GpuEffectRoute::NativeZeroReadback,
+         "Vulkan bright-pass and separable bloom dispatch"},
         {effects::EffectType::Tint, GpuEffectRoute::NativeZeroReadback,
          "Vulkan tint dispatch"},
     }};

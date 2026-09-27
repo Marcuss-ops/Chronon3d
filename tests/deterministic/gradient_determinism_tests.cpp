@@ -11,6 +11,7 @@
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
 
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <cmath>
@@ -512,6 +513,42 @@ TEST_CASE("Gradient compilation: sRGB stops are lowered once") {
     CHECK(approx(actual.g, expected.g));
     CHECK(approx(actual.b, expected.b));
     CHECK(approx(actual.a, expected.a));
+}
+
+TEST_CASE("Gradient ordered dither is deterministic, bounded, and spatial") {
+    const Color source{0.42f, 0.42f, 0.42f, 0.75f};
+    const auto a = graphics::dither_gradient_sample(source, 5.0f, 11.0f);
+    const auto repeat = graphics::dither_gradient_sample(source, 5.0f, 11.0f);
+    const auto neighbor = graphics::dither_gradient_sample(source, 6.0f, 11.0f);
+    CHECK(a.r == repeat.r);
+    CHECK(a.g == repeat.g);
+    CHECK(a.b == repeat.b);
+    CHECK(a.a == source.a);
+    CHECK(std::abs(a.r - source.r) <= 0.5f / 255.0f);
+    CHECK(std::abs(a.r - neighbor.r) > 0.0f);
+}
+
+TEST_CASE("Gradient ordered dither reduces repeated quantized ramp samples") {
+    constexpr int samples = 1024;
+    const auto quantize = [](float value) {
+        return static_cast<int>(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
+    };
+    int plain_repeats = 0;
+    int dithered_repeats = 0;
+    int previous_plain = -1;
+    int previous_dithered = -1;
+    for (int x = 0; x < samples; ++x) {
+        const float value = static_cast<float>(x) / static_cast<float>(samples - 1);
+        const int plain = quantize(value);
+        const auto dithered = graphics::dither_gradient_sample(
+            Color{value, value, value, 1.0f}, static_cast<float>(x), 0.0f);
+        const int with_dither = quantize(dithered.r);
+        plain_repeats += plain == previous_plain;
+        dithered_repeats += with_dither == previous_dithered;
+        previous_plain = plain;
+        previous_dithered = with_dither;
+    }
+    CHECK(dithered_repeats < plain_repeats);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

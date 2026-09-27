@@ -166,6 +166,26 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_bloom_threshold(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        float threshold) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::BloomThreshold)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float threshold;
+            float padding;
+            float dispatch_origin[2];
+        } push{threshold, 0.0f, {0.0f, 0.0f}};
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float brightness, float contrast,

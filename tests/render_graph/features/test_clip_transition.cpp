@@ -18,6 +18,7 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <stdexcept>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -470,7 +471,7 @@ TEST_CASE("ClipTransitionNode: Flash peaks at midpoint with configured color") {
     }
 }
 
-TEST_CASE("ClipTransitionNode: LightLeak keeps the node path as a fast dissolve") {
+TEST_CASE("ClipTransitionNode: LightLeak adds a moving colored flare and preserves endpoints") {
     auto ctx = make_ctx(64, 64);
     auto a = make_fb(ctx, 64, 64, Color{0.03f, 0.08f, 0.22f, 1.0f});
     auto b = make_fb(ctx, 64, 64, Color{0.28f, 0.03f, 0.04f, 1.0f});
@@ -478,6 +479,8 @@ TEST_CASE("ClipTransitionNode: LightLeak keeps the node path as a fast dissolve"
     ClipTransitionSpec spec;
     spec.kind = ClipTransitionKind::LightLeak;
     spec.flash_color = Color{1.0f, 0.30f, 0.02f, 1.0f};
+    spec.leak_intensity = 0.85f;
+    spec.leak_spread = 0.5f;
     spec.easing = Easing::Linear;
     ClipTransitionNode node("light_leak", spec, Frame{0}, Frame{30});
 
@@ -491,14 +494,30 @@ TEST_CASE("ClipTransitionNode: LightLeak keeps the node path as a fast dissolve"
     CHECK(before_pixel.b == doctest::Approx(0.22f).epsilon(0.01f));
 
     const auto midpoint_pixel = midpoint->get_pixel(32, 32);
-    CHECK(midpoint_pixel.r == doctest::Approx(0.155f).epsilon(0.01f));
-    CHECK(midpoint_pixel.g == doctest::Approx(0.055f).epsilon(0.01f));
-    CHECK(midpoint_pixel.b == doctest::Approx(0.13f).epsilon(0.01f));
+    const auto near_flare = midpoint->get_pixel(48, 32);
+    CHECK(midpoint_pixel.r > 0.5f);
+    CHECK(midpoint_pixel.g > 0.15f);
+    CHECK(near_flare.r > midpoint_pixel.r);
 
     const auto after_pixel = after->get_pixel(32, 32);
     CHECK(after_pixel.r == doctest::Approx(0.28f).epsilon(0.01f));
     CHECK(after_pixel.g == doctest::Approx(0.03f).epsilon(0.01f));
     CHECK(after_pixel.b == doctest::Approx(0.04f).epsilon(0.01f));
+}
+
+TEST_CASE("ClipTransitionNode: LightLeak controls are validated and cached") {
+    auto ctx = make_ctx(64, 64);
+    ClipTransitionSpec baseline;
+    baseline.kind = ClipTransitionKind::LightLeak;
+    ClipTransitionNode first("leak", baseline, Frame{0}, Frame{30});
+    auto changed = baseline;
+    changed.leak_intensity += 0.2f;
+    ClipTransitionNode second("leak", changed, Frame{0}, Frame{30});
+    CHECK(first.cache_key(ctx).params_hash != second.cache_key(ctx).params_hash);
+
+    changed.leak_spread = 3.0f;
+    CHECK_THROWS_AS(ClipTransitionNode("invalid_leak", changed, Frame{0}, Frame{30}),
+                    std::invalid_argument);
 }
 
 TEST_CASE("ClipTransitionNode: one-frame Flash is an instantaneous safe pass") {

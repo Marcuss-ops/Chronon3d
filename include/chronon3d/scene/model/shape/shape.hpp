@@ -281,6 +281,8 @@ struct GridPlaneShape {
     f32       fade_min_alpha{0.0f};
 };
 
+enum class GridStyle : u8 { Orthogonal = 0, Isometric = 1 };
+
 struct GridBackgroundShape {
     Vec2 size{1920.0f, 1080.0f};
     Vec2 offset{0.0f, 0.0f};
@@ -291,6 +293,9 @@ struct GridBackgroundShape {
     f32 major_thickness{2.75f};
     i32 major_every{4};
     bool centered{true};
+    f32 edge_fade{0.0f};
+    f32 major_glow{0.0f};
+    GridStyle style{GridStyle::Orthogonal};
 
     /// Resolved major-line semantics shared by EVERY backend (software kernel
     /// and GPU analytic fill consume this ONE rule): major lines render only

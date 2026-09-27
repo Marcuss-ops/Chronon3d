@@ -637,6 +637,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         .intensity = effect.glow_intensity,
                         .color = Color{effect.effect_color[0], effect.effect_color[1],
                                        effect.effect_color[2], effect.effect_color[3]}});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
+                    prepared_effects[index].emplace_back(VignetteParams{
+                        .radius = effect.radius, .softness = effect.softness,
+                        .amount = effect.amount,
+                        .color = Color{effect.effect_color[0], effect.effect_color[1],
+                                       effect.effect_color[2], effect.effect_color[3]}});
                 } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
                     prepared_effects[index].emplace_back(LightRaysParams{
                         .origin = Vec2{effect.light_rays_origin[0], effect.light_rays_origin[1]},
@@ -1349,7 +1355,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 builder.backdrop_blur(BackdropBlurParams{
                                     .blur = backdrop.blur,
                                     .brightness = backdrop.brightness,
-                                    .saturation = backdrop.saturation});
+                                    .saturation = backdrop.saturation,
+                                    .rim_light = backdrop.rim_light,
+                                    .refraction = backdrop.refraction,
+                                    .surface_noise = backdrop.surface_noise});
                             }
                             break;
                         }
