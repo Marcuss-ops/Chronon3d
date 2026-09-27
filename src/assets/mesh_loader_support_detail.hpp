@@ -48,11 +48,16 @@ Vec3 read_vec3(const json& value, const Vec3& fallback) {
     if (value.is_null()) return fallback;
     if (!value.is_array() || value.size() != 3)
         throw std::runtime_error("GLB node vector must contain three values");
-    return {value.at(0).get<f32>(), value.at(1).get<f32>(), value.at(2).get<f32>()};
+    const Vec3 result{value.at(0).get<f32>(), value.at(1).get<f32>(), value.at(2).get<f32>()};
+    if (!std::isfinite(result.x) || !std::isfinite(result.y) || !std::isfinite(result.z))
+        throw std::runtime_error("GLB node vectors must contain finite values");
+    return result;
 }
 
 Mat4 gltf_node_transform(const json& node) {
     if (node.contains("matrix")) {
+        if (node.contains("translation") || node.contains("rotation") || node.contains("scale"))
+            throw std::runtime_error("GLB node must use matrix or TRS, not both");
         const auto& values = node.at("matrix");
         if (!values.is_array() || values.size() != 16)
             throw std::runtime_error("GLB node matrix must contain 16 values");
@@ -61,8 +66,13 @@ Mat4 gltf_node_transform(const json& node) {
         for (std::size_t column = 0; column < 4; ++column) {
             for (std::size_t row = 0; row < 4; ++row) {
                 matrix[column][row] = values.at(column * 4 + row).get<f32>();
+                if (!std::isfinite(matrix[column][row]))
+                    throw std::runtime_error("GLB node matrix must contain finite values");
             }
         }
+        if (std::abs(matrix[0][3]) > 1e-6f || std::abs(matrix[1][3]) > 1e-6f ||
+            std::abs(matrix[2][3]) > 1e-6f || std::abs(matrix[3][3] - 1.0f) > 1e-6f)
+            throw std::runtime_error("GLB node matrix must be affine");
         return matrix;
     }
 
@@ -77,9 +87,13 @@ Mat4 gltf_node_transform(const json& node) {
         rotation = Quat{
             values.at(3).get<f32>(), values.at(0).get<f32>(),
             values.at(1).get<f32>(), values.at(2).get<f32>()};
-        if (glm::length(rotation) < 1e-7f)
-            throw std::runtime_error("GLB node rotation must not be zero");
-        rotation = glm::normalize(rotation);
+        if (!std::isfinite(rotation.w) || !std::isfinite(rotation.x) ||
+            !std::isfinite(rotation.y) || !std::isfinite(rotation.z))
+            throw std::runtime_error("GLB node rotation must contain finite values");
+        const f32 rotation_length = glm::length(rotation);
+        if (!std::isfinite(rotation_length) || rotation_length < 1e-7f)
+            throw std::runtime_error("GLB node rotation must be finite and non-zero");
+        rotation /= rotation_length;
     }
     return glm::translate(Mat4{1.0f}, translation)
         * glm::toMat4(rotation)
@@ -99,6 +113,11 @@ struct GlbData {
 };
 
 GlbData read_glb(const std::filesystem::path& path) {
+    std::error_code size_error;
+    const auto file_bytes = std::filesystem::file_size(path, size_error);
+    if (size_error) throw std::runtime_error("could not stat GLB before reading");
+    if (file_bytes > kMeshLoaderV1MaxGlbBytes)
+        throw std::runtime_error("GLB exceeds the 64 MiB MeshLoader V1 input limit");
     std::ifstream input(path, std::ios::binary);
     if (!input) throw std::runtime_error("could not open GLB");
     const std::vector<char> raw{
@@ -114,23 +133,43 @@ GlbData read_glb(const std::filesystem::path& path) {
     std::size_t offset = 12;
     std::string json_chunk;
     std::vector<std::byte> binary;
+    bool seen_json_chunk = false;
+    bool seen_binary_chunk = false;
     while (offset + 8 <= bytes.size()) {
         const auto length = read_u32(bytes, offset);
         const auto type = read_u32(bytes, offset + 4);
         offset += 8;
-        if (offset + length > bytes.size()) throw std::runtime_error("invalid GLB chunk");
+        if (offset > bytes.size() || length > bytes.size() - offset)
+            throw std::runtime_error("invalid GLB chunk");
+        if (length % 4 != 0) throw std::runtime_error("GLB chunk length is not 4-byte aligned");
+        if (!seen_json_chunk && type != 0x4E4F534AU)
+            throw std::runtime_error("GLB JSON chunk must be first");
+        if (seen_binary_chunk)
+            throw std::runtime_error("GLB BIN chunk must be final");
         if (type == 0x4E4F534AU) {
+            if (seen_json_chunk || seen_binary_chunk)
+                throw std::runtime_error("GLB JSON chunk must occur once and before BIN");
+            seen_json_chunk = true;
+            if (length > kMeshLoaderV1MaxJsonBytes)
+                throw std::runtime_error("GLB JSON chunk exceeds the 16 MiB MeshLoader V1 limit");
             json_chunk.reserve(length);
             for (std::size_t i = 0; i < length; ++i) {
                 json_chunk.push_back(static_cast<char>(bytes[offset + i]));
             }
         } else if (type == 0x004E4942U) {
+            if (!seen_json_chunk || seen_binary_chunk)
+                throw std::runtime_error("GLB BIN chunk must occur once after JSON");
+            seen_binary_chunk = true;
             binary.assign(bytes.begin() + static_cast<std::ptrdiff_t>(offset),
                           bytes.begin() + static_cast<std::ptrdiff_t>(offset + length));
+        } else {
+            throw std::runtime_error("GLB contains an unsupported chunk type");
         }
         offset += length;
     }
-    if (json_chunk.empty() || binary.empty()) throw std::runtime_error("GLB requires JSON and BIN chunks");
+    if (offset != bytes.size()) throw std::runtime_error("GLB has trailing or truncated chunk bytes");
+    if (!seen_json_chunk || !seen_binary_chunk || json_chunk.empty() || binary.empty())
+        throw std::runtime_error("GLB requires one non-empty JSON chunk followed by one BIN chunk");
     return {json::parse(json_chunk), std::move(binary)};
 }
 
@@ -147,6 +186,8 @@ std::size_t accessor_offset(const json& document, const std::vector<std::byte>& 
         throw std::runtime_error("GLB bufferView index is out of range");
     }
     const auto& view = document.at("bufferViews").at(view_index);
+    if (view.contains("extensions"))
+        throw std::runtime_error("GLB bufferView extensions are not supported by MeshLoader V1");
     if (view.value("buffer", 0) != 0) throw std::runtime_error("GLB uses an unsupported buffer index");
     const auto element_bytes = checked_mul(
         component_size(accessor.at("componentType")),
@@ -204,6 +245,8 @@ MeshIdentity identity_for(const std::filesystem::path& path) {
     std::error_code ec;
     const auto size = std::filesystem::file_size(path, ec);
     if (ec) throw std::runtime_error("could not stat GLB");
+    if (size > kMeshLoaderV1MaxGlbBytes)
+        throw std::runtime_error("GLB exceeds the 64 MiB MeshLoader V1 input limit");
     const auto timestamp = std::filesystem::last_write_time(path, ec);
     if (ec) throw std::runtime_error("could not timestamp GLB");
     std::ifstream input(path, std::ios::binary);

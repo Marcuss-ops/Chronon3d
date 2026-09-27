@@ -113,3 +113,16 @@ TEST_CASE("AnimatedValue: PingPong mode") {
     CHECK(v.evaluate(SampleTime::from_frame_int(Frame{120}, FrameRate{30, 1})) == doctest::Approx(0.0f));  // Back to start
     CHECK(v.evaluate(SampleTime::from_frame_int(Frame{-30}, FrameRate{30, 1})) == doctest::Approx(30.0f)); // Bouncing back from negative
 }
+
+TEST_CASE("AnimatedValue: Offset mode adds the per-cycle value delta") {
+    AnimatedValue<f32> v(0.0f);
+    v.key(0, 10.0f).key(20, 30.0f);
+    v.loop_mode(LoopMode::Offset);
+
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})) == doctest::Approx(10.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{10}, FrameRate{30, 1})) == doctest::Approx(20.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{20}, FrameRate{30, 1})) == doctest::Approx(30.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1})) == doctest::Approx(40.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1})) == doctest::Approx(50.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(Frame{-10}, FrameRate{30, 1})) == doctest::Approx(0.0f));
+}

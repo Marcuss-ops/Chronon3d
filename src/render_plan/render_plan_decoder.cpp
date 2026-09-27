@@ -142,7 +142,7 @@ void validate_per_key_timing(const nlohmann::json& value, bool keyframes = false
                 easing != "out_back" && easing != "in_out_back" && easing != "in_elastic" &&
                 easing != "out_elastic" && easing != "in_out_elastic" && easing != "in_bounce" &&
                 easing != "out_bounce" && easing != "in_out_bounce" && easing != "smoothstep" &&
-                easing != "hold" && easing != "bezier")
+                easing != "hold" && easing != "bezier" && easing != "spring")
                 throw std::runtime_error("unsupported per-key animation easing: " + easing);
             if (has_curve) {
                 const auto& curve = key.at("bezier_curve");
@@ -394,6 +394,30 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
                 "layers[" + std::to_string(index) + "].parent",
                 "layer parent relationships must be acyclic",
                 "layer_parent_cycle", "render-plan-relations"};
+        }
+    }
+
+    // Parent transforms and matte inputs are graph dependencies. Validate the
+    // combined graph here so a parent edge cannot close a cycle through a
+    // matte edge (and vice versa) that would otherwise fail much later in the
+    // render-graph builder.
+    std::fill(state.begin(), state.end(), 0);
+    const auto visit_dependencies = [&](const auto& self, std::size_t index) -> bool {
+        if (state[index] == 1) return false;
+        if (state[index] == 2) return true;
+        state[index] = 1;
+        const auto& layer = plan.layers[index];
+        if (layer.parent && !self(self, by_id.at(*layer.parent))) return false;
+        if (layer.track_matte && !self(self, by_id.at(layer.track_matte->source))) return false;
+        state[index] = 2;
+        return true;
+    };
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        if (!visit_dependencies(visit_dependencies, index)) {
+            return PlanDecodeError{
+                "layers[" + std::to_string(index) + "]",
+                "layer parent and track-matte dependencies must be acyclic",
+                "layer_dependency_cycle", "render-plan-relations"};
         }
     }
     return std::nullopt;

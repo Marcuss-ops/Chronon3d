@@ -54,6 +54,8 @@ std::unique_ptr<EffectProcessor> create_echo_effect_processor();
 std::unique_ptr<EffectProcessor> create_keying_effect_processor();
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor();
 std::unique_ptr<EffectProcessor> create_mosaic_effect_processor();
+std::unique_ptr<EffectProcessor> create_chromatic_aberration_effect_processor();
+std::unique_ptr<EffectProcessor> create_halftone_effect_processor();
 std::unique_ptr<EffectProcessor> create_light_rays_effect_processor();
 std::unique_ptr<EffectProcessor> create_offset_effect_processor();
 std::unique_ptr<EffectProcessor> create_curves_effect_processor();
@@ -120,6 +122,8 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<KeyingParams>(create_keying_effect_processor());
     registry.register_effect_processor<ThresholdParams>(create_threshold_effect_processor());
     registry.register_effect_processor<MosaicParams>(create_mosaic_effect_processor());
+    registry.register_effect_processor<ChromaticAberrationParams>(create_chromatic_aberration_effect_processor());
+    registry.register_effect_processor<HalftoneParams>(create_halftone_effect_processor());
     registry.register_effect_processor<LightRaysParams>(create_light_rays_effect_processor());
     registry.register_effect_processor<OffsetParams>(create_offset_effect_processor());
     registry.register_effect_processor<DirectionalBlurParams>(create_directional_blur_effect_processor());

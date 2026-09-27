@@ -59,5 +59,7 @@ inline constexpr std::string_view DistortTurbulentDisplace = "distort.turbulent_
 inline constexpr std::string_view DistortWaveWarp = "distort.wave_warp";
 inline constexpr std::string_view DistortRipple = "distort.ripple";
 inline constexpr std::string_view DistortDisplacementMap = "distort.displacement_map";
+inline constexpr std::string_view StylizeChromaticAberration = "stylize.chromatic_aberration";
+inline constexpr std::string_view StylizeHalftone = "stylize.halftone";
 
 } // namespace chronon3d::effects::ids

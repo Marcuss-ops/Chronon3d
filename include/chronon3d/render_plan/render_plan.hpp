@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -23,11 +24,14 @@
 
 namespace chronon3d::render_plan {
 
+using SpringPlan = chronon3d::SpringConfig;
+
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
 inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
 enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
-enum class ShapeContentTypePlan : std::uint8_t { Rect, RoundedRect, Ellipse, Line, Path };
+enum class ShapeContentTypePlan : std::uint8_t { Rect, RoundedRect, Ellipse, Line, Path, Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame };
+enum class DeviceFrameKindPlan : std::uint8_t { Phone, Browser };
 enum class ShapeFillRulePlan : std::uint8_t { EvenOdd, NonZero };
 enum class ShapePathCommandTypePlan : std::uint8_t {
     MoveTo, LineTo, QuadraticTo, CubicTo, Close
@@ -62,6 +66,7 @@ struct AnimationKeyframePlan {
     std::optional<float> temporal_in_dy;
     std::optional<float> temporal_out_dx;
     std::optional<float> temporal_out_dy;
+    std::optional<SpringPlan> spring;
 };
 
 struct AnimationTrackPlan {
@@ -69,6 +74,17 @@ struct AnimationTrackPlan {
     std::vector<AnimationKeyframePlan> keyframes;
     std::string easing{"linear"};
     std::optional<std::array<float, 4>> bezier_curve;
+    std::optional<SpringPlan> spring;
+    // Re-map evaluation time after the authored keyframe range. "none" holds
+    // the end value; cycle and pingpong repeat the segment; offset adds the
+    // authored end-to-start delta for each completed cycle.
+    std::string loop_mode{"none"};
+    struct WiggleDriverPlan {
+        float frequency{2.0f};
+        float amplitude{30.0f};
+        std::uint32_t seed{0};
+    };
+    std::optional<WiggleDriverPlan> wiggle;
 };
 
 struct PathRepeaterPlan {
@@ -84,6 +100,8 @@ struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     PathRepeaterPlan repeater{};
     float radius{0.0f};
+    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
+    bool device_frame_chrome{true};
     float size{0.0f};
     float points_per_unit{0.1f};
     bool smooth{false};
@@ -103,6 +121,13 @@ struct PathOperatorPlan {
     float trim_start{0.0f};
     float trim_end{1.0f};
     float trim_offset{0.0f};
+    std::optional<AnimationTrackPlan> trim_animation;
+};
+
+struct ImportedSubpathPlan {
+    std::vector<ShapePathCommandPlan> path;
+    std::optional<std::array<float, 4>> fill_color;
+    std::optional<StrokeStyle> stroke;
 };
 
 struct ShapeContentPlan {
@@ -119,6 +144,9 @@ struct ShapeContentPlan {
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
+    // Resolver-backed SVG/Lottie elements retain authored path/style order as
+    // deterministic sibling path nodes without widening the path rasterizer.
+    std::vector<ImportedSubpathPlan> imported_subpaths;
     std::vector<PathOperatorPlan> operators;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
@@ -300,6 +328,10 @@ struct TransitionPlan {
 };
 
 struct LayerPlan {
+    struct FlowLayoutPlan { std::string group_id; std::string axis{"row"}; std::string align{"start"}; std::string justify{"start"}; float gap{0}; bool wrap{false}; std::array<float,2> cell_size{0,0}; };
+    struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; };
+    std::optional<FlowLayoutPlan> flow_layout;
+    std::optional<GridLayoutPlan> grid_layout;
     std::string id;
     LayerType type{LayerType::Color};
     std::optional<std::string> parent;
@@ -320,13 +352,21 @@ struct LayerPlan {
     std::optional<ParticleEmitterParams> particle_emitter;
     std::optional<LightLayerPlan> light;
     struct PathMaskPlan {
+        std::string type{"path"};
+        std::string mode{"add"};
         std::vector<ShapePathCommandPlan> path;
+        std::vector<ShapePathCommandPlan> morph_target;
+        std::optional<AnimationTrackPlan> morph_animation;
+        std::array<float, 2> position{0.0f, 0.0f};
+        std::array<float, 2> size{0.0f, 0.0f};
+        float radius{0.0f};
         float feather{0.0f};
         float expansion{0.0f};
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays };
+    std::vector<PathMaskPlan> masks;
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -348,6 +388,18 @@ struct LayerPlan {
         float garbage_feather{0.0f};
         float threshold_softness{0.0f};
         std::uint32_t block_size{8};
+        float chromatic_red_offset{2.0f};
+        float chromatic_blue_offset{-2.0f};
+        std::uint32_t halftone_size{8};
+        float halftone_angle{0.0f};
+        float halftone_amount{1.0f};
+        float directional_angle{0.0f};
+        float directional_length{0.0f};
+        int directional_samples{0};
+        std::array<float, 2> radial_center{0.5f, 0.5f};
+        float radial_amount{0.0f};
+        int radial_render_samples{8};
+        int radial_preview_samples{4};
         float radius{0.0f};
         std::array<float, 2> offset{0.0f, 8.0f};
         std::array<float, 4> effect_color{0.0f, 0.0f, 0.0f, 0.35f};
@@ -435,6 +487,7 @@ struct LayerPlan {
     std::optional<chronon3d::BlendMode> blend_mode;
     std::optional<float> opacity;
     bool loop{false};
+    bool auto_orient{false};
 };
 
 // Immutable producer-side preparation metadata. The JSON sidecar is decoded

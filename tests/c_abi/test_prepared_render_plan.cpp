@@ -4,14 +4,18 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/render_plan/effect_presets.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/math/expression.hpp>
 #if defined(CHRONON_TEST_ENABLE_SVG)
 #include <chronon3d/render_plan/render_plan.hpp>
 #endif
@@ -21,7 +25,9 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace {
@@ -109,7 +115,19 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
           "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
             "v":[[0,0],[20,0],[20,20]],"i":[[0,0],[0,0],[0,0]],
             "o":[[0,0],[0,0],[0,0]]}}},
-            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
+            {"ty":"sh","ks":{"a":0,"k":{"c":true,
+            "v":[[30,0],[50,0],[50,20]],"i":[[0,0],[0,0],[0,0]],
+            "o":[[0,0],[0,0],[0,0]]}}},
+            {"ty":"el","p":{"a":0,"k":[0,30]},"s":{"a":0,"k":[20,10]}},
+            {"ty":"rc","p":{"a":0,"k":[30,30]},"s":{"a":0,"k":[20,10]},"r":{"a":0,"k":2}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[0,1,0,1]}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[0,0,1,1]}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,1,1,1]}},
+            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":1}},
+            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":2}},
+            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":3}},
+            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":4}}]}]})JSON";
     }
     assets::AssetResolver resolver;
     resolver.mount(directory.path);
@@ -125,6 +143,25 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
         prepared.error().path + ": " + prepared.error().message;
     REQUIRE_MESSAGE(prepared.has_value(), prepare_message);
     CHECK(prepared->assets.assets().size() == 1);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 4);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().commands.size() == 4);
+    CHECK(evaluated->scene.layers()[0].nodes[1].shape.path().commands.size() == 4);
+    CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().commands.size() == 6);
+    CHECK(evaluated->scene.layers()[0].nodes[3].shape.path().commands.size() == 10);
+    const auto& lottie_nodes = evaluated->scene.layers()[0].nodes;
+    CHECK(lottie_nodes[0].shape.path().fill.solid.r == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[0].shape.path().fill.solid.g == doctest::Approx(0.0f));
+    CHECK(lottie_nodes[1].shape.path().fill.solid.r == doctest::Approx(0.0f));
+    CHECK(lottie_nodes[1].shape.path().fill.solid.g == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[2].shape.path().fill.solid.b == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[3].shape.path().fill.solid.r == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[0].shape.path().stroke.enabled);
+    CHECK(lottie_nodes[0].shape.path().stroke.width == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[3].shape.path().stroke.width == doctest::Approx(4.0f));
 
     auto unsupported = *decoded;
     // The decoder is allowed to retain the reference; the compiler rejects
@@ -134,6 +171,69 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
         file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,"exp":"x"}]})JSON";
     }
     CHECK_FALSE(compile_render_plan(unsupported, resolver));
+
+    using json = nlohmann::json;
+    const auto identity_layer = [] {
+        return json{{"ty", 4}, {"ddd", 0},
+            {"ks", {{"a", {{"a", 0}, {"k", {0, 0, 0}}}},
+                    {"p", {{"a", 0}, {"k", {0, 0, 0}}}},
+                    {"s", {{"a", 0}, {"k", {100, 100, 100}}}},
+                    {"r", {{"a", 0}, {"k", 0}}},
+                    {"o", {{"a", 0}, {"k", 100}}}}},
+            {"shapes", json::array()}};
+    };
+    const auto static_path = [] {
+        return json{{"ty", "sh"}, {"ks", {{"a", 0}, {"k", {
+            {"c", true}, {"v", {{0, 0}, {10, 0}}},
+            {"i", {{0, 0}, {0, 0}}}, {"o", {{0, 0}, {0, 0}}}}}}}};
+    };
+    std::vector<json> unsupported_documents;
+    {
+        auto layer = identity_layer();
+        layer["masksProperties"] = json::array({json{{"mode", "a"}}});
+        layer["shapes"].push_back(static_path());
+        layer["shapes"].push_back(json{{"ty", "fl"}, {"r", 1},
+            {"c", {{"a", 0}, {"k", {1, 0, 0, 1}}}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({json{{"ty", "gr"}, {"it", json::array()}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({json{{"ty", "el"},
+            {"p", {{"a", 1}, {"k", json::array()}}},
+            {"s", {{"a", 0}, {"k", {20, 10}}}},
+            {"c", {{"a", 0}, {"k", {1, 0, 0, 1}}}}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({static_path(),
+            json{{"ty", "gf"}, {"g", {{"p", 2}, {"k", {{"a", 0}, {"k", json::array()}}}}}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({static_path(), static_path(),
+            json{{"ty", "fl"}, {"r", 1}, {"c", {{"a", 0}, {"k", {1, 0, 0, 1}}}}},
+            json{{"ty", "fl"}, {"r", 1}, {"c", {{"a", 0}, {"k", {0, 1, 0, 1}}}}},
+            json{{"ty", "fl"}, {"r", 1}, {"c", {{"a", 0}, {"k", {0, 0, 1, 1}}}}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({static_path(),
+            json{{"ty", "st"}, {"r", 1}, {"c", {{"a", 0}, {"k", {1, 1, 1, 1}}}},
+                {"w", {{"a", 0}, {"k", 2}}}, {"d", json::array({json{{"n", "d"}, {"v", 4}}})}}});
+        unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    for (const auto& document : unsupported_documents) {
+        { std::ofstream file(directory.path / "shapes/mark.json"); file << document.dump(); }
+        CHECK_FALSE(compile_render_plan(unsupported, resolver));
+    }
 }
 
 #if defined(CHRONON_TEST_ENABLE_SVG)
@@ -144,7 +244,8 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     std::filesystem::create_directories(directory.path / "art");
     {
         std::ofstream svg(directory.path / "art/vector.svg");
-        svg << R"(<svg><path d="M 0 0 L 20 0 L 20 20 Z" fill="#ff0000" stroke="none"/></svg>)";
+        svg << R"(<svg><!-- comments do not change the rendered subset --><path d="M 0 0 L 20 0 L 20 20 Z" fill="#ff0000" stroke="#00ff00" stroke-width="2" opacity="0.5"/>
+          <path d="M 24 0 L 44 0 L 44 20 Z" fill="#0000ff" stroke="none"/></svg>)";
     }
     assets::AssetResolver resolver;
     resolver.mount(directory.path);
@@ -158,10 +259,44 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     const auto prepared = compile_render_plan(*decoded, resolver);
     REQUIRE(prepared);
     CHECK(prepared->assets.assets().size() == 1);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 2);
+    CHECK(evaluated->scene.layers()[0].nodes[0].fill.solid.r == doctest::Approx(1.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].fill.solid.b == doctest::Approx(0.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[1].fill.solid.r == doctest::Approx(0.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[1].fill.solid.b == doctest::Approx(1.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].fill.solid.a == doctest::Approx(0.5f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.enabled);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.width == doctest::Approx(2.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.g == doctest::Approx(1.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.5f));
+    CHECK_FALSE(evaluated->scene.layers()[0].nodes[1].shape.path().stroke.enabled);
 
     auto missing = *decoded;
     missing.layers[0].shape->svg_asset = "art/not-found.svg";
     CHECK_FALSE(compile_render_plan(missing, resolver));
+
+    const std::array<std::string, 7> unsupported_svg{
+        "<svg><text>no conversion</text></svg>",
+        "<svg><path d=\"M0 0L1 1\" fill=\"url(#gradient)\"/></svg>",
+        "<svg><path d=\"M0 0L1 1\"/><g><use href=\"#shape\"/></g></svg>",
+        "<svg><defs><linearGradient id=\"g\"/></defs><path d=\"M0 0L1 1\"/></svg>",
+        "<svg><mask id=\"m\"><path d=\"M0 0L1 1\"/></mask></svg>",
+        "<svg><path d=\"M0 0L1 1\" stroke-linecap=\"round\"/></svg>",
+        "<svg><path d=\"M0 0L1 1\" opacity=\"2\"/></svg>"};
+    for (std::size_t i = 0; i < unsupported_svg.size(); ++i) {
+        const std::string logical = "art/rejected-" + std::to_string(i) + ".svg";
+        { std::ofstream svg(directory.path / logical); svg << unsupported_svg[i]; }
+        auto rejected = *decoded;
+        rejected.layers[0].shape->svg_asset = logical;
+        const auto result = compile_render_plan(rejected, resolver);
+        CHECK_FALSE(result);
+        if (!result) CHECK(result.error().code == "svg_import_failed" ||
+                           result.error().code == "svg_unsupported_style");
+    }
 }
 #endif
 
@@ -389,6 +524,110 @@ TEST_CASE("render plan evaluates animated solid fills and typed transitions per 
     CHECK(std::get<SlideParams>(layer0.transition_in.parameters).distance == doctest::Approx(0.5f));
 }
 
+TEST_CASE("render plan evaluates animated path mask geometry per frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "animated-path-mask";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{12}};
+    LayerPlan layer;
+    layer.id = "masked";
+    layer.type = LayerType::Color;
+    layer.color = {1.0f, 0.0f, 0.0f, 1.0f};
+    LayerPlan::PathMaskPlan mask;
+    const auto rect_path = [](float extent) {
+        return std::vector<ShapePathCommandPlan>{
+            {ShapePathCommandTypePlan::MoveTo, {-extent, -extent}},
+            {ShapePathCommandTypePlan::LineTo, {extent, -extent}},
+            {ShapePathCommandTypePlan::LineTo, {extent, extent}},
+            {ShapePathCommandTypePlan::LineTo, {-extent, extent}},
+            {ShapePathCommandTypePlan::Close}};
+    };
+    mask.path = rect_path(4.0f);
+    mask.morph_target = rect_path(8.0f);
+    AnimationTrackPlan animation;
+    animation.property = "mask_morph";
+    animation.keyframes = {{Frame{0}, {0.0f}}, {Frame{12}, {1.0f}}};
+    mask.morph_animation = animation;
+    layer.path_mask = mask;
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto start = evaluate(prepared->compiled_composition,
+                                CompositionEvaluateContext{}, Frame{0});
+    const auto end = evaluate(prepared->compiled_composition,
+                              CompositionEvaluateContext{}, Frame{12});
+    REQUIRE(start);
+    REQUIRE(end);
+    REQUIRE(start->scene.layers().size() == 1);
+    REQUIRE(end->scene.layers().size() == 1);
+    CHECK(start->scene.layers()[0].mask.size.x == doctest::Approx(8.0f));
+    CHECK(end->scene.layers()[0].mask.size.x == doctest::Approx(16.0f));
+}
+
+TEST_CASE("render plan lowers ordered mask operations to the scene compositor") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "ordered-mask-stack";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "masked";
+    layer.type = LayerType::Color;
+    layer.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    const auto rect = [](std::string mode, float extent) {
+        LayerPlan::PathMaskPlan mask;
+        mask.type = "rect";
+        mask.mode = std::move(mode);
+        mask.size = {extent * 2.0f, extent * 2.0f};
+        return mask;
+    };
+    const auto ellipse = [](std::string mode, float rx, float ry) {
+        LayerPlan::PathMaskPlan mask;
+        mask.type = "ellipse";
+        mask.mode = std::move(mode);
+        mask.size = {rx * 2.0f, ry * 2.0f};
+        return mask;
+    };
+    auto path = LayerPlan::PathMaskPlan{};
+    path.type = "path";
+    path.mode = "add";
+    path.path = {{ShapePathCommandTypePlan::MoveTo, {-1.0f, -1.0f}},
+                 {ShapePathCommandTypePlan::LineTo, {1.0f, -1.0f}},
+                 {ShapePathCommandTypePlan::LineTo, {1.0f, 1.0f}},
+                 {ShapePathCommandTypePlan::LineTo, {-1.0f, 1.0f}},
+                 {ShapePathCommandTypePlan::Close}};
+    auto rounded_rect = rect("add", 3.0f);
+    rounded_rect.type = "rounded_rect";
+    rounded_rect.radius = 1.0f;
+    layer.masks = {rect("add", 20.0f), rect("subtract", 4.0f), path,
+                   ellipse("add", 2.0f, 2.0f), rounded_rect,
+                   ellipse("intersect", 30.0f, 30.0f), rect("difference", 1.0f)};
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& mask = evaluated->scene.layers()[0].mask;
+    REQUIRE(mask.operations.size() == 6);
+    CHECK(mask.operations[0].mode == MaskCombineMode::Subtract);
+    CHECK(mask.operations[1].type == MaskType::Path);
+    CHECK(mask.operations[2].type == MaskType::Ellipse);
+    CHECK(mask.operations[3].type == MaskType::RoundedRect);
+    CHECK(mask.operations[4].mode == MaskCombineMode::Intersect);
+    CHECK(mask.operations[5].mode == MaskCombineMode::Difference);
+    CHECK(mask_alpha_at_local_point(mask, Vec2{0.0f, 0.0f}) == doctest::Approx(0.0f));
+    CHECK(mask_alpha_at_local_point(mask, Vec2{8.0f, 0.0f}) == doctest::Approx(1.0f));
+}
+
 TEST_CASE("render plan fill and gradient tracks clamp eased values and hold as steps") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -402,16 +641,16 @@ TEST_CASE("render plan fill and gradient tracks clamp eased values and hold as s
                       {Frame{10}, {0.0f, 1.0f, 0.0f, 1.0f}}};
     solid.animation = AnimationPlan{.tracks = {fill}};
     const auto before = chronon3d::render_plan::detail::fill_color_at(
-        solid, 2.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+        solid, 2.0, Color{0.0f, 0.0f, 1.0f, 1.0f}, FrameRate{30, 1});
     REQUIRE(before.has_value());
     CHECK(before->b == doctest::Approx(1.0f));
     const auto held = chronon3d::render_plan::detail::fill_color_at(
-        solid, 7.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+        solid, 7.0, Color{0.0f, 0.0f, 1.0f, 1.0f}, FrameRate{30, 1});
     REQUIRE(held.has_value());
     CHECK(held->r == doctest::Approx(1.0f));
     CHECK(held->g == doctest::Approx(0.0f));
     const auto last = chronon3d::render_plan::detail::fill_color_at(
-        solid, 10.0, Color{0.0f, 0.0f, 1.0f, 1.0f});
+        solid, 10.0, Color{0.0f, 0.0f, 1.0f, 1.0f}, FrameRate{30, 1});
     REQUIRE(last.has_value());
     CHECK(last->g == doctest::Approx(1.0f));
 
@@ -610,6 +849,373 @@ TEST_CASE("render plan composes synchronized X and Y position tracks") {
           initial->scene.layers()[0].transform.position.x == doctest::Approx(240.0f));
     CHECK(evaluated->scene.layers()[0].transform.position.y -
           initial->scene.layers()[0].transform.position.y == doctest::Approx(120.0f));
+}
+
+TEST_CASE("render plan evaluates animated trim paths at the requested frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "animated-trim-path";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{30, 1}, .duration = Frame{11}};
+    LayerPlan layer;
+    layer.id = "progress-route";
+    layer.type = LayerType::Shape;
+    layer.size = {100.0f, 1.0f};
+    layer.size_dimensions = 2;
+    ShapeContentPlan path;
+    path.type = ShapeContentTypePlan::Path;
+    path.path = {
+        ShapePathCommandPlan{ShapePathCommandTypePlan::MoveTo, {0.0f, 0.0f}},
+        ShapePathCommandPlan{ShapePathCommandTypePlan::LineTo, {100.0f, 0.0f}}};
+    PathOperatorPlan trim;
+    trim.kind = PathOperatorKindPlan::Trim;
+    trim.trim_start = 0.0f;
+    trim.trim_end = 0.1f;
+    AnimationTrackPlan animation;
+    animation.property = "trim";
+    animation.keyframes = {
+        AnimationKeyframePlan{Frame{0}, {0.0f, 0.1f}},
+        AnimationKeyframePlan{Frame{10}, {0.0f, 0.75f}}};
+    trim.trim_animation = animation;
+    path.operators.push_back(std::move(trim));
+    layer.shape = std::move(path);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto at_start = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    const auto at_end = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{10});
+    REQUIRE(at_start);
+    REQUIRE(at_end);
+    REQUIRE(at_start->scene.layers()[0].nodes[0].shape.path().commands.size() >= 2);
+    REQUIRE(at_end->scene.layers()[0].nodes[0].shape.path().commands.size() >= 2);
+    CHECK(at_start->scene.layers()[0].nodes[0].shape.path().commands.back().p0.x ==
+          doctest::Approx(10.0f).epsilon(0.02f));
+    CHECK(at_end->scene.layers()[0].nodes[0].shape.path().commands.back().p0.x ==
+          doctest::Approx(75.0f).epsilon(0.02f));
+}
+
+TEST_CASE("render plan lowers star, polygon, arrow, and arc to prepared path nodes") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    const std::vector<nlohmann::json> shapes{
+        {{"type", "star"}, {"points", 7}, {"inner_radius_ratio", 0.4}},
+        {{"type", "polygon"}, {"points", 6}, {"rotation_degrees", 15.0}},
+        {{"type", "arrow"}, {"shaft_ratio", 0.3}, {"head_ratio", 0.8}},
+        {{"type", "arc"}, {"start_degrees", 10.0}, {"sweep_degrees", 180.0},
+         {"segments", 32}, {"stroke", {{"color", "#FFFFFF"}, {"width", 2.0}}}},
+        {{"type", "grid"}, {"spacing", 10.0},
+         {"stroke", {{"color", "#FFFFFF"}, {"width", 1.0}}}},
+        {{"type", "dot_grid"}, {"spacing", 10.0}, {"dot_radius", 2.0},
+         {"fill", {1.0, 0.0, 0.0, 1.0}}}
+    };
+    const std::array<std::size_t, 6> minimum_commands{15, 7, 8, 17, 18, 100};
+    assets::AssetResolver resolver;
+    for (std::size_t i = 0; i < shapes.size(); ++i) {
+        const auto source = render_plan_test::base_plan(
+            {render_plan_test::shape_layer(shapes[i])});
+        const auto decoded = decode_render_plan(source);
+        REQUIRE(decoded);
+        const auto prepared = compile_render_plan(*decoded, resolver);
+        if (!prepared) INFO(prepared.error().message);
+        REQUIRE(prepared);
+        const auto evaluated = evaluate(prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{0});
+        REQUIRE(evaluated);
+        REQUIRE(evaluated->scene.layers().size() == 1);
+        REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+        const auto& path = evaluated->scene.layers()[0].nodes[0].shape;
+        CHECK(path.type() == ShapeType::Path);
+        CHECK(path.path().commands.size() >= minimum_commands[i]);
+    }
+}
+
+TEST_CASE("device frames lower real phone and browser chrome subnodes") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    const std::array<std::pair<nlohmann::json, std::size_t>, 2> cases{{
+        {nlohmann::json{{"type", "device_frame"}, {"device", "phone"}, {"chrome", true},
+                        {"fill", {0.2, 0.3, 0.4, 1.0}}}, 3},
+        {nlohmann::json{{"type", "device_frame"}, {"device", "browser"}, {"chrome", true},
+                        {"fill", {0.2, 0.3, 0.4, 1.0}}}, 6}
+    }};
+    assets::AssetResolver resolver;
+    for (const auto& [shape, expected_nodes] : cases) {
+        const auto source = render_plan_test::base_plan(
+            {render_plan_test::shape_layer(shape)});
+        const auto decoded = decode_render_plan(source);
+        REQUIRE(decoded);
+        const auto prepared = compile_render_plan(*decoded, resolver);
+        if (!prepared) INFO(prepared.error().message);
+        REQUIRE(prepared);
+        const auto evaluated = evaluate(prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{0});
+        REQUIRE(evaluated);
+        REQUIRE(evaluated->scene.layers().size() == 1);
+        CHECK(evaluated->scene.layers()[0].nodes.size() == expected_nodes);
+    }
+}
+
+TEST_CASE("Directional and Radial Blur lower to their registered processor payloads") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "blur-effects";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "source";
+    layer.type = LayerType::Color;
+    layer.color = {0.2f, 0.3f, 0.4f, 1.0f};
+    LayerPlan::EffectPlan directional;
+    directional.kind = LayerPlan::EffectKindPlan::DirectionalBlur;
+    directional.directional_angle = 22.0f;
+    directional.directional_length = 18.0f;
+    directional.directional_samples = 9;
+    LayerPlan::EffectPlan radial;
+    radial.kind = LayerPlan::EffectKindPlan::RadialBlur;
+    radial.radial_center = {0.25f, 0.75f};
+    radial.radial_amount = 0.8f;
+    radial.radial_render_samples = 12;
+    radial.radial_preview_samples = 6;
+    layer.effects = {directional, radial};
+    plan.layers.push_back(std::move(layer));
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 2);
+    const auto* lowered_directional = std::get_if<DirectionalBlurParams>(&effects[0].params);
+    REQUIRE(lowered_directional);
+    CHECK(lowered_directional->length == doctest::Approx(18.0f));
+    const auto* lowered_radial = std::get_if<RadialBlurParams>(&effects[1].params);
+    REQUIRE(lowered_radial);
+    CHECK(lowered_radial->center.y == doctest::Approx(0.75f));
+    CHECK(lowered_radial->render_samples == 12);
+}
+
+TEST_CASE("render plan spring tracks match the canonical spring sample") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "spring-position-track";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{30, 1}, .duration = Frame{11}};
+    LayerPlan layer;
+    layer.id = "spring-layer";
+    layer.type = LayerType::Shape;
+    layer.size = {8.0f, 8.0f};
+    layer.size_dimensions = 2;
+    layer.position_dimensions = 2;
+    layer.shape = ShapeContentPlan{};
+    AnimationTrackPlan track;
+    track.property = "position_y";
+    track.easing = "spring";
+    track.spring = Spring::Bouncy;
+    track.keyframes = {
+        AnimationKeyframePlan{Frame{0}, {-300.0f}},
+        AnimationKeyframePlan{Frame{10}, {0.0f}}};
+    AnimationPlan animation;
+    animation.tracks.push_back(track);
+    layer.animation = std::move(animation);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto start = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    const auto middle = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{5});
+    REQUIRE(start);
+    REQUIRE(middle);
+    const float actual_delta = middle->scene.layers()[0].transform.position.y -
+                               start->scene.layers()[0].transform.position.y;
+    const float expected = sample_spring(5.0 / 30.0, -300.0f, 0.0f, Spring::Bouncy).value + 300.0f;
+    CHECK(actual_delta == doctest::Approx(expected).epsilon(0.001f));
+}
+
+TEST_CASE("render plan forwards cycle, pingpong and offset loop modes to evaluation") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    auto sample = [](std::string mode, Frame frame) -> std::optional<float> {
+        RenderPlan plan;
+        plan.job_id = "loop-mode-track";
+        plan.canvas = {.width = 320, .height = 180,
+                       .fps = FrameRate{30, 1}, .duration = Frame{31}};
+        LayerPlan layer;
+        layer.id = "looping-shape";
+        layer.type = LayerType::Shape;
+        layer.size = {8.0f, 8.0f};
+        layer.size_dimensions = 2;
+        layer.shape = ShapeContentPlan{};
+        AnimationTrackPlan track;
+        track.property = "position_x";
+        track.loop_mode = std::move(mode);
+        track.keyframes = {{Frame{0}, {0.0f}}, {Frame{10}, {20.0f}}};
+        AnimationPlan animation;
+        animation.tracks.push_back(std::move(track));
+        layer.animation = std::move(animation);
+        plan.layers.push_back(std::move(layer));
+
+        assets::AssetResolver resolver;
+        const auto prepared = compile_render_plan(plan, resolver);
+        if (!prepared) return std::nullopt;
+        const auto evaluated = evaluate(
+            prepared->compiled_composition, CompositionEvaluateContext{}, frame);
+        if (!evaluated) return std::nullopt;
+        return evaluated->scene.layers()[0].transform.position.x;
+    };
+
+    const auto origin = sample("cycle", Frame{0});
+    const auto cycle = sample("cycle", Frame{15});
+    const auto pingpong = sample("pingpong", Frame{15});
+    const auto offset = sample("offset", Frame{15});
+    REQUIRE(origin);
+    REQUIRE(cycle);
+    REQUIRE(pingpong);
+    REQUIRE(offset);
+    CHECK(*cycle - *origin == doctest::Approx(10.0f));
+    CHECK(*pingpong - *origin == doctest::Approx(10.0f));
+    CHECK(*offset - *origin == doctest::Approx(30.0f));
+}
+
+TEST_CASE("render plan wiggle driver evaluates deterministically on scalar opacity") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "wiggle-opacity-track";
+    plan.canvas = {.width = 32, .height = 32,
+                   .fps = FrameRate{30, 1}, .duration = Frame{31}};
+    LayerPlan layer;
+    layer.id = "wiggle-shape";
+    layer.type = LayerType::Shape;
+    layer.size = {8.0f, 8.0f};
+    layer.size_dimensions = 2;
+    layer.shape = ShapeContentPlan{};
+    AnimationTrackPlan track;
+    track.property = "opacity";
+    track.keyframes = {{Frame{0}, {0.5f}}, {Frame{30}, {0.5f}}};
+    track.wiggle = AnimationTrackPlan::WiggleDriverPlan{2.0f, 0.2f, 42};
+    AnimationPlan animation;
+    animation.tracks.push_back(std::move(track));
+    layer.animation = std::move(animation);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto first = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{15});
+    const auto repeated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{15});
+    REQUIRE(first);
+    REQUIRE(repeated);
+    const double expected = 0.5 + math::evaluate_expression(
+        "wiggle(2,0.2,time,42)",
+        std::unordered_map<std::string, double>{{"time", 0.5}, {"frame", 15.0}, {"value", 0.5}},
+        0.0);
+    CHECK(first->scene.layers()[0].transform.opacity == doctest::Approx(expected).epsilon(0.0001));
+    CHECK(repeated->scene.layers()[0].transform.opacity ==
+          doctest::Approx(first->scene.layers()[0].transform.opacity));
+}
+
+TEST_CASE("render plan auto_orient derives z rotation from the position tangent") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "auto-oriented-shape";
+    plan.canvas = {.width = 32, .height = 32,
+                   .fps = FrameRate{30, 1}, .duration = Frame{11}};
+    LayerPlan layer;
+    layer.id = "path-follower";
+    layer.type = LayerType::Shape;
+    layer.size = {8.0f, 8.0f};
+    layer.size_dimensions = 2;
+    layer.auto_orient = true;
+    layer.shape = ShapeContentPlan{};
+    AnimationTrackPlan track;
+    track.property = "position";
+    track.keyframes = {{Frame{0}, {0.0f, 0.0f}}, {Frame{10}, {10.0f, 10.0f}}};
+    AnimationPlan animation;
+    animation.tracks.push_back(std::move(track));
+    layer.animation = std::move(animation);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{5});
+    REQUIRE(evaluated);
+    CHECK(evaluated->scene.layers()[0].transform.rotation.z == doctest::Approx(45.0f).epsilon(0.001f));
+}
+
+TEST_CASE("viral effect presets lower through the existing effect stack") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "glitch-preset";
+    plan.canvas = {.width = 32, .height = 32,
+                   .fps = FrameRate{30, 1}, .duration = Frame{2}};
+    LayerPlan layer;
+    layer.id = "glitched";
+    layer.type = LayerType::Color;
+    layer.color = {0.3f, 0.4f, 0.6f, 1.0f};
+    effect_presets::glitch(layer, 0.5f, 99);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 3);
+    const auto* warp = std::get_if<WaveWarpParams>(&effects[0].params);
+    REQUIRE(warp);
+    CHECK(warp->type == WaveWarpParams::WaveType::Square);
+    CHECK(warp->direction.y == doctest::Approx(1.0f));
+    const auto* split = std::get_if<ChromaticAberrationParams>(&effects[1].params);
+    REQUIRE(split);
+    CHECK(split->red_offset == doctest::Approx(4.0f));
+    CHECK(split->blue_offset == doctest::Approx(-4.0f));
+    const auto* grain = std::get_if<NoiseParams>(&effects[2].params);
+    REQUIRE(grain);
+    CHECK(grain->animated);
+    CHECK(grain->color_mode == NoiseColorMode::RGB);
+    CHECK(grain->seed == 99);
+
+    const auto aurora = effect_presets::aurora_gradient(
+        Frame{0}, Frame{120}, FrameRate{30, 1});
+    REQUIRE(aurora.keyframes.size() == 4);
+    CHECK(aurora.keyframes.front().frame == Frame{0});
+    CHECK(aurora.keyframes.back().frame == Frame{120});
+    REQUIRE(aurora.keyframes[0].value.color_stops.size() == 3);
+    CHECK(aurora.keyframes[0].value.color_stops[0].color.g !=
+          aurora.keyframes[1].value.color_stops[0].color.g);
+    CHECK_THROWS_AS(effect_presets::aurora_gradient(
+        Frame{0}, Frame{0}, FrameRate{30, 1}), std::invalid_argument);
+
+    LayerPlan scanline_layer;
+    effect_presets::rgb_split(scanline_layer, 6.0f);
+    effect_presets::scanlines(scanline_layer, 0.03f, 0.02f);
+    effect_presets::lens_blur(scanline_layer, 5.0f);
+    REQUIRE(scanline_layer.effects.size() == 3);
+    CHECK(scanline_layer.effects[0].kind == LayerPlan::EffectKindPlan::ChromaticAberration);
+    CHECK(scanline_layer.effects[0].chromatic_red_offset == doctest::Approx(6.0f));
+    CHECK(scanline_layer.effects[1].kind == LayerPlan::EffectKindPlan::WaveWarp);
+    CHECK(scanline_layer.effects[1].wave_type == 2);
+    CHECK(scanline_layer.effects[2].kind == LayerPlan::EffectKindPlan::GaussianBlur);
+    CHECK(scanline_layer.effects[2].radius == doctest::Approx(5.0f));
 }
 
 TEST_CASE("render plan materializes deterministic particle shapes per frame") {
@@ -1469,4 +2075,41 @@ TEST_CASE("render_plan_compiler: rotation_x and rotation_y merge correctly (dual
     auto eval0 = chronon3d::evaluate(prepared->compiled_composition, {}, chronon3d::Frame{0});
     REQUIRE(eval0);
     CHECK(eval0.value().scene.layers().front().anim_transform.rotation_euler.is_animated());
+}
+
+TEST_CASE("render plan flow layout reaches the runtime scene and changes placement") {
+    using namespace chronon3d;
+    assets::AssetResolver resolver;
+    render_plan::RenderPlan plan;
+    plan.job_id="flow-runtime";
+    plan.canvas={.width=600,.height=300,.fps=FrameRate{30,1},.duration=Frame{10}};
+    for (int i=0;i<3;++i) {
+        render_plan::LayerPlan layer;
+        layer.id="flow-"+std::to_string(i); layer.type=render_plan::LayerType::Color;
+        layer.color={1,1,1,1};
+        layer.flow_layout=render_plan::LayerPlan::FlowLayoutPlan{
+            .group_id="cards",.axis="row",.align="center",.justify="center",
+            .gap=12,.wrap=false,.cell_size={100,80}};
+        plan.layers.push_back(std::move(layer));
+    }
+    auto prepared=render_plan::compile_render_plan(plan,resolver);
+    REQUIRE(prepared);
+    auto evaluated=evaluate(prepared->compiled_composition,{},Frame{0});
+    REQUIRE(evaluated);
+    const auto& layers=evaluated.value().scene.layers();
+    REQUIRE(layers.size()==3);
+    CHECK(layers[0].layout.flow.has_value());
+    CHECK(layers[1].layout.flow->group_id=="cards");
+    const auto p0=layers[0].anim_transform.position.evaluate(Frame{0});
+    const auto p1=layers[1].anim_transform.position.evaluate(Frame{0});
+    const auto p2=layers[2].anim_transform.position.evaluate(Frame{0});
+    CHECK(p0.x<p1.x);
+    CHECK(p1.x<p2.x);
+    CHECK(p0.y==doctest::Approx(p1.y));
+
+    auto changed=plan;
+    changed.layers[0].flow_layout->gap=20;
+    auto changed_prepared=compile_render_plan(changed,resolver);
+    REQUIRE(changed_prepared);
+    CHECK(changed_prepared->fingerprint.content_digest != prepared->fingerprint.content_digest);
 }

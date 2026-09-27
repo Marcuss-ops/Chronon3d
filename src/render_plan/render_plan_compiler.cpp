@@ -1,4 +1,5 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/effects/cube_lut.hpp>
 #include <chronon3d/effects/effect_params.hpp>
@@ -28,6 +29,7 @@
 #include <iterator>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -89,42 +91,56 @@ std::optional<std::string> expand_static_lottie(
                    property_is(transform, "r", {0.0f}) &&
                    property_is(transform, "o", {100.0f});
         };
+        const auto static_vec2_property = [&](const json& owner, const char* key,
+                                              std::array<float, 2>& out) {
+            if (!owner.contains(key) || !owner[key].is_object() ||
+                owner[key].value("a", 1) != 0 || !owner[key].contains("k")) return false;
+            const auto& value = owner[key]["k"];
+            if (!value.is_array() || value.size() != 2) return false;
+            for (std::size_t i = 0; i < 2; ++i) {
+                if (!value[i].is_number()) return false;
+                out[i] = value[i].get<float>();
+                if (!std::isfinite(out[i]) || std::abs(out[i]) > 100000.0f) return false;
+            }
+            return true;
+        };
+        const auto static_scalar_property = [&](const json& owner, const char* key,
+                                                float& out) {
+            if (!owner.contains(key) || !owner[key].is_object() ||
+                owner[key].value("a", 1) != 0 || !owner[key].contains("k") ||
+                !owner[key]["k"].is_number()) return false;
+            out = owner[key]["k"].get<float>();
+            return std::isfinite(out) && std::abs(out) <= 100000.0f;
+        };
         if (!layer.contains("ks") || !layer["ks"].is_object() ||
             !identity_transform(layer["ks"]))
             return std::string("animated or non-identity Lottie layer transforms are unsupported by this lowering");
         if (!layer.contains("shapes") || !layer["shapes"].is_array() ||
             layer["shapes"].size() > 256)
             return std::string("Lottie shape list is missing or exceeds 256 items");
-        const json* path_shape = nullptr;
-        const json* fill = nullptr;
+        std::vector<const json*> geometry_shapes;
+        std::vector<const json*> fills;
+        std::vector<const json*> strokes;
         for (const auto& item : layer["shapes"]) {
             if (!item.is_object() || item.contains("exp"))
                 return std::string("malformed Lottie shape item or expression");
             const auto type = item.value("ty", std::string{});
-            if (type == "sh") {
-                if (path_shape) return std::string("multiple Lottie paths are unsupported in a single shape layer");
-                path_shape = &item;
+            if (type == "sh" || type == "el" || type == "rc") {
+                geometry_shapes.push_back(&item);
             } else if (type == "fl") {
-                if (fill) return std::string("multiple Lottie fills are unsupported");
-                fill = &item;
+                fills.push_back(&item);
+            } else if (type == "st") {
+                strokes.push_back(&item);
             } else if (type == "tr") {
                 if (!identity_transform(item))
                     return std::string("animated or non-identity Lottie shape transforms are unsupported by this lowering");
                 continue;
             } else {
-                return std::string("Lottie supports only static path, fill, and transform shapes in this lowering");
+                return std::string("Lottie supports only static path, ellipse, rectangle, fill, and transform shapes in this lowering");
             }
         }
-        if (!path_shape || !path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
-            return std::string("Lottie path geometry is missing");
-        const auto& geometry = (*path_shape)["ks"]["k"];
-        if (!geometry.is_object() || !geometry.contains("v") || !geometry.contains("i") ||
-            !geometry.contains("o") || !geometry["v"].is_array() ||
-            geometry["v"].size() < 2 || geometry["v"].size() > 65536 ||
-            !geometry["i"].is_array() || !geometry["o"].is_array() ||
-            geometry["i"].size() != geometry["v"].size() ||
-            geometry["o"].size() != geometry["v"].size())
-            return std::string("Lottie static path vertex and tangent arrays are invalid or over limit");
+        if (geometry_shapes.empty())
+            return std::string("Lottie shape geometry is missing");
         using namespace chronon3d::render_plan;
         const auto point = [](const json& value, std::array<float, 2>& out) -> bool {
             if (!value.is_array() || value.size() != 2) return false;
@@ -136,12 +152,103 @@ std::optional<std::string> expand_static_lottie(
             }
             return true;
         };
-        for (std::size_t i = 0; i < geometry["v"].size(); ++i) {
+        std::size_t total_vertices = 0;
+        std::vector<std::size_t> geometry_command_starts;
+        geometry_command_starts.reserve(geometry_shapes.size());
+        for (const auto* path_shape : geometry_shapes) {
+          const auto shape_type = path_shape->value("ty", std::string{});
+          geometry_command_starts.push_back(shape.path.size());
+          if (shape_type == "el" || shape_type == "rc") {
+              std::array<float, 2> position{}, size{};
+              if (!static_vec2_property(*path_shape, "p", position) ||
+                  !static_vec2_property(*path_shape, "s", size) ||
+                  size[0] <= 0.0f || size[1] <= 0.0f)
+                  return std::string("Lottie ellipse/rectangle requires static bounded position and size");
+              const float half_w = size[0] * 0.5f;
+              const float half_h = size[1] * 0.5f;
+              float radius = 0.0f;
+              if (shape_type == "rc" && path_shape->contains("r") &&
+                  !static_scalar_property(*path_shape, "r", radius))
+                  return std::string("Lottie rectangle roundness must be static and bounded");
+              if (radius < 0.0f || radius > std::min(half_w, half_h))
+                  return std::string("Lottie rectangle roundness exceeds its bounds");
+              const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
+              const auto primitive_point = [&](float x, float y) {
+                  return std::array<float, 2>{quantize(position[0] + x), quantize(position[1] + y)};
+              };
+              const auto move_to = [&](float x, float y) {
+                  if (shape.path.size() >= 65536) return false;
+                  shape.path.push_back({ShapePathCommandTypePlan::MoveTo, primitive_point(x, y)});
+                  return true;
+              };
+              const auto line_to = [&](float x, float y) {
+                  if (shape.path.size() >= 65536) return false;
+                  shape.path.push_back({ShapePathCommandTypePlan::LineTo, primitive_point(x, y)});
+                  return true;
+              };
+              const auto cubic_to = [&](float c1x, float c1y, float c2x, float c2y,
+                                        float x, float y) {
+                  if (shape.path.size() >= 65536) return false;
+                  shape.path.push_back({ShapePathCommandTypePlan::CubicTo, primitive_point(x, y),
+                      primitive_point(c1x, c1y), primitive_point(c2x, c2y)});
+                  return true;
+              };
+              constexpr float kappa = 0.5522847498307936f;
+              if (shape_type == "el") {
+                  const float rx = half_w, ry = half_h;
+                  if (!move_to(rx, 0.0f) ||
+                      !cubic_to(rx, kappa * ry, kappa * rx, ry, 0.0f, ry) ||
+                      !cubic_to(-kappa * rx, ry, -rx, kappa * ry, -rx, 0.0f) ||
+                      !cubic_to(-rx, -kappa * ry, -kappa * rx, -ry, 0.0f, -ry) ||
+                      !cubic_to(kappa * rx, -ry, rx, -kappa * ry, rx, 0.0f))
+                      return std::string("Lottie total path command limit exceeded");
+              } else {
+                  const float left = -half_w, right = half_w;
+                  const float top = -half_h, bottom = half_h;
+                  if (!move_to(left + radius, top))
+                      return std::string("Lottie total path command limit exceeded");
+                  if (radius == 0.0f) {
+                      if (!line_to(right, top) || !line_to(right, bottom) ||
+                          !line_to(left, bottom) || !line_to(left, top))
+                          return std::string("Lottie total path command limit exceeded");
+                  } else {
+                      const float control = radius * kappa;
+                      if (!line_to(right - radius, top) ||
+                          !cubic_to(right - radius + control, top, right, top + radius - control, right, top + radius) ||
+                          !line_to(right, bottom - radius) ||
+                          !cubic_to(right, bottom - radius + control, right - radius + control, bottom, right - radius, bottom) ||
+                          !line_to(left + radius, bottom) ||
+                          !cubic_to(left + radius - control, bottom, left, bottom - radius + control, left, bottom - radius) ||
+                          !line_to(left, top + radius) ||
+                          !cubic_to(left, top + radius - control, left + radius - control, top, left + radius, top))
+                          return std::string("Lottie total path command limit exceeded");
+                  }
+              }
+              if (shape.path.size() >= 65536)
+                  return std::string("Lottie total path command limit exceeded");
+              shape.path.push_back({ShapePathCommandTypePlan::Close});
+              continue;
+          }
+          if (!path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
+              return std::string("Lottie path geometry is missing");
+          const auto& geometry = (*path_shape)["ks"]["k"];
+          if (!geometry.is_object() || !geometry.contains("v") || !geometry.contains("i") ||
+              !geometry.contains("o") || !geometry["v"].is_array() ||
+              geometry["v"].size() < 2 || geometry["v"].size() > 65536 ||
+              !geometry["i"].is_array() || !geometry["o"].is_array() ||
+              geometry["i"].size() != geometry["v"].size() ||
+              geometry["o"].size() != geometry["v"].size() ||
+              geometry["v"].size() > 65536 - total_vertices)
+              return std::string("Lottie static path vertex and tangent arrays are invalid or over limit");
+          total_vertices += geometry["v"].size();
+          for (std::size_t i = 0; i < geometry["v"].size(); ++i) {
             std::array<float, 2> vertex{}, outgoing{}, incoming{};
             if (!point(geometry["v"][i], vertex) || !point(geometry["o"][i], outgoing) ||
                 !point(geometry["i"][i], incoming))
                 return std::string("Lottie path contains non-finite or out-of-bounds coordinates");
             if (i == 0) {
+                if (shape.path.size() >= 65536)
+                    return std::string("Lottie total path command limit exceeded");
                 shape.path.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
                 continue;
             }
@@ -153,22 +260,78 @@ std::optional<std::string> expand_static_lottie(
                                             std::round((prior_v[1] + prior_o[1]) * 10000.0f) / 10000.0f};
             const std::array<float, 2> c2{std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
                                             std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f};
+            if (shape.path.size() >= 65536)
+                return std::string("Lottie total path command limit exceeded");
             shape.path.push_back({ShapePathCommandTypePlan::CubicTo, vertex, c1, c2});
+          }
+          if (geometry.value("c", false)) {
+              if (shape.path.size() >= 65536)
+                  return std::string("Lottie total path command limit exceeded");
+              shape.path.push_back({ShapePathCommandTypePlan::Close});
+          }
         }
-        if (geometry.value("c", false)) shape.path.push_back({ShapePathCommandTypePlan::Close});
-        if (fill) {
-            const auto& k = (*fill)["c"]["k"];
-            if (!k.is_array() || k.size() < 4 || (*fill).value("r", 1) != 1)
-                return std::string("Lottie fill must be static RGBA in RGB color space");
-            std::array<float, 4> color{};
+        if (fills.size() != 1 && fills.size() != geometry_shapes.size())
+            return std::string("Lottie supports one solid fill or one fill per static geometry");
+        if (!strokes.empty() && strokes.size() != 1 && strokes.size() != geometry_shapes.size())
+            return std::string("Lottie supports one solid stroke or one stroke per static geometry");
+        if (fills.empty() && strokes.empty())
+            return std::string("Lottie static geometry requires a solid fill or stroke");
+
+        const auto decode_lottie_color = [&](const json& style,
+                                             std::array<float, 4>& color) -> bool {
+            if (style.value("r", 1) != 1 || !style.contains("c") ||
+                !style["c"].is_object() || !style["c"].contains("k")) return false;
+            const auto& value = style["c"]["k"];
+            if (!value.is_array() || value.size() != 4) return false;
+            float opacity = 100.0f;
+            if (style.contains("o") && !static_scalar_property(style, "o", opacity)) return false;
+            if (opacity < 0.0f || opacity > 100.0f) return false;
             for (std::size_t i = 0; i < 4; ++i) {
-                if (!k[i].is_number()) return std::string("Lottie fill has invalid color values");
-                color[i] = k[i].get<float>();
-                if (!std::isfinite(color[i]) || color[i] < 0 || color[i] > 1)
-                    return std::string("Lottie fill color must be finite and between zero and one");
+                if (!value[i].is_number()) return false;
+                color[i] = value[i].get<float>();
+                if (!std::isfinite(color[i]) || color[i] < 0.0f || color[i] > 1.0f) return false;
             }
-            shape.fill_color = color;
+            color[3] *= opacity / 100.0f;
+            return true;
+        };
+        std::vector<std::optional<std::array<float, 4>>> fill_colors;
+        for (const auto* fill : fills) {
+            std::array<float, 4> color{};
+            if (!decode_lottie_color(*fill, color))
+                return std::string("Lottie fill must be static finite RGBA in RGB color space");
+            fill_colors.push_back(color);
         }
+        std::vector<std::optional<StrokeStyle>> stroke_styles;
+        for (const auto* stroke : strokes) {
+            std::array<float, 4> color{};
+            float width = 0.0f;
+            if (!decode_lottie_color(*stroke, color) ||
+                !static_scalar_property(*stroke, "w", width) || width < 0.0f ||
+                stroke->value("lc", 1) != 1 || stroke->value("lj", 1) != 1 ||
+                stroke->value("ml", 4.0f) != 4.0f ||
+                (stroke->contains("d") && !(*stroke)["d"].empty()))
+                return std::string("Lottie stroke supports bounded static color/opacity/width with default cap/join and no dashes");
+            StrokeStyle style;
+            style.width = width;
+            style.solid_color = color;
+            stroke_styles.push_back(std::move(style));
+        }
+        shape.imported_subpaths.clear();
+        shape.imported_subpaths.reserve(geometry_shapes.size());
+        for (std::size_t index = 0; index < geometry_shapes.size(); ++index) {
+            const std::size_t begin = geometry_command_starts[index];
+            const std::size_t end = index + 1 < geometry_command_starts.size()
+                ? geometry_command_starts[index + 1] : shape.path.size();
+            ImportedSubpathPlan imported;
+            imported.path.assign(shape.path.begin() + static_cast<std::ptrdiff_t>(begin),
+                                 shape.path.begin() + static_cast<std::ptrdiff_t>(end));
+            if (!fill_colors.empty())
+                imported.fill_color = *fill_colors[fills.size() == 1 ? 0 : index];
+            if (!stroke_styles.empty())
+                imported.stroke = *stroke_styles[strokes.size() == 1 ? 0 : index];
+            shape.imported_subpaths.push_back(std::move(imported));
+        }
+        shape.path.clear();
         return std::nullopt;
     } catch (const std::exception& error) {
         return std::string("malformed Lottie JSON: ") + error.what();
@@ -217,31 +380,39 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             if (imported.elements.empty())
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                     "SVG contains no path geometry", "svg_empty_geometry", "render-plan-svg"};
-            auto& shape = *layer.shape;
-            const auto& paint = imported.elements.front();
-            if (paint.opacity != 1.0f || (paint.fill && paint.fill->type != FillType::Solid) ||
-                paint.stroke.gradient)
+            if (imported.elements.size() > 4096)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                    "SVG opacity and gradient paint are not representable by this shape plan",
-                    "svg_unsupported_style", "render-plan-svg"};
+                    "SVG styled path count exceeds 4096", "svg_resource_limit", "render-plan-svg"};
+            auto& shape = *layer.shape;
+            if (shape.operators.size() != 0)
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.operators",
+                    "SVG asset paths cannot be combined with path operators",
+                    "svg_operator_conflict", "render-plan-svg"};
+            shape.imported_subpaths.clear();
+            shape.imported_subpaths.reserve(imported.elements.size());
+            std::size_t total_commands = 0;
             for (const auto& element : imported.elements) {
-                const bool fill_mismatch = element.fill.has_value() != paint.fill.has_value() ||
-                    (element.fill && paint.fill && (element.fill->enabled != paint.fill->enabled ||
-                     element.fill->type != paint.fill->type ||
-                     element.fill->solid.r != paint.fill->solid.r ||
-                     element.fill->solid.g != paint.fill->solid.g ||
-                     element.fill->solid.b != paint.fill->solid.b ||
-                     element.fill->solid.a != paint.fill->solid.a));
-                if (element.opacity != paint.opacity || fill_mismatch ||
-                    element.stroke.enabled != paint.stroke.enabled ||
-                    element.stroke.width != paint.stroke.width ||
-                    element.stroke.color.r != paint.stroke.color.r ||
-                    element.stroke.color.g != paint.stroke.color.g ||
-                    element.stroke.color.b != paint.stroke.color.b ||
-                    element.stroke.color.a != paint.stroke.color.a || element.stroke.gradient)
+                if (!std::isfinite(element.opacity) || element.opacity < 0.0f ||
+                    element.opacity > 1.0f ||
+                    (element.fill && element.fill->enabled && element.fill->type != FillType::Solid) ||
+                    element.stroke.gradient)
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                        "SVG paths with different styles cannot share one shape layer",
+                        "SVG opacity must be in [0,1]; only solid path paints are supported",
                         "svg_unsupported_style", "render-plan-svg"};
+                ImportedSubpathPlan subpath;
+                if (element.fill && element.fill->enabled) {
+                    auto color = element.fill->solid;
+                    color.a *= element.opacity;
+                    subpath.fill_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
+                }
+                if (element.stroke.enabled) {
+                    StrokeStyle stroke;
+                    stroke.width = element.stroke.width;
+                    auto color = element.stroke.color;
+                    color.a *= element.opacity;
+                    stroke.solid_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
+                    subpath.stroke = std::move(stroke);
+                }
                 for (const auto& command : element.path.commands) {
                     ShapePathCommandPlan lowered;
                     const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
@@ -258,21 +429,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         case PathCommandType::CubicTo: lowered.type = ShapePathCommandTypePlan::CubicTo; point(command.p0, lowered.point); point(command.p1, lowered.control1); point(command.p2, lowered.control2); break;
                         case PathCommandType::Close: lowered.type = ShapePathCommandTypePlan::Close; break;
                     }
-                    if (shape.path.size() >= 65536)
+                    if (total_commands >= 65536)
                         return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                            "SVG path command limit exceeded", "svg_resource_limit", "render-plan-svg"};
-                    shape.path.push_back(lowered);
+                            "SVG total path command limit exceeded", "svg_resource_limit", "render-plan-svg"};
+                    subpath.path.push_back(lowered);
+                    ++total_commands;
                 }
-            }
-            if (paint.fill && paint.fill->enabled)
-                shape.fill_color = std::array<float, 4>{paint.fill->solid.r,
-                    paint.fill->solid.g, paint.fill->solid.b, paint.fill->solid.a};
-            if (paint.stroke.enabled) {
-                StrokeStyle stroke;
-                stroke.width = paint.stroke.width;
-                stroke.solid_color = std::array<float, 4>{paint.stroke.color.r,
-                    paint.stroke.color.g, paint.stroke.color.b, paint.stroke.color.a};
-                shape.stroke = std::move(stroke);
+                shape.imported_subpaths.push_back(std::move(subpath));
             }
         }
 #else
@@ -435,6 +598,26 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     prepared_effects[index].emplace_back(ThresholdParams{
                         .threshold = effect.threshold,
                         .softness = effect.threshold_softness});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::ChromaticAberration) {
+                    prepared_effects[index].emplace_back(ChromaticAberrationParams{
+                        .red_offset = effect.chromatic_red_offset,
+                        .blue_offset = effect.chromatic_blue_offset});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Halftone) {
+                    prepared_effects[index].emplace_back(HalftoneParams{
+                        .size = effect.halftone_size,
+                        .angle_degrees = effect.halftone_angle,
+                        .amount = effect.halftone_amount});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::DirectionalBlur) {
+                    prepared_effects[index].emplace_back(DirectionalBlurParams{
+                        .angle = effect.directional_angle,
+                        .length = effect.directional_length,
+                        .samples = effect.directional_samples});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::RadialBlur) {
+                    prepared_effects[index].emplace_back(RadialBlurParams{
+                        .center = Vec2{effect.radial_center[0], effect.radial_center[1]},
+                        .amount = effect.radial_amount,
+                        .render_samples = effect.radial_render_samples,
+                        .preview_samples = effect.radial_preview_samples});
                 } else if (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur) {
                     prepared_effects[index].emplace_back(BlurParams{.radius = effect.radius});
                 } else if (effect.kind == LayerPlan::EffectKindPlan::DropShadow) {
@@ -604,6 +787,21 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 const auto& layer = plan.layers[index];
                 const auto author_layer = [&](LayerBuilder& builder) {
                     builder.font_engine(font_engine.get());
+                    if (layer.flow_layout) {
+                        const auto& p=*layer.flow_layout; LayoutFlow flow;
+                        flow.group_id=p.group_id; flow.main_axis=p.axis=="column"?Axis::Column:Axis::Row;
+                        flow.gap=p.gap; flow.wrap=p.wrap; flow.cell_size={p.cell_size[0],p.cell_size[1]};
+                        flow.align=p.align=="center"?AlignItems::Center:p.align=="end"?AlignItems::End:p.align=="stretch"?AlignItems::Stretch:AlignItems::Start;
+                        flow.justify=p.justify=="center"?JustifyContent::Center:p.justify=="end"?JustifyContent::End:p.justify=="space_between"?JustifyContent::SpaceBetween:p.justify=="space_around"?JustifyContent::SpaceAround:p.justify=="space_evenly"?JustifyContent::SpaceEvenly:JustifyContent::Start;
+                        builder.flow_layout(std::move(flow));
+                    }
+                    if (layer.grid_layout) {
+                        const auto& p=*layer.grid_layout; LayoutGrid grid;
+                        grid.group_id=p.group_id; grid.columns=p.columns; grid.rows=p.rows;
+                        grid.fit=p.fit=="fixed_rows"?GridFit::FixedRows:p.fit=="fixed_columns"?GridFit::FixedColumns:GridFit::Auto;
+                        grid.gap={p.gap[0],p.gap[1]}; grid.cell_size={p.cell_size[0],p.cell_size[1]};
+                        builder.grid_layout(std::move(grid));
+                    }
                     // Image textures carry their own color.  2.5D projection
                     // changes their pose, not their albedo, so keep them out
                     // of the scene lighting pass (which otherwise grays light
@@ -672,7 +870,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             if (const auto animated = detail::fill_color_at(
                                     layer, ctx.effective_frame(),
                                     Color{params.color.r, params.color.g,
-                                          params.color.b, params.color.a}))
+                                          params.color.b, params.color.a}, plan.canvas.fps))
                                 params.color = *animated;
                             if (layer.position_dimensions < 2) {
                                 builder.pin_to(Anchor::Center);
@@ -770,7 +968,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             const Color authored_color{layer.color[0], layer.color[1],
                                                        layer.color[2], layer.color[3]};
                             const Color base_color = detail::fill_color_at(
-                                layer, ctx.effective_frame(), authored_color).value_or(authored_color);
+                                layer, ctx.effective_frame(), authored_color,
+                                plan.canvas.fps).value_or(authored_color);
                             const auto animated_gradient = detail::fill_gradient_at(
                                 layer, ctx.effective_frame());
                             const auto& active_gradient = animated_gradient
@@ -795,12 +994,20 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
                                 stroke.dash_array = shape.stroke->dash_array;
                                 stroke.dash_offset = shape.stroke->dash_offset;
-                                if (const auto animated_offset=detail::stroke_dash_offset_at(layer,ctx.effective_frame()))
+                                if (const auto animated_offset=detail::stroke_dash_offset_at(
+                                        layer, ctx.effective_frame(), plan.canvas.fps))
                                     stroke.dash_offset=*animated_offset;
                             }
                             if (layer.position_dimensions < 2 &&
                                 shape.type != ShapeContentTypePlan::Line &&
-                                shape.type != ShapeContentTypePlan::Path) {
+                                shape.type != ShapeContentTypePlan::Path &&
+                                shape.type != ShapeContentTypePlan::Star &&
+                                shape.type != ShapeContentTypePlan::Polygon &&
+                                shape.type != ShapeContentTypePlan::Arrow &&
+                                shape.type != ShapeContentTypePlan::Arc &&
+                                shape.type != ShapeContentTypePlan::Grid &&
+                                shape.type != ShapeContentTypePlan::DotGrid &&
+                                shape.type != ShapeContentTypePlan::DeviceFrame) {
                                 builder.pin_to(Anchor::Center);
                             }
                             switch (shape.type) {
@@ -834,7 +1041,54 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     break;
                                 }
                                 case ShapeContentTypePlan::Line:
-                                case ShapeContentTypePlan::Path: {
+                                case ShapeContentTypePlan::Path:
+                                case ShapeContentTypePlan::Star:
+                                case ShapeContentTypePlan::Polygon:
+                                case ShapeContentTypePlan::Arrow:
+                                case ShapeContentTypePlan::Arc:
+                                case ShapeContentTypePlan::Grid:
+                                case ShapeContentTypePlan::DotGrid: {
+                                    if (!shape.imported_subpaths.empty()) {
+                                        for (std::size_t path_index = 0;
+                                             path_index < shape.imported_subpaths.size(); ++path_index) {
+                                            const auto& source = shape.imported_subpaths[path_index];
+                                            PathParams imported_path;
+                                            imported_path.color = base_color;
+                                            for (const auto& command : source.path) {
+                                                const Vec2 point{command.point[0], command.point[1]};
+                                                const Vec2 c1{command.control1[0], command.control1[1]};
+                                                const Vec2 c2{command.control2[0], command.control2[1]};
+                                                switch (command.type) {
+                                                    case ShapePathCommandTypePlan::MoveTo: imported_path.commands.push_back(PathCommand::move_to(point)); break;
+                                                    case ShapePathCommandTypePlan::LineTo: imported_path.commands.push_back(PathCommand::line_to(point)); break;
+                                                    case ShapePathCommandTypePlan::QuadraticTo: imported_path.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                                    case ShapePathCommandTypePlan::CubicTo: imported_path.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                                    case ShapePathCommandTypePlan::Close:
+                                                        imported_path.commands.push_back(PathCommand::close());
+                                                        imported_path.closed = true;
+                                                        break;
+                                                }
+                                            }
+                                            if (source.fill_color) {
+                                                const auto& rgba = *source.fill_color;
+                                                imported_path.fill = Fill::solid_color(
+                                                    Color{rgba[0], rgba[1], rgba[2], rgba[3]});
+                                            } else {
+                                                imported_path.fill.enabled = false;
+                                            }
+                                            if (source.stroke && source.stroke->solid_color) {
+                                                const auto& rgba = *source.stroke->solid_color;
+                                                imported_path.stroke = graphics::StrokeStyle::solid(
+                                                    Color{rgba[0], rgba[1], rgba[2], rgba[3]},
+                                                    source.stroke->width.value_or(1.0f)).to_path_stroke();
+                                            } else {
+                                                imported_path.stroke.enabled = false;
+                                            }
+                                            builder.path("svg_path_" + std::to_string(path_index),
+                                                         std::move(imported_path));
+                                        }
+                                        break;
+                                    }
                                     PathParams params;
                                     for (const auto& command : shape.path) {
                                         const Vec2 point{command.point[0], command.point[1]};
@@ -943,8 +1197,24 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                         }
                                         specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
                                     } else if (op.kind == PathOperatorKindPlan::Trim) {
+                                        TrimPathParams trim{op.trim_start, op.trim_end, op.trim_offset};
+                                        if (op.trim_animation) {
+                                            chronon3d::AnimatedValue<float> start{op.trim_start};
+                                            chronon3d::AnimatedValue<float> end{op.trim_end};
+                                            chronon3d::AnimatedValue<float> offset{op.trim_offset};
+                                            for (const auto& key : op.trim_animation->keyframes) {
+                                                const auto easing = detail::animation_keyframe_easing(
+                                                    *op.trim_animation, key);
+                                                if (!key.value.empty()) start.add_keyframe(key.frame, key.value[0], easing);
+                                                if (key.value.size() > 1) end.add_keyframe(key.frame, key.value[1], easing);
+                                                if (key.value.size() > 2) offset.add_keyframe(key.frame, key.value[2], easing);
+                                            }
+                                            trim.start = std::clamp(start.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                                            trim.end = std::clamp(end.evaluate(ctx.effective_frame()), trim.start, 1.0f);
+                                            trim.offset = offset.evaluate(ctx.effective_frame());
+                                        }
                                         specs.push_back({PathOperatorKind::Trim,
-                                            TrimPathParams{op.trim_start, op.trim_end, op.trim_offset}, 0});
+                                            trim, 0});
                                     } else {
                                         const auto& repeater = op.repeater;
                                         RepeaterParams rp;
@@ -967,6 +1237,78 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     builder.path("shape_repeater_" + std::to_string(i), std::move(copy));
                                 }
                             }
+                                    break;
+                                }
+                                case ShapeContentTypePlan::DeviceFrame: {
+                                    const float width = size.x;
+                                    const float height = size.y;
+                                    if (layer.position_dimensions < 2)
+                                        builder.pin_to(Anchor::Center);
+                                    const bool phone = shape.device_frame_kind == DeviceFrameKindPlan::Phone;
+                                    const float bezel = std::min(width, height) * (phone ? 0.035f : 0.02f);
+                                    const Color shell_color{0.035f, 0.045f, 0.06f, 1.0f};
+                                    const Color chrome_color{0.055f, 0.065f, 0.085f, 1.0f};
+                                    RoundedRectParams shell;
+                                    shell.size = size;
+                                    shell.radius = std::min(width, height) * (phone ? 0.12f : 0.055f);
+                                    shell.color = shell_color;
+                                    shell.fill = graphics::FillStyle::solid(shell_color);
+                                    shell.stroke = stroke;
+                                    shell.pos = {-width * 0.5f, -height * 0.5f, 0.0f};
+                                    builder.rounded_rect("device_shell", std::move(shell));
+
+                                    RoundedRectParams screen;
+                                    screen.size = {std::max(1.0f, width - bezel * 2.0f),
+                                                   std::max(1.0f, height - bezel * 2.0f)};
+                                    const Vec2 screen_size = screen.size;
+                                    screen.radius = std::min(screen.size.x, screen.size.y) *
+                                        (phone ? 0.085f : 0.025f);
+                                    screen.color = base_color;
+                                    screen.fill = fill;
+                                    screen.pos = {-width * 0.5f + bezel,
+                                                  -height * 0.5f + bezel, 0.0f};
+                                    builder.rounded_rect("device_screen", std::move(screen));
+
+                                    if (shape.device_frame_chrome && phone) {
+                                        const float notch_width = std::min(screen_size.x * 0.70f, width * 0.30f);
+                                        const float notch_height = std::min(screen_size.y * 0.20f,
+                                            std::max(2.0f, height * 0.035f));
+                                        RoundedRectParams notch;
+                                        notch.size = {notch_width, notch_height};
+                                        notch.radius = notch_height * 0.5f;
+                                        notch.color = chrome_color;
+                                        notch.fill = graphics::FillStyle::solid(chrome_color);
+                                        notch.pos = {-notch_width * 0.5f,
+                                            -height * 0.5f + bezel, 0.0f};
+                                        builder.rounded_rect("device_notch", std::move(notch));
+                                    } else if (shape.device_frame_chrome) {
+                                        const float toolbar_height = std::min(screen_size.y,
+                                            std::max(8.0f, height * 0.13f));
+                                        RoundedRectParams toolbar;
+                                        toolbar.size = {width - bezel * 2.0f, toolbar_height};
+                                        toolbar.radius = std::min(4.0f, bezel);
+                                        toolbar.color = chrome_color;
+                                        toolbar.fill = graphics::FillStyle::solid(chrome_color);
+                                        toolbar.pos = {-width * 0.5f + bezel,
+                                            -height * 0.5f + bezel, 0.0f};
+                                        builder.rounded_rect("browser_toolbar", std::move(toolbar));
+                                        const std::array<Color, 3> lights{
+                                            Color{0.96f, 0.28f, 0.25f, 1.0f},
+                                            Color{0.98f, 0.72f, 0.20f, 1.0f},
+                                            Color{0.23f, 0.78f, 0.36f, 1.0f}};
+                                        for (std::size_t light = 0; light < lights.size(); ++light) {
+                                            CircleParams dot;
+                                            dot.radius = std::min(toolbar_height * 0.22f,
+                                                std::max(1.0f, bezel * 0.20f));
+                                            dot.color = lights[light];
+                                            dot.fill = graphics::FillStyle::solid(lights[light]);
+                                            dot.pos = {-width * 0.5f + bezel +
+                                                dot.radius + static_cast<float>(light) * dot.radius * 3.2f,
+                                                -height * 0.5f + bezel + toolbar_height * 0.5f, 0.0f};
+                                            builder.circle("browser_traffic_light_" +
+                                                std::to_string(light), std::move(dot));
+                                        }
+                                    }
                                     break;
                                 }
                             }
@@ -1020,7 +1362,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 "text",
                                 *prepared_texts[index])
                                 .font_engine(font_engine.get());
-                            detail::apply_text_animators(text_builder, layer);
+                            detail::apply_text_animators(text_builder, layer, plan.canvas.fps);
                             detail::apply_text_glow(builder, layer);
                             break;
                         }
@@ -1105,27 +1447,111 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         }, effect);
                     }
                     if (const auto motion_blur = detail::motion_blur_params_at(
-                            layer, ctx.effective_frame())) {
+                            layer, ctx.effective_frame(), plan.canvas.fps)) {
                         builder.effect(*motion_blur);
                     }
-                    if (layer.path_mask) {
-                        PathMaskParams params;
-                        params.feather = layer.path_mask->feather;
-                        params.expansion = layer.path_mask->expansion;
-                        params.inverted = layer.path_mask->inverted;
-                        for (const auto& command : layer.path_mask->path) {
-                            const Vec2 point{command.point[0], command.point[1]};
-                            const Vec2 c1{command.control1[0], command.control1[1]};
-                            const Vec2 c2{command.control2[0], command.control2[1]};
-                            switch (command.type) {
-                                case ShapePathCommandTypePlan::MoveTo: params.commands.push_back(PathCommand::move_to(point)); break;
-                                case ShapePathCommandTypePlan::LineTo: params.commands.push_back(PathCommand::line_to(point)); break;
-                                case ShapePathCommandTypePlan::QuadraticTo: params.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
-                                case ShapePathCommandTypePlan::CubicTo: params.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
-                                case ShapePathCommandTypePlan::Close: params.commands.push_back(PathCommand::close()); break;
+                    if (layer.path_mask || !layer.masks.empty()) {
+                        const auto convert_mask_path = [](const auto& input) {
+                            std::vector<PathCommand> output;
+                            output.reserve(input.size());
+                            for (const auto& command : input) {
+                                const Vec2 point{command.point[0], command.point[1]};
+                                const Vec2 c1{command.control1[0], command.control1[1]};
+                                const Vec2 c2{command.control2[0], command.control2[1]};
+                                switch (command.type) {
+                                    case ShapePathCommandTypePlan::MoveTo: output.push_back(PathCommand::move_to(point)); break;
+                                    case ShapePathCommandTypePlan::LineTo: output.push_back(PathCommand::line_to(point)); break;
+                                    case ShapePathCommandTypePlan::QuadraticTo: output.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                    case ShapePathCommandTypePlan::CubicTo: output.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                    case ShapePathCommandTypePlan::Close: output.push_back(PathCommand::close()); break;
+                                }
                             }
-                        }
-                        builder.mask_path(std::move(params));
+                            return output;
+                        };
+                        const auto build_operation = [&](const LayerPlan::PathMaskPlan& source) {
+                            MaskOperation operation;
+                            operation.type = source.type == "path" ? MaskType::Path
+                                : source.type == "rect" ? MaskType::Rect
+                                : source.type == "rounded_rect" ? MaskType::RoundedRect
+                                : MaskType::Ellipse;
+                            operation.mode = source.mode == "add" ? MaskCombineMode::Add
+                                : source.mode == "subtract" ? MaskCombineMode::Subtract
+                                : source.mode == "intersect" ? MaskCombineMode::Intersect
+                                : MaskCombineMode::Difference;
+                            operation.pos = Vec3{source.position[0], source.position[1], 0.0f};
+                            operation.size = Vec2{source.size[0], source.size[1]};
+                            operation.radius = source.radius;
+                            operation.path = convert_mask_path(source.path);
+                            operation.feather = source.feather;
+                            operation.expansion = source.expansion;
+                            operation.inverted = source.inverted;
+                            Vec2 path_center{0.0f, 0.0f};
+                            if (source.type == "path" && source.size[0] == 0.0f && source.size[1] == 0.0f) {
+                                float min_x = std::numeric_limits<float>::max();
+                                float min_y = std::numeric_limits<float>::max();
+                                float max_x = std::numeric_limits<float>::lowest();
+                                float max_y = std::numeric_limits<float>::lowest();
+                                for (const auto& command : operation.path) {
+                                    if (command.type == PathCommandType::Close) continue;
+                                    const auto include = [&](Vec2 point) {
+                                        min_x = std::min(min_x, point.x); min_y = std::min(min_y, point.y);
+                                        max_x = std::max(max_x, point.x); max_y = std::max(max_y, point.y);
+                                    };
+                                    include(command.p0);
+                                    if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+                                        include(command.p1);
+                                    if (command.type == PathCommandType::CubicTo) include(command.p2);
+                                }
+                                path_center = Vec2{(min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f};
+                                operation.size = Vec2{max_x - min_x, max_y - min_y};
+                                operation.pos += Vec3{path_center, 0.0f};
+                                for (auto& command : operation.path) {
+                                    if (command.type == PathCommandType::Close) continue;
+                                    command.p0 -= path_center;
+                                    if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+                                        command.p1 -= path_center;
+                                    if (command.type == PathCommandType::CubicTo) command.p2 -= path_center;
+                                }
+                            }
+                            if (source.morph_animation) {
+                                AnimatedValue<float> progress{0.0f};
+                                for (const auto& key : source.morph_animation->keyframes)
+                                    progress.add_keyframe(key.frame, key.value.front(),
+                                        detail::animation_keyframe_easing(*source.morph_animation, key));
+                                MorphPathParams morph;
+                                morph.progress = std::clamp(progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                                morph.target = convert_mask_path(source.morph_target);
+                                if (source.type == "path" && source.size[0] == 0.0f && source.size[1] == 0.0f)
+                                    for (auto& command : morph.target) {
+                                        if (command.type == PathCommandType::Close) continue;
+                                        command.p0 -= path_center;
+                                        if (command.type == PathCommandType::QuadraticTo || command.type == PathCommandType::CubicTo)
+                                            command.p1 -= path_center;
+                                        if (command.type == PathCommandType::CubicTo) command.p2 -= path_center;
+                                    }
+                                PathShape path;
+                                path.commands = std::move(operation.path);
+                                operation.path = apply_path_operators(path, {
+                                    PathOperatorSpec{PathOperatorKind::Morph, std::move(morph), 0}}).front().commands;
+                            }
+                            return operation;
+                        };
+                        std::vector<LayerPlan::PathMaskPlan> plan_masks;
+                        if (layer.path_mask) plan_masks.push_back(*layer.path_mask);
+                        plan_masks.insert(plan_masks.end(), layer.masks.begin(), layer.masks.end());
+                        Mask composite;
+                        const auto primary = build_operation(plan_masks.front());
+                        composite.type = primary.type;
+                        composite.pos = primary.pos;
+                        composite.size = primary.size;
+                        composite.radius = primary.radius;
+                        composite.path = primary.path;
+                        composite.feather = primary.feather;
+                        composite.expansion = primary.expansion;
+                        composite.inverted = primary.inverted;
+                        for (std::size_t index = 1; index < plan_masks.size(); ++index)
+                            composite.operations.push_back(build_operation(plan_masks[index]));
+                        builder.mask_composite(std::move(composite));
                     }
                     if (layer.type == LayerType::Video &&
                         layer.position_dimensions >= 2) {

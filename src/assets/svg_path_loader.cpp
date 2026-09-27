@@ -17,6 +17,7 @@
 #include <utility>
 #include <cctype>
 #include <map>
+#include <set>
 #include <filesystem>
 
 namespace chronon3d::assets {
@@ -263,6 +264,100 @@ std::map<std::string, std::string> style_properties(const boost::property_tree::
     return values;
 }
 
+std::optional<std::string> validate_svg_subset(
+    const boost::property_tree::ptree& tree) {
+    static const std::set<std::string> supported_elements{
+        "svg", "g", "path", "rect", "circle", "ellipse", "line",
+        "polyline", "polygon"};
+    static const std::set<std::string> supported_properties{
+        "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
+        "opacity"};
+    static const std::set<std::string> unsupported_paint_attributes{
+        "color", "fill-rule", "clip-rule", "stroke-linecap", "stroke-linejoin",
+        "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "paint-order",
+        "clip-path", "mask", "filter", "visibility", "display", "mix-blend-mode",
+        "vector-effect"};
+    const auto valid_unit_interval = [](const std::string& text) {
+        try {
+            std::size_t consumed = 0;
+            const float value = std::stof(text, &consumed);
+            return consumed == text.size() && std::isfinite(value) &&
+                   value >= 0.0f && value <= 1.0f;
+        } catch (...) {
+            return false;
+        }
+    };
+    const auto valid_stroke_width = [](const std::string& text) {
+        try {
+            std::size_t consumed = 0;
+            const float value = std::stof(text, &consumed);
+            return consumed == text.size() && std::isfinite(value) &&
+                   value >= 0.0f && value <= 100000.0f;
+        } catch (...) {
+            return false;
+        }
+    };
+    std::function<std::optional<std::string>(const boost::property_tree::ptree&)> visit;
+    visit = [&](const boost::property_tree::ptree& current) -> std::optional<std::string> {
+        for (const auto& [name, node] : current) {
+            if (name == "<xmlattr>") continue;
+            if (name == "<xmlcomment>") continue;
+            if (name == "<xmltext>") {
+                if (trim(node.data()).empty()) continue;
+                return "SVG text nodes are not supported";
+            }
+            if (!supported_elements.contains(name))
+                return "SVG element is not supported: <" + name + ">";
+
+            if (const auto style = node.get_optional<std::string>("<xmlattr>.style")) {
+                std::istringstream declarations(*style);
+                std::string declaration;
+                while (std::getline(declarations, declaration, ';')) {
+                    if (trim(declaration).empty()) continue;
+                    const auto colon = declaration.find(':');
+                    if (colon == std::string::npos)
+                        return "SVG style declaration is malformed";
+                    auto key = trim(declaration.substr(0, colon));
+                    std::transform(key.begin(), key.end(), key.begin(),
+                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    if (!supported_properties.contains(key))
+                        return "SVG style property is not supported: " + key;
+                }
+            }
+            if (const auto attributes = node.get_child_optional("<xmlattr>")) {
+                for (const auto& [key, value] : *attributes) {
+                    (void)value;
+                    if (unsupported_paint_attributes.contains(key))
+                        return "SVG presentation attribute is not supported: " + key;
+                }
+            }
+            const auto properties = style_properties(node);
+            for (const auto* key : {"fill", "stroke"}) {
+                const auto it = properties.find(key);
+                if (it == properties.end()) continue;
+                auto value = trim(it->second);
+                std::transform(value.begin(), value.end(), value.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                if (value == "none") continue;
+                if (!parse_svg_color(it->second, Color::black()))
+                    return std::string("SVG ") + key + " color is invalid or unsupported";
+            }
+            for (const auto* key : {"opacity", "fill-opacity", "stroke-opacity"}) {
+                const auto it = properties.find(key);
+                if (it != properties.end() && !valid_unit_interval(trim(it->second)))
+                    return std::string("SVG ") + key + " must be a finite number in [0,1]";
+            }
+            if (const auto it = properties.find("stroke-width");
+                it != properties.end() && !valid_stroke_width(trim(it->second)))
+                return "SVG stroke-width must be finite and within [0,100000]";
+
+            if (auto error = visit(node)) return error;
+        }
+        return std::nullopt;
+    };
+    return visit(tree);
+}
+
 float style_number(const std::map<std::string, std::string>& style, const char* key, float fallback) {
     const auto it = style.find(key);
     if (it == style.end()) return fallback;
@@ -347,6 +442,12 @@ SvgDocumentLoadResult load_svg_document_file(
     std::function<void(const boost::property_tree::ptree&)> inspect = [&](const auto& tree) {
         for (const auto& [name, node] : tree) {
             if (name == "<xmlattr>") continue;
+            if (name == "<xmlcomment>") continue;
+            if (name == "<xmltext>") {
+                if (!trim(node.data()).empty()) unsupported = "text";
+                if (!unsupported.empty()) return;
+                continue;
+            }
             if (++xml_nodes > kMaxXmlNodes) {
                 unsupported = "resource limit: XML node count exceeds 100000";
                 return;
@@ -372,6 +473,9 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">"};
     }
+    if (const auto style_error = validate_svg_subset(document))
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = *style_error};
     std::vector<std::pair<std::string, Affine2>> path_data;
     std::vector<SvgStyleState> styles;
     collect_path_data(document, path_data, styles);

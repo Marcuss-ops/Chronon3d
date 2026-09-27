@@ -5,61 +5,90 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace chronon3d {
 
-namespace detail {
+namespace {
 
-bool point_in_rect_mask(Vec2 local, const Mask& mask) {
-    const f32 hw = mask.size.x * 0.5f;
-    const f32 hh = mask.size.y * 0.5f;
-    return local.x >= -hw && local.x <= hw && local.y >= -hh && local.y <= hh;
+using FlattenedMaskPath = std::vector<std::vector<Vec2>>;
+
+struct MaskPrimitiveView {
+    MaskType type{MaskType::None};
+    Vec3 pos{0.0f};
+    Vec2 size{0.0f};
+    f32 radius{0.0f};
+    const std::vector<PathCommand>* path{nullptr};
+    f32 feather{0.0f};
+    f32 expansion{0.0f};
+    bool inverted{false};
+};
+
+MaskPrimitiveView mask_view(const Mask& mask) {
+    return {mask.type, mask.pos, mask.size, mask.radius, &mask.path,
+            mask.feather, mask.expansion, mask.inverted};
 }
 
-bool point_in_circle_mask(Vec2 local, const Mask& mask) {
-    const f32 r = mask.radius;
-    return local.x * local.x + local.y * local.y <= r * r;
+MaskPrimitiveView mask_view(const MaskOperation& operation) {
+    return {operation.type, operation.pos, operation.size, operation.radius,
+            &operation.path, operation.feather, operation.expansion,
+            operation.inverted};
 }
 
-bool point_in_rounded_rect_mask(Vec2 local, const Mask& mask) {
-    const f32 hw = mask.size.x * 0.5f;
-    const f32 hh = mask.size.y * 0.5f;
-    const f32 r  = std::min(mask.radius, std::min(hw, hh));
-    const f32 ax = std::abs(local.x);
-    const f32 ay = std::abs(local.y);
-    if (ax > hw || ay > hh) return false;
-    const f32 inner_w = hw - r;
-    const f32 inner_h = hh - r;
-    if (ax <= inner_w || ay <= inner_h) return true;
-    const f32 dx = ax - inner_w;
-    const f32 dy = ay - inner_h;
-    return dx * dx + dy * dy <= r * r;
+FlattenedMaskPath flatten_mask_path(const MaskPrimitiveView& mask) {
+    PathShape path;
+    if (mask.path) path.commands = *mask.path;
+    path.closed = true;
+    return math::flatten_path(path, 24);
 }
 
-} // namespace detail
-
-f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local) {
-    if (!mask.enabled()) return 1.0f;
+f32 mask_primitive_alpha(MaskPrimitiveView mask, Vec2 local,
+                         const FlattenedMaskPath* flattened = nullptr) {
+    if (mask.type == MaskType::None) return 0.0f;
     local.x -= mask.pos.x;
     local.y -= mask.pos.y;
 
-    bool inside = false;
-    f32 distance = std::numeric_limits<f32>::max();
+    f32 signed_distance = -std::numeric_limits<f32>::max();
     switch (mask.type) {
-        case MaskType::Rect:
-            inside = detail::point_in_rect_mask(local, mask);
+        case MaskType::Rect: {
+            const Vec2 q{std::abs(local.x) - mask.size.x * 0.5f,
+                         std::abs(local.y) - mask.size.y * 0.5f};
+            const Vec2 outside{std::max(q.x, 0.0f), std::max(q.y, 0.0f)};
+            const f32 outside_distance = glm::length(outside);
+            const f32 inside_distance = std::min(std::max(q.x, q.y), 0.0f);
+            signed_distance = -(outside_distance + inside_distance);
             break;
-        case MaskType::RoundedRect:
-            inside = detail::point_in_rounded_rect_mask(local, mask);
+        }
+        case MaskType::RoundedRect: {
+            const f32 radius = std::clamp(mask.radius, 0.0f,
+                std::min(mask.size.x, mask.size.y) * 0.5f);
+            const Vec2 q{std::abs(local.x) - (mask.size.x * 0.5f - radius),
+                         std::abs(local.y) - (mask.size.y * 0.5f - radius)};
+            const Vec2 outside{std::max(q.x, 0.0f), std::max(q.y, 0.0f)};
+            const f32 outside_distance = glm::length(outside);
+            const f32 inside_distance = std::min(std::max(q.x, q.y), 0.0f);
+            signed_distance = radius - (outside_distance + inside_distance);
             break;
+        }
         case MaskType::Circle:
-            inside = detail::point_in_circle_mask(local, mask);
+            signed_distance = mask.radius - glm::length(local);
             break;
+        case MaskType::Ellipse: {
+            const f32 rx = mask.size.x * 0.5f;
+            const f32 ry = mask.size.y * 0.5f;
+            if (rx <= 0.0f || ry <= 0.0f) return mask.inverted ? 1.0f : 0.0f;
+            const Vec2 p{std::abs(local.x), std::abs(local.y)};
+            const f32 k0 = glm::length(Vec2{p.x / rx, p.y / ry});
+            const f32 k1 = glm::length(Vec2{p.x / (rx * rx), p.y / (ry * ry)});
+            signed_distance = k1 > 1e-8f ? -(k0 * (k0 - 1.0f) / k1) : std::min(rx, ry);
+            break;
+        }
         case MaskType::Path: {
-            PathShape path;
-            path.commands = mask.path;
-            path.closed = true;
-            for (const auto& polyline : math::flatten_path(path, 24)) {
+            const auto owned_flattened = flattened ? FlattenedMaskPath{} : flatten_mask_path(mask);
+            const auto& polylines = flattened ? *flattened : owned_flattened;
+            bool inside = false;
+            f32 distance = std::numeric_limits<f32>::max();
+            for (const auto& polyline : polylines) {
                 if (polyline.size() < 2) continue;
                 for (std::size_t i = 0; i + 1 < polyline.size(); ++i) {
                     const Vec2 a = polyline[i], b = polyline[i + 1];
@@ -75,25 +104,78 @@ f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local) {
                 }
             }
             if (!std::isfinite(distance) || distance == std::numeric_limits<f32>::max())
-                inside = false;
-            else {
-                const f32 signed_distance = (inside ? distance : -distance) + mask.expansion;
-                if (mask.feather <= 1e-6f) inside = signed_distance >= 0.0f;
-                else {
-                    const f32 t = std::clamp((signed_distance + mask.feather * 0.5f) / mask.feather,
-                                             0.0f, 1.0f);
-                    const f32 alpha = t * t * (3.0f - 2.0f * t);
-                    return mask.inverted ? 1.0f - alpha : alpha;
-                }
-            }
+                signed_distance = -std::numeric_limits<f32>::max();
+            else
+                signed_distance = inside ? distance : -distance;
             break;
         }
         default:
-            inside = true;
+            signed_distance = std::numeric_limits<f32>::max();
             break;
     }
-    const f32 alpha = inside ? 1.0f : 0.0f;
+    signed_distance += mask.expansion;
+    f32 alpha = 0.0f;
+    if (mask.feather <= 1e-6f) alpha = signed_distance >= 0.0f ? 1.0f : 0.0f;
+    else {
+        const f32 t = std::clamp((signed_distance + mask.feather * 0.5f) / mask.feather,
+                                 0.0f, 1.0f);
+        alpha = t * t * (3.0f - 2.0f * t);
+    }
     return mask.inverted ? 1.0f - alpha : alpha;
+}
+
+f32 mask_alpha_with_flattened(const Mask& mask, Vec2 local,
+                              const std::vector<FlattenedMaskPath>* flattened) {
+    if (!mask.enabled()) return 1.0f;
+    const auto get_flattened = [&](std::size_t index, MaskPrimitiveView view)
+        -> const FlattenedMaskPath* {
+        if (view.type != MaskType::Path) return nullptr;
+        if (flattened && index < flattened->size()) return &(*flattened)[index];
+        return nullptr;
+    };
+    f32 accumulated = mask_primitive_alpha(mask_view(mask), local,
+        get_flattened(0, mask_view(mask)));
+    for (std::size_t index = 0; index < mask.operations.size(); ++index) {
+        const auto& operation = mask.operations[index];
+        const auto view = mask_view(operation);
+        const f32 source = mask_primitive_alpha(view, local,
+            get_flattened(index + 1, view));
+        switch (operation.mode) {
+            case MaskCombineMode::Add:
+                accumulated = accumulated + source * (1.0f - accumulated);
+                break;
+            case MaskCombineMode::Subtract:
+                accumulated *= 1.0f - source;
+                break;
+            case MaskCombineMode::Intersect:
+                accumulated *= source;
+                break;
+            case MaskCombineMode::Difference:
+                // Alpha symmetric difference: keep either mask's contribution
+                // where the other mask has no coverage.
+                accumulated = accumulated * (1.0f - source) + source * (1.0f - accumulated);
+                break;
+        }
+    }
+    return std::clamp(accumulated, 0.0f, 1.0f);
+}
+
+std::vector<FlattenedMaskPath> flatten_mask_stack(const Mask& mask) {
+    std::vector<FlattenedMaskPath> flattened;
+    flattened.reserve(mask.operations.size() + 1);
+    const auto flatten_if_path = [&](MaskPrimitiveView view) {
+        flattened.push_back(view.type == MaskType::Path
+            ? flatten_mask_path(view) : FlattenedMaskPath{});
+    };
+    flatten_if_path(mask_view(mask));
+    for (const auto& operation : mask.operations) flatten_if_path(mask_view(operation));
+    return flattened;
+}
+
+} // namespace
+
+f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local) {
+    return mask_alpha_with_flattened(mask, local, nullptr);
 }
 
 bool mask_contains_local_point(const Mask& mask, Vec2 local) {
@@ -120,11 +202,30 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
     seed = mix(seed, hv(mask.feather));
     seed = mix(seed, hv(mask.expansion));
     seed = mix(seed, static_cast<std::uint64_t>(mask.inverted));
+    seed = mix(seed, static_cast<std::uint64_t>(mask.path.size()));
     for (const auto& command : mask.path) {
         seed = mix(seed, static_cast<std::uint64_t>(command.type));
         seed = mix(seed, hv(command.p0.x)); seed = mix(seed, hv(command.p0.y));
         seed = mix(seed, hv(command.p1.x)); seed = mix(seed, hv(command.p1.y));
         seed = mix(seed, hv(command.p2.x)); seed = mix(seed, hv(command.p2.y));
+    }
+    seed = mix(seed, static_cast<std::uint64_t>(mask.operations.size()));
+    for (const auto& operation : mask.operations) {
+        seed = mix(seed, static_cast<std::uint64_t>(operation.mode));
+        seed = mix(seed, static_cast<std::uint64_t>(operation.type));
+        seed = mix(seed, hv(operation.pos.x)); seed = mix(seed, hv(operation.pos.y));
+        seed = mix(seed, hv(operation.pos.z));
+        seed = mix(seed, hv(operation.size.x)); seed = mix(seed, hv(operation.size.y));
+        seed = mix(seed, hv(operation.radius)); seed = mix(seed, hv(operation.feather));
+        seed = mix(seed, hv(operation.expansion));
+        seed = mix(seed, static_cast<std::uint64_t>(operation.inverted));
+        seed = mix(seed, static_cast<std::uint64_t>(operation.path.size()));
+        for (const auto& command : operation.path) {
+            seed = mix(seed, static_cast<std::uint64_t>(command.type));
+            seed = mix(seed, hv(command.p0.x)); seed = mix(seed, hv(command.p0.y));
+            seed = mix(seed, hv(command.p1.x)); seed = mix(seed, hv(command.p1.y));
+            seed = mix(seed, hv(command.p2.x)); seed = mix(seed, hv(command.p2.y));
+        }
     }
     seed = mix(seed, static_cast<std::uint64_t>(width));
     seed = mix(seed, static_cast<std::uint64_t>(height));
@@ -144,10 +245,9 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
     }
 
     const Mat4 screen_from_local = glm::inverse(layer_inv_matrix);
-    const f32 path_pad = mask.type == MaskType::Path
-        ? std::max(0.0f, mask.expansion) + std::max(0.0f, mask.feather) * 0.5f : 0.0f;
-    const f32 hw = (mask.type == MaskType::Circle) ? mask.radius : mask.size.x * 0.5f + path_pad;
-    const f32 hh = (mask.type == MaskType::Circle) ? mask.radius : mask.size.y * 0.5f + path_pad;
+    const f32 padding = std::max(0.0f, mask.expansion) + std::max(0.0f, mask.feather) * 0.5f;
+    const f32 hw = (mask.type == MaskType::Circle) ? mask.radius + padding : mask.size.x * 0.5f + padding;
+    const f32 hh = (mask.type == MaskType::Circle) ? mask.radius + padding : mask.size.y * 0.5f + padding;
 
     const Vec4 corners[4] = {
         screen_from_local * Vec4{-hw + mask.pos.x, -hh + mask.pos.y, 0.0f, 1.0f},
@@ -176,16 +276,25 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
         static_cast<i32>(std::ceil(max_x)),
         static_cast<i32>(std::ceil(max_y))
     };
+    // Inverted coverage is non-zero outside the source geometry, while path
+    // geometry may extend beyond its declared size. Rasterize the full target
+    // for those cases so the bounding-box optimization cannot erase valid
+    // outside coverage. Composite operations can extend beyond the primary
+    // mask, so their aggregate is evaluated across the full target as well.
+    if (!mask.operations.empty() || mask.inverted || mask.type == MaskType::Path)
+        bbox = raster::BBox{0, 0, width, height};
     bbox.clip_to(width, height);
     if (bbox.is_empty()) {
         return fb;
     }
 
+    const auto flattened_paths = flatten_mask_stack(mask);
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* row = fb->pixels_row(y);
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             Vec4 local = layer_inv_matrix * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
-            const f32 alpha = mask_alpha_at_local_point(mask, Vec2{local.x, local.y});
+            const f32 alpha = mask_alpha_with_flattened(
+                mask, Vec2{local.x, local.y}, &flattened_paths);
             if (alpha > 0.0f) row[x] = {1.0f, 1.0f, 1.0f, alpha};
         }
     }

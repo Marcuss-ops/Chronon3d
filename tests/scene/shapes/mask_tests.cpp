@@ -125,6 +125,33 @@ TEST_CASE("Test 12.6 — LayerBuilder sets mask struct fields correctly") {
     CHECK(layer.mask.inverted == true);
 }
 
+TEST_CASE("LayerBuilder exposes ellipse mask geometry") {
+    const auto scene = SceneBuilder{}.layer("ellipse_mask", [](LayerBuilder& layer) {
+        layer.mask_ellipse({.size = {80.0f, 40.0f}, .pos = {3.0f, -2.0f, 0.0f},
+                            .feather = 4.0f, .expansion = 1.0f, .inverted = true});
+    }).build();
+    REQUIRE(scene.layers().size() == 1);
+    const auto& mask = scene.layers()[0].mask;
+    CHECK(mask.type == MaskType::Ellipse);
+    CHECK(mask.size.x == doctest::Approx(80.0f));
+    CHECK(mask.size.y == doctest::Approx(40.0f));
+    CHECK(mask.pos.x == doctest::Approx(3.0f));
+    CHECK(mask.inverted);
+}
+
+TEST_CASE("inverted mask rasterization retains coverage outside source bounds") {
+    Mask mask;
+    mask.type = MaskType::Circle;
+    mask.pos = {16.0f, 16.0f, 0.0f};
+    mask.radius = 5.0f;
+    mask.inverted = true;
+
+    const auto alpha = rasterize_mask_alpha(mask, Mat4{1.0f}, 32, 32);
+    REQUIRE(alpha);
+    CHECK(alpha->get_pixel(0, 0).a == doctest::Approx(1.0f));
+    CHECK(alpha->get_pixel(16, 16).a == doctest::Approx(0.0f));
+}
+
 TEST_CASE("Path mask supports compound closed geometry, feather, and expansion") {
     Mask mask;
     mask.type = MaskType::Path;
@@ -136,6 +163,23 @@ TEST_CASE("Path mask supports compound closed geometry, feather, and expansion")
     CHECK(mask_alpha_at_local_point(mask, {0, 0}) == doctest::Approx(1.0f));
     CHECK(mask_alpha_at_local_point(mask, {12, 0}) == doctest::Approx(0.5f));
     CHECK(mask_alpha_at_local_point(mask, {14, 0}) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Primitive masks apply feather and expansion through alpha coverage") {
+    Mask mask;
+    mask.type = MaskType::Rect;
+    mask.size = {20.0f, 20.0f};
+    mask.feather = 4.0f;
+    mask.expansion = 2.0f;
+    CHECK(mask_alpha_at_local_point(mask, {0, 0}) == doctest::Approx(1.0f));
+    CHECK(mask_alpha_at_local_point(mask, {12, 0}) == doctest::Approx(0.5f));
+    CHECK(mask_alpha_at_local_point(mask, {14, 0}) == doctest::Approx(0.0f));
+
+    mask.type = MaskType::Ellipse;
+    mask.size = {20.0f, 12.0f};
+    mask.expansion = 0.0f;
+    mask.feather = 4.0f;
+    CHECK(mask_alpha_at_local_point(mask, {10, 0}) == doctest::Approx(0.5f));
 }
 
 TEST_CASE("Path mask clips rendered layer pixels") {
