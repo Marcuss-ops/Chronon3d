@@ -216,6 +216,11 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
         profiling::g_current_counters->glyph_cache_lookup_wall_us.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::elapsed_us(lookup_t0))),
             std::memory_order_relaxed);
+        if (result.has_value()) {
+            profiling::g_current_counters->glyph_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->glyph_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
     }
     return result;
 }
@@ -265,6 +270,7 @@ void TextRenderResources::store_glyph_atlas(
         profiling::g_current_counters->glyph_atlas_upload_wall_us.fetch_add(
             static_cast<uint64_t>(std::llround(profiling::elapsed_us(store_t0))),
             std::memory_order_relaxed);
+        profiling::g_current_counters->glyph_atlas_stored.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
