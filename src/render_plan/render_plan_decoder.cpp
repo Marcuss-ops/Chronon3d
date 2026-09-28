@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cctype>
 #include <exception>
+#include <map>
 #include <string>
 #include <utility>
 #include <unordered_map>
@@ -18,6 +19,10 @@
 #include <set>
 
 namespace {
+
+using chronon3d::Frame;
+using chronon3d::render_plan::LayerPlan;
+using chronon3d::render_plan::PlanDecodeError;
 
 bool is_3d_property(const std::string& property) {
     // Closed 3D gate: these are the camera-backed layer properties. Other
@@ -49,6 +54,108 @@ std::optional<std::string> find_3d_track(const nlohmann::json& layer) {
             if (animator.is_object() && animator.contains("properties")) {
                 if (auto property = inspect_tracks(animator.at("properties")))
                     return property;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& layers) {
+    struct Group {
+        std::vector<std::size_t> members;
+        std::optional<LayerPlan::StaggerPlan> stagger;
+        std::string kind;
+        std::string id;
+    };
+    std::map<std::pair<std::string, std::string>, Group> groups;
+    for (std::size_t i = 0; i < layers.size(); ++i) {
+        auto collect = [&](std::string kind, const std::string& id,
+                           const std::optional<LayerPlan::StaggerPlan>& stagger) -> std::optional<PlanDecodeError> {
+            auto& group = groups[{kind, id}];
+            group.kind = kind;
+            group.id = id;
+            group.members.push_back(i);
+            if (!stagger) return std::nullopt;
+            if (!group.stagger) {
+                group.stagger = stagger;
+                return std::nullopt;
+            }
+            const auto& a = *group.stagger;
+            const auto& b = *stagger;
+            if (a.per_item_frames != b.per_item_frames || a.order != b.order || a.seed != b.seed ||
+                a.track_property != b.track_property || a.easing != b.easing)
+                return PlanDecodeError{"layers[" + std::to_string(i) + "]",
+                    "all members of a layout group must declare the same stagger", "stagger_group_mismatch",
+                    "render-plan-layout-stagger"};
+            return std::nullopt;
+        };
+        if (layers[i].flow_layout) {
+            if (auto error = collect("flow", layers[i].flow_layout->group_id,
+                                     layers[i].flow_layout->stagger)) return error;
+        }
+        if (layers[i].grid_layout) {
+            if (auto error = collect("grid", layers[i].grid_layout->group_id,
+                                     layers[i].grid_layout->stagger)) return error;
+        }
+    }
+    const auto splitmix64 = [](std::uint64_t value) {
+        value += 0x9e3779b97f4a7c15ULL;
+        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
+        return value ^ (value >> 31);
+    };
+    for (const auto& [key, group] : groups) {
+        (void)key;
+        if (!group.stagger || group.stagger->per_item_frames == 0) continue;
+        const auto& stagger = *group.stagger;
+        std::vector<std::size_t> order(group.members.size());
+        for (std::size_t rank = 0; rank < order.size(); ++rank) order[rank] = rank;
+        if (stagger.order == "reverse") {
+            std::reverse(order.begin(), order.end());
+        } else if (stagger.order == "center_out") {
+            std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+                const auto da = std::abs(static_cast<std::int64_t>(2 * a) -
+                                         static_cast<std::int64_t>(order.size() - 1));
+                const auto db = std::abs(static_cast<std::int64_t>(2 * b) -
+                                         static_cast<std::int64_t>(order.size() - 1));
+                return da < db;
+            });
+        } else if (stagger.order == "random") {
+            std::uint64_t state = stagger.seed;
+            for (std::size_t i = order.size(); i > 1; --i) {
+                state = splitmix64(state);
+                const auto j = static_cast<std::size_t>(state % i);
+                std::swap(order[i - 1], order[j]);
+            }
+        }
+        std::vector<std::size_t> rank_by_member(group.members.size());
+        for (std::size_t rank = 0; rank < order.size(); ++rank) rank_by_member[order[rank]] = rank;
+        for (std::size_t member = 0; member < group.members.size(); ++member) {
+            const auto rank = rank_by_member[member];
+            const std::uint64_t offset = static_cast<std::uint64_t>(stagger.per_item_frames) * rank;
+            auto& layer = layers[group.members[member]];
+            if (!layer.animation) continue;
+            for (auto& track : layer.animation->tracks) {
+                if (track.property != stagger.track_property) continue;
+                for (const auto& keyframe : track.keyframes) {
+                    if (keyframe.frame.integral() > 1000000 - static_cast<std::int64_t>(offset))
+                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "].animation",
+                            "staggered keyframe exceeds the supported frame limit", "stagger_frame_overflow",
+                            "render-plan-layout-stagger"};
+                }
+                for (auto& keyframe : track.keyframes)
+                    keyframe.frame += Frame{static_cast<std::int64_t>(offset)};
+                if (!stagger.easing.empty()) {
+                    if (track.spring || track.easing == "spring" ||
+                        std::any_of(track.keyframes.begin(), track.keyframes.end(),
+                            [](const auto& keyframe) {
+                                return keyframe.spring.has_value() || keyframe.easing == "spring";
+                            }))
+                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "].animation",
+                            "stagger easing cannot override a spring track", "stagger_spring_easing_conflict",
+                            "render-plan-layout-stagger"};
+                    track.easing = stagger.easing;
+                }
             }
         }
     }
@@ -648,6 +755,27 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         }
         if (resolved_root.contains("camera"))
             plan.camera = detail::decode_camera(resolved_root.at("camera"));
+        if (resolved_root.contains("camera_shake")) {
+            if (plan.schema != kRenderPlanSchemaV3 || !plan.camera)
+                return PlanDecodeError{"camera_shake", "camera_shake requires a V3 camera", "camera_shake_requires_v3_camera", "render-plan-camera"};
+            const auto& raw = resolved_root.at("camera_shake");
+            CameraShakePlan shake;
+            shake.amplitude_px = raw.value("amplitude_px", shake.amplitude_px);
+            shake.frequency_hz = raw.value("frequency_hz", shake.frequency_hz);
+            shake.decay = raw.value("decay", shake.decay);
+            shake.seed = raw.value("seed", shake.seed);
+            shake.rotation_amplitude_deg = raw.value("rotation_amplitude_deg", shake.rotation_amplitude_deg);
+            shake.start_frame = Frame{raw.value("start_frame", std::int64_t{0})};
+            shake.duration_frames = Frame{raw.value("duration_frames", std::int64_t{0})};
+            if (!std::isfinite(shake.amplitude_px) || shake.amplitude_px < 0.0f || shake.amplitude_px > 4096.0f ||
+                !std::isfinite(shake.frequency_hz) || shake.frequency_hz <= 0.0f || shake.frequency_hz > 120.0f ||
+                !std::isfinite(shake.decay) || shake.decay < 0.0f || shake.decay > 100.0f ||
+                !std::isfinite(shake.rotation_amplitude_deg) || shake.rotation_amplitude_deg < 0.0f || shake.rotation_amplitude_deg > 360.0f ||
+                shake.start_frame.integral() < 0 || shake.start_frame.integral() > 1000000 ||
+                shake.duration_frames.integral() < 0 || shake.duration_frames.integral() > 1000000)
+                return PlanDecodeError{"camera_shake", "camera_shake values are outside supported bounds", "invalid_camera_shake", "render-plan-camera"};
+            plan.camera_shake = shake;
+        }
         if (resolved_root.contains("lighting_rig")) {
             if (plan.schema != kRenderPlanSchemaV3)
                 return PlanDecodeError{"lighting_rig", "lighting_rig is available only in render-plan V3", "v3_lighting_in_v2", "render-plan-lighting"};
@@ -781,6 +909,36 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.layers.push_back(std::move(layer));
             ++layer_index;
         }
+
+        for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+            auto& layer = plan.layers[index];
+            if (!layer.follow_path) continue;
+            auto& driver = *layer.follow_path;
+            if (!driver.path_id.empty()) {
+                const auto source = std::find_if(plan.layers.begin(), plan.layers.end(),
+                    [&](const LayerPlan& candidate) { return candidate.id == driver.path_id; });
+                if (source == plan.layers.end() || !source->shape || source->shape->path.size() < 2)
+                    return PlanDecodeError{"layers[" + std::to_string(index) + "].follow_path.path_id",
+                        "path_id must name a layer with inline path commands", "follow_path_source_missing",
+                        "render-plan-follow-path"};
+                driver.path_commands = source->shape->path;
+            }
+            if (driver.path_commands.size() < 2)
+                return PlanDecodeError{"layers[" + std::to_string(index) + "].follow_path",
+                    "follow_path requires path commands", "follow_path_path_missing", "render-plan-follow-path"};
+            if (layer.animation) {
+                for (const auto& track : layer.animation->tracks) {
+                    if (track.property == "position" || track.property == "position_x" ||
+                        track.property == "position_y" || track.property == "position_z")
+                        return PlanDecodeError{"layers[" + std::to_string(index) + "].animation",
+                            "follow_path owns position; remove explicit position tracks", "follow_path_position_conflict",
+                            "render-plan-follow-path"};
+                }
+            }
+        }
+
+        if (const auto stagger_error = apply_layout_stagger(plan.layers))
+            return *stagger_error;
 
         for (auto& particle_layer : plan.layers) {
             if (!particle_layer.particle_emitter ||

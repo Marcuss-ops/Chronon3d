@@ -8,6 +8,7 @@
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <cstdint>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +30,8 @@ struct Transform {
     Quat rotation{1.0f, 0.0f, 0.0f, 0.0f}; // Identity
     Vec3 scale{1.0f, 1.0f, 1.0f};
     Vec3 anchor{0.0f, 0.0f, 0.0f};
+    // [skew angle, skew axis] in degrees, applied in the layer XY plane.
+    Vec2 skew{0.0f, 0.0f};
     f32 opacity{1.0f};
     f32 blur{0.0f};   // gaussian blur radius in pixels; propagated from AnimatedTransform
 
@@ -37,8 +40,17 @@ struct Transform {
         : position(p), rotation(r), scale(s), anchor(a), opacity(o) {}
 
     [[nodiscard]] Mat4 to_mat4() const {
-        // Matrix = Translate(position) * Rotate(rotation) * Scale(scale) * Translate(-anchor)
-        return glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation) * glm::scale(Mat4(1.0f), scale) * glm::translate(Mat4(1.0f), -anchor);
+        Mat4 skew_matrix(1.0f);
+        if (std::abs(skew.x) > 1e-7f) {
+            Mat4 shear(1.0f);
+            shear[1][0] = std::tan(glm::radians(skew.x));
+            const Mat4 axis = glm::rotate(Mat4(1.0f), glm::radians(skew.y), Vec3{0, 0, 1});
+            const Mat4 unaxis = glm::rotate(Mat4(1.0f), -glm::radians(skew.y), Vec3{0, 0, 1});
+            skew_matrix = axis * shear * unaxis;
+        }
+        return glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation) *
+               skew_matrix * glm::scale(Mat4(1.0f), scale) *
+               glm::translate(Mat4(1.0f), -anchor);
     }
 
     [[nodiscard]] Mat4 to_matrix() const { return to_mat4(); }
@@ -47,12 +59,14 @@ struct Transform {
         return position.x != 0.0f || position.y != 0.0f || position.z != 0.0f ||
                rotation.w != 1.0f || scale.x != 1.0f || scale.y != 1.0f || scale.z != 1.0f ||
                anchor.x != 0.0f || anchor.y != 0.0f || anchor.z != 0.0f ||
+               skew.x != 0.0f || skew.y != 0.0f ||
                opacity != 1.0f || blur != 0.0f;
     }
 
     [[nodiscard]] bool is_identity_2d() const {
         return position.x == 0.0f && position.y == 0.0f && rotation.w == 1.0f && 
                scale.x == 1.0f && scale.y == 1.0f && anchor.x == 0.0f && anchor.y == 0.0f &&
+               skew.x == 0.0f && skew.y == 0.0f &&
                opacity == 1.0f && blur == 0.0f;
     }
 };

@@ -155,12 +155,17 @@ void FramebufferPool::detach_arena_provider() {
 }
 
 void FramebufferPool::set_budget_bytes(size_t max_retained_bytes) {
-    std::lock_guard lock(m_mutex);
-    m_config.max_retained_bytes = max_retained_bytes;
-    // If the new budget is tighter, evict immediately.
-    if (max_retained_bytes > 0) {
-        while (m_current_bytes > max_retained_bytes) {
-            if (!evict_global_lru()) break;
+    std::vector<std::unique_ptr<Framebuffer>> deferred_destruction;
+    deferred_destruction.reserve(16);
+    {
+        std::lock_guard lock(m_mutex);
+        m_config.max_retained_bytes = max_retained_bytes;
+        // If the new budget is tighter, evict immediately. Destroy the large
+        // pixel allocations after releasing the pool mutex.
+        if (max_retained_bytes > 0) {
+            while (m_current_bytes > max_retained_bytes) {
+                if (!evict_global_lru(deferred_destruction)) break;
+            }
         }
     }
 }
@@ -464,86 +469,71 @@ void FramebufferPool::release(Framebuffer* fb) {
     if (!fb) return;
 
     // Snapshot the callback under the read side of the pool authority. The
-    // backend cleanup itself must run outside the pool lock: it may touch a
-    // different resource authority and must not extend the pool critical
-    // section.
+    // backend cleanup itself must run outside the pool lock.
     std::function<void(Framebuffer&)> native_surface_releaser;
     {
         std::shared_lock lock(m_mutex);
         native_surface_releaser = m_native_surface_releaser;
     }
-    if (native_surface_releaser) {
-        native_surface_releaser(*fb);
-    }
+    if (native_surface_releaser) native_surface_releaser(*fb);
 
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
     m_release_count.fetch_add(1, std::memory_order_relaxed);
 
     std::unique_ptr<Framebuffer> owned(fb);
+    if (owned->is_arena_allocated()) return;
 
-    // Arena-backed framebuffers are non-owning wrappers around arena memory.
-    if (owned->is_arena_allocated()) {
-        return;
-    }
+    std::vector<std::unique_ptr<Framebuffer>> deferred_destruction;
+    deferred_destruction.reserve(16);
+    {
+        const auto lock_t0 = std::chrono::steady_clock::now();
+        std::lock_guard lock(m_mutex);
+        m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
+        PoolLockHoldMeter hold(m_lock_hold_wall_us);
 
-    const auto lock_t0 = std::chrono::steady_clock::now();
-    std::lock_guard lock(m_mutex);
-    m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
-    PoolLockHoldMeter hold(m_lock_hold_wall_us);
+        const int alloc_w = owned->allocated_width();
+        const int alloc_h = owned->allocated_height();
+        owned->resize_logical(alloc_w, alloc_h);
+        const size_t weight = owned->size_bytes();
+        const uint64_t current_tick = ++m_tick;
+        const FramebufferPoolKey key{alloc_w, alloc_h};
 
-    // Restore full allocated size so the Framebuffer is perfectly standardized in the pool
-    const int alloc_w = owned->allocated_width();
-    const int alloc_h = owned->allocated_height();
-    owned->resize_logical(alloc_w, alloc_h);
-
-    const size_t weight = owned->size_bytes();
-    const uint64_t current_tick = ++m_tick;
-    FramebufferPoolKey key{alloc_w, alloc_h};
-
-    // Check the overall budget first — we may need to evict BEFORE inserting.
-    // If the pool is over budget, evict LRU entries until there's room.
-    if (m_config.max_retained_bytes > 0 && m_current_bytes + weight > m_config.max_retained_bytes) {
-        evict_lru_for(weight);
-    }
-
-    // Check per-size-class limit.  If this bucket already has max entries,
-    // evict the LRU entry in it to make room.
-    auto it = m_free.find(key);
-    if (it != m_free.end() && m_config.max_buffers_per_size_class > 0) {
-        while (it->second.size() >= m_config.max_buffers_per_size_class) {
-            if (!evict_one_from_bucket(key)) break;
+        if (m_config.max_retained_bytes > 0 &&
+            m_current_bytes + weight > m_config.max_retained_bytes) {
+            evict_lru_for(weight, deferred_destruction);
         }
-    }
 
-    // If after eviction we still can't fit (no entries to evict), drop.
-    if (m_config.max_retained_bytes > 0 && m_current_bytes + weight > m_config.max_retained_bytes) {
-        // Can't fit — drop this framebuffer.
-        m_evicted_count.fetch_add(1, std::memory_order_relaxed);
-        m_evicted_bytes.fetch_add(weight, std::memory_order_relaxed);
-        m_pressure_count.fetch_add(1, std::memory_order_relaxed);
-        return;
-    }
+        auto it = m_free.find(key);
+        if (it != m_free.end() && m_config.max_buffers_per_size_class > 0) {
+            while (it->second.size() >= m_config.max_buffers_per_size_class) {
+                if (!evict_one_from_bucket(key, deferred_destruction)) break;
+                it = m_free.find(key);
+                if (it == m_free.end()) break;
+            }
+        }
 
-    // Insert into pool
-    m_current_bytes += weight;
-    m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
-    // F2.3 — mark pool provenance on the way in. This is the single place
-    // storage becomes swap-transferable; every other ownership path keeps
-    // the flag false (default). Cleared on the way out by acquire_unique.
-    owned->set_storage_transferable(true);
-    // OPT-POOL-BESTFIT — a release can (re)create a bucket: keep the ordered
-    // index in sync (insert only when transitioning empty → non-empty).
-    // Re-find instead of reusing the earlier iterator: evict_one_from_bucket()
-    // may have erased the (then-empty) bucket, invalidating it.
-    const auto bucket_it = m_free.find(key);
-    const bool bucket_was_empty = (bucket_it == m_free.end()) || bucket_it->second.empty();
-    m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
-    if (bucket_was_empty) {
-        m_free_by_area.insert({free_bucket_area(key), key});
-    }
+        // `owned` is declared before the lock scope, so a framebuffer that
+        // cannot fit is also destroyed after unlocking.
+        if (m_config.max_retained_bytes > 0 &&
+            m_current_bytes + weight > m_config.max_retained_bytes) {
+            m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+            m_evicted_bytes.fetch_add(weight, std::memory_order_relaxed);
+            m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
 
-    if (profiling::g_current_counters) {
-        profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
+        m_current_bytes += weight;
+        m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
+        owned->set_storage_transferable(true);
+        const auto bucket_it = m_free.find(key);
+        const bool bucket_was_empty = bucket_it == m_free.end() || bucket_it->second.empty();
+        m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
+        if (bucket_was_empty) m_free_by_area.insert({free_bucket_area(key), key});
+
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(
+                1, std::memory_order_relaxed);
+        }
     }
 }
 
@@ -558,11 +548,14 @@ void FramebufferPool::set_native_surface_releaser(
 // ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::clear() {
-    std::lock_guard lock(m_mutex);
-    m_free.clear();
-    // OPT-POOL-BESTFIT — the index must mirror m_free (non-empty buckets).
-    m_free_by_area.clear();
-    m_current_bytes = 0;
+    decltype(m_free) retired;
+    {
+        std::lock_guard lock(m_mutex);
+        retired.swap(m_free);
+        // OPT-POOL-BESTFIT — the index must mirror m_free (non-empty buckets).
+        m_free_by_area.clear();
+        m_current_bytes = 0;
+    }
 }
 
 // P1-21: explicit post-job lifecycle hook.  Honors the configured

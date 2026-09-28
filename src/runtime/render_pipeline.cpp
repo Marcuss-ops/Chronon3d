@@ -36,6 +36,7 @@
 #include <atomic>
 #include <cstdint>
 #include <condition_variable>
+#include <exception>
 #include <functional>
 #include <mutex>
 #include <vector>
@@ -69,10 +70,10 @@ RenderPipeline::RenderPipeline(
 //   - a worker whose slot index is beyond the submitted job count still consumes
 //     the epoch (so no worker spins) but contributes no completion.
 //
-// A stage loop already owns its failure reporting (`fail()` records the error
-// and flips the shared `failed` flag), so a throw escaping a stage is a bug in
-// that reporting; it is contained here rather than allowed to terminate the
-// process from inside a pool thread.
+// A stage loop normally owns its failure reporting (`fail()` records the error
+// and flips the shared `failed` flag). A throw escaping a stage is retained by
+// the pool and rethrown on the calling thread after the stage barrier, where it
+// is converted into the same failed-job state instead of a false success.
 // ============================================================================
 class RenderPipeline::StagePool {
 public:
@@ -99,13 +100,15 @@ public:
 
     /// Run `job_count` jobs concurrently (one per pool slot) and block until all
     /// of them have returned. `jobs` must outlive this call.
-    void run(std::size_t job_count, const std::function<void()>* jobs) {
+    void run(std::size_t job_count, const std::function<void()>* jobs,
+             const std::function<void(std::exception_ptr)>& on_failure) {
         if (job_count == 0) return;
         {
             std::lock_guard lock(m_mutex);
             m_jobs = jobs;
             m_job_count = job_count;
             m_completed = 0;
+            m_on_failure = &on_failure;
             ++m_epoch;
         }
         m_start_changed.notify_all();
@@ -114,6 +117,7 @@ public:
             m_done_changed.wait(lock, [this] { return m_completed == m_job_count; });
             m_jobs = nullptr;
             m_job_count = 0;
+            m_on_failure = nullptr;
         }
     }
 
@@ -134,11 +138,21 @@ private:
             if (job) {
                 try {
                     (*job)();
-                } catch (const std::exception& exception) {
-                    spdlog::error("[render-pipeline] batch stage threw: {}",
-                                  exception.what());
                 } catch (...) {
-                    spdlog::error("[render-pipeline] batch stage threw an unknown exception");
+                    const auto failure = std::current_exception();
+                    const std::function<void(std::exception_ptr)>* failure_handler = nullptr;
+                    {
+                        std::lock_guard lock(m_mutex);
+                        failure_handler = m_on_failure;
+                    }
+                    if (failure_handler) {
+                        try {
+                            (*failure_handler)(failure);
+                        } catch (...) {
+                            // The installed pipeline callback is noexcept in
+                            // practice and contains its own failure fallback.
+                        }
+                    }
                 }
             }
             std::lock_guard lock(m_mutex);
@@ -157,6 +171,7 @@ private:
     std::size_t m_job_count{0};
     std::size_t m_completed{0};
     std::uint64_t m_epoch{0};
+    const std::function<void(std::exception_ptr)>* m_on_failure{nullptr};
     bool m_stop{false};
 };
 
@@ -616,6 +631,7 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
     std::atomic<bool> evaluation_done{false};
     std::atomic<bool> render_done{false};
     std::atomic<bool> failed{false};
+    std::atomic<bool> escaped_stage_failure_reported{false};
     Frame failed_frame{-1};
     std::string error;
     std::size_t frames_encoded = 0;
@@ -794,7 +810,40 @@ RenderBatchResult RenderPipeline::render_compatibility_frames(
     if (!m_stage_pool) {
         m_stage_pool = std::make_unique<StagePool>(stage_jobs.size());
     }
-    m_stage_pool->run(stage_jobs.size(), stage_jobs.data());
+    const std::function<void(std::exception_ptr)> report_stage_failure =
+        [&](std::exception_ptr failure) noexcept {
+            if (escaped_stage_failure_reported.exchange(true, std::memory_order_acq_rel)) {
+                failed.store(true, std::memory_order_release);
+                evaluation_changed.notify_all();
+                render_changed.notify_all();
+                encoder_changed.notify_all();
+                return;
+            }
+            try {
+                std::rethrow_exception(failure);
+            } catch (const std::exception& exception) {
+                try {
+                    fail(first, std::string{"RenderPipeline stage escaped its failure handler: "} +
+                        exception.what());
+                } catch (...) {
+                    // Preserve the failure flag below if diagnostic allocation
+                    // or session error reporting itself fails.
+                }
+            } catch (...) {
+                try {
+                    fail(first, "RenderPipeline stage escaped its failure handler with an unknown exception");
+                } catch (...) {
+                    // Preserve the failure flag below if session reporting fails.
+                }
+            }
+            // Preserve the failed result and release every stage waiter even
+            // if constructing/reporting the detailed error itself throws.
+            failed.store(true, std::memory_order_release);
+            evaluation_changed.notify_all();
+            render_changed.notify_all();
+            encoder_changed.notify_all();
+        };
+    m_stage_pool->run(stage_jobs.size(), stage_jobs.data(), report_stage_failure);
     session.reset_slots();
 
     RenderBatchResult result;

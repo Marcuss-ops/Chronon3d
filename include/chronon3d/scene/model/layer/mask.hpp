@@ -29,6 +29,7 @@ struct MaskOperation {
     std::vector<PathCommand> path;
     f32 feather{0.0f};
     f32 expansion{0.0f};
+    f32 opacity{1.0f};
     bool inverted{false};
 };
 
@@ -48,6 +49,7 @@ struct Mask {
     std::vector<PathCommand> path;
     f32 feather{0.0f};
     f32 expansion{0.0f};
+    f32 opacity{1.0f};
     bool inverted{false};
     // Additional ordered shapes are composited with the legacy primary mask.
     // Keeping the primary fields preserves source and binary-facing APIs.

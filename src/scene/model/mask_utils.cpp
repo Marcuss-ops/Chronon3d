@@ -21,17 +21,18 @@ struct MaskPrimitiveView {
     const std::vector<PathCommand>* path{nullptr};
     f32 feather{0.0f};
     f32 expansion{0.0f};
+    f32 opacity{1.0f};
     bool inverted{false};
 };
 
 MaskPrimitiveView mask_view(const Mask& mask) {
     return {mask.type, mask.pos, mask.size, mask.radius, &mask.path,
-            mask.feather, mask.expansion, mask.inverted};
+            mask.feather, mask.expansion, mask.opacity, mask.inverted};
 }
 
 MaskPrimitiveView mask_view(const MaskOperation& operation) {
     return {operation.type, operation.pos, operation.size, operation.radius,
-            &operation.path, operation.feather, operation.expansion,
+            &operation.path, operation.feather, operation.expansion, operation.opacity,
             operation.inverted};
 }
 
@@ -121,7 +122,8 @@ f32 mask_primitive_alpha(MaskPrimitiveView mask, Vec2 local,
                                  0.0f, 1.0f);
         alpha = t * t * (3.0f - 2.0f * t);
     }
-    return mask.inverted ? 1.0f - alpha : alpha;
+    alpha = mask.inverted ? 1.0f - alpha : alpha;
+    return alpha * std::clamp(mask.opacity, 0.0f, 1.0f);
 }
 
 f32 mask_alpha_with_flattened(const Mask& mask, Vec2 local,
@@ -201,6 +203,7 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
     seed = mix(seed, hv(mask.radius));
     seed = mix(seed, hv(mask.feather));
     seed = mix(seed, hv(mask.expansion));
+    seed = mix(seed, hv(mask.opacity));
     seed = mix(seed, static_cast<std::uint64_t>(mask.inverted));
     seed = mix(seed, static_cast<std::uint64_t>(mask.path.size()));
     for (const auto& command : mask.path) {
@@ -217,7 +220,7 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
         seed = mix(seed, hv(operation.pos.z));
         seed = mix(seed, hv(operation.size.x)); seed = mix(seed, hv(operation.size.y));
         seed = mix(seed, hv(operation.radius)); seed = mix(seed, hv(operation.feather));
-        seed = mix(seed, hv(operation.expansion));
+        seed = mix(seed, hv(operation.expansion)); seed = mix(seed, hv(operation.opacity));
         seed = mix(seed, static_cast<std::uint64_t>(operation.inverted));
         seed = mix(seed, static_cast<std::uint64_t>(operation.path.size()));
         for (const auto& command : operation.path) {

@@ -3,6 +3,7 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/render_plan/spring_bake.hpp>
+#include <chronon3d/scene/path_sampling.hpp>
 
 #include <algorithm>
 #include <optional>
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -137,6 +139,58 @@ void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
                             const T& value,
                             FrameRate fps = FrameRate{30, 1}) {
     animated.loop_mode(loop_mode_value(track.loop_mode));
+    if (track.data_feed) {
+        if constexpr (std::is_same_v<T, float>) {
+            if (&key == &track.keyframes.front()) {
+                const auto values = std::make_shared<const std::vector<float>>(track.data_feed->values);
+                const auto offset = track.data_feed->index_offset;
+                const auto interpolation = track.data_feed->interpolation;
+                animated.frame_evaluator([values, offset, interpolation](double frame) {
+                    if (!std::isfinite(frame))
+                        throw std::runtime_error("data_feed cannot sample a non-finite frame");
+                    const double index = std::clamp(frame + static_cast<double>(offset),
+                        0.0, static_cast<double>(values->size() - 1));
+                    const auto lower = static_cast<std::size_t>(std::floor(index));
+                    if (interpolation == "step" || lower + 1 >= values->size())
+                        return (*values)[lower];
+                    const float fraction = static_cast<float>(index - static_cast<double>(lower));
+                    return (*values)[lower] + ((*values)[lower + 1] - (*values)[lower]) * fraction;
+                });
+            }
+        } else {
+            throw std::runtime_error("data_feed requires a scalar animated value");
+        }
+    }
+    if (track.oscillate || track.random_hold || track.posterize_time) {
+        if constexpr (std::is_same_v<T, float>) {
+            chronon3d::ScalarAnimationDriver driver;
+            if (track.oscillate) {
+                driver.kind = chronon3d::ScalarAnimationDriver::Kind::Oscillate;
+                driver.frequency_hz = track.oscillate->frequency_hz;
+                driver.amplitude = track.oscillate->amplitude;
+                driver.phase_deg = track.oscillate->phase_deg;
+                driver.offset = track.oscillate->offset;
+                if (track.oscillate->waveform == "triangle")
+                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Triangle;
+                else if (track.oscillate->waveform == "sawtooth")
+                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Sawtooth;
+                else if (track.oscillate->waveform == "square")
+                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Square;
+            } else if (track.random_hold) {
+                driver.kind = chronon3d::ScalarAnimationDriver::Kind::RandomHold;
+                driver.interval_frames = track.random_hold->interval_frames;
+                driver.min = track.random_hold->min;
+                driver.max = track.random_hold->max;
+                driver.seed = track.random_hold->seed;
+            } else {
+                driver.kind = chronon3d::ScalarAnimationDriver::Kind::PosterizeTime;
+                driver.fps = track.posterize_time->fps;
+            }
+            animated.scalar_driver(driver);
+        } else {
+            throw std::runtime_error("procedural animation drivers require a scalar animated value");
+        }
+    }
     if (track.wiggle) {
         if constexpr (std::is_same_v<T, float>) {
             animated.expression("value + wiggle(" + std::to_string(track.wiggle->frequency) +
@@ -316,7 +370,7 @@ PositionAnimationData position_animation_data(const LayerPlan& layer,
         }
         if (authored_timing) vector_track = authored_timing;
     }
-    if (component_count == 0) return result;
+    if (!vector_track && component_count == 0) return result;
 
     const AnimationTrackPlan* reference = vector_track;
     if (!reference) {
@@ -568,8 +622,9 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
                             int canvas_height,
-                            FrameRate fps) {
-    if (!layer.animation) return;
+                            FrameRate fps,
+                            const FollowPathEvaluators* precompiled_follow_path) {
+    if (!layer.animation && !layer.follow_path) return;
     chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
     if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
          layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
@@ -594,8 +649,10 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     AxisTrackGroup rot_tracks;
     const AnimationTrackPlan* opacity_track = nullptr;
     const AnimationTrackPlan* blur_track = nullptr;
+    const AnimationTrackPlan* skew_track = nullptr;
+    const AnimationTrackPlan* skew_axis_track = nullptr;
 
-    for (const auto& track : layer.animation->tracks) {
+    if (layer.animation) for (const auto& track : layer.animation->tracks) {
         if (track.property == "position") {
             if (pos_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate position tracks");
             pos_tracks.full = &track;
@@ -638,6 +695,12 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         } else if (track.property == "blur") {
             if (blur_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
             blur_track = &track;
+        } else if (track.property == "skew") {
+            if (skew_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate skew tracks");
+            skew_track = &track;
+        } else if (track.property == "skew_axis") {
+            if (skew_axis_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate skew_axis tracks");
+            skew_axis_track = &track;
         } else if (track.property == "fill_color") {
             // Paint tracks are sampled into the per-frame source node by the
             // render-plan scene callback, not lowered as transform animation.
@@ -779,9 +842,36 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (pos_tracks.full) {
         auto& animated = builder.position_anim();
         animated.set(base_position);
-        for (const auto& key : pos_tracks.full->keyframes)
-            add_animation_keyframe(animated, *pos_tracks.full, key,
-                vector_value(key, pos_tracks.full->property, base_position), fps);
+        const bool has_axis_easing = std::any_of(pos_tracks.full->keyframes.begin(),
+            pos_tracks.full->keyframes.end(), [](const auto& key) { return key.easing_xy.has_value(); });
+        if (has_axis_easing) {
+            auto x_track = *pos_tracks.full;
+            auto y_track = *pos_tracks.full;
+            x_track.property = "position_x";
+            y_track.property = "position_y";
+            for (auto* track : {&x_track, &y_track})
+                for (std::size_t index = 0; index < track->keyframes.size(); ++index) {
+                    auto& key = track->keyframes[index];
+                    const auto axis = track->property == "position_x" ? 0U : 1U;
+                    if (key.value.size() != 2)
+                        throw std::runtime_error("easing_xy requires 2D position keyframes");
+                    key.value = {key.value[axis]};
+                    if (key.easing_xy) key.easing = (*key.easing_xy)[axis];
+                    key.easing_xy.reset();
+                }
+            animated.frame_evaluator([x_track = std::move(x_track),
+                                      y_track = std::move(y_track),
+                                      base_position, fps](double frame) {
+                return chronon3d::Vec3{
+                    evaluate_scalar_track(x_track, frame, base_position.x, fps),
+                    evaluate_scalar_track(y_track, frame, base_position.y, fps),
+                    base_position.z};
+            });
+        } else {
+            for (const auto& key : pos_tracks.full->keyframes)
+                add_animation_keyframe(animated, *pos_tracks.full, key,
+                    vector_value(key, pos_tracks.full->property, base_position), fps);
+        }
         animated.compute_roving();
         animated.compute_auto_beziers();
     } else if (pos_tracks.x || pos_tracks.y || pos_tracks.z) {
@@ -952,9 +1042,98 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         animated.compute_roving();
         animated.compute_auto_beziers();
     }
+    if (skew_track || skew_axis_track) {
+        auto& animated = builder.skew_anim();
+        animated.set(chronon3d::Vec3{layer.skew_angle_deg, layer.skew_axis_deg, 0.0f});
+        const auto x = skew_track ? std::optional<AnimationTrackPlan>{*skew_track} : std::nullopt;
+        const auto y = skew_axis_track ? std::optional<AnimationTrackPlan>{*skew_axis_track} : std::nullopt;
+        const float base_x = layer.skew_angle_deg;
+        const float base_y = layer.skew_axis_deg;
+        animated.frame_evaluator([x, y, base_x, base_y, fps](double frame) {
+            const float angle = std::clamp(
+                x ? evaluate_scalar_track(*x, frame, base_x, fps) : base_x, -80.0f, 80.0f);
+            const float axis = y ? evaluate_scalar_track(*y, frame, base_y, fps) : base_y;
+            return chronon3d::Vec3{angle, axis, 0.0f};
+        });
+    }
+
+    if (layer.follow_path) {
+        const auto& follow = *layer.follow_path;
+        const auto owned_evaluators = precompiled_follow_path
+            ? FollowPathEvaluators{}
+            : make_follow_path_evaluators(
+                  follow, base_position, base_rotation, canvas_width, canvas_height, fps);
+        const auto& evaluators = precompiled_follow_path
+            ? *precompiled_follow_path : owned_evaluators;
+
+        auto& position = builder.position_anim();
+        position.set(base_position);
+        position.frame_evaluator(evaluators.position);
+        if (follow.auto_orient && !(rot_tracks.full || rot_tracks.x || rot_tracks.y || rot_tracks.z)) {
+            auto& rotation = builder.rotate_anim();
+            rotation.set(base_rotation);
+            rotation.frame_evaluator(evaluators.rotation);
+        }
+    }
 }
 
 }  // namespace
+
+FollowPathEvaluators make_follow_path_evaluators(
+    const LayerPlan::FollowPathDriverPlan& follow,
+    chronon3d::Vec3 base_position,
+    chronon3d::Vec3 base_rotation,
+    int canvas_width,
+    int canvas_height,
+    FrameRate fps) {
+    std::vector<chronon3d::scene::PathSampleCommand> commands;
+    commands.reserve(follow.path_commands.size());
+    for (const auto& command : follow.path_commands) {
+        chronon3d::scene::PathSampleCommand sample;
+        switch (command.type) {
+            case ShapePathCommandTypePlan::MoveTo:
+                sample.type = chronon3d::scene::PathSampleCommandType::MoveTo; break;
+            case ShapePathCommandTypePlan::LineTo:
+                sample.type = chronon3d::scene::PathSampleCommandType::LineTo; break;
+            case ShapePathCommandTypePlan::QuadraticTo:
+                sample.type = chronon3d::scene::PathSampleCommandType::QuadraticTo; break;
+            case ShapePathCommandTypePlan::CubicTo:
+                sample.type = chronon3d::scene::PathSampleCommandType::CubicTo; break;
+            case ShapePathCommandTypePlan::Close:
+                sample.type = chronon3d::scene::PathSampleCommandType::Close; break;
+        }
+        sample.point = {command.point[0], command.point[1]};
+        sample.control1 = {command.control1[0], command.control1[1]};
+        sample.control2 = {command.control2[0], command.control2[1]};
+        commands.push_back(sample);
+    }
+    auto table = std::make_shared<const chronon3d::scene::PathArcLengthTable>(commands);
+    chronon3d::AnimatedValue<float> progress{0.0f};
+    for (const auto& key : follow.progress.keyframes)
+        add_animation_keyframe(progress, follow.progress, key, key.value.front(), fps);
+    progress.loop_mode(loop_mode_value(follow.progress.loop_mode));
+    progress.compute_roving();
+    progress.compute_auto_beziers();
+
+    FollowPathEvaluators result;
+    result.position = [table, progress, clamp = follow.clamp_end,
+                       canvas_width, canvas_height, z = base_position.z, fps](double frame) {
+        const float u = progress.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+        const auto point = table->point_at(u, clamp);
+        return chronon3d::Vec3{point.x - static_cast<float>(canvas_width) * 0.5f,
+                               point.y - static_cast<float>(canvas_height) * 0.5f, z};
+    };
+    if (follow.auto_orient) {
+        result.rotation = [table, progress, offset = follow.offset_deg, base_rotation,
+                           fps](double frame) {
+            const float u = progress.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+            const auto tangent = table->tangent_at(u);
+            const float angle = glm::degrees(std::atan2(tangent.y, tangent.x)) + offset;
+            return chronon3d::Vec3{base_rotation.x, base_rotation.y, angle};
+        };
+    }
+    return result;
+}
 
 std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame, FrameRate fps) {
     if (!layer.animation || !layer.shape || !layer.shape->stroke) return std::nullopt;
@@ -975,6 +1154,101 @@ std::optional<float> stroke_dash_offset_at(const LayerPlan& layer, double frame,
     const float result = value.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
     if(!std::isfinite(result)) throw std::runtime_error("animated stroke dash offset must be finite");
     return result;
+}
+
+std::optional<float> stroke_width_at(
+    const LayerPlan& layer, double frame, float base, FrameRate fps) {
+    if (!layer.animation || !layer.shape || !layer.shape->stroke) return std::nullopt;
+    const AnimationTrackPlan* found = nullptr;
+    for (const auto& track : layer.animation->tracks) {
+        if (track.property != "stroke_width") continue;
+        if (found) throw std::runtime_error("layer has duplicate stroke_width animation tracks");
+        found = &track;
+    }
+    if (!found || found->keyframes.empty()) return std::nullopt;
+    chronon3d::AnimatedValue<float> value{base};
+    for (const auto& key : found->keyframes)
+        add_animation_keyframe(value, *found, key, scalar_value(key, "stroke_width"), fps);
+    value.compute_roving();
+    value.compute_auto_beziers();
+    const float result = value.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+    if (!std::isfinite(result) || result < 0.0f)
+        throw std::runtime_error("animated stroke width must be finite and non-negative");
+    return result;
+}
+
+std::optional<chronon3d::Color> stroke_color_at(
+    const LayerPlan& layer, double frame, chronon3d::Color base, FrameRate fps) {
+    if (!layer.animation || !layer.shape || !layer.shape->stroke) return std::nullopt;
+    const AnimationTrackPlan* found = nullptr;
+    for (const auto& track : layer.animation->tracks) {
+        if (track.property != "stroke_color") continue;
+        if (found) throw std::runtime_error("layer has duplicate stroke_color animation tracks");
+        found = &track;
+    }
+    if (!found || found->keyframes.empty()) return std::nullopt;
+    const auto color = [](const AnimationKeyframePlan& key) {
+        if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                [](float component) {
+                    return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                }))
+            throw std::runtime_error("stroke_color keyframes require finite RGBA values in [0, 1]");
+        return chronon3d::Color{key.value[0], key.value[1], key.value[2], key.value[3]};
+    };
+    chronon3d::AnimatedValue<chronon3d::Color> value{base};
+    for (const auto& key : found->keyframes)
+        add_animation_keyframe(value, *found, key, color(key), fps);
+    value.compute_roving();
+    value.compute_auto_beziers();
+    return value.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+}
+
+std::optional<float> shadow_scalar_at(
+    const LayerPlan& layer, std::string_view property, double frame,
+    float base, FrameRate fps) {
+    if (!layer.animation) return std::nullopt;
+    const AnimationTrackPlan* found = nullptr;
+    for (const auto& track : layer.animation->tracks) {
+        if (track.property != property) continue;
+        if (found) throw std::runtime_error("layer has duplicate shadow animation tracks");
+        found = &track;
+    }
+    if (!found || found->keyframes.empty()) return std::nullopt;
+    chronon3d::AnimatedValue<float> value{base};
+    for (const auto& key : found->keyframes)
+        add_animation_keyframe(value, *found, key, scalar_value(key, property), fps);
+    value.compute_roving();
+    value.compute_auto_beziers();
+    const float result = value.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+    if (!std::isfinite(result))
+        throw std::runtime_error("animated shadow parameter must be finite");
+    return result;
+}
+
+std::optional<chronon3d::Color> shadow_color_at(
+    const LayerPlan& layer, std::string_view property, double frame,
+    chronon3d::Color base, FrameRate fps) {
+    if (!layer.animation) return std::nullopt;
+    const AnimationTrackPlan* found = nullptr;
+    for (const auto& track : layer.animation->tracks) {
+        if (track.property != property) continue;
+        if (found) throw std::runtime_error("layer has duplicate shadow color animation tracks");
+        found = &track;
+    }
+    if (!found || found->keyframes.empty()) return std::nullopt;
+    chronon3d::AnimatedValue<chronon3d::Color> value{base};
+    for (const auto& key : found->keyframes) {
+        if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                [](float component) {
+                    return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                }))
+            throw std::runtime_error("shadow color keyframes require finite RGBA values in [0, 1]");
+        add_animation_keyframe(value, *found, key,
+            chronon3d::Color{key.value[0], key.value[1], key.value[2], key.value[3]}, fps);
+    }
+    value.compute_roving();
+    value.compute_auto_beziers();
+    return value.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
 }
 
 chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track) {
@@ -1311,7 +1585,8 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
                             int canvas_height,
-                            FrameRate fps) {
+                            FrameRate fps,
+                            const FollowPathEvaluators* precompiled_follow_path) {
     if (layer.transition_in) builder.transition_in(compile_transition(*layer.transition_in, fps));
     if (layer.transition_out) builder.transition_out(compile_transition(*layer.transition_out, fps));
     if (layer.parent) builder.parent(*layer.parent);
@@ -1368,15 +1643,36 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
         builder.scale({layer.scale[0], layer.scale[1], layer.scale[2]});
     if (layer.rotation_dimensions > 0)
         builder.rotate({layer.rotation[0], layer.rotation[1], layer.rotation[2]});
+    builder.skew({layer.skew_angle_deg, layer.skew_axis_deg});
     if (layer.blend_mode) builder.blend(*layer.blend_mode);
     if (layer.opacity) builder.opacity(*layer.opacity);
-    apply_animation_tracks(builder, layer, canvas_width, canvas_height, fps);
+    apply_animation_tracks(builder, layer, canvas_width, canvas_height, fps,
+                           precompiled_follow_path);
+}
+
+float evaluate_scalar_track(const AnimationTrackPlan& track, double frame,
+                            float base, FrameRate fps) {
+    chronon3d::AnimatedValue<float> animated{base};
+    for (const auto& key : track.keyframes)
+        add_animation_keyframe(animated, track, key, scalar_value(key, track.property), fps);
+    animated.compute_roving();
+    animated.compute_auto_beziers();
+    return animated.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
 }
 
 
 std::optional<chronon3d::DirectionalBlurParams> motion_blur_params_at(
-    const LayerPlan& layer, double frame, FrameRate fps) {
-    if (!layer.motion_blur || !layer.animation) return std::nullopt;
+    const LayerPlan& layer, double frame, FrameRate fps,
+    const FollowPathEvaluators* precompiled_follow_path) {
+    if (!layer.motion_blur || (!layer.animation &&
+        !(precompiled_follow_path && precompiled_follow_path->position))) return std::nullopt;
+    const double half_exposure_frames =
+        static_cast<double>(layer.motion_blur->shutter_angle) / 720.0;
+    chronon3d::Vec3 delta{};
+    if (precompiled_follow_path && precompiled_follow_path->position) {
+        delta = precompiled_follow_path->position(frame + half_exposure_frames) -
+                precompiled_follow_path->position(frame - half_exposure_frames);
+    } else {
     const chronon3d::Vec3 base{layer.position[0], layer.position[1], layer.position[2]};
     chronon3d::AnimatedValue<chronon3d::Vec3> position{base};
     const auto data = position_animation_data(layer, base);
@@ -1394,10 +1690,9 @@ std::optional<chronon3d::DirectionalBlurParams> motion_blur_params_at(
     }
     position.compute_roving();
     position.compute_auto_beziers();
-    const double half_exposure_frames =
-        static_cast<double>(layer.motion_blur->shutter_angle) / 720.0;
-    const auto delta = position.evaluate(frame + half_exposure_frames) -
-                       position.evaluate(frame - half_exposure_frames);
+    delta = position.evaluate(frame + half_exposure_frames) -
+            position.evaluate(frame - half_exposure_frames);
+    }
     const float length = glm::length(glm::vec2{delta.x, delta.y});
     if (!std::isfinite(length) || length <= 1.0e-4f) return std::nullopt;
     chronon3d::DirectionalBlurParams result;

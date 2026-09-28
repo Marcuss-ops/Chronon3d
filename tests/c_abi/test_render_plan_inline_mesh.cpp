@@ -45,7 +45,7 @@ Json base_mesh_plan(const std::string& schema = kRenderPlanSchemaV3) {
         {"canvas", {{"width", 64}, {"height", 64}, {"fps_num", 30}, {"fps_den", 1},
                      {"duration_frames", 1}}},
         {"layers", Json::array({mesh_layer_json()})},
-        {"output", {{"path", "out.png"}, {"format", "png"}}
+        {"output", {{"path", "out.png"}, {"format", "png"}}}
     };
 }
 
@@ -96,7 +96,7 @@ TEST_CASE("inline mesh lighting is an opt-in V3 contract and changes plan identi
     REQUIRE(decoded->lighting_rig);
     REQUIRE(decoded->layers[0].inline_mesh->material);
     CHECK(decoded->layers[0].inline_mesh->material->specular == doctest::Approx(0.5f));
-    CHECK(decoded->layers[0].lighting_rig->rim_enabled);
+    CHECK(decoded->lighting_rig->rim_enabled);
     const auto repeated = decode_render_plan(json);
     REQUIRE(repeated);
     CHECK(decoded->content_fingerprint == repeated->content_fingerprint);
@@ -213,15 +213,15 @@ TEST_CASE("inline mesh budget enforces aggregate bytes and typed structural inva
 
     plan = typed_mesh_plan();
     plan.layers.clear();
-    plan.layers.resize(2);
+    plan.layers.resize(7);
     for (auto& layer : plan.layers) {
         layer.type = LayerType::Mesh;
         layer.inline_mesh = triangle_mesh();
     }
-    plan.layers[0].inline_mesh->vertices.resize(200'000);
-    plan.layers[0].inline_mesh->indices.resize(600'000, 0);
-    plan.layers[1].inline_mesh->vertices.resize(200'000);
-    plan.layers[1].inline_mesh->indices.resize(600'000, 0);
+    for (auto& layer : plan.layers) {
+        layer.inline_mesh->vertices.resize(250'000);
+        layer.inline_mesh->indices.resize(750'000, 0);
+    }
     const auto error = validate_render_budget(plan);
     REQUIRE(error);
     CHECK(error->path == "layers[].inline_mesh");

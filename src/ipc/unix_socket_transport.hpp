@@ -19,10 +19,12 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -275,9 +277,13 @@ private:
             try {
                 std::lock_guard lock(dispatch_mutex);
                 result = handler(*frame);
+            } catch (const std::exception& exception) {
+                spdlog::error("[ipc-unix] client frame handler threw: {}", exception.what());
+                break;
             } catch (...) {
                 // A throwing handler must never take down the daemon; treat
                 // it as a transport error for this client.
+                spdlog::error("[ipc-unix] client frame handler threw a non-standard exception");
                 break;
             }
             if (result.shutdown) {

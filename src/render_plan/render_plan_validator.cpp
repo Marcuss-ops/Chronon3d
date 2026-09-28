@@ -62,6 +62,7 @@ void strip_per_key_timing_for_v2_projection(nlohmann::json& value,
                     key.erase("temporal_in_dy");
                     key.erase("temporal_out_dx");
                     key.erase("temporal_out_dy");
+                    key.erase("spring");
                 }
             }
         }
@@ -83,6 +84,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         strip_per_key_timing_for_v2_projection(projected["camera_animation"]);
     projected.erase("camera");
     projected.erase("camera_animation");
+    projected.erase("camera_shake");
     projected.erase("lighting_rig");
 
     for (auto& layer : projected["layers"]) {
@@ -133,6 +135,15 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // from the frozen V2 projection while retaining validation of all
         // shared animation properties.
         layer.erase("fill_gradient_animation");
+        // V3 layout descriptors and their stagger authoring data are validated
+        // by the extension schema and do not belong to the frozen V2 shape.
+        layer.erase("flow");
+        layer.erase("grid_layout");
+        layer.erase("follow_path");
+        layer.erase("auto_orient");
+        layer.erase("effect_param_tracks");
+        layer.erase("skew");
+        layer.erase("skew_axis");
         // Typed background looks are expanded by the V3 decoder and are not
         // representable in the frozen V2 projection.
         layer.erase("background_look");
@@ -141,8 +152,33 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         if (layer.contains("animation") && layer["animation"].is_object() &&
             layer["animation"].contains("tracks") && layer["animation"]["tracks"].is_array()) {
             auto& tracks = layer["animation"]["tracks"];
+            // Procedural scalar drivers are V3-only fields. The V3 extension
+            // schema validates their strict shape; remove them from the
+            // frozen V2 projection so the legacy additionalProperties:false
+            // rule does not reject valid V3 tracks.
+            for (auto& track : tracks) {
+                if (!track.is_object()) continue;
+                track.erase("oscillate");
+                track.erase("random_hold");
+                track.erase("posterize_time");
+                track.erase("data_feed");
+                track.erase("audio_react");
+                track.erase("loop_mode");
+                track.erase("wiggle");
+                track.erase("spring");
+                if (track.value("easing", std::string{}) == "spring")
+                    track.erase("easing");
+                if (!track.contains("keyframes"))
+                    track["keyframes"] = nlohmann::json::array({
+                        nlohmann::json{{"frame", 0}, {"value", 0.0}}});
+                if (track.contains("keyframes") && track["keyframes"].is_array())
+                    for (auto& keyframe : track["keyframes"])
+                        if (keyframe.is_object()) keyframe.erase("easing_xy");
+            }
             tracks.erase(std::remove_if(tracks.begin(), tracks.end(), [](const auto& track) {
-                return track.is_object() && track.value("property", std::string{}) == "fill_color";
+                if (!track.is_object()) return false;
+                const auto property = track.value("property", std::string{});
+                return property == "fill_color" || property == "skew" || property == "skew_axis";
             }), tracks.end());
             if (tracks.empty()) layer.erase("animation");
         }
@@ -168,6 +204,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.
         layer.erase("mask");
+        layer.erase("masks");
         layer.erase("effects");
         if (layer.contains("style") && layer["style"].is_object()) {
             layer["style"].erase("gradient");

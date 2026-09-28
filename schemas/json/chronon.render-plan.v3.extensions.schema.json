@@ -4,6 +4,96 @@
   "title": "Chronon3D Render Plan V3 Shape and Gradient Extensions",
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
+    "effect_param_track": {
+      "type": "object", "additionalProperties": false,
+      "required": ["effect_id", "param", "keyframes"],
+      "properties": {
+        "effect_id": { "enum": [
+          "blur.gaussian", "color.tint", "color.brightness", "color.contrast",
+          "light.drop_shadow", "light.glow", "light.bloom", "distort.fake_3d_wave",
+          "color.saturation", "color.hue_rotate", "color.invert", "color.vignette",
+          "color.exposure", "color.levels", "color.curves", "generate.fill",
+          "generate.noise", "distort.offset", "distort.directional_blur",
+          "distort.radial_blur", "stylize.stroke", "generate.fractal_noise",
+          "generate.checkerboard", "generate.four_color_gradient", "generate.light_rays",
+          "color.lut_3d", "temporal.echo", "matte.luma_chroma_key", "stylize.threshold",
+          "stylize.mosaic", "distort.corner_pin", "distort.twirl", "distort.bulge",
+          "distort.mesh_warp", "sharpen", "distort.turbulent_displace", "distort.wave_warp",
+          "distort.ripple", "distort.displacement_map", "stylize.chromatic_aberration",
+          "stylize.halftone"
+        ] },
+        "param": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "easing": { "$ref": "#/$defs/animation_easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+        "spring": { "$ref": "#/$defs/spring_config" },
+        "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"] },
+        "wiggle": { "$ref": "#/$defs/wiggle_driver" },
+        "oscillate": { "$ref": "#/$defs/oscillate_driver" },
+        "random_hold": { "$ref": "#/$defs/random_hold_driver" },
+        "posterize_time": { "$ref": "#/$defs/posterize_time_driver" },
+        "keyframes": {
+          "type": "array", "minItems": 1, "maxItems": 65536,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" },
+                      { "$ref": "#/$defs/per_keyframe_spring_contract" }],
+            "required": ["frame", "value"],
+            "properties": {
+              "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+              "value": { "type": "number" },
+              "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+              "easing": { "$ref": "#/$defs/easing" },
+              "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+              "spring": { "$ref": "#/$defs/spring_config" },
+              "roving": { "type": "boolean" },
+              "temporal_in_dx": { "type": "number" }, "temporal_in_dy": { "type": "number" },
+              "temporal_out_dx": { "type": "number" }, "temporal_out_dy": { "type": "number" }
+            }
+          }
+        }
+      },
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" },
+        { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
+        { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } }]
+    },
+    "catalog_effect": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "effect_id"],
+      "properties": {
+        "type": { "const": "catalog" },
+        "effect_id": { "enum": [
+          "blur.gaussian", "color.tint", "color.brightness", "color.contrast",
+          "light.drop_shadow", "light.glow", "light.bloom", "distort.fake_3d_wave",
+          "color.saturation", "color.hue_rotate", "color.invert", "color.vignette",
+          "color.exposure", "color.levels", "color.curves", "generate.fill",
+          "generate.noise", "distort.offset", "distort.directional_blur",
+          "distort.radial_blur", "stylize.stroke", "generate.fractal_noise",
+          "generate.checkerboard", "generate.four_color_gradient", "generate.light_rays",
+          "temporal.echo", "matte.luma_chroma_key", "stylize.threshold",
+          "stylize.mosaic", "distort.corner_pin", "distort.twirl", "distort.bulge",
+          "distort.mesh_warp", "sharpen", "distort.turbulent_displace", "distort.wave_warp",
+          "distort.ripple", "stylize.chromatic_aberration",
+          "stylize.halftone"
+        ] },
+        "params": { "type": "array", "maxItems": 64,
+          "items": { "type": "object", "additionalProperties": false,
+            "required": ["param", "value"],
+            "properties": { "param": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "value": { "type": "number" } } } }
+      }
+    },
+    "camera_shake": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "amplitude_px": { "type": "number", "minimum": 0, "maximum": 4096 },
+        "frequency_hz": { "type": "number", "exclusiveMinimum": 0, "maximum": 120 },
+        "decay": { "type": "number", "minimum": 0, "maximum": 100 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "rotation_amplitude_deg": { "type": "number", "minimum": 0, "maximum": 360 },
+        "start_frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "duration_frames": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    },
     "rgba_color": {
       "type": "array", "minItems": 4, "maxItems": 4,
       "items": { "type": "number", "minimum": 0, "maximum": 1 }
@@ -129,7 +219,7 @@
       "items": { "type": "number", "minimum": -10, "maximum": 10 }
     },
     "bezier_easing_contract": {
-      "allOf": [
+  "allOf": [
         { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"] } },
         { "if": { "required": ["bezier_curve"], "properties": { "bezier_curve": { "type": "array" } } }, "then": { "properties": { "easing": { "const": "bezier" } }, "required": ["easing"] } }
       ]
@@ -138,10 +228,10 @@
       "allOf": [
         { "if": { "required": ["interpolation"], "properties": { "interpolation": { "enum": ["linear", "hold", "auto_bezier"] } } }, "then": { "not": { "anyOf": [{ "required": ["easing"] }, { "required": ["bezier_curve"] }, { "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] } } },
         { "if": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } } }, "then": { "anyOf": [{ "required": ["bezier_curve"] }, { "required": ["temporal_in_dx", "temporal_in_dy"] }, { "required": ["temporal_out_dx", "temporal_out_dy"] }], "not": { "required": ["easing"] } } },
-        { "if": { "required": ["bezier_curve"] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }, { "properties": { "roving": { "const": true } } }] } } },
-        { "if": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "properties": { "roving": { "const": true } } } } },
+        { "if": { "required": ["bezier_curve"] }, "then": { "anyOf": [{ "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } } }, { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }], "not": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }, { "required": ["roving"], "properties": { "roving": { "const": true } } }] } } },
+        { "if": { "anyOf": [{ "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] }, "then": { "required": ["interpolation"], "properties": { "interpolation": { "const": "bezier" } }, "not": { "required": ["roving"], "properties": { "roving": { "const": true } } } } },
         { "if": { "required": ["roving"], "properties": { "roving": { "const": true } } }, "then": { "not": { "anyOf": [{ "required": ["bezier_curve"] }, { "required": ["temporal_in_dx"] }, { "required": ["temporal_in_dy"] }, { "required": ["temporal_out_dx"] }, { "required": ["temporal_out_dy"] }] } } },
-        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"], "not": { "anyOf": [{ "required": ["interpolation"] }, { "properties": { "roving": { "const": true } } }] } } }
+        { "if": { "required": ["easing"], "properties": { "easing": { "const": "bezier" } } }, "then": { "required": ["bezier_curve"], "not": { "anyOf": [{ "required": ["interpolation"] }, { "required": ["roving"], "properties": { "roving": { "const": true } } }] } } }
       ]
     },
     "per_keyframe_spring_contract": {
@@ -217,6 +307,85 @@
         "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 }
       }
     },
+    "oscillate_driver": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "frequency_hz": { "type": "number", "minimum": 0.001, "maximum": 60, "default": 1 },
+        "amplitude": { "type": "number", "default": 1 },
+        "phase_deg": { "type": "number", "default": 0 },
+        "waveform": { "enum": ["sine", "triangle", "sawtooth", "square"], "default": "sine" },
+        "offset": { "type": "number", "default": 0 }
+      }
+    },
+    "random_hold_driver": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "interval_frames": { "type": "integer", "minimum": 1, "maximum": 600, "default": 1 },
+        "min": { "type": "number", "default": 0 },
+        "max": { "type": "number", "default": 1 },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 }
+      }
+    },
+    "posterize_time_driver": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "fps": { "type": "number", "minimum": 1, "maximum": 30, "default": 8 }
+      }
+    },
+    "layout_stagger": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "per_item_frames": { "type": "integer", "minimum": 0, "maximum": 600, "default": 0 },
+        "order": { "enum": ["forward", "reverse", "center_out", "random"], "default": "forward" },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
+        "track_property": { "type": "string", "minLength": 1, "maxLength": 128, "default": "opacity" },
+        "easing": { "$ref": "#/$defs/easing" }
+      }
+    },
+    "follow_path_progress_keyframe": {
+      "type": "object", "additionalProperties": false,
+      "allOf": [{ "$ref": "#/$defs/per_keyframe_timing_contract" }, { "$ref": "#/$defs/per_keyframe_spring_contract" }],
+      "required": ["frame", "value"],
+      "properties": {
+        "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "value": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+        "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
+        "easing": { "$ref": "#/$defs/easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+        "spring": { "$ref": "#/$defs/spring_config" },
+        "roving": { "type": "boolean", "default": false },
+        "temporal_in_dx": { "type": "number" }, "temporal_in_dy": { "type": "number" },
+        "temporal_out_dx": { "type": "number" }, "temporal_out_dy": { "type": "number" }
+      }
+    },
+    "follow_path_progress_track": {
+      "type": "object", "additionalProperties": false, "required": ["keyframes"],
+      "properties": {
+        "easing": { "$ref": "#/$defs/animation_easing" },
+        "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
+        "spring": { "$ref": "#/$defs/spring_config" },
+        "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
+        "keyframes": { "type": "array", "minItems": 1, "maxItems": 65536,
+          "items": { "$ref": "#/$defs/follow_path_progress_keyframe" } }
+      },
+      "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }]
+    },
+    "follow_path_driver": {
+      "type": "object", "additionalProperties": false, "required": ["progress"],
+      "properties": {
+        "path_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "path_commands": { "type": "array", "minItems": 2, "maxItems": 65536,
+          "items": { "$ref": "#/$defs/path_command" } },
+        "progress": { "$ref": "#/$defs/follow_path_progress_track" },
+        "auto_orient": { "type": "boolean", "default": false },
+        "offset_deg": { "type": "number", "minimum": -1000000, "maximum": 1000000, "default": 0 },
+        "clamp_end": { "type": "boolean", "default": true }
+      },
+      "oneOf": [
+        { "required": ["path_id"], "not": { "required": ["path_commands"] } },
+        { "required": ["path_commands"], "not": { "required": ["path_id"] } }
+      ]
+    },
     "animator_property_track": {
       "description": "V3 override of the V2 animator property track. The property vocabulary is the V2 set plus the per-glyph 'rotation' and 'fill_color' tracks; V2 plans keep the frozen V2 enum and cannot use them.",
       "type": "object", "additionalProperties": false,
@@ -230,6 +399,9 @@
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "spring": { "$ref": "#/$defs/spring_config" },
         "wiggle": { "$ref": "#/$defs/wiggle_driver" },
+                    "oscillate": { "$ref": "#/$defs/oscillate_driver" },
+                    "random_hold": { "$ref": "#/$defs/random_hold_driver" },
+                    "posterize_time": { "$ref": "#/$defs/posterize_time_driver" },
         "keyframes": {
           "type": "array", "minItems": 1,
           "items": {
@@ -337,6 +509,12 @@
         { "$ref": "#/$defs/bezier_easing_contract" },
         { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
         { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } }
+      ]
+    },
+    "mask_parameter_track": {
+      "allOf": [
+        { "$ref": "#/$defs/selector_track" },
+        { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number" } } } } } }
       ]
     },
     "text_selector": {
@@ -666,6 +844,7 @@
       "additionalProperties": { "type": ["string", "number"] }
     },
     "camera": { "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera" },
+    "camera_shake": { "$ref": "#/$defs/camera_shake" },
     "camera_animation": { "$ref": "#/$defs/camera_animation" },
     "lighting_rig": {
       "type": "object", "additionalProperties": false,
@@ -746,7 +925,8 @@
               "axis": { "enum": ["row", "column"] }, "align": { "enum": ["start", "center", "end", "stretch"] },
               "justify": { "enum": ["start", "center", "end", "space_between", "space_around", "space_evenly"] },
               "gap": { "type": "number", "minimum": 0, "maximum": 1000000 }, "wrap": { "type": "boolean" },
-              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } }
+              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } },
+              "stagger": { "$ref": "#/$defs/layout_stagger" }
             }
           },
           "grid_layout": {
@@ -755,7 +935,8 @@
               "group_id": { "type": "string", "minLength": 1, "maxLength": 256 }, "fit": { "enum": ["auto", "fixed_columns", "fixed_rows"] },
               "columns": { "type": "integer", "minimum": 1, "maximum": 4096 }, "rows": { "type": "integer", "minimum": 1, "maximum": 4096 },
               "gap": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } },
-              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } }
+              "cell_size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1000000 } },
+              "stagger": { "$ref": "#/$defs/layout_stagger" }
             }
           },
           "type": { "enum": ["image", "video", "text", "color", "shape", "particles", "light", "adjustment", "mesh"] },
@@ -805,6 +986,8 @@
               "left": { "type": "number", "minimum": 0, "maximum": 1000000 }
             }
           },
+          "skew": { "type": "number", "minimum": -80, "maximum": 80 },
+          "skew_axis": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
           "particle_emitter": {
             "type": "object", "additionalProperties": false,
             "required": ["count", "seed", "emitter_size", "velocity_min", "velocity_max", "lifetime", "size"],
@@ -884,6 +1067,7 @@
             }
           },
           "auto_orient": { "type": "boolean", "default": false },
+          "follow_path": { "$ref": "#/$defs/follow_path_driver" },
           "transition_in": { "$ref": "#/$defs/transition" },
           "transition_out": { "$ref": "#/$defs/transition" },
           "parent": { "type": "string", "minLength": 1, "maxLength": 256 },
@@ -949,15 +1133,59 @@
                 "type": "array", "minItems": 1,
                 "items": {
                   "type": "object", "additionalProperties": false,
-                  "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
-                  "required": ["property", "keyframes"],
+                  "allOf": [
+                    { "$ref": "#/$defs/bezier_easing_contract" },
+                    { "oneOf": [
+                      { "required": ["keyframes"], "not": { "anyOf": [ { "required": ["data_feed"] }, { "required": ["audio_react"] } ] } },
+                      { "required": ["data_feed"], "not": { "anyOf": [ { "required": ["keyframes"] }, { "required": ["audio_react"] } ] } },
+                      { "required": ["audio_react"], "not": { "anyOf": [ { "required": ["keyframes"] }, { "required": ["data_feed"] } ] } }
+                    ] }
+                  ],
+                  "required": ["property"],
                   "properties": {
-                    "property": { "enum": ["position", "position_x", "position_y", "position_z", "scale", "scale_x", "scale_y", "scale_z", "rotation", "rotation_x", "rotation_y", "rotation_z", "opacity", "blur", "stroke_dash_offset", "fill_color"] },
+                    "property": {
+                      "description": "stroke_width and stroke_color animate a shape's solid stroke. shadow_N_opacity, shadow_N_blur, shadow_N_offset_x, shadow_N_offset_y, and shadow_N_color animate the Nth shape style shadow, zero-based.",
+                      "enum": ["position", "position_x", "position_y", "position_z", "scale", "scale_x", "scale_y", "scale_z", "rotation", "rotation_x", "rotation_y", "rotation_z", "skew", "skew_axis", "opacity", "blur", "stroke_dash_offset", "stroke_width", "stroke_color", "fill_color", "shadow_0_opacity", "shadow_0_blur", "shadow_0_offset_x", "shadow_0_offset_y", "shadow_0_color", "shadow_1_opacity", "shadow_1_blur", "shadow_1_offset_x", "shadow_1_offset_y", "shadow_1_color", "shadow_2_opacity", "shadow_2_blur", "shadow_2_offset_x", "shadow_2_offset_y", "shadow_2_color"]
+                    },
                     "easing": { "$ref": "#/$defs/animation_easing" },
                     "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
                     "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
                     "spring": { "$ref": "#/$defs/spring_config" },
                     "wiggle": { "$ref": "#/$defs/wiggle_driver" },
+        "oscillate": { "$ref": "#/$defs/oscillate_driver" },
+        "random_hold": { "$ref": "#/$defs/random_hold_driver" },
+        "posterize_time": { "$ref": "#/$defs/posterize_time_driver" },
+                    "data_feed": {
+                      "type": "object", "additionalProperties": false,
+                      "oneOf": [
+                        { "required": ["values"], "not": { "anyOf": [
+                          { "required": ["asset"] }, { "required": ["sha256"] }, { "required": ["item_count"] }
+                        ] } },
+                        { "required": ["asset", "sha256", "item_count"], "not": { "required": ["values"] } }
+                      ],
+                      "properties": {
+                        "values": { "type": "array", "minItems": 1, "maxItems": 1000000,
+                          "items": { "type": "number" } },
+                        "asset": { "type": "string", "minLength": 1 },
+                        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                        "item_count": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+                        "index_offset": { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
+                        "interpolation": { "enum": ["step", "linear"], "default": "step" }
+                      }
+                    },
+                    "audio_react": {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["source"],
+                      "properties": {
+                        "source": { "type": "string", "pattern": "^mix:[A-Za-z0-9_.-]+$" },
+                        "feature": { "enum": ["rms"] },
+                        "band_hz": { "type": "array", "minItems": 2, "maxItems": 2,
+                          "items": { "type": "number", "minimum": 1, "maximum": 96000 } },
+                        "smoothing_frames": { "type": "integer", "minimum": 1, "maximum": 120 },
+                        "gain": { "type": "number", "minimum": 0, "maximum": 100 },
+                        "map": { "enum": ["linear"] }
+                      }
+                    },
                     "keyframes": {
                       "type": "array", "minItems": 1, "maxItems": 65536,
                       "items": {
@@ -974,6 +1202,8 @@
                           },
                           "interpolation": { "enum": ["linear", "hold", "bezier", "auto_bezier"] },
                           "easing": { "$ref": "#/$defs/animation_easing" },
+                          "easing_xy": { "type": "array", "minItems": 2, "maxItems": 2,
+                            "items": { "$ref": "#/$defs/easing" } },
                           "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
                           "spring": { "$ref": "#/$defs/spring_config" },
                           "roving": { "type": "boolean", "default": false },
@@ -990,7 +1220,7 @@
                     { "if": { "properties": { "easing": { "const": "spring" } }, "required": ["easing"] }, "then": { "required": ["spring"] } },
                     { "if": { "required": ["spring"] }, "then": { "properties": { "easing": { "const": "spring" } } } },
                     {
-                      "if": { "properties": { "property": { "const": "fill_color" } }, "required": ["property"] },
+                      "if": { "properties": { "property": { "enum": ["fill_color", "stroke_color", "shadow_0_color", "shadow_1_color", "shadow_2_color"] } }, "required": ["property"] },
                       "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "$ref": "#/$defs/rgba" } } } } } }
                     }
                   ]
@@ -1034,6 +1264,10 @@
               "animation": { "$ref": "#/$defs/selector_track" },
               "feather": { "type": "number", "minimum": 0, "maximum": 1000000 },
               "expansion": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+              "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "feather_track": { "$ref": "#/$defs/mask_parameter_track" },
+              "expansion_track": { "$ref": "#/$defs/mask_parameter_track" },
+              "opacity_track": { "$ref": "#/$defs/mask_parameter_track" },
               "inverted": { "type": "boolean" }
             },
             "allOf": [
@@ -1062,6 +1296,10 @@
                 "radius": { "type": "number", "minimum": 0, "maximum": 500000 },
                 "feather": { "type": "number", "minimum": 0, "maximum": 1000000 },
                 "expansion": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+                "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                "feather_track": { "$ref": "#/$defs/mask_parameter_track" },
+                "expansion_track": { "$ref": "#/$defs/mask_parameter_track" },
+                "opacity_track": { "$ref": "#/$defs/mask_parameter_track" },
                 "inverted": { "type": "boolean" }
               },
               "allOf": [
@@ -1376,8 +1614,13 @@
                   "intensity_y": { "type": "number", "minimum": -4, "maximum": 4 },
                   "map_channel": { "enum": ["luma", "red", "green", "blue", "alpha"] }
                 }
-              }
+              },
+              { "$ref": "#/$defs/catalog_effect" }
             ] }
+          },
+          "effect_param_tracks": {
+            "type": "array", "maxItems": 256,
+            "items": { "$ref": "#/$defs/effect_param_track" }
           },
           "style": {
             "type": "object",
@@ -1419,5 +1662,8 @@
         ]
       }
     }
-  }
+  },
+  "allOf": [
+    { "if": { "required": ["camera_shake"] }, "then": { "required": ["camera"] } }
+  ]
 }
