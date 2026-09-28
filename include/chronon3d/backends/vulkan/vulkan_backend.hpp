@@ -50,6 +50,8 @@ struct VulkanBackendStats {
     std::uint64_t physical_surfaces_live{0};
     std::uint64_t surface_bindings_live{0};
     std::uint64_t deferred_surface_release_count{0};
+    std::uint64_t deferred_release_flush_count{0};
+    std::uint64_t deferred_release_drain_wait_us{0};
     std::uint64_t physical_surfaces_peak{0};
     std::uint64_t submissions{0};
     /// Cumulative number of GPU command-plan passes executed. Incremented

@@ -320,6 +320,8 @@ void serialize_job_section(nlohmann::json& job,
     put_gpu_u64("standalone_wait_us", timings.gpu.standalone_wait_us);
     put_gpu_u64("frame_batch_drain_wait_count", timings.gpu.frame_batch_drain_wait_count);
     put_gpu_u64("frame_batch_drain_wait_us", timings.gpu.frame_batch_drain_wait_us);
+    put_gpu_u64("deferred_release_flush_count", timings.gpu.deferred_release_flush_count);
+    put_gpu_u64("deferred_release_drain_wait_us", timings.gpu.deferred_release_drain_wait_us);
     put_gpu_u64("frame_slot_wait_count", timings.gpu.frame_slot_wait_count);
     put_gpu_u64("frame_slot_wait_us", timings.gpu.frame_slot_wait_us);
     put_gpu_u64("vulkan_cuda_export_fence_wait_count", timings.gpu.vulkan_cuda_export_fence_wait_count);

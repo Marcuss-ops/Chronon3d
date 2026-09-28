@@ -150,6 +150,8 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("physical_surfaces_live", surface_counts.physical);
     out.emplace_back("surface_bindings_live", surface_counts.bindings);
     out.emplace_back("deferred_surface_release_count", surface_counts.deferred);
+    out.emplace_back("deferred_release_flush_count", m_impl->stats.deferred_release_flush_count);
+    out.emplace_back("deferred_release_drain_wait_us", m_impl->stats.deferred_release_drain_wait_us);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);
     out.emplace_back("gpu_wait_cpu_us", m_impl->stats.gpu_wait_cpu_us);
     out.emplace_back("standalone_wait_count", m_impl->stats.standalone_wait_count);

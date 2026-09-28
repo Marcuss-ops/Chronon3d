@@ -227,7 +227,9 @@ struct VulkanBackend::Impl {
 
     void destroy_surface_images() noexcept { surfaces.destroy_all(*this); }
     void defer_surface_release(runtime::RenderSurfaceHandle handle) {
-        surfaces.deferred_surface_releases.push_back(handle);
+        ++stats.deferred_surface_release_count;
+        const std::size_t slot = frame_batch.next_slot;
+        surfaces.deferred_surface_releases.push_back({handle, slot});
     }
     [[nodiscard]] bool surface_valid(runtime::RenderSurfaceHandle handle) const noexcept {
         return surfaces.valid(handle);
