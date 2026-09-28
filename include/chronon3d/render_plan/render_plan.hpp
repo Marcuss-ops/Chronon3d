@@ -245,6 +245,8 @@ struct ShapeContentPlan {
     float arc_sweep_deg{270.0f}; // degrees (1..359.9)
     float arc_thickness{8.0f}; // px, 0 = stroked arc
     // ── WorldMap / Chart / DeviceFrame / Counter (additive payloads) ─
+    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
+    bool device_frame_chrome{true};
     std::optional<WorldMapPlan> world_map;
     std::optional<ChartPlan> chart;
     std::optional<DeviceFramePlan> device_frame;
