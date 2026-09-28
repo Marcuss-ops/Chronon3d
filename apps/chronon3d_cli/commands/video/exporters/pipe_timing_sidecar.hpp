@@ -126,6 +126,8 @@ struct GpuMetrics {
     std::optional<std::uint64_t> standalone_wait_us;
     std::optional<std::uint64_t> frame_batch_drain_wait_count;
     std::optional<std::uint64_t> frame_batch_drain_wait_us;
+    std::optional<std::uint64_t> deferred_release_flush_count;
+    std::optional<std::uint64_t> deferred_release_drain_wait_us;
     std::optional<std::uint64_t> frame_slot_wait_count;
     std::optional<std::uint64_t> frame_slot_wait_us;
     std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_count;

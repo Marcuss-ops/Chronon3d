@@ -177,9 +177,56 @@ namespace chronon3d::backends::vulkan {
 
     void VulkanBackend::Impl::flush_deferred_surface_releases() {
         if (surfaces.deferred_surface_releases.empty()) return;
+        ++stats.deferred_release_flush_count;
+        const auto flush_start = profiling::now();
+
+        // Non-blocking fence polling: retire slots that have completed on GPU
+        for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+            if (!frame_batch.in_flight[i]) continue;
+            const auto status = vkGetFenceStatus(device, frame_batch.fences[i]);
+            if (status == VK_NOT_READY) continue;
+            check(status, "vkGetFenceStatus(deferred release polling)");
+            check(vkResetFences(device, 1, &frame_batch.fences[i]),
+                  "vkResetFences(deferred release polling)");
+            frame_batch.in_flight[i] = false;
+            read_gpu_timestamps(i);
+            retire_frame_slot_transient_surfaces(i);
+        }
+
+        // Bounded capacity: fallback wait if accumulated deferred releases exceed cap
+        static constexpr std::size_t kOverflowCap = 2 * FrameBatchState::kSlotCount;
+        if (surfaces.deferred_surface_releases.size() > kOverflowCap) {
+            wait_for_pending();
+        }
+
         auto pending = std::move(surfaces.deferred_surface_releases);
         surfaces.deferred_surface_releases.clear();
-        for (const auto handle : pending) release_surface_now(handle);
+        surfaces.deferred_surface_releases.reserve(pending.size());
+
+        for (const auto& item : pending) {
+            if (item.slot < FrameBatchState::kSlotCount && frame_batch.in_flight[item.slot]) {
+                surfaces.deferred_surface_releases.push_back(item);
+                continue;
+            }
+            if (surface_lifecycle_diag_enabled()) {
+                spdlog::info("[surface-lifecycle] deferred-release handle={} slot={}",
+                             item.handle, item.slot);
+            }
+            const auto binding = surfaces.surface_bindings.find(item.handle);
+            if (binding == surfaces.surface_bindings.end()) continue;
+            const auto slot = binding->second;
+            if (surfaces.surface_bindings.erase(item.handle) == 0) continue;
+            surfaces.unplanned_surface_handles.erase(item.handle);
+            if (surfaces.surface_bindings.empty()) {
+                surfaces.reclaim_unused_transient_slots();
+            } else {
+                prune_unused_transient_slots();
+            }
+            ++stats.surface_releases;
+        }
+
+        const auto flush_us = static_cast<std::uint64_t>(profiling::elapsed_us(flush_start));
+        stats.deferred_release_drain_wait_us += flush_us;
     }
 
     void VulkanBackend::Impl::record_slot_transient_surface(
@@ -242,6 +289,7 @@ namespace chronon3d::backends::vulkan {
             // this backend. Do not use vkDeviceWaitIdle here; the compiled
             // frame path must never acquire an implicit device-global sync.
             wait_for_pending();
+            flush_deferred_surface_releases();
             for (auto& handles : surfaces.frame_slot_transient_handles) {
                 handles.clear();
             }

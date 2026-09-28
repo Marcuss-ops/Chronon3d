@@ -97,7 +97,11 @@ public:
     std::unordered_set<std::size_t> cuda_ready_surfaces{};
     std::unordered_set<std::size_t> cuda_export_ready_surfaces{};
 #endif
-    std::vector<runtime::RenderSurfaceHandle> deferred_surface_releases{};
+    struct DeferredSurfaceRelease {
+        runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
+        std::size_t slot{0};
+    };
+    std::vector<DeferredSurfaceRelease> deferred_surface_releases{};
     std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles{};
     static constexpr std::size_t kFrameBatchSlotCount = 6;
     std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
