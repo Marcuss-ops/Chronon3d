@@ -9,7 +9,11 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/error.h>
+#include <libavutil/version.h>
 #include <libswresample/swresample.h>
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+#include <libavutil/channel_layout.h>
+#endif
 }
 #endif
 
@@ -53,11 +57,22 @@ bool decode_audio_mono_48k(const std::string& path,
         avcodec_open2(codec, decoder, nullptr) < 0) {
         error = "audio decoder initialization failed"; cleanup(); return false;
     }
+#if LIBAVUTIL_VERSION_MAJOR >= 57
     AVChannelLayout output_layout{};
     av_channel_layout_default(&output_layout, 1);
     status = swr_alloc_set_opts2(&resampler, &output_layout, AV_SAMPLE_FMT_FLT, 48000,
         &codec->ch_layout, codec->sample_fmt, codec->sample_rate, 0, nullptr);
     av_channel_layout_uninit(&output_layout);
+#else
+    const std::uint64_t in_ch_layout = codec->channel_layout != 0
+        ? codec->channel_layout
+        : av_get_default_channel_layout(codec->channels);
+    resampler = swr_alloc_set_opts(nullptr,
+        AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLT, 48000,
+        in_ch_layout, codec->sample_fmt, codec->sample_rate,
+        0, nullptr);
+    status = resampler ? 0 : -1;
+#endif
     if (status < 0 || !resampler || swr_init(resampler) < 0) {
         error = "audio resampler initialization failed"; cleanup(); return false;
     }
