@@ -150,6 +150,12 @@ public:
     void clear(const Color& color) {
         profiling::record_node_memory_event(profiling::NodeMemoryEvent::Clear);
         Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
+        if (!ptr) {
+            m_opaque = color.a >= 0.999f;
+            m_content_cleared =
+                (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f);
+            return;
+        }
         if (m_allocated_width == m_width) {
             framebuffer_clear_contiguous(ptr, pixel_count(), color);
         } else {
@@ -182,6 +188,13 @@ public:
         profiling::record_node_memory_event(profiling::NodeMemoryEvent::Clear);
 
         Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
+        if (!ptr) {
+            if (!m_opaque || color.a < 0.999f) {
+                m_opaque = false;
+            }
+            m_content_cleared = false;
+            return;
+        }
         framebuffer_clear_strided(ptr, m_allocated_width, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, color);
         if (!m_opaque || color.a < 0.999f) {
             m_opaque = false;
