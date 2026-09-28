@@ -397,13 +397,16 @@ private:
 
     /// Evict entries until there is room for `incoming_bytes`, or until no
     /// more entries can be evicted.  Returns true if room was made.
-    bool evict_lru_for(size_t incoming_bytes);
+    bool evict_lru_for(size_t incoming_bytes,
+        std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction);
 
     /// Evict the oldest entry from a specific size class.
-    bool evict_one_from_bucket(FramebufferPoolKey key);
+    bool evict_one_from_bucket(FramebufferPoolKey key,
+        std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction);
 
     /// Evict the globally oldest entry across all size classes.
-    bool evict_global_lru();
+    bool evict_global_lru(
+        std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction);
 
     // The pool remains the single budget/residency authority. Shared locking
     // lets concurrent readers (telemetry/config probes) proceed together;

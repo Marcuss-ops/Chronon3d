@@ -84,6 +84,7 @@ public:
     LayerBuilder& position(Vec3 position);
     LayerBuilder& scale(Vec3 scale);
     LayerBuilder& rotate(Vec3 euler_degrees);
+    LayerBuilder& skew(Vec2 angle_and_axis_degrees);
     LayerBuilder& anchor(Vec3 anchor);
     LayerBuilder& opacity(f32 value);
     LayerBuilder& enable_3d(bool value = true);
@@ -92,6 +93,7 @@ public:
     AnimatedValue<Vec3>& position_anim();
     AnimatedValue<Vec3>& scale_anim();
     AnimatedValue<Vec3>& rotate_anim();
+    AnimatedValue<Vec3>& skew_anim();
     AnimatedValue<Vec3>& anchor_anim();
     AnimatedValue<f32>& opacity_anim();
     AnimatedValue<f32>& blur_anim();

@@ -63,6 +63,7 @@ struct AnimationKeyframePlan {
     std::vector<float> value;
     std::optional<std::string> interpolation;
     std::optional<std::string> easing;
+    std::optional<std::array<std::string, 2>> easing_xy;
     std::optional<std::array<float, 4>> bezier_curve;
     bool roving{false};
     std::optional<float> temporal_in_dx;
@@ -88,6 +89,43 @@ struct AnimationTrackPlan {
         std::uint32_t seed{0};
     };
     std::optional<WiggleDriverPlan> wiggle;
+    struct OscillateDriverPlan {
+        float frequency_hz{1.0f};
+        float amplitude{1.0f};
+        float phase_deg{0.0f};
+        std::string waveform{"sine"};
+        float offset{0.0f};
+    };
+    struct RandomHoldDriverPlan {
+        std::uint32_t interval_frames{1};
+        float min{0.0f};
+        float max{1.0f};
+        std::uint32_t seed{0};
+    };
+    struct PosterizeTimeDriverPlan { float fps{8.0f}; };
+    struct DataFeedDriverPlan {
+        std::vector<float> values;
+        std::string asset;
+        std::string sha256;
+        std::uint32_t item_count{0};
+        std::int32_t index_offset{0};
+        std::string interpolation{"step"};
+    };
+    struct AudioReactDriverPlan {
+        std::string source;
+        std::string feature{"rms"};
+        std::optional<std::array<float, 2>> band_hz;
+        std::uint32_t smoothing_frames{1};
+        float gain{1.0f};
+        std::string map{"linear"};
+        std::string source_sha256;
+        std::vector<float> baked_values;
+    };
+    std::optional<OscillateDriverPlan> oscillate;
+    std::optional<RandomHoldDriverPlan> random_hold;
+    std::optional<PosterizeTimeDriverPlan> posterize_time;
+    std::optional<DataFeedDriverPlan> data_feed;
+    std::optional<AudioReactDriverPlan> audio_react;
 };
 
 struct PathRepeaterPlan {
@@ -209,9 +247,6 @@ struct ShapeContentPlan {
     float arc_sweep_deg{270.0f}; // degrees (1..359.9)
     float arc_thickness{8.0f}; // px, 0 = stroked arc
     // ── WorldMap / Chart / DeviceFrame / Counter (additive payloads) ─
-    // Device frame presentation (read by decoder, compiler, and fingerprint).
-    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
-    bool device_frame_chrome{true};
     std::optional<WorldMapPlan> world_map;
     std::optional<ChartPlan> chart;
     std::optional<DeviceFramePlan> device_frame;
@@ -338,6 +373,16 @@ struct CameraPlan {
     float zoom{1.0f};
 };
 
+struct CameraShakePlan {
+    float amplitude_px{20.0f};
+    float frequency_hz{8.0f};
+    float decay{0.0f};
+    std::uint32_t seed{0};
+    float rotation_amplitude_deg{0.0f};
+    Frame start_frame{0};
+    Frame duration_frames{0}; // zero means no duration limit
+};
+
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
@@ -399,8 +444,24 @@ struct TransitionPlan {
 };
 
 struct LayerPlan {
-    struct FlowLayoutPlan { std::string group_id; std::string axis{"row"}; std::string align{"start"}; std::string justify{"start"}; float gap{0}; bool wrap{false}; std::array<float,2> cell_size{0,0}; };
-    struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; };
+    struct StaggerPlan {
+        std::uint32_t per_item_frames{0};
+        std::string order{"forward"};
+        std::uint32_t seed{0};
+        std::string track_property{"opacity"};
+        std::string easing;
+    };
+    struct FollowPathDriverPlan {
+        std::string path_id;
+        std::vector<ShapePathCommandPlan> path_commands;
+        AnimationTrackPlan progress;
+        bool auto_orient{false};
+        float offset_deg{0.0f};
+        bool clamp_end{true};
+    };
+    std::optional<FollowPathDriverPlan> follow_path;
+    struct FlowLayoutPlan { std::string group_id; std::string axis{"row"}; std::string align{"start"}; std::string justify{"start"}; float gap{0}; bool wrap{false}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; };
+    struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; };
     std::optional<FlowLayoutPlan> flow_layout;
     std::optional<GridLayoutPlan> grid_layout;
     std::string id;
@@ -433,14 +494,21 @@ struct LayerPlan {
         float radius{0.0f};
         float feather{0.0f};
         float expansion{0.0f};
+        float opacity{1.0f};
+        std::optional<AnimationTrackPlan> feather_track;
+        std::optional<AnimationTrackPlan> expansion_track;
+        std::optional<AnimationTrackPlan> opacity_track;
         bool inverted{false};
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
+        std::string canonical_effect_id;
+        struct ParamValue { std::string param; float value{0.0f}; };
+        std::vector<ParamValue> canonical_params;
         std::string asset;
         float amount{1.0f};
         std::uint32_t echoes{3};
@@ -518,6 +586,12 @@ struct LayerPlan {
         std::vector<float> mesh_offsets{}; // cols*rows x,y pairs
 
     };
+    struct EffectParamTrackPlan {
+        std::string effect_id;
+        std::string param;
+        AnimationTrackPlan track;
+    };
+    std::vector<EffectParamTrackPlan> effect_param_tracks;
     std::vector<EffectPlan> effects;
 
     std::array<float, 2> size{0.0f, 0.0f};
@@ -530,6 +604,8 @@ struct LayerPlan {
     // Euler angles in degrees, [x, y, z], for both static and tracked values.
     std::array<float, 3> rotation{0.0f, 0.0f, 0.0f};
     std::size_t rotation_dimensions{0};
+    float skew_angle_deg{0.0f};
+    float skew_axis_deg{0.0f};
     // Route this layer through Chronon's camera-backed 2.5D/3D projection.
     // The flag is explicit so a plan cannot accidentally carry X/Y rotation
     // while still being treated as a flat screen-space overlay.
@@ -642,6 +718,7 @@ struct RenderPlan {
     // Full-scene shutter accumulation; separate from the per-layer analytic blur.
     std::optional<MotionBlurPlan> temporal_motion_blur;
     std::optional<CameraPlan> camera;
+    std::optional<CameraShakePlan> camera_shake;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::optional<LightingRigPlan> lighting_rig;
     std::vector<LayerPlan> layers;

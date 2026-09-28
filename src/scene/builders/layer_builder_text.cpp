@@ -98,6 +98,8 @@ Layer LayerBuilder::build() {
             m_layer.transform.rotation = baked.rotation;
         if (m_layer.anim_transform.scale.is_time_dependent())
             m_layer.transform.scale = baked.scale;
+        if (m_layer.anim_transform.skew.is_time_dependent())
+            m_layer.transform.skew = Vec2{baked.skew.x, baked.skew.y};
         if (m_layer.anim_transform.anchor.is_time_dependent())
             m_layer.transform.anchor = baked.anchor;
         if (m_layer.anim_transform.opacity.is_time_dependent())

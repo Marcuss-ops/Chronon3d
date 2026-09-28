@@ -6,6 +6,10 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    render_plan_decoder_animation.cpp
+    render_plan_decoder_shape.cpp
+    render_plan_decoder_mask.cpp
+    render_plan_decoder_text.cpp
     render_budget.cpp
     spring_bake.cpp
     shape_path_generator.cpp
@@ -13,14 +17,19 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
     render_plan_compiler.cpp
+    render_plan_compiler_lottie.cpp
     render_plan_compiler_animation.cpp
     render_plan_compiler_text.cpp
     render_plan_compiler_fingerprint.cpp
+    audio_react_baker.cpp
     audio_mix_compiler.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
 if(CHRONON3D_ENABLE_SVG)
     target_compile_definitions(chronon3d_render_plan PRIVATE CHRONON3D_ENABLE_SVG=1)
+endif()
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_link_libraries(chronon3d_render_plan PRIVATE chronon3d_ffmpeg_full)
 endif()
 set_source_files_properties(
     render_plan_compiler.cpp

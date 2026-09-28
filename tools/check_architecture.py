@@ -591,6 +591,41 @@ class Runner:
         name = rule["name"]
         if not self.selected(name):
             return
+        if "effect_param_anim_catalog" in rule:
+            catalog = self.root / rule["effect_param_anim_catalog"]
+            anim_table = self.root / rule["anim_param_table"]
+            if not catalog.exists() or not anim_table.exists():
+                self.fail(name, "effect catalog or animatable parameter table missing")
+                return
+            catalog_rows = re.findall(
+                r"CHRONON_EFFECT\(\s*\d+\s*,\s*\w+\s*,\s*(\w+)\s*,\s*ids::(\w+)",
+                read_text(catalog), re.S)
+            anim_rows = re.findall(
+                r"CHRONON_ANIM_PARAM\(ids::(\w+)\s*,\s*(\w+)\s*,\s*([^,]+?)\s*,",
+                read_text(anim_table))
+            id_to_type = {effect_id: params_type for params_type, effect_id in catalog_rows}
+            errors: list[str] = []
+            seen: set[tuple[str, str]] = set()
+            covered: set[str] = set()
+            for effect_id, params_type, param in anim_rows:
+                normalized_param = param.strip()
+                key = (effect_id, normalized_param)
+                if key in seen:
+                    errors.append(f"duplicate {effect_id}.{normalized_param}")
+                seen.add(key)
+                if effect_id not in id_to_type:
+                    errors.append(f"unknown catalog id {effect_id}")
+                elif id_to_type[effect_id] != params_type:
+                    errors.append(f"{effect_id} uses {params_type}, catalog declares {id_to_type[effect_id]}")
+                covered.add(effect_id)
+            missing = sorted(set(id_to_type) - covered)
+            if missing:
+                errors.append(f"effects without animatable parameters: {missing}")
+            if errors:
+                self.fail(name, "; ".join(errors))
+            else:
+                self.ok(name, f"{len(covered)} catalog effects, {len(anim_rows)} scalar parameter rows; members compile-checked")
+            return
         if "effect_catalog" in rule:
             catalog = self.root / rule["effect_catalog"]
             registry = self.root / rule["processor_registry"]

@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+/* Bump only for an incompatible change to the public C engine ABI. */
+#define CHRONON_ABI_VERSION 2u
+
 /*
  * Stable public contract shared by Chronon and Chronon3D.
  *
@@ -173,6 +176,8 @@ CHRONON_API uint32_t chronon_abi_version(void);
 CHRONON_API const char* chronon_version_string(void);
 CHRONON_API const char* chronon_status_name(chronon_status status);
 
+/* Legacy pointer-returning constructor. Failures are logged; use _v2 to
+ * receive a structured status and error message from engine creation. */
 CHRONON_API chronon_engine* chronon_engine_create(
     const chronon_engine_config* config);
 CHRONON_API chronon_status chronon_engine_create_v2(

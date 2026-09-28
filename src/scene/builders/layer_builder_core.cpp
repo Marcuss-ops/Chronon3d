@@ -131,6 +131,13 @@ LayerBuilder& LayerBuilder::rotate(Vec3 euler_deg) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::skew(Vec2 angle_and_axis_deg) {
+    m_layer.transform.skew = angle_and_axis_deg;
+    if (!m_layer.anim_transform.skew.is_time_dependent())
+        m_layer.anim_transform.skew.set(Vec3{angle_and_axis_deg.x, angle_and_axis_deg.y, 0.0f});
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::anchor(Vec3 a) {
     m_layer.transform.anchor = a;
     return *this;
@@ -168,6 +175,7 @@ LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; r
 AnimatedValue<Vec3>& LayerBuilder::position_anim() { return m_layer.anim_transform.position; }
 AnimatedValue<Vec3>& LayerBuilder::scale_anim()    { return m_layer.anim_transform.scale; }
 AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transform.rotation_euler; }
+AnimatedValue<Vec3>& LayerBuilder::skew_anim()      { return m_layer.anim_transform.skew; }
 AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
 AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transform.blur; }

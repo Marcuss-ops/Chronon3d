@@ -1,17 +1,20 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/effects/cube_lut.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 #include <cmath>
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
-#if defined(CHRONON3D_ENABLE_SVG)
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/assets/svg_path_loader.hpp>
-#endif
 
 #include "render_plan_compiler_detail.hpp"
+#include "audio_react_baker.hpp"
 
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -28,318 +31,182 @@
 #include <fstream>
 #include <iterator>
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
-#include <nlohmann/json.hpp>
 
 #include <spdlog/spdlog.h>
-
-namespace {
-using json = nlohmann::json;
-
-std::optional<std::string> expand_static_lottie(
-    chronon3d::render_plan::ShapeContentPlan& shape,
-    const std::filesystem::path& path) {
-    std::error_code ec;
-    const auto bytes = std::filesystem::file_size(path, ec);
-    if (ec || bytes > 10ULL * 1024ULL * 1024ULL)
-        return std::string("Lottie source is missing or exceeds the 10 MiB input limit");
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return std::string("Lottie source could not be opened");
-    try {
-        const auto doc = json::parse(input);
-        if (!doc.is_object() || doc.value("v", std::string{}).empty() ||
-            !doc.contains("layers") || !doc["layers"].is_array() ||
-            doc["layers"].size() != 1)
-            return std::string("supported Lottie requires one shape layer and a version field");
-        const auto& layer = doc["layers"][0];
-        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 ||
-            layer.contains("masksProperties") || layer.contains("ef") ||
-            layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
-            return std::string("Lottie layer type, masks, effects, expressions, or time remap are unsupported");
-        const auto property_is = [](const json& owner, const char* key,
-                                    std::initializer_list<float> expected) {
-            if (!owner.contains(key) || !owner[key].is_object() ||
-                !owner[key].contains("a") || owner[key]["a"] != 0 ||
-                !owner[key].contains("k")) return false;
-            const auto& v = owner[key]["k"];
-            if (expected.size() == 1 && v.is_number())
-                return std::abs(v.get<float>() - *expected.begin()) < 1e-6f;
-            if (!v.is_array() ||
-                (v.size() != expected.size() &&
-                 !(expected.size() == 2 && v.size() == 3) &&
-                 !(expected.size() == 3 && v.size() == 2))) return false;
-            std::size_t i = 0;
-            for (const float want : expected) {
-                if (i >= v.size()) break;
-                if (!v[i].is_number() || !std::isfinite(v[i].get<float>()) ||
-                    std::abs(v[i].get<float>() - want) >= 1e-6f) return false;
-                ++i;
-            }
-            if (v.size() == 3 && expected.size() == 2)
-                return v[2].is_number() && std::abs(v[2].get<float>()) < 1e-6f;
-            return true;
-        };
-        const auto identity_transform = [&](const json& transform) {
-            return property_is(transform, "a", {0.0f, 0.0f}) &&
-                   property_is(transform, "p", {0.0f, 0.0f, 0.0f}) &&
-                   property_is(transform, "s", {100.0f, 100.0f, 100.0f}) &&
-                   property_is(transform, "r", {0.0f}) &&
-                   property_is(transform, "o", {100.0f});
-        };
-        const auto static_vec2_property = [&](const json& owner, const char* key,
-                                              std::array<float, 2>& out) {
-            if (!owner.contains(key) || !owner[key].is_object() ||
-                owner[key].value("a", 1) != 0 || !owner[key].contains("k")) return false;
-            const auto& value = owner[key]["k"];
-            if (!value.is_array() || value.size() != 2) return false;
-            for (std::size_t i = 0; i < 2; ++i) {
-                if (!value[i].is_number()) return false;
-                out[i] = value[i].get<float>();
-                if (!std::isfinite(out[i]) || std::abs(out[i]) > 100000.0f) return false;
-            }
-            return true;
-        };
-        const auto static_scalar_property = [&](const json& owner, const char* key,
-                                                float& out) {
-            if (!owner.contains(key) || !owner[key].is_object() ||
-                owner[key].value("a", 1) != 0 || !owner[key].contains("k") ||
-                !owner[key]["k"].is_number()) return false;
-            out = owner[key]["k"].get<float>();
-            return std::isfinite(out) && std::abs(out) <= 100000.0f;
-        };
-        if (!layer.contains("ks") || !layer["ks"].is_object() ||
-            !identity_transform(layer["ks"]))
-            return std::string("animated or non-identity Lottie layer transforms are unsupported by this lowering");
-        if (!layer.contains("shapes") || !layer["shapes"].is_array() ||
-            layer["shapes"].size() > 256)
-            return std::string("Lottie shape list is missing or exceeds 256 items");
-        std::vector<const json*> geometry_shapes;
-        std::vector<const json*> fills;
-        std::vector<const json*> strokes;
-        for (const auto& item : layer["shapes"]) {
-            if (!item.is_object() || item.contains("exp"))
-                return std::string("malformed Lottie shape item or expression");
-            const auto type = item.value("ty", std::string{});
-            if (type == "sh" || type == "el" || type == "rc") {
-                geometry_shapes.push_back(&item);
-            } else if (type == "fl") {
-                fills.push_back(&item);
-            } else if (type == "st") {
-                strokes.push_back(&item);
-            } else if (type == "tr") {
-                if (!identity_transform(item))
-                    return std::string("animated or non-identity Lottie shape transforms are unsupported by this lowering");
-                continue;
-            } else {
-                return std::string("Lottie supports only static path, ellipse, rectangle, fill, and transform shapes in this lowering");
-            }
-        }
-        if (geometry_shapes.empty())
-            return std::string("Lottie shape geometry is missing");
-        using namespace chronon3d::render_plan;
-        const auto point = [](const json& value, std::array<float, 2>& out) -> bool {
-            if (!value.is_array() || value.size() != 2) return false;
-            for (std::size_t i = 0; i < 2; ++i) {
-                if (!value[i].is_number()) return false;
-                const float v = value[i].get<float>();
-                if (!std::isfinite(v) || std::abs(v) > 100000.0f) return false;
-                out[i] = std::round(v * 10000.0f) / 10000.0f;
-            }
-            return true;
-        };
-        std::size_t total_vertices = 0;
-        std::vector<std::size_t> geometry_command_starts;
-        geometry_command_starts.reserve(geometry_shapes.size());
-        for (const auto* path_shape : geometry_shapes) {
-          const auto shape_type = path_shape->value("ty", std::string{});
-          geometry_command_starts.push_back(shape.path.size());
-          if (shape_type == "el" || shape_type == "rc") {
-              std::array<float, 2> position{}, size{};
-              if (!static_vec2_property(*path_shape, "p", position) ||
-                  !static_vec2_property(*path_shape, "s", size) ||
-                  size[0] <= 0.0f || size[1] <= 0.0f)
-                  return std::string("Lottie ellipse/rectangle requires static bounded position and size");
-              const float half_w = size[0] * 0.5f;
-              const float half_h = size[1] * 0.5f;
-              float radius = 0.0f;
-              if (shape_type == "rc" && path_shape->contains("r") &&
-                  !static_scalar_property(*path_shape, "r", radius))
-                  return std::string("Lottie rectangle roundness must be static and bounded");
-              if (radius < 0.0f || radius > std::min(half_w, half_h))
-                  return std::string("Lottie rectangle roundness exceeds its bounds");
-              const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
-              const auto primitive_point = [&](float x, float y) {
-                  return std::array<float, 2>{quantize(position[0] + x), quantize(position[1] + y)};
-              };
-              const auto move_to = [&](float x, float y) {
-                  if (shape.path.size() >= 65536) return false;
-                  shape.path.push_back({ShapePathCommandTypePlan::MoveTo, primitive_point(x, y)});
-                  return true;
-              };
-              const auto line_to = [&](float x, float y) {
-                  if (shape.path.size() >= 65536) return false;
-                  shape.path.push_back({ShapePathCommandTypePlan::LineTo, primitive_point(x, y)});
-                  return true;
-              };
-              const auto cubic_to = [&](float c1x, float c1y, float c2x, float c2y,
-                                        float x, float y) {
-                  if (shape.path.size() >= 65536) return false;
-                  shape.path.push_back({ShapePathCommandTypePlan::CubicTo, primitive_point(x, y),
-                      primitive_point(c1x, c1y), primitive_point(c2x, c2y)});
-                  return true;
-              };
-              constexpr float kappa = 0.5522847498307936f;
-              if (shape_type == "el") {
-                  const float rx = half_w, ry = half_h;
-                  if (!move_to(rx, 0.0f) ||
-                      !cubic_to(rx, kappa * ry, kappa * rx, ry, 0.0f, ry) ||
-                      !cubic_to(-kappa * rx, ry, -rx, kappa * ry, -rx, 0.0f) ||
-                      !cubic_to(-rx, -kappa * ry, -kappa * rx, -ry, 0.0f, -ry) ||
-                      !cubic_to(kappa * rx, -ry, rx, -kappa * ry, rx, 0.0f))
-                      return std::string("Lottie total path command limit exceeded");
-              } else {
-                  const float left = -half_w, right = half_w;
-                  const float top = -half_h, bottom = half_h;
-                  if (!move_to(left + radius, top))
-                      return std::string("Lottie total path command limit exceeded");
-                  if (radius == 0.0f) {
-                      if (!line_to(right, top) || !line_to(right, bottom) ||
-                          !line_to(left, bottom) || !line_to(left, top))
-                          return std::string("Lottie total path command limit exceeded");
-                  } else {
-                      const float control = radius * kappa;
-                      if (!line_to(right - radius, top) ||
-                          !cubic_to(right - radius + control, top, right, top + radius - control, right, top + radius) ||
-                          !line_to(right, bottom - radius) ||
-                          !cubic_to(right, bottom - radius + control, right - radius + control, bottom, right - radius, bottom) ||
-                          !line_to(left + radius, bottom) ||
-                          !cubic_to(left + radius - control, bottom, left, bottom - radius + control, left, bottom - radius) ||
-                          !line_to(left, top + radius) ||
-                          !cubic_to(left, top + radius - control, left + radius - control, top, left + radius, top))
-                          return std::string("Lottie total path command limit exceeded");
-                  }
-              }
-              if (shape.path.size() >= 65536)
-                  return std::string("Lottie total path command limit exceeded");
-              shape.path.push_back({ShapePathCommandTypePlan::Close});
-              continue;
-          }
-          if (!path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
-              return std::string("Lottie path geometry is missing");
-          const auto& geometry = (*path_shape)["ks"]["k"];
-          if (!geometry.is_object() || !geometry.contains("v") || !geometry.contains("i") ||
-              !geometry.contains("o") || !geometry["v"].is_array() ||
-              geometry["v"].size() < 2 || geometry["v"].size() > 65536 ||
-              !geometry["i"].is_array() || !geometry["o"].is_array() ||
-              geometry["i"].size() != geometry["v"].size() ||
-              geometry["o"].size() != geometry["v"].size() ||
-              geometry["v"].size() > 65536 - total_vertices)
-              return std::string("Lottie static path vertex and tangent arrays are invalid or over limit");
-          total_vertices += geometry["v"].size();
-          for (std::size_t i = 0; i < geometry["v"].size(); ++i) {
-            std::array<float, 2> vertex{}, outgoing{}, incoming{};
-            if (!point(geometry["v"][i], vertex) || !point(geometry["o"][i], outgoing) ||
-                !point(geometry["i"][i], incoming))
-                return std::string("Lottie path contains non-finite or out-of-bounds coordinates");
-            if (i == 0) {
-                if (shape.path.size() >= 65536)
-                    return std::string("Lottie total path command limit exceeded");
-                shape.path.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
-                continue;
-            }
-            const auto& prior = geometry["v"][i - 1];
-            std::array<float, 2> prior_v{}, prior_o{};
-            if (!point(prior, prior_v) || !point(geometry["o"][i - 1], prior_o))
-                return std::string("Lottie path contains invalid outgoing tangent");
-            const std::array<float, 2> c1{std::round((prior_v[0] + prior_o[0]) * 10000.0f) / 10000.0f,
-                                            std::round((prior_v[1] + prior_o[1]) * 10000.0f) / 10000.0f};
-            const std::array<float, 2> c2{std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
-                                            std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f};
-            if (shape.path.size() >= 65536)
-                return std::string("Lottie total path command limit exceeded");
-            shape.path.push_back({ShapePathCommandTypePlan::CubicTo, vertex, c1, c2});
-          }
-          if (geometry.value("c", false)) {
-              if (shape.path.size() >= 65536)
-                  return std::string("Lottie total path command limit exceeded");
-              shape.path.push_back({ShapePathCommandTypePlan::Close});
-          }
-        }
-        if (fills.size() != 1 && fills.size() != geometry_shapes.size())
-            return std::string("Lottie supports one solid fill or one fill per static geometry");
-        if (!strokes.empty() && strokes.size() != 1 && strokes.size() != geometry_shapes.size())
-            return std::string("Lottie supports one solid stroke or one stroke per static geometry");
-        if (fills.empty() && strokes.empty())
-            return std::string("Lottie static geometry requires a solid fill or stroke");
-
-        const auto decode_lottie_color = [&](const json& style,
-                                             std::array<float, 4>& color) -> bool {
-            if (style.value("r", 1) != 1 || !style.contains("c") ||
-                !style["c"].is_object() || !style["c"].contains("k")) return false;
-            const auto& value = style["c"]["k"];
-            if (!value.is_array() || value.size() != 4) return false;
-            float opacity = 100.0f;
-            if (style.contains("o") && !static_scalar_property(style, "o", opacity)) return false;
-            if (opacity < 0.0f || opacity > 100.0f) return false;
-            for (std::size_t i = 0; i < 4; ++i) {
-                if (!value[i].is_number()) return false;
-                color[i] = value[i].get<float>();
-                if (!std::isfinite(color[i]) || color[i] < 0.0f || color[i] > 1.0f) return false;
-            }
-            color[3] *= opacity / 100.0f;
-            return true;
-        };
-        std::vector<std::optional<std::array<float, 4>>> fill_colors;
-        for (const auto* fill : fills) {
-            std::array<float, 4> color{};
-            if (!decode_lottie_color(*fill, color))
-                return std::string("Lottie fill must be static finite RGBA in RGB color space");
-            fill_colors.push_back(color);
-        }
-        std::vector<std::optional<StrokeStyle>> stroke_styles;
-        for (const auto* stroke : strokes) {
-            std::array<float, 4> color{};
-            float width = 0.0f;
-            if (!decode_lottie_color(*stroke, color) ||
-                !static_scalar_property(*stroke, "w", width) || width < 0.0f ||
-                stroke->value("lc", 1) != 1 || stroke->value("lj", 1) != 1 ||
-                stroke->value("ml", 4.0f) != 4.0f ||
-                (stroke->contains("d") && !(*stroke)["d"].empty()))
-                return std::string("Lottie stroke supports bounded static color/opacity/width with default cap/join and no dashes");
-            StrokeStyle style;
-            style.width = width;
-            style.solid_color = color;
-            stroke_styles.push_back(std::move(style));
-        }
-        shape.imported_subpaths.clear();
-        shape.imported_subpaths.reserve(geometry_shapes.size());
-        for (std::size_t index = 0; index < geometry_shapes.size(); ++index) {
-            const std::size_t begin = geometry_command_starts[index];
-            const std::size_t end = index + 1 < geometry_command_starts.size()
-                ? geometry_command_starts[index + 1] : shape.path.size();
-            ImportedSubpathPlan imported;
-            imported.path.assign(shape.path.begin() + static_cast<std::ptrdiff_t>(begin),
-                                 shape.path.begin() + static_cast<std::ptrdiff_t>(end));
-            if (!fill_colors.empty())
-                imported.fill_color = *fill_colors[fills.size() == 1 ? 0 : index];
-            if (!stroke_styles.empty())
-                imported.stroke = *stroke_styles[strokes.size() == 1 ? 0 : index];
-            shape.imported_subpaths.push_back(std::move(imported));
-        }
-        shape.path.clear();
-        return std::nullopt;
-    } catch (const std::exception& error) {
-        return std::string("malformed Lottie JSON: ") + error.what();
-    }
-}
-}
+#include <nlohmann/json.hpp>
 
 namespace chronon3d::render_plan {
+
+namespace {
+std::uint64_t shake_mix64(std::uint64_t value) noexcept {
+    value += 0x9e3779b97f4a7c15ULL;
+    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+    return value ^ (value >> 31U);
+}
+
+double shake_value_noise(double sample, std::uint32_t seed, std::uint32_t channel) noexcept {
+    const auto cell = static_cast<std::int64_t>(std::floor(sample));
+    const double fraction = sample - static_cast<double>(cell);
+    const auto value_at = [seed, channel](std::int64_t index) {
+        const auto bits = shake_mix64(static_cast<std::uint64_t>(index) ^
+            (static_cast<std::uint64_t>(seed) << 32U) ^ channel);
+        return static_cast<double>(bits >> 11U) * (1.0 / 9007199254740992.0) * 2.0 - 1.0;
+    };
+    const double smooth = fraction * fraction * fraction *
+        (fraction * (fraction * 6.0 - 15.0) + 10.0);
+    return value_at(cell) + (value_at(cell + 1) - value_at(cell)) * smooth;
+}
+
+std::optional<std::size_t> audio_react_clip_index(const RenderPlan& plan,
+                                                   std::string_view source) {
+    if (!plan.audio || !source.starts_with("mix:")) return std::nullopt;
+    const auto key = source.substr(4);
+    std::size_t index = 0;
+    const auto parsed = std::from_chars(key.data(), key.data() + key.size(), index);
+    if (parsed.ec == std::errc{} && parsed.ptr == key.data() + key.size())
+        return index < plan.audio->clips.size() ? std::optional<std::size_t>{index} : std::nullopt;
+    for (std::size_t i = 0; i < plan.audio->clips.size(); ++i)
+        if (plan.audio->clips[i].id == key) return i;
+    return std::nullopt;
+}
+
+float audio_react_measure(const std::vector<float>& samples, std::int64_t center,
+                          const std::optional<std::array<float, 2>>& band) {
+    constexpr std::int64_t window_size = 2048;
+    constexpr std::int64_t half = window_size / 2;
+    double square_sum = 0.0;
+    for (std::int64_t i = 0; i < window_size; ++i) {
+        const auto sample_index = center - half + i;
+        if (sample_index >= 0 && static_cast<std::size_t>(sample_index) < samples.size()) {
+            const double sample = samples[static_cast<std::size_t>(sample_index)];
+            square_sum += sample * sample;
+        }
+    }
+    if (!band) return static_cast<float>(std::sqrt(square_sum / window_size));
+
+    const double low = (*band)[0];
+    const double high = (*band)[1];
+    const double nyquist = 24000.0;
+    if (high > nyquist) throw std::runtime_error("audio_react band upper edge exceeds the 48 kHz analysis Nyquist frequency");
+    constexpr std::size_t kBins = 32;
+    double power_sum = 0.0;
+    for (std::size_t bin = 0; bin < kBins; ++bin) {
+        const double ratio = (static_cast<double>(bin) + 0.5) / kBins;
+        const double frequency = low * std::pow(high / low, ratio);
+        const double omega = 2.0 * std::numbers::pi * frequency / 48000.0;
+        const double coefficient = 2.0 * std::cos(omega);
+        double previous = 0.0, previous2 = 0.0;
+        for (std::int64_t i = 0; i < window_size; ++i) {
+            const auto sample_index = center - half + i;
+            const double sample = sample_index >= 0 && static_cast<std::size_t>(sample_index) < samples.size()
+                ? samples[static_cast<std::size_t>(sample_index)] : 0.0;
+            const double hann = 0.5 - 0.5 * std::cos(2.0 * std::numbers::pi * i / (window_size - 1));
+            const double current = sample * hann + coefficient * previous - previous2;
+            previous2 = previous;
+            previous = current;
+        }
+        power_sum += std::max(0.0, previous * previous + previous2 * previous2 - coefficient * previous * previous2);
+    }
+    const double normalization = static_cast<double>(window_size) * window_size;
+    // The Hann coherent gain is approximately 1/2; the factor 8 recovers
+    // sinusoidal mean-square energy and converts it to RMS.
+    return static_cast<float>(std::sqrt(8.0 * power_sum / normalization));
+}
+
+void bake_audio_react(RenderPlan& plan, chronon3d::assets::AssetResolver& resolver) {
+    for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
+        auto& layer = plan.layers[layer_index];
+        if (!layer.animation) continue;
+        for (std::size_t track_index = 0; track_index < layer.animation->tracks.size(); ++track_index) {
+            auto& track = layer.animation->tracks[track_index];
+            if (!track.audio_react) continue;
+            auto& driver = *track.audio_react;
+            const auto clip_index = audio_react_clip_index(plan, driver.source);
+            const std::string error_path = "layers[" + std::to_string(layer_index) +
+                "].animation.tracks[" + std::to_string(track_index) + "].audio_react";
+            if (!clip_index)
+                throw std::runtime_error(error_path + ": source must identify a clip in the audio mix");
+            const auto& clip = plan.audio->clips[*clip_index];
+            const auto resolved = resolver.resolve_logical(clip.asset);
+            if (!resolved) throw std::runtime_error(error_path + ": source audio asset cannot be resolved");
+            const auto digest = chronon3d::assets::sha256_file(*resolved);
+            if (!digest) throw std::runtime_error(error_path + ": source audio asset cannot be hashed");
+            driver.source_sha256 = digest->hex();
+            std::vector<float> samples;
+            std::string decode_error;
+            if (!detail::decode_audio_mono_48k(resolved->string(), samples, decode_error))
+                throw std::runtime_error(error_path + ": " + decode_error);
+            if (std::any_of(samples.begin(), samples.end(), [](float sample) {
+                    return !std::isfinite(sample);
+                }))
+                throw std::runtime_error(error_path + ": decoded audio contains a non-finite sample");
+            const double fps = static_cast<double>(plan.canvas.fps.num()) / plan.canvas.fps.den();
+            const auto start_frame = clip.start.value_or(Frame{0}).integral();
+            const auto in_frame = clip.clip_in.value_or(Frame{0}).integral();
+            const auto out_frame = clip.clip_out
+                ? std::optional<std::int64_t>{clip.clip_out->integral()} : std::nullopt;
+            const auto frame_count = static_cast<std::size_t>(plan.canvas.duration.integral());
+            if (frame_count == 0 || frame_count > 1000000)
+                throw std::runtime_error(error_path + ": composition frame count is outside analysis bounds");
+            constexpr std::uint64_t kMaxAudioReactAnalysisOps = 2000000000ULL;
+            const std::uint64_t operations_per_frame = 2048ULL *
+                (driver.band_hz ? 32ULL : 1ULL);
+            if (frame_count > kMaxAudioReactAnalysisOps / operations_per_frame)
+                throw std::runtime_error(error_path + ": audio analysis exceeds the deterministic work budget");
+            std::vector<float> raw(frame_count, 0.0f);
+            std::vector<float> clip_gain_db(frame_count, clip.gain_db + plan.audio->master_gain_db);
+            if (clip.gain) {
+                chronon3d::AnimatedValue<float> animated_gain{clip.gain_db};
+                for (const auto& key : clip.gain->keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()))
+                        throw std::runtime_error(error_path + ": source clip gain track must contain finite scalar values");
+                    animated_gain.add_keyframe(key.frame, key.value.front(),
+                        detail::animation_keyframe_easing(*clip.gain, key));
+                }
+                for (std::size_t frame = 0; frame < frame_count; ++frame)
+                    clip_gain_db[frame] = animated_gain.evaluate(static_cast<double>(frame)) +
+                        plan.audio->master_gain_db;
+            }
+            for (std::size_t frame = 0; frame < frame_count; ++frame) {
+                if (clip.muted) continue;
+                const auto source_frame = in_frame + static_cast<std::int64_t>(frame) - start_frame;
+                if (source_frame < in_frame || (out_frame && source_frame >= *out_frame)) continue;
+                const auto center = static_cast<std::int64_t>(std::llround(
+                    static_cast<double>(source_frame) * 48000.0 / fps));
+                raw[frame] = audio_react_measure(samples, center, driver.band_hz) *
+                    std::pow(10.0f, clip_gain_db[frame] / 20.0f);
+                if (!std::isfinite(raw[frame]))
+                    throw std::runtime_error(error_path + ": analysis produced a non-finite feature value");
+            }
+            driver.baked_values.resize(frame_count);
+            double rolling_sum = 0.0;
+            for (std::size_t frame = 0; frame < frame_count; ++frame) {
+                rolling_sum += raw[frame];
+                if (frame >= driver.smoothing_frames)
+                    rolling_sum -= raw[frame - driver.smoothing_frames];
+                const auto divisor = std::min<std::size_t>(frame + 1, driver.smoothing_frames);
+                driver.baked_values[frame] = static_cast<float>(
+                    rolling_sum / static_cast<double>(divisor) * driver.gain);
+                if (!std::isfinite(driver.baked_values[frame]))
+                    throw std::runtime_error(error_path + ": baked audio feature exceeds finite float range");
+            }
+            AnimationTrackPlan::DataFeedDriverPlan feed;
+            feed.values = driver.baked_values;
+            feed.interpolation = "linear";
+            track.data_feed = std::move(feed);
+        }
+    }
+}
+} // namespace
 
 Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     const RenderPlan& input_plan,
@@ -349,6 +216,48 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     try {
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
+        bake_audio_react(plan, resolver);
+        for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
+            auto& layer = plan.layers[layer_index];
+            if (!layer.animation) continue;
+            for (std::size_t track_index = 0; track_index < layer.animation->tracks.size(); ++track_index) {
+                auto& track = layer.animation->tracks[track_index];
+                if (!track.data_feed || track.data_feed->asset.empty()) continue;
+                auto& feed = *track.data_feed;
+                const auto path = "layers[" + std::to_string(layer_index) + "].animation.tracks[" +
+                    std::to_string(track_index) + "].data_feed.asset";
+                const auto resolved = resolver.resolve_logical(feed.asset);
+                if (!resolved)
+                    return PlanDecodeError{path, "data_feed asset could not be resolved within the mounted asset root",
+                        "data_feed_asset_unresolved", "render-plan-data-feed"};
+                std::error_code size_error;
+                const auto byte_size = std::filesystem::file_size(*resolved, size_error);
+                constexpr std::uintmax_t kMaxDataFeedAssetBytes = 32ULL * 1024ULL * 1024ULL;
+                if (size_error || byte_size > kMaxDataFeedAssetBytes)
+                    return PlanDecodeError{path, "data_feed asset must be readable and no larger than 32 MiB",
+                        "data_feed_asset_size", "render-plan-data-feed"};
+                const auto digest = chronon3d::assets::sha256_file(*resolved);
+                if (!digest || digest->hex() != feed.sha256)
+                    return PlanDecodeError{path, "data_feed asset SHA-256 does not match the declared digest",
+                        "data_feed_digest_mismatch", "render-plan-data-feed"};
+                try {
+                    std::ifstream input(*resolved, std::ios::binary);
+                    const auto data = nlohmann::json::parse(input);
+                    if (!data.is_array() || data.size() != feed.item_count)
+                        throw std::runtime_error("data_feed asset must be a numeric JSON array matching item_count");
+                    feed.values.clear();
+                    feed.values.reserve(data.size());
+                    for (const auto& sample : data) {
+                        if (!sample.is_number() || !std::isfinite(sample.get<double>()) ||
+                            !std::isfinite(sample.get<float>()))
+                            throw std::runtime_error("data_feed asset values must be finite float numbers");
+                        feed.values.push_back(sample.get<float>());
+                    }
+                } catch (const std::exception& error) {
+                    return PlanDecodeError{path, error.what(), "data_feed_asset_invalid", "render-plan-data-feed"};
+                }
+            }
+        }
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];
             if (!layer.shape || !layer.shape->lottie_asset) continue;
@@ -358,7 +267,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
                     "Lottie asset could not be resolved within the mounted asset root",
                     "lottie_asset_unresolved", "render-plan-lottie"};
-            auto lowered = expand_static_lottie(*layer.shape, *resolved);
+            auto lowered = detail::expand_static_lottie(*layer.shape, *resolved);
             if (lowered)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
                     *lowered, "lottie_unsupported_or_invalid", "render-plan-lottie"};
@@ -727,6 +636,15 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     prepared_effects[index].emplace_back(VignetteEffectParams{
                         .amount = effect.amount, .radius = effect.warp_radius, .softness = effect.warp_falloff,
                         .color = Color{effect.effect_color[0], effect.effect_color[1], effect.effect_color[2], effect.effect_color[3]}});
+                } else if (effect.kind == LayerPlan::EffectKindPlan::Catalog) {
+                    auto params = effects::make_default_animatable_effect_params(effect.canonical_effect_id);
+                    if (!params) throw std::runtime_error("catalog effect cannot be materialized by the compiler");
+                    for (const auto& value : effect.canonical_params) {
+                        if (!effects::set_animatable_effect_param(*params, effect.canonical_effect_id,
+                                                                  value.param, value.value))
+                            throw std::runtime_error("catalog effect parameter failed to apply during compilation");
+                    }
+                    prepared_effects[index].push_back(std::move(*params));
                 } else {
                     prepared_effects[index].emplace_back(MosaicParams{
                         .block_size = effect.block_size});
@@ -742,8 +660,24 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
+        std::vector<detail::FollowPathEvaluators> follow_path_evaluators(plan.layers.size());
+        for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+            const auto& layer = plan.layers[index];
+            if (!layer.follow_path) continue;
+            Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
+            if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
+                 layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
+                layer.position_dimensions >= 2) {
+                base_position.x -= static_cast<float>(plan.canvas.width) * 0.5f;
+                base_position.y -= static_cast<float>(plan.canvas.height) * 0.5f;
+            }
+            const Vec3 base_rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
+            follow_path_evaluators[index] = detail::make_follow_path_evaluators(
+                *layer.follow_path, base_position, base_rotation,
+                plan.canvas.width, plan.canvas.height, plan.canvas.fps);
+        }
         definition.scene = [plan, resolved_video_paths, resolved_particle_sprite_paths, prepared_texts, prepared_text_bounds, prepared_effects, font_engine,
-                            has_3d_layer, plan_camera](
+                            has_3d_layer, plan_camera, follow_path_evaluators](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             scene.font_engine(font_engine.get());
@@ -804,8 +738,30 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 }
                 const auto camera_context = chronon3d::camera_v1::CameraEvalContext::at(
                     ctx.frame(), ctx.frame_rate(), ctx.width, ctx.height);
-                scene.camera().set(chronon3d::camera_v1::eval_pose_tracks(
-                    plan_camera->base, pose, camera_context));
+                auto evaluated_camera = chronon3d::camera_v1::eval_pose_tracks(
+                    plan_camera->base, pose, camera_context);
+                if (plan.camera_shake) {
+                    const auto& shake = *plan.camera_shake;
+                    const double frame = static_cast<double>(ctx.frame().integral());
+                    const double elapsed_frames = frame - static_cast<double>(shake.start_frame.integral());
+                    const bool in_range = elapsed_frames >= 0.0 &&
+                        (shake.duration_frames.integral() == 0 ||
+                         elapsed_frames <= static_cast<double>(shake.duration_frames.integral()));
+                    if (in_range) {
+                        const double elapsed_seconds = elapsed_frames /
+                            (static_cast<double>(ctx.frame_rate().numerator) / ctx.frame_rate().denominator);
+                        const double envelope = std::exp(-static_cast<double>(shake.decay) * elapsed_seconds);
+                        const double phase = elapsed_seconds * static_cast<double>(shake.frequency_hz);
+                        evaluated_camera.position.x += static_cast<float>(shake.amplitude_px *
+                            shake_value_noise(phase, shake.seed, 0U) * envelope);
+                        evaluated_camera.position.y += static_cast<float>(shake.amplitude_px *
+                            shake_value_noise(phase, shake.seed, 1U) * envelope);
+                        evaluated_camera.rotation.z += static_cast<float>(shake.rotation_amplitude_deg *
+                            shake_value_noise(phase, shake.seed, 2U) * envelope);
+                        evaluated_camera.is_animated = true;
+                    }
+                }
+                scene.camera().set(std::move(evaluated_camera));
             }
 
             for (std::size_t index = 0; index < plan.layers.size(); ++index) {
@@ -1026,12 +982,27 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 if (shape.stroke->solid_color) {
                                     const auto& rgba = *shape.stroke->solid_color;
                                     stroke.color = Color{rgba[0], rgba[1], rgba[2], rgba[3]};
+                                } else if (!shape.stroke->color.empty() && !shape.stroke->gradient) {
+                                    const auto parsed = parse_hex_color(shape.stroke->color);
+                                    if (!parsed)
+                                        throw std::runtime_error("shape layer '" + layer.id + "' has invalid stroke color");
+                                    stroke.color = *parsed;
                                 }
                                 stroke.gradient = shape.stroke->gradient;
                                 stroke.trim_start = shape.stroke->trim_start.value_or(0.0f);
                                 stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
                                 stroke.dash_array = shape.stroke->dash_array;
                                 stroke.dash_offset = shape.stroke->dash_offset;
+                                if (const auto animated_width = detail::stroke_width_at(
+                                        layer, ctx.effective_frame(), stroke.width,
+                                        plan.canvas.fps))
+                                    stroke.width = *animated_width;
+                                if (!shape.stroke->gradient) {
+                                    if (const auto animated_color = detail::stroke_color_at(
+                                            layer, ctx.effective_frame(), stroke.color,
+                                            plan.canvas.fps))
+                                        stroke.color = *animated_color;
+                                }
                                 if (const auto animated_offset=detail::stroke_dash_offset_at(
                                         layer, ctx.effective_frame(), plan.canvas.fps))
                                     stroke.dash_offset=*animated_offset;
@@ -1409,7 +1380,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         }
                     }
                     detail::apply_layer_primitives(
-                        builder, layer, plan.canvas.width, plan.canvas.height, plan.canvas.fps);
+                        builder, layer, plan.canvas.width, plan.canvas.height, plan.canvas.fps,
+                        layer.follow_path ? &follow_path_evaluators[index] : nullptr);
                     if (layer.type == LayerType::Particles && layer.particle_emitter)
                         builder.blend(layer.particle_emitter->blend_mode);
                     if (layer.safe_insets) {
@@ -1457,17 +1429,41 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     .right = half_canvas_width + insets[1] + rotated_size.x});
                     }
                     if (layer.type == LayerType::Shape && layer.style) {
+                        std::size_t shadow_index = 0;
                         const auto add_shadow = [&](const ShadowStyle& shadow) {
-                            const float opacity = shadow.opacity.value_or(1.0f);
-                            const auto color = parse_hex_color(shadow.color, opacity);
+                            const std::string prefix = "shadow_" + std::to_string(shadow_index++);
+                            const auto color = parse_hex_color(shadow.color, 1.0f);
                             if (!color)
                                 throw std::runtime_error("shape layer '" + layer.id + "' has invalid shadow color");
                             if (shadow.offset_dimensions != 2)
                                 throw std::runtime_error("shape layer '" + layer.id + "' shadow requires a two-dimensional offset");
+                            const float opacity = detail::shadow_scalar_at(
+                                layer, prefix + "_opacity", ctx.effective_frame(),
+                                shadow.opacity.value_or(1.0f), plan.canvas.fps)
+                                .value_or(shadow.opacity.value_or(1.0f));
+                            const float blur = detail::shadow_scalar_at(
+                                layer, prefix + "_blur", ctx.effective_frame(),
+                                shadow.blur.value_or(0.0f), plan.canvas.fps)
+                                .value_or(shadow.blur.value_or(0.0f));
+                            const float offset_x = detail::shadow_scalar_at(
+                                layer, prefix + "_offset_x", ctx.effective_frame(),
+                                shadow.offset[0], plan.canvas.fps).value_or(shadow.offset[0]);
+                            const float offset_y = detail::shadow_scalar_at(
+                                layer, prefix + "_offset_y", ctx.effective_frame(),
+                                shadow.offset[1], plan.canvas.fps).value_or(shadow.offset[1]);
+                            const auto animated_color = detail::shadow_color_at(
+                                layer, prefix + "_color", ctx.effective_frame(),
+                                *color, plan.canvas.fps);
+                            Color final_color = animated_color.value_or(*color);
+                            final_color.a *= opacity;
+                            if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f ||
+                                !std::isfinite(blur) || blur < 0.0f ||
+                                !std::isfinite(offset_x) || !std::isfinite(offset_y))
+                                throw std::runtime_error("animated shadow parameters are outside supported bounds");
                             builder.effect(DropShadowParams{
-                                .offset = Vec2{shadow.offset[0], shadow.offset[1]},
-                                .color = *color,
-                                .radius = shadow.blur.value_or(0.0f)});
+                                .offset = Vec2{offset_x, offset_y},
+                                .color = final_color,
+                                .radius = blur});
                         };
                         if (layer.style->shadow) add_shadow(*layer.style->shadow);
                         for (const auto& shadow : layer.style->shadows) add_shadow(shadow);
@@ -1481,14 +1477,41 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             time_curve=detail::make_effect_time_curve(*effect_plan->time_curve);
                         const double composition_fps=static_cast<double>(plan.canvas.fps.numerator)/plan.canvas.fps.denominator;
                         const double duration_seconds=static_cast<double>(plan.canvas.duration.value)/composition_fps;
+                        std::string_view canonical_effect_id;
+                        const auto effect_type = effects::detect_effect_type(effect);
+                        for (const auto& entry : effects::builtin_effect_catalog())
+                            if (entry.type == effect_type) { canonical_effect_id = entry.id; break; }
+                        std::optional<EffectParams> animated_effect;
+                        if (!canonical_effect_id.empty()) {
+                            for (const auto& param_track : layer.effect_param_tracks) {
+                                if (param_track.effect_id != canonical_effect_id) continue;
+                                if (!animated_effect) animated_effect.emplace(effect);
+                                const auto base = effects::get_animatable_effect_param(
+                                    *animated_effect, param_track.effect_id, param_track.param);
+                                if (!base)
+                                    throw std::runtime_error("effect parameter track is incompatible with the compiled effect parameter type");
+                                const float value = detail::evaluate_scalar_track(
+                                    param_track.track, ctx.effective_frame(), *base, plan.canvas.fps);
+                                const auto* bounds = effects::find_animatable_effect_param(
+                                    param_track.effect_id, param_track.param);
+                                if (!bounds || !std::isfinite(value))
+                                    throw std::runtime_error("effect parameter track produced a non-finite sample");
+                                if (!effects::set_animatable_effect_param(
+                                        *animated_effect, param_track.effect_id, param_track.param,
+                                        std::clamp(value, bounds->minimum, bounds->maximum)))
+                                    throw std::runtime_error("failed to apply compiled effect parameter track");
+                            }
+                        }
+                        const auto& dispatch_effect = animated_effect ? *animated_effect : effect;
                         std::visit([&](const auto& params) {
                             using T = std::decay_t<decltype(params)>;
                             if constexpr (!std::is_same_v<T, std::monostate>)
                                 builder.effect(params,time_control,time_curve,duration_seconds,composition_fps);
-                        }, effect);
+                        }, dispatch_effect);
                     }
                     if (const auto motion_blur = detail::motion_blur_params_at(
-                            layer, ctx.effective_frame(), plan.canvas.fps)) {
+                            layer, ctx.effective_frame(), plan.canvas.fps,
+                            layer.follow_path ? &follow_path_evaluators[index] : nullptr)) {
                         builder.effect(*motion_blur);
                     }
                     if (layer.path_mask || !layer.masks.empty()) {
@@ -1523,8 +1546,18 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             operation.size = Vec2{source.size[0], source.size[1]};
                             operation.radius = source.radius;
                             operation.path = convert_mask_path(source.path);
-                            operation.feather = source.feather;
-                            operation.expansion = source.expansion;
+                            operation.feather = source.feather_track
+                                ? std::clamp(detail::evaluate_scalar_track(*source.feather_track,
+                                    ctx.effective_frame(), source.feather, plan.canvas.fps), 0.0f, 1000000.0f)
+                                : source.feather;
+                            operation.expansion = source.expansion_track
+                                ? std::clamp(detail::evaluate_scalar_track(*source.expansion_track,
+                                    ctx.effective_frame(), source.expansion, plan.canvas.fps), -1000000.0f, 1000000.0f)
+                                : source.expansion;
+                            operation.opacity = source.opacity_track
+                                ? std::clamp(detail::evaluate_scalar_track(*source.opacity_track,
+                                    ctx.effective_frame(), source.opacity, plan.canvas.fps), 0.0f, 1.0f)
+                                : source.opacity;
                             operation.inverted = source.inverted;
                             Vec2 path_center{0.0f, 0.0f};
                             if (source.type == "path" && source.size[0] == 0.0f && source.size[1] == 0.0f) {
@@ -1574,6 +1607,29 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 path.commands = std::move(operation.path);
                                 operation.path = apply_path_operators(path, {
                                     PathOperatorSpec{PathOperatorKind::Morph, std::move(morph), 0}}).front().commands;
+                                if (source.type == "path" && source.size[0] == 0.0f &&
+                                    source.size[1] == 0.0f) {
+                                    float min_x = std::numeric_limits<float>::max();
+                                    float min_y = std::numeric_limits<float>::max();
+                                    float max_x = std::numeric_limits<float>::lowest();
+                                    float max_y = std::numeric_limits<float>::lowest();
+                                    for (const auto& command : operation.path) {
+                                        if (command.type == PathCommandType::Close) continue;
+                                        const auto include = [&](Vec2 point) {
+                                            min_x = std::min(min_x, point.x);
+                                            min_y = std::min(min_y, point.y);
+                                            max_x = std::max(max_x, point.x);
+                                            max_y = std::max(max_y, point.y);
+                                        };
+                                        include(command.p0);
+                                        if (command.type == PathCommandType::QuadraticTo ||
+                                            command.type == PathCommandType::CubicTo)
+                                            include(command.p1);
+                                        if (command.type == PathCommandType::CubicTo)
+                                            include(command.p2);
+                                    }
+                                    operation.size = Vec2{max_x - min_x, max_y - min_y};
+                                }
                             }
                             return operation;
                         };
@@ -1589,6 +1645,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         composite.path = primary.path;
                         composite.feather = primary.feather;
                         composite.expansion = primary.expansion;
+                        composite.opacity = primary.opacity;
                         composite.inverted = primary.inverted;
                         for (std::size_t index = 1; index < plan_masks.size(); ++index)
                             composite.operations.push_back(build_operation(plan_masks[index]));

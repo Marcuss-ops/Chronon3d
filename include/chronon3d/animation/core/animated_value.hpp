@@ -8,6 +8,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <optional>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -269,21 +270,54 @@ public:
         return *this;
     }
 
+    template <typename U = T,
+              typename = std::enable_if_t<std::is_same_v<U, f32>>>
+    AnimatedValue& scalar_driver(ScalarAnimationDriver driver) {
+        m_scalar_driver = driver;
+        return *this;
+    }
+
+    /// Install an immutable, frame-pure evaluator compiled from an authored
+    /// driver. Construction happens before rendering; invocation reads only
+    /// the requested frame and captured immutable plan data.
+    AnimatedValue& frame_evaluator(std::function<T(double)> evaluator) {
+        m_frame_evaluator = std::move(evaluator);
+        return *this;
+    }
+
     [[nodiscard]] const std::string& expression() const { return m_expression; }
     [[nodiscard]] bool has_expression() const { return !m_expression.empty(); }
 
     [[nodiscard]] T sample_at(f32 current) const {
+        if (m_frame_evaluator) return m_frame_evaluator(static_cast<double>(current));
+        if constexpr (std::is_same_v<T, f32>) {
+            if (m_scalar_driver) return evaluate(static_cast<double>(current));
+        }
         return evaluate_base_double(static_cast<double>(current));
     }
     [[nodiscard]] T value_at_time(f32 current) const {
+        if (m_frame_evaluator) return m_frame_evaluator(static_cast<double>(current));
+        if constexpr (std::is_same_v<T, f32>) {
+            if (m_scalar_driver) return evaluate(static_cast<double>(current));
+        }
         return evaluate_base_double(static_cast<double>(current));
     }
-    [[nodiscard]] bool empty() const { return m_keyframes.empty(); }
+    [[nodiscard]] bool empty() const {
+        return m_keyframes.empty() && !m_scalar_driver && !m_frame_evaluator;
+    }
     [[nodiscard]] std::size_t size() const { return m_keyframes.size(); }
 
     /// Double-precision evaluation (for TemporalCurve1D compatibility).
     [[nodiscard]] T evaluate(double frame) const {
-        return evaluate_base_double(frame);
+        if (m_frame_evaluator) return m_frame_evaluator(frame);
+        constexpr double kDefaultFps = 30.0;
+        const double base_frame = scalar_driver_base_frame(frame, kDefaultFps);
+        const T base = evaluate_base_double(base_frame);
+        if constexpr (std::is_same_v<T, f32>) {
+            if (m_scalar_driver && m_scalar_driver->kind != ScalarAnimationDriver::Kind::PosterizeTime)
+                return evaluate_scalar_driver(frame, kDefaultFps, base);
+        }
+        return base;
     }
 
     // Sub-frame evaluation (SampleTime) — the future
@@ -292,7 +326,12 @@ public:
     }
 
     [[nodiscard]] T evaluate(SampleTime time, const AnimationEvalContext& ctx) const {
-        const T base = evaluate_base_double(time.frame);
+        if (m_frame_evaluator) return m_frame_evaluator(time.frame);
+        const T base = evaluate_base_double(scalar_driver_base_frame(time.frame, time.fps()));
+        if constexpr (std::is_same_v<T, f32>) {
+            if (m_scalar_driver && m_scalar_driver->kind != ScalarAnimationDriver::Kind::PosterizeTime)
+                return evaluate_scalar_driver(time.frame, time.fps(), base);
+        }
 
         if (!has_expression()) return base;
 
@@ -345,7 +384,12 @@ public:
         return base;
     }
 
-    [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
+    [[nodiscard]] bool is_animated() const {
+        if (m_frame_evaluator) return true;
+        if constexpr (std::is_same_v<T, f32>)
+            return !m_keyframes.empty() || m_scalar_driver.has_value();
+        return !m_keyframes.empty();
+    }
 
     /// Returns true if the value depends on time (keyframes or expression).
     /// Use this for cache invalidation, scene hashing, and dirty-rect decisions.
@@ -391,6 +435,8 @@ public:
     void clear() {
         m_keyframes.clear();
         m_has_explicit_baseline = false;
+        m_scalar_driver.reset();
+        m_frame_evaluator = {};
         m_roving_dirty = true;
         m_auto_bezier_dirty = false;
     }
@@ -481,6 +527,63 @@ public:
     }
 
 private:
+    [[nodiscard]] double scalar_driver_base_frame(double frame, double fps) const {
+        if constexpr (std::is_same_v<T, f32>) {
+            if (m_scalar_driver &&
+                m_scalar_driver->kind == ScalarAnimationDriver::Kind::PosterizeTime &&
+                std::isfinite(fps) && fps > 0.0) {
+                const double frames_per_step = fps / m_scalar_driver->fps;
+                return std::floor(frame / frames_per_step) * frames_per_step;
+            }
+        }
+        return frame;
+    }
+
+    [[nodiscard]] T evaluate_scalar_driver(double frame, double fps, const T& base) const {
+        if constexpr (std::is_same_v<T, f32>) {
+            if (!m_scalar_driver) return base;
+            const auto& driver = *m_scalar_driver;
+            if (driver.kind == ScalarAnimationDriver::Kind::Oscillate) {
+                constexpr double kTau = 6.283185307179586476925286766559;
+                const double cycles = driver.frequency_hz * frame / fps +
+                    driver.phase_deg / 360.0;
+                const double angle = kTau * cycles;
+                // Compute the fractional cycle before converting to radians.
+                // Dividing a rounded pi/2pi angle back by tau can move exact
+                // half/full-cycle boundaries to the neighboring waveform.
+                const double cycle = cycles - std::floor(cycles);
+                double wave = 0.0;
+                switch (driver.waveform) {
+                    case ScalarAnimationDriver::Waveform::Sine:
+                        wave = std::sin(angle);
+                        break;
+                    case ScalarAnimationDriver::Waveform::Triangle:
+                        wave = 1.0 - 4.0 * std::abs(cycle - 0.5);
+                        break;
+                    case ScalarAnimationDriver::Waveform::Sawtooth:
+                        wave = 2.0 * cycle - 1.0;
+                        break;
+                    case ScalarAnimationDriver::Waveform::Square:
+                        wave = cycle < 0.5 ? 1.0 : -1.0;
+                        break;
+                }
+                return static_cast<f32>(driver.offset + driver.amplitude * wave);
+            }
+            if (driver.kind == ScalarAnimationDriver::Kind::RandomHold) {
+                const auto bucket = static_cast<std::int64_t>(
+                    std::floor(frame / static_cast<double>(driver.interval_frames)));
+                std::uint64_t bits = static_cast<std::uint64_t>(bucket) ^ driver.seed;
+                bits += 0x9e3779b97f4a7c15ULL;
+                bits = (bits ^ (bits >> 30)) * 0xbf58476d1ce4e5b9ULL;
+                bits = (bits ^ (bits >> 27)) * 0x94d049bb133111ebULL;
+                bits ^= bits >> 31;
+                const double unit = static_cast<double>(bits >> 11) * 0x1.0p-53;
+                return static_cast<f32>(driver.min + (driver.max - driver.min) * unit);
+            }
+        }
+        return base;
+    }
+
     // Check if any handle is non-zero (spatial bezier mode). Body in evaluation.inl.
     [[nodiscard]] static bool has_spatial_handles(const Keyframe<T>& kf);
 
@@ -505,6 +608,8 @@ private:
     mutable std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
     std::string m_expression;
+    std::optional<ScalarAnimationDriver> m_scalar_driver;
+    std::function<T(double)> m_frame_evaluator;
     mutable bool m_roving_dirty{false};
     mutable bool m_auto_bezier_dirty{false};
 };

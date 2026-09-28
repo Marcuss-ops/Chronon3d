@@ -13,6 +13,7 @@
 #include "chronon3d_version.hpp"
 
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -71,6 +72,14 @@ private:
 };
 
 namespace {
+
+void log_engine_creation_failure(std::string_view detail) noexcept {
+    try {
+        spdlog::error("[chronon-c-api] engine creation failed: {}", detail);
+    } catch (...) {
+        // Diagnostics must not let an exception cross the C ABI boundary.
+    }
+}
 
 void clear_error(chronon_engine* engine) {
     if (!engine) return;
@@ -295,7 +304,7 @@ const char* chronon_status_name(chronon_status status) {
     return "UNKNOWN";
 }
 
-uint32_t chronon_abi_version(void) { return 2; }
+uint32_t chronon_abi_version(void) { return CHRONON_ABI_VERSION; }
 
 /* ADR-032 contract zone. Independent of the engine ABI: bumps only when a
  * contract-zone record (chronon_content_metrics / chronon_layer_state) or
@@ -334,15 +343,23 @@ chronon_status chronon_engine_last_error_info(chronon_engine* engine,
 chronon_engine* chronon_engine_create(const chronon_engine_config* config) {
     try {
         std::string error;
-        if (validate_engine_config(config, error) != CHRONON_OK) return nullptr;
+        const auto status = validate_engine_config(config, error);
+        if (status != CHRONON_OK) {
+            log_engine_creation_failure(error);
+            return nullptr;
+        }
         chronon3d::sdk::RenderSettings settings;
-        auto* engine = new chronon_engine(settings);
+        auto engine = std::make_unique<chronon_engine>(settings);
         if (config && config->assets_root) {
             engine->engine.set_assets_root(config->assets_root);
             engine->resolver.mount(config->assets_root);
         }
-        return engine;
+        return engine.release();
+    } catch (const std::exception& error) {
+        log_engine_creation_failure(error.what());
+        return nullptr;
     } catch (...) {
+        log_engine_creation_failure("unknown exception");
         return nullptr;
     }
 }
@@ -367,12 +384,12 @@ chronon_status chronon_engine_create_v2(const chronon_engine_config* config,
             return status;
         }
         chronon3d::sdk::RenderSettings settings;
-        auto* engine = new chronon_engine(settings);
+        auto engine = std::make_unique<chronon_engine>(settings);
         if (config && config->assets_root) {
             engine->engine.set_assets_root(config->assets_root);
             engine->resolver.mount(config->assets_root);
         }
-        *out_engine = engine;
+        *out_engine = engine.release();
         return CHRONON_OK;
     } catch (const std::exception& error) {
         write_error_info(out_error, CHRONON_ERROR_UNKNOWN, error.what());

@@ -11,7 +11,8 @@ TEST_CASE("procedural grid path generators enforce the named element cap") {
     const auto grid = make_grid_path(2047.0f, 2047.0f, 1.0f);
     CHECK(grid.size() == 8192);
     const auto dots = make_dot_grid_path(64.0f, 64.0f, 1.0f, 0.5f);
-    CHECK(dots.size() == kMaxGeneratedGridElements * 10U);
+    // Eight perimeter vertices plus one Close command per generated dot.
+    CHECK(dots.size() == kMaxGeneratedGridElements * 9U);
     CHECK_THROWS_AS(make_grid_path(2048.0f, 2048.0f, 1.0f), std::length_error);
     CHECK_THROWS_AS(make_dot_grid_path(65.0f, 65.0f, 1.0f, 0.5f), std::length_error);
     CHECK_THROWS_AS(make_grid_path(std::numeric_limits<float>::max(), 1.0f,

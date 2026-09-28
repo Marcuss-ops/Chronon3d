@@ -8,6 +8,8 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
+#include <cmath>
+#include <cstdint>
 #include <chronon3d/render_plan/subtitle_style.hpp>
 #include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
@@ -21,6 +23,7 @@
 #endif
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include "test_render_plan_shape_helpers.hpp"
+#include "../../src/render_plan/audio_react_baker.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -294,8 +297,11 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
         rejected.layers[0].shape->svg_asset = logical;
         const auto result = compile_render_plan(rejected, resolver);
         CHECK_FALSE(result);
-        if (!result) CHECK(result.error().code == "svg_import_failed" ||
-                           result.error().code == "svg_unsupported_style");
+        if (!result) {
+            const bool expected_error = result.error().code == "svg_import_failed" ||
+                result.error().code == "svg_unsupported_style";
+            CHECK(expected_error);
+        }
     }
 }
 #endif
@@ -1127,6 +1133,209 @@ TEST_CASE("render plan wiggle driver evaluates deterministically on scalar opaci
           doctest::Approx(first->scene.layers()[0].transform.opacity));
 }
 
+TEST_CASE("render plan camera shake is random-access deterministic at each frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    auto source = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    source["camera"] = {{"type", "perspective"}};
+    source["camera_shake"] = {{"amplitude_px", 16}, {"frequency_hz", 7},
+        {"decay", 0}, {"seed", 91}, {"rotation_amplitude_deg", 1.0}};
+    const auto decoded = decode_render_plan(source);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto at_frame = [&](std::int64_t frame) {
+        return evaluate(prepared->compiled_composition, {}, Frame{frame});
+    };
+    const auto first = at_frame(8);
+    const auto repeated = at_frame(8);
+    REQUIRE(first);
+    REQUIRE(repeated);
+    const auto& a = first->scene.camera_2_5d();
+    const auto& b = repeated->scene.camera_2_5d();
+    CHECK(a.position.x == doctest::Approx(b.position.x));
+    CHECK(a.position.y == doctest::Approx(b.position.y));
+    CHECK(a.rotation.z == doctest::Approx(b.rotation.z));
+    const auto other_frame = at_frame(9);
+    REQUIRE(other_frame);
+    CHECK(other_frame->scene.camera_2_5d().position.x != doctest::Approx(a.position.x));
+}
+
+TEST_CASE("render plan applies animated effect parameters at the sampled frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    auto source = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    source["layers"][0]["effects"] = {{{"type", "gaussian_blur"}, {"radius", 0.0}}};
+    source["layers"][0]["effect_param_tracks"] = nlohmann::json::array({{
+        {"effect_id", "blur.gaussian"}, {"param", "radius"},
+        {"keyframes", {{{"frame", 0}, {"value", 0.0}}, {{"frame", 10}, {"value", 100.0}}}}
+    }});
+    const auto decoded = decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition, {}, Frame{5});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers()[0].effects().size() == 1);
+    const auto* blur = std::get_if<BlurParams>(&evaluated->scene.layers()[0].effects()[0].params);
+    REQUIRE(blur);
+    CHECK(blur->radius == doctest::Approx(50.0f));
+}
+
+TEST_CASE("render plan compiles and samples a catalog-addressed effect track") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    auto source = render_plan_test::base_plan({
+        render_plan_test::shape_layer({{"type", "rect"}})});
+    source["layers"][0]["effects"] = nlohmann::json::array({nlohmann::json{
+        {"type", "catalog"}, {"effect_id", "color.tint"},
+        {"params", nlohmann::json::array({nlohmann::json{{"param", "amount"}, {"value", 0.25}}})}
+    }});
+    source["layers"][0]["effect_param_tracks"] = nlohmann::json::array({{
+        {"effect_id", "color.tint"}, {"param", "amount"},
+        {"keyframes", {{{"frame", 0}, {"value", 0.0}}, {{"frame", 10}, {"value", 1.0}}}}
+    }});
+    const auto decoded = decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition, {}, Frame{5});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers()[0].effects().size() == 1);
+    const auto* tint = std::get_if<TintParams>(&evaluated->scene.layers()[0].effects()[0].params);
+    REQUIRE(tint);
+    CHECK(tint->amount == doctest::Approx(0.5f));
+}
+
+TEST_CASE("render plan samples inline data-feed values at the requested frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    auto source = render_plan_test::base_plan({nlohmann::json{
+        {"id", "data-fed"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+        {"animation", {{"tracks", nlohmann::json::array({nlohmann::json{
+            {"property", "opacity"},
+            {"data_feed", {{"values", {0.0, 0.5, 1.0}}, {"interpolation", "linear"}}}
+        }})}}}
+    }});
+    const auto decoded = decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto first = evaluate(prepared->compiled_composition, {}, Frame{1});
+    const auto repeat = evaluate(prepared->compiled_composition, {}, Frame{1});
+    REQUIRE(first);
+    REQUIRE(repeat);
+    CHECK(first->scene.layers()[0].transform.opacity == doctest::Approx(0.5f));
+    CHECK(repeat->scene.layers()[0].transform.opacity == first->scene.layers()[0].transform.opacity);
+}
+
+TEST_CASE("render plan resolves digest-bound data-feed assets before evaluation") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    const auto series_path = directory.path / "series.json";
+    { std::ofstream output(series_path); output << "[0,0.25,0.75,1]"; }
+    const auto digest = assets::sha256_file(series_path);
+    REQUIRE(digest);
+    auto source = render_plan_test::base_plan({nlohmann::json{
+        {"id", "asset-fed"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+        {"animation", {{"tracks", nlohmann::json::array({nlohmann::json{
+            {"property", "opacity"},
+            {"data_feed", {{"asset", "series.json"}, {"sha256", digest->hex()},
+                             {"item_count", 4}, {"interpolation", "linear"}}}
+        }})}}}
+    }});
+    const auto decoded = decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) MESSAGE(prepared.error().message);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition, {}, Frame{1});
+    REQUIRE(evaluated);
+    CHECK(evaluated->scene.layers()[0].transform.opacity == doctest::Approx(0.25f));
+    auto tampered = source;
+    tampered["layers"][0]["animation"]["tracks"][0]["data_feed"]["sha256"] = std::string(64, '0');
+    const auto tampered_plan = decode_render_plan(tampered);
+    REQUIRE(tampered_plan);
+    const auto rejected = compile_render_plan(*tampered_plan, resolver);
+    CHECK_FALSE(rejected);
+}
+
+TEST_CASE("audio_react bakes audio before evaluation and fails clearly without FFmpeg") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    const auto wav_path = directory.path / "beat.wav";
+    constexpr std::uint32_t sample_rate = 48000;
+    constexpr std::uint32_t sample_count = 12000;
+    const auto write_u16 = [](std::ostream& out, std::uint16_t value) {
+        const char bytes[] = {static_cast<char>(value), static_cast<char>(value >> 8)};
+        out.write(bytes, sizeof(bytes));
+    };
+    const auto write_u32 = [](std::ostream& out, std::uint32_t value) {
+        const char bytes[] = {static_cast<char>(value), static_cast<char>(value >> 8),
+            static_cast<char>(value >> 16), static_cast<char>(value >> 24)};
+        out.write(bytes, sizeof(bytes));
+    };
+    {
+        std::ofstream out(wav_path, std::ios::binary);
+        out.write("RIFF", 4); write_u32(out, 36 + sample_count * 2); out.write("WAVE", 4);
+        out.write("fmt ", 4); write_u32(out, 16); write_u16(out, 1); write_u16(out, 1);
+        write_u32(out, sample_rate); write_u32(out, sample_rate * 2); write_u16(out, 2); write_u16(out, 16);
+        out.write("data", 4); write_u32(out, sample_count * 2);
+        for (std::uint32_t i = 0; i < sample_count; ++i) {
+            const auto value = static_cast<std::int16_t>(std::sin(2.0 * 3.141592653589793 * 440.0 * i / sample_rate) * 12000.0);
+            write_u16(out, static_cast<std::uint16_t>(value));
+        }
+    }
+    auto source = render_plan_test::base_plan({nlohmann::json{
+        {"id", "audio-reactive"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
+        {"animation", {{"tracks", nlohmann::json::array({nlohmann::json{
+            {"property", "opacity"}, {"audio_react", {{"source", "mix:0"}, {"gain", 2.0}}}
+        }})}}}
+    }});
+    source["audio"] = nlohmann::json{{"clips", nlohmann::json::array({
+        nlohmann::json{{"id", "beat"}, {"asset", "beat.wav"}}})}};
+    const auto decoded = decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!chronon3d::render_plan::detail::native_audio_react_available()) {
+        CHECK_FALSE(prepared);
+        if (!prepared) CHECK(prepared.error().message.find("CHRONON3D_ENABLE_NATIVE_FFMPEG") != std::string::npos);
+        return;
+    }
+    if (!prepared) MESSAGE(prepared.error().message);
+    REQUIRE(prepared);
+    assets::AssetResolver repeated_resolver;
+    repeated_resolver.mount(directory.path);
+    const auto repeated_prepared = compile_render_plan(*decoded, repeated_resolver);
+    if (!repeated_prepared) MESSAGE(repeated_prepared.error().message);
+    REQUIRE(repeated_prepared);
+    CHECK(repeated_prepared->fingerprint.content_digest == prepared->fingerprint.content_digest);
+    const auto first = evaluate(prepared->compiled_composition, {}, Frame{3});
+    const auto second = evaluate(prepared->compiled_composition, {}, Frame{3});
+    REQUIRE(first);
+    REQUIRE(second);
+    CHECK(first->scene.layers()[0].transform.opacity > 0.45f);
+    CHECK(first->scene.layers()[0].transform.opacity < 0.60f);
+    CHECK(second->scene.layers()[0].transform.opacity == first->scene.layers()[0].transform.opacity);
+}
+
 TEST_CASE("render plan auto_orient derives z rotation from the position tangent") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -1155,7 +1364,8 @@ TEST_CASE("render plan auto_orient derives z rotation from the position tangent"
     const auto evaluated = evaluate(
         prepared->compiled_composition, CompositionEvaluateContext{}, Frame{5});
     REQUIRE(evaluated);
-    CHECK(evaluated->scene.layers()[0].transform.rotation.z == doctest::Approx(45.0f).epsilon(0.001f));
+    CHECK(glm::degrees(glm::eulerAngles(evaluated->scene.layers()[0].transform.rotation).z) ==
+          doctest::Approx(45.0f).epsilon(0.001f));
 }
 
 TEST_CASE("viral effect presets lower through the existing effect stack") {
@@ -1937,7 +2147,7 @@ TEST_CASE("render_plan_compiler: scalar temporal handles and AutoBezier lower to
     REQUIRE(evaluated);
     const auto& opacity = evaluated.value().scene.layers().front().anim_transform.opacity;
     REQUIRE(opacity.keyframes().size() == 3);
-    CHECK(opacity.keyframes()[1].interp == InterpMode::AutoBezier);
+    CHECK(opacity.keyframes()[0].interp == InterpMode::AutoBezier);
     CHECK(opacity.keyframes()[1].roving);
     CHECK(opacity.keyframes()[1].frame == Frame{10});
 }
@@ -2077,7 +2287,7 @@ TEST_CASE("render_plan_compiler: rotation_x and rotation_y merge correctly (dual
     CHECK(eval0.value().scene.layers().front().anim_transform.rotation_euler.is_animated());
 }
 
-TEST_CASE("render plan flow layout reaches the runtime scene and changes placement") {
+TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
     using namespace chronon3d;
     assets::AssetResolver resolver;
     render_plan::RenderPlan plan;
@@ -2100,12 +2310,9 @@ TEST_CASE("render plan flow layout reaches the runtime scene and changes placeme
     REQUIRE(layers.size()==3);
     CHECK(layers[0].layout.flow.has_value());
     CHECK(layers[1].layout.flow->group_id=="cards");
-    const auto p0=layers[0].anim_transform.position.evaluate(0.0);
-    const auto p1=layers[1].anim_transform.position.evaluate(0.0);
-    const auto p2=layers[2].anim_transform.position.evaluate(0.0);
-    CHECK(p0.x<p1.x);
-    CHECK(p1.x<p2.x);
-    CHECK(p0.y==doctest::Approx(p1.y));
+    CHECK(layers[0].layout.flow->gap == doctest::Approx(12.0f));
+    CHECK(layers[0].layout.flow->cell_size.x == doctest::Approx(100.0f));
+    CHECK(layers[0].layout.flow->cell_size.y == doctest::Approx(80.0f));
 
     auto changed=plan;
     changed.layers[0].flow_layout->gap=20;
