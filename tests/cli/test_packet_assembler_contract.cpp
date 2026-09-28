@@ -1183,6 +1183,36 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     std::filesystem::remove(output, cleanup_error);
 }
 
+TEST_CASE("NativeAvEncoder: a missing output directory is created, not fatal") {
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    // RenderingGen creates `<workspace>/output/` before the render, but that
+    // workspace can legitimately be swept between prepare and render (the
+    // worker's stale-cleanup removes a workspace whose lease lapsed). The mux
+    // session must therefore create the output's parent directory itself
+    // instead of dying on an undiagnosable "failed to open output sink".
+    const auto root = std::filesystem::temp_directory_path() /
+        "chronon3d_native_encoder_missing_output_dir";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    REQUIRE_FALSE(std::filesystem::exists(root));
+    const auto nested = root / "output" / "deep";
+    const auto output = nested / "result.mp4";
+    REQUIRE_FALSE(std::filesystem::exists(nested));
+
+    chronon3d::cli::NativeAvEncoder encoder;
+    REQUIRE(encoder.open(p0_5a_pipe_options(output.string())));
+    chronon3d::Framebuffer frame(64, 64);
+    REQUIRE(encoder.write_frame(frame));
+    REQUIRE(encoder.close());
+    CHECK(std::filesystem::exists(output));
+    CHECK(std::filesystem::file_size(output) > 0);
+
+    std::filesystem::remove_all(root, ec);
+}
+
 TEST_CASE("A1 CPU native export publishes MP4 sidecar receipt and fails closed") {
     if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
         MESSAGE("Skipping — ffmpeg executable is not available");

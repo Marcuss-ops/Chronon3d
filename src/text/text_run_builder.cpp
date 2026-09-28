@@ -17,7 +17,10 @@
 
 #include <memory>
 #include <algorithm>
+#include <cstddef>
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace chronon3d {
 
@@ -156,6 +159,225 @@ compile_text_layout(
     return text_layout;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Multi-paragraph composition — every paragraph in ONE TextRunLayout
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Bug this exists for: `\n` (and U+2029) split the document into
+// paragraphs, `compile_text_layout(request, …)` compiles exactly ONE of
+// them (`request.paragraph_index`), and every consumer of a text run
+// holds a single `TextRunLayout`.  Long phrases — which the semantic
+// compiler hard-wraps every `phraseWrapCols` characters by injecting `\n`
+// — therefore rendered only their FIRST line.
+
+namespace {
+
+/// A paragraph that compiled successfully, tagged with its ordinal in
+/// `TextDocument::paragraphs` (needed to rebase paragraph-relative byte
+/// offsets onto the full document text).
+struct StackedParagraph {
+    std::size_t index{0};
+    std::shared_ptr<TextRunLayout> layout;
+};
+
+/// Stack per-paragraph layouts into ONE composed TextRunLayout.
+///
+/// Every `part` must have been compiled with `VerticalAlign::Top`, so its
+/// glyphs are laid out from y = 0 and `part.bounds.y` is exactly the
+/// vertical space it occupies.  Paragraph N is shifted down by the summed
+/// height of paragraphs 0..N-1; the document-level vertical alignment is
+/// then applied to the whole block through the SAME helper the
+/// single-paragraph path uses, so stacked text lands where a wrapped
+/// multi-line paragraph would land.
+///
+/// `source_text` becomes the FULL document text (`split_paragraphs()`
+/// strips the separators, so re-joining with `\n` reconstructs `doc.utf8`
+/// byte-for-byte).  Glyph `byte_offset` / `cluster` and cluster ranges are
+/// rebased onto that document-relative origin so `build_text_unit_map`,
+/// the glyph selectors, and the per-frame fast-path identity check keep
+/// working against the whole phrase.
+std::shared_ptr<TextRunLayout> stack_paragraph_layouts(
+    const TextDocument& doc,
+    const std::vector<StackedParagraph>& parts,
+    const TextLayoutSpec& layout
+) {
+    if (parts.empty()) {
+        return nullptr;
+    }
+
+    const TextRunLayout& first = *parts.front().layout;
+
+    auto merged = std::make_shared<TextRunLayout>();
+    merged->source_text    = doc.utf8;
+    merged->font           = first.font;
+    merged->font_size      = first.font_size;
+    merged->tracking       = first.tracking;
+    merged->wrap           = first.wrap;
+    merged->direction      = first.direction;
+    merged->language       = first.language;
+    merged->features       = first.features;
+    merged->variation_axes = first.variation_axes;
+    merged->line_height    = first.line_height;
+
+    PlacedGlyphRun& out = merged->placed;
+    out.font_size = first.placed.font_size;
+    out.ascent    = first.placed.ascent;
+    out.descent   = first.placed.descent;
+    out.baseline  = first.placed.baseline;
+
+    float y_offset = 0.0f;
+    float max_width = 0.0f;
+    std::size_t glyph_cursor = 0;
+
+    for (std::size_t pi = 0; pi < parts.size(); ++pi) {
+        const StackedParagraph& part = parts[pi];
+        const TextRunLayout& src = *part.layout;
+        const std::size_t base =
+            (part.index < doc.paragraphs.size())
+                ? doc.paragraphs[part.index].byte_start
+                : 0;
+
+        out.glyphs.reserve(out.glyphs.size() + src.placed.glyphs.size());
+        for (const PlacedGlyph& g : src.placed.glyphs) {
+            PlacedGlyph rebased = g;
+            rebased.y           += y_offset;
+            rebased.byte_offset += base;
+            rebased.cluster      = static_cast<u32>(rebased.cluster + base);
+            out.glyphs.push_back(rebased);
+        }
+
+        out.clusters.reserve(out.clusters.size() + src.placed.clusters.size());
+        for (const PlacedGlyphRun::Cluster& c : src.placed.clusters) {
+            PlacedGlyphRun::Cluster rebased = c;
+            rebased.start_glyph += glyph_cursor;
+            rebased.end_glyph   += glyph_cursor;
+            rebased.byte_offset += base;
+            out.clusters.push_back(rebased);
+        }
+
+        merged->font_spans.reserve(merged->font_spans.size() + src.font_spans.size());
+        for (const ShapedFontSpan& s : src.font_spans) {
+            ShapedFontSpan rebased = s;
+            rebased.glyph_begin = static_cast<std::uint32_t>(
+                static_cast<std::size_t>(rebased.glyph_begin) + glyph_cursor);
+            rebased.glyph_end = static_cast<std::uint32_t>(
+                static_cast<std::size_t>(rebased.glyph_end) + glyph_cursor);
+            merged->font_spans.push_back(rebased);
+        }
+
+        glyph_cursor += src.placed.glyphs.size();
+        max_width     = std::max(max_width, src.bounds.x);
+        // An empty paragraph (a blank line produced by consecutive `\n`) has
+        // zero-height bounds but still occupies one line of vertical space —
+        // without this the following paragraph would be pulled up onto it.
+        // A trailing blank line is not measured: it has no following content.
+        const bool blank_line_before_more =
+            pi + 1 < parts.size() && src.placed.glyphs.empty() &&
+            src.bounds.y <= 0.0f && src.line_height > 0.0f;
+        y_offset += blank_line_before_more ? src.line_height : src.bounds.y;
+    }
+
+    out.total_width  = max_width;
+    out.total_height = y_offset;
+
+    // Document-level vertical alignment of the WHOLE stacked block.
+    ParagraphLayout block;
+    block.bounds = Vec2{max_width, y_offset};
+    tci::apply_vertical_alignment(out, block, layout);
+    merged->bounds = block.bounds;
+
+    merged->units = build_text_unit_map(merged->placed, merged->source_text);
+    return merged;
+}
+
+} // namespace
+
+Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
+compile_text_document_layout(
+    const TextLayoutRequest& request,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved
+) {
+    // ── Single-paragraph documents keep the historical path untouched. ──
+    // (byte-for-byte identical output; no merge pass, no extra work)
+    if (request.doc == nullptr || request.layout == nullptr ||
+        request.doc->paragraphs.size() <= 1) {
+        return compile_text_layout(request, services, pre_resolved);
+    }
+
+    if (services.engine == nullptr) {
+        return make_text_layout_error(
+            TextLayoutErrorKind::ShapingFailed,
+            "compile_text_document_layout: services.engine is null");
+    }
+
+    // ── Compile every paragraph TOP-aligned so each one stacks from y = 0. ──
+    // The real vertical alignment is applied once to the merged block
+    // (see stack_paragraph_layouts) instead of once per paragraph —
+    // per-paragraph centering would overlap every paragraph on the
+    // same baseline.
+    TextLayoutSpec paragraph_layout = *request.layout;
+    paragraph_layout.vertical_align = VerticalAlign::Top;
+
+    ResolvedTextTree local_tree;
+    if (pre_resolved == nullptr) {
+        local_tree = resolve_text_run_tree(
+            *request.doc, *services.engine, services.bundled_fonts_root);
+        pre_resolved = &local_tree;
+    }
+    if (pre_resolved->paragraphs.empty()) {
+        return make_text_layout_error(
+            TextLayoutErrorKind::EmptySource,
+            "compile_text_document_layout: resolved tree has no paragraphs");
+    }
+
+    const std::size_t paragraph_count =
+        std::min(request.doc->paragraphs.size(), pre_resolved->paragraphs.size());
+
+    std::vector<StackedParagraph> parts;
+    parts.reserve(paragraph_count);
+    std::optional<TextLayoutError> first_error;
+
+    for (std::size_t i = 0; i < paragraph_count; ++i) {
+        TextLayoutRequest paragraph_request = request;
+        paragraph_request.layout          = &paragraph_layout;
+        paragraph_request.paragraph_index = i;
+
+        auto paragraph = compile_text_layout(paragraph_request, services, pre_resolved);
+        if (paragraph && paragraph.value()) {
+            parts.push_back(StackedParagraph{i, std::move(paragraph.value())});
+            continue;
+        }
+
+        const TextLayoutError error = paragraph
+            ? make_text_layout_error(
+                  TextLayoutErrorKind::ShapingProducedNoGlyphs,
+                  "compile_text_document_layout: paragraph " + std::to_string(i) +
+                      " produced no layout")
+            : paragraph.error();
+        if (!first_error) {
+            first_error = error;
+        }
+        spdlog::warn(
+            "compile_text_document_layout: paragraph {} skipped — {}",
+            i, error.message);
+    }
+
+    if (parts.empty()) {
+        return first_error.value_or(make_text_layout_error(
+            TextLayoutErrorKind::EmptySource,
+            "compile_text_document_layout: no paragraph compiled"));
+    }
+
+    auto merged = stack_paragraph_layouts(*request.doc, parts, *request.layout);
+    if (!merged) {
+        return make_text_layout_error(
+            TextLayoutErrorKind::ShapingProducedNoGlyphs,
+            "compile_text_document_layout: failed to stack paragraph layouts");
+    }
+    return merged;
+}
+
 // X2 core dispatch (defined below): compile a PreparedText WITHOUT re-entering
 // the auto-fit entry point.  The ADR-018 probe loop must call this, not
 // compile_text_layout(PreparedText): a probe inherits the Clip overflow policy,
@@ -289,7 +511,10 @@ compile_prepared_text_core(
     request.language = effective.shaping.language;
     request.features = effective.shaping.open_type_features;
 
-    return compile_text_layout(request, services, pre_resolved);
+    // Multi-paragraph documents (`\n`-separated) must compile into ONE
+    // composed layout — routing through the single-paragraph compiler
+    // silently dropped every paragraph after the first.
+    return compile_text_document_layout(request, services, pre_resolved);
 }
 
 TextRunBuildResult build_text_run(

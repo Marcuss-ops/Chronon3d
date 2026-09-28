@@ -4,8 +4,10 @@
 
 #include <array>
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <memory>
+#include <system_error>
 
 extern "C" {
 #include <libavutil/error.h>
@@ -26,6 +28,22 @@ bool finish_sha256_hex(AVHashContext* hash, std::string& checksum) {
                       static_cast<int>(digest.size()));
     checksum.assign(digest.data(), kSha256HexChars);
     return true;
+}
+
+// The output's parent directory is part of the caller's workspace contract
+// (RenderingGen creates `output/` before the render). It is created here too,
+// idempotently, because the workspace can legitimately disappear between
+// prepare and render (the worker's stale-cleanup sweeps any workspace whose
+// lease has lapsed), and avio_open then fails with ENOENT — surfacing as
+// "failed to open output sink" on a job whose render was otherwise fine.
+// create_directories is a no-op when the directory already exists, so the
+// normal path is unaffected.
+void ensure_parent_directory(const std::string& path) noexcept {
+    std::error_code ec;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+    }
 }
 
 bool hash_final_file(const std::string& path, std::string& checksum,
@@ -70,7 +88,21 @@ bool MuxAvioHashWriter::open(const std::string& path,
         if (av_hash_alloc(&hash, "sha256") < 0 || !hash) return false;
         av_hash_init(hash);
     }
-    if (avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE) < 0 || !sink) return false;
+    ensure_parent_directory(path);
+    const int open_result = avio_open(&sink, path.c_str(), AVIO_FLAG_WRITE);
+    if (open_result < 0 || !sink) {
+        // Name the real cause. The previous message collapsed ENOENT, EACCES,
+        // ENOSPC and EMFILE into one indistinguishable string, which is why a
+        // missing output directory could only be diagnosed by re-running the
+        // render by hand.
+        char error[AV_ERROR_MAX_STRING_SIZE]{};
+        av_strerror(open_result < 0 ? open_result : AVERROR_UNKNOWN, error,
+                    sizeof(error));
+        spdlog::error("[packet-assembler] avio_open failed for '{}': {}", path,
+                      error);
+        if (sink) avio_closep(&sink);
+        return false;
+    }
     const auto initial = avio_tell(sink);
     position = initial >= 0 ? initial : 0;
     append_end = position;

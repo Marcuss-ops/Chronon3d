@@ -218,8 +218,6 @@ struct ShapeContentPlan {
     std::optional<std::string> lottie_asset;
     float radius{0.0f};
     std::optional<std::array<float, 4>> corner_radius;
-    DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
-    bool device_frame_chrome{true};
     std::optional<std::array<float, 4>> fill_color;
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;

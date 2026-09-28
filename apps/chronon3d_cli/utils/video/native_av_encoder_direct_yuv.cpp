@@ -8,9 +8,42 @@
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
+#include <libavutil/hwcontext_cuda.h>
 #endif
 
 namespace chronon3d::cli {
+
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+namespace {
+
+/// The stream that produced the decoded CUDA surface.
+///
+/// NVDEC writes the CUDA frame on the stream published by FFmpeg's CUDA
+/// device context, and the AVFrame becomes visible to this thread before that
+/// stream's writes are necessarily complete. Reading the surface from an
+/// unrelated stream therefore races the decode: the frame is copied while it
+/// is still unwritten (a silently black frame) or only partially written.
+///
+/// FFmpeg leaves `AVCUDADeviceContext::stream` null for CUVID, which means the
+/// legacy CUDA default stream rather than "no stream"; the compositor API uses
+/// null to select its own private non-blocking stream, so the FFmpeg/default
+/// ordering is preserved explicitly. Same convention as
+/// `VulkanCudaFrameImportSession`: the decoder stream is the producer ordering
+/// boundary for every consumer of a hardware-decoded surface.
+[[nodiscard]] CUstream decoder_producer_stream(const AVFrame* frame) noexcept {
+    if (!frame || !frame->hw_frames_ctx) return CU_STREAM_LEGACY;
+    auto* frames = reinterpret_cast<const AVHWFramesContext*>(
+        frame->hw_frames_ctx->data);
+    if (!frames || !frames->device_ref) return CU_STREAM_LEGACY;
+    auto* device = reinterpret_cast<const AVHWDeviceContext*>(frames->device_ref->data);
+    auto* cuda = device
+        ? reinterpret_cast<const AVCUDADeviceContext*>(device->hwctx)
+        : nullptr;
+    return (cuda && cuda->stream) ? cuda->stream : CU_STREAM_LEGACY;
+}
+
+} // namespace
+#endif
 using Clock = detail::NativeAvClock;
 using detail::elapsed_ms;
 
@@ -75,6 +108,9 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         spdlog::error("[native_av] DirectYuv failed to activate CUDA context on writer thread");
         return false;
     }
+    // Producer ordering boundary: the decode stream that wrote
+    // `direct.decoded`, never this encoder's unrelated non-blocking stream.
+    const CUstream producer_stream = decoder_producer_stream(direct.decoded.get());
     const bool has_overlay = !direct.program->batch.instances.empty();
     if (has_overlay && !direct_yuv_compositor_) {
         try {
@@ -165,7 +201,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
             gpu_frame->linesize[1],
             static_cast<std::uint32_t>(options_.width),
-            static_cast<std::uint32_t>(options_.height), cuda_stream_,
+            static_cast<std::uint32_t>(options_.height), producer_stream,
             p010 ? media::video::CudaYuvFormat::P010
                  : media::video::CudaYuvFormat::Nv12,
             media::video::transfer_encode_for(output_frame_format_.transfer));
@@ -179,7 +215,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
         copy.dstPitch = gpu_frame->linesize[0];
         copy.WidthInBytes = static_cast<std::size_t>(options_.width) * (p010 ? 2u : 1u);
         copy.Height = static_cast<std::size_t>(options_.height);
-        CUresult copy_result = cuMemcpy2DAsync(&copy, cuda_stream_);
+        CUresult copy_result = cuMemcpy2DAsync(&copy, producer_stream);
         launch_ok = copy_result == CUDA_SUCCESS;
         if (!launch_ok) {
             const char* name = nullptr;
@@ -201,7 +237,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             copy.dstDevice = reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]);
             copy.dstPitch = gpu_frame->linesize[1];
             copy.Height = static_cast<std::size_t>(options_.height / 2);
-            copy_result = cuMemcpy2DAsync(&copy, cuda_stream_);
+            copy_result = cuMemcpy2DAsync(&copy, producer_stream);
             launch_ok = copy_result == CUDA_SUCCESS;
             if (!launch_ok) {
                 const char* name = nullptr;
@@ -232,8 +268,10 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
     gpu_frame->color_primaries = codec_->color_primaries;
     gpu_frame->pts = static_cast<int64_t>(frames_submitted_++);
     cuda::OwnedCudaEvent ready{};
+    // The event must gate the stream that actually produced the surface, or
+    // the consumer's wait would not cover the composite/copy above.
     const CUresult event_create = cuda::create_recorded(
-        ready, reinterpret_cast<CUcontext>(cuda_context_), cuda_stream_);
+        ready, reinterpret_cast<CUcontext>(cuda_context_), producer_stream);
     const CUresult event_record = event_create;
     if (event_create != CUDA_SUCCESS || event_record != CUDA_SUCCESS) {
         const char* name = nullptr;
