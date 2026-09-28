@@ -122,6 +122,10 @@ void project_backend_gpu_counters(
             timings.gpu.frame_batch_drain_wait_count = value;
         } else if (name == "frame_batch_drain_wait_us") {
             timings.gpu.frame_batch_drain_wait_us = value;
+        } else if (name == "deferred_release_flush_count") {
+            timings.gpu.deferred_release_flush_count = value;
+        } else if (name == "deferred_release_drain_wait_us") {
+            timings.gpu.deferred_release_drain_wait_us = value;
         } else if (name == "frame_slot_wait_count") {
             timings.gpu.frame_slot_wait_count = value;
         } else if (name == "frame_slot_wait_us") {
