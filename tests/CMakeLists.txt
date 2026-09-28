@@ -56,3 +56,28 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py")
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py"
     )
 endif()
+
+# Cartography tool self-test. The map plates (tools/cartography/
+# map_cartography.py) and the georeferencing that places markers on them
+# (ChrononMotion3D's MapWindow) are two implementations of one projection, and
+# the tool owns the reference values. This locks the four Mercator rows that
+# ChrononMotion3D's tests/motion_geospatial.cpp asserts against its own
+# implementation, so a drift between the two sides fails a build here instead of
+# silently moving every marker off its pixel.
+#
+# Offline by construction: the self-test never fetches a tile, only the plate
+# commands do. It is stdlib-only for the geodesy, which is what this
+# interpreter is: the raster assertions (bilinear, Horn hillshade, relief bake)
+# need numpy and Pillow, so they disclose their skip on a host without them
+# rather than turning a missing pip package into a red build.
+set(CHRONON3D_CARTOGRAPHY_TOOL "${CMAKE_SOURCE_DIR}/tools/cartography/map_cartography.py")
+if(EXISTS "${CHRONON3D_CARTOGRAPHY_TOOL}")
+    add_test(
+        NAME chronon3d_cartography_geodesy_tests
+        COMMAND ${Python3_EXECUTABLE} "${CHRONON3D_CARTOGRAPHY_TOOL}" --self-test
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(chronon3d_cartography_geodesy_tests PROPERTIES
+        LABELS "cartography;geodesy;tool;gate"
+    )
+endif()
