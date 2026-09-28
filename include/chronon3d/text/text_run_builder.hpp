@@ -370,4 +370,46 @@ struct TextLayoutRequest {
     const ResolvedTextTree* pre_resolved = nullptr
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// compile_text_document_layout — every paragraph, ONE TextRunLayout
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// `compile_text_layout(request, …)` compiles ONE paragraph — the one named
+// by `request.paragraph_index`.  Every downstream consumer of a text run
+// (`TextRunShape::layout`, the glyph-state seeds, the animators, the unit
+// map) holds exactly ONE `TextRunLayout`, so multi-paragraph documents
+// (`TextDocument::split_paragraphs()` splits on `\n` / U+2029) used to be
+// rendered from `paragraphs.front()` alone: a 4-line phrase came out as a
+// single visible line.
+//
+// This entry point compiles EVERY paragraph (each top-aligned so it lays
+// out from y = 0), stacks them, and returns one composed layout whose
+// `source_text` is the FULL document text — so the per-frame fast-path
+// identity check, the glyph selectors, and the TextUnitMap all keep
+// working against the whole phrase.
+//
+// Contract:
+//   - Single-paragraph documents delegate straight to `compile_text_layout`
+//     → byte-for-byte identical output to the historical path.
+//   - Multi-paragraph documents return a merged layout whose `bounds.y` is
+//     the summed paragraph height (after the document-level vertical
+//     alignment has been applied to the whole block).
+//   - Paragraphs that fail to compile are skipped (warn + continue); the
+//     Err is only surfaced when NO paragraph compiled.
+//
+// @param request      `doc` + `layout` are mandatory; `paragraph_index` is
+//                     ignored (every paragraph is compiled).  The remaining
+//                     fields (primary_font / direction / language / features
+//                     / variation_axes / shaping_failure_policy) apply to
+//                     every paragraph.
+// @param pre_resolved Optional already-resolved tree, reused as-is.
+[[nodiscard]] Result<
+    std::shared_ptr<TextRunLayout>,
+    TextLayoutError
+> compile_text_document_layout(
+    const TextLayoutRequest& request,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved = nullptr
+);
+
 } // namespace chronon3d
