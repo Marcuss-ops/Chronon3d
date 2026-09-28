@@ -7,7 +7,46 @@
 #include "text_font_state.hpp"      // compute_effective_font_for_prewarm
 #include "text_state_sampler.hpp"   // is_in_dissolve_gap / select_target_text
 
+#include <spdlog/spdlog.h>
+
+#include <memory>
+#include <utility>
+
 namespace chronon3d::text::driver {
+
+namespace {
+
+/// Build (or pull from cache) the layout that composes EVERY paragraph of
+/// `doc`.
+///
+/// This replaces the historical `build_text_run(doc, engine, spec, cache)`
+/// + `result.paragraphs.front()` pair.  `build_text_run` returns one
+/// `TextRunLayout` per `\n`-separated paragraph, and the front() of that
+/// vector was the only entry ever rendered — a multi-line phrase came out
+/// as its first line only.  `compile_text_document_layout` compiles the
+/// same paragraphs with the same request fields (primary font from
+/// `doc.defaults.font`, `features` from the layout spec, Auto direction /
+/// empty language) and returns them already stacked into a single layout.
+[[nodiscard]] std::shared_ptr<TextRunLayout> build_merged_layout(
+    const TextDocument& doc,
+    const TextLayoutSpec& layout_spec,
+    FontEngine& engine,
+    TextLayoutCache* cache
+) {
+    TextLayoutRequest request{&doc, &layout_spec, doc.defaults.font, 0};
+    request.features = layout_spec.features;
+    TextCompileServices services{&engine, cache, {}};
+    auto compiled = compile_text_document_layout(request, services);
+    if (!compiled) {
+        spdlog::warn(
+            "build_merged_layout: compile_text_document_layout failed — {}",
+            compiled.error().message);
+        return nullptr;
+    }
+    return compiled.value();
+}
+
+} // namespace
 
 EffectiveTextState current_effective_state(const TextRunLayout& layout) {
     EffectiveTextState s;
@@ -66,14 +105,12 @@ bool rebuild_active_side(
     td.defaults.font = effective_font;  // P0-2: project pre-computed effective font
     td.split_paragraphs();
 
-    auto* cache_ptr = (cache != nullptr) ? cache : shape.cache;
-    TextRunBuildResult result =
-        build_text_run(td, engine, layout_spec, cache_ptr);
-
-    if (result.paragraphs.empty() || !result.paragraphs.front()) {
+    auto merged = build_merged_layout(
+        td, layout_spec, engine, (cache != nullptr) ? cache : shape.cache);
+    if (!merged) {
         return false;
     }
-    shape.layout = result.paragraphs.front();
+    shape.layout = std::move(merged);
     reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
     return true;
 }
@@ -135,12 +172,10 @@ bool rebuild_dissolve_slot(
     cf_td.defaults.font = effective_font_outgoing;
     cf_td.split_paragraphs();
 
-    auto* cache_ptr = (cache != nullptr) ? cache : shape.cache;
-    TextRunBuildResult cf_result =
-        build_text_run(cf_td, engine, layout_spec, cache_ptr);
-
-    if (!cf_result.paragraphs.empty() && cf_result.paragraphs.front()) {
-        shape.dissolve_layout = cf_result.paragraphs.front();
+    auto cf_merged = build_merged_layout(
+        cf_td, layout_spec, engine, (cache != nullptr) ? cache : shape.cache);
+    if (cf_merged) {
+        shape.dissolve_layout = std::move(cf_merged);
         reset_glyph_states_in_place(shape.dissolve_glyphs, shape.dissolve_layout->placed);
         shape.dissolve_mix = state.mix;
         return true;
@@ -177,10 +212,11 @@ bool prewarm_for_frame(
     td.split_paragraphs();
 
     auto* cache_ptr = (cache != nullptr) ? cache : shape.cache;
-    TextRunBuildResult result =
-        build_text_run(td, engine, layout_spec, cache_ptr);
-
-    const bool active_ok = !result.paragraphs.empty();
+    TextLayoutRequest active_request{&td, &layout_spec, td.defaults.font, 0};
+    active_request.features = layout_spec.features;
+    TextCompileServices active_services{&engine, cache_ptr, {}};
+    const bool active_ok = static_cast<bool>(
+        compile_text_document_layout(active_request, active_services));
 
     // Crossfade-side prewarm (only inside the gap)
     bool cf_ok = true;
@@ -192,9 +228,11 @@ bool prewarm_for_frame(
         cf_td.utf8         = state.dissolve_from->utf8;
         cf_td.defaults.font = state.dissolve_from->defaults.font;
         cf_td.split_paragraphs();
-        TextRunBuildResult cf_result =
-            build_text_run(cf_td, engine, layout_spec, cache_ptr);
-        cf_ok = !cf_result.paragraphs.empty();
+        TextLayoutRequest cf_request{&cf_td, &layout_spec, cf_td.defaults.font, 0};
+        cf_request.features = layout_spec.features;
+        TextCompileServices cf_services{&engine, cache_ptr, {}};
+        cf_ok = static_cast<bool>(
+            compile_text_document_layout(cf_request, cf_services));
     }
 
     return active_ok && cf_ok;

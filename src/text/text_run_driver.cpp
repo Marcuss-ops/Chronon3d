@@ -97,11 +97,14 @@ void update_text_run_shape_per_frame(
             td.split_paragraphs();
 
             auto* cache = shape.cache;  // Fase B3: per-shape cache
-            TextRunBuildResult result = build_text_run(
-                td, *shape.engine, shape.layout_spec, cache);
+            TextLayoutRequest request{
+                &td, &shape.layout_spec, td.defaults.font, 0};
+            request.features = shape.layout_spec.features;
+            TextCompileServices services{shape.engine, cache, {}};
+            auto result = compile_text_document_layout(request, services);
 
-            if (!result.paragraphs.empty() && result.paragraphs.front()) {
-                shape.layout = result.paragraphs.front();
+            if (result && result.value()) {
+                shape.layout = std::move(result.value());
                 reset_glyph_states_in_place(shape.glyphs, shape.layout->placed);
             }
         }
