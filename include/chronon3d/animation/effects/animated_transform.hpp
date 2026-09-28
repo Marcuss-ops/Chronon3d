@@ -21,6 +21,7 @@ struct AnimatedTransform {
     AnimatedQuat rotation_quat_track{};
 
     AnimatedValue<Vec3> scale{Vec3(1.0f)};
+    AnimatedValue<Vec3> skew{Vec3(0.0f)};
     AnimatedValue<Vec3> anchor{Vec3(0.0f)};
     AnimatedValue<f32>  opacity{1.0f};
     AnimatedValue<f32>  blur{0.0f};  // gaussian blur radius in pixels
@@ -33,6 +34,8 @@ struct AnimatedTransform {
         t.position = position.evaluate(time);
         t.rotation = resolve_rotation(time);
         t.scale    = scale.evaluate(time);
+        const Vec3 skew_value = skew.evaluate(time);
+        t.skew     = Vec2{skew_value.x, skew_value.y};
         t.anchor   = anchor.evaluate(time);
         t.opacity  = opacity.evaluate(time);
         t.blur     = blur.evaluate(time);
@@ -50,7 +53,7 @@ struct AnimatedTransform {
     [[nodiscard]] bool is_animated() const {
         return position.is_animated() || rotation_euler.is_animated() ||
                rotation_quat_track.is_animated() ||
-               scale.is_animated()    || anchor.is_animated() ||
+               scale.is_animated()    || skew.is_animated() || anchor.is_animated() ||
                opacity.is_animated() || blur.is_animated();
     }
 
@@ -60,7 +63,7 @@ struct AnimatedTransform {
     [[nodiscard]] bool is_time_dependent() const {
         return position.is_time_dependent() || rotation_euler.is_time_dependent() ||
                rotation_quat_track.is_time_dependent() ||
-               scale.is_time_dependent()    || anchor.is_time_dependent() ||
+               scale.is_time_dependent()    || skew.is_time_dependent() || anchor.is_time_dependent() ||
                opacity.is_time_dependent() || blur.is_time_dependent();
     }
 
@@ -70,6 +73,7 @@ struct AnimatedTransform {
         rotation_euler.shift(offset);
         rotation_quat_track.shift(offset);
         scale.shift(offset);
+        skew.shift(offset);
         anchor.shift(offset);
         opacity.shift(offset);
         blur.shift(offset);

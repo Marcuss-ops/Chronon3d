@@ -49,6 +49,21 @@ allowlist = "tools/duplicate_basename_allowlist.txt"
 hint = "Use the canonical owner directory; if a compatibility boundary truly needs a duplicate basename, add a reviewed grandfather entry and explain the demolition scope in its ticket."
 
 [[required_path]]
+name = "public_c_abi_header"
+paths = ["include/chronon/abi.h"]
+
+[[contract]]
+name = "public_c_abi_version_contract"
+file = "include/chronon/abi.h"
+required_patterns = ["#define CHRONON_ABI_VERSION 2u", "chronon_abi_version"]
+
+[[scan]]
+name = "c_api_uses_canonical_abi_version"
+scan_paths = ["src/c_api/chronon3d_c_api.cpp"]
+patterns = ["chronon_abi_version\\(void\\)\\s*\\{\\s*return\\s+2\\s*;"]
+hint = "Return CHRONON_ABI_VERSION from the public ABI header; do not duplicate its value in the implementation."
+
+[[required_path]]
 name = "canonical_error_model_header"
 paths = ["include/chronon3d/core/types/error.hpp"]
 
@@ -413,6 +428,11 @@ forbidden_patterns = [
   "compile_render_plan\\(",
   "compile_composition\\(",
 ]
+
+[[contract]]
+name = "effect_param_tracks_follow_catalog_and_real_fields"
+effect_param_anim_catalog = "include/chronon3d/effects/effect_catalog.def"
+anim_param_table = "include/chronon3d/effects/effect_param_anims.def"
 
 # ── Cache taxonomy is enforced, not merely documented ────────────────────────
 # include/chronon3d/cache/cache_taxonomy.hpp names the three families and the

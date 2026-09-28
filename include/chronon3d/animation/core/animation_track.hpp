@@ -31,9 +31,29 @@
 #include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace chronon3d {
+
+/// Deterministic scalar driver compiled from an authored animation-track
+/// driver. It is stored on AnimatedValue<float> and evaluated from sample
+/// frame/time only; it never reads a clock or global RNG.
+struct ScalarAnimationDriver {
+    enum class Kind : std::uint8_t { Oscillate, RandomHold, PosterizeTime };
+    enum class Waveform : std::uint8_t { Sine, Triangle, Sawtooth, Square };
+    Kind kind{Kind::Oscillate};
+    Waveform waveform{Waveform::Sine};
+    float frequency_hz{1.0f};
+    float amplitude{1.0f};
+    float phase_deg{0.0f};
+    float offset{0.0f};
+    std::uint32_t interval_frames{1};
+    float min{0.0f};
+    float max{1.0f};
+    std::uint32_t seed{0};
+    float fps{8.0f};
+};
 
 template <typename T>
 class AnimationTrack {

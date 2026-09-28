@@ -126,6 +126,66 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
     } else {
         out.add_bool(false);
     }
+    if (track.oscillate) {
+        out.add_bool(true);
+        out.add_float(track.oscillate->frequency_hz);
+        out.add_float(track.oscillate->amplitude);
+        out.add_float(track.oscillate->phase_deg);
+        out.add_string(track.oscillate->waveform);
+        out.add_float(track.oscillate->offset);
+    } else {
+        out.add_bool(false);
+    }
+    if (track.random_hold) {
+        out.add_bool(true);
+        out.add_uint64(track.random_hold->interval_frames);
+        out.add_float(track.random_hold->min);
+        out.add_float(track.random_hold->max);
+        out.add_uint64(track.random_hold->seed);
+    } else {
+        out.add_bool(false);
+    }
+    if (track.posterize_time) {
+        out.add_bool(true);
+        out.add_float(track.posterize_time->fps);
+    } else {
+        out.add_bool(false);
+    }
+    if (track.data_feed) {
+        out.add_bool(true);
+        out.add_string(track.data_feed->asset.empty() ? "inline" : "asset");
+        out.add_string(track.data_feed->asset);
+        out.add_string(track.data_feed->sha256);
+        out.add_uint64(track.data_feed->item_count);
+        out.add_uint64(static_cast<std::uint64_t>(
+            static_cast<std::int64_t>(track.data_feed->index_offset)));
+        out.add_string(track.data_feed->interpolation);
+        if (track.data_feed->asset.empty()) {
+            out.add_size(track.data_feed->values.size());
+            for (const auto sample : track.data_feed->values) out.add_float(sample);
+        }
+    } else {
+        out.add_bool(false);
+    }
+    if (track.audio_react) {
+        out.add_bool(true);
+        out.add_string(track.audio_react->source);
+        out.add_string(track.audio_react->feature);
+        out.add_bool(track.audio_react->band_hz.has_value());
+        if (track.audio_react->band_hz) {
+            out.add_float((*track.audio_react->band_hz)[0]);
+            out.add_float((*track.audio_react->band_hz)[1]);
+        }
+        out.add_uint64(track.audio_react->smoothing_frames);
+        out.add_float(track.audio_react->gain);
+        out.add_string(track.audio_react->map);
+        out.add_string("chronon-audio-react-v1-48k-hann-goertzel32");
+        out.add_string(track.audio_react->source_sha256);
+        out.add_size(track.audio_react->baked_values.size());
+        for (const auto sample : track.audio_react->baked_values) out.add_float(sample);
+    } else {
+        out.add_bool(false);
+    }
     if (track.spring) {
         out.add_bool(true);
         out.add_float(track.spring->mass);
@@ -149,6 +209,11 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
         if (key.interpolation) out.add_string(*key.interpolation);
         out.add_bool(key.easing.has_value());
         if (key.easing) out.add_string(*key.easing);
+        out.add_bool(key.easing_xy.has_value());
+        if (key.easing_xy) {
+            out.add_string((*key.easing_xy)[0]);
+            out.add_string((*key.easing_xy)[1]);
+        }
         if (key.spring) {
             out.add_bool(true);
             out.add_float(key.spring->mass);
@@ -178,7 +243,7 @@ void add_track(CanonicalPlanWriter& out, const AnimationTrackPlan& track) {
 // (graphics::write_gradient_identity in <chronon3d/graphics/gradient.hpp>).
 // This sink only encodes that sequence into the canonical byte stream; the
 // stream is byte-identical to the historical inline lambdas; additive
-// render-plan fields are versioned by the current v19 token below.
+// render-plan fields are versioned by the current v27 token below.
 struct CanonicalGradientSink {
     CanonicalPlanWriter& out;
 
@@ -400,16 +465,40 @@ void add_audio_mix(CanonicalPlanWriter& out, const AudioMixPlan& mix) {
     out.add_float(mix.duck_release_ms);
 }
 
+void add_stagger(CanonicalPlanWriter& out, const LayerPlan::StaggerPlan& stagger) {
+    out.add_uint64(stagger.per_item_frames);
+    out.add_string(stagger.order);
+    out.add_uint64(stagger.seed);
+    out.add_string(stagger.track_property);
+    out.add_string(stagger.easing);
+}
+
 void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
     add_optional(out, layer.flow_layout, [](auto& w, const LayerPlan::FlowLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.axis); w.add_string(p.align); w.add_string(p.justify);
         w.add_float(p.gap); w.add_bool(p.wrap); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
     });
     add_optional(out, layer.grid_layout, [](auto& w, const LayerPlan::GridLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.fit); w.add_uint64(static_cast<std::uint64_t>(p.columns)); w.add_uint64(static_cast<std::uint64_t>(p.rows));
         w.add_float(p.gap[0]); w.add_float(p.gap[1]); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
+    });
+    add_optional(out, layer.follow_path, [](auto& w, const LayerPlan::FollowPathDriverPlan& p) {
+        w.add_string(p.path_id);
+        w.add_size(p.path_commands.size());
+        for (const auto& command : p.path_commands) {
+            w.add_enum(command.type);
+            for (const auto value : command.point) w.add_float(value);
+            for (const auto value : command.control1) w.add_float(value);
+            for (const auto value : command.control2) w.add_float(value);
+        }
+        add_track(w, p.progress);
+        w.add_bool(p.auto_orient);
+        w.add_float(p.offset_deg);
+        w.add_bool(p.clamp_end);
     });
     add_optional(out, layer.parent, [](auto& writer, const std::string& value) {
         writer.add_string(value);
@@ -758,6 +847,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(layer.path_mask->radius);
         out.add_float(layer.path_mask->feather);
         out.add_float(layer.path_mask->expansion);
+        out.add_float(layer.path_mask->opacity);
+        add_optional(out, layer.path_mask->feather_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
+        add_optional(out, layer.path_mask->expansion_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
+        add_optional(out, layer.path_mask->opacity_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
         out.add_bool(layer.path_mask->inverted);
         out.add_size(layer.path_mask->path.size());
         for (const auto& command : layer.path_mask->path) {
@@ -785,6 +881,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(mask.radius);
         out.add_float(mask.feather);
         out.add_float(mask.expansion);
+        out.add_float(mask.opacity);
+        add_optional(out, mask.feather_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
+        add_optional(out, mask.expansion_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
+        add_optional(out, mask.opacity_track,
+            [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
         out.add_bool(mask.inverted);
         const auto add_mask_commands = [&](const auto& commands) {
             out.add_size(commands.size());
@@ -845,6 +948,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.softness);
                 out.add_float(effect.amount);
                 for (const auto value : effect.effect_color) out.add_float(value);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Catalog) {
+                out.add_string(effect.canonical_effect_id);
+                out.add_size(effect.canonical_params.size());
+                for (const auto& value : effect.canonical_params) {
+                    out.add_string(value.param);
+                    out.add_float(value.value);
+                }
             } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
                 for (const auto value : effect.light_rays_origin) out.add_float(value);
                 out.add_float(effect.light_rays_length);
@@ -922,12 +1032,25 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.warp_radius);
                 out.add_float(effect.warp_falloff);
                 for (const auto component : effect.effect_color) out.add_float(component);
+            } else if (effect.kind == LayerPlan::EffectKindPlan::Catalog) {
+                out.add_string(effect.canonical_effect_id);
+                out.add_size(effect.canonical_params.size());
+                for (const auto& value : effect.canonical_params) {
+                    out.add_string(value.param);
+                    out.add_float(value.value);
+                }
             } else {
                 out.add_size(effect.block_size);
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});
             add_optional(out,effect.time_curve,[](auto& w,const AnimationTrackPlan& track){add_track(w,track);});
         }
+    }
+    out.add_size(layer.effect_param_tracks.size());
+    for (const auto& track : layer.effect_param_tracks) {
+        out.add_string(track.effect_id);
+        out.add_string(track.param);
+        add_track(out, track.track);
     }
 
     for (const auto value : layer.size) out.add_float(value);
@@ -939,6 +1062,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_size(layer.scale_dimensions);
     for (const auto value : layer.rotation) out.add_float(value);
     out.add_size(layer.rotation_dimensions);
+    out.add_float(layer.skew_angle_deg);
+    out.add_float(layer.skew_axis_deg);
     out.add_bool(layer.enable_3d);
     out.add_bool(layer.screen_space);
     // Preserve byte-for-byte fingerprints for plans authored before safe
@@ -996,7 +1121,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v19");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v28");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);
@@ -1017,6 +1142,15 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
                      writer.add_size(tracks.size());
                      for (const auto& track : tracks) add_camera_track(writer, track);
                  });
+    add_optional(out, plan.camera_shake, [](auto& writer, const CameraShakePlan& shake) {
+        writer.add_float(shake.amplitude_px);
+        writer.add_float(shake.frequency_hz);
+        writer.add_float(shake.decay);
+        writer.add_uint64(shake.seed);
+        writer.add_float(shake.rotation_amplitude_deg);
+        writer.add_frame(shake.start_frame);
+        writer.add_frame(shake.duration_frames);
+    });
     add_optional(out, plan.lighting_rig, [](auto& writer, const LightingRigPlan& rig) {
         for (const float value : rig.key_direction) writer.add_float(value);
         for (const float value : rig.key_color) writer.add_float(value);

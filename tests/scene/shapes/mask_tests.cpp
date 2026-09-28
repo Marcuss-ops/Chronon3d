@@ -182,6 +182,17 @@ TEST_CASE("Primitive masks apply feather and expansion through alpha coverage") 
     CHECK(mask_alpha_at_local_point(mask, {10, 0}) == doctest::Approx(0.5f));
 }
 
+TEST_CASE("Mask opacity scales primitive and inverted coverage") {
+    Mask mask;
+    mask.type = MaskType::Rect;
+    mask.size = {20.0f, 20.0f};
+    mask.opacity = 0.25f;
+    CHECK(mask_alpha_at_local_point(mask, {0, 0}) == doctest::Approx(0.25f));
+    mask.inverted = true;
+    CHECK(mask_alpha_at_local_point(mask, {0, 0}) == doctest::Approx(0.0f));
+    CHECK(mask_alpha_at_local_point(mask, {20, 0}) == doctest::Approx(0.25f));
+}
+
 TEST_CASE("Path mask clips rendered layer pixels") {
     auto fb = render_masked_layer([](LayerBuilder& layer) {
         layer.mask_path({.commands = {PathCommand::move_to({-10, -10}),

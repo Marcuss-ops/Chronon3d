@@ -54,7 +54,8 @@ int round_up_bucket(int val) {
 // bucket is empty.  Updates lifetime counters and frees the bucket key
 // when it becomes empty (avoid unbounded growth in m_free).
 // ---------------------------------------------------------------------------
-bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
+bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key,
+    std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction) {
     auto it = m_free.find(key);
     if (it == m_free.end() || it->second.empty()) return false;
 
@@ -74,7 +75,10 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
         std::distance(bucket.begin(), lru_it));
 
     size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
-    bucket[lru_idx] = std::move(bucket.back());
+    deferred_destruction.push_back(std::move(bucket[lru_idx].fb));
+    if (lru_idx + 1 != bucket.size()) {
+        bucket[lru_idx] = std::move(bucket.back());
+    }
     bucket.pop_back();
     m_current_bytes -= evicted_bytes;
     m_evicted_count.fetch_add(1, std::memory_order_relaxed);
@@ -95,7 +99,8 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
 // Walks every bucket to find the globally oldest entry, evicts it.
 // Returns false when all buckets are empty.
 // ---------------------------------------------------------------------------
-bool FramebufferPool::evict_global_lru() {
+bool FramebufferPool::evict_global_lru(
+    std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction) {
     std::optional<FramebufferPoolKey> lru_key;
     size_t                              lru_idx  = 0;
     uint64_t                            min_tick = std::numeric_limits<uint64_t>::max();
@@ -131,7 +136,10 @@ bool FramebufferPool::evict_global_lru() {
     if (lru_idx >= bucket.size()) return false;
 
     size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
-    bucket[lru_idx] = std::move(bucket.back());
+    deferred_destruction.push_back(std::move(bucket[lru_idx].fb));
+    if (lru_idx + 1 != bucket.size()) {
+        bucket[lru_idx] = std::move(bucket.back());
+    }
     bucket.pop_back();
     m_current_bytes -= evicted_bytes;
     m_evicted_count.fetch_add(1, std::memory_order_relaxed);
@@ -149,12 +157,13 @@ bool FramebufferPool::evict_global_lru() {
 // ---------------------------------------------------------------------------
 // evict_lru_for — eviction driver: make room for `incoming_bytes`.
 // ---------------------------------------------------------------------------
-bool FramebufferPool::evict_lru_for(size_t incoming_bytes) {
+bool FramebufferPool::evict_lru_for(size_t incoming_bytes,
+    std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction) {
     if (m_config.max_retained_bytes == 0) return true; // unlimited
 
     bool evicted_any = false;
     while (m_current_bytes + incoming_bytes > m_config.max_retained_bytes) {
-        if (!evict_global_lru()) break;
+        if (!evict_global_lru(deferred_destruction)) break;
         evicted_any = true;
     }
     return evicted_any;

@@ -9,8 +9,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <mutex>
 #include <system_error>
+#include <spdlog/spdlog.h>
 
 #if defined(__linux__)
 #include <linux/memfd.h>
@@ -316,7 +318,15 @@ int SharedMemoryTransport::serve(const FrameHandler& handler) noexcept {
         ServerReply server_reply;
         try {
             server_reply = handler(request_frame);
+        } catch (const std::exception& exception) {
+            spdlog::error("[ipc-memfd] server frame handler failed: {}", exception.what());
+            result = EIO;
+            region->response_len = 0;
+            region->server_closed = 1;
+            ::sem_post(&region->response_ready);
+            break;
         } catch (...) {
+            spdlog::error("[ipc-memfd] server frame handler failed with a non-standard exception");
             result = EIO;
             region->response_len = 0;
             region->server_closed = 1;

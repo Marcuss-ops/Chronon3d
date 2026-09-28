@@ -1,8 +1,7 @@
 #include "render_plan_decoder_detail.hpp"
-#include <chronon3d/render_plan/shape_path_generator.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
-#include <chronon3d/scene/model/core/transition_catalog_ids.hpp>
-#include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -15,11 +14,45 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <filesystem>
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
 namespace {
+
+std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
+    using K = LayerPlan::EffectKindPlan;
+    using namespace chronon3d::effects::ids;
+    switch (kind) {
+        case K::Lut3D: return ColorLut3D;
+        case K::Echo: return TemporalEcho;
+        case K::Keying: return MatteKeying;
+        case K::Threshold: return StylizeThreshold;
+        case K::Mosaic: return StylizeMosaic;
+        case K::GaussianBlur: return BlurGaussian;
+        case K::DropShadow: return LightDropShadow;
+        case K::Bloom: return LightBloom;
+        case K::Glow: return LightGlow;
+        case K::Noise: return GenerateNoise;
+        case K::FractalNoise: return GenerateFractalNoise;
+        case K::CornerPin: return DistortCornerPin;
+        case K::Twirl: return DistortTwirl;
+        case K::Bulge: return DistortBulge;
+        case K::MeshWarp: return DistortMeshWarp;
+        case K::Sharpen: return StylizeSharpen;
+        case K::TurbulentDisplace: return DistortTurbulentDisplace;
+        case K::WaveWarp: return DistortWaveWarp;
+        case K::Ripple: return DistortRipple;
+        case K::DisplacementMap: return DistortDisplacementMap;
+        case K::LightRays: return GenerateLightRays;
+        case K::ChromaticAberration: return StylizeChromaticAberration;
+        case K::Halftone: return StylizeHalftone;
+        case K::DirectionalBlur: return DistortDirectionalBlur;
+        case K::RadialBlur: return DistortRadialBlur;
+        case K::Vignette: return ColorVignette;
+        case K::Catalog: return {};
+    }
+    return {};
+}
 
 template <typename T>
 std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
@@ -27,491 +60,129 @@ std::optional<T> optional_value(const nlohmann::json& object, const char* key) {
     return object.at(key).get<T>();
 }
 
-std::optional<std::array<float, 4>> decode_bezier_curve(
-    const nlohmann::json& object, std::string_view easing, std::string_view field) {
-    const bool has_curve = object.contains("bezier_curve");
-    if ((easing == "bezier") != has_curve)
-        throw std::runtime_error(std::string(field) +
-            " requires easing='bezier' and bezier_curve together");
-    if (!has_curve) return std::nullopt;
-    const auto& raw = object.at("bezier_curve");
-    if (!raw.is_array() || raw.size() != 4)
-        throw std::runtime_error(std::string(field) + ".bezier_curve must contain [x1, y1, x2, y2]");
-    std::array<float, 4> curve{};
-    for (std::size_t i = 0; i < curve.size(); ++i) {
-        curve[i] = raw.at(i).get<float>();
-        if (!std::isfinite(curve[i]))
-            throw std::runtime_error(std::string(field) + ".bezier_curve values must be finite");
+LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw) {
+    LayerPlan::StaggerPlan plan;
+    plan.per_item_frames = raw.value("per_item_frames", plan.per_item_frames);
+    plan.order = raw.value("order", plan.order);
+    plan.seed = raw.value("seed", plan.seed);
+    plan.track_property = raw.value("track_property", plan.track_property);
+    plan.easing = raw.value("easing", plan.easing);
+    if (plan.per_item_frames > 600 ||
+        (plan.order != "forward" && plan.order != "reverse" &&
+         plan.order != "center_out" && plan.order != "random") ||
+        plan.track_property.empty() || plan.track_property.size() > 128)
+        throw std::runtime_error("layout stagger has invalid delay, order, or track_property");
+    if (!plan.easing.empty()) {
+        static constexpr std::array<std::string_view, 22> easings{
+            "linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic",
+            "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine",
+            "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic",
+            "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce"};
+        if (std::find(easings.begin(), easings.end(), plan.easing) == easings.end() &&
+            plan.easing != "smoothstep" && plan.easing != "hold" && plan.easing != "bezier")
+            throw std::runtime_error("layout stagger has an unsupported easing");
     }
-    if (curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
-        curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
-        throw std::runtime_error(std::string(field) +
-            ".bezier_curve x handles must be in [0, 1] and y handles in [-10, 10]");
-    return curve;
+    return plan;
 }
+
+std::vector<ShapePathCommandPlan> decode_follow_path_commands(const nlohmann::json& raw) {
+    if (!raw.is_array() || raw.size() < 2 || raw.size() > 65536)
+        throw std::runtime_error("follow_path path_commands must contain 2..65536 commands");
+    std::vector<ShapePathCommandPlan> commands;
+    commands.reserve(raw.size());
+    bool has_move = false;
+    bool closed = false;
+    for (const auto& item : raw) {
+        if (!item.is_object() || !item.contains("type"))
+            throw std::runtime_error("follow_path path command requires a type");
+        ShapePathCommandPlan command;
+        const auto type = item.at("type").get<std::string>();
+        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+        else throw std::runtime_error("unsupported follow_path command type: " + type);
+        if (closed) throw std::runtime_error("follow_path commands cannot continue after close");
+        if (command.type == ShapePathCommandTypePlan::MoveTo) {
+            if (has_move || commands.size() != 0) throw std::runtime_error("follow_path accepts one continuous subpath");
+            has_move = true;
+        } else if (!has_move) {
+            throw std::runtime_error("follow_path must start with move_to");
+        }
+        auto read_point = [&](const char* name, std::array<float, 2>& output, bool required) {
+            if (!item.contains(name)) {
+                if (required) throw std::runtime_error(std::string("follow_path command requires ") + name);
+                return;
+            }
+            const auto& point = item.at(name);
+            if (!point.is_array() || point.size() != 2)
+                throw std::runtime_error("follow_path coordinates must contain two numbers");
+            output = {point[0].get<float>(), point[1].get<float>()};
+            if (!std::isfinite(output[0]) || !std::isfinite(output[1]) ||
+                std::abs(output[0]) > 1000000.0f || std::abs(output[1]) > 1000000.0f)
+                throw std::runtime_error("follow_path coordinates must be finite and within [-1000000,1000000]");
+        };
+        switch (command.type) {
+            case ShapePathCommandTypePlan::MoveTo:
+            case ShapePathCommandTypePlan::LineTo:
+                read_point("point", command.point, true);
+                if (item.contains("control1") || item.contains("control2"))
+                    throw std::runtime_error("move_to/line_to do not accept control points");
+                break;
+            case ShapePathCommandTypePlan::QuadraticTo:
+                read_point("point", command.point, true);
+                read_point("control1", command.control1, true);
+                if (item.contains("control2")) throw std::runtime_error("quadratic_to accepts one control point");
+                break;
+            case ShapePathCommandTypePlan::CubicTo:
+                read_point("point", command.point, true);
+                read_point("control1", command.control1, true);
+                read_point("control2", command.control2, true);
+                break;
+            case ShapePathCommandTypePlan::Close:
+                if (item.contains("point") || item.contains("control1") || item.contains("control2"))
+                    throw std::runtime_error("close does not accept coordinates");
+                closed = true;
+                break;
+        }
+        commands.push_back(command);
+    }
+    if (!has_move || commands.size() < 2)
+        throw std::runtime_error("follow_path requires move_to and at least one segment");
+    return commands;
+}
+
+}  // namespace
 
 std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
     if (!object.contains(key)) return std::nullopt;
     return Frame{object.at(key).get<std::int64_t>()};
 }
 
-SpringPlan decode_spring(const nlohmann::json& value, std::string_view field) {
-    if (!value.is_object())
-        throw std::runtime_error(std::string(field) + " must be an object");
-    SpringPlan spring;
-    spring.mass = value.value("mass", spring.mass);
-    spring.stiffness = value.value("stiffness", spring.stiffness);
-    spring.damping = value.value("damping", spring.damping);
-    spring.initial_velocity = value.value("initial_velocity", spring.initial_velocity);
-    if (!is_valid_spring_config(spring) || spring.mass > 10000.0f ||
-        spring.stiffness > 100000.0f || spring.damping > 100000.0f ||
-        std::abs(spring.initial_velocity) > 1000000.0f)
-        throw std::runtime_error(std::string(field) + " has invalid mass, stiffness, damping, or initial_velocity");
-    return spring;
-}
-
-std::vector<ShapePathCommandPlan> decode_closed_mask_path(const nlohmann::json& raw_path) {
-    if (!raw_path.is_array() || raw_path.empty() || raw_path.size() > 65536)
-        throw std::runtime_error("path mask requires between 1 and 65536 commands");
-    std::vector<ShapePathCommandPlan> path;
-    path.reserve(raw_path.size());
-    bool open = false;
-    std::size_t closed = 0;
-    const auto read_point = [](const nlohmann::json& point, std::array<float, 2>& out) {
-        if (!point.is_array() || point.size() != 2)
-            throw std::runtime_error("path mask coordinates require two values");
-        out = {point[0].get<float>(), point[1].get<float>()};
-    };
-    for (const auto& raw : raw_path) {
-        ShapePathCommandPlan command;
-        const auto type = raw.at("type").get<std::string>();
-        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-        else throw std::runtime_error("unsupported path mask command: " + type);
-        const bool point = raw.contains("point");
-        const bool c1 = raw.contains("control1");
-        const bool c2 = raw.contains("control2");
-        if (point) read_point(raw.at("point"), command.point);
-        if (c1) read_point(raw.at("control1"), command.control1);
-        if (c2) read_point(raw.at("control2"), command.control2);
-        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-             command.type == ShapePathCommandTypePlan::LineTo) && (!point || c1 || c2))
-            throw std::runtime_error("path mask move_to/line_to require point only");
-        if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!point || !c1 || c2))
-            throw std::runtime_error("path mask quadratic_to requires point and control1");
-        if (command.type == ShapePathCommandTypePlan::CubicTo && (!point || !c1 || !c2))
-            throw std::runtime_error("path mask cubic_to requires point and both controls");
-        if (command.type == ShapePathCommandTypePlan::Close && (point || c1 || c2))
-            throw std::runtime_error("path mask close accepts no coordinates");
-        for (const auto* coordinates : {&command.point, &command.control1, &command.control2})
-            if (!std::isfinite((*coordinates)[0]) || !std::isfinite((*coordinates)[1]) ||
-                std::abs((*coordinates)[0]) > 1000000.0f || std::abs((*coordinates)[1]) > 1000000.0f)
-                throw std::runtime_error("path mask coordinates must be finite and within [-1000000, 1000000]");
-        if (command.type == ShapePathCommandTypePlan::MoveTo) {
-            if (open) throw std::runtime_error("path mask subpaths must close before move_to");
-            open = true;
-        }
-        if (command.type == ShapePathCommandTypePlan::Close) {
-            if (!open) throw std::runtime_error("path mask close has no open subpath");
-            open = false;
-            ++closed;
-        }
-        path.push_back(command);
-    }
-    if (open || closed == 0)
-        throw std::runtime_error("path mask subpaths must be closed");
-    return path;
-}
-
-AnimationTrackPlan decode_animation_track(const nlohmann::json& value);
-
-std::vector<PathCommand> mask_path_commands(const std::vector<ShapePathCommandPlan>& path) {
-    std::vector<PathCommand> commands;
-    commands.reserve(path.size());
-    for (const auto& command : path) {
-        const Vec2 point{command.point[0], command.point[1]};
-        const Vec2 c1{command.control1[0], command.control1[1]};
-        const Vec2 c2{command.control2[0], command.control2[1]};
-        switch (command.type) {
-            case ShapePathCommandTypePlan::MoveTo: commands.push_back(PathCommand::move_to(point)); break;
-            case ShapePathCommandTypePlan::LineTo: commands.push_back(PathCommand::line_to(point)); break;
-            case ShapePathCommandTypePlan::QuadraticTo: commands.push_back(PathCommand::quadratic_to(c1, point)); break;
-            case ShapePathCommandTypePlan::CubicTo: commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
-            case ShapePathCommandTypePlan::Close: commands.push_back(PathCommand::close()); break;
-        }
-    }
-    return commands;
-}
-
-LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
-    if (!raw.is_object()) throw std::runtime_error("mask stack entries must be objects");
-    LayerPlan::PathMaskPlan mask;
-    mask.type = raw.at("type").get<std::string>();
-    mask.mode = raw.at("mode").get<std::string>();
-    if (mask.type != "path" && mask.type != "rect" &&
-        mask.type != "rounded_rect" && mask.type != "ellipse")
-        throw std::runtime_error("unsupported mask geometry: " + mask.type);
-    if (mask.mode != "add" && mask.mode != "subtract" &&
-        mask.mode != "intersect" && mask.mode != "difference")
-        throw std::runtime_error("unsupported mask combination mode: " + mask.mode);
-    const auto read_vec2 = [&](const char* key, std::array<float, 2>& output,
-                               bool strictly_positive) {
-        if (!raw.contains(key)) return;
-        const auto& value = raw.at(key);
-        if (!value.is_array() || value.size() != 2)
-            throw std::runtime_error(std::string("mask ") + key + " requires [x, y]");
-        output = {value[0].get<float>(), value[1].get<float>()};
-        for (const float component : output)
-            if (!std::isfinite(component) || (strictly_positive ? component <= 0.0f : std::abs(component) > 1000000.0f))
-                throw std::runtime_error(std::string("mask ") + key + " values are outside supported bounds");
-        if (strictly_positive && (output[0] > 1000000.0f || output[1] > 1000000.0f))
-            throw std::runtime_error(std::string("mask ") + key + " values exceed supported bounds");
-    };
-    read_vec2("position", mask.position, false);
-    read_vec2("size", mask.size, true);
-    mask.radius = raw.value("radius", 0.0f);
-    mask.feather = raw.value("feather", 0.0f);
-    mask.expansion = raw.value("expansion", 0.0f);
-    mask.inverted = raw.value("inverted", false);
-    if (!std::isfinite(mask.radius) || mask.radius < 0.0f || mask.radius > 500000.0f ||
-        !std::isfinite(mask.feather) || mask.feather < 0.0f || mask.feather > 1000000.0f ||
-        !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f)
-        throw std::runtime_error("mask radius, feather, and expansion must be finite and bounded");
-    if (mask.type == "path") {
-        if (raw.contains("size") || raw.contains("radius"))
-            throw std::runtime_error("path mask geometry derives its bounds from path commands");
-        mask.path = decode_closed_mask_path(raw.at("path"));
-        if (raw.contains("target_path")) {
-            mask.morph_target = decode_closed_mask_path(raw.at("target_path"));
-            const auto source = mask_path_commands(mask.path);
-            const auto target = mask_path_commands(mask.morph_target);
-            const auto topology_error = validate_morph_path_topology(source, target);
-            if (topology_error)
-                throw std::runtime_error("mask target_path topology must match path");
-            if (!raw.contains("animation"))
-                throw std::runtime_error("mask target_path requires animation");
-            auto animation = decode_animation_track(raw.at("animation"));
-            animation.property = "mask_morph";
-            if (animation.keyframes.empty())
-                throw std::runtime_error("mask path animation requires keyframes");
-            for (const auto& key : animation.keyframes)
-                if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
-                    key.value.front() < 0.0f || key.value.front() > 1.0f)
-                    throw std::runtime_error("mask path animation requires scalar progress in [0,1]");
-            mask.morph_animation = std::move(animation);
-        } else if (raw.contains("animation")) {
-            throw std::runtime_error("mask path animation requires target_path");
-        }
-    } else {
-        if (raw.contains("path") || raw.contains("target_path") || raw.contains("animation"))
-            throw std::runtime_error("only path masks accept path commands or morph animation");
-        if (mask.type == "rounded_rect" && mask.radius > std::min(mask.size[0], mask.size[1]) * 0.5f)
-            throw std::runtime_error("rounded_rect mask radius cannot exceed half its smaller dimension");
-        if (mask.type != "rounded_rect" && raw.contains("radius"))
-            throw std::runtime_error("radius is only valid for rounded_rect masks");
-    }
-    return mask;
-}
-
-AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
-    AnimationTrackPlan track;
-    // 'property' is optional: text-selector bounds (start/end/offset/amount)
-    // carry it for backward compatibility but never use it semantically, so a
-    // selector track without a property is valid.  Layer-animation and text-
-    // animator property tracks require it at the schema level; a missing one
-    // surfaces as "unsupported property" during compilation instead of a
-    // confusing decode failure.
-    track.property = value.value("property", std::string{});
-    track.easing = value.value("easing", std::string{"linear"});
-    track.loop_mode = value.value("loop_mode", std::string{"none"});
-    if (track.loop_mode != "none" && track.loop_mode != "cycle" &&
-        track.loop_mode != "pingpong" && track.loop_mode != "offset")
-        throw std::runtime_error("unsupported animation loop_mode: " + track.loop_mode);
-    if (track.loop_mode == "offset" && track.property == "fill_color")
-        throw std::runtime_error("animation loop_mode='offset' requires a numeric or vector property");
-    if (value.contains("wiggle")) {
-        const auto& raw_wiggle = value.at("wiggle");
-        if (!raw_wiggle.is_object())
-            throw std::runtime_error("animation wiggle driver must be an object");
-        for (auto field = raw_wiggle.begin(); field != raw_wiggle.end(); ++field)
-            if (field.key() != "frequency" && field.key() != "amplitude" && field.key() != "seed")
-                throw std::runtime_error("animation wiggle driver contains an unsupported field: " + field.key());
-        AnimationTrackPlan::WiggleDriverPlan driver;
-        driver.frequency = raw_wiggle.value("frequency", driver.frequency);
-        driver.amplitude = raw_wiggle.value("amplitude", driver.amplitude);
-        driver.seed = raw_wiggle.value("seed", driver.seed);
-        if (!std::isfinite(driver.frequency) || driver.frequency <= 0.0f ||
-            driver.frequency > 1000.0f || !std::isfinite(driver.amplitude) ||
-            std::abs(driver.amplitude) > 10000.0f)
-            throw std::runtime_error("animation wiggle frequency/amplitude is outside supported bounds");
-        if (track.property != "opacity" && track.property != "blur" &&
-            track.property != "tracking" && track.property != "stroke_dash_offset")
-            throw std::runtime_error("animation wiggle driver requires a scalar opacity, blur, tracking, or stroke_dash_offset property");
-        track.wiggle = driver;
-    }
-    if (track.easing != "linear" && track.easing != "in_quad" && track.easing != "out_quad" &&
-        track.easing != "in_out_quad" && track.easing != "in_cubic" &&
-        track.easing != "out_cubic" && track.easing != "in_out_cubic" &&
-        track.easing != "in_expo" && track.easing != "out_expo" &&
-        track.easing != "in_out_expo" && track.easing != "in_sine" &&
-        track.easing != "out_sine" && track.easing != "in_out_sine" &&
-        track.easing != "in_back" && track.easing != "out_back" &&
-        track.easing != "in_out_back" && track.easing != "in_elastic" &&
-        track.easing != "out_elastic" && track.easing != "in_out_elastic" &&
-        track.easing != "in_bounce" && track.easing != "out_bounce" &&
-        track.easing != "in_out_bounce" && track.easing != "smoothstep" &&
-        track.easing != "hold" && track.easing != "bezier" && track.easing != "spring")
-        throw std::runtime_error("unsupported animation easing: " + track.easing);
-    if (value.contains("spring")) track.spring = decode_spring(value.at("spring"), "animation track spring");
-    if (track.easing != "spring" && track.spring)
-        throw std::runtime_error("animation spring config requires easing='spring'");
-    track.bezier_curve = decode_bezier_curve(value, track.easing, "animation track");
-    for (const auto& key_value : value.at("keyframes")) {
-        AnimationKeyframePlan key;
-        key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
-        const auto& raw = key_value.at("value");
-        if (raw.is_array()) {
-            for (const auto& component : raw) key.value.push_back(component.get<float>());
-        } else {
-            key.value.push_back(raw.get<float>());
-        }
-        if (key_value.contains("interpolation"))
-            key.interpolation = key_value.at("interpolation").get<std::string>();
-        if (key_value.contains("easing"))
-            key.easing = key_value.at("easing").get<std::string>();
-        if (key_value.contains("spring")) key.spring = decode_spring(key_value.at("spring"), "animation keyframe spring");
-        if (key_value.contains("bezier_curve"))
-            key.bezier_curve = decode_bezier_curve(key_value, "bezier", "animation keyframe");
-        if (key_value.contains("roving") && !key_value.at("roving").is_boolean())
-            throw std::runtime_error("roving must be a boolean");
-        key.roving = key_value.value("roving", false);
-        if (key_value.contains("temporal_in_dx")) key.temporal_in_dx = key_value.at("temporal_in_dx").get<float>();
-        if (key_value.contains("temporal_in_dy")) key.temporal_in_dy = key_value.at("temporal_in_dy").get<float>();
-        if (key_value.contains("temporal_out_dx")) key.temporal_out_dx = key_value.at("temporal_out_dx").get<float>();
-        if (key_value.contains("temporal_out_dy")) key.temporal_out_dy = key_value.at("temporal_out_dy").get<float>();
-        for (const auto handle : {key.temporal_in_dx, key.temporal_in_dy,
-                                  key.temporal_out_dx, key.temporal_out_dy})
-            if (handle && !std::isfinite(*handle))
-                throw std::runtime_error("temporal bezier handles must be finite");
-        if (key.temporal_in_dx.has_value() != key.temporal_in_dy.has_value() ||
-            key.temporal_out_dx.has_value() != key.temporal_out_dy.has_value())
-            throw std::runtime_error("temporal handle dx and dy must be provided together");
-        if (key.temporal_in_dx && *key.temporal_in_dx > 0.0f)
-            throw std::runtime_error("temporal_in_dx must be non-positive");
-        if (key.temporal_out_dx && *key.temporal_out_dx < 0.0f)
-            throw std::runtime_error("temporal_out_dx must be non-negative");
-        if (key.easing && *key.easing != "linear" && *key.easing != "in_quad" &&
-            *key.easing != "out_quad" && *key.easing != "in_out_quad" &&
-            *key.easing != "in_cubic" && *key.easing != "out_cubic" &&
-            *key.easing != "in_out_cubic" && *key.easing != "in_expo" &&
-            *key.easing != "out_expo" && *key.easing != "in_out_expo" &&
-            *key.easing != "in_sine" && *key.easing != "out_sine" &&
-            *key.easing != "in_out_sine" && *key.easing != "in_back" &&
-            *key.easing != "out_back" && *key.easing != "in_out_back" &&
-            *key.easing != "in_elastic" && *key.easing != "out_elastic" &&
-            *key.easing != "in_out_elastic" && *key.easing != "in_bounce" &&
-            *key.easing != "out_bounce" && *key.easing != "in_out_bounce" &&
-            *key.easing != "smoothstep" && *key.easing != "hold" &&
-            *key.easing != "bezier" && *key.easing != "spring")
-            throw std::runtime_error("unsupported per-key animation easing: " + *key.easing);
-        if (key.spring && key.easing != "spring" && track.easing != "spring")
-            throw std::runtime_error("per-key spring config requires easing='spring'");
-        if (key.interpolation && *key.interpolation != "linear" &&
-            *key.interpolation != "hold" && *key.interpolation != "bezier" &&
-            *key.interpolation != "auto_bezier")
-            throw std::runtime_error("keyframe interpolation must be linear, hold, bezier, or auto_bezier");
-        if (key.interpolation == "auto_bezier" &&
-            (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy || key.bezier_curve))
-            throw std::runtime_error("auto_bezier cannot be combined with authored Bezier data");
-        if (key.interpolation == "bezier" && key.bezier_curve &&
-            (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy))
-            throw std::runtime_error("bezier_curve and temporal handles cannot be combined on one keyframe");
-        if ((key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy) &&
-            (key.interpolation != "bezier" || key.bezier_curve))
-            throw std::runtime_error("temporal handles require interpolation='bezier' without bezier_curve");
-        const bool has_temporal_handles = key.temporal_in_dx || key.temporal_in_dy ||
-            key.temporal_out_dx || key.temporal_out_dy;
-
-        if (key.roving && (has_temporal_handles || key.bezier_curve))
-            throw std::runtime_error("roving keyframes cannot contain authored Bezier handles");
-        if (key.interpolation && key.easing)
-            throw std::runtime_error("keyframe interpolation cannot be combined with easing");
-        if (key.interpolation == "bezier" && !key.bezier_curve && !has_temporal_handles)
-            throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve or temporal handles");
-        if (key.interpolation && *key.interpolation != "bezier" && key.bezier_curve)
-            throw std::runtime_error("bezier_curve requires interpolation='bezier'");
-        if (!key.interpolation && ((key.easing == "bezier") != key.bezier_curve.has_value()))
-            throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
-        if (key.interpolation && key.easing)
-            throw std::runtime_error("keyframe interpolation cannot be combined with easing");
-        if (key.roving && (key.interpolation == "bezier" || key.interpolation == "auto_bezier" ||
-                           has_temporal_handles || key.bezier_curve))
-            throw std::runtime_error("roving cannot be combined with authored or automatic Bezier timing");
-        if (key.interpolation == "auto_bezier" &&
-            (key.easing || key.bezier_curve || has_temporal_handles))
-            throw std::runtime_error("auto_bezier cannot be combined with easing or authored handles");
-        track.keyframes.push_back(std::move(key));
-    }
-    if (track.easing == "spring" && track.keyframes.size() < 2)
-        throw std::runtime_error("spring segment requires positive frame span");
-    for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index)
-        if ((track.keyframes[index].easing == "spring" ||
-             (!track.keyframes[index].easing && track.easing == "spring")) &&
-            track.keyframes[index].frame >= track.keyframes[index + 1].frame)
-            throw std::runtime_error("spring segment requires positive frame span");
-    if (!track.keyframes.empty() &&
-        (track.keyframes.back().easing == "spring" || track.keyframes.back().spring))
-        throw std::runtime_error("spring segment requires positive frame span");
-    for (std::size_t index = 1; index < track.keyframes.size(); ++index)
-        if (track.keyframes[index - 1].frame == track.keyframes[index].frame)
-            throw std::runtime_error("animation keyframe frames must be unique");
-    for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index) {
-        const auto& key = track.keyframes[index];
-        const bool spring_segment = key.easing == "spring" ||
-            (!key.easing && track.easing == "spring");
-        if (spring_segment && !key.spring && !track.spring)
-            throw std::runtime_error("spring segment requires a config on its keyframe or track");
-    }
-    return track;
-}
-
-TransitionPlan decode_transition(const nlohmann::json& value) {
-    TransitionPlan plan;
-    plan.id = value.value("id", std::string{});
-    plan.kind = value.at("kind").get<std::string>();
-    plan.duration_frames = Frame{value.at("duration_frames").get<std::int64_t>()};
-    plan.delay_frames = Frame{value.value("delay_frames", std::int64_t{0})};
-    plan.easing = value.value("easing", std::string{"linear"});
-    plan.direction = value.value("direction", std::string{});
-    if (!value.contains("params")) return plan;
-    const auto& params = value.at("params");
-    const std::vector<std::string> allowed = [&]() {
-        if (plan.kind == "slide") return std::vector<std::string>{"distance"};
-        if (plan.kind == "smooth_wipe") return std::vector<std::string>{"feather"};
-        if (plan.kind == "circle_iris") return std::vector<std::string>{"feather", "center"};
-        if (plan.kind == "flash") return std::vector<std::string>{"color"};
-        if (plan.kind == "procedural_remotion")
-            return std::vector<std::string>{"seed", "inner_color", "mid_color", "outer_color"};
-        if (plan.kind == "remotion")
-            return std::vector<std::string>{"speed", "remotion_direction", "angle"};
-        return std::vector<std::string>{};
-    }();
-    for (auto it = params.begin(); it != params.end(); ++it)
-        if (std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end())
-            throw std::runtime_error("parameter '" + it.key() + "' is not supported by transition '" + plan.kind + "'");
-    plan.distance = params.value("distance", plan.distance);
-    plan.feather = params.value("feather", plan.feather);
-    if (params.contains("center"))
-        for (std::size_t i = 0; i < 2; ++i) plan.center[i] = params.at("center").at(i).get<float>();
-    const auto read_color = [&](const char* key, std::array<float, 4>& target) {
-        if (!params.contains(key)) return;
-        const auto& raw = params.at(key);
-        if (raw.is_string()) {
-            const auto parsed = parse_hex_color(raw.get<std::string>());
-            if (!parsed) throw std::runtime_error(std::string(key) + " must be a #RRGGBB hex or RGBA array");
-            target = {parsed->r, parsed->g, parsed->b, parsed->a};
-            return;
-        }
-        if (!raw.is_array() || raw.size() != 4)
-            throw std::runtime_error(std::string(key) + " must be a #RRGGBB hex or RGBA array");
-        for (std::size_t i = 0; i < 4; ++i) target[i] = raw.at(i).get<float>();
-    };
-    read_color("color", plan.color);
-    read_color("inner_color", plan.inner_color);
-    read_color("mid_color", plan.mid_color);
-    read_color("outer_color", plan.outer_color);
-    plan.seed = params.value("seed", plan.seed);
-    plan.speed = params.value("speed", plan.speed);
-    plan.remotion_direction = params.value("remotion_direction", plan.remotion_direction);
-    plan.angle = params.value("angle", plan.angle);
-    if (!std::isfinite(plan.distance) || plan.distance < 0.0f || plan.distance > 4.0f ||
-        !std::isfinite(plan.feather) || plan.feather < 0.0f || plan.feather > 1.0f ||
-        !std::isfinite(plan.seed) || !std::isfinite(plan.speed) || plan.speed <= 0.0f ||
-        !std::isfinite(plan.remotion_direction) || !std::isfinite(plan.angle))
-        throw std::runtime_error("transition parameters are outside their finite supported ranges");
-    for (const auto value : plan.center)
-        if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
-            throw std::runtime_error("transition center components must be finite in [0, 1]");
-    for (const auto* color : {&plan.color, &plan.inner_color, &plan.mid_color, &plan.outer_color})
-        for (const auto value : *color)
-            if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
-                throw std::runtime_error("transition color components must be finite in [0, 1]");
-    return plan;
-}
-
-GradientAnimationPlan decode_gradient_animation(const nlohmann::json& value) {
-    GradientAnimationPlan animation;
-    animation.easing = value.value("easing", std::string{"linear"});
-    animation.bezier_curve = decode_bezier_curve(
-        value, animation.easing, "fill_gradient_animation");
-    for (const auto& key_value : value.at("keyframes")) {
-        GradientKeyframePlan key;
-        key.frame = Frame{key_value.at("frame").get<std::int64_t>()};
-        key.value = decode_gradient_definition(key_value.at("value"));
-        animation.keyframes.push_back(std::move(key));
-    }
-    return animation;
-}
-
-TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
-    TextSelectorPlan selector;
-    selector.id = value.value("id", std::string{});
-    selector.unit = value.value("unit", std::string{"glyph"});
-    selector.shape = value.value("shape", std::string{"smooth"});
-    selector.order = value.value("order", std::string{"forward"});
-    selector.combine = value.value("combine", std::string{"replace"});
-    if (value.contains("start")) selector.start = decode_animation_track(value.at("start"));
-    if (value.contains("end")) selector.end = decode_animation_track(value.at("end"));
-    if (value.contains("offset")) selector.offset = decode_animation_track(value.at("offset"));
-    if (value.contains("amount")) selector.amount = decode_animation_track(value.at("amount"));
-    selector.exclude_spaces = value.value("exclude_spaces", true);
-    selector.randomize_order = value.value("randomize_order", false);
-    selector.random_seed = value.value("random_seed", std::uint64_t{0});
-    selector.wiggly_frequency = value.value("wiggly_frequency", 1.0f);
-    selector.wiggly_amplitude = value.value("wiggly_amplitude", 0.25f);
-    selector.wiggly_seed = value.value("wiggly_seed", std::uint64_t{0});
-    if (selector.shape == "wiggly" &&
-        (!std::isfinite(selector.wiggly_frequency) || selector.wiggly_frequency <= 0.0f ||
-         selector.wiggly_frequency > 1000.0f ||
-         !std::isfinite(selector.wiggly_amplitude) || selector.wiggly_amplitude < 0.0f ||
-         selector.wiggly_amplitude > 1.0f))
-        throw std::runtime_error(
-            "text selector wiggly_frequency must be in (0, 1000] and wiggly_amplitude must be in [0, 1]");
-    if (selector.shape != "wiggly" &&
-        (value.contains("wiggly_frequency") || value.contains("wiggly_amplitude") ||
-         value.contains("wiggly_seed")))
-        throw std::runtime_error("wiggly selector parameters require shape='wiggly'");
-    if (value.contains("semantic_id")) {
-        selector.semantic_id = value.at("semantic_id").get<std::string>();
-        if (selector.semantic_id->empty())
-            throw std::runtime_error("text selector semantic_id must not be empty");
-    }
-    return selector;
-}
-
-TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
-    TextAnimatorPlan animator;
-    animator.id = value.value("id", std::string{});
-    if (value.contains("selectors")) {
-        for (const auto& selector : value.at("selectors"))
-            animator.selectors.push_back(decode_text_selector(selector));
-    }
-    if (value.contains("properties")) {
-        for (const auto& property : value.at("properties"))
-            animator.properties.push_back(decode_animation_track(property));
-    }
-    return animator;
-}
-
-}  // namespace
-
 LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
+    if (value.contains("follow_path")) {
+        const auto& raw = value.at("follow_path");
+        LayerPlan::FollowPathDriverPlan driver;
+        if (raw.contains("path_id")) driver.path_id = raw.at("path_id").get<std::string>();
+        if (raw.contains("path_commands"))
+            driver.path_commands = decode_follow_path_commands(raw.at("path_commands"));
+        driver.progress = decode_animation_track(raw.at("progress"));
+        driver.progress.property = "follow_path_progress";
+        for (const auto& key : driver.progress.keyframes) {
+            if (key.value.size() != 1 || !std::isfinite(key.value.front()))
+                throw std::runtime_error("follow_path progress values must be finite scalars");
+        }
+        driver.auto_orient = raw.value("auto_orient", false);
+        driver.offset_deg = raw.value("offset_deg", 0.0f);
+        driver.clamp_end = raw.value("clamp_end", true);
+        if (!std::isfinite(driver.offset_deg) || std::abs(driver.offset_deg) > 1000000.0f)
+            throw std::runtime_error("follow_path offset_deg is outside supported bounds");
+        layer.follow_path = std::move(driver);
+    }
     const auto parse_layout_vec2 = [](const nlohmann::json& raw, const char* key) {
         const auto& v = raw.at(key);
         if (!v.is_array() || v.size() != 2) throw std::runtime_error(std::string("layout.") + key + " must be [x,y]");
@@ -526,6 +197,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         p.align=raw.value("align",p.align); p.justify=raw.value("justify",p.justify);
         p.gap=raw.value("gap",0.0f); p.wrap=raw.value("wrap",false);
         if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        if (raw.contains("stagger")) p.stagger=decode_stagger(raw.at("stagger"));
         static constexpr std::array<std::string_view,2> axes{"row","column"};
         static constexpr std::array<std::string_view,4> aligns{"start","center","end","stretch"};
         static constexpr std::array<std::string_view,6> justifies{"start","center","end","space_between","space_around","space_evenly"};
@@ -540,6 +212,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         p.columns=raw.value("columns",1); p.rows=raw.value("rows",1);
         if (raw.contains("gap")) p.gap=parse_layout_vec2(raw,"gap");
         if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        if (raw.contains("stagger")) p.stagger=decode_stagger(raw.at("stagger"));
         if (p.group_id.empty() || p.group_id.size()>256 || p.columns<1 || p.columns>4096 || p.rows<1 || p.rows>4096 ||
             (p.fit!="auto" && p.fit!="fixed_columns" && p.fit!="fixed_rows"))
             throw std::runtime_error("grid layout has invalid group, dimensions, or fit");
@@ -888,1011 +561,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         }
     }
 
-    if (value.contains("shape")) {
-        const auto& raw_shape = value.at("shape");
-        ShapeContentPlan shape;
-        const auto shape_type = raw_shape.at("type").get<std::string>();
-        if (shape_type == "rect") shape.type = ShapeContentTypePlan::Rect;
-        else if (shape_type == "rounded_rect") shape.type = ShapeContentTypePlan::RoundedRect;
-        else if (shape_type == "ellipse") shape.type = ShapeContentTypePlan::Ellipse;
-        else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
-        else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
-        else if (shape_type == "star") shape.type = ShapeContentTypePlan::Star;
-        else if (shape_type == "polygon") shape.type = ShapeContentTypePlan::Polygon;
-        else if (shape_type == "arrow") shape.type = ShapeContentTypePlan::Arrow;
-        else if (shape_type == "arc") shape.type = ShapeContentTypePlan::Arc;
-        else if (shape_type == "grid") shape.type = ShapeContentTypePlan::Grid;
-        else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
-        else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
-        else if (shape_type == "world_map" || shape_type == "worldmap") shape.type = ShapeContentTypePlan::WorldMap;
-        else if (shape_type == "chart") shape.type = ShapeContentTypePlan::Chart;
-        else throw std::runtime_error("unsupported shape.type: " + shape_type);
-        if (raw_shape.contains("asset")) {
-            if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
-                throw std::runtime_error("shape.asset is only valid for path shapes and cannot be combined with path commands");
-            shape.svg_asset = raw_shape.at("asset").get<std::string>();
-            if (detail::invalid_logical_path(*shape.svg_asset) ||
-                std::filesystem::path(*shape.svg_asset).extension() != ".svg")
-                throw std::runtime_error("shape.asset must be a relative logical .svg path");
-        }
-        if (raw_shape.contains("lottie")) {
-            if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path") ||
-                raw_shape.contains("asset"))
-                throw std::runtime_error("shape.lottie is only valid for path shapes and cannot be combined with path commands or SVG");
-            shape.lottie_asset = raw_shape.at("lottie").get<std::string>();
-            if (detail::invalid_logical_path(*shape.lottie_asset) ||
-                std::filesystem::path(*shape.lottie_asset).extension() != ".json")
-                throw std::runtime_error("shape.lottie must be a relative logical .json path");
-        }
+    decode_shape_and_fill_gradient(layer, value);
 
-        if (raw_shape.contains("fill_rule")) {
-            if (shape.type != ShapeContentTypePlan::Path)
-                throw std::runtime_error("shape.fill_rule is only valid for path shapes");
-            const auto fill_rule = raw_shape.at("fill_rule").get<std::string>();
-            if (fill_rule == "even_odd") shape.fill_rule = ShapeFillRulePlan::EvenOdd;
-            else if (fill_rule == "non_zero") shape.fill_rule = ShapeFillRulePlan::NonZero;
-            else throw std::runtime_error("shape.fill_rule must be 'even_odd' or 'non_zero'");
-        }
-        if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
-            !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
-            throw std::runtime_error("shape layers require positive two-dimensional size");
-        shape.radius = raw_shape.value("radius", 0.0f);
-        if (raw_shape.contains("corner_radius")) {
-            if (shape.type != ShapeContentTypePlan::RoundedRect)
-                throw std::runtime_error("shape.corner_radius is only valid for rounded_rect");
-            if (raw_shape.contains("radius"))
-                throw std::runtime_error("shape.radius and shape.corner_radius are mutually exclusive");
-            const auto& corners = raw_shape.at("corner_radius");
-            if (!corners.is_array() || corners.size() != 4)
-                throw std::runtime_error("shape.corner_radius must contain [tl, tr, br, bl]");
-            std::array<float, 4> decoded{};
-            const float max_radius = std::min(layer.size[0], layer.size[1]) * 0.5f;
-            for (std::size_t i = 0; i < decoded.size(); ++i) {
-                decoded[i] = corners.at(i).get<float>();
-                if (!std::isfinite(decoded[i]) || decoded[i] < 0.0f || decoded[i] > max_radius)
-                    throw std::runtime_error("rounded_rect corner radius must be finite, non-negative, and not exceed half the smaller size dimension");
-            }
-            shape.corner_radius = decoded;
-        }
-        if (!std::isfinite(shape.radius) || shape.radius < 0.0f)
-            throw std::runtime_error("shape.radius must be finite and non-negative");
-        if (shape.type == ShapeContentTypePlan::RoundedRect) {
-            const float max_radius = std::min(layer.size[0], layer.size[1]) * 0.5f;
-            if (shape.radius > max_radius)
-                throw std::runtime_error(
-                    "rounded_rect radius must not exceed half the smaller size dimension");
-        }
-        if (shape.type == ShapeContentTypePlan::Line && !raw_shape.contains("stroke"))
-            throw std::runtime_error("line shapes require a stroke");
-        if ((shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
-             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Arc) &&
-            (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie")))
-            throw std::runtime_error("procedural shapes cannot be combined with authored path or asset data");
-        const bool procedural = shape.type == ShapeContentTypePlan::Star ||
-            shape.type == ShapeContentTypePlan::Polygon || shape.type == ShapeContentTypePlan::Arrow ||
-            shape.type == ShapeContentTypePlan::Arc || shape.type == ShapeContentTypePlan::Grid ||
-            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::DeviceFrame;
-        if (shape.type != ShapeContentTypePlan::DeviceFrame &&
-            (raw_shape.contains("device") || raw_shape.contains("chrome")))
-            throw std::runtime_error("device and chrome options are only valid for device_frame");
-        if (shape.type == ShapeContentTypePlan::DeviceFrame && raw_shape.contains("operators"))
-            throw std::runtime_error("device_frame does not accept path operators");
-        if (procedural && (raw_shape.contains("radius") || raw_shape.contains("corner_radius")))
-            throw std::runtime_error("procedural shapes do not accept rounded-rectangle radius fields");
-        if (shape.type == ShapeContentTypePlan::Star &&
-            (raw_shape.contains("shaft_ratio") || raw_shape.contains("head_ratio") ||
-             raw_shape.contains("start_degrees") || raw_shape.contains("sweep_degrees") ||
-             raw_shape.contains("segments")))
-            throw std::runtime_error("star received parameters for another procedural shape");
-        if (shape.type == ShapeContentTypePlan::Polygon &&
-            (raw_shape.contains("inner_radius_ratio") || raw_shape.contains("shaft_ratio") ||
-             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
-             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
-            throw std::runtime_error("polygon received parameters for another procedural shape");
-        if (shape.type == ShapeContentTypePlan::Arrow &&
-            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
-             raw_shape.contains("rotation_degrees") || raw_shape.contains("start_degrees") ||
-             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
-            throw std::runtime_error("arrow received parameters for another procedural shape");
-        if (shape.type == ShapeContentTypePlan::Arc &&
-            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
-             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
-             raw_shape.contains("head_ratio") || raw_shape.contains("fill") || value.contains("color")))
-            throw std::runtime_error("arc received parameters for another procedural shape or a fill");
-        if (shape.type == ShapeContentTypePlan::Grid &&
-            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
-             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
-             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
-             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments") ||
-             raw_shape.contains("dot_radius") || raw_shape.contains("fill") || value.contains("color")))
-            throw std::runtime_error("grid accepts spacing and stroke only");
-        if (shape.type == ShapeContentTypePlan::DotGrid &&
-            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
-             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
-             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
-             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
-            throw std::runtime_error("dot_grid received parameters for another procedural shape");
-        if (shape.type == ShapeContentTypePlan::DeviceFrame &&
-            (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
-             raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
-             raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
-             raw_shape.contains("sweep_degrees") || raw_shape.contains("segments") ||
-             raw_shape.contains("spacing") || raw_shape.contains("dot_radius")))
-            throw std::runtime_error("device_frame received parameters for another procedural shape");
-        if (shape.type == ShapeContentTypePlan::Star) {
-            const auto points = raw_shape.value("points", 5u);
-            const auto inner = raw_shape.value("inner_radius_ratio", 0.5f);
-            const auto rotation = raw_shape.value("rotation_degrees", 0.0f);
-            shape.path = make_star_path(layer.size[0], layer.size[1], points, inner, rotation);
-        } else if (shape.type == ShapeContentTypePlan::Polygon) {
-            shape.path = make_polygon_path(layer.size[0], layer.size[1],
-                raw_shape.value("points", 6u), raw_shape.value("rotation_degrees", 0.0f));
-        } else if (shape.type == ShapeContentTypePlan::Arrow) {
-            shape.path = make_arrow_path(layer.size[0], layer.size[1],
-                raw_shape.value("shaft_ratio", 0.28f), raw_shape.value("head_ratio", 0.75f));
-        } else if (shape.type == ShapeContentTypePlan::Arc) {
-            if (!raw_shape.contains("stroke"))
-                throw std::runtime_error("arc shapes require a stroke");
-            shape.path = make_arc_path(layer.size[0], layer.size[1],
-                raw_shape.value("start_degrees", 0.0f), raw_shape.value("sweep_degrees", 270.0f),
-                raw_shape.value("segments", 64u));
-        } else if (shape.type == ShapeContentTypePlan::Grid) {
-            if (!raw_shape.contains("stroke"))
-                throw std::runtime_error("grid shapes require a stroke");
-            shape.path = make_grid_path(layer.size[0], layer.size[1],
-                raw_shape.value("spacing", 16.0f));
-        } else if (shape.type == ShapeContentTypePlan::DotGrid) {
-            if (!raw_shape.contains("fill"))
-                throw std::runtime_error("dot_grid shapes require a fill");
-            const float spacing = raw_shape.value("spacing", 16.0f);
-            const float radius = raw_shape.value("dot_radius", spacing * 0.12f);
-            shape.path = make_dot_grid_path(layer.size[0], layer.size[1], spacing, radius);
-        } else if (shape.type == ShapeContentTypePlan::DeviceFrame) {
-            const auto device = raw_shape.value("device", std::string{"phone"});
-            if (device == "phone") shape.device_frame_kind = DeviceFrameKindPlan::Phone;
-            else if (device == "browser") shape.device_frame_kind = DeviceFrameKindPlan::Browser;
-            else throw std::runtime_error("device_frame device must be 'phone' or 'browser'");
-            shape.device_frame_chrome = raw_shape.value("chrome", true);
-            if (!raw_shape.contains("fill"))
-                throw std::runtime_error("device_frame requires shape.fill for the screen");
-        }
-        if (raw_shape.contains("fill") && raw_shape.at("fill").is_array()) {
-            // Shape-local fill is canonical. Legacy layer.color is only an alias
-            // for plans that omit shape.fill; it never overrides explicit fill.
-        } else if (raw_shape.contains("fill") && raw_shape.at("fill").is_object()) {
-            // Gradient payload is decoded below.
-        } else if (value.contains("color") && value.at("color").is_array()) {
-            const auto& alias = value.at("color");
-            if (alias.size() != 4)
-                throw std::runtime_error("legacy layer.color shape alias must contain RGBA");
-            shape.fill_color = std::array<float, 4>{
-                alias[0].get<float>(), alias[1].get<float>(),
-                alias[2].get<float>(), alias[3].get<float>()};
-        }
-        const auto finite_point = [](const std::array<float, 2>& point) {
-            return std::isfinite(point[0]) && std::isfinite(point[1]);
-        };
-        const auto finite_vec2 = [](const Vec2& point) {
-            return std::isfinite(point.x) && std::isfinite(point.y);
-        };
-        if (raw_shape.contains("path")) {
-            for (const auto& raw_command : raw_shape.at("path")) {
-                ShapePathCommandPlan command;
-                const auto kind = raw_command.at("type").get<std::string>();
-                if (kind == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                else if (kind == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                else if (kind == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                else if (kind == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                else if (kind == "close") command.type = ShapePathCommandTypePlan::Close;
-                else throw std::runtime_error("unsupported shape path command type: " + kind);
-                const auto read_point = [](const nlohmann::json& point,
-                                           std::array<float, 2>& output) {
-                    if (!point.is_array() || point.size() != 2)
-                        throw std::runtime_error("shape path points must have exactly two numbers");
-                    output = {point[0].get<float>(), point[1].get<float>()};
-                };
-                if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
-                if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
-                if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
-                const bool has_point = raw_command.contains("point");
-                const bool has_control1 = raw_command.contains("control1");
-                const bool has_control2 = raw_command.contains("control2");
-                switch (command.type) {
-                    case ShapePathCommandTypePlan::MoveTo:
-                    case ShapePathCommandTypePlan::LineTo:
-                        if (!has_point || has_control1 || has_control2)
-                            throw std::runtime_error("move_to/line_to require point only");
-                        break;
-                    case ShapePathCommandTypePlan::QuadraticTo:
-                        if (!has_point || !has_control1 || has_control2)
-                            throw std::runtime_error("quadratic_to requires point and control1 only");
-                        break;
-                    case ShapePathCommandTypePlan::CubicTo:
-                        if (!has_point || !has_control1 || !has_control2)
-                            throw std::runtime_error("cubic_to requires point, control1, and control2");
-                        break;
-                    case ShapePathCommandTypePlan::Close:
-                        if (has_point || has_control1 || has_control2)
-                            throw std::runtime_error("close accepts no coordinates");
-                        break;
-                }
-                shape.path.push_back(command);
-            }
-        }
-        if ((shape.type == ShapeContentTypePlan::Line ||
-             shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
-             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Arc ||
-             shape.type == ShapeContentTypePlan::Grid || shape.type == ShapeContentTypePlan::DotGrid ||
-             (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset &&
-              !shape.lottie_asset)) && shape.path.empty())
-            throw std::runtime_error("line and path shapes require path commands");
-        // ── Star / Polygon: points, inner_ratio, rotation ───────────────
-        if (shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon) {
-            if (raw_shape.contains("points")) {
-                const int pts = raw_shape.at("points").get<int>();
-                if (pts < 3 || pts > 64)
-                    throw std::runtime_error("shape.points must be in [3, 64]");
-                shape.points = pts;
-            } else {
-                shape.points = (shape.type == ShapeContentTypePlan::Star ? 5 : 6);
-            }
-            if (raw_shape.contains("inner_radius_ratio")) {
-                shape.inner_radius_ratio = raw_shape.at("inner_radius_ratio").get<float>();
-            }
-            if (raw_shape.contains("innerRatio"))
-                shape.inner_radius_ratio = raw_shape.at("innerRatio").get<float>();
-            if (!std::isfinite(shape.inner_radius_ratio) || shape.inner_radius_ratio < 0.05f || shape.inner_radius_ratio > 0.95f)
-                throw std::runtime_error("shape.inner_radius_ratio must be finite in [0.05, 0.95]");
-            if (raw_shape.contains("shape_rotation_deg"))
-                shape.shape_rotation_deg = raw_shape.at("shape_rotation_deg").get<float>();
-            if (raw_shape.contains("rotation_deg"))
-                shape.shape_rotation_deg = raw_shape.at("rotation_deg").get<float>();
-            if (!std::isfinite(shape.shape_rotation_deg))
-                throw std::runtime_error("shape_rotation_deg must be finite");
-            // Forbid unrelated payloads
-            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                throw std::runtime_error("star/polygon shapes cannot carry path/asset/lottie");
-        }
-        // ── Arrow ─────────────────────────────────────────────────────────
-        if (shape.type == ShapeContentTypePlan::Arrow) {
-            if (raw_shape.contains("arrow_head_length"))
-                shape.arrow_head_length = raw_shape.at("arrow_head_length").get<float>();
-            if (raw_shape.contains("head_length"))
-                shape.arrow_head_length = raw_shape.at("head_length").get<float>();
-            if (raw_shape.contains("arrow_head_width"))
-                shape.arrow_head_width = raw_shape.at("arrow_head_width").get<float>();
-            if (raw_shape.contains("head_width"))
-                shape.arrow_head_width = raw_shape.at("head_width").get<float>();
-            if (raw_shape.contains("arrow_shaft_width"))
-                shape.arrow_shaft_width = raw_shape.at("arrow_shaft_width").get<float>();
-            if (raw_shape.contains("shaft_width"))
-                shape.arrow_shaft_width = raw_shape.at("shaft_width").get<float>();
-            if (raw_shape.contains("arrow_direction"))
-                shape.arrow_direction = raw_shape.at("arrow_direction").get<std::string>();
-            if (raw_shape.contains("direction"))
-                shape.arrow_direction = raw_shape.at("direction").get<std::string>();
-            if (shape.arrow_head_length && (!std::isfinite(*shape.arrow_head_length) || *shape.arrow_head_length <= 0.0f || *shape.arrow_head_length > 10000.0f))
-                throw std::runtime_error("arrow_head_length must be finite in (0, 10000]");
-            if (shape.arrow_head_width && (!std::isfinite(*shape.arrow_head_width) || *shape.arrow_head_width <= 0.0f || *shape.arrow_head_width > 10000.0f))
-                throw std::runtime_error("arrow_head_width must be finite in (0, 10000]");
-            if (!std::isfinite(shape.arrow_shaft_width) || shape.arrow_shaft_width <= 0.0f || shape.arrow_shaft_width > 10000.0f)
-                throw std::runtime_error("arrow_shaft_width must be finite in (0, 10000]");
-            if (shape.arrow_direction != "right" && shape.arrow_direction != "left" &&
-                shape.arrow_direction != "up" && shape.arrow_direction != "down" &&
-                shape.arrow_direction != "both")
-                throw std::runtime_error("arrow_direction must be right, left, up, down, or both");
-            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                throw std::runtime_error("arrow shapes cannot carry path/asset/lottie");
-        }
-        // ── Grid / DotGrid ────────────────────────────────────────────────
-        if (shape.type == ShapeContentTypePlan::Grid || shape.type == ShapeContentTypePlan::DotGrid) {
-            if (raw_shape.contains("grid_spacing"))
-                shape.grid_spacing = raw_shape.at("grid_spacing").get<float>();
-            if (raw_shape.contains("spacing"))
-                shape.grid_spacing = raw_shape.at("spacing").get<float>();
-            if (!std::isfinite(shape.grid_spacing) || shape.grid_spacing < 4.0f || shape.grid_spacing > 512.0f)
-                throw std::runtime_error("grid_spacing must be finite in [4, 512]");
-            if (shape.type == ShapeContentTypePlan::Grid) {
-                if (raw_shape.contains("grid_line_width"))
-                    shape.grid_line_width = raw_shape.at("grid_line_width").get<float>();
-                if (raw_shape.contains("line_width"))
-                    shape.grid_line_width = raw_shape.at("line_width").get<float>();
-                if (!std::isfinite(shape.grid_line_width) || shape.grid_line_width < 0.25f || shape.grid_line_width > 32.0f)
-                    throw std::runtime_error("grid_line_width must be finite in [0.25, 32]");
-            } else {
-                if (raw_shape.contains("dot_radius"))
-                    shape.dot_radius = raw_shape.at("dot_radius").get<float>();
-                if (raw_shape.contains("radius")) // arc-style radius alias not applicable
-                    ; // keep dot_radius separate; radius alias already handled above as shape.radius
-                if (raw_shape.contains("dotRadius"))
-                    shape.dot_radius = raw_shape.at("dotRadius").get<float>();
-                if (!std::isfinite(shape.dot_radius) || shape.dot_radius < 0.5f || shape.dot_radius > 64.0f)
-                    throw std::runtime_error("dot_radius must be finite in [0.5, 64]");
-            }
-            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                throw std::runtime_error("grid/dot_grid shapes cannot carry path/asset/lottie");
-        }
-        // ── Arc ───────────────────────────────────────────────────────────
-        if (shape.type == ShapeContentTypePlan::Arc) {
-            if (raw_shape.contains("arc_start_deg"))
-                shape.arc_start_deg = raw_shape.at("arc_start_deg").get<float>();
-            if (raw_shape.contains("start_deg"))
-                shape.arc_start_deg = raw_shape.at("start_deg").get<float>();
-            if (raw_shape.contains("arc_sweep_deg"))
-                shape.arc_sweep_deg = raw_shape.at("arc_sweep_deg").get<float>();
-            if (raw_shape.contains("sweep_deg"))
-                shape.arc_sweep_deg = raw_shape.at("sweep_deg").get<float>();
-            if (raw_shape.contains("arc_thickness"))
-                shape.arc_thickness = raw_shape.at("arc_thickness").get<float>();
-            if (raw_shape.contains("thickness"))
-                shape.arc_thickness = raw_shape.at("thickness").get<float>();
-            if (!std::isfinite(shape.arc_start_deg))
-                throw std::runtime_error("arc_start_deg must be finite");
-            if (!std::isfinite(shape.arc_sweep_deg) || shape.arc_sweep_deg < 1.0f || shape.arc_sweep_deg > 359.9f)
-                throw std::runtime_error("arc_sweep_deg must be finite in [1, 359.9]");
-            if (!std::isfinite(shape.arc_thickness) || shape.arc_thickness < 0.0f || shape.arc_thickness > 10000.0f)
-                throw std::runtime_error("arc_thickness must be finite in [0, 10000]");
-            if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                throw std::runtime_error("arc shapes cannot carry path/asset/lottie");
-        }
-        // ── WorldMap ──────────────────────────────────────────────────────
-        if (raw_shape.contains("world_map") || shape.type == ShapeContentTypePlan::WorldMap) {
-            WorldMapPlan wm;
-            const auto& src = raw_shape.contains("world_map") ? raw_shape.at("world_map") : raw_shape;
-            if (src.contains("projection")) wm.projection = src.at("projection").get<std::string>();
-            if (wm.projection != "mercator" && wm.projection != "equirectangular" && wm.projection != "equirect")
-                throw std::runtime_error("world_map projection must be mercator or equirectangular");
-            if (wm.projection == "equirect") wm.projection = "equirectangular";
-            if (src.contains("center")) {
-                const auto& c = src.at("center");
-                if (!c.is_array() || c.size() != 2) throw std::runtime_error("world_map center must be [lon, lat]");
-                wm.center = {c[0].get<float>(), c[1].get<float>()};
-            }
-            if (!std::isfinite(wm.center[0]) || !std::isfinite(wm.center[1]) ||
-                wm.center[0] < -180.0f || wm.center[0] > 180.0f ||
-                wm.center[1] < -90.0f || wm.center[1] > 90.0f)
-                throw std::runtime_error("world_map center lon in [-180,180] lat in [-90,90]");
-            if (src.contains("zoom")) wm.zoom = src.at("zoom").get<float>();
-            if (!std::isfinite(wm.zoom) || wm.zoom < 1.0f || wm.zoom > 8.0f)
-                throw std::runtime_error("world_map zoom must be finite in [1, 8]");
-            if (src.contains("highlight")) {
-                const auto& hl = src.at("highlight");
-                if (!hl.is_array() || hl.size() > 64) throw std::runtime_error("world_map highlight must be array of at most 64 ISO codes");
-                for (const auto& code : hl) wm.highlight.push_back(code.get<std::string>());
-            }
-            if (src.contains("highlight_color")) wm.highlight_color = src.at("highlight_color").get<std::string>();
-            if (src.contains("highlightColor")) wm.highlight_color = src.at("highlightColor").get<std::string>();
-            if (src.contains("route")) {
-                const auto& route = src.at("route");
-                if (!route.is_array() || route.size() > 256) throw std::runtime_error("world_map route must be array of at most 256 lon/lat pairs");
-                for (const auto& pt : route) {
-                    if (!pt.is_array() || pt.size() != 2) throw std::runtime_error("world_map route entries must be [lon, lat]");
-                    float lon = pt[0].get<float>(); float lat = pt[1].get<float>();
-                    if (!std::isfinite(lon) || !std::isfinite(lat) || lon < -180.0f || lon > 180.0f || lat < -90.0f || lat > 90.0f)
-                        throw std::runtime_error("world_map route lon/lat out of range");
-                    wm.route.push_back({lon, lat});
-                }
-            }
-            if (src.contains("dots")) wm.dots = src.at("dots").get<bool>();
-            // WorldMap is either primary type or additive payload; merge
-            shape.world_map = std::move(wm);
-            if (shape.type == ShapeContentTypePlan::WorldMap) {
-                // primary — forbid path/asset/lottie handled via world_map object
-                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                    throw std::runtime_error("world_map shape cannot carry path/asset/lottie");
-            }
-        }
-        // ── Chart ─────────────────────────────────────────────────────────
-        if (raw_shape.contains("chart") || shape.type == ShapeContentTypePlan::Chart) {
-            ChartPlan chart;
-            const auto& src = raw_shape.contains("chart") ? raw_shape.at("chart") : raw_shape;
-            if (src.contains("chart_type")) chart.chart_type = src.at("chart_type").get<std::string>();
-            if (src.contains("type")) chart.chart_type = src.at("type").get<std::string>();
-            if (chart.chart_type != "bar" && chart.chart_type != "line" && chart.chart_type != "pie")
-                throw std::runtime_error("chart type must be bar, line, or pie");
-            if (src.contains("data")) {
-                const auto& data = src.at("data");
-                if (!data.is_array() || data.size() == 0 || data.size() > 256) throw std::runtime_error("chart data must be array of 1..256 values");
-                for (const auto& v : data) {
-                    float fv = v.get<float>();
-                    if (!std::isfinite(fv)) throw std::runtime_error("chart data values must be finite");
-                    chart.data.push_back(fv);
-                }
-            } else if (shape.type == ShapeContentTypePlan::Chart) {
-                throw std::runtime_error("chart shape requires data array");
-            }
-            if (src.contains("colors")) {
-                const auto& colors = src.at("colors");
-                if (!colors.is_array() || colors.size() > 256) throw std::runtime_error("chart colors must be array of at most 256 RGBA entries");
-                for (const auto& c : colors) {
-                    if (!c.is_array() || c.size() != 4) throw std::runtime_error("chart color must be RGBA array");
-                    std::array<float,4> rgba{};
-                    for (size_t i=0;i<4;++i) {
-                        rgba[i]=c[i].get<float>();
-                        if (!std::isfinite(rgba[i])||rgba[i]<0.0f||rgba[i]>1.0f) throw std::runtime_error("chart color components must be in [0,1]");
-                    }
-                    chart.colors.push_back(rgba);
-                }
-            }
-            if (src.contains("value_format")) chart.value_format = src.at("value_format").get<std::string>();
-            if (src.contains("bar_gap")) chart.bar_gap = src.at("bar_gap").get<float>();
-            if (!std::isfinite(chart.bar_gap) || chart.bar_gap < 0.0f || chart.bar_gap > 0.5f)
-                throw std::runtime_error("chart bar_gap must be in [0, 0.5]");
-            if (src.contains("line_width")) chart.line_width = src.at("line_width").get<float>();
-            if (!std::isfinite(chart.line_width) || chart.line_width <= 0.0f || chart.line_width > 64.0f)
-                throw std::runtime_error("chart line_width must be in (0, 64]");
-            if (src.contains("donut")) chart.donut = src.at("donut").get<bool>();
-            if (src.contains("donut_inner_ratio")) chart.donut_inner_ratio = src.at("donut_inner_ratio").get<float>();
-            if (!std::isfinite(chart.donut_inner_ratio) || chart.donut_inner_ratio < 0.1f || chart.donut_inner_ratio > 0.9f)
-                throw std::runtime_error("chart donut_inner_ratio must be in [0.1, 0.9]");
-            shape.chart = std::move(chart);
-            if (shape.type == ShapeContentTypePlan::Chart) {
-                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                    throw std::runtime_error("chart shape cannot carry path/asset/lottie");
-            }
-        }
-        // ── DeviceFrame (additive, not primary shape type) ───────────────
-        if (raw_shape.contains("device_frame")) {
-            const auto& src = raw_shape.at("device_frame");
-            if (!src.is_object()) throw std::runtime_error("device_frame must be an object");
-            DeviceFramePlan df;
-            if (src.contains("frame_type")) df.frame_type = src.at("frame_type").get<std::string>();
-            if (src.contains("type")) df.frame_type = src.at("type").get<std::string>();
-            if (df.frame_type != "browser" && df.frame_type != "phone" && df.frame_type != "window")
-                throw std::runtime_error("device_frame type must be browser, phone, or window");
-            if (src.contains("radius")) df.radius = src.at("radius").get<float>();
-            if (src.contains("border_width")) df.border_width = src.at("border_width").get<float>();
-            if (!std::isfinite(df.radius) || df.radius < 0.0f || df.radius > 512.0f) throw std::runtime_error("device_frame radius out of range");
-            if (!std::isfinite(df.border_width) || df.border_width < 0.0f || df.border_width > 64.0f) throw std::runtime_error("device_frame border_width out of range");
-            if (src.contains("border_color")) df.border_color = src.at("border_color").get<std::string>();
-            if (src.contains("show_chrome")) df.show_chrome = src.at("show_chrome").get<bool>();
-            shape.device_frame = std::move(df);
-        }
-        // ── Counter (additive) ────────────────────────────────────────────
-        if (raw_shape.contains("counter")) {
-            const auto& src = raw_shape.at("counter");
-            if (!src.is_object()) throw std::runtime_error("counter must be an object");
-            CounterPlan cp;
-            if (src.contains("from")) cp.from = src.at("from").get<float>();
-            if (src.contains("to")) cp.to = src.at("to").get<float>();
-            if (!std::isfinite(cp.from) || !std::isfinite(cp.to)) throw std::runtime_error("counter from/to must be finite");
-            if (src.contains("format")) cp.format = src.at("format").get<std::string>();
-            if (cp.format != "plain" && cp.format != "currency" && cp.format != "percent" && cp.format != "compact")
-                throw std::runtime_error("counter format must be plain, currency, percent, or compact");
-            if (src.contains("currency")) cp.currency = src.at("currency").get<std::string>();
-            if (src.contains("decimals")) cp.decimals = src.at("decimals").get<int>();
-            if (cp.decimals < 0 || cp.decimals > 6) throw std::runtime_error("counter decimals must be in [0, 6]");
-            if (src.contains("prefix")) cp.prefix = src.at("prefix").get<std::string>();
-            if (src.contains("suffix")) cp.suffix = src.at("suffix").get<std::string>();
-            if (cp.prefix.size() > 32 || cp.suffix.size() > 32) throw std::runtime_error("counter prefix/suffix max 32 chars");
-            shape.counter = std::move(cp);
-        }
-        if (raw_shape.contains("operators")) {
-            const auto& raw_ops = raw_shape.at("operators");
-            if (!raw_ops.is_array() || raw_ops.size() > 16)
-                throw std::runtime_error("shape.operators must be an array with at most 16 entries");
-            for (const auto& raw_op : raw_ops) {
-                if (!raw_op.is_object() || !raw_op.contains("kind") || !raw_op.contains("params"))
-                    throw std::runtime_error("unsupported path operator");
-                const auto& p = raw_op.at("params");
-                if (!p.is_object()) throw std::runtime_error("path operator params must be an object");
-                const auto kind = raw_op.at("kind").get<std::string>();
-                PathOperatorPlan decoded_op;
-                if (kind == "repeater") {
-                    decoded_op.kind = PathOperatorKindPlan::Repeater;
-                    auto& r = decoded_op.repeater;
-                    r.copies = p.at("copies").get<std::uint32_t>();
-                    const auto read2 = [&](const char* key, std::array<float, 2>& out) {
-                        if (!p.contains(key)) return;
-                        const auto& a = p.at(key);
-                        if (!a.is_array() || a.size() != 2)
-                            throw std::runtime_error(std::string("repeater ") + key + " requires two values");
-                        out = {a[0].get<float>(), a[1].get<float>()};
-                    };
-                    read2("position", r.position);
-                    read2("scale", r.scale);
-                    read2("anchor", r.anchor);
-                    r.rotation_degrees = p.value("rotation_degrees", 0.0f);
-                    r.opacity_decay = p.value("opacity_decay", 1.0f);
-                    if (r.copies == 0 || r.copies > 10000 ||
-                        !std::isfinite(r.rotation_degrees) || !std::isfinite(r.opacity_decay) ||
-                        r.opacity_decay < 0.0f || r.opacity_decay > 1.0f ||
-                        !std::isfinite(r.position[0]) || !std::isfinite(r.position[1]) ||
-                        !std::isfinite(r.scale[0]) || !std::isfinite(r.scale[1]) ||
-                        !std::isfinite(r.anchor[0]) || !std::isfinite(r.anchor[1]))
-                        throw std::runtime_error("invalid repeater parameters");
-                } else if (kind == "round_corners") {
-                    decoded_op.kind = PathOperatorKindPlan::RoundCorners;
-                    decoded_op.radius = p.at("radius").get<float>();
-                    if (!std::isfinite(decoded_op.radius) || decoded_op.radius < 0.0f)
-                        throw std::runtime_error("round-corners radius must be finite and non-negative");
-                } else if (kind == "zig_zag") {
-                    decoded_op.kind = PathOperatorKindPlan::ZigZag;
-                    decoded_op.size = p.at("size").get<float>();
-                    decoded_op.points_per_unit = p.value("points_per_unit", 0.1f);
-                    decoded_op.smooth = p.value("smooth", false);
-                    if (!std::isfinite(decoded_op.size) || decoded_op.size < 0.0f ||
-                        !std::isfinite(decoded_op.points_per_unit) ||
-                        decoded_op.points_per_unit <= 0.0f || decoded_op.points_per_unit > 1000.0f)
-                        throw std::runtime_error("invalid zig-zag parameters");
-                } else if (kind == "offset_path") {
-                    decoded_op.kind = PathOperatorKindPlan::OffsetPath;
-                    decoded_op.amount = p.at("amount").get<float>();
-                    decoded_op.miter_limit = p.value("miter_limit", 4.0f);
-                    if (!std::isfinite(decoded_op.amount) || !std::isfinite(decoded_op.miter_limit) ||
-                        decoded_op.miter_limit < 1.0f || decoded_op.miter_limit > 1000.0f)
-                        throw std::runtime_error("invalid offset-path parameters");
-                } else if (kind == "pucker_bloat") {
-                    decoded_op.kind = PathOperatorKindPlan::PuckerBloat;
-                    decoded_op.amount = p.at("amount").get<float>();
-                    if (p.contains("anchor")) {
-                        const auto& anchor = p.at("anchor");
-                        if (!anchor.is_array() || anchor.size() != 2)
-                            throw std::runtime_error("pucker-bloat anchor requires two values");
-                        decoded_op.anchor = {anchor[0].get<float>(), anchor[1].get<float>()};
-                    }
-                    if (!std::isfinite(decoded_op.amount) || decoded_op.amount < -1.0f ||
-                        decoded_op.amount > 1.0f || !std::isfinite(decoded_op.anchor[0]) ||
-                        !std::isfinite(decoded_op.anchor[1]))
-                        throw std::runtime_error("invalid pucker-bloat parameters");
-                } else if (kind == "twist") {
-                    decoded_op.kind = PathOperatorKindPlan::Twist;
-                    decoded_op.degrees = p.at("degrees").get<float>();
-                    if (p.contains("center")) {
-                        const auto& center = p.at("center");
-                        if (!center.is_array() || center.size() != 2)
-                            throw std::runtime_error("twist center requires two values");
-                        decoded_op.center = {center[0].get<float>(), center[1].get<float>()};
-                    }
-                    if (!std::isfinite(decoded_op.degrees) || !std::isfinite(decoded_op.center[0]) ||
-                        !std::isfinite(decoded_op.center[1]))
-                        throw std::runtime_error("invalid twist parameters");
-                } else if (kind == "wiggle_path") {
-                    decoded_op.kind = PathOperatorKindPlan::WigglePath;
-                    decoded_op.amount = p.at("amount").get<float>();
-                    decoded_op.frequency = p.value("frequency", 1.0f);
-                    decoded_op.seed = p.value("seed", 0u);
-                    if (!std::isfinite(decoded_op.amount) || decoded_op.amount < 0.0f ||
-                        !std::isfinite(decoded_op.frequency) || decoded_op.frequency <= 0.0f ||
-                        decoded_op.frequency > 1000.0f)
-                        throw std::runtime_error("invalid wiggle-path parameters");
-                } else if (kind == "merge") {
-                    decoded_op.kind = PathOperatorKindPlan::Merge;
-                    const auto& raw_paths = p.at("paths");
-                    if (!raw_paths.is_array() || raw_paths.size() > 1024)
-                        throw std::runtime_error("merge paths must contain at most 1024 subpaths");
-                    std::size_t total_commands = 0;
-                    for (const auto& raw_subpath : raw_paths) {
-                        if (!raw_subpath.is_array() || raw_subpath.empty() ||
-                            raw_subpath.size() > 65536 || total_commands + raw_subpath.size() > 1000000)
-                            throw std::runtime_error("merge subpath has invalid command count");
-                        std::vector<ShapePathCommandPlan> subpath;
-                        for (const auto& raw_command : raw_subpath) {
-                            ShapePathCommandPlan command;
-                            const auto type = raw_command.at("type").get<std::string>();
-                            if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                            else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                            else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                            else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                            else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-                            else throw std::runtime_error("unsupported merge path command: " + type);
-                            const auto read_point = [](const nlohmann::json& value,
-                                                       std::array<float, 2>& out) {
-                                if (!value.is_array() || value.size() != 2)
-                                    throw std::runtime_error("merge path point must contain two values");
-                                out = {value[0].get<float>(), value[1].get<float>()};
-                            };
-                            if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
-                            if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
-                            if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
-                            const bool has_point = raw_command.contains("point");
-                            const bool has_c1 = raw_command.contains("control1");
-                            const bool has_c2 = raw_command.contains("control2");
-                            if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-                                 command.type == ShapePathCommandTypePlan::LineTo) &&
-                                (!has_point || has_c1 || has_c2))
-                                throw std::runtime_error("merge move_to/line_to require point only");
-                            if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
-                                (!has_point || !has_c1 || has_c2))
-                                throw std::runtime_error("merge quadratic_to requires point and control1");
-                            if (command.type == ShapePathCommandTypePlan::CubicTo &&
-                                (!has_point || !has_c1 || !has_c2))
-                                throw std::runtime_error("merge cubic_to requires point and both controls");
-                            if (command.type == ShapePathCommandTypePlan::Close &&
-                                (has_point || has_c1 || has_c2))
-                                throw std::runtime_error("merge close accepts no coordinates");
-                            const auto finite = [](const auto& v) {
-                                return std::isfinite(v[0]) && std::isfinite(v[1]);
-                            };
-                            if ((command.type != ShapePathCommandTypePlan::Close && !finite(command.point)) ||
-                                !finite(command.control1) || !finite(command.control2))
-                                throw std::runtime_error("merge command coordinates must be finite");
-                            subpath.push_back(command);
-                        }
-                        if (subpath.front().type != ShapePathCommandTypePlan::MoveTo)
-                            throw std::runtime_error("each merged subpath must begin with move_to");
-                        total_commands += subpath.size();
-                        decoded_op.paths.push_back(std::move(subpath));
-                    }
-                } else if (kind == "morph") {
-                    decoded_op.kind = PathOperatorKindPlan::Morph;
-                    if (!p.contains("target"))
-                        throw std::runtime_error("morph operator requires target commands");
-                    const auto& raw_target = p.at("target");
-                    if (!raw_target.is_array() || raw_target.empty() || raw_target.size() > 65536)
-                        throw std::runtime_error("morph target must contain between 1 and 65536 commands");
-                    for (const auto& raw_command : raw_target) {
-                        ShapePathCommandPlan command;
-                        const auto type = raw_command.at("type").get<std::string>();
-                        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-                        else throw std::runtime_error("unsupported morph path command: " + type);
-                        const auto read_point = [](const nlohmann::json& value,
-                                                   std::array<float, 2>& out) {
-                            if (!value.is_array() || value.size() != 2)
-                                throw std::runtime_error("morph path points must contain two values");
-                            out = {value[0].get<float>(), value[1].get<float>()};
-                        };
-                        const bool has_point = raw_command.contains("point");
-                        const bool has_c1 = raw_command.contains("control1");
-                        const bool has_c2 = raw_command.contains("control2");
-                        if (has_point) read_point(raw_command.at("point"), command.point);
-                        if (has_c1) read_point(raw_command.at("control1"), command.control1);
-                        if (has_c2) read_point(raw_command.at("control2"), command.control2);
-                        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-                             command.type == ShapePathCommandTypePlan::LineTo) &&
-                            (!has_point || has_c1 || has_c2))
-                            throw std::runtime_error("morph move_to/line_to require point only");
-                        if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
-                            (!has_point || !has_c1 || has_c2))
-                            throw std::runtime_error("morph quadratic_to requires point and control1");
-                        if (command.type == ShapePathCommandTypePlan::CubicTo &&
-                            (!has_point || !has_c1 || !has_c2))
-                            throw std::runtime_error("morph cubic_to requires point and both controls");
-                        if (command.type == ShapePathCommandTypePlan::Close &&
-                            (has_point || has_c1 || has_c2))
-                            throw std::runtime_error("morph close accepts no coordinates");
-                        if ((command.type != ShapePathCommandTypePlan::Close &&
-                             !finite_point(command.point)) ||
-                            !finite_point(command.control1) || !finite_point(command.control2))
-                            throw std::runtime_error("morph path coordinates must be finite");
-                        decoded_op.morph_target.push_back(command);
-                    }
-                    std::vector<PathCommand> source_commands;
-                    source_commands.reserve(shape.path.size());
-                    const auto make_path_command = [](const ShapePathCommandPlan& command) {
-                        const Vec2 point{command.point[0], command.point[1]};
-                        const Vec2 control1{command.control1[0], command.control1[1]};
-                        const Vec2 control2{command.control2[0], command.control2[1]};
-                        switch (command.type) {
-                            case ShapePathCommandTypePlan::MoveTo: return PathCommand::move_to(point);
-                            case ShapePathCommandTypePlan::LineTo: return PathCommand::line_to(point);
-                            case ShapePathCommandTypePlan::QuadraticTo: return PathCommand::quadratic_to(control1, point);
-                            case ShapePathCommandTypePlan::CubicTo: return PathCommand::cubic_to(control1, control2, point);
-                            case ShapePathCommandTypePlan::Close: return PathCommand::close();
-                        }
-                        return PathCommand::close();
-                    };
-                    for (const auto& command : shape.path)
-                        source_commands.push_back(make_path_command(command));
-                    std::vector<PathCommand> target_commands;
-                    target_commands.reserve(decoded_op.morph_target.size());
-                    for (const auto& command : decoded_op.morph_target)
-                        target_commands.push_back(make_path_command(command));
-                    if (const auto topology_error = validate_morph_path_topology(
-                            source_commands, target_commands))
-                        throw std::runtime_error(*topology_error);
-                    decoded_op.morph_progress = p.value("progress", 0.0f);
-                    if (!std::isfinite(decoded_op.morph_progress) ||
-                        decoded_op.morph_progress < 0.0f || decoded_op.morph_progress > 1.0f)
-                        throw std::runtime_error("morph progress must be finite and in [0, 1]");
-                    if (p.contains("animation")) {
-                        auto animation = decode_animation_track(p.at("animation"));
-                        animation.property = "morph_progress";
-                        for (const auto& key : animation.keyframes) {
-                            if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
-                                key.value.front() < 0.0f || key.value.front() > 1.0f)
-                                throw std::runtime_error("morph animation keyframes require scalar progress in [0, 1]");
-                        }
-                        decoded_op.morph_animation = std::move(animation);
-                    }
-                } else if (kind == "trim") {
-                    decoded_op.kind = PathOperatorKindPlan::Trim;
-                    decoded_op.trim_start = p.value("start", 0.0f);
-                    decoded_op.trim_end = p.value("end", 1.0f);
-                    decoded_op.trim_offset = p.value("offset", 0.0f);
-                    if (!std::isfinite(decoded_op.trim_start) || !std::isfinite(decoded_op.trim_end) ||
-                        !std::isfinite(decoded_op.trim_offset) ||
-                        decoded_op.trim_start < 0.0f || decoded_op.trim_start > 1.0f ||
-                        decoded_op.trim_end < 0.0f || decoded_op.trim_end > 1.0f ||
-                        decoded_op.trim_end < decoded_op.trim_start ||
-                        std::abs(decoded_op.trim_offset) > 1000000.0f)
-                        throw std::runtime_error("invalid trim-path parameters");
-                    if (p.contains("animation")) {
-                        auto animation = decode_animation_track(p.at("animation"));
-                        animation.property = "trim";
-                        for (const auto& key : animation.keyframes) {
-                            if (key.value.empty() || key.value.size() > 3 ||
-                                (key.value.size() > 0 &&
-                                 (!std::isfinite(key.value[0]) || key.value[0] < 0.0f || key.value[0] > 1.0f)) ||
-                                (key.value.size() > 1 &&
-                                 (!std::isfinite(key.value[1]) || key.value[1] < 0.0f || key.value[1] > 1.0f)) ||
-                                (key.value.size() > 2 && !std::isfinite(key.value[2])))
-                                throw std::runtime_error("trim animation keyframes require 1..3 finite values [start, end, offset]");
-                        }
-                        decoded_op.trim_animation = std::move(animation);
-                    }
-                } else {
-                    throw std::runtime_error("unsupported path operator: " + kind);
-                }
-                shape.operators.push_back(decoded_op);
-            }
-        }
-        for (const auto& command : shape.path) {
-            const bool needs_point = command.type != ShapePathCommandTypePlan::Close;
-            if ((needs_point && !finite_point(command.point)) ||
-                !finite_point(command.control1) || !finite_point(command.control2))
-                throw std::runtime_error("shape path coordinates must be finite");
-        }
-        if (raw_shape.contains("fill")) {
-            const auto& fill = raw_shape.at("fill");
-            if (fill.is_array()) {
-                if (fill.size() != 4)
-                    throw std::runtime_error("shape.fill must contain RGBA");
-                shape.fill_color = std::array<float, 4>{
-                    fill[0].get<float>(), fill[1].get<float>(),
-                    fill[2].get<float>(), fill[3].get<float>()};
-            } else if (fill.is_object()) {
-                shape.gradient = decode_gradient_definition(fill);
-            }
-        }
-        if (shape.gradient) {
-            const auto valid_stop = [](float position, float alpha) {
-                return std::isfinite(position) && position >= 0.0f && position <= 1.0f &&
-                       std::isfinite(alpha) && alpha >= 0.0f && alpha <= 1.0f;
-            };
-            if (shape.gradient->color_stops.size() < 2)
-                throw std::runtime_error("gradient requires at least two color stops");
-            for (const auto& stop : shape.gradient->color_stops) {
-                if (!valid_stop(stop.position, stop.color.a) ||
-                    !std::isfinite(stop.color.r) || !std::isfinite(stop.color.g) ||
-                    !std::isfinite(stop.color.b) || stop.color.r < 0.0f || stop.color.r > 1.0f ||
-                    stop.color.g < 0.0f || stop.color.g > 1.0f ||
-                    stop.color.b < 0.0f || stop.color.b > 1.0f)
-                    throw std::runtime_error("gradient color stops must be finite and in [0, 1]");
-            }
-            for (const auto& stop : shape.gradient->opacity_stops) {
-                if (!valid_stop(stop.position, stop.opacity))
-                    throw std::runtime_error("gradient opacity stops must be finite and in [0, 1]");
-            }
-            const auto& gradient = *shape.gradient;
-            if (!finite_vec2(gradient.start) || !finite_vec2(gradient.end) ||
-                !finite_vec2(gradient.center) || !std::isfinite(gradient.radius) ||
-                gradient.radius <= 0.0f || !std::isfinite(gradient.angle))
-                throw std::runtime_error("gradient geometry must be finite with positive radius");
-        }
-        if (raw_shape.contains("stroke")) {
-            const auto& stroke = raw_shape.at("stroke");
-            StrokeStyle decoded_stroke;
-            decoded_stroke.color = "#FFFFFF";
-            if (stroke.contains("color")) {
-                const auto& stroke_color = stroke.at("color");
-                if (stroke_color.is_array()) {
-                    if (stroke_color.size() != 4)
-                        throw std::runtime_error("shape.stroke.color must contain RGBA");
-                    decoded_stroke.solid_color = std::array<float, 4>{
-                        stroke_color[0].get<float>(), stroke_color[1].get<float>(),
-                        stroke_color[2].get<float>(), stroke_color[3].get<float>()};
-                } else if (stroke_color.is_string()) {
-                    decoded_stroke.color = stroke_color.get<std::string>();
-                } else if (stroke_color.is_object()) {
-                    decoded_stroke.gradient = decode_gradient_definition(stroke_color);
-                }
-            }
-            if (stroke.contains("width")) decoded_stroke.width = stroke.at("width").get<float>();
-            if (stroke.contains("trim_start")) decoded_stroke.trim_start = stroke.at("trim_start").get<float>();
-            if (stroke.contains("trim_end")) decoded_stroke.trim_end = stroke.at("trim_end").get<float>();
-            if (stroke.contains("dash_array")) {
-                const auto& dash = stroke.at("dash_array");
-                if (!dash.is_array()) throw std::runtime_error("stroke.dash_array must be an array");
-                for (const auto& entry : dash) {
-                    const float value = entry.get<float>();
-                    if (!std::isfinite(value) || value < 0.0f)
-                        throw std::runtime_error("stroke.dash_array entries must be finite and >= 0");
-                    decoded_stroke.dash_array.push_back(value);
-                }
-            }
-            if (stroke.contains("dash_offset")) {
-                decoded_stroke.dash_offset = stroke.at("dash_offset").get<float>();
-                if (!std::isfinite(decoded_stroke.dash_offset))
-                    throw std::runtime_error("stroke.dash_offset must be finite");
-            }
-            if (stroke.contains("gradient"))
-                decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
-            if (decoded_stroke.gradient) {
-                const auto& gradient = *decoded_stroke.gradient;
-                if (gradient.color_stops.size() < 2)
-                    throw std::runtime_error("stroke gradient requires at least two color stops");
-                for (const auto& stop : gradient.color_stops) {
-                    if (!std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
-                        !std::isfinite(stop.color.r) || !std::isfinite(stop.color.g) ||
-                        !std::isfinite(stop.color.b) || !std::isfinite(stop.color.a) ||
-                        stop.color.r < 0.0f || stop.color.r > 1.0f ||
-                        stop.color.g < 0.0f || stop.color.g > 1.0f ||
-                        stop.color.b < 0.0f || stop.color.b > 1.0f ||
-                        stop.color.a < 0.0f || stop.color.a > 1.0f)
-                        throw std::runtime_error("stroke gradient color stops must be finite and in [0, 1]");
-                }
-                for (const auto& stop : gradient.opacity_stops) {
-                    if (!std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
-                        !std::isfinite(stop.opacity) || stop.opacity < 0.0f || stop.opacity > 1.0f)
-                        throw std::runtime_error("stroke gradient opacity stops must be finite and in [0, 1]");
-                }
-                if (!finite_vec2(gradient.start) || !finite_vec2(gradient.end) ||
-                    !finite_vec2(gradient.center) || !std::isfinite(gradient.radius) ||
-                    gradient.radius <= 0.0f || !std::isfinite(gradient.angle))
-                    throw std::runtime_error("stroke gradient geometry must be finite with positive radius");
-            }
-            shape.stroke = std::move(decoded_stroke);
-        }
-        if (shape.fill_color) {
-            for (const auto component : *shape.fill_color) {
-                if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
-                    throw std::runtime_error("shape fill RGBA must be finite and in [0, 1]");
-            }
-            // Normalize both names to the same solid paint value. The explicit
-            // shape-local fill wins over the legacy layer.color alias above.
-            layer.color = *shape.fill_color;
-        }
-        if (shape.stroke) {
-            if (shape.stroke->color.empty() && shape.stroke->solid_color)
-                shape.stroke->color = "#FFFFFF";
-            if (shape.stroke->solid_color && shape.stroke->gradient)
-                throw std::runtime_error("shape stroke cannot specify both solid color and gradient");
-            if (shape.stroke->color.empty() && shape.stroke->gradient)
-                shape.stroke->color = "#FFFFFF";
-            if (shape.stroke->width &&
-                (!std::isfinite(*shape.stroke->width) || *shape.stroke->width < 0.0f))
-                throw std::runtime_error("shape stroke width must be finite and non-negative");
-            if (shape.stroke->trim_start &&
-                (!std::isfinite(*shape.stroke->trim_start) || *shape.stroke->trim_start < 0.0f ||
-                 *shape.stroke->trim_start > 1.0f))
-                throw std::runtime_error("shape stroke trim_start must be finite and in [0, 1]");
-            if (shape.stroke->trim_end &&
-                (!std::isfinite(*shape.stroke->trim_end) || *shape.stroke->trim_end < 0.0f ||
-                 *shape.stroke->trim_end > 1.0f))
-                throw std::runtime_error("shape stroke trim_end must be finite and in [0, 1]");
-            if (shape.stroke->solid_color) {
-                for (const auto component : *shape.stroke->solid_color) {
-                    if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
-                        throw std::runtime_error("shape stroke RGBA must be finite and in [0, 1]");
-                }
-            }
-        }
-        layer.shape = std::move(shape);
-    }
-    if (value.contains("fill_gradient_animation")) {
-        if (layer.animation && std::any_of(layer.animation->tracks.begin(),
-                layer.animation->tracks.end(), [](const AnimationTrackPlan& track) {
-                    return track.property == "fill_color";
-                }))
-            throw std::runtime_error(
-                "fill_color and fill_gradient_animation tracks are mutually exclusive");
-        if (layer.type != LayerType::Shape || !layer.shape ||
-            layer.shape->type == ShapeContentTypePlan::Line ||
-            layer.shape->type == ShapeContentTypePlan::Path ||
-            layer.shape->type == ShapeContentTypePlan::Arc ||
-            layer.shape->type == ShapeContentTypePlan::Grid ||
-            !layer.shape->gradient) {
-            throw std::runtime_error(
-                "fill_gradient_animation requires a filled rect, rounded_rect, or ellipse shape");
-        }
-        auto animation = decode_gradient_animation(value.at("fill_gradient_animation"));
-        if (animation.keyframes.empty())
-            throw std::runtime_error("fill_gradient_animation requires keyframes");
-        const auto& base = *layer.shape->gradient;
-        const auto compatible = [&](const graphics::GradientDefinition& candidate) {
-            return candidate.type == base.type && candidate.spread == base.spread;
-        };
-        for (const auto& key : animation.keyframes) {
-            if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
-                !compatible(key.value))
-                throw std::runtime_error(
-                    "fill gradient keyframes must use the base gradient type and spread");
-        }
-        std::stable_sort(animation.keyframes.begin(), animation.keyframes.end(),
-            [](const auto& a, const auto& b) { return a.frame < b.frame; });
-        for (std::size_t index = 1; index < animation.keyframes.size(); ++index)
-            if (animation.keyframes[index - 1].frame == animation.keyframes[index].frame)
-                throw std::runtime_error("fill gradient keyframe frames must be unique");
-        layer.fill_gradient_animation = std::move(animation);
-    }
-    if (value.contains("mask") && value.contains("masks"))
-        throw std::runtime_error("use either legacy mask or ordered masks, not both");
-    if (value.contains("mask")) {
-        const auto& raw_mask = value.at("mask");
-        if (raw_mask.value("type", std::string{}) != "path")
-            throw std::runtime_error("only path masks are supported by this render-plan extension");
-        LayerPlan::PathMaskPlan mask;
-        mask.feather = raw_mask.value("feather", 0.0f);
-        mask.expansion = raw_mask.value("expansion", 0.0f);
-        mask.inverted = raw_mask.value("inverted", false);
-        if (!std::isfinite(mask.feather) || mask.feather < 0.0f || mask.feather > 1000000.0f ||
-            !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f)
-            throw std::runtime_error("path mask feather and expansion must be finite and bounded");
-        mask.path = decode_closed_mask_path(raw_mask.at("path"));
-        if (raw_mask.contains("target_path")) {
-            mask.morph_target = decode_closed_mask_path(raw_mask.at("target_path"));
-            if (const auto error = validate_morph_path_topology(
-                    [&] {
-                        std::vector<PathCommand> source;
-                        source.reserve(mask.path.size());
-                        for (const auto& command : mask.path) {
-                            const Vec2 point{command.point[0], command.point[1]};
-                            const Vec2 c1{command.control1[0], command.control1[1]};
-                            const Vec2 c2{command.control2[0], command.control2[1]};
-                            switch (command.type) {
-                                case ShapePathCommandTypePlan::MoveTo: source.push_back(PathCommand::move_to(point)); break;
-                                case ShapePathCommandTypePlan::LineTo: source.push_back(PathCommand::line_to(point)); break;
-                                case ShapePathCommandTypePlan::QuadraticTo: source.push_back(PathCommand::quadratic_to(c1, point)); break;
-                                case ShapePathCommandTypePlan::CubicTo: source.push_back(PathCommand::cubic_to(c1, c2, point)); break;
-                                case ShapePathCommandTypePlan::Close: source.push_back(PathCommand::close()); break;
-                            }
-                        }
-                        return source;
-                    }(),
-                    [&] {
-                        std::vector<PathCommand> target;
-                        target.reserve(mask.morph_target.size());
-                        for (const auto& command : mask.morph_target) {
-                            const Vec2 point{command.point[0], command.point[1]};
-                            const Vec2 c1{command.control1[0], command.control1[1]};
-                            const Vec2 c2{command.control2[0], command.control2[1]};
-                            switch (command.type) {
-                                case ShapePathCommandTypePlan::MoveTo: target.push_back(PathCommand::move_to(point)); break;
-                                case ShapePathCommandTypePlan::LineTo: target.push_back(PathCommand::line_to(point)); break;
-                                case ShapePathCommandTypePlan::QuadraticTo: target.push_back(PathCommand::quadratic_to(c1, point)); break;
-                                case ShapePathCommandTypePlan::CubicTo: target.push_back(PathCommand::cubic_to(c1, c2, point)); break;
-                                case ShapePathCommandTypePlan::Close: target.push_back(PathCommand::close()); break;
-                            }
-                        }
-                        return target;
-                    }()))
-                throw std::runtime_error("path mask target_path topology must match path");
-            if (!raw_mask.contains("animation"))
-                throw std::runtime_error("path mask target_path requires an animation track");
-            auto animation = decode_animation_track(raw_mask.at("animation"));
-            animation.property = "mask_morph";
-            for (const auto& key : animation.keyframes)
-                if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
-                    key.value.front() < 0.0f || key.value.front() > 1.0f)
-                    throw std::runtime_error("path mask animation requires scalar progress in [0,1]");
-            if (animation.keyframes.empty())
-                throw std::runtime_error("path mask animation requires keyframes");
-            mask.morph_animation = std::move(animation);
-        } else if (raw_mask.contains("animation")) {
-            throw std::runtime_error("path mask animation requires target_path");
-        }
-        layer.path_mask = std::move(mask);
-    }
-    if (value.contains("masks")) {
-        const auto& raw_masks = value.at("masks");
-        if (!raw_masks.is_array() || raw_masks.empty() || raw_masks.size() > 16)
-            throw std::runtime_error("masks must contain between 1 and 16 ordered entries");
-        layer.masks.reserve(raw_masks.size());
-        std::size_t total_mask_commands = 0;
-        for (const auto& raw_mask : raw_masks) {
-            layer.masks.push_back(decode_mask_plan(raw_mask));
-            total_mask_commands += layer.masks.back().path.size() + layer.masks.back().morph_target.size();
-            if (total_mask_commands > 65536)
-                throw std::runtime_error("mask stack total path command limit is 65536");
-        }
-        if (layer.masks.front().mode != "add")
-            throw std::runtime_error("the first mask stack entry must use mode add");
-    }
+    decode_layer_masks(layer, value);
     if (value.contains("effects")) {
         const auto& effects = value.at("effects");
         if (!effects.is_array() || effects.size() > 64)
@@ -1932,7 +603,31 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                     if(it.key()!="posterize_fps"&&it.key()!="curve"&&it.key()!="easing"&&it.key()!="bezier_curve")
                         throw std::runtime_error("unsupported effect time option: "+it.key());
             }
-            if (kind == "lut_3d") {
+            if (kind == "catalog") {
+                effect.kind = LayerPlan::EffectKindPlan::Catalog;
+                effect.canonical_effect_id = raw_effect.at("effect_id").get<std::string>();
+                if (!chronon3d::effects::is_canonical_effect_id(effect.canonical_effect_id))
+                    throw std::runtime_error("catalog effect uses an unknown canonical effect_id");
+                if (effect.canonical_effect_id == chronon3d::effects::ids::ColorLut3D ||
+                    effect.canonical_effect_id == chronon3d::effects::ids::DistortDisplacementMap)
+                    throw std::runtime_error("catalog effect requires external asset/layer inputs; use its dedicated effect type");
+                if (!chronon3d::effects::make_default_animatable_effect_params(effect.canonical_effect_id))
+                    throw std::runtime_error("catalog effect has no materializable parameter type");
+                if (raw_effect.contains("params")) {
+                    for (const auto& raw_param : raw_effect.at("params")) {
+                        const auto param = raw_param.at("param").get<std::string>();
+                        const float sample = raw_param.at("value").get<float>();
+                        const auto* row = chronon3d::effects::find_animatable_effect_param(
+                            effect.canonical_effect_id, param);
+                        if (!row || !std::isfinite(sample) || sample < row->minimum || sample > row->maximum)
+                            throw std::runtime_error("catalog effect parameter is unknown or outside its declared range: " + param);
+                        if (std::any_of(effect.canonical_params.begin(), effect.canonical_params.end(),
+                                [&param](const auto& existing) { return existing.param == param; }))
+                            throw std::runtime_error("duplicate catalog effect parameter: " + param);
+                        effect.canonical_params.push_back({param, sample});
+                    }
+                }
+            } else if (kind == "lut_3d") {
                 effect.kind = LayerPlan::EffectKindPlan::Lut3D;
                 effect.asset = raw_effect.at("asset").get<std::string>();
                 effect.amount = raw_effect.value("amount", 1.0f);
@@ -2456,12 +1151,53 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("background_look.type must be film_grade, aurora, or liquid");
         }
     }
+    if (value.contains("effect_param_tracks")) {
+        if (!value.at("effect_param_tracks").is_array() || value.at("effect_param_tracks").size() > 256)
+            throw std::runtime_error("effect_param_tracks must be an array of at most 256 entries");
+        for (const auto& raw_track : value.at("effect_param_tracks")) {
+            const auto effect_id = raw_track.at("effect_id").get<std::string>();
+            const auto param = raw_track.at("param").get<std::string>();
+            if (!chronon3d::effects::is_canonical_effect_id(effect_id))
+                throw std::runtime_error("effect parameter track uses an unknown canonical effect_id: " + effect_id);
+            const auto* definition = chronon3d::effects::find_animatable_effect_param(effect_id, param);
+            if (!definition)
+                throw std::runtime_error("effect parameter is not declared animatable: " + effect_id + "." + param);
+            const bool target_exists = std::any_of(layer.effects.begin(), layer.effects.end(),
+                [effect_id](const LayerPlan::EffectPlan& effect) {
+                    return effect.kind == LayerPlan::EffectKindPlan::Catalog
+                        ? effect.canonical_effect_id == effect_id
+                        : effect_id_for_plan_kind(effect.kind) == effect_id;
+                });
+            if (!target_exists)
+                throw std::runtime_error("effect parameter track does not target an effect in this layer: " + effect_id);
+
+            auto raw_animation = raw_track;
+            raw_animation.erase("effect_id");
+            raw_animation.erase("param");
+            raw_animation["property"] = "opacity";
+            auto track = decode_animation_track(raw_animation);
+            if (track.keyframes.size() < 1)
+                throw std::runtime_error("effect parameter tracks require keyframes");
+            for (const auto& key : track.keyframes) {
+                if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                    key.value.front() < definition->minimum || key.value.front() > definition->maximum)
+                    throw std::runtime_error("effect parameter keyframe is outside the declared parameter range: " + effect_id + "." + param);
+            }
+            const auto duplicate = std::find_if(layer.effect_param_tracks.begin(), layer.effect_param_tracks.end(),
+                [&](const LayerPlan::EffectParamTrackPlan& existing) {
+                    return existing.effect_id == effect_id && existing.param == param;
+                });
+            if (duplicate != layer.effect_param_tracks.end())
+                throw std::runtime_error("duplicate effect parameter track: " + effect_id + "." + param);
+            layer.effect_param_tracks.push_back({effect_id, param, std::move(track)});
+        }
+    }
     if (layer.type == LayerType::Adjustment) {
         if (layer.effects.empty())
             throw std::runtime_error("adjustment layers require at least one effect");
         for (auto it = value.begin(); it != value.end(); ++it) {
             if (it.key() != "id" && it.key() != "type" && it.key() != "effects" &&
-                it.key() != "background_look")
+                it.key() != "effect_param_tracks" && it.key() != "background_look")
                 throw std::runtime_error(
                     "adjustment layers support only 'id', 'type', and a non-empty 'effects' stack; found '" +
                     it.key() + "'");
@@ -2490,6 +1226,11 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         for (std::size_t i = 0; i < rotation.size() && i < layer.rotation.size(); ++i)
             layer.rotation[i] = rotation.at(i).get<float>();
     }
+    layer.skew_angle_deg = value.value("skew", 0.0f);
+    layer.skew_axis_deg = value.value("skew_axis", 0.0f);
+    if (!std::isfinite(layer.skew_angle_deg) || std::abs(layer.skew_angle_deg) > 80.0f ||
+        !std::isfinite(layer.skew_axis_deg) || std::abs(layer.skew_axis_deg) > 1000000.0f)
+        throw std::runtime_error("layer skew and skew_axis are outside supported bounds");
     layer.enable_3d = value.value("enable_3d", false);
     layer.screen_space = value.value("screen_space", false);
     if (value.contains("safe_insets")) {
@@ -2691,6 +1432,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 });
         }
         const AnimationTrackPlan* fill_color_track = nullptr;
+        const AnimationTrackPlan* stroke_width_track = nullptr;
+        const AnimationTrackPlan* stroke_color_track = nullptr;
+        std::vector<std::string> transform_scalar_tracks;
+        std::vector<std::string> shadow_track_properties;
         for (const auto& track : layer.animation->tracks) {
             if (track.property == "stroke_dash_offset") {
                 if (!layer.shape || !layer.shape->stroke)
@@ -2698,6 +1443,109 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 for (const auto& key : track.keyframes)
                     if (key.value.size() != 1 || !std::isfinite(key.value.front()))
                         throw std::runtime_error("stroke_dash_offset keyframes must be finite scalar values");
+            } else if (track.property == "skew" || track.property == "skew_axis") {
+                if (std::find(transform_scalar_tracks.begin(), transform_scalar_tracks.end(),
+                              track.property) != transform_scalar_tracks.end())
+                    throw std::runtime_error("layer has duplicate " + track.property + " animation tracks");
+                transform_scalar_tracks.push_back(track.property);
+                std::vector<std::int64_t> frames;
+                for (const auto& key : track.keyframes) {
+                    const float low = track.property == "skew" ? -80.0f : -1000000.0f;
+                    const float high = track.property == "skew" ? 80.0f : 1000000.0f;
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                        key.value.front() < low || key.value.front() > high ||
+                        key.frame.integral() < 0 || key.frame.integral() > 1000000)
+                        throw std::runtime_error(track.property +
+                            " animation requires bounded frames and scalar values");
+                    frames.push_back(key.frame.integral());
+                }
+                std::sort(frames.begin(), frames.end());
+                if (std::adjacent_find(frames.begin(), frames.end()) != frames.end())
+                    throw std::runtime_error(track.property + " keyframe frames must be unique");
+            } else if (track.property == "stroke_width") {
+                if (!layer.shape || !layer.shape->stroke)
+                    throw std::runtime_error("stroke_width animation requires a shape with a stroke");
+                if (stroke_width_track)
+                    throw std::runtime_error("layer has duplicate stroke_width animation tracks");
+                stroke_width_track = &track;
+                std::vector<std::int64_t> frames;
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                        key.value.front() < 0.0f || key.frame.integral() < 0 ||
+                        key.frame.integral() > 1000000)
+                        throw std::runtime_error("stroke_width keyframes require bounded frames and finite non-negative scalar values");
+                    frames.push_back(key.frame.integral());
+                }
+                std::sort(frames.begin(), frames.end());
+                if (std::adjacent_find(frames.begin(), frames.end()) != frames.end())
+                    throw std::runtime_error("stroke_width keyframe frames must be unique");
+            } else if (track.property == "stroke_color") {
+                if (!layer.shape || !layer.shape->stroke ||
+                    layer.shape->stroke->gradient)
+                    throw std::runtime_error("stroke_color animation requires a solid stroke on a shape");
+                if (stroke_color_track)
+                    throw std::runtime_error("layer has duplicate stroke_color animation tracks");
+                stroke_color_track = &track;
+                std::vector<std::int64_t> frames;
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 4 || key.frame.integral() < 0 ||
+                        key.frame.integral() > 1000000 ||
+                        std::any_of(key.value.begin(), key.value.end(), [](float component) {
+                            return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                        }))
+                        throw std::runtime_error("stroke_color keyframes require bounded frames and RGBA values in [0, 1]");
+                    frames.push_back(key.frame.integral());
+                }
+                std::sort(frames.begin(), frames.end());
+                if (std::adjacent_find(frames.begin(), frames.end()) != frames.end())
+                    throw std::runtime_error("stroke_color keyframe frames must be unique");
+            } else if (track.property.rfind("shadow_", 0) == 0) {
+                if (layer.type != LayerType::Shape || !layer.style)
+                    throw std::runtime_error("shadow animation requires a shape layer with style shadows");
+                const std::size_t shadow_count = layer.style->shadow ? 1 : layer.style->shadows.size();
+                std::string property_suffix;
+                std::size_t index = 0;
+                bool recognized = false;
+                for (std::size_t candidate = 0; candidate < 3 && !recognized; ++candidate) {
+                    for (const auto suffix : {"_opacity", "_blur", "_offset_x", "_offset_y", "_color"}) {
+                        const std::string prefix = "shadow_" + std::to_string(candidate) + suffix;
+                        if (track.property == prefix) {
+                            index = candidate;
+                            property_suffix = suffix;
+                            recognized = true;
+                            break;
+                        }
+                    }
+                }
+                if (!recognized)
+                    throw std::runtime_error("unsupported shadow animation property: " + track.property);
+                if (index >= shadow_count)
+                    throw std::runtime_error("shadow animation refers to an absent shadow style");
+                if (std::find(shadow_track_properties.begin(), shadow_track_properties.end(),
+                              track.property) != shadow_track_properties.end())
+                    throw std::runtime_error("layer has duplicate shadow animation tracks");
+                shadow_track_properties.push_back(track.property);
+                std::vector<std::int64_t> frames;
+                const bool color_track = property_suffix == "_color";
+                for (const auto& key : track.keyframes) {
+                    bool valid_value = false;
+                    if (color_track) {
+                        valid_value = key.value.size() == 4 &&
+                            std::all_of(key.value.begin(), key.value.end(), [](float component) {
+                                return std::isfinite(component) && component >= 0.0f && component <= 1.0f;
+                            });
+                    } else if (key.value.size() == 1 && std::isfinite(key.value.front())) {
+                        const float v = key.value.front();
+                        valid_value = property_suffix == "_opacity" ? (v >= 0.0f && v <= 1.0f)
+                            : (property_suffix == "_blur" ? v >= 0.0f : true);
+                    }
+                    if (!valid_value || key.frame.integral() < 0 || key.frame.integral() > 1000000)
+                        throw std::runtime_error("shadow animation keyframes are outside supported bounds");
+                    frames.push_back(key.frame.integral());
+                }
+                std::sort(frames.begin(), frames.end());
+                if (std::adjacent_find(frames.begin(), frames.end()) != frames.end())
+                    throw std::runtime_error("shadow animation keyframe frames must be unique");
             } else if (track.property == "fill_color") {
                 if (fill_color_track)
                     throw std::runtime_error("layer has duplicate fill_color animation tracks");
@@ -2763,22 +1611,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("motion_blur requires an animated layer position track");
         layer.motion_blur = motion_blur;
     }
-    if (value.contains("text_animators")) {
-        for (const auto& animator : value.at("text_animators"))
-            layer.text_animators.push_back(decode_text_animator(animator));
-    }
-    for (const auto& animator : layer.text_animators) {
-        for (const auto& selector : animator.selectors) {
-            if (!selector.semantic_id) continue;
-            const bool found = std::any_of(layer.text_spans.begin(), layer.text_spans.end(),
-                [&](const TextSpanOverride& span) {
-                    return span.semantic_id == selector.semantic_id;
-                });
-            if (!found)
-                throw std::runtime_error("text animator selector references unknown semantic_id '" +
-                                         *selector.semantic_id + "'");
-        }
-    }
+    decode_layer_text_animators(layer, value);
     if (value.contains("blend_mode")) {
         if (const auto mode = blend_mode(value.at("blend_mode").get<std::string>()))
             layer.blend_mode = mode;

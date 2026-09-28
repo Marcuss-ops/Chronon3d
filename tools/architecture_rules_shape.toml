@@ -62,7 +62,7 @@ hint = "Do not add new scene FillType/GradientFill consumers; migrate existing s
 [[contract]]
 name = "render_plan_shape_fill_alias_precedence"
 description = "Canonical shape.fill wins over legacy layer.color; the alias only supplies a missing fill."
-file = "src/render_plan/render_plan_decoder_layer.cpp"
+file = "src/render_plan/render_plan_decoder_shape.cpp"
 required_patterns = [
   "Shape-local fill is canonical",
   "legacy layer.color",

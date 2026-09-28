@@ -451,6 +451,7 @@ private:
     seed = hash_combine(seed, hash_value(m.radius));
     seed = hash_combine(seed, hash_value(m.feather));
     seed = hash_combine(seed, hash_value(m.expansion));
+    seed = hash_combine(seed, hash_value(m.opacity));
     seed = hash_combine(seed, hash_value(m.inverted));
     seed = hash_combine(seed, hash_value(m.path.size()));
     for (const auto& command : m.path) {
@@ -468,6 +469,7 @@ private:
         seed = hash_combine(seed, hash_value(operation.radius));
         seed = hash_combine(seed, hash_value(operation.feather));
         seed = hash_combine(seed, hash_value(operation.expansion));
+        seed = hash_combine(seed, hash_value(operation.opacity));
         seed = hash_combine(seed, hash_value(operation.inverted));
         seed = hash_combine(seed, hash_value(operation.path.size()));
         for (const auto& command : operation.path) {

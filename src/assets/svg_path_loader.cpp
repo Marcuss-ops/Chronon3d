@@ -476,6 +476,8 @@ SvgDocumentLoadResult load_svg_document_file(
     if (const auto style_error = validate_svg_subset(document))
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = *style_error};
+    // Keep validation before collection: collect_path_data uses forgiving
+    // conversions, while this pass rejects malformed style values explicitly.
     std::vector<std::pair<std::string, Affine2>> path_data;
     std::vector<SvgStyleState> styles;
     collect_path_data(document, path_data, styles);

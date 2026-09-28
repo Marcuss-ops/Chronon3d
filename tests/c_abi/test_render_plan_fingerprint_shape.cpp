@@ -476,9 +476,9 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
     CHECK_FALSE(render_plan::decode_render_plan(wrong_parameter));
 }
 
-TEST_CASE("Fingerprint v19 domain golden is pinned") {
-    // Glass backdrop controls extend the canonical render-plan identity.
-    CHECK(legacy_fingerprint() == 3179087526655253714ULL);
+TEST_CASE("Fingerprint v28 domain golden is pinned") {
+    // Animated effect parameters, camera shake, masks, axis easing, and skew extend plan identity.
+    CHECK(legacy_fingerprint() == 3152531990246100711ULL);
 }
 TEST_CASE("LightRays controls affect render-plan fingerprints") {
     auto plan = render_plan_test::base_plan(nlohmann::json::array({

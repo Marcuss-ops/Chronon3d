@@ -6,12 +6,20 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::render_plan::detail {
 
 [[nodiscard]] bool invalid_logical_path(const std::string& value);
 [[nodiscard]] graphics::GradientDefinition decode_gradient_definition(
     const nlohmann::json& raw_gradient);
+[[nodiscard]] std::optional<std::array<float, 4>> decode_bezier_curve(
+    const nlohmann::json& object, std::string_view easing, std::string_view field);
+[[nodiscard]] AnimationTrackPlan decode_animation_track(const nlohmann::json& value);
+[[nodiscard]] TransitionPlan decode_transition(const nlohmann::json& value);
+void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& value);
+void decode_layer_masks(LayerPlan& layer, const nlohmann::json& value);
+void decode_layer_text_animators(LayerPlan& layer, const nlohmann::json& value);
 [[nodiscard]] LayerType layer_type(const std::string& value);
 [[nodiscard]] FitMode fit_mode(const std::string& value);
 [[nodiscard]] std::optional<chronon3d::BlendMode> blend_mode(const std::string& value);

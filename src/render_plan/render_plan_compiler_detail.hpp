@@ -11,15 +11,32 @@
 #include <chronon3d/animation/core/temporal_curve_1d.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <optional>
+#include <functional>
+#include <filesystem>
 #include <string_view>
 
 namespace chronon3d::render_plan::detail {
+
+struct FollowPathEvaluators {
+    std::function<chronon3d::Vec3(double)> position;
+    std::function<chronon3d::Vec3(double)> rotation;
+};
+
+[[nodiscard]] FollowPathEvaluators make_follow_path_evaluators(
+    const LayerPlan::FollowPathDriverPlan& follow,
+    chronon3d::Vec3 base_position,
+    chronon3d::Vec3 base_rotation,
+    int canvas_width,
+    int canvas_height,
+    FrameRate fps);
 
 [[nodiscard]] chronon3d::FitMode fit_mode(FitMode value);
 [[nodiscard]] chronon3d::EasingCurve animation_keyframe_easing(
     const AnimationTrackPlan& track, const AnimationKeyframePlan& key);
 [[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan);
+[[nodiscard]] std::optional<std::string> expand_static_lottie(
+    ShapeContentPlan& shape, const std::filesystem::path& path);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer, FrameRate fps);
 void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer);
@@ -29,11 +46,25 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
                             int canvas_height,
-                            FrameRate fps);
+                            FrameRate fps,
+                            const FollowPathEvaluators* precompiled_follow_path = nullptr);
 [[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
-motion_blur_params_at(const LayerPlan& layer, double frame, FrameRate fps);
+motion_blur_params_at(const LayerPlan& layer, double frame, FrameRate fps,
+                      const FollowPathEvaluators* precompiled_follow_path = nullptr);
+[[nodiscard]] float evaluate_scalar_track(
+    const AnimationTrackPlan& track, double frame, float base, FrameRate fps);
 [[nodiscard]] std::optional<float> stroke_dash_offset_at(
     const LayerPlan& layer, double frame, FrameRate fps);
+[[nodiscard]] std::optional<float> stroke_width_at(
+    const LayerPlan& layer, double frame, float base, FrameRate fps);
+[[nodiscard]] std::optional<chronon3d::Color> stroke_color_at(
+    const LayerPlan& layer, double frame, chronon3d::Color base, FrameRate fps);
+[[nodiscard]] std::optional<float> shadow_scalar_at(
+    const LayerPlan& layer, std::string_view property, double frame,
+    float base, FrameRate fps);
+[[nodiscard]] std::optional<chronon3d::Color> shadow_color_at(
+    const LayerPlan& layer, std::string_view property, double frame,
+    chronon3d::Color base, FrameRate fps);
 [[nodiscard]] std::optional<chronon3d::Color> fill_color_at(
     const LayerPlan& layer, double frame, chronon3d::Color base, FrameRate fps);
 [[nodiscard]] std::optional<graphics::GradientDefinition> fill_gradient_at(
