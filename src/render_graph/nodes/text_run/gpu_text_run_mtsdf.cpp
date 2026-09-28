@@ -19,6 +19,7 @@
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <algorithm>
 #include <array>
@@ -143,12 +144,18 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         const std::array<runtime::GpuGlyphKey, 1> key_slot{key};
         glyph_atlas.resolve_resident(key_slot, resident_slot);
         if (resident_slot[0].has_value()) {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->glyph_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
             const auto& resident = *resident_slot[0];
             widths.push_back(resident.location.width);
             heights.push_back(resident.location.height);
             metrics.push_back(resident.metrics.value_or(
                 runtime::GpuGlyphMetrics{0, 0, placed.advance_x}));
             continue;
+        }
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->glyph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         const auto generated = text::prepare_mtsdf_glyph(
             *resolver, layout.font_spans[span_index].font.font_path,
@@ -172,9 +179,17 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
     }
 
     if (!pending_keys.empty()) {
+        const auto upload_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
         const auto uploaded = glyph_atlas.prepare_batch(
             pending_keys, pending_widths, pending_heights, pending_pixels,
             pending_metrics, profile);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->glyph_atlas_upload_wall_us.fetch_add(
+                static_cast<uint64_t>(std::llround(profiling::elapsed_us(upload_t0))),
+                std::memory_order_relaxed);
+            profiling::g_current_counters->mtsdf_glyphs_generated.fetch_add(
+                pending_keys.size(), std::memory_order_relaxed);
+        }
         if (!uploaded.has_value()) {
             return nullptr;
         }
@@ -291,8 +306,18 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
 
     auto prepared = ctx.gpu_text_prepared_cache->find(*shape.layout);
     if (!prepared) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->gpu_text_prepared_batch_build_count.fetch_add(1, std::memory_order_relaxed);
+        }
+        const auto prep_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
         auto created = prepare_mtsdf_text_run(
             *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_prepare_per_frame_wall_us.fetch_add(
+                static_cast<uint64_t>(std::llround(profiling::elapsed_us(prep_t0))),
+                std::memory_order_relaxed);
+        }
         if (!created || !created->ready) {
             return graph::RenderOpResult(graph::make_render_backend_error(
                 graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -300,6 +325,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
         }
         ctx.gpu_text_prepared_cache->store(*shape.layout, created);
         prepared = created;
+    } else {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->gpu_text_prepared_batch_reuse_count.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     if (!prepared->ready) {
@@ -349,6 +379,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "MTSDF text route destination has no native surface"));
     }
     std::size_t items_drawn = 0;
+    const auto draw_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
     for (const auto& batch : prepared->batches) {
         if (batch.glyphs.empty()) continue;
         const auto dispatch = ctx.backend->draw_text_batch(
@@ -357,6 +388,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
         if (!dispatch.ok()) return dispatch;
         items_drawn += dispatch.value().items_drawn;
+    }
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->text_draw_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(profiling::elapsed_us(draw_t0))),
+            std::memory_order_relaxed);
     }
     return graph::RenderOpResult(graph::RenderOpOutcome{items_drawn});
 }

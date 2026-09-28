@@ -230,14 +230,23 @@ struct FontEngine::Impl {
         if (!ft_library) return {};
 
         if (auto cached = face_cache.get(spec); cached) {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->font_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
             return (*cached && (*cached)->valid()) ? *cached : std::shared_ptr<FaceEntry>{};
         }
 
         std::lock_guard<std::mutex> load_lock(face_load_mutex);
         if (auto cached = face_cache.get(spec); cached) {
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->font_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
             return (*cached && (*cached)->valid()) ? *cached : std::shared_ptr<FaceEntry>{};
         }
 
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->font_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
         auto entry = load_face(spec);
         if (!entry || !entry->valid()) return {};
         face_cache.put(spec, entry);
