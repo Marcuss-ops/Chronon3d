@@ -140,7 +140,7 @@ void sample_gpu_run_level_animation(
 
 bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     if (!shape.layout || shape.animated_doc ||
-        shape.layout->font_spans.size() > 1 ||
+        shape.layout->font_spans.empty() ||
         shape.paint.fill_style || shape.paint.stroke_style ||
         shape.material.enabled || shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
