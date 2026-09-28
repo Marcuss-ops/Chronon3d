@@ -228,6 +228,13 @@ struct VulkanBackend::Impl {
     void destroy_surface_images() noexcept { surfaces.destroy_all(*this); }
     void defer_surface_release(runtime::RenderSurfaceHandle handle) {
         ++stats.deferred_surface_release_count;
+        // Deliberately conservative slot hint: next_slot is the slot the current
+        // or upcoming batch records into, so a handle whose real owner is an
+        // older slot may wait one extra slot rotation before it is released.
+        // A stale hint can only delay a release (the flush re-checks the hinted
+        // slot and re-queues while it is in flight); reusing the binding slot
+        // instead would be wrong because physical slots are aliased across
+        // frames. Do not tighten this without an aliasing audit.
         const std::size_t slot = frame_batch.next_slot;
         surfaces.deferred_surface_releases.push_back({handle, slot});
     }
