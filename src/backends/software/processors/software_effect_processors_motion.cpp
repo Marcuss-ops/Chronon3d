@@ -132,6 +132,10 @@ class SoftwareDisplacementMapEffectProcessor final : public EffectProcessor { pu
     void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
         const auto* p=std::get_if<DisplacementMapParams>(&params);
         if(!p) throw std::runtime_error("DisplacementMap processor received invalid parameters");
+        if (p->field) {
+            apply_displacement_field(fb,*p,*p->field,*ctx.effect_scratch,ctx.clip);
+            return;
+        }
         if(!ctx.second_input) throw std::runtime_error("DisplacementMap requires a resolved map-layer framebuffer");
         apply_displacement_map(fb,*p,*ctx.second_input,*ctx.effect_scratch,ctx.clip);
     }

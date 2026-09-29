@@ -73,7 +73,9 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
     if (track.loop_mode != "none" && track.loop_mode != "cycle" &&
         track.loop_mode != "pingpong" && track.loop_mode != "offset")
         throw std::runtime_error("unsupported animation loop_mode: " + track.loop_mode);
-    if (track.loop_mode == "offset" && track.property == "fill_color")
+    if (track.loop_mode == "offset" &&
+        (track.property == "fill_color" || track.property == "background_color" ||
+         track.property == "stroke_color"))
         throw std::runtime_error("animation loop_mode='offset' requires a numeric or vector property");
     if (value.contains("wiggle")) {
         const auto& raw_wiggle = value.at("wiggle");

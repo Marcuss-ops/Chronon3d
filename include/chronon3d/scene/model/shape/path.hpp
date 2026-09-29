@@ -35,6 +35,8 @@ struct PathStroke {
     f32 dash_offset{0.0f};
     f32 trim_start{0.0f};
     f32 trim_end{1.0f};
+    f32 taper_start{1.0f};
+    f32 taper_end{1.0f};
 
     /// Optional gradient fill.  When present, the stroke colours come
     /// from the gradient instead of the solid `color` field.

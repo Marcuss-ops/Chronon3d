@@ -83,6 +83,7 @@ void evaluate_animator(
             // Use transform_mode or color_mode based on property type.
             TextPropertyBlendMode blend = spec.transform_mode;
             if (std::holds_alternative<FillColorProperty>(prop) ||
+                std::holds_alternative<BackgroundColorProperty>(prop) ||
                 std::holds_alternative<StrokeColorProperty>(prop)) {
                 blend = spec.color_mode;
             }

@@ -2,6 +2,9 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
+#include <algorithm>
+#include <string>
+#include <vector>
 
 namespace chronon3d::graph {
 
@@ -9,8 +12,12 @@ class MaskNode final : public RenderGraphNode {
 public:
     MaskNode(Mask mask,
               Frame cache_frame = Frame{-1},
+              std::vector<std::string> text_sources = {},
+              Mat4 canvas_from_local = Mat4{1.0f},
               RenderNodeCachePolicy policy = static_memory_cache("mask"))
-        : RenderGraphNode(policy), m_mask(std::move(mask)), m_cache_frame(cache_frame) {}
+        : RenderGraphNode(policy), m_mask(std::move(mask)), m_cache_frame(cache_frame),
+          m_text_sources(std::move(text_sources)),
+          m_canvas_from_local(std::move(canvas_from_local)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
     std::string_view name() const noexcept override { return "Mask"; }
@@ -45,6 +52,7 @@ public:
             return result;
         }
 
+        const bool has_text_source = !m_text_sources.empty();
         const auto cache_key = mask_alpha_cache_key(
             result->width(),
             result->height(),
@@ -54,7 +62,21 @@ public:
             ctx.frame_input.height,
             ctx.policy.modular_coordinates
         );
-        if (!m_alpha_cache || m_alpha_cache_key != cache_key) {
+        if (has_text_source || !m_alpha_cache || m_alpha_cache_key != cache_key) {
+            const TextMaskSampler sample_text = [&](std::string_view source, Vec2 pixel) {
+                const auto found = std::find(m_text_sources.begin(), m_text_sources.end(), source);
+                if (found == m_text_sources.end()) return 0.0f;
+                const auto input_index = static_cast<std::size_t>(found - m_text_sources.begin()) + 1;
+                if (input_index >= inputs.size() || !inputs[input_index]) return 0.0f;
+                const auto& source_fb = *inputs[input_index];
+                const Vec4 canvas = m_canvas_from_local * Vec4{pixel.x, pixel.y, 0.0f, 1.0f};
+                if (std::abs(canvas.w) <= 1e-7f) return 0.0f;
+                const i32 x = static_cast<i32>(std::floor(canvas.x / canvas.w)) - source_fb.origin_x();
+                const i32 y = static_cast<i32>(std::floor(canvas.y / canvas.w)) - source_fb.origin_y();
+                if (x < 0 || y < 0 || x >= source_fb.width() || y >= source_fb.height())
+                    return 0.0f;
+                return std::clamp(source_fb.pixels_row(y)[x].a, 0.0f, 1.0f);
+            };
             m_alpha_cache = build_alpha_cache(
                 result->width(),
                 result->height(),
@@ -62,7 +84,8 @@ public:
                 result->origin_y(),
                 ctx.frame_input.width,
                 ctx.frame_input.height,
-                ctx.policy.modular_coordinates
+                ctx.policy.modular_coordinates,
+                has_text_source ? &sample_text : nullptr
             );
             m_alpha_cache_key = cache_key;
         }
@@ -97,15 +120,22 @@ private:
         i32 origin_y,
         i32 canvas_width,
         i32 canvas_height,
-        bool modular_coordinates
+        bool modular_coordinates,
+        const TextMaskSampler* text_sampler
     ) const {
         if (!modular_coordinates) {
-            return rasterize_mask_alpha(m_mask, Mat4{1.0f}, width, height);
+            return text_sampler
+                ? rasterize_mask_alpha(m_mask, Mat4{1.0f}, width, height,
+                    origin_x, origin_y, *text_sampler)
+                : rasterize_mask_alpha(m_mask, Mat4{1.0f}, width, height);
         }
         Mat4 layer_inverse{1.0f};
         layer_inverse[3].x = static_cast<f32>(origin_x) - static_cast<f32>(canvas_width) * 0.5f;
         layer_inverse[3].y = static_cast<f32>(origin_y) - static_cast<f32>(canvas_height) * 0.5f;
-        return rasterize_mask_alpha(m_mask, layer_inverse, width, height);
+        return text_sampler
+            ? rasterize_mask_alpha(m_mask, layer_inverse, width, height,
+                origin_x, origin_y, *text_sampler)
+            : rasterize_mask_alpha(m_mask, layer_inverse, width, height);
     }
 
     [[nodiscard]] std::uint64_t mask_alpha_cache_key(
@@ -136,6 +166,8 @@ private:
 
     Mask m_mask;
     Frame m_cache_frame{-1};
+    std::vector<std::string> m_text_sources;
+    Mat4 m_canvas_from_local{1.0f};
     mutable std::shared_ptr<Framebuffer> m_alpha_cache;
     mutable std::uint64_t m_alpha_cache_key{0};
 };

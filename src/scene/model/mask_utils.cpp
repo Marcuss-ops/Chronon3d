@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string_view>
 
 namespace chronon3d {
 
@@ -19,6 +20,8 @@ struct MaskPrimitiveView {
     Vec2 size{0.0f};
     f32 radius{0.0f};
     const std::vector<PathCommand>* path{nullptr};
+    const graphics::Field2D* field{nullptr};
+    std::string_view text_source{};
     f32 feather{0.0f};
     f32 expansion{0.0f};
     f32 opacity{1.0f};
@@ -27,12 +30,15 @@ struct MaskPrimitiveView {
 
 MaskPrimitiveView mask_view(const Mask& mask) {
     return {mask.type, mask.pos, mask.size, mask.radius, &mask.path,
+            mask.field ? &*mask.field : nullptr, mask.text_source,
             mask.feather, mask.expansion, mask.opacity, mask.inverted};
 }
 
 MaskPrimitiveView mask_view(const MaskOperation& operation) {
     return {operation.type, operation.pos, operation.size, operation.radius,
-            &operation.path, operation.feather, operation.expansion, operation.opacity,
+            &operation.path, operation.field ? &*operation.field : nullptr,
+            operation.text_source,
+            operation.feather, operation.expansion, operation.opacity,
             operation.inverted};
 }
 
@@ -44,7 +50,9 @@ FlattenedMaskPath flatten_mask_path(const MaskPrimitiveView& mask) {
 }
 
 f32 mask_primitive_alpha(MaskPrimitiveView mask, Vec2 local,
-                         const FlattenedMaskPath* flattened = nullptr) {
+                         const FlattenedMaskPath* flattened = nullptr,
+                         Vec2 canvas_pixel = {},
+                         const TextMaskSampler* text_sampler = nullptr) {
     if (mask.type == MaskType::None) return 0.0f;
     local.x -= mask.pos.x;
     local.y -= mask.pos.y;
@@ -84,6 +92,23 @@ f32 mask_primitive_alpha(MaskPrimitiveView mask, Vec2 local,
             signed_distance = k1 > 1e-8f ? -(k0 * (k0 - 1.0f) / k1) : std::min(rx, ry);
             break;
         }
+        case MaskType::Field2D: {
+            if (!mask.field || mask.size.x <= 0.0f || mask.size.y <= 0.0f)
+                return mask.inverted ? 1.0f : 0.0f;
+            const Vec2 normalized{local.x / mask.size.x + 0.5f,
+                                  local.y / mask.size.y + 0.5f};
+            signed_distance = (mask.field->sample(normalized) - 0.5f) *
+                std::min(mask.size.x, mask.size.y);
+            break;
+        }
+        case MaskType::Text:
+            {
+                const f32 source = text_sampler && *text_sampler
+                    ? std::clamp((*text_sampler)(mask.text_source, canvas_pixel), 0.0f, 1.0f)
+                    : 0.0f;
+                return (mask.inverted ? 1.0f - source : source) *
+                    std::clamp(mask.opacity, 0.0f, 1.0f);
+            }
         case MaskType::Path: {
             const auto owned_flattened = flattened ? FlattenedMaskPath{} : flatten_mask_path(mask);
             const auto& polylines = flattened ? *flattened : owned_flattened;
@@ -127,7 +152,9 @@ f32 mask_primitive_alpha(MaskPrimitiveView mask, Vec2 local,
 }
 
 f32 mask_alpha_with_flattened(const Mask& mask, Vec2 local,
-                              const std::vector<FlattenedMaskPath>* flattened) {
+                              const std::vector<FlattenedMaskPath>* flattened,
+                              Vec2 canvas_pixel = {},
+                              const TextMaskSampler* text_sampler = nullptr) {
     if (!mask.enabled()) return 1.0f;
     const auto get_flattened = [&](std::size_t index, MaskPrimitiveView view)
         -> const FlattenedMaskPath* {
@@ -136,12 +163,12 @@ f32 mask_alpha_with_flattened(const Mask& mask, Vec2 local,
         return nullptr;
     };
     f32 accumulated = mask_primitive_alpha(mask_view(mask), local,
-        get_flattened(0, mask_view(mask)));
+        get_flattened(0, mask_view(mask)), canvas_pixel, text_sampler);
     for (std::size_t index = 0; index < mask.operations.size(); ++index) {
         const auto& operation = mask.operations[index];
         const auto view = mask_view(operation);
         const f32 source = mask_primitive_alpha(view, local,
-            get_flattened(index + 1, view));
+            get_flattened(index + 1, view), canvas_pixel, text_sampler);
         switch (operation.mode) {
             case MaskCombineMode::Add:
                 accumulated = accumulated + source * (1.0f - accumulated);
@@ -180,6 +207,11 @@ f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local) {
     return mask_alpha_with_flattened(mask, local, nullptr);
 }
 
+f32 mask_alpha_at_local_point(const Mask& mask, Vec2 local,
+                              Vec2 canvas_pixel, const TextMaskSampler& text_sampler) {
+    return mask_alpha_with_flattened(mask, local, nullptr, canvas_pixel, &text_sampler);
+}
+
 bool mask_contains_local_point(const Mask& mask, Vec2 local) {
     return mask_alpha_at_local_point(mask, local) >= 0.5f;
 }
@@ -205,6 +237,9 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
     seed = mix(seed, hv(mask.expansion));
     seed = mix(seed, hv(mask.opacity));
     seed = mix(seed, static_cast<std::uint64_t>(mask.inverted));
+    seed = mix(seed, std::hash<std::string>{}(mask.text_source));
+    seed = mix(seed, mask.field.has_value());
+    if (mask.field) seed = mix(seed, graphics::field2d_fingerprint(*mask.field));
     seed = mix(seed, static_cast<std::uint64_t>(mask.path.size()));
     for (const auto& command : mask.path) {
         seed = mix(seed, static_cast<std::uint64_t>(command.type));
@@ -221,7 +256,10 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
         seed = mix(seed, hv(operation.size.x)); seed = mix(seed, hv(operation.size.y));
         seed = mix(seed, hv(operation.radius)); seed = mix(seed, hv(operation.feather));
         seed = mix(seed, hv(operation.expansion)); seed = mix(seed, hv(operation.opacity));
+        seed = mix(seed, operation.field.has_value());
+        if (operation.field) seed = mix(seed, graphics::field2d_fingerprint(*operation.field));
         seed = mix(seed, static_cast<std::uint64_t>(operation.inverted));
+        seed = mix(seed, std::hash<std::string>{}(operation.text_source));
         seed = mix(seed, static_cast<std::uint64_t>(operation.path.size()));
         for (const auto& command : operation.path) {
             seed = mix(seed, static_cast<std::uint64_t>(command.type));
@@ -241,6 +279,12 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
 }
 
 std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& layer_inv_matrix, i32 width, i32 height) {
+    return rasterize_mask_alpha(mask, layer_inv_matrix, width, height, 0, 0, {});
+}
+
+std::shared_ptr<Framebuffer> rasterize_mask_alpha(
+    const Mask& mask, const Mat4& layer_inv_matrix, i32 width, i32 height,
+    i32 origin_x, i32 origin_y, const TextMaskSampler& text_sampler) {
     auto fb = std::make_shared<Framebuffer>(width, height);
     fb->clear(Color::transparent());
     if (!mask.enabled() || width <= 0 || height <= 0) {
@@ -284,7 +328,10 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
     // for those cases so the bounding-box optimization cannot erase valid
     // outside coverage. Composite operations can extend beyond the primary
     // mask, so their aggregate is evaluated across the full target as well.
-    if (!mask.operations.empty() || mask.inverted || mask.type == MaskType::Path)
+    const bool has_text_source = mask.type == MaskType::Text ||
+        std::any_of(mask.operations.begin(), mask.operations.end(),
+            [](const MaskOperation& operation) { return operation.type == MaskType::Text; });
+    if (!mask.operations.empty() || mask.inverted || mask.type == MaskType::Path || has_text_source)
         bbox = raster::BBox{0, 0, width, height};
     bbox.clip_to(width, height);
     if (bbox.is_empty()) {
@@ -297,7 +344,9 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(const Mask& mask, const Mat4& 
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             Vec4 local = layer_inv_matrix * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
             const f32 alpha = mask_alpha_with_flattened(
-                mask, Vec2{local.x, local.y}, &flattened_paths);
+                mask, Vec2{local.x, local.y}, &flattened_paths,
+                Vec2{static_cast<f32>(origin_x + x) + 0.5f,
+                     static_cast<f32>(origin_y + y) + 0.5f}, &text_sampler);
             if (alpha > 0.0f) row[x] = {1.0f, 1.0f, 1.0f, alpha};
         }
     }

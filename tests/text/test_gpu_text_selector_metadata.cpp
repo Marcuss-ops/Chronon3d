@@ -23,6 +23,15 @@ TEST_CASE("GPU text selector flags preserve ABI fields and pin bit positions") {
         static_cast<std::uint32_t>(TextSelectorOrder::Forward),
         TextSelectorShape::Wiggly);
     CHECK(unpack_text_selector_shape(no_wiggly_gpu_shape) == TextSelectorShape::Square);
+    constexpr auto no_noise_gpu_shape = pack_text_selector_metadata(
+        base, static_cast<std::uint32_t>(TextSelectorUnit::Glyph),
+        static_cast<std::uint32_t>(TextSelectorOrder::Forward),
+        TextSelectorShape::Noise);
+    CHECK(unpack_text_selector_shape(no_noise_gpu_shape) == TextSelectorShape::Square);
+    constexpr auto index_order = pack_text_selector_metadata(
+        base, static_cast<std::uint32_t>(TextSelectorUnit::Glyph),
+        static_cast<std::uint32_t>(TextSelectorOrder::Index));
+    CHECK(((index_order >> 7u) & 0x7u) == static_cast<std::uint32_t>(TextSelectorOrder::Index));
 
     constexpr auto glyph = pack_mtsdf_glyph_unit_flags(1u, 0x1234u);
     CHECK(glyph == static_cast<std::uint16_t>(1u | (0x1234u << 1u)));

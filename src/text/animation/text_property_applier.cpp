@@ -76,16 +76,18 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, SkewProperty>) {
+            const f32 angle = p.angle.evaluate(time);
+            const f32 axis = p.axis.evaluate(time);
             if (blend == TextPropertyBlendMode::Replace) {
-                gs.skew = p.angle * weight;
-                gs.skew_axis = p.axis;
+                if (p.animate_angle) gs.skew = angle * weight;
+                if (p.animate_axis) gs.skew_axis = axis;
             } else {
-                gs.skew += p.angle * weight;
-                gs.skew_axis = p.axis;  // last-writer-wins for axis.
+                if (p.animate_angle) gs.skew += angle * weight;
+                if (p.animate_axis) gs.skew_axis = axis;  // last-writer-wins for axis.
             }
         }
         else if constexpr (std::is_same_v<T, AnchorProperty>) {
-            const Vec3 delta = p.value * weight;
+            const Vec3 delta = p.value.evaluate(time) * weight;
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.anchor = delta;
             } else {
@@ -130,24 +132,28 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, BackgroundColorProperty>) {
+            const Color target = p.color.evaluate(time);
             const Color lerped = {
-                gs.background.r + (p.color.r - gs.background.r) * weight,
-                gs.background.g + (p.color.g - gs.background.g) * weight,
-                gs.background.b + (p.color.b - gs.background.b) * weight,
-                gs.background.a + (p.color.a - gs.background.a) * weight,
+                gs.background.r + (target.r - gs.background.r) * weight,
+                gs.background.g + (target.g - gs.background.g) * weight,
+                gs.background.b + (target.b - gs.background.b) * weight,
+                gs.background.a + (target.a - gs.background.a) * weight,
             };
-            if (blend == TextPropertyBlendMode::Replace) {
-                gs.background = lerped;
-            } else {
-                gs.background = lerped;
-            }
+            if (p.animate_color) gs.background = lerped;
+            if (p.animate_padding)
+                gs.background_padding_em +=
+                    (p.padding_em.evaluate(time) - gs.background_padding_em) * weight;
+            if (p.animate_radius)
+                gs.background_radius_em +=
+                    (p.radius_em.evaluate(time) - gs.background_radius_em) * weight;
         }
         else if constexpr (std::is_same_v<T, StrokeColorProperty>) {
+            const Color target = p.color.evaluate(time);
             const Color lerped = {
-                gs.stroke.r + (p.color.r - gs.stroke.r) * weight,
-                gs.stroke.g + (p.color.g - gs.stroke.g) * weight,
-                gs.stroke.b + (p.color.b - gs.stroke.b) * weight,
-                gs.stroke.a + (p.color.a - gs.stroke.a) * weight,
+                gs.stroke.r + (target.r - gs.stroke.r) * weight,
+                gs.stroke.g + (target.g - gs.stroke.g) * weight,
+                gs.stroke.b + (target.b - gs.stroke.b) * weight,
+                gs.stroke.a + (target.a - gs.stroke.a) * weight,
             };
             if (blend == TextPropertyBlendMode::Replace) {
                 gs.stroke = lerped;
@@ -156,10 +162,11 @@ void apply_property_to_glyph(
             }
         }
         else if constexpr (std::is_same_v<T, StrokeWidthProperty>) {
+            const f32 width = p.width.evaluate(time);
             if (blend == TextPropertyBlendMode::Replace) {
-                gs.stroke_width = p.width * weight;
+                gs.stroke_width = width * weight;
             } else {
-                gs.stroke_width += p.width * weight;
+                gs.stroke_width += width * weight;
             }
         }
         else if constexpr (std::is_same_v<T, TrackingProperty>) {
@@ -173,10 +180,11 @@ void apply_property_to_glyph(
             (void)gs;
         }
         else if constexpr (std::is_same_v<T, BaselineShiftProperty>) {
+            const f32 pixels = p.pixels.evaluate(time);
             if (blend == TextPropertyBlendMode::Replace) {
-                gs.baseline_shift = p.pixels * weight;
+                gs.baseline_shift = pixels * weight;
             } else {
-                gs.baseline_shift += p.pixels * weight;
+                gs.baseline_shift += pixels * weight;
             }
         }
         else if constexpr (std::is_same_v<T, CharacterOffsetProperty>) {

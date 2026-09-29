@@ -9,8 +9,10 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <initializer_list>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
@@ -29,8 +31,97 @@ GradientAnimationPlan decode_gradient_animation(const nlohmann::json& value) {
     }
     return animation;
 }
-
 }  // namespace
+
+graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
+    graphics::Field2D field;
+    const auto generator = raw.at("generator").get<std::string>();
+    static constexpr std::array generators{
+        std::pair{"perlin", graphics::Field2DGenerator::Perlin},
+        std::pair{"simplex", graphics::Field2DGenerator::Simplex},
+        std::pair{"fractal", graphics::Field2DGenerator::Fractal},
+        std::pair{"cellular", graphics::Field2DGenerator::Cellular},
+        std::pair{"grid", graphics::Field2DGenerator::Grid},
+        std::pair{"checker", graphics::Field2DGenerator::Checker},
+        std::pair{"dots", graphics::Field2DGenerator::Dots},
+        std::pair{"stripes", graphics::Field2DGenerator::Stripes},
+        std::pair{"rings", graphics::Field2DGenerator::Rings},
+        std::pair{"linear", graphics::Field2DGenerator::Linear},
+        std::pair{"radial", graphics::Field2DGenerator::Radial},
+        std::pair{"conic", graphics::Field2DGenerator::Conic}};
+    const auto found = std::find_if(generators.begin(), generators.end(),
+        [&](const auto& item) { return generator == item.first; });
+    if (found == generators.end()) throw std::runtime_error("field.generator is unsupported");
+    field.generator = found->second;
+    field.seed = raw.value("seed", 0U);
+    field.frequency = raw.value("frequency", field.frequency);
+    field.octaves = raw.value("octaves", field.octaves);
+    field.persistence = raw.value("persistence", field.persistence);
+    field.lacunarity = raw.value("lacunarity", field.lacunarity);
+    if (!std::isfinite(field.frequency) || field.frequency <= 0.0f || field.frequency > 4096.0f ||
+        field.octaves < 1 || field.octaves > 16 || !std::isfinite(field.persistence) ||
+        field.persistence < 0.0f || field.persistence > 1.0f ||
+        !std::isfinite(field.lacunarity) || field.lacunarity <= 0.0f || field.lacunarity > 8.0f)
+        throw std::runtime_error("field generator parameters are outside supported bounds");
+    if (raw.contains("operators")) {
+        if (raw.at("operators").size() > 8)
+            throw std::runtime_error("field operator chain exceeds the 8-operation limit");
+        bool scalar_operator_seen = false;
+        bool warp_seen = false;
+        for (const auto& entry : raw.at("operators")) {
+            graphics::Field2DOperator op;
+            const auto kind = entry.at("kind").get<std::string>();
+            const auto reject = [&](std::initializer_list<const char*> allowed) {
+                for (const char* key : {"from", "to", "edge", "softness", "amount"})
+                    if (entry.contains(key) && std::none_of(allowed.begin(), allowed.end(),
+                        [&](const char* candidate) { return std::string_view(candidate) == key; }))
+                        throw std::runtime_error("field operator contains a parameter unused by its kind");
+            };
+            if (kind == "remap") {
+                reject({"from", "to"});
+                scalar_operator_seen = true;
+                op.kind = graphics::Field2DOperatorKind::Remap;
+                op.from = entry.value("from", 0.0f); op.to = entry.value("to", 1.0f);
+                if (!std::isfinite(op.from) || !std::isfinite(op.to) ||
+                    op.from < 0.0f || op.from > 1.0f || op.to < 0.0f || op.to > 1.0f ||
+                    std::abs(op.to - op.from) < 1.0e-7f)
+                    throw std::runtime_error("field remap requires distinct bounds in [0, 1]");
+            } else if (kind == "threshold") {
+                reject({"edge"});
+                scalar_operator_seen = true;
+                op.kind = graphics::Field2DOperatorKind::Threshold;
+                op.edge = entry.value("edge", 0.5f);
+                if (!std::isfinite(op.edge) || op.edge < 0.0f || op.edge > 1.0f)
+                    throw std::runtime_error("field threshold edge must be in [0, 1]");
+            } else if (kind == "smoothstep") {
+                reject({"edge", "softness"});
+                scalar_operator_seen = true;
+                op.kind = graphics::Field2DOperatorKind::Smoothstep;
+                op.edge = entry.value("edge", 0.5f); op.softness = entry.value("softness", 0.1f);
+                if (!std::isfinite(op.edge) || op.edge < 0.0f || op.edge > 1.0f ||
+                    !std::isfinite(op.softness) || op.softness <= 0.0f || op.softness > 1.0f)
+                    throw std::runtime_error("field smoothstep requires edge [0,1] and softness (0,1]");
+            } else if (kind == "invert") {
+                reject({});
+                scalar_operator_seen = true;
+                op.kind = graphics::Field2DOperatorKind::Invert;
+            } else if (kind == "warp") {
+                reject({"amount"});
+                if (scalar_operator_seen || warp_seen)
+                    throw std::runtime_error("field warp must occur once before scalar operators");
+                warp_seen = true;
+                op.kind = graphics::Field2DOperatorKind::Warp;
+                op.amount = entry.value("amount", 0.05f);
+                if (!std::isfinite(op.amount) || op.amount < 0.0f || op.amount > 1.0f)
+                    throw std::runtime_error("field warp amount must be in [0, 1]");
+            } else {
+                throw std::runtime_error("field operator kind is unsupported");
+            }
+            field.operators.push_back(op);
+        }
+    }
+    return field;
+}
 
 void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& value) {
     if (value.contains("shape")) {
@@ -77,6 +168,20 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             if (fill_rule == "even_odd") shape.fill_rule = ShapeFillRulePlan::EvenOdd;
             else if (fill_rule == "non_zero") shape.fill_rule = ShapeFillRulePlan::NonZero;
             else throw std::runtime_error("shape.fill_rule must be 'even_odd' or 'non_zero'");
+        }
+        if (raw_shape.contains("field")) {
+            if (raw_shape.contains("fill") && raw_shape.at("fill").is_object())
+                throw std::runtime_error("shape.field cannot be combined with a gradient fill");
+            if (shape.type == ShapeContentTypePlan::Line ||
+                shape.type == ShapeContentTypePlan::Arc ||
+                shape.type == ShapeContentTypePlan::Grid ||
+                shape.type == ShapeContentTypePlan::DotGrid ||
+                shape.type == ShapeContentTypePlan::DeviceFrame ||
+                shape.type == ShapeContentTypePlan::WorldMap ||
+                shape.type == ShapeContentTypePlan::Chart ||
+                raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                throw std::runtime_error("shape.field requires a closed procedural shape or authored path");
+            shape.field = decode_field2d_plan(raw_shape.at("field"));
         }
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
@@ -679,6 +784,16 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 !finite_point(command.control1) || !finite_point(command.control2))
                 throw std::runtime_error("shape path coordinates must be finite");
         }
+        if (shape.field && shape.type == ShapeContentTypePlan::Path &&
+            std::none_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
+                return command.type == ShapePathCommandTypePlan::Close;
+            }))
+            throw std::runtime_error("Field2D path fills require at least one closed subpath");
+        if (shape.stroke && (shape.stroke->taper_start != 1.0f || shape.stroke->taper_end != 1.0f) &&
+            std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
+                return command.type == ShapePathCommandTypePlan::Close;
+            }))
+            throw std::runtime_error("tapered strokes require an open path");
         if (raw_shape.contains("fill")) {
             const auto& fill = raw_shape.at("fill");
             if (fill.is_array()) {
@@ -752,6 +867,18 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 if (!std::isfinite(decoded_stroke.dash_offset))
                     throw std::runtime_error("stroke.dash_offset must be finite");
             }
+            decoded_stroke.cap = stroke.value("cap", decoded_stroke.cap);
+            decoded_stroke.join = stroke.value("join", decoded_stroke.join);
+            decoded_stroke.taper_start = stroke.value("taper_start", 1.0f);
+            decoded_stroke.taper_end = stroke.value("taper_end", 1.0f);
+            if ((decoded_stroke.cap != "butt" && decoded_stroke.cap != "round" &&
+                 decoded_stroke.cap != "square") ||
+                (decoded_stroke.join != "miter" && decoded_stroke.join != "round" &&
+                 decoded_stroke.join != "bevel") ||
+                !std::isfinite(decoded_stroke.taper_start) || decoded_stroke.taper_start < 0.0f ||
+                decoded_stroke.taper_start > 1.0f || !std::isfinite(decoded_stroke.taper_end) ||
+                decoded_stroke.taper_end < 0.0f || decoded_stroke.taper_end > 1.0f)
+                throw std::runtime_error("shape.stroke cap, join, or taper is outside the supported range");
             if (stroke.contains("gradient"))
                 decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
             if (decoded_stroke.gradient) {

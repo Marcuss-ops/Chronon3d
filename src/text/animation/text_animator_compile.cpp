@@ -116,6 +116,7 @@ template <typename T>
 // helper: check keyframe values for NaN/Inf
 template <typename T>
 [[nodiscard]] inline bool check_clean_av(const T& av) {
+    if (component_has_nan_or_inf(av.default_value())) return false;
     for (const auto& kf : av.keyframes()) {
         if (component_has_nan_or_inf(kf.value)) return false;
     }
@@ -169,6 +170,21 @@ bool TextAnimatorSpec::is_valid() const {
                     return detail::check_monotonic_av(p.degrees);
                 } else if constexpr (std::is_same_v<P, FillColorProperty>) {
                     return detail::check_monotonic_av(p.color);
+                } else if constexpr (std::is_same_v<P, AnchorProperty>) {
+                    return detail::check_monotonic_av(p.value);
+                } else if constexpr (std::is_same_v<P, SkewProperty>) {
+                    return detail::check_monotonic_av(p.angle) &&
+                           detail::check_monotonic_av(p.axis);
+                } else if constexpr (std::is_same_v<P, BackgroundColorProperty>) {
+                    return detail::check_monotonic_av(p.color) &&
+                           detail::check_monotonic_av(p.padding_em) &&
+                           detail::check_monotonic_av(p.radius_em);
+                } else if constexpr (std::is_same_v<P, StrokeColorProperty>) {
+                    return detail::check_monotonic_av(p.color);
+                } else if constexpr (std::is_same_v<P, StrokeWidthProperty>) {
+                    return detail::check_monotonic_av(p.width);
+                } else if constexpr (std::is_same_v<P, BaselineShiftProperty>) {
+                    return detail::check_monotonic_av(p.pixels);
                 } else {
                     return true;  // static: monotonicity not applicable
                 }
@@ -209,20 +225,23 @@ bool TextAnimatorSpec::is_valid() const {
                     // RotationProperty::degrees (AnimatedValue<Vec3>) — NOT `value`.
                     return detail::check_clean_av(p.degrees);
                 } else if constexpr (std::is_same_v<P, AnchorProperty>) {
-                    // AnchorProperty::value (Vec3).
-                    return !detail::component_has_nan_or_inf(p.value);
+                    return detail::check_clean_av(p.value);
                 } else if constexpr (std::is_same_v<P, SkewProperty>) {
-                    return !detail::component_has_nan_or_inf(p.angle)
-                        && !detail::component_has_nan_or_inf(p.axis);
+                    return detail::check_clean_av(p.angle) &&
+                           detail::check_clean_av(p.axis);
                 } else if constexpr (std::is_same_v<P, FillColorProperty>) {
                     // FillColorProperty::color is animated; scan keyframes.
                     return detail::check_clean_av(p.color);
                 } else if constexpr (std::is_same_v<P, StrokeColorProperty>) {
-                    return !detail::component_has_nan_or_inf(p.color);
+                    return detail::check_clean_av(p.color);
                 } else if constexpr (std::is_same_v<P, StrokeWidthProperty>) {
-                    return !detail::component_has_nan_or_inf(p.width);
+                    return detail::check_clean_av(p.width);
                 } else if constexpr (std::is_same_v<P, BaselineShiftProperty>) {
-                    return !detail::component_has_nan_or_inf(p.pixels);
+                    return detail::check_clean_av(p.pixels);
+                } else if constexpr (std::is_same_v<P, BackgroundColorProperty>) {
+                    return detail::check_clean_av(p.color) &&
+                           detail::check_clean_av(p.padding_em) &&
+                           detail::check_clean_av(p.radius_em);
                 } else {
                     // CharacterOffsetProperty (i32) — integers cannot be NaN/Inf.
                     return true;

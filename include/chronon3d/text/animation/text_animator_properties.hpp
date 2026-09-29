@@ -116,12 +116,10 @@ enum class TextPropertyBlendMode {
 //   so the static end-state semantics are equivalent when no keyframes are
 //   present (AnimatedValue evaluates to m_default_value).
 //
-//   RotationProperty and FillColorProperty were migrated the same way so the
-//   render-plan `rotation` / `fill_color` animator property tracks can carry
-//   real keyframes.  The remaining variants (SkewProperty, AnchorProperty,
-//   StrokeColorProperty, StrokeWidthProperty, BaselineShiftProperty,
-//   CharacterOffsetProperty) keep static values and can be migrated the same
-//   way without breaking any contracts.
+//   Rotation, fill, skew, anchor, baseline shift, background and stroke
+//   properties use the same representation so V3 tracks can be evaluated at
+//   the requested sample time. CharacterOffsetProperty remains static because
+//   changing source characters requires text reshaping.
 
 struct PositionProperty {
     AnimatedValue<Vec3> value{Vec3{0.0f, 0.0f, 0.0f}};
@@ -136,12 +134,14 @@ struct RotationProperty {
 };
 
 struct SkewProperty {
-    f32 angle{0.0f};                  // skew angle in degrees
-    f32 axis{0.0f};                   // skew axis angle in degrees
+    AnimatedValue<f32> angle{0.0f};   // skew angle in degrees
+    AnimatedValue<f32> axis{0.0f};    // skew axis angle in degrees
+    bool animate_angle{true};
+    bool animate_axis{true};
 };
 
 struct AnchorProperty {
-    Vec3 value{0.0f, 0.0f, 0.0f};    // anchor point offset
+    AnimatedValue<Vec3> value{Vec3{0.0f, 0.0f, 0.0f}}; // anchor point offset
 };
 
 struct OpacityProperty {
@@ -157,15 +157,20 @@ struct FillColorProperty {
 };
 
 struct BackgroundColorProperty {
-    Color color{0.0f, 0.0f, 0.0f, 0.0f};
+    AnimatedValue<Color> color{Color{0.0f, 0.0f, 0.0f, 0.0f}};
+    AnimatedValue<f32> padding_em{0.5f};
+    AnimatedValue<f32> radius_em{0.0f};
+    bool animate_color{true};
+    bool animate_padding{true};
+    bool animate_radius{true};
 };
 
 struct StrokeColorProperty {
-    Color color{0.0f, 0.0f, 0.0f, 1.0f};
+    AnimatedValue<Color> color{Color{0.0f, 0.0f, 0.0f, 1.0f}};
 };
 
 struct StrokeWidthProperty {
-    f32 width{0.0f};
+    AnimatedValue<f32> width{0.0f};
 };
 
 struct TrackingProperty {
@@ -177,7 +182,7 @@ struct TrackingProperty {
 };
 
 struct BaselineShiftProperty {
-    f32 pixels{0.0f};                 // vertical shift from baseline in pixels
+    AnimatedValue<f32> pixels{0.0f};  // vertical shift from baseline in pixels
 };
 
 /// After Effects-style Character Offset: shifts the character value

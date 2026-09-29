@@ -92,3 +92,49 @@ TEST_CASE("PR2-Unit-Mask: cache_key differs when modular_coordinates flag flips"
 
     CHECK(node->cache_key(ctx_a).params_hash != node->cache_key(ctx_b).params_hash);
 }
+
+TEST_CASE("text mask source identity participates in the mask node cache key") {
+    Mask first;
+    first.type = MaskType::Text;
+    first.text_source = "title_a";
+    Mask second = first;
+    second.text_source = "title_b";
+    graph::MaskNode first_node(std::move(first), Frame{-1}, {"title_a"});
+    graph::MaskNode second_node(std::move(second), Frame{-1}, {"title_b"});
+    graph::RenderGraphContext ctx;
+    ctx.frame_input = ctt::make_render_frame_info(64, 64);
+    CHECK(first_node.cache_key(ctx).params_hash != second_node.cache_key(ctx).params_hash);
+}
+
+TEST_CASE("MaskNode applies same-frame text source alpha to the target framebuffer") {
+    Mask mask;
+    mask.type = MaskType::Text;
+    mask.text_source = "label";
+    Mat4 target_to_canvas{1.0f};
+    target_to_canvas[3].x = 10.0f;
+    target_to_canvas[3].y = 20.0f;
+    graph::MaskNode node(std::move(mask), Frame{-1}, {"label"}, target_to_canvas,
+                         graph::frame_variant_cache("text_mask_source"));
+
+    Framebuffer target(4, 4);
+    Framebuffer text(4, 4);
+    target.clear(Color{1.0f, 0.5f, 0.25f, 1.0f});
+    text.clear(Color::transparent());
+    text.set_origin(10, 20);
+    text.pixels_row(1)[1] = Color{1.0f, 1.0f, 1.0f, 0.6f};
+    std::array<FramebufferRef, 2> inputs{FramebufferRef{target}, FramebufferRef{text}};
+    std::array<std::optional<raster::BBox>, 2> bboxes{};
+
+    graph::RenderGraphContext ctx;
+    ctx.frame_input = ctt::make_render_frame_info(32, 32);
+    static auto pool = cache::FramebufferPool::create_shared(1024 * 1024);
+    ctx.framebuffer_pool = pool;
+    ctx.policy.modular_coordinates = false;
+    const auto output = node.execute(ctx, inputs, bboxes);
+    REQUIRE(output);
+    CHECK(output.value()->pixels_row(1)[1].a == doctest::Approx(0.6f));
+    CHECK(output.value()->pixels_row(1)[1].r == doctest::Approx(0.6f));
+    const auto first_frame_key = node.cache_key(ctx);
+    ctx.frame_input.frame = Frame{1};
+    CHECK(node.cache_key(ctx).frame != first_frame_key.frame);
+}

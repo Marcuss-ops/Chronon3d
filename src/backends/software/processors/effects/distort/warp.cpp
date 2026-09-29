@@ -304,4 +304,29 @@ void apply_displacement_map(Framebuffer& fb,const DisplacementMapParams& p,const
     }}
 }
 
+void apply_displacement_field(Framebuffer& fb, const DisplacementMapParams& p,
+                              const graphics::Field2D& field,
+                              ::chronon3d::EffectScratchResources& scratch,
+                              const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(p.intensity_x) || !std::isfinite(p.intensity_y) ||
+        std::abs(p.intensity_x) > 4.0f || std::abs(p.intensity_y) > 4.0f ||
+        fb.width() <= 0 || fb.height() <= 0)
+        throw std::invalid_argument("displacement field parameters or target surface are invalid");
+    auto c = make_warp_context(fb, p.edge_mode, scratch, clip);
+    const float scale = static_cast<float>(std::min(fb.width(), fb.height()));
+    const float width = static_cast<float>(fb.width());
+    const float height = static_cast<float>(fb.height());
+    for (int y = c.y0; y < c.y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = c.x0; x < c.x1; ++x) {
+            const float value = field.sample(Vec2{(static_cast<float>(x) + 0.5f) / width,
+                                                   (static_cast<float>(y) + 0.5f) / height});
+            const float dx = (value - 0.5f) * p.intensity_x * scale;
+            const float dy = (value - 0.5f) * p.intensity_y * scale;
+            row[x] = c.sampler.bilinear(static_cast<float>(x) + 0.5f - dx,
+                                         static_cast<float>(y) + 0.5f - dy);
+        }
+    }
+}
+
 } // namespace chronon3d::renderer

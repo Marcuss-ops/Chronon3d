@@ -13,6 +13,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <span>
+#include <algorithm>
 #include <string>
 #include <functional>
 #include <unordered_set>
@@ -37,6 +38,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
 
     // Storage for sub-pipelines of layers referenced by clip transitions.
     std::unordered_map<std::string, GraphNodeId> clip_sub_pipelines;
+    std::unordered_map<std::string, GraphNodeId> text_mask_source_pipelines;
     std::unordered_map<std::string, GraphNodeId> displacement_source_pipelines;
     std::unordered_set<std::string> displacement_sources_in_progress;
     std::function<GraphNodeId(const std::string&)> displacement_source_node;
@@ -55,6 +57,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
             const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
             if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            if (params->field) continue;
             source_item.displacement_map_nodes.emplace(
                 params->map_layer,displacement_source_node(params->map_layer));
         }
@@ -141,9 +144,32 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
             const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
             if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            if (params->field) continue;
             item.displacement_map_nodes.emplace(params->map_layer,
                 displacement_source_node(params->map_layer));
         }
+        const auto add_text_mask_source = [&](MaskType type, const std::string& source_name) {
+            if (type != MaskType::Text || item.text_mask_source_nodes.contains(source_name)) return;
+            const auto source = ctx.name_to_resolved.find(source_name);
+            if (source == ctx.name_to_resolved.end() ||
+                !source->second->layer->active_at(rctx.frame_input.frame) ||
+                source->second->layer->kind != LayerKind::Text)
+                throw std::runtime_error("text mask source is missing, inactive, or not text: " + source_name);
+            auto source_node_it = text_mask_source_pipelines.find(source_name);
+            if (source_node_it == text_mask_source_pipelines.end()) {
+                auto source_item = detail::make_item_for_matte_source(
+                    *source->second, rctx, cam25d, ctx.is_static_cache);
+                const auto source_node = detail::build_matte_sub_pipeline(graph, source_item, rctx);
+                source_node_it = text_mask_source_pipelines.emplace(source_name, source_node).first;
+            }
+            const auto source_node = source_node_it->second;
+            if (source_node == k_invalid_node)
+                throw std::runtime_error("text mask source produced no prepared text output: " + source_name);
+            item.text_mask_source_nodes.emplace(source_name, source_node);
+        };
+        add_text_mask_source(item.layer->mask.type, item.layer->mask.text_source);
+        for (const auto& operation : item.layer->mask.operations)
+            add_text_mask_source(operation.type, operation.text_source);
         detail::append_layer_pipeline(
             graph, item, ctx.current_output, rctx, cam25d, casters,
             ctx.scene->depth_grade());
@@ -191,6 +217,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
             const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
             if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            if (params->field) continue;
             item.displacement_map_nodes.emplace(params->map_layer,displacement_source_node(params->map_layer));
         }
 

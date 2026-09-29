@@ -92,7 +92,9 @@ LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw) {
     plan.easing = raw.value("easing", plan.easing);
     if (plan.per_item_frames > 600 ||
         (plan.order != "forward" && plan.order != "reverse" &&
-         plan.order != "center_out" && plan.order != "random") ||
+         plan.order != "center_out" && plan.order != "random" &&
+         plan.order != "from_edges" && plan.order != "spatial_x" &&
+         plan.order != "spatial_y" && plan.order != "radial") ||
         plan.track_property.empty() || plan.track_property.size() > 128)
         throw std::runtime_error("layout stagger has invalid delay, order, or track_property");
     if (!plan.easing.empty()) {
@@ -474,6 +476,12 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
             } break;
             case LayerPlan::EffectKindPlan::FractalNoise: {
                 effect.kind = LayerPlan::EffectKindPlan::FractalNoise;
+                if (raw_effect.contains("field")) {
+                    if (raw_effect.contains("seed") || raw_effect.contains("octaves") ||
+                        raw_effect.contains("frequency"))
+                        throw std::runtime_error("Fractal Noise field cannot be combined with legacy seed, octaves, or frequency");
+                    effect.noise_field = decode_field2d_plan(raw_effect.at("field"));
+                }
                 effect.seed = raw_effect.value("seed", std::uint32_t{0});
                 effect.octaves = raw_effect.value("octaves", std::uint32_t{4});
                 effect.frequency = raw_effect.value("frequency", 0.015f);
@@ -529,14 +537,18 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
             } break;
             case LayerPlan::EffectKindPlan::DisplacementMap: {
                 effect.kind=LayerPlan::EffectKindPlan::DisplacementMap;
-                effect.map_layer=raw_effect.at("map_layer").get<std::string>();
+                if (raw_effect.contains("map_layer"))
+                    effect.map_layer=raw_effect.at("map_layer").get<std::string>();
+                if (raw_effect.contains("field"))
+                    effect.map_field = decode_field2d_plan(raw_effect.at("field"));
                 effect.map_intensity_x=raw_effect.value("intensity_x",0.05f);
                 effect.map_intensity_y=raw_effect.value("intensity_y",0.05f);
                 const auto channel=raw_effect.value("map_channel",std::string{"luma"});
                 if(channel=="red") effect.map_channel=1; else if(channel=="green") effect.map_channel=2;
                 else if(channel=="blue") effect.map_channel=3; else if(channel=="alpha") effect.map_channel=4;
                 else if(channel!="luma") throw std::runtime_error("Unsupported displacement map channel");
-                if(effect.map_layer.empty()||!std::isfinite(effect.map_intensity_x)||!std::isfinite(effect.map_intensity_y)||
+                if((effect.map_layer.empty() == !effect.map_field.has_value())||
+                   !std::isfinite(effect.map_intensity_x)||!std::isfinite(effect.map_intensity_y)||
                    std::abs(effect.map_intensity_x)>4.0f||std::abs(effect.map_intensity_y)>4.0f)
                     throw std::runtime_error("Invalid displacement map parameters");
             } break;
@@ -808,6 +820,14 @@ void decode_layer_layout(LayerPlan& layer, const nlohmann::json& value) {
             (p.fit!="auto" && p.fit!="fixed_columns" && p.fit!="fixed_rows"))
             throw std::runtime_error("grid layout has invalid group, dimensions, or fit");
         layer.grid_layout=std::move(p);
+    }
+    if (value.contains("stagger_group")) {
+        const auto& raw = value.at("stagger_group");
+        auto stagger = decode_stagger(raw);
+        stagger.group_id = raw.at("group_id").get<std::string>();
+        if (stagger.group_id.empty() || stagger.group_id.size() > 256)
+            throw std::runtime_error("stagger_group group_id must contain 1..256 characters");
+        layer.stagger_group = std::move(stagger);
     }
     if (layer.flow_layout && layer.grid_layout) throw std::runtime_error("a layer cannot belong to flow and grid layouts simultaneously");
  }

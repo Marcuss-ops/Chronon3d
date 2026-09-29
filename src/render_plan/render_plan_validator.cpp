@@ -158,6 +158,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // by the extension schema and do not belong to the frozen V2 shape.
         layer.erase("flow");
         layer.erase("grid_layout");
+        layer.erase("stagger_group");
         layer.erase("follow_path");
         layer.erase("auto_orient");
         layer.erase("effect_param_tracks");

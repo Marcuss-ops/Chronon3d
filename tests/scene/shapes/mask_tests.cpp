@@ -165,6 +165,45 @@ TEST_CASE("Path mask supports compound closed geometry, feather, and expansion")
     CHECK(mask_alpha_at_local_point(mask, {14, 0}) == doctest::Approx(0.0f));
 }
 
+TEST_CASE("Field2D mask source evaluates through the shared bounded sampler") {
+    Mask mask;
+    mask.type = MaskType::Field2D;
+    mask.size = {20.0f, 20.0f};
+    mask.field = graphics::Field2D{.generator = graphics::Field2DGenerator::Linear};
+    CHECK(mask_alpha_at_local_point(mask, {-10.0f, 0.0f}) == doctest::Approx(0.0f));
+    CHECK(mask_alpha_at_local_point(mask, {0.0f, 0.0f}) == doctest::Approx(1.0f));
+    CHECK(mask_alpha_at_local_point(mask, {10.0f, 0.0f}) == doctest::Approx(1.0f));
+    const auto key = hash_mask_cache_key(mask, Mat4{1.0f}, 20, 20);
+    mask.field->seed = 1;
+    CHECK(hash_mask_cache_key(mask, Mat4{1.0f}, 20, 20) != key);
+}
+
+TEST_CASE("text mask samples its named frame source and composes in stack order") {
+    Mask mask;
+    mask.type = MaskType::Text;
+    mask.text_source = "label";
+    mask.opacity = 0.5f;
+    MaskOperation cutout;
+    cutout.mode = MaskCombineMode::Subtract;
+    cutout.type = MaskType::Text;
+    cutout.text_source = "cutout";
+    mask.operations.push_back(cutout);
+
+    std::vector<std::string> sampled;
+    const TextMaskSampler sampler = [&](std::string_view source, Vec2 pixel) {
+        sampled.emplace_back(source);
+        CHECK(pixel.x == doctest::Approx(17.5f));
+        CHECK(pixel.y == doctest::Approx(29.5f));
+        return source == "label" ? 0.8f : 0.25f;
+    };
+    const float alpha = mask_alpha_at_local_point(mask, {2.0f, 3.0f},
+        {17.5f, 29.5f}, sampler);
+    CHECK(alpha == doctest::Approx(0.3f)); // (0.8 * 0.5) * (1 - 0.25)
+    REQUIRE(sampled.size() == 2);
+    CHECK(sampled[0] == "label");
+    CHECK(sampled[1] == "cutout");
+}
+
 TEST_CASE("Primitive masks apply feather and expansion through alpha coverage") {
     Mask mask;
     mask.type = MaskType::Rect;

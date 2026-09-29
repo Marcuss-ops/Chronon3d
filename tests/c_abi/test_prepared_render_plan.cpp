@@ -179,7 +179,7 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     CHECK(lottie_nodes[0].shape.path().fill.solid.g == doctest::Approx(0.0f));
     CHECK(lottie_nodes[1].shape.path().fill.solid.r == doctest::Approx(0.0f));
     CHECK(lottie_nodes[1].shape.path().fill.solid.g == doctest::Approx(1.0f));
-    CHECK(lottie_nodes[2].shape.path().fill.type == FillType::LinearGradient);
+    CHECK(lottie_nodes[2].shape.path().fill.gradient.type == graphics::GradientType::Linear);
     REQUIRE(lottie_nodes[2].shape.path().fill.gradient.color_stops.size() == 2);
     CHECK(lottie_nodes[2].shape.path().fill.gradient.color_stops[0].color.b == doctest::Approx(1.0f));
     CHECK(lottie_nodes[3].shape.path().fill.solid.r == doctest::Approx(1.0f));

@@ -21,12 +21,13 @@ namespace chronon3d::renderer {
 //      using the same closed gate as the legacy pixel loop
 //      (`no_dash && contour.closed`).
 
-f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius) {
+f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius_start, f32 radius_end) {
     const Vec2 ab = b - a;
     const f32 len_sq = glm::dot(ab, ab);
     if (len_sq < kPathEpsilon) {
         const f32 dist = glm::length(p - a);
         const f32 aa = 1.0f;
+        const f32 radius = std::max(radius_start, radius_end);
         if (dist <= radius - aa) return 1.0f;
         if (dist >= radius + aa) return 0.0f;
         return 1.0f - ((dist - (radius - aa)) / (2.0f * aa));
@@ -34,6 +35,7 @@ f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius) {
 
     const f32 raw_t = glm::dot(p - a, ab) / len_sq;
     if (raw_t < 0.0f || raw_t > 1.0f) return 0.0f;
+    const f32 radius = std::lerp(radius_start, radius_end, raw_t);
 
     const Vec2 closest = a + ab * raw_t;
     const f32 dist = glm::length(closest - p);
@@ -229,8 +231,18 @@ std::vector<detail::PreparedStrokeContour> prepare_stroke_contours(
             const std::size_t unique_count =
                 repeated_start ? sub_points.size() - 1 : sub_points.size();
 
-            prep.visible_subpaths.push_back(
-                detail::PreparedSubPath{std::move(sub_points), repeated_start, unique_count});
+            detail::PreparedSubPath prepared;
+            prepared.points = std::move(sub_points);
+            prepared.cumulative_lengths.resize(prepared.points.size(), 0.0f);
+            for (usize i = 1; i < prepared.points.size(); ++i) {
+                prepared.cumulative_lengths[i] = prepared.cumulative_lengths[i - 1] +
+                    glm::length(prepared.points[i] - prepared.points[i - 1]);
+            }
+            prepared.total_length = prepared.cumulative_lengths.empty()
+                ? 0.0f : prepared.cumulative_lengths.back();
+            prepared.repeated_start = repeated_start;
+            prepared.unique_count = unique_count;
+            prep.visible_subpaths.push_back(std::move(prepared));
         }
 
         out.push_back(std::move(prep));

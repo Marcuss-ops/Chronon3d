@@ -46,6 +46,24 @@ TEST_CASE("Fractal noise evolution changes the generated frame") {
     CHECK(differs);
 }
 
+TEST_CASE("Fractal noise effect delegates to the shared Field2D sampler") {
+    FractalNoiseParams params;
+    params.field = graphics::Field2D{.generator = graphics::Field2DGenerator::Simplex,
+                                     .seed = 19, .frequency = 7.0f};
+    Framebuffer a(24, 18), b(24, 18), changed(24, 18);
+    apply_fractal_noise(a, params, 0.0f);
+    apply_fractal_noise(b, params, 0.0f);
+    params.field->seed = 20;
+    apply_fractal_noise(changed, params, 0.0f);
+    bool differs_from_seed = false;
+    for (int y = 0; y < a.height(); ++y)
+        for (int x = 0; x < a.width(); ++x) {
+            CHECK(a.get_pixel(x, y) == b.get_pixel(x, y));
+            differs_from_seed |= a.get_pixel(x, y) != changed.get_pixel(x, y);
+        }
+    CHECK(differs_from_seed);
+}
+
 TEST_CASE("Fractal noise generates opaque pixels and honors clipping") {
     FractalNoiseParams params;
     Framebuffer fb(8, 8);
