@@ -3,6 +3,7 @@
 #include <chrononmotion/motion/OfflineBaking.hpp>
 #include <chrononmotion/motion/CameraRig.hpp>
 #include <chrononmotion/motion/RenderPlanLowering.hpp>
+#include <chrononmotion/motion/RenderPlanEmission.hpp>
 #include <chrononmotion/motion/MotionScene.hpp>
 
 #include <chronon3d/render_plan/render_plan.hpp>
@@ -251,6 +252,102 @@ TEST_CASE("ChrononMotion offline audio baking lowers into ordinary V3 transform 
     CHECK(position->keyframes[0].value[0] < position->keyframes[1].value[0]);
     CHECK(position->keyframes[1].value[0] < position->keyframes[2].value[0]);
     CHECK_MESSAGE(canonicallyValid(plan), canonicalDiagnostic(plan));
+}
+
+TEST_CASE("ChrononMotion video time remap emits and decodes canonical V3 plans") {
+    using chronon3d::render_plan::kRenderPlanSchemaV2;
+    using chronon3d::render_plan::kRenderPlanSchemaV3;
+
+    MotionScene scene("video-time-remap", 30.f);
+    auto& video = scene.addContent(51, "video", ContentRef::video("source.mp4", {640.f, 360.f}));
+    video.lifetime = FrameRange::between(0, 3);
+    video.timeRemap.stretch = 2.f;
+    RenderPlanLoweringOptions options;
+    options.schema = kRenderPlanSchemaV3;
+    options.width = 640;
+    options.height = 360;
+    LayerPlan supplied;
+    supplied.type = LayerType::Video;
+    supplied.source = "source.mp4";
+    options.contentLayers.emplace("51", supplied);
+
+    const RenderPlan slowed = lowerToRenderPlan(scene, options);
+    REQUIRE(slowed.layers.size() == 1);
+    REQUIRE(slowed.layers[0].time_remap.has_value());
+    CHECK(slowed.layers[0].time_remap->speed == doctest::Approx(0.5f));
+    const std::string speedJson = renderPlanToJson(slowed);
+    const Json speedDocument = Json::parse(speedJson);
+    REQUIRE(speedDocument["layers"][0].contains("time_remap"));
+    CHECK(speedDocument["layers"][0]["time_remap"]["speed"] == doctest::Approx(0.5f));
+    CHECK_MESSAGE(canonicallyValid(slowed), canonicalDiagnostic(slowed));
+
+    MotionScene animatedScene("animated-video-time-remap", 30.f);
+    auto& animatedVideo = animatedScene.addContent(
+        52, "animated video", ContentRef::video("animated.mp4", {640.f, 360.f}));
+    animatedVideo.lifetime = FrameRange::between(0, 3);
+    animatedVideo.timeRemapTrack.add(0.f, 0.f).add(1.f, 20.f);
+    options.contentLayers.clear();
+    supplied.source = "animated.mp4";
+    options.contentLayers.emplace("52", supplied);
+    const RenderPlan animated = lowerToRenderPlan(animatedScene, options);
+    REQUIRE(animated.layers[0].time_remap.has_value());
+    REQUIRE(animated.layers[0].time_remap->animation.has_value());
+    CHECK(animated.layers[0].time_remap->animation->keyframes.size() == 31);
+    CHECK(animated.layers[0].time_remap->animation->keyframes[15].value[0] == doctest::Approx(10.f));
+    const auto decoded = chronon3d::render_plan::decode_render_plan(
+        Json::parse(renderPlanToJson(animated)));
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].time_remap.has_value());
+    REQUIRE(decoded->layers[0].time_remap->animation.has_value());
+    CHECK(decoded->layers[0].time_remap->animation->keyframes.size() == 31);
+    CHECK_MESSAGE(canonicallyValid(animated), canonicalDiagnostic(animated));
+
+    options.schema = kRenderPlanSchemaV2;
+    options.contentLayers.clear();
+    supplied.source = "source.mp4";
+    options.contentLayers.emplace("51", supplied);
+    CHECK_THROWS_AS(lowerToRenderPlan(scene, options), std::invalid_argument);
+}
+
+TEST_CASE("ChrononMotion blend-mode emission round-trips through canonical V2 and V3 contracts") {
+    using chronon3d::BlendMode;
+    using chronon3d::render_plan::kRenderPlanSchemaV2;
+    using chronon3d::render_plan::kRenderPlanSchemaV3;
+
+    MotionScene scene("blend-roundtrip", 30.f);
+    scene.addContent(1, "relief", ContentRef::image("relief.png", {64.f, 64.f}));
+    scene.evaluate(0);
+
+    LayerPlan supplied;
+    supplied.type = LayerType::Image;
+    supplied.asset = "relief.png";
+    supplied.size = {64.f, 64.f};
+    supplied.size_dimensions = 2;
+    supplied.blend_mode = BlendMode::SoftLight;
+
+    for (const char* schema : {kRenderPlanSchemaV2, kRenderPlanSchemaV3}) {
+        RenderPlanLoweringOptions options;
+        options.schema = schema;
+        options.width = 64;
+        options.height = 64;
+        options.contentLayers.emplace("1", supplied);
+
+        const RenderPlan plan = lowerToRenderPlan(scene, options);
+        REQUIRE(plan.layers.size() == 1);
+        CHECK(plan.layers[0].blend_mode == BlendMode::SoftLight);
+
+        const std::string emitted = renderPlanToJson(plan);
+        const Json document = Json::parse(emitted);
+        REQUIRE(document["layers"][0].contains("blend_mode"));
+        CHECK(document["layers"][0]["blend_mode"] == "soft_light");
+        const auto validation = chronon3d::render_plan::validate_render_plan(document);
+        CHECK_MESSAGE(validation.ok(), validation.format());
+        const auto decoded = chronon3d::render_plan::decode_render_plan(document);
+        REQUIRE(decoded);
+        REQUIRE(decoded->layers.size() == 1);
+        CHECK(decoded->layers[0].blend_mode == BlendMode::SoftLight);
+        CHECK(renderPlanToJson(plan) == emitted);
+    }
 }
 
 TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
