@@ -14,9 +14,11 @@ public:
               Frame cache_frame = Frame{-1},
               std::vector<std::string> text_sources = {},
               Mat4 canvas_from_local = Mat4{1.0f},
-              RenderNodeCachePolicy policy = static_memory_cache("mask"))
-        : RenderGraphNode(policy), m_mask(std::move(mask)), m_cache_frame(cache_frame),
-          m_text_sources(std::move(text_sources)),
+              RenderNodeCachePolicy policy = static_memory_cache("mask"),
+              bool source_surface_coordinates = false)
+        : RenderGraphNode(policy), m_mask(std::move(mask)),
+          m_source_surface_coordinates(source_surface_coordinates),
+          m_cache_frame(cache_frame), m_text_sources(std::move(text_sources)),
           m_canvas_from_local(std::move(canvas_from_local)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Mask; }
@@ -39,8 +41,10 @@ public:
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = hash_combine(
-                hash_mask(m_mask),
-                static_cast<u64>(ctx.policy.modular_coordinates))
+                hash_combine(
+                    hash_mask(m_mask),
+                    static_cast<u64>(ctx.policy.modular_coordinates)),
+                static_cast<u64>(m_source_surface_coordinates))
         };
     }
 
@@ -130,8 +134,15 @@ private:
                 : rasterize_mask_alpha(m_mask, Mat4{1.0f}, width, height);
         }
         Mat4 layer_inverse{1.0f};
-        layer_inverse[3].x = static_cast<f32>(origin_x) - static_cast<f32>(canvas_width) * 0.5f;
-        layer_inverse[3].y = static_cast<f32>(origin_y) - static_cast<f32>(canvas_height) * 0.5f;
+        if (m_source_surface_coordinates) {
+            layer_inverse[3].x = static_cast<f32>(origin_x) -
+                static_cast<f32>(width) * 0.5f;
+            layer_inverse[3].y = static_cast<f32>(origin_y) -
+                static_cast<f32>(height) * 0.5f;
+        } else {
+            layer_inverse[3].x = static_cast<f32>(origin_x) - static_cast<f32>(canvas_width) * 0.5f;
+            layer_inverse[3].y = static_cast<f32>(origin_y) - static_cast<f32>(canvas_height) * 0.5f;
+        }
         return text_sampler
             ? rasterize_mask_alpha(m_mask, layer_inverse, width, height,
                 origin_x, origin_y, *text_sampler)
@@ -160,11 +171,15 @@ private:
         seed = mix(seed, static_cast<std::uint64_t>(canvas_width));
         seed = mix(seed, static_cast<std::uint64_t>(canvas_height));
         seed = mix(seed, static_cast<std::uint64_t>(modular_coordinates));
+        seed = mix(seed, static_cast<std::uint64_t>(m_source_surface_coordinates));
         seed = mix(seed, static_cast<std::uint64_t>(m_cache_frame >= 0 ? m_cache_frame : -1));
         return seed;
     }
 
     Mask m_mask;
+    // Video sources are masked in their decoded, zero-origin surface before
+    // the layer transform. Other layer masks are interpreted in canvas space.
+    bool m_source_surface_coordinates{false};
     Frame m_cache_frame{-1};
     std::vector<std::string> m_text_sources;
     Mat4 m_canvas_from_local{1.0f};

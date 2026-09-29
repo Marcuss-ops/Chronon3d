@@ -445,10 +445,9 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
 //     leak past it by exactly the frame thickness; the single shadow the
 //     contract declares belongs to the card;
 //   - the media layer keeps size/fit/opacity/radius untouched.
-//
-// The plate is centred on the canvas, which is the only placement the frame
-// contract admits: a clip inset by foreground_scale_percent, and an overlay
-// inset by its own scale_percent, are both centred by construction.
+//   - the plate follows the media layer's resolved box placement; a full-canvas
+//     source clip's centered scale and explicit positioned media both retain
+//     their authored transform semantics.
 //
 // Runs before any per-layer index table (resolved media paths, prepared
 // effects, content fingerprint) is built, so plan.layers stays the single
@@ -512,6 +511,24 @@ void materialize_media_background_cards(RenderPlan& plan) {
         card.duration_frames = layer.duration_frames;
         card.size = {card_w, card_h};
         card.size_dimensions = 2;
+        // The plate geometry is centered around its transform, while a video
+        // source's local surface starts at its top-left. Resolve the plate's
+        // center from the same origin-to-center conversion used by the video
+        // builder so scaled/positioned media and its frame remain aligned.
+        // Its size has already incorporated scale, so the plate stays
+        // unit-scaled.
+        card.position = layer.position;
+        card.position_dimensions = layer.position_dimensions;
+        if (layer.type == LayerType::Video && layer.position_dimensions >= 2) {
+            const float displayed_w = layer.size_dimensions == 2
+                ? layer.size[0] : static_cast<float>(plan.canvas.width) * scale_x;
+            const float displayed_h = layer.size_dimensions == 2
+                ? layer.size[1] : static_cast<float>(plan.canvas.height) * scale_y;
+            card.position[0] += displayed_w * 0.5f -
+                static_cast<float>(plan.canvas.width) * 0.5f;
+            card.position[1] += displayed_h * 0.5f -
+                static_cast<float>(plan.canvas.height) * 0.5f;
+        }
         card.color = {parsed_color->r, parsed_color->g, parsed_color->b,
                       parsed_color->a * opacity};
         card.radius = std::min(background.radius.value_or(0.0f),
@@ -1099,6 +1116,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     rounded.type = MaskType::RoundedRect;
                                     rounded.size = Vec2{box_w, box_h};
                                     rounded.radius = scaled_radius;
+                                    // Keep the rounded video edge antialiased in
+                                    // output-pixel space. Mask feather is measured
+                                    // before the layer transform, so divide the
+                                    // one-pixel coverage ramp by the smaller scale.
+                                    rounded.feather = 1.0f / std::min(scale_x, scale_y);
                                     rounded.pos = Vec3{0.0f, 0.0f, 0.0f};
                                     builder.mask_composite(std::move(rounded));
                                 }
@@ -1131,7 +1153,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     std::min(solid_size.x, solid_size.y) * 0.5f);
                                 params.color = solid_color;
                                 params.fill = graphics::FillStyle::solid(solid_color);
-                                if (layer.position_dimensions < 2) {
+                                if (layer.id.ends_with("__frame")) {
+                                    // A media frame plate must share the
+                                    // centered source box whether its layer
+                                    // inherits an explicit transform or uses
+                                    // the implicit canvas-center placement.
+                                    params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
+                                } else if (layer.position_dimensions < 2) {
                                     builder.pin_to(Anchor::Center);
                                     params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
                                 }
