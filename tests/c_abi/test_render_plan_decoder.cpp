@@ -1449,6 +1449,98 @@ TEST_CASE("render plan V3 animates gradient stops and rejects incompatible gradi
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
+TEST_CASE("V3 shape backgrounds combine animated gradients with runtime effects") {
+    using nlohmann::json;
+    const auto first = render_plan_test::gradient();
+    auto second = first;
+    second["start"] = {0.0, 0.25};
+    second["end"] = {1.0, 0.75};
+    second["color_stops"][0]["color"] = {0.04, 0.055, 0.10, 1.0};
+    second["color_stops"][1]["color"] = {0.10, 0.14, 0.20, 1.0};
+
+    auto layer = render_plan_test::shape_layer({{"type", "rounded_rect"},
+        {"radius", 24.0}, {"fill", first}});
+    layer["size"] = {1920.0, 1080.0};
+    layer["effects"] = json::array({
+        {{"type", "fractal_noise"},
+         {"field", {{"generator", "fractal"}, {"seed", 73}, {"frequency", 0.012}}}},
+        {{"type", "vignette"}, {"radius", 0.72}, {"softness", 0.35},
+         {"color", {0.0, 0.0, 0.0, 0.45}}}
+    });
+    auto source = render_plan_test::base_plan(json::array({layer}));
+    source["canvas"] = {{"width", 1920}, {"height", 1080}, {"fps_num", 24},
+                        {"fps_den", 1}, {"duration_frames", 48}};
+    source["layers"][0]["fill_gradient_animation"] = {
+        {"easing", "linear"},
+        {"keyframes", json::array({
+            {{"frame", 0}, {"value", first}},
+            {{"frame", 47}, {"value", second}}
+        })}
+    };
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string error = decoded ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), error);
+    REQUIRE(decoded->layers.size() == 1);
+    const auto& background = decoded->layers[0];
+    CHECK(background.type == chronon3d::render_plan::LayerType::Shape);
+    REQUIRE(background.shape.has_value());
+    CHECK(background.shape->type == chronon3d::render_plan::ShapeContentTypePlan::RoundedRect);
+    CHECK(background.size[0] == doctest::Approx(1920.0f));
+    CHECK(background.size[1] == doctest::Approx(1080.0f));
+    REQUIRE(background.fill_gradient_animation.has_value());
+    REQUIRE(background.effects.size() == 2);
+    CHECK(background.effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::FractalNoise);
+    CHECK(background.effects[0].noise_field.has_value());
+    CHECK(background.effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Vignette);
+
+    auto changed = source;
+    changed["layers"][0]["fill_gradient_animation"]["keyframes"][1]["value"]
+        ["color_stops"][0]["color"][0] = 0.2;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan.has_value());
+    CHECK(decoded->content_fingerprint != changed_plan->content_fingerprint);
+}
+
+TEST_CASE("V3 rounded shape stroke can frame an image as a lower layer") {
+    using nlohmann::json;
+    auto border = render_plan_test::shape_layer({
+        {"type", "rounded_rect"}, {"radius", 28.0},
+        {"fill", {0.04, 0.055, 0.10, 1.0}},
+        {"stroke", {{"color", {0.85, 0.90, 1.0, 1.0}}, {"width", 5.0},
+                    {"join", "round"}}}
+    });
+    border["id"] = "media-border";
+    border["size"] = {420.0, 280.0};
+    border["position"] = {750.0, 400.0};
+    auto image = json{
+        {"id", "media"}, {"type", "image"}, {"asset", "media/photo.png"},
+        {"size", {410.0, 270.0}}, {"position", {750.0, 400.0}}, {"radius", 22.0}
+    };
+    auto source = render_plan_test::base_plan(json::array({border, image}));
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string error = decoded ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), error);
+    REQUIRE(decoded->layers.size() == 2);
+    const auto& frame = decoded->layers[0];
+    const auto& media = decoded->layers[1];
+    CHECK(frame.id == "media-border");
+    CHECK(frame.type == chronon3d::render_plan::LayerType::Shape);
+    REQUIRE(frame.shape.has_value());
+    CHECK(frame.shape->type == chronon3d::render_plan::ShapeContentTypePlan::RoundedRect);
+    REQUIRE(frame.shape->stroke.has_value());
+    CHECK(frame.shape->stroke->width == doctest::Approx(5.0f));
+    CHECK(frame.shape->stroke->join == "round");
+    CHECK(media.id == "media");
+    CHECK(media.type == chronon3d::render_plan::LayerType::Image);
+    CHECK(media.radius == doctest::Approx(22.0f));
+    CHECK(frame.size[0] > media.size[0]);
+    CHECK(frame.size[1] > media.size[1]);
+}
+
 TEST_CASE("render plan requires adjustment layers to own only an effect stack") {
     const auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
