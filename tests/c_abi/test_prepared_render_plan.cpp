@@ -156,6 +156,8 @@ TEST_CASE("media background card and video radius lower into plate plus corner m
     const auto& plate = scene.layers()[0];
     REQUIRE(!plate.nodes.empty());
     CHECK(plate.nodes.front().corner_radius == doctest::Approx(6.0f));
+    CHECK(plate.transform.position.x == doctest::Approx(0.0f));
+    CHECK(plate.transform.position.y == doctest::Approx(0.0f));
     CHECK(plate.nodes.front().color.r == doctest::Approx(1.0f));
     REQUIRE(!plate.effects().empty());
     CHECK(plate.effects()[0].enabled);
@@ -167,6 +169,9 @@ TEST_CASE("media background card and video radius lower into plate plus corner m
     CHECK(clip.mask.type == MaskType::RoundedRect);
     CHECK(clip.mask.radius == doctest::Approx(4.0f));
     CHECK(clip.mask.size.x == doctest::Approx(32.0f));
+    CHECK(clip.mask.feather == doctest::Approx(1.0f));
+    CHECK(clip.transform.position.x == doctest::Approx(0.0f));
+    CHECK(clip.transform.position.y == doctest::Approx(0.0f));
     CHECK(clip.effects().empty());
 }
 

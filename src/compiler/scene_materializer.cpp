@@ -76,6 +76,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     if (layer.size_dimensions == 2) source.size = {layer.size[0], layer.size[1]};
                     if (layer.loop) source.loop_mode = video::VideoLoopMode::Loop;
                     builder.video(std::move(source));
+                    if (layer.radius > 0.0f) {
+                        const float sx = std::abs(layer.scale[0]) > 1e-6f
+                            ? std::abs(layer.scale[0]) : 1.0f;
+                        const float sy = std::abs(layer.scale[1]) > 1e-6f
+                            ? std::abs(layer.scale[1]) : 1.0f;
+                        const float width = layer.size_dimensions == 2
+                            ? layer.size[0] : static_cast<float>(meta.width);
+                        const float height = layer.size_dimensions == 2
+                            ? layer.size[1] : static_cast<float>(meta.height);
+                        const float scale = std::min(sx, sy);
+                        Mask rounded;
+                        rounded.type = MaskType::RoundedRect;
+                        rounded.size = {width / sx, height / sy};
+                        rounded.radius = std::min(
+                            layer.radius / scale,
+                            std::min(rounded.size.x, rounded.size.y) * 0.5f);
+                        rounded.feather = 1.0f / scale;
+                        builder.mask_composite(std::move(rounded));
+                    }
                     break;
                 }
                 case NodeKind::Text:
