@@ -134,6 +134,20 @@ float scalar_value(const AnimationKeyframePlan& key, std::string_view property) 
     return key.value.front();
 }
 
+bool is_per_frame_paint_property(std::string_view property) {
+    static constexpr std::array<std::string_view, 4> direct{
+        "stroke_dash_offset", "stroke_width", "stroke_color", "fill_color"};
+    if (std::find(direct.begin(), direct.end(), property) != direct.end()) return true;
+    if (!property.starts_with("shadow_")) return false;
+    const auto suffix = property.find('_', 7);
+    if (suffix == std::string_view::npos) return false;
+    const auto index = property.substr(7, suffix - 7);
+    if (index != "0" && index != "1" && index != "2") return false;
+    const auto field = property.substr(suffix + 1);
+    return field == "opacity" || field == "blur" || field == "offset_x" ||
+           field == "offset_y" || field == "color";
+}
+
 chronon3d::LoopMode loop_mode_value(std::string_view value) {
     static constexpr std::array kLoopModes{
         std::pair{"cycle"sv, chronon3d::LoopMode::Loop},
@@ -500,6 +514,7 @@ chronon3d::TextSelectorShape text_selector_shape(std::string_view value) {
         std::pair{"round"sv, TextSelectorShape::Round},
         std::pair{"smooth"sv, TextSelectorShape::Smooth},
         std::pair{"wiggly"sv, TextSelectorShape::Wiggly},
+        std::pair{"noise"sv, TextSelectorShape::Noise},
     };
     return enum_from_string(value, kValues, "unsupported text selector shape: ");
 }
@@ -512,6 +527,7 @@ chronon3d::TextSelectorOrder text_selector_order(std::string_view value) {
         std::pair{"from_center"sv, TextSelectorOrder::FromCenter},
         std::pair{"to_center"sv, TextSelectorOrder::ToCenter},
         std::pair{"random"sv, TextSelectorOrder::Random},
+        std::pair{"index"sv, TextSelectorOrder::Index},
     };
     return enum_from_string(value, kValues, "unsupported text selector order: ");
 }
@@ -569,9 +585,10 @@ chronon3d::AnimatedValue<chronon3d::Vec3> animated_text_rotation(
 
 // `fill_color` keyframes are always RGBA quadruples in 0..1.
 chronon3d::AnimatedValue<chronon3d::Color> animated_text_color(
-    const AnimationTrackPlan& track, std::string_view property, FrameRate fps) {
+    const AnimationTrackPlan& track, std::string_view property, FrameRate fps,
+    chronon3d::Color fallback = chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f}) {
     chronon3d::AnimatedValue<chronon3d::Color> result{
-        chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f}};
+        fallback};
     for (const auto& key : track.keyframes) {
         if (key.value.size() != 4)
             throw std::runtime_error("animation property '" + std::string(property) +
@@ -620,6 +637,9 @@ chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan,
     selector.random_seed = plan.random_seed;
     selector.wiggly = chronon3d::WigglySelectorParams{
         plan.wiggly_frequency, plan.wiggly_amplitude, plan.wiggly_seed};
+    selector.noise = chronon3d::WigglySelectorParams{
+        plan.noise_frequency, plan.noise_amplitude, plan.noise_seed};
+    selector.index_step = plan.index_step;
     return selector;
 }
 
@@ -666,6 +686,60 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
         case AnimationPropertyKind::FillColor:
             animator.properties.push_back(chronon3d::FillColorProperty{
                 animated_text_color(track, track.property, fps)});
+            break;
+        case AnimationPropertyKind::Skew:
+        case AnimationPropertyKind::SkewAxis: {
+            chronon3d::SkewProperty skew;
+            skew.animate_angle = animation_property_kind(track.property) == AnimationPropertyKind::Skew;
+            skew.animate_axis = animation_property_kind(track.property) == AnimationPropertyKind::SkewAxis;
+            if (skew.animate_angle)
+                skew.angle = animated_text_value(track, 0.0f, track.property, fps);
+            if (skew.animate_axis)
+                skew.axis = animated_text_value(track, 0.0f, track.property, fps);
+            animator.properties.push_back(std::move(skew));
+            break;
+        }
+        case AnimationPropertyKind::Anchor:
+            animator.properties.push_back(chronon3d::AnchorProperty{
+                animated_text_value(track, chronon3d::Vec3{}, track.property, fps)});
+            break;
+        case AnimationPropertyKind::BaselineShift:
+            animator.properties.push_back(chronon3d::BaselineShiftProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
+            break;
+        case AnimationPropertyKind::BackgroundColor: {
+            chronon3d::BackgroundColorProperty background;
+            background.color = animated_text_color(track, track.property, fps,
+                chronon3d::Color{0.0f, 0.0f, 0.0f, 0.0f});
+            background.animate_padding = false;
+            background.animate_radius = false;
+            animator.properties.push_back(std::move(background));
+            break;
+        }
+        case AnimationPropertyKind::BackgroundPadding: {
+            chronon3d::BackgroundColorProperty background;
+            background.animate_color = false;
+            background.animate_radius = false;
+            background.padding_em = animated_text_value(track, 0.5f, track.property, fps);
+            animator.properties.push_back(std::move(background));
+            break;
+        }
+        case AnimationPropertyKind::BackgroundRadius: {
+            chronon3d::BackgroundColorProperty background;
+            background.animate_color = false;
+            background.animate_padding = false;
+            background.radius_em = animated_text_value(track, 0.0f, track.property, fps);
+            animator.properties.push_back(std::move(background));
+            break;
+        }
+        case AnimationPropertyKind::StrokeColor:
+            animator.properties.push_back(chronon3d::StrokeColorProperty{
+                animated_text_color(track, track.property, fps,
+                    chronon3d::Color{0.0f, 0.0f, 0.0f, 1.0f})});
+            break;
+        case AnimationPropertyKind::StrokeWidth:
+            animator.properties.push_back(chronon3d::StrokeWidthProperty{
+                animated_text_value(track, 0.0f, track.property, fps)});
             break;
         default:
             throw std::runtime_error("unsupported text animator property: " + track.property);
@@ -784,7 +858,12 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         case AnimationPropertyKind::FillColor:
             // Paint tracks are sampled into the per-frame source node.
             break;
+        case AnimationPropertyKind::StrokeColor:
+        case AnimationPropertyKind::StrokeWidth:
+            // Shape paint tracks are materialized by the per-frame paint path.
+            break;
         default:
+            if (is_per_frame_paint_property(track.property)) break;
             throw std::runtime_error("unsupported primitive animation property: " + track.property);
         }
     }

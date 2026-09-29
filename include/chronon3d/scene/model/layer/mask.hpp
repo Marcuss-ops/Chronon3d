@@ -3,7 +3,10 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/path_commands.hpp>
+#include <chronon3d/graphics/field2d.hpp>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -15,7 +18,9 @@ enum class MaskType {
     RoundedRect,
     Circle,
     Path,
-    Ellipse
+    Ellipse,
+    Field2D,
+    Text
 };
 
 enum class MaskCombineMode : std::uint8_t { Add, Subtract, Intersect, Difference };
@@ -27,6 +32,8 @@ struct MaskOperation {
     Vec2 size{0.0f, 0.0f};
     f32 radius{0.0f};
     std::vector<PathCommand> path;
+    std::optional<graphics::Field2D> field;
+    std::string text_source;
     f32 feather{0.0f};
     f32 expansion{0.0f};
     f32 opacity{1.0f};
@@ -47,6 +54,8 @@ struct Mask {
     Vec2 size{0.0f, 0.0f};
     f32  radius{0.0f};
     std::vector<PathCommand> path;
+    std::optional<graphics::Field2D> field;
+    std::string text_source;
     f32 feather{0.0f};
     f32 expansion{0.0f};
     f32 opacity{1.0f};

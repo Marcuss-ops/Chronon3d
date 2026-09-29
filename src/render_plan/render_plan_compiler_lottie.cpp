@@ -1,5 +1,6 @@
 #include "render_plan_compiler_detail.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
 
 #if defined(CHRONON3D_ENABLE_SVG)
@@ -826,8 +827,9 @@ std::optional<std::string> expand_static_lottie(
                 }
                 if (imported.fill_gradient) {
                     source_path.fill.enabled = true;
-                    source_path.fill.type = fill_type_for_gradient(imported.fill_gradient->type);
-                    source_path.fill.gradient = *imported.fill_gradient;
+                    chronon3d::graphics::FillStyle fill_style;
+                    fill_style.gradient = *imported.fill_gradient;
+                    source_path.fill = fill_style.to_fill();
                 } else if (imported.fill_color) {
                     const auto& rgba = *imported.fill_color;
                     source_path.fill = chronon3d::Fill::solid_color(
@@ -862,7 +864,7 @@ std::optional<std::string> expand_static_lottie(
                         output.path.push_back(converted);
                     }
                     if (output_path.fill.enabled) {
-                        if (output_path.fill.type == chronon3d::FillType::Solid) {
+                        if (output_path.fill.gradient.color_stops.empty()) {
                             const auto& c = output_path.fill.solid;
                             output.fill_color = std::array<float, 4>{c.r, c.g, c.b, c.a};
                         } else output.fill_gradient = output_path.fill.gradient;

@@ -14,6 +14,7 @@ namespace chronon3d::render_plan::detail {
 [[nodiscard]] bool invalid_logical_path(const std::string& value);
 [[nodiscard]] graphics::GradientDefinition decode_gradient_definition(
     const nlohmann::json& raw_gradient);
+[[nodiscard]] graphics::Field2D decode_field2d_plan(const nlohmann::json& raw_field);
 [[nodiscard]] std::optional<std::array<float, 4>> decode_bezier_curve(
     const nlohmann::json& object, std::string_view easing, std::string_view field);
 [[nodiscard]] AnimationTrackPlan decode_animation_track(const nlohmann::json& value);

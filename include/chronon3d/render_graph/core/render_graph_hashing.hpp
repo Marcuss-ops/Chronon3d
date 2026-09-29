@@ -132,7 +132,11 @@ private:
     u64 seed = hash_bytes(&f.type, sizeof(f.type));
     seed = hash_combine(seed, hash_value(f.enabled));
     seed = hash_combine(seed, hash_color(f.solid));
-    return hash_combine(seed, hash_gradient(f.gradient));
+    seed = hash_combine(seed, hash_gradient(f.gradient));
+    seed = hash_combine(seed, hash_value(f.field.has_value()));
+    if (f.field)
+        seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*f.field)));
+    return seed;
 }
 
 [[nodiscard]] inline u64 hash_blur_params(const BlurParams& p) {
@@ -286,6 +290,9 @@ private:
                 seed = hash_combine(seed, hash_value(p->contrast));
                 seed = hash_combine(seed, hash_value(p->brightness));
                 seed = hash_combine(seed, hash_value(p->color_mode));
+                seed = hash_combine(seed, hash_value(p->field.has_value()));
+                if (p->field)
+                    seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*p->field)));
             }
             break;
         }
@@ -412,6 +419,9 @@ private:
                 seed=hash_combine(seed,hash_string(p->map_layer));
                 seed=hash_combine(seed,hash_value(p->intensity_x)); seed=hash_combine(seed,hash_value(p->intensity_y));
                 seed=hash_combine(seed,hash_value(p->channel)); seed=hash_combine(seed,hash_value(p->edge_mode));
+                seed=hash_combine(seed,hash_value(p->field.has_value()));
+                if (p->field)
+                    seed=hash_combine(seed,hash_value(graphics::field2d_fingerprint(*p->field)));
             } break;
         }
         case Mosaic: {
@@ -453,6 +463,9 @@ private:
     seed = hash_combine(seed, hash_value(m.expansion));
     seed = hash_combine(seed, hash_value(m.opacity));
     seed = hash_combine(seed, hash_value(m.inverted));
+    seed = hash_combine(seed, hash_string(m.text_source));
+    seed = hash_combine(seed, hash_value(m.field.has_value()));
+    if (m.field) seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*m.field)));
     seed = hash_combine(seed, hash_value(m.path.size()));
     for (const auto& command : m.path) {
         seed = hash_combine(seed, hash_value(static_cast<int>(command.type)));
@@ -471,6 +484,10 @@ private:
         seed = hash_combine(seed, hash_value(operation.expansion));
         seed = hash_combine(seed, hash_value(operation.opacity));
         seed = hash_combine(seed, hash_value(operation.inverted));
+        seed = hash_combine(seed, hash_string(operation.text_source));
+        seed = hash_combine(seed, hash_value(operation.field.has_value()));
+        if (operation.field)
+            seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*operation.field)));
         seed = hash_combine(seed, hash_value(operation.path.size()));
         for (const auto& command : operation.path) {
             seed = hash_combine(seed, hash_value(static_cast<int>(command.type)));
@@ -546,6 +563,8 @@ private:
             seed = hash_combine(seed, hash_value(static_cast<int>(s.path().stroke.join)));
             seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_start, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_end, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.path().stroke.taper_start, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.path().stroke.taper_end, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.path().closed));
             seed = hash_combine(seed, hash_fill(s.path().fill));
             seed = hash_combine(seed, hash_value(s.path().stroke.enabled));

@@ -188,3 +188,21 @@ TEST_CASE("displacement map is a true two-input effect") {
         CHECK(colors_close(identity.get_pixel(x,y),input.get_pixel(x,y)));
     CHECK_THROWS(run_effect(input,params));
 }
+
+TEST_CASE("Field2D displacement needs no external map framebuffer") {
+    const auto input = make_gradient(16, 12);
+    DisplacementMapParams params;
+    params.intensity_x = 0.2f;
+    params.intensity_y = -0.1f;
+    params.field = graphics::Field2D{.generator = graphics::Field2DGenerator::Simplex,
+                                     .seed = 52, .frequency = 5.0f};
+    const auto first = run_effect(input, params);
+    const auto second = run_effect(input, params);
+    bool changed = false;
+    for (int y = 0; y < input.height(); ++y)
+        for (int x = 0; x < input.width(); ++x) {
+            CHECK(colors_close(first.get_pixel(x, y), second.get_pixel(x, y)));
+            changed |= !colors_close(first.get_pixel(x, y), input.get_pixel(x, y));
+        }
+    CHECK(changed);
+}

@@ -27,17 +27,40 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     selector.wiggly_frequency = value.value("wiggly_frequency", 1.0f);
     selector.wiggly_amplitude = value.value("wiggly_amplitude", 0.25f);
     selector.wiggly_seed = value.value("wiggly_seed", std::uint64_t{0});
-    if (selector.shape == "wiggly" &&
-        (!std::isfinite(selector.wiggly_frequency) || selector.wiggly_frequency <= 0.0f ||
-         selector.wiggly_frequency > 1000.0f ||
-         !std::isfinite(selector.wiggly_amplitude) || selector.wiggly_amplitude < 0.0f ||
-         selector.wiggly_amplitude > 1.0f))
+    selector.noise_frequency = value.value("noise_frequency", 1.0f);
+    selector.noise_amplitude = value.value("noise_amplitude", 0.25f);
+    selector.noise_seed = value.value("noise_seed", std::uint64_t{0});
+    selector.index_step = value.value("index_step", std::uint32_t{1});
+    const float modulation_frequency = selector.shape == "noise"
+        ? selector.noise_frequency : selector.wiggly_frequency;
+    const float modulation_amplitude = selector.shape == "noise"
+        ? selector.noise_amplitude : selector.wiggly_amplitude;
+    if ((selector.shape == "wiggly" || selector.shape == "noise") &&
+        (!std::isfinite(modulation_frequency) || modulation_frequency <= 0.0f ||
+         modulation_frequency > 1000.0f || !std::isfinite(modulation_amplitude) ||
+         modulation_amplitude < 0.0f || modulation_amplitude > 1.0f))
         throw std::runtime_error(
-            "text selector wiggly_frequency must be in (0, 1000] and wiggly_amplitude must be in [0, 1]");
-    if (selector.shape != "wiggly" &&
+            "text selector modulation frequency must be in (0, 1000] and amplitude in [0, 1]");
+    if (selector.shape != "wiggly" && selector.shape != "noise" &&
         (value.contains("wiggly_frequency") || value.contains("wiggly_amplitude") ||
          value.contains("wiggly_seed")))
         throw std::runtime_error("wiggly selector parameters require shape='wiggly'");
+    if (selector.shape == "noise" &&
+        (value.contains("wiggly_frequency") || value.contains("wiggly_amplitude") ||
+         value.contains("wiggly_seed")))
+        throw std::runtime_error("wiggly selector parameters cannot configure shape='noise'");
+    if (selector.shape != "noise" &&
+        (value.contains("noise_frequency") || value.contains("noise_amplitude") ||
+         value.contains("noise_seed")))
+        throw std::runtime_error("noise selector parameters require shape='noise'");
+    if (selector.order == "index") {
+        if (selector.index_step == 0 || selector.index_step > 1000000)
+            throw std::runtime_error("index selector index_step must be in [1, 1000000]");
+        if (selector.randomize_order)
+            throw std::runtime_error("index order cannot be combined with randomize_order");
+    } else if (value.contains("index_step")) {
+        throw std::runtime_error("index_step requires order='index'");
+    }
     if (value.contains("semantic_id")) {
         selector.semantic_id = value.at("semantic_id").get<std::string>();
         if (selector.semantic_id->empty())

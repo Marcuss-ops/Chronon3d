@@ -87,6 +87,8 @@ u32 apply_selector_order(
                 random::Seed{random_seed}, total_units);
             return perm[original_index];
         }
+        case TextSelectorOrder::Index:
+            return original_index;
     }
 
     return original_index;

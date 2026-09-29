@@ -398,6 +398,7 @@ TEST_CASE("flow layout stagger delays child tracks in a deterministic order") {
         for (int i = 0; i < 5; ++i) {
             layers.push_back({
                 {"id", "card-" + std::to_string(i)}, {"type", "color"},
+                {"position", {static_cast<double>(4 - i) * 20.0, static_cast<double>(i) * 20.0}},
                 {"color", {0.2, 0.3, 0.4, 1.0}},
                 {"flow", {{"group_id", "cards"}, {"stagger", {
                     {"per_item_frames", 3}, {"order", order}, {"seed", seed},
@@ -440,6 +441,32 @@ TEST_CASE("flow layout stagger delays child tracks in a deterministic order") {
     for (std::size_t i = 0; i < 5; ++i)
         CHECK(random_a->layers[i].animation->tracks[0].keyframes[0].frame ==
               random_b->layers[i].animation->tracks[0].keyframes[0].frame);
+
+    const auto spatial_x = chronon3d::render_plan::decode_render_plan(make_plan("spatial_x"));
+    REQUIRE(spatial_x);
+    const std::array<std::int64_t, 5> spatial_x_frames{12, 9, 6, 3, 0};
+    for (std::size_t i = 0; i < spatial_x_frames.size(); ++i)
+        CHECK(spatial_x->layers[i].animation->tracks[0].keyframes[0].frame.integral() == spatial_x_frames[i]);
+
+    const auto radial = chronon3d::render_plan::decode_render_plan(make_plan("radial"));
+    REQUIRE(radial);
+    CHECK(radial->layers[2].animation->tracks[0].keyframes[0].frame.integral() == 0);
+
+    auto run_level = make_plan("spatial_x");
+    for (auto& layer : run_level["layers"]) {
+        layer.erase("flow");
+        layer["stagger_group"] = {{"group_id", "captions"}, {"per_item_frames", 2},
+                                  {"order", "spatial_y"}, {"track_property", "opacity"}};
+    }
+    const auto run_group = chronon3d::render_plan::decode_render_plan(run_level);
+    if (!run_group) {
+        FAIL("run-level stagger decode failed at " << run_group.error().path << ": "
+             << run_group.error().message);
+        return;
+    }
+    const std::array<std::int64_t, 5> run_frames{0, 2, 4, 6, 8};
+    for (std::size_t i = 0; i < run_frames.size(); ++i)
+        CHECK(run_group->layers[i].animation->tracks[0].keyframes[0].frame.integral() == run_frames[i]);
 
     auto without_target = make_plan("forward");
     without_target["layers"][2].erase("animation");
@@ -675,6 +702,34 @@ TEST_CASE("render plan V3 decodes and fingerprints deterministic Wiggly selector
 
     source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_amplitude"] = 1.1;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+}
+
+TEST_CASE("render plan V3 decodes seeded noise selectors and index step") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"title","type":"text","text":"Index",
+        "style":{"font":"fonts/roboto.ttf","font_size":24,"fill":"#FFFFFF"},
+        "text_animators":[{"id":"n","selectors":[
+          {"shape":"noise","noise_frequency":0.8,"noise_amplitude":0.7,"noise_seed":99},
+          {"order":"index","index_step":3}],
+          "properties":[{"property":"position_y","keyframes":[{"frame":0,"value":4}]}]}]}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    const auto& selectors = decoded->layers[0].text_animators[0].selectors;
+    REQUIRE(selectors.size() == 2);
+    CHECK(selectors[0].shape == "noise");
+    CHECK(selectors[0].noise_frequency == doctest::Approx(0.8f));
+    CHECK(selectors[0].noise_seed == 99u);
+    CHECK(selectors[1].index_step == 3u);
+    const auto fingerprint = decoded->content_fingerprint;
+    source["layers"][0]["text_animators"][0]["selectors"][1]["index_step"] = 4;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != fingerprint);
+    source["layers"][0]["text_animators"][0]["selectors"][1]["index_step"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
 }
 
 TEST_CASE("render plan rejects overlapping text span byte ranges") {
@@ -1521,6 +1576,32 @@ TEST_CASE("render plan V3 decodes per-glyph rotation and fill_color animator tra
     CHECK(properties[1].keyframes.back().value == std::vector<float>{45.0f});
 }
 
+TEST_CASE("render plan V3 decodes the remaining animated text style properties") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"style","selectors":[{"unit":"glyph"}],"properties":[
+          {"property":"skew","keyframes":[{"frame":0,"value":0},{"frame":10,"value":20}]},
+          {"property":"skew_axis","keyframes":[{"frame":0,"value":10}]},
+          {"property":"anchor","keyframes":[{"frame":0,"value":[0,0,0]},{"frame":10,"value":[1,2,3]}]},
+          {"property":"baseline_shift","keyframes":[{"frame":0,"value":0},{"frame":10,"value":8}]},
+          {"property":"background_color","keyframes":[{"frame":0,"value":[0,0,0,0]},{"frame":10,"value":[1,0,0,1]}]},
+          {"property":"background_padding_em","keyframes":[{"frame":0,"value":0.5},{"frame":10,"value":1}]},
+          {"property":"background_radius_em","keyframes":[{"frame":0,"value":0},{"frame":10,"value":0.25}]},
+          {"property":"stroke_color","keyframes":[{"frame":0,"value":[0,0,0,1]},{"frame":10,"value":[1,1,1,1]}]},
+          {"property":"stroke_width","keyframes":[{"frame":0,"value":0},{"frame":10,"value":4}]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& properties = decoded->layers[0].text_animators[0].properties;
+    REQUIRE(properties.size() == 9);
+    CHECK(properties[0].property == "skew");
+    CHECK(properties[2].keyframes.back().value == std::vector<float>{1.0f, 2.0f, 3.0f});
+    CHECK(properties[4].keyframes.back().value == std::vector<float>{1.0f, 0.0f, 0.0f, 1.0f});
+}
+
 TEST_CASE("render plan V2 keeps the frozen animator property enum") {
     auto source = v3_text_plan();
     source["schema"] = "chronon.render-plan.v2";
@@ -1577,7 +1658,7 @@ TEST_CASE("render plan rejects unknown text animator properties") {
         {
             "id": "unknown",
             "selectors": [{"unit": "glyph"}],
-            "properties": [{"property": "skew", "keyframes": [{"frame": 0, "value": 5.0}]}]
+            "properties": [{"property": "unknown_property", "keyframes": [{"frame": 0, "value": 5.0}]}]
         }
     ])JSON");
 
@@ -2613,7 +2694,9 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
         {"line", {{"type", "line"},
                    {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
                              {{"type", "line_to"}, {"point", {20, 10}}}}},
-                   {"stroke", {{"color", "#FFFFFF"}, {"width", 2.0}}}},
+                   {"stroke", {{"color", "#FFFFFF"}, {"width", 2.0},
+                               {"cap", "round"}, {"join", "bevel"},
+                               {"taper_start", 0.2}, {"taper_end", 0.8}}}},
          render_plan::ShapeContentTypePlan::Line},
         {"path", {{"type", "path"},
                    {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
@@ -2664,6 +2747,10 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
         if (test.expected == render_plan::ShapeContentTypePlan::Line) {
             REQUIRE(decoded->layers[0].shape->stroke);
             CHECK(decoded->layers[0].shape->stroke->width == doctest::Approx(2.0f));
+            CHECK(decoded->layers[0].shape->stroke->cap == "round");
+            CHECK(decoded->layers[0].shape->stroke->join == "bevel");
+            CHECK(decoded->layers[0].shape->stroke->taper_start == doctest::Approx(0.2f));
+            CHECK(decoded->layers[0].shape->stroke->taper_end == doctest::Approx(0.8f));
         }
     }
 
@@ -2680,6 +2767,138 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
     auto unbounded_dots = render_plan_test::shape_layer({{"type", "dot_grid"}, {"spacing", 0.1},
         {"dot_radius", 0.02}, {"fill", {1.0, 1.0, 1.0, 1.0}}});
     CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({unbounded_dots})));
+}
+
+TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinted") {
+    using nlohmann::json;
+    auto input = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "rect"}, {"fill", {0.8, 0.4, 0.2, 1.0}},
+        {"field", {{"generator", "fractal"}, {"seed", 41}, {"frequency", 6.0},
+                   {"octaves", 5}, {"operators", json::array({
+                       {{"kind", "warp"}, {"amount", 0.15}},
+                       {{"kind", "smoothstep"}, {"edge", 0.55}, {"softness", 0.2}}})}}}})});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].shape);
+    REQUIRE(decoded->layers[0].shape->field);
+    CHECK(decoded->layers[0].shape->field->generator ==
+          chronon3d::graphics::Field2DGenerator::Fractal);
+    CHECK(decoded->layers[0].shape->field->seed == 41);
+    CHECK(decoded->layers[0].shape->field->operators.size() == 2);
+
+    auto different_seed = input;
+    different_seed["layers"][0]["shape"]["field"]["seed"] = 42;
+    const auto other = chronon3d::render_plan::decode_render_plan(different_seed);
+    REQUIRE(other);
+    CHECK(decoded->content_fingerprint != other->content_fingerprint);
+
+    auto invalid = input;
+    invalid["layers"][0]["shape"]["field"]["operators"][0]["amount"] = 2.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+}
+
+TEST_CASE("V3 Field2D can drive displacement without a layer map") {
+    using nlohmann::json;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["effects"] = json::array({{{"type", "displacement_map"},
+        {"field", {{"generator", "simplex"}, {"seed", 12}, {"frequency", 3.0}}},
+        {"intensity_x", 0.1}, {"intensity_y", -0.2}}});
+    auto input = render_plan_test::base_plan({layer});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    CHECK(decoded->layers[0].effects[0].map_field.has_value());
+    CHECK(decoded->layers[0].effects[0].map_layer.empty());
+
+    auto changed = input;
+    changed["layers"][0]["effects"][0]["field"]["seed"] = 13;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(decoded->content_fingerprint != changed_plan->content_fingerprint);
+
+    auto conflict = input;
+    conflict["layers"][0]["effects"][0]["map_layer"] = "map";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(conflict));
+    auto missing_source = input;
+    missing_source["layers"][0]["effects"][0].erase("field");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(missing_source));
+}
+
+TEST_CASE("V3 Field2D configures the fractal-noise effect sampler") {
+    using nlohmann::json;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["effects"] = json::array({{{"type", "fractal_noise"},
+        {"field", {{"generator", "cellular"}, {"seed", 7}, {"frequency", 5.0}}}}});
+    auto input = render_plan_test::base_plan({layer});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    CHECK(decoded->layers[0].effects[0].noise_field.has_value());
+    auto changed = input;
+    changed["layers"][0]["effects"][0]["field"]["seed"] = 8;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(decoded->content_fingerprint != changed_plan->content_fingerprint);
+}
+
+TEST_CASE("V3 Field2D mask stack entries decode and affect content fingerprints") {
+    using nlohmann::json;
+    auto layer = render_plan_test::shape_layer({{"type", "rect"}});
+    layer["masks"] = json::array({{{"type", "field"}, {"mode", "add"},
+        {"size", {40.0, 30.0}},
+        {"field", {{"generator", "radial"}, {"seed", 8}}}}});
+    auto input = render_plan_test::base_plan({layer});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].masks.size() == 1);
+    REQUIRE(decoded->layers[0].masks[0].field);
+    auto changed = input;
+    changed["layers"][0]["masks"][0]["field"]["seed"] = 9;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(changed_plan->content_fingerprint != decoded->content_fingerprint);
+}
+
+TEST_CASE("V3 text mask sources resolve only to existing text layers") {
+    using nlohmann::json;
+    auto target = render_plan_test::shape_layer({{"type", "rect"}});
+    target["masks"] = json::array({{{"type", "text"}, {"mode", "add"},
+                                    {"source", "label"}}});
+    auto label = json{{"id", "label"}, {"type", "text"}, {"text", "mask"},
+        {"style", {{"font", "fonts/roboto.ttf"}, {"font_size", 32.0},
+                   {"fill", "#FFFFFF"}}}};
+    auto other_label = label;
+    other_label["id"] = "other_label";
+    const auto input = render_plan_test::base_plan({target, label, other_label});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    const auto decode_error = decoded ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded, decode_error);
+    CHECK(decoded->layers[0].masks[0].text_source == "label");
+
+    auto changed = input;
+    changed["layers"][0]["masks"][0]["source"] = "other_label";
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(changed_plan->content_fingerprint != decoded->content_fingerprint);
+
+    auto missing = input;
+    missing["layers"][0]["masks"][0]["source"] = "missing";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(missing));
+
+    auto wrong_type = input;
+    wrong_type["layers"][1]["type"] = "color";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(wrong_type));
+
+    auto self = input;
+    self["layers"][0]["masks"][0]["source"] = self["layers"][0]["id"];
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(self));
+
+    auto cycle = input;
+    cycle["layers"][1]["masks"] = json::array({{{"type", "text"},
+        {"mode", "add"}, {"source", "shape"}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(cycle));
 }
 
 TEST_CASE("V3 shape path commands decode in order and malformed commands fail closed") {

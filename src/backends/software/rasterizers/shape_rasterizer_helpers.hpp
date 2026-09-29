@@ -32,8 +32,10 @@ namespace chronon3d::renderer {
     const f32 sy = std::max(sz.y, 1.0f);
 
     const Vec2 normalized{lp.x / sx, lp.y / sy};
-    Color color = graphics::dither_gradient_sample(
-        sample_gradient_at(fill.gradient, normalized), lp.x, lp.y);
+    Color color = fill.type == FillType::Field2D
+        ? sample_fill_at(fill, normalized)
+        : graphics::dither_gradient_sample(
+            sample_gradient_at(fill.gradient, normalized), lp.x, lp.y);
     color.a *= opacity;
     return color;
 }

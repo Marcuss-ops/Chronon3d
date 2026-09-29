@@ -27,6 +27,8 @@ bool try_native_path_fill(
         return false;
     }
     const auto& path = node.shape.path();
+    if (path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f)
+        return false;
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
         (path.stroke.enabled && (path.stroke.dash_array.empty() ||
             path.stroke.width <= 0.0f || path.stroke.trim_start != 0.0f ||

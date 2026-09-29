@@ -6,6 +6,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/graphics/field2d.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -145,6 +146,7 @@ struct FractalNoiseParams {
     float contrast{1.0f};
     float brightness{0.0f};
     NoiseColorMode color_mode{NoiseColorMode::Monochrome};
+    std::optional<graphics::Field2D> field;
 };
 
 struct CheckerboardParams {
@@ -331,6 +333,7 @@ struct DisplacementMapParams {
     std::string map_layer;
     float intensity_x{0.05f}, intensity_y{0.05f};
     Channel channel{Channel::Luma};
+    std::optional<graphics::Field2D> field;
     sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
 };
 // Vignette is the only WIP-local parameter type kept here; the Chromatic

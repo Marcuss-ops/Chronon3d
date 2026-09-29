@@ -162,14 +162,17 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     // active.  The custom per-pixel fill block below is skipped in that
     // case so the ROI isn't filled twice.
     const VectorRasterizerDebugMode vec_mode = current_vector_rasterizer_mode();
-    if (fill_enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
+    if (fill_enabled && path.fill.type != FillType::Field2D &&
+        vec_mode != VectorRasterizerDebugMode::Custom) {
         rasterize_path_fill_blend2d(fb, path, model, opacity, bbox, state);
     }
     const bool use_custom_fill =
-        fill_enabled && (vec_mode == VectorRasterizerDebugMode::Custom);
+        fill_enabled && (vec_mode == VectorRasterizerDebugMode::Custom ||
+                         path.fill.type == FillType::Field2D);
 
     std::optional<graphics::CompiledGradient> compiled_fill;
-    if (use_custom_fill && path.fill.type != FillType::Solid) {
+    if (use_custom_fill && path.fill.type != FillType::Solid &&
+        path.fill.type != FillType::Field2D) {
         compiled_fill = graphics::compile_gradient(path.fill.gradient);
     }
 
@@ -185,12 +188,14 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     // stroker.  Cap / join / anti-aliased outline coverage come from
     // BL2; Chronon keeps colour resolution + alpha modulation.
     const bool use_custom_stroke =
-        (vec_mode == VectorRasterizerDebugMode::Custom) && path.stroke.enabled;
+        path.stroke.enabled && (vec_mode == VectorRasterizerDebugMode::Custom ||
+            path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f);
     std::optional<graphics::CompiledGradient> compiled_stroke;
     if (use_custom_stroke && path.stroke.gradient.has_value()) {
         compiled_stroke = graphics::compile_gradient(*path.stroke.gradient);
     }
-    if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom) {
+    if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom &&
+        !use_custom_stroke) {
         rasterize_path_stroke_blend2d(
             fb, path, model, stroke_color,
             prepared_strokes.data(), prepared_strokes.size(),
@@ -233,6 +238,12 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     if (path.fill.type == FillType::Solid) {
                         pixel_color = path.fill.solid.to_linear();
                         pixel_color.a *= opacity;
+                    } else if (path.fill.type == FillType::Field2D && path.fill.field) {
+                        const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
+                        const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
+                        const Vec2 normalized{(p.x - bbox.x0) / w, (p.y - bbox.y0) / h};
+                        pixel_color = sample_fill_at(path.fill, normalized).to_linear();
+                        pixel_color.a *= opacity;
                     } else {
                         pixel_color = resolve_compiled_gradient_color(
                             *compiled_fill, p, bbox, opacity);
@@ -267,6 +278,12 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                         const auto& pts_sub = sub.points;
                         if (pts_sub.size() < 2) continue;
 
+                        const auto radius_at = [&](usize i) {
+                            const f32 t = sub.total_length > kPathEpsilon
+                                ? sub.cumulative_lengths[i] / sub.total_length : 0.0f;
+                            return radius * std::lerp(path.stroke.taper_start, path.stroke.taper_end, t);
+                        };
+
                         const bool closed = path.stroke.dash_array.empty() ? stroke_contour.source_closed : false;
                         const bool open = !closed;
                         const bool repeated_start = sub.repeated_start;
@@ -275,16 +292,18 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                         for (usize i = 0; i + 1 < pts_sub.size(); ++i) {
                             Vec2 a = pts_sub[i];
                             Vec2 b = pts_sub[i + 1];
-                            if (path.stroke.cap == LineCap::Square && open && i == 0) {
+                            const f32 radius_a = radius_at(i);
+                            const f32 radius_b = radius_at(i + 1);
+                            if (path.stroke.cap == LineCap::Square && open && i == 0 && radius_a > 0.0f) {
                                 const Vec2 dir = glm::normalize(b - a);
-                                a -= dir * radius;
+                                a -= dir * radius_a;
                             }
-                            if (path.stroke.cap == LineCap::Square && open && i + 2 == pts_sub.size()) {
+                            if (path.stroke.cap == LineCap::Square && open && i + 2 == pts_sub.size() && radius_b > 0.0f) {
                                 const Vec2 dir = glm::normalize(b - a);
-                                b += dir * radius;
+                                b += dir * radius_b;
                             }
 
-                            const f32 cov = segment_coverage(p, a, b, radius);
+                            const f32 cov = segment_coverage(p, a, b, radius_a, radius_b);
                             if (cov > 0.0f) {
                                 hit = true;
                                 pixel_color.a *= cov * opacity;
@@ -298,9 +317,13 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                             const f32 d0 = glm::length(p - first);
                             const f32 d1 = glm::length(p - last);
                             const f32 aa = 1.0f;
-                            if (d0 <= radius + aa || d1 <= radius + aa) {
-                                const f32 dist = std::min(d0, d1);
-                                const f32 cov = (dist <= radius - aa) ? 1.0f : 1.0f - ((dist - (radius - aa)) / (2.0f * aa));
+                            const f32 first_radius = radius_at(0);
+                            const f32 last_radius = radius_at(pts_sub.size() - 1);
+                            if (d0 <= first_radius + aa || d1 <= last_radius + aa) {
+                                const bool first = d0 <= first_radius + aa;
+                                const f32 dist = first ? d0 : d1;
+                                const f32 cap_radius = first ? first_radius : last_radius;
+                                const f32 cov = (dist <= cap_radius - aa) ? 1.0f : 1.0f - ((dist - (cap_radius - aa)) / (2.0f * aa));
                                 if (cov > 0.0f) {
                                     hit = true;
                                     pixel_color.a *= cov * opacity;
@@ -313,7 +336,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                             const usize join_end = closed ? unique_count : (unique_count > 0 ? unique_count - 1 : 0);
                             for (usize i = join_start; i < join_end; ++i) {
                                 const Vec2 v = pts_sub[i];
-                                const f32 join_radius = radius;
+                                const f32 join_radius = radius_at(i);
                                 const f32 d = glm::length(p - v);
                                 const f32 aa = 1.0f;
                                 if (d <= join_radius + aa) {
@@ -365,8 +388,9 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
     const Vec2 normalized{
         (p.x - static_cast<f32>(bbox.x0)) / w,
         (p.y - static_cast<f32>(bbox.y0)) / h};
-    Color c = graphics::dither_gradient_sample(
-        sample_gradient_at(fill.gradient, normalized), p.x, p.y);
+    Color c = fill.type == FillType::Field2D
+        ? sample_fill_at(fill, normalized)
+        : graphics::dither_gradient_sample(sample_gradient_at(fill.gradient, normalized), p.x, p.y);
     c.a *= opacity;
     return c;
 }

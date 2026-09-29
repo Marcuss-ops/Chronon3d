@@ -67,6 +67,28 @@ void apply_fractal_noise(Framebuffer& fb, const FractalNoiseParams& params,
     for (int y = y0; y < y1; ++y) {
         Color* row = fb.pixels_row(y);
         for (int x = x0; x < x1; ++x) {
+            if (params.field) {
+                const float domain_scale = static_cast<float>(std::max(width, height));
+                const auto sample_channel = [&](std::uint32_t channel_seed) {
+                    auto field = *params.field;
+                    field.seed ^= channel_seed;
+                    const float value = field.sample(Vec2{
+                        (static_cast<float>(x) + 0.5f) / static_cast<float>(width) + drift / domain_scale,
+                        (static_cast<float>(y) + 0.5f) / static_cast<float>(height) +
+                            drift * 0.6180339f / domain_scale});
+                    return std::clamp(((value * 2.0f - 1.0f) * params.contrast +
+                                       params.brightness) * params.amplitude * 0.5f + 0.5f,
+                                      0.0f, 1.0f);
+                };
+                if (params.color_mode == NoiseColorMode::RGB)
+                    row[x] = Color{sample_channel(0u), sample_channel(0x68BC21EBu),
+                                   sample_channel(0x02E5BE93u), 1.0f};
+                else {
+                    const float value = sample_channel(0u);
+                    row[x] = Color{value, value, value, 1.0f};
+                }
+                continue;
+            }
             const float px = static_cast<float>(x) + drift;
             const float py = static_cast<float>(y) + drift * 0.6180339f;
             if (params.color_mode == NoiseColorMode::RGB) {

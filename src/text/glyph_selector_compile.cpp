@@ -102,6 +102,12 @@ f32 evaluate_selector_shape(
             const f32 one_minus_u = 1.0f - u;
             return 1.0f - one_minus_u * one_minus_u * one_minus_u;
         }
+        case TextSelectorShape::Wiggly:
+        case TextSelectorShape::Noise: {
+            const f32 u = t <= 0.5f ? 2.0f * t : 2.0f * (1.0f - t);
+            const f32 one_minus_u = 1.0f - u;
+            return 1.0f - one_minus_u * one_minus_u * one_minus_u;
+        }
     }
     return 0.0f;
 }
@@ -155,10 +161,13 @@ CompiledSelector compile_selector(
     std::string_view source,
     const PlacedGlyphRun* placed
 ) {
-    if (spec.shape == TextSelectorShape::Wiggly &&
-        !valid_wiggly_selector_params(spec.wiggly)) {
+    if (spec.order == TextSelectorOrder::Index && spec.randomize_order)
+        throw std::invalid_argument("index selector order cannot be combined with randomize_order");
+    const auto& modulation = spec.shape == TextSelectorShape::Noise ? spec.noise : spec.wiggly;
+    if ((spec.shape == TextSelectorShape::Wiggly || spec.shape == TextSelectorShape::Noise) &&
+        !valid_wiggly_selector_params(modulation)) {
         throw std::invalid_argument(
-            "wiggly selector frequency must be positive and amplitude must be in [0, 1]");
+            "selector modulation frequency must be in (0, 1000] and amplitude in [0, 1]");
     }
     CompiledSelector c;
     c.spec = &spec;
@@ -222,21 +231,25 @@ SelectorWeightParams bind_selector_runtime(
 ) {
     const f32 start = spec.start.evaluate(time);
     const f32 end = spec.end.evaluate(time);
+    const auto& modulation = spec.shape == TextSelectorShape::Noise ? spec.noise : spec.wiggly;
 
+    const u32 step = spec.order == TextSelectorOrder::Index
+        ? std::max(spec.index_step, 1u) : 1u;
+    const u32 effective_units = total_units == 0 ? 0 : 1u + (total_units - 1u) / step;
     return SelectorWeightParams{
         spec.shape,
         start,
         end,
         spec.offset.evaluate(time),
         spec.amount.evaluate(time),
-        total_units,
+        effective_units,
         0u,
         false,
         true,
         std::abs(end - start) <= 1e-7f && start >= 100.0f,
-        spec.wiggly.frequency,
-        spec.wiggly.amplitude,
-        spec.wiggly.seed,
+        modulation.frequency,
+        modulation.amplitude,
+        modulation.seed,
     };
 }
 
@@ -278,6 +291,8 @@ SelectorWeightParams bind_selector_runtime(
         ? compiled.random_permutation[raw_index]
         : detail::apply_selector_order(spec.order, raw_index,
                                        compiled.total_units, 0);
+    if (spec.order == TextSelectorOrder::Index)
+        params.ordered_index /= std::max(spec.index_step, 1u);
     params.use_ordered_index = true;
     return params;
 }
@@ -287,7 +302,7 @@ SelectorWeight selector_weight(
     const u32 glyph_index
 ) noexcept {
     if (!params.enabled) return 1.0f;
-    if (params.shape == TextSelectorShape::Wiggly &&
+    if ((params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise) &&
         !valid_wiggly_selector_params(WigglySelectorParams{
             params.wiggly_frequency, params.wiggly_amplitude,
             params.wiggly_seed}))
@@ -316,10 +331,10 @@ SelectorWeight selector_weight(
     }
 
     f32 shaped = detail::evaluate_selector_shape(
-        params.shape == TextSelectorShape::Wiggly
+        (params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise)
             ? TextSelectorShape::Smooth : params.shape,
         position, start, end);
-    if (params.shape == TextSelectorShape::Wiggly) {
+    if (params.shape == TextSelectorShape::Wiggly || params.shape == TextSelectorShape::Noise) {
         // Compute in double precision and validate before integer conversion:
         // malformed low-level bindings must never cause an out-of-range cast.
         const double phase = static_cast<double>(position_index) *
@@ -329,13 +344,15 @@ SelectorWeight selector_weight(
             phase >= static_cast<double>(std::numeric_limits<std::int64_t>::max()))
             return std::clamp(shaped * amount, 0.0f, 1.0f);
         const auto lattice = static_cast<std::int64_t>(std::floor(phase));
-        const f32 fraction = static_cast<f32>(phase - static_cast<double>(lattice));
-        const f32 eased = fraction * fraction * (3.0f - 2.0f * fraction);
-        const f32 a = random::unit(random::Seed{params.wiggly_seed},
-                                   static_cast<u64>(lattice));
-        const f32 b = random::unit(random::Seed{params.wiggly_seed},
-                                   static_cast<u64>(lattice + 1));
-        const f32 noise = a + (b - a) * eased;
+        f32 noise = random::unit(random::Seed{params.wiggly_seed},
+                                 static_cast<u64>(lattice));
+        if (params.shape == TextSelectorShape::Noise) {
+            const f32 fraction = static_cast<f32>(phase - static_cast<double>(lattice));
+            const f32 eased = fraction * fraction * (3.0f - 2.0f * fraction);
+            const f32 next = random::unit(random::Seed{params.wiggly_seed},
+                                          static_cast<u64>(lattice + 1));
+            noise += (next - noise) * eased;
+        }
         const f32 modulation =
             1.0f - params.wiggly_amplitude + 2.0f * params.wiggly_amplitude * noise;
         shaped *= modulation;
@@ -387,7 +404,9 @@ SelectorWeight selector_weight(
         return selector_weight(named_params, 0);
     }
     const u32 raw_index = unit_map.unit_index(glyph_index, spec.unit);
-    const u32 total = compiled.total_units;
+    const u32 total = spec.order == TextSelectorOrder::Index
+        ? 1u + (compiled.total_units - 1u) / std::max(spec.index_step, 1u)
+        : compiled.total_units;
     if (spec.exclude_spaces && !compiled.unit_is_whitespace.empty() &&
         raw_index < compiled.unit_is_whitespace.size() &&
         compiled.unit_is_whitespace[raw_index]) {
@@ -399,6 +418,8 @@ SelectorWeight selector_weight(
     glyph_params.ordered_index = !compiled.random_permutation.empty()
         ? compiled.random_permutation[raw_index]
         : detail::apply_selector_order(spec.order, raw_index, total, 0);
+    if (spec.order == TextSelectorOrder::Index)
+        glyph_params.ordered_index /= std::max(spec.index_step, 1u);
     glyph_params.use_ordered_index = true;
     const f32 unit_position =
         (static_cast<f32>(glyph_params.ordered_index) + 0.5f) /

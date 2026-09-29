@@ -39,10 +39,11 @@ enum class TextSelectorShape {
     Triangle,   // linear ramp up then down, peak at midpoint
     Round,      // smoothstep-like curve
     Smooth,     // cubic smooth ease curve (After Effects "Smooth")
-    Wiggly      // deterministic per-unit varying selection weight
+    Wiggly,     // deterministic multiplicative per-unit modulation
+    Noise       // deterministic coherent noise blended with the base weight
 };
 
-/// Additional deterministic modulation used by the Wiggly selector shape.
+/// Deterministic modulation used by Wiggly and Noise selector shapes.
 /// Frequency is measured in noise cycles per selected unit (0, 1000];
 /// amplitude scales the modulation around the underlying shape weight and is
 /// constrained to [0, 1].
@@ -67,7 +68,8 @@ enum class TextSelectorOrder {
     Reverse,    // right → left
     FromCenter, // centre outward (0 → ends)
     ToCenter,   // edges inward (ends → 0)
-    Random      // deterministic shuffle with seed
+    Random,     // deterministic shuffle with seed
+    Index       // ordered index bands; each step selects the next unit
 };
 
 // ── SelectorCombineMode — how multiple selectors blend ───────────────────
@@ -130,7 +132,9 @@ struct GlyphSelectorSpec {
     bool exclude_spaces{true};                   // skip whitespace-only units
     bool randomize_order{false};                 // use deterministic shuffle
     u64  random_seed{0};                         // seed for deterministic shuffle
-    WigglySelectorParams wiggly{};                // used only when shape == Wiggly
+    WigglySelectorParams wiggly{};                // used by shape == Wiggly
+    WigglySelectorParams noise{};                 // coherent modulation used by shape == Noise
+    u32 index_step{1};                            // used only by order == Index
     std::optional<std::string> semantic_id;       // target one named semantic span
 };
 

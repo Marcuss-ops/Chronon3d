@@ -4,6 +4,7 @@
 #include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include <chronon3d/graphics/field2d.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
@@ -23,6 +24,8 @@
 #include <nlohmann/json_fwd.hpp>
 
 namespace chronon3d::render_plan {
+
+using Field2DPlan = graphics::Field2D;
 
 using SpringPlan = chronon3d::SpringConfig;
 
@@ -56,6 +59,10 @@ struct StrokeStyle {
     std::optional<graphics::GradientDefinition> gradient;
     std::vector<float> dash_array;
     float dash_offset{0.0f};
+    std::string cap{"butt"};
+    std::string join{"miter"};
+    float taper_start{1.0f};
+    float taper_end{1.0f};
 };
 
 struct AnimationKeyframePlan {
@@ -230,6 +237,7 @@ struct ShapeContentPlan {
     std::optional<std::array<float, 4>> fill_color;
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;
+    std::optional<Field2DPlan> field;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
     // Resolver-backed SVG/Lottie elements retain authored path/style order as
@@ -427,6 +435,10 @@ struct TextSelectorPlan {
     float wiggly_frequency{1.0f};
     float wiggly_amplitude{0.25f};
     std::uint64_t wiggly_seed{0};
+    float noise_frequency{1.0f};
+    float noise_amplitude{0.25f};
+    std::uint64_t noise_seed{0};
+    std::uint32_t index_step{1};
     std::optional<std::string> semantic_id;
 };
 
@@ -458,6 +470,7 @@ struct TransitionPlan {
 
 struct LayerPlan {
     struct StaggerPlan {
+        std::string group_id;
         std::uint32_t per_item_frames{0};
         std::string order{"forward"};
         std::uint32_t seed{0};
@@ -477,6 +490,7 @@ struct LayerPlan {
     struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; };
     std::optional<FlowLayoutPlan> flow_layout;
     std::optional<GridLayoutPlan> grid_layout;
+    std::optional<StaggerPlan> stagger_group;
     std::string id;
     LayerType type{LayerType::Color};
     std::optional<std::string> parent;
@@ -500,8 +514,12 @@ struct LayerPlan {
     struct PathMaskPlan {
         std::string type{"path"};
         std::string mode{"add"};
+        // Text mask source layer. The layer must be a prepared text layer;
+        // graph compilation resolves its same-frame rendered alpha.
+        std::string text_source;
         std::vector<ShapePathCommandPlan> path;
         std::vector<ShapePathCommandPlan> morph_target;
+        std::optional<Field2DPlan> field;
         std::optional<AnimationTrackPlan> morph_animation;
         std::array<float, 2> position{0.0f, 0.0f};
         std::array<float, 2> size{0.0f, 0.0f};
@@ -572,6 +590,7 @@ struct LayerPlan {
         float grain_midtone_response{1.0f};
         float grain_highlight_response{1.0f};
         std::uint32_t octaves{4};
+        std::optional<Field2DPlan> noise_field;
         float frequency{0.015f};
         float amplitude{1.0f};
         float evolution{0.0f};
@@ -584,6 +603,7 @@ struct LayerPlan {
         std::optional<float> posterize_fps;
         std::optional<AnimationTrackPlan> time_curve;
         std::string map_layer;
+        std::optional<Field2DPlan> map_field;
         float map_intensity_x{0.05f}, map_intensity_y{0.05f};
         std::uint8_t map_channel{0};
         // Warp family — quad corners (TL, TR, BR, BL as x,y pairs), radial
