@@ -1750,7 +1750,7 @@ TEST_CASE("render plan rejects unknown text animator properties") {
         {
             "id": "unknown",
             "selectors": [{"unit": "glyph"}],
-            "properties": [{"property": "unknown_property", "keyframes": [{"frame": 0, "value": 5.0}]}]
+            "properties": [{"property": "wobble", "keyframes": [{"frame": 0, "value": 5.0}]}]
         }
     ])JSON");
 

@@ -135,10 +135,14 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     add_text_source(mask.type, mask.text_source);
     for (const auto& operation : mask.operations)
         add_text_source(operation.type, operation.text_source);
-    if (ctx.policy.modular_coordinates && !item.native_3d && !item.projected) {
-        // Mask coordinates are authored in the layer's centered local space,
-        // while MaskNode samples canvas pixels.  Convert the resolved layer
-        // translation back to the centered origin before rasterizing it.
+    const bool video_source_mask = layer.kind == LayerKind::Video;
+    if (ctx.policy.modular_coordinates && !item.native_3d && !item.projected &&
+        !video_source_mask) {
+        // Shape masks are authored in the resolved layer coordinate space,
+        // while MaskNode samples canvas pixels. Convert their layer
+        // translation back to the centered origin before rasterizing them.
+        // Video masks run on the decoded source surface before TransformNode;
+        // they already use coordinates centered on that local surface.
         const Vec3 offset{
             item.transform.position.x - ctx.frame_input.width * 0.5f,
             item.transform.position.y - ctx.frame_input.height * 0.5f,
@@ -156,7 +160,8 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                 ? Frame{0} : Frame{-1}, text_sources,
             evaluate_layer_placement(item, ctx).render_matrix,
             text_sources.empty() ? static_memory_cache("mask")
-                                 : frame_variant_cache("text_mask_source")), node_ctx);
+                                 : frame_variant_cache("text_mask_source"),
+            video_source_mask), node_ctx);
         graph.connect(layer_output, masked);
         for (const auto& source : text_sources) {
             const auto node = item.text_mask_source_nodes.find(source);

@@ -57,18 +57,39 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.size = layer.size;
         lowered.color = layer.color;
         lowered.position = layer.position;
-        // Native phrase style positions are authored in canvas space as the
-        // centre of the text box. The scene graph uses a canvas-centred local
-        // basis, so lower that position once for both render paths.
-        if (layer.type == render_plan::LayerType::Text &&
+        // Native phrase style positions and video box positions are authored
+        // in top-left canvas space, while the scene graph uses a canvas-centred
+        // basis. Text positions are already box centers; video positions are
+        // box origins, so video receives its half-size offset below as well.
+        if ((layer.type == render_plan::LayerType::Text ||
+             layer.type == render_plan::LayerType::Video) &&
             layer.position_dimensions >= 2) {
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
+            if (layer.type == render_plan::LayerType::Video) {
+                const float sx = std::abs(layer.scale[0]) > 1e-6f
+                    ? std::abs(layer.scale[0]) : 1.0f;
+                const float sy = std::abs(layer.scale[1]) > 1e-6f
+                    ? std::abs(layer.scale[1]) : 1.0f;
+                const float box_w = layer.size_dimensions == 2
+                    ? layer.size[0] / sx : static_cast<float>(plan.canvas.width);
+                const float box_h = layer.size_dimensions == 2
+                    ? layer.size[1] / sy : static_cast<float>(plan.canvas.height);
+                lowered.position[0] += box_w * 0.5f;
+                lowered.position[1] += box_h * 0.5f;
+            }
         }
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;
         lowered.size_dimensions = static_cast<std::uint8_t>(layer.size_dimensions);
         lowered.position_dimensions = static_cast<std::uint8_t>(layer.position_dimensions);
+        if (layer.type == render_plan::LayerType::Video &&
+            layer.position_dimensions >= 2 && lowered.position_dimensions < 3) {
+            // Video box geometry is translated to its center at materialization;
+            // carry Z explicitly so the canonical modular resolver does not
+            // treat the positioned source as an unpinned 2D layer.
+            lowered.position_dimensions = 3;
+        }
         lowered.scale_dimensions = static_cast<std::uint8_t>(layer.scale_dimensions);
         lowered.rotation_dimensions = static_cast<std::uint8_t>(layer.rotation_dimensions);
         lowered.start_frame = layer.start_frame.value_or(Frame{0}).integral();
