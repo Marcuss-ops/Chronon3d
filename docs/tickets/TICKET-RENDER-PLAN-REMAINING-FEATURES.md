@@ -175,6 +175,26 @@ tests authored but not executed remain marked `NOT RUN`.
 
 ## Progress log
 
+- **v10 — 2026-09-28:** executed the suites for the first time under an
+  authorized build. The v9 ordered gradient dither had silently invalidated
+  `tests/renderer/helpers/test_stroke_gradient_helpers.cpp`:
+  `resolve_stroke_gradient_color` samples every pixel through
+  `graphics::dither_gradient_sample`, while those expectations (authored
+  2026-06-15) assert the undithered analytic stop colour at
+  `epsilon(1e-5f)`. No Bayer cell has a zero token, so that can never hold.
+  Measured red: `-tc="*stroke_gradient*"` 15 cases | 6 passed | 8 failed,
+  41 assertions | 28 passed | 13 failed. Every observed value matches
+  `analytic + ((token + 0.5)/64 - 0.5)/255` for its cell bit-for-bit, with
+  alpha untouched and pure black surviving the clamp — i.e. a stale
+  expectation, not a renderer defect. Expectations now compare against the
+  analytic stop colour within the renderer's own ±0.5/255 amplitude, plus a
+  new regression pinning the per-pixel dither itself against an isolated
+  single-stop gradient. Green: 15 | 15 | 0 and 46 | 46 | 0, full suite
+  176/176, and `tools/check_test_hygiene.sh` 4/4. Detection power is
+  unchanged rather than relaxed: a +0.0002 per-channel deviation (10× below
+  the bound) still fails the suite. This went unnoticed only because v6-v9
+  were authored without executing the suites.
+
 - **v9 — 2026-09-27:** started the cinematic-background follow-up in the
   available Chronon3D checkout: added deterministic ordered gradient dither,
   GridBackground edge fade/major glow/isometric geometry with CPU and Vulkan

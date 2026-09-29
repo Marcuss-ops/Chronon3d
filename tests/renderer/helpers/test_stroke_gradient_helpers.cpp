@@ -12,8 +12,10 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
+#include <cmath>
 using namespace chronon3d;
 
 using namespace chronon3d::renderer;
@@ -66,6 +68,28 @@ static Shape make_shape(ShapeType type, const std::optional<GradientFill>& grad 
             break;
     }
     return s;
+}
+
+// ── Dither-aware expectations ────────────────────────────────────────────
+//
+// resolve_stroke_gradient_color routes every sample through the renderer's
+// spatial ordered dither (graphics::dither_gradient_sample): a deliberate
+// ±0.5/255 per-channel adjustment keyed on the sampled pixel coordinate,
+// introduced as a banding quality fix and pinned by
+// tests/deterministic/gradient_determinism_tests.cpp.  Alpha is never
+// dithered, and the adjustment is clamped to [0,1].
+//
+// The analytic stop colour is therefore only the undithered *limit* of this
+// helper's contract.  No dither cell has a zero token (the table holds 0..63
+// and the offset is (token + 0.5)/64 - 0.5), so exact equality with the
+// analytic value can never hold.  Expectations compare with the renderer's
+// own amplitude, which still rejects any real change of stop, interpolation
+// or normalisation by a margin of ~500.
+static constexpr f32 kDitherAmplitude = 0.5f / 255.0f;
+
+/// True when `sampled` is `analytic` plus the renderer's bounded ordered dither.
+[[nodiscard]] static bool is_gradient_channel(f32 sampled, f32 analytic) {
+    return std::abs(sampled - analytic) <= kDitherAmplitude;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -154,9 +178,9 @@ TEST_CASE("resolve_stroke_gradient_color: linear at t=0 returns first stop (red)
     // lp = left edge → norm.x = 0 → t = 0 → red
     Color c = resolve_stroke_gradient_color(s, {0.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(expected.g).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, expected.g));
+    CHECK(is_gradient_channel(c.b, expected.b));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: linear at t=1 returns last stop (blue)") {
@@ -164,9 +188,9 @@ TEST_CASE("resolve_stroke_gradient_color: linear at t=1 returns last stop (blue)
     // lp = right edge → norm.x = 1 → t = 1 → blue
     Color c = resolve_stroke_gradient_color(s, {200.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{0.0f, 0.0f, 1.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(expected.g).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, expected.g));
+    CHECK(is_gradient_channel(c.b, expected.b));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: linear at t=0.5 interpolates") {
@@ -179,7 +203,7 @@ TEST_CASE("resolve_stroke_gradient_color: linear at t=0.5 interpolates") {
     // the midpoint is 0.5 linear, NOT linear(sRGB 0.5) ≈ 0.214.
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01f));
-    CHECK(c.g == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.g, 0.0f));
     CHECK(c.b == doctest::Approx(0.5f).epsilon(0.01f));
 }
 
@@ -188,26 +212,26 @@ TEST_CASE("resolve_stroke_gradient_color: linear clamps outside [0,1]") {
     // lp far left → norm.x < 0 → clamped to t=0 → red
     Color c_left = resolve_stroke_gradient_color(s, {-50.0f, 100.0f}, {200.0f, 200.0f});
     Color expected_red = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c_left.r == doctest::Approx(expected_red.r).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c_left.r, expected_red.r));
 
     // lp far right → norm.x > 1 → clamped to t=1 → blue
     Color c_right = resolve_stroke_gradient_color(s, {500.0f, 100.0f}, {200.0f, 200.0f});
     Color expected_blue = Color{0.0f, 0.0f, 1.0f, 1.0f}.to_linear();
-    CHECK(c_right.b == doctest::Approx(expected_blue.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c_right.b, expected_blue.b));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: linear on RoundedRect works") {
     Shape s = make_shape(ShapeType::RoundedRect, make_linear_rb_gradient());
     Color c = resolve_stroke_gradient_color(s, {0.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: linear on Circle works") {
     Shape s = make_shape(ShapeType::Circle, make_linear_rb_gradient());
     Color c = resolve_stroke_gradient_color(s, {0.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -220,9 +244,9 @@ TEST_CASE("resolve_stroke_gradient_color: radial at centre returns white") {
     // At centre: norm=(0.5, 0.5), delta=(0,0), radius=0.5 → t=0 → white
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, sz);
     Color expected = Color{1.0f, 1.0f, 1.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(expected.g).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, expected.g));
+    CHECK(is_gradient_channel(c.b, expected.b));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: radial at edge returns black") {
@@ -231,9 +255,9 @@ TEST_CASE("resolve_stroke_gradient_color: radial at edge returns black") {
     // At right edge: norm=(1.0, 0.5), delta=(0.5, 0), radius=0.5 → t=1 → black
     Color c = resolve_stroke_gradient_color(s, {200.0f, 100.0f}, sz);
     Color expected = Color{0.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(expected.g).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, expected.g));
+    CHECK(is_gradient_channel(c.b, expected.b));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -286,9 +310,9 @@ TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that co
     Shape s = make_shape(ShapeType::Rect, g);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{0.2f, 0.4f, 0.6f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(expected.g).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(expected.b).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, expected.g));
+    CHECK(is_gradient_channel(c.b, expected.b));
 }
 
 TEST_CASE("canonical gradient keeps conic geometry, opacity stops, and spread while sampling") {
@@ -311,8 +335,9 @@ TEST_CASE("canonical gradient keeps conic geometry, opacity stops, and spread wh
     const Color sampled = resolve_stroke_gradient_color(
         shape, {100.0f, 150.0f}, {200.0f, 200.0f});
 
-    CHECK(sampled.r == doctest::Approx(0.75f));
-    CHECK(sampled.b == doctest::Approx(0.25f));
+    // r/b carry the dither; alpha is the untouched opacity-stop product.
+    CHECK(is_gradient_channel(sampled.r, 0.75f));
+    CHECK(is_gradient_channel(sampled.b, 0.25f));
     CHECK(sampled.a == doctest::Approx(0.375f));
 }
 
@@ -340,9 +365,39 @@ TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns
     Shape s = make_shape(ShapeType::Rect, g);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
-    CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
-    CHECK(c.g == doctest::Approx(0.0f).epsilon(1e-5f));
-    CHECK(c.b == doctest::Approx(0.0f).epsilon(1e-5f));
+    CHECK(is_gradient_channel(c.r, expected.r));
+    CHECK(is_gradient_channel(c.g, 0.0f));
+    CHECK(is_gradient_channel(c.b, 0.0f));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// resolve_stroke_gradient_color — ordered dither
+// ══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("resolve_stroke_gradient_color: dithers the sampled stop per pixel") {
+    // The resolver samples through the renderer's ordered dither, so two
+    // pixels sharing one analytic colour must differ by exactly the
+    // canonical dither token of their cells — spatial, bounded, and keyed
+    // on the sampled coordinate rather than on the authored colour.  A
+    // single-stop gradient keeps the analytic colour constant so the dither
+    // is the only variable between the two samples.
+    GradientFill g = graphics::GradientDefinition::linear(
+        {0.0f, 0.5f}, {1.0f, 0.5f}, {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}});
+    Shape s = make_shape(ShapeType::Rect, g);
+    const Vec2 sz{200.0f, 200.0f};
+    const Color analytic = Color{0.2f, 0.4f, 0.6f, 1.0f}.to_linear();
+
+    // Cells (0, 100) and (1, 100) hold different Bayer tokens (3 and 35).
+    const Color first = resolve_stroke_gradient_color(s, {0.0f, 100.0f}, sz);
+    const Color next  = resolve_stroke_gradient_color(s, {1.0f, 100.0f}, sz);
+
+    CHECK(first.r == doctest::Approx(
+        graphics::dither_gradient_sample(analytic, 0.0f, 100.0f).r).epsilon(1e-5f));
+    CHECK(next.r == doctest::Approx(
+        graphics::dither_gradient_sample(analytic, 1.0f, 100.0f).r).epsilon(1e-5f));
+    CHECK(first.r != next.r);                            // spatial, not constant
+    CHECK(is_gradient_channel(first.r, analytic.r));     // still bounded
+    CHECK(first.a == doctest::Approx(analytic.a));       // alpha is never dithered
 }
 
 // ══════════════════════════════════════════════════════════════════════════

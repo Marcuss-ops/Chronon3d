@@ -69,10 +69,9 @@ struct GpuGlyphPlacement {
         run_sy * glyph_scale_y};
 }
 
-/// Return true when the text animator stack can be lowered to the GPU text
-/// dynamic record without rebuilding glyph state. The supported profiles are
-/// the canonical forward glyph typewriter and a full-run word emphasis whose
-/// position/scale/opacity/fill are uniform across the run.
+/// Return true when the already-resolved glyph states fit the native MTSDF
+/// dynamic-record contract. Animator evaluation itself stays in the canonical
+/// text driver; resolved records are uploaded per glyph for native rendering.
 [[nodiscard]] bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept;
 
 /// True when the run-level emphasis profile can be sampled directly into one
@@ -87,10 +86,9 @@ void sample_gpu_run_level_animation(
     SampleTime sample_time,
     runtime::TextRunDynamic& run) noexcept;
 
-/// Samples the per-glyph GPU animator contract into one dynamic record.
-/// Shaping, glyph atlas generation and selector compilation remain outside
-/// the frame loop; the Vulkan text shaders evaluate the selector and the
-/// cumulative tracking offset per glyph.
+/// Legacy run-level selector sampler kept for callers that explicitly use
+/// the compact single-selector contract. The MTSDF TextRun path now uploads
+/// the canonical resolved GlyphInstanceState values per glyph.
 void sample_gpu_text_animation(
     const TextRunShape& shape,
     SampleTime sample_time,

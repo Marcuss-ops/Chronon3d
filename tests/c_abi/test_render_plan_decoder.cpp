@@ -1621,6 +1621,83 @@ TEST_CASE("render plan decodes animated dash offsets and effect time controls in
     CHECK(plan->content_fingerprint!=changed_plan->content_fingerprint);
 }
 
+TEST_CASE("per-frame paint tracks compile into a scene instead of aborting") {
+    // Regression: the whole per-frame paint family (stroke_dash_offset,
+    // stroke_width, stroke_color, fill_color, shadow_<n>_*) decoded and
+    // validated, then made scene compilation throw "unsupported primitive
+    // animation property". A contract-valid dashed write-on was therefore
+    // unrenderable, and decoding alone never caught it: the previous test only
+    // evaluated stroke_dash_offset_at() against the decoded plan.
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[
+        {"id":"ribbon","type":"shape","size":[64,64],
+         "shape":{"type":"path",
+           "path":[{"type":"move_to","point":[0,0]},{"type":"line_to","point":[64,0]}],
+           "stroke":{"width":2,"dash_array":[5,2,1],"dash_offset":0,"color":"#FFFFFF"}},
+         "style":{"shadows":[{"color":"#000000","opacity":0.5,"blur":2,"offset":[1,1]}]},
+         "animation":{"tracks":[
+           {"property":"stroke_dash_offset","keyframes":[{"frame":0,"value":0},{"frame":29,"value":12}]},
+           {"property":"stroke_width","keyframes":[{"frame":0,"value":1},{"frame":29,"value":6}]},
+           {"property":"stroke_color","keyframes":[{"frame":0,"value":[1,1,1,1]},{"frame":29,"value":[1,0,0,1]}]},
+           {"property":"shadow_0_opacity","keyframes":[{"frame":0,"value":0},{"frame":29,"value":0.5}]},
+           {"property":"shadow_0_offset_x","keyframes":[{"frame":0,"value":0},{"frame":29,"value":8}]}
+         ]}},
+        {"id":"card","type":"shape","size":[32,32],"position":[32,32],
+         "shape":{"type":"rect","fill":[0,0,1,1]},
+         "animation":{"tracks":[
+           {"property":"fill_color","keyframes":[{"frame":0,"value":[0,0,1,1]},{"frame":29,"value":[0,1,1,1]}]}
+         ]}}
+      ],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers.size() == 2);
+    // A single build: SceneBuilder::build() consumes the builder, so calling it
+    // twice would yield an empty scene and mask the assertion below.
+    try {
+        chronon3d::SceneBuilder scene;
+        for (const auto& layer : decoded->layers) {
+            scene.layer(layer.id, [&](chronon3d::LayerBuilder& builder) {
+                chronon3d::render_plan::detail::apply_layer_primitives(
+                    builder, layer, 64, 64, decoded->canvas.fps);
+            });
+        }
+        const auto materialized = scene.build();
+        CHECK(materialized.layers().size() == 2);
+    } catch (const std::exception& error) {
+        FAIL("paint-track plan failed to compile into a scene: " << error.what());
+    }
+
+    // The pass must stay strict: a property outside both the transform and the
+    // paint vocabulary is still rejected rather than silently accepted. The
+    // tracks are hand-built so the guard is exercised directly, since the
+    // decoder would have refused these before compilation.
+    const auto expect_rejected = [&](std::string property) {
+        auto strict = decoded->layers.front();
+        chronon3d::render_plan::AnimationTrackPlan track;
+        track.property = std::move(property);
+        track.keyframes = {{chronon3d::Frame{0}, {0.0f}}, {chronon3d::Frame{29}, {1.0f}}};
+        strict.animation = chronon3d::render_plan::AnimationPlan{};
+        strict.animation->tracks.push_back(std::move(track));
+        chronon3d::SceneBuilder strict_scene;
+        bool threw = false;
+        try {
+            strict_scene.layer(strict.id, [&](chronon3d::LayerBuilder& builder) {
+                chronon3d::render_plan::detail::apply_layer_primitives(
+                    builder, strict, 64, 64, decoded->canvas.fps);
+            });
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        CHECK(threw);
+    };
+    expect_rejected("shear");
+    expect_rejected("shadow_3_blur");
+    expect_rejected("shadow_0_scale");
+}
+
 TEST_CASE("render plan accepts resolver-backed SVG geometry references") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

@@ -18,6 +18,7 @@
 #include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/text/text_color_packing.hpp>
+#include <chronon3d/text/animation/text_animator_properties.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
@@ -86,15 +87,10 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
 
     auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
 
-    if (!shape.animators.empty()) {
-        if (shape.animators.front().selectors.empty()) {
-            return nullptr;
-        }
-        const auto& selector_spec = shape.animators.front().selectors.front();
-        prepared->reveal_selector = compile_selector(
-            selector_spec,
-            layout.units, layout.source_text, &layout.placed);
-    }
+    // Animator stacks are resolved into GlyphInstanceState before dispatch.
+    // Keeping selectors in the prepared cache would freeze a second semantic
+    // interpretation into layout data and would reject valid multi-animator
+    // / expression-driven stacks.
     if (!resolver) return nullptr;
 
     std::vector<runtime::GpuGlyphKey> keys;
@@ -292,9 +288,8 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             "MTSDF text route does not support this run"));
     }
-    // A GPU success must never silently drop an unsupported animator. The
-    // canonical MTSDF route owns the lowerable typewriter selector; only
-    // unsupported animator stacks are rejected here.
+    // A GPU success must never silently drop a per-glyph state the MTSDF
+    // shader cannot represent.
     if (!shape.animators.empty() && !can_lower_gpu_text_animation(shape)) {
         spdlog::warn(
             "[text-route] frame={} route=mtsdf reason=unsupported-animator",
@@ -353,8 +348,6 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     run.distance_range_bits = std::bit_cast<std::uint32_t>(
         static_cast<float>(kRangePx));
     run.visible_glyph_count = std::numeric_limits<std::uint32_t>::max();
-    sample_gpu_run_level_animation(shape, ctx.frame_input.sample_time, run);
-    sample_gpu_text_animation(shape, ctx.frame_input.sample_time, run);
     if (shape.paint.stroke_enabled && shape.paint.stroke_width > 0.0f) {
         run.effect_flags |= 1u;
         run.stroke_width = shape.paint.stroke_width;
@@ -382,10 +375,90 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const auto draw_t0 = profiling::g_current_counters ? profiling::now() : profiling::Clock::time_point{};
     for (const auto& batch : prepared->batches) {
         if (batch.glyphs.empty()) continue;
-        const auto dispatch = ctx.backend->draw_text_batch(
-            destination.surface_handle(), batch.glyphs,
-            std::span<const runtime::TextRunDynamic>(&run, 1),
-            std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+        const bool has_resolved_glyph_motion = !shape.animators.empty() ||
+            std::any_of(shape.glyphs.begin(), shape.glyphs.end(),
+                [](const GlyphInstanceState& glyph) {
+                    return glyph.opacity != 1.0f || glyph.position.x != 0.0f ||
+                           glyph.position.y != 0.0f || glyph.position.z != 0.0f ||
+                           glyph.baseline_shift != 0.0f ||
+                           glyph.anchor.x != 0.0f || glyph.anchor.y != 0.0f ||
+                           glyph.rotation.x != 0.0f || glyph.rotation.y != 0.0f ||
+                           glyph.rotation.z != 0.0f || glyph.skew != 0.0f ||
+                           glyph.stroke.a != 0.0f || glyph.background.a != 0.0f ||
+                           glyph.scale.x != 1.0f ||
+                           glyph.scale.y != 1.0f || glyph.scale.z != 1.0f ||
+                           glyph.blur != 0.0f ||
+                           glyph.fill.r != 1.0f || glyph.fill.g != 1.0f ||
+                           glyph.fill.b != 1.0f || glyph.fill.a != 1.0f;
+                });
+        const auto dispatch = [&]() -> graph::RenderOpResult {
+          if (!has_resolved_glyph_motion) {
+            return ctx.backend->draw_text_batch(
+                destination.surface_handle(), batch.glyphs,
+                std::span<const runtime::TextRunDynamic>(&run, 1),
+                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+          }
+            // Reuse the immutable atlas batch, but bind each glyph to its own
+            // resolved dynamic record. This is the GPU compatibility path for
+            // the complete Chronon animator evaluator: arbitrary selectors,
+            // expression tracks and stacked animators have already been
+            // reduced to the final GlyphInstanceState on the CPU. Geometry,
+            // coverage, effects and compositing remain GPU rendered.
+            std::vector<runtime::GlyphStatic> glyphs(batch.glyphs.begin(), batch.glyphs.end());
+            std::vector<runtime::TextRunDynamic> glyph_runs(
+                shape.glyphs.size(), run);
+            const bool has_fill_animator = std::any_of(
+                shape.animators.begin(), shape.animators.end(),
+                [](const TextAnimatorSpec& animator) {
+                    return std::any_of(
+                        animator.properties.begin(), animator.properties.end(),
+                        [](const TextAnimatorProperty& property) {
+                            return std::holds_alternative<FillColorProperty>(property);
+                        });
+                });
+            for (auto& glyph : glyphs) {
+                const std::size_t state_index = glyph.pad0;
+                if (state_index >= shape.glyphs.size()) {
+                    return graph::RenderOpResult(graph::make_render_backend_error(
+                        graph::RenderBackendErrorCode::InvalidInput,
+                        "MTSDF batch glyph index exceeds resolved glyph state"));
+                }
+                const auto& state = shape.glyphs[state_index];
+                glyph.run_index = static_cast<std::uint32_t>(state_index);
+                glyph.pad0 = 0; // the record selector addresses one local glyph
+
+                auto& dynamic = glyph_runs[state_index];
+                const float scale_x = state.scale.x * state.scale.z;
+                const float scale_y = state.scale.y * state.scale.z;
+                dynamic.flags |= 2u;
+                dynamic.flags = runtime::pack_text_selector_metadata(
+                    dynamic.flags,
+                    static_cast<std::uint32_t>(TextSelectorUnit::Glyph),
+                    static_cast<std::uint32_t>(TextSelectorOrder::Forward),
+                    TextSelectorShape::Square);
+                dynamic.selector_start = 0.0f;
+                dynamic.selector_end = 100.0f;
+                dynamic.selector_amount = 100.0f;
+                dynamic.selector_unit_count = 1u;
+                dynamic.animator_position_x = state.position.x +
+                    state.anchor.x * (1.0f - scale_x);
+                dynamic.animator_position_y = state.position.y + state.baseline_shift +
+                    state.anchor.y * (1.0f - scale_y);
+                dynamic.animator_scale_x = scale_x;
+                dynamic.animator_scale_y = scale_y;
+                dynamic.animator_rotation_z = state.rotation.z;
+                dynamic.animator_opacity = state.opacity;
+                dynamic.animator_blur = std::max(0.0f, state.blur);
+                if (has_fill_animator) {
+                    dynamic.flags |= runtime::kTextRunFlagAnimatorFill;
+                    dynamic.animator_fill_color =
+                        ::chronon3d::text::pack_text_color(state.fill);
+                }
+            }
+            return ctx.backend->draw_text_batch(
+                destination.surface_handle(), glyphs, glyph_runs,
+                std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
+        }();
         if (!dispatch.ok()) return dispatch;
         items_drawn += dispatch.value().items_drawn;
     }

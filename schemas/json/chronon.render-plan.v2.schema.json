@@ -111,7 +111,16 @@
         "fov_deg": { "type": "number", "minimum": 10, "maximum": 120 },
         "near": { "type": "number", "exclusiveMinimum": 0 },
         "far": { "type": "number", "exclusiveMinimum": 0 },
-        "zoom": { "type": "number", "exclusiveMinimum": 0 }
+        "zoom": { "type": "number", "exclusiveMinimum": 0 },
+        "dof": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
+            "aperture": { "type": "number", "minimum": 0, "maximum": 1 },
+            "max_blur": { "type": "number", "minimum": 0, "maximum": 256 }
+          }
+        }
       }
     },
     "camera_track": {

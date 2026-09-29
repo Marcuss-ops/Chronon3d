@@ -219,14 +219,34 @@ struct PipeExportSession {
         const auto teardown_t4 = std::chrono::steady_clock::now();
         full_graph_session.reset();
         const auto teardown_t5 = std::chrono::steady_clock::now();
+        // Remaining teardown candidates (2026-09-28 probe).
+        //
+        // The metrics-worker wait and the four phases above were attributed and
+        // fixed, yet ~1 job in 4 still reports session_teardown_ms≈1061 on the
+        // production shape (docs/evidence/daemon-job-lifecycle-2026-09-16.md §5,
+        // nvml-sampler-teardown-2026-09-17.md §4). What remained un-timed was
+        // everything destroyed IMPLICITLY after this body: the encoder sink
+        // context, the device runtime and the device reservation — the last two
+        // being cross-process GPU state whose release can wait on a peer job.
+        // They are now reset explicitly, IN THE ORIGINAL IMPLICIT ORDER (member
+        // destruction order is the reverse of declaration), so the next probe
+        // attributes the intermittent second instead of guessing at it.
+        sink_ctx.reset();
+        const auto teardown_t6 = std::chrono::steady_clock::now();
+        device_runtime.reset();
+        const auto teardown_t7 = std::chrono::steady_clock::now();
+        device_reservation.reset();
+        const auto teardown_t8 = std::chrono::steady_clock::now();
         using ms = std::chrono::duration<double, std::milli>;
         spdlog::info(
             "[INFO] job-lifecycle: queue_close_ms={:.1f} writer_join_ms={:.1f} "
             "encoder_reset_ms={:.1f} decoder_reset_ms={:.1f} "
-            "full_graph_reset_ms={:.1f}",
+            "full_graph_reset_ms={:.1f} sink_ctx_reset_ms={:.1f} "
+            "device_runtime_reset_ms={:.1f} device_reservation_reset_ms={:.1f}",
             ms(teardown_t1 - teardown_t0).count(), ms(teardown_t2 - teardown_t1).count(),
             ms(teardown_t3 - teardown_t2).count(), ms(teardown_t4 - teardown_t3).count(),
-            ms(teardown_t5 - teardown_t4).count());
+            ms(teardown_t5 - teardown_t4).count(), ms(teardown_t6 - teardown_t5).count(),
+            ms(teardown_t7 - teardown_t6).count(), ms(teardown_t8 - teardown_t7).count());
     }
 };
 

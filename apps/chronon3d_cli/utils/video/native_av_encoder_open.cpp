@@ -241,6 +241,16 @@ bool NativeAvEncoder::configure_codec_and_surface() {
 
     codec_->width = options_.width;
     codec_->height = options_.height;
+    // Newly generated H.264 assets use the assembly contract's one canonical
+    // profile (High). A borrowed splice target is the exception: it must
+    // reproduce that target's declared profile exactly or the packet splice
+    // gate will reject the mixed stream.
+    if (encoder->id == AV_CODEC_ID_H264) {
+        const int declared_profile = options_.borrowed_declared_stream
+            ? options_.borrowed_declared_stream->profile
+            : -1;
+        codec_->profile = declared_profile >= 0 ? declared_profile : FF_PROFILE_H264_HIGH;
+    }
     codec_->time_base = AVRational{options_.fps_den, options_.fps_num};
     codec_->framerate = AVRational{options_.fps_num, options_.fps_den};
     // The GOP is the assembly-ready contract's 2-second cadence, resolved by

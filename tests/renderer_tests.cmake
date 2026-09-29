@@ -31,6 +31,7 @@ chronon3d_add_test_suite(
         cache/test_cache_sharding.cpp
         cache/test_tile_cache.cpp
         registry/test_registries.cpp
+        renderer/helpers/test_shape_path_world_bbox.cpp
         renderer/helpers/test_stroke_gradient_helpers.cpp
         renderer/lighting/test_depth_aware_shadows.cpp
         renderer/lighting/test_directional_lights.cpp
@@ -55,6 +56,13 @@ endif()
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_renderer_core_tests PRIVATE
         chronon3d_backend_text
+    )
+endif()
+# renderer/helpers/test_shape_path_world_bbox.cpp calls the software rasterizer's
+# renderer::compute_world_bbox, so this suite needs the backend that defines it.
+if(TARGET chronon3d_backend_software)
+    target_link_libraries(chronon3d_renderer_core_tests PRIVATE
+        chronon3d_backend_software
     )
 endif()
 

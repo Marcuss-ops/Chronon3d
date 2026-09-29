@@ -1,0 +1,455 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "infographic_2p5d_00_vocabulary_probe",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 60
+  },
+  "output": {
+    "path": "infographic_2p5d_00_vocabulary_probe.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "bg_gradient",
+      "type": "shape",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        480.0,
+        270.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rect",
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            1.0,
+            0.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.027450980392156862,
+                0.06274509803921569,
+                0.14901960784313725,
+                1.0
+              ]
+            },
+            {
+              "position": 0.55,
+              "color": [
+                0.0784313725490196,
+                0.06274509803921569,
+                0.14901960784313725,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.16470588235294117,
+                0.03137254901960784,
+                0.07058823529411765,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "background_look": {
+        "type": "film_grade",
+        "grain": 0.05,
+        "seed": 7
+      }
+    },
+    {
+      "id": "tilted_ring",
+      "type": "shape",
+      "size": [
+        340,
+        340
+      ],
+      "position": [
+        240.0,
+        330.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                1.0,
+                0.41568627450980394,
+                0.30196078431372547,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.1843137254901961,
+                0.29411764705882354,
+                0.8392156862745098,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "enable_3d": true,
+      "rotation": [
+        58,
+        0,
+        0
+      ],
+      "scale": [
+        1.0,
+        0.35,
+        1.0
+      ],
+      "depth_role": "midground",
+      "animation": {
+        "tracks": [
+          {
+            "property": "position",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  -240,
+                  -20,
+                  0
+                ]
+              },
+              {
+                "frame": 24,
+                "value": [
+                  -240,
+                  60,
+                  0
+                ]
+              }
+            ],
+            "easing": "out_back"
+          }
+        ]
+      }
+    },
+    {
+      "id": "flow_ribbon",
+      "type": "shape",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        480.0,
+        420.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -260.0,
+              60.0
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -120.0,
+              -70.0
+            ],
+            "control2": [
+              60.0,
+              90.0
+            ],
+            "point": [
+              260.0,
+              60.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": "#FFFFFF",
+          "width": 6,
+          "dash_array": [
+            538.9754523231786,
+            538.9754523231786
+          ],
+          "dash_offset": 538.9754523231786
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "stroke_dash_offset",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": 538.9754523231786
+              },
+              {
+                "frame": 42,
+                "value": 0.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ribbon_head",
+      "type": "shape",
+      "size": [
+        18,
+        18
+      ],
+      "position": [
+        480.0,
+        420.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "follow_path": {
+        "path_commands": [
+          {
+            "type": "move_to",
+            "point": [
+              -260.0,
+              60.0
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -120.0,
+              -70.0
+            ],
+            "control2": [
+              60.0,
+              90.0
+            ],
+            "point": [
+              260.0,
+              60.0
+            ]
+          }
+        ],
+        "progress": {
+          "keyframes": [
+            {
+              "frame": 6,
+              "value": 0.0
+            },
+            {
+              "frame": 42,
+              "value": 1.0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "social_dots",
+      "type": "shape",
+      "size": [
+        300,
+        130
+      ],
+      "position": [
+        480.0,
+        100.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "dot_grid",
+        "fill": [
+          0.22745098039215686,
+          0.2627450980392157,
+          0.33725490196078434,
+          1.0
+        ],
+        "spacing": 26,
+        "dot_radius": 6
+      }
+    },
+    {
+      "id": "badge_0",
+      "type": "shape",
+      "size": [
+        220,
+        56
+      ],
+      "position": [
+        220.0,
+        520.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          14,
+          14,
+          14,
+          14
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ]
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          20,
+          0
+        ]
+      }
+    },
+    {
+      "id": "badge_1",
+      "type": "shape",
+      "size": [
+        220,
+        56
+      ],
+      "position": [
+        480.0,
+        520.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          14,
+          14,
+          14,
+          14
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ]
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          20,
+          0
+        ]
+      }
+    },
+    {
+      "id": "badge_2",
+      "type": "shape",
+      "size": [
+        220,
+        56
+      ],
+      "position": [
+        740.0,
+        520.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          14,
+          14,
+          14,
+          14
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ]
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          20,
+          0
+        ]
+      }
+    },
+    {
+      "id": "counter",
+      "type": "text",
+      "size": [
+        520,
+        60
+      ],
+      "position": [
+        720.0,
+        210.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "Clicks: ${clicks}",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 40.0,
+        "fill": "#F4F7FF"
+      }
+    }
+  ],
+  "variables": {
+    "clicks": 816
+  }
+}

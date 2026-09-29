@@ -122,6 +122,95 @@ TEST_CASE("EvaluatedLayerPlacement resolves projected and native 3D ownership") 
 }
 
 
+TEST_CASE("evaluate_source_payload_placement keeps 2D layers still under a head-on 2.5D camera") {
+    // Regression: a resolved layer matrix is expressed in canvas pixels
+    // (origin top-left, y down, implicit canvas centre already baked in),
+    // while the camera homography is authored in the canonical
+    // centre-relative y-up basis and composes `canvas_center * ssaa * proj`
+    // itself. Feeding the pixel matrix straight into
+    // project_to_camera_space applied the centre twice and mirrored y: a 2D
+    // path at canvas [480, 420] on 960x540 landed at (757.9, 26.8) instead
+    // of (480.0, 183.1) for a perspective camera, and a shape at the centre
+    // landed at (960, 0). The invariant below is the physical one: a layer
+    // lying in the camera's z=0 plane is unaffected by a head-on camera at
+    // unit scale (zoom == camera distance).
+    // See camera_input_matrix() in graph_builder_coordinates.hpp.
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 960;
+    ctx.frame_input.height = 540;
+    ctx.frame_input.camera_2_5d.enabled = true;
+    ctx.frame_input.camera_2_5d.position = {0.0f, 0.0f, -800.0f};
+    ctx.frame_input.camera_2_5d.zoom = 800.0f;
+    ctx.frame_input.has_camera_2_5d = true;
+
+    const Mat4 canvas_centre =
+        chronon3d::graph::detail::implicit_canvas_center_matrix(ctx);
+    REQUIRE(chronon3d::graph::detail::matrix_near(
+        canvas_centre, glm::translate(Mat4(1.0f), Vec3(480.0f, 270.0f, 0.0f)), 1e-3f));
+
+    // The conversion is the exact basis change canvas-pixel -> camera: a
+    // translation-only pixel matrix must come back with the canvas centre
+    // removed and the y axis pointing up, so canvas pixel (123, 456) becomes
+    // camera position (123 - 480, 270 - 456).
+    const Mat4 probe = glm::translate(Mat4(1.0f), Vec3(123.0f, 456.0f, 0.0f));
+    const Mat4 probe_camera = chronon3d::graph::detail::camera_input_matrix(ctx, probe);
+    CHECK(chronon3d::graph::detail::matrix_near(
+        probe_camera,
+        glm::translate(Mat4(1.0f), Vec3(-357.0f, -186.0f, 0.0f)) *
+            glm::scale(Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f)),
+        1e-3f));
+    const Vec4 probe_origin = probe_camera * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    CHECK(probe_origin.x == doctest::Approx(-357.0f).epsilon(1e-3));
+    CHECK(probe_origin.y == doctest::Approx(-186.0f).epsilon(1e-3));
+
+    const auto project = [&](const Vec3& canvas_position, bool defer = false) {
+        return chronon3d::graph::detail::evaluate_source_payload_placement(
+            glm::translate(Mat4(1.0f), canvas_position),
+            1.0f,
+            ctx,
+            /*apply_camera_projection=*/true,
+            /*defer_camera_projection=*/defer);
+    };
+
+    // A layer authored at the canvas centre sits on the camera axis, so the
+    // projector must return the canvas centre itself, not centre + S*centre.
+    const auto centred = project(Vec3(480.0f, 270.0f, 0.0f));
+    REQUIRE(centred.has_value());
+    CHECK(centred->space ==
+          chronon3d::graph::detail::EvaluatedCoordinateSpace::CameraProjected);
+    CHECK(centred->visible);
+    CHECK(centred->requires_transform_node);
+    CHECK(chronon3d::graph::detail::matrix_near(
+        centred->render_matrix,
+        glm::translate(Mat4(1.0f), Vec3(480.0f, 270.0f, 0.0f)), 1e-3f));
+
+    // Anywhere else in the plane the layer must stay exactly where it was
+    // authored: no doubled centre, no mirrored y, no scale drift.
+    const std::array<Vec3, 4> authored_positions{
+        Vec3(580.0f, 270.0f, 0.0f),
+        Vec3(480.0f, 370.0f, 0.0f),
+        Vec3(320.0f, 150.0f, 0.0f),
+        Vec3(760.0f, 430.0f, 0.0f),
+    };
+    for (const auto& canvas_position : authored_positions) {
+        CAPTURE(canvas_position);
+        const auto placement = project(canvas_position);
+        REQUIRE(placement.has_value());
+        CHECK(chronon3d::graph::detail::matrix_near(
+            placement->render_matrix,
+            glm::translate(Mat4(1.0f), canvas_position), 1e-3f));
+    }
+
+    // The deferred (processor-owned) camera path must keep the untouched
+    // pixel matrix: only the eager projection may rewrite it.
+    const auto deferred = project(Vec3(480.0f, 420.0f, 0.0f), /*defer=*/true);
+    REQUIRE(deferred.has_value());
+    CHECK(deferred->defer_camera_projection);
+    CHECK_FALSE(deferred->requires_transform_node);
+    CHECK(chronon3d::graph::detail::matrix_near(
+        deferred->render_matrix, glm::translate(Mat4(1.0f), Vec3(480.0f, 420.0f, 0.0f))));
+}
+
 TEST_CASE("EvaluatedLayerPlacement resolves hidden and projected visibility") {
     SceneBuilder builder;
     builder.layer("placement_hidden", [](LayerBuilder& layer) {

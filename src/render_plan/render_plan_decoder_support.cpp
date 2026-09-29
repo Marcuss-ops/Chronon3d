@@ -189,6 +189,21 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     camera.near = value.value("near", 1.0f);
     camera.far = value.value("far", 10000.0f);
     camera.zoom = value.value("zoom", 1.0f);
+    if (value.contains("dof")) {
+        const auto& raw_dof = value.at("dof");
+        if (!raw_dof.is_object())
+            throw std::runtime_error("camera.dof must be an object");
+        camera.dof_enabled = raw_dof.value("enabled", false);
+        camera.dof_focus_distance = raw_dof.value("focus_distance", camera.dof_focus_distance);
+        camera.dof_aperture = raw_dof.value("aperture", camera.dof_aperture);
+        camera.dof_max_blur = raw_dof.value("max_blur", camera.dof_max_blur);
+        if (!std::isfinite(camera.dof_focus_distance) || camera.dof_focus_distance <= 0.0f ||
+            camera.dof_focus_distance > 10000000.0f ||
+            !std::isfinite(camera.dof_aperture) || camera.dof_aperture < 0.0f ||
+            camera.dof_aperture > 1.0f || !std::isfinite(camera.dof_max_blur) ||
+            camera.dof_max_blur < 0.0f || camera.dof_max_blur > 256.0f)
+            throw std::runtime_error("camera.dof values are outside supported bounds");
+    }
     if (!std::isfinite(camera.fov_deg) || camera.fov_deg < 10.0f || camera.fov_deg > 120.0f)
         throw std::runtime_error("camera.fov_deg must be finite and in [10, 120]");
     if (!std::isfinite(camera.near) || camera.near <= 0.0f)

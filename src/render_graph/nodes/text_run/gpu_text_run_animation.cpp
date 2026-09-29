@@ -57,19 +57,6 @@ float sample_full_run_selector_weight(
     return selector_weight(params, 0u);
 }
 
-// The tiled GPU lane rotates glyphs in-plane (Z) around the glyph layout
-// origin. X/Y rotation (the 2.5D shear emulations of the software matrix)
-// is not lowered here and keeps the software route.
-bool is_z_only_rotation(const AnimatedValue<Vec3>& degrees) noexcept {
-    if (degrees.has_expression()) return false;
-    const auto at_rest = degrees.evaluate(0.0);
-    if (at_rest.x != 0.0f || at_rest.y != 0.0f) return false;
-    for (const auto& keyframe : degrees.keyframes()) {
-        if (keyframe.value.x != 0.0f || keyframe.value.y != 0.0f) return false;
-    }
-    return true;
-}
-
 } // namespace
 
 bool can_lower_gpu_run_level_animation(const TextRunShape& shape) noexcept {
@@ -140,7 +127,6 @@ void sample_gpu_run_level_animation(
 
 bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     if (!shape.layout || shape.animated_doc ||
-        shape.layout->font_spans.empty() ||
         shape.paint.fill_style || shape.paint.stroke_style ||
         shape.material.enabled || shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
@@ -158,81 +144,34 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
             return false;
         }
     }
-    if (shape.animators.empty()) return true;
-    if (shape.animators.size() != 1) return false;
-    const auto& animator = shape.animators.front();
-    if (!animator.enabled || animator.selectors.size() != 1 ||
-        animator.properties.empty()) {
-        return false;
-    }
-    if (can_lower_gpu_run_level_animation(shape)) return true;
-    const auto& selector = animator.selectors.front();
-    // This is the canonical per-glyph GPU text contract. The whole shaped
-    // run remains resident; only this small dynamic record changes per frame.
-    if ((selector.unit != TextSelectorUnit::Glyph &&
-         selector.unit != TextSelectorUnit::Character &&
-         selector.unit != TextSelectorUnit::Grapheme &&
-         selector.unit != TextSelectorUnit::Word &&
-         selector.unit != TextSelectorUnit::Line) ||
-        (selector.order != TextSelectorOrder::Forward &&
-         selector.order != TextSelectorOrder::Reverse &&
-         selector.order != TextSelectorOrder::FromCenter &&
-         selector.order != TextSelectorOrder::ToCenter) ||
-        selector.shape == TextSelectorShape::Wiggly ||
-         selector.combine != SelectorCombineMode::Replace ||
-         selector.semantic_id.has_value() ||
-        selector.randomize_order || selector.offset.is_time_dependent() ||
-        std::abs(selector.ease_low) > 1e-6f ||
-        std::abs(selector.ease_high - 100.0f) > 1e-6f ||
-        std::abs(bind_selector_runtime(
-                     selector, shape.layout->units.unit_count(selector.unit),
-                     SampleTime::from_frame(0.0, FrameRate{30, 1})).offset) > 1e-6f ||
-        std::abs(bind_selector_runtime(
-                     selector, shape.layout->units.unit_count(selector.unit),
-                     SampleTime::from_frame(0.0, FrameRate{30, 1})).amount - 100.0f) > 1e-6f) {
-        return false;
-    }
-    // Word and line indexes share the reserved upper bits of each prepared
-    // MTSDF glyph flag. Keep the sentinel outside the valid unit range.
-    if ((selector.unit == TextSelectorUnit::Word &&
-         shape.layout->units.word_count > runtime::kMtsdfGlyphWordIndexMask) ||
-        (selector.unit == TextSelectorUnit::Line &&
-         shape.layout->units.line_count > runtime::kMtsdfGlyphWordIndexMask)) {
-        return false;
-    }
-    bool saw_supported_property = false;
-    for (const auto& property : animator.properties) {
-        if (const auto* opacity = std::get_if<OpacityProperty>(&property)) {
-            // The tiled text shader already folds animator_opacity with the
-            // per-glyph selector weight.  Keep this profile GPU-native rather
-            // than routing the canonical typewriter reveal through the
-            // legacy software glyph loop.
-            if (opacity->value.has_expression()) return false;
-            saw_supported_property = true;
-        } else if (const auto* position = std::get_if<PositionProperty>(&property)) {
-            if (position->value.has_expression()) return false;
-            saw_supported_property = true;
-        } else if (const auto* scale = std::get_if<ScaleProperty>(&property)) {
-            if (scale->value.has_expression()) return false;
-            saw_supported_property = true;
-        } else if (const auto* tracking = std::get_if<TrackingProperty>(&property)) {
-            if (tracking->pixels.has_expression() ||
-                selector.unit == TextSelectorUnit::Word) return false;
-            saw_supported_property = true;
-        } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
-            if (blur->radius.has_expression()) return false;
-            saw_supported_property = true;
-        } else if (const auto* rotation = std::get_if<RotationProperty>(&property)) {
-            if (!is_z_only_rotation(rotation->degrees)) return false;
-            saw_supported_property = true;
-        } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
-            if (fill->color.has_expression()) return false;
-            saw_supported_property = true;
-        } else {
-            return false;
-        }
-    }
-    return saw_supported_property;
+    // Animator selectors and animated values are evaluated by Chronon's
+    // canonical per-frame evaluator before reaching this predicate. Vulkan
+    // consumes the resolved GlyphInstanceState records, one dynamic record
+    // per glyph, so selector shapes, ordering, expressions and animator-stack
+    // composition do not need a second (and inevitably incomplete) GPU
+    // implementation. The tiled MTSDF shader currently represents in-plane
+    // rotation, scale, offset, opacity, blur and fill; reject only states it
+    // cannot express without changing their meaning.
+    return std::all_of(shape.glyphs.begin(), shape.glyphs.end(),
+        [](const GlyphInstanceState& glyph) {
+            return std::abs(glyph.rotation.x) <= 1e-6f &&
+                   std::abs(glyph.rotation.y) <= 1e-6f &&
+                   (std::abs(glyph.rotation.z) <= 1e-6f ||
+                    (std::abs(glyph.anchor.x) <= 1e-6f &&
+                     std::abs(glyph.anchor.y) <= 1e-6f)) &&
+                   std::abs(glyph.position.z) <= 1e-6f &&
+                   std::abs(glyph.anchor.z) <= 1e-6f &&
+                   std::abs(glyph.skew) <= 1e-6f &&
+                   std::abs(glyph.skew_axis) <= 1e-6f &&
+                   std::isfinite(glyph.scale.x) &&
+                   std::isfinite(glyph.scale.y) &&
+                   std::isfinite(glyph.scale.z) &&
+                   glyph.background.a <= 1e-6f &&
+                   glyph.stroke.a <= 1e-6f &&
+                   glyph.stroke_width <= 1e-6f &&
+                   glyph.background_padding_em <= 1e-6f &&
+                   glyph.background_radius_em <= 1e-6f;
+        });
 }
 
 void sample_gpu_text_animation(
