@@ -166,6 +166,7 @@ struct PathOperatorPlan {
 struct ImportedSubpathPlan {
     std::vector<ShapePathCommandPlan> path;
     std::optional<std::array<float, 4>> fill_color;
+    std::optional<graphics::GradientDefinition> fill_gradient;
     std::optional<StrokeStyle> stroke;
 };
 

@@ -1,6 +1,8 @@
 #include "render_plan_compiler_detail.hpp"
+#include "enum_mapping.hpp"
 
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/animation_property_kind.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/render_plan/spring_bake.hpp>
 #include <chronon3d/scene/path_sampling.hpp>
@@ -18,6 +20,11 @@
 
 namespace chronon3d::render_plan::detail {
 namespace {
+
+using namespace std::literals;
+
+using AnimationPropertyKind = chronon3d::AnimationPropertyKind;
+using chronon3d::animation_property_kind;
 
 chronon3d::EasingCurve track_easing(
     std::string_view value,
@@ -47,31 +54,33 @@ chronon3d::EasingCurve track_easing(
     }
     if (bezier_curve)
         throw std::runtime_error("bezier_curve requires easing='bezier'");
-    if (value == "linear") return {Easing::Linear};
-    if (value == "in_quad") return {Easing::InQuad};
-    if (value == "out_quad") return {Easing::OutQuad};
-    if (value == "in_out_quad") return {Easing::InOutQuad};
-    if (value == "in_cubic") return {Easing::InCubic};
-    if (value == "out_cubic") return {Easing::OutCubic};
-    if (value == "in_out_cubic") return {Easing::InOutCubic};
-    if (value == "in_expo") return {Easing::InExpo};
-    if (value == "out_expo") return {Easing::OutExpo};
-    if (value == "in_out_expo") return {Easing::InOutExpo};
-    if (value == "in_sine") return {Easing::InSine};
-    if (value == "out_sine") return {Easing::OutSine};
-    if (value == "in_out_sine") return {Easing::InOutSine};
-    if (value == "in_back") return {Easing::InBack};
-    if (value == "out_back") return {Easing::OutBack};
-    if (value == "in_out_back") return {Easing::InOutBack};
-    if (value == "in_elastic") return {Easing::InElastic};
-    if (value == "out_elastic") return {Easing::OutElastic};
-    if (value == "in_out_elastic") return {Easing::InOutElastic};
-    if (value == "in_bounce") return {Easing::InBounce};
-    if (value == "out_bounce") return {Easing::OutBounce};
-    if (value == "in_out_bounce") return {Easing::InOutBounce};
-    if (value == "smoothstep") return {Easing::Smoothstep};
-    if (value == "hold") return {Easing::Hold};
-    throw std::runtime_error("unsupported animation easing: " + std::string(value));
+    static constexpr std::array kEasings{
+        std::pair{"linear"sv, Easing::Linear},
+        std::pair{"in_quad"sv, Easing::InQuad},
+        std::pair{"out_quad"sv, Easing::OutQuad},
+        std::pair{"in_out_quad"sv, Easing::InOutQuad},
+        std::pair{"in_cubic"sv, Easing::InCubic},
+        std::pair{"out_cubic"sv, Easing::OutCubic},
+        std::pair{"in_out_cubic"sv, Easing::InOutCubic},
+        std::pair{"in_expo"sv, Easing::InExpo},
+        std::pair{"out_expo"sv, Easing::OutExpo},
+        std::pair{"in_out_expo"sv, Easing::InOutExpo},
+        std::pair{"in_sine"sv, Easing::InSine},
+        std::pair{"out_sine"sv, Easing::OutSine},
+        std::pair{"in_out_sine"sv, Easing::InOutSine},
+        std::pair{"in_back"sv, Easing::InBack},
+        std::pair{"out_back"sv, Easing::OutBack},
+        std::pair{"in_out_back"sv, Easing::InOutBack},
+        std::pair{"in_elastic"sv, Easing::InElastic},
+        std::pair{"out_elastic"sv, Easing::OutElastic},
+        std::pair{"in_out_elastic"sv, Easing::InOutElastic},
+        std::pair{"in_bounce"sv, Easing::InBounce},
+        std::pair{"out_bounce"sv, Easing::OutBounce},
+        std::pair{"in_out_bounce"sv, Easing::InOutBounce},
+        std::pair{"smoothstep"sv, Easing::Smoothstep},
+        std::pair{"hold"sv, Easing::Hold},
+    };
+    return {enum_from_string(value, kEasings, "unsupported animation easing: ")};
 }
 
 chronon3d::EasingCurve keyframe_easing(const AnimationTrackPlan& track,
@@ -126,132 +135,151 @@ float scalar_value(const AnimationKeyframePlan& key, std::string_view property) 
 }
 
 chronon3d::LoopMode loop_mode_value(std::string_view value) {
-    if (value == "cycle") return chronon3d::LoopMode::Loop;
-    if (value == "pingpong") return chronon3d::LoopMode::PingPong;
-    if (value == "offset") return chronon3d::LoopMode::Offset;
-    return chronon3d::LoopMode::Hold;
+    static constexpr std::array kLoopModes{
+        std::pair{"cycle"sv, chronon3d::LoopMode::Loop},
+        std::pair{"pingpong"sv, chronon3d::LoopMode::PingPong},
+        std::pair{"offset"sv, chronon3d::LoopMode::Offset},
+    };
+    return find_enum_value(value, kLoopModes).value_or(chronon3d::LoopMode::Hold);
 }
 
 template <typename T>
-void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
-                            const AnimationTrackPlan& track,
-                            const AnimationKeyframePlan& key,
-                            const T& value,
-                            FrameRate fps = FrameRate{30, 1}) {
-    animated.loop_mode(loop_mode_value(track.loop_mode));
-    if (track.data_feed) {
-        if constexpr (std::is_same_v<T, float>) {
-            if (&key == &track.keyframes.front()) {
-                const auto values = std::make_shared<const std::vector<float>>(track.data_feed->values);
-                const auto offset = track.data_feed->index_offset;
-                const auto interpolation = track.data_feed->interpolation;
-                animated.frame_evaluator([values, offset, interpolation](double frame) {
-                    if (!std::isfinite(frame))
-                        throw std::runtime_error("data_feed cannot sample a non-finite frame");
-                    const double index = std::clamp(frame + static_cast<double>(offset),
-                        0.0, static_cast<double>(values->size() - 1));
-                    const auto lower = static_cast<std::size_t>(std::floor(index));
-                    if (interpolation == "step" || lower + 1 >= values->size())
-                        return (*values)[lower];
-                    const float fraction = static_cast<float>(index - static_cast<double>(lower));
-                    return (*values)[lower] + ((*values)[lower + 1] - (*values)[lower]) * fraction;
-                });
-            }
-        } else {
-            throw std::runtime_error("data_feed requires a scalar animated value");
-        }
+void apply_data_feed(chronon3d::AnimatedValue<T>& animated,
+                     const AnimationTrackPlan& track,
+                     const AnimationKeyframePlan& key) {
+    if (!track.data_feed) return;
+    if constexpr (!std::is_same_v<T, float>) {
+        throw std::runtime_error("data_feed requires a scalar animated value");
+    } else if (&key == &track.keyframes.front()) {
+        const auto values = std::make_shared<const std::vector<float>>(track.data_feed->values);
+        const auto offset = track.data_feed->index_offset;
+        const auto interpolation = track.data_feed->interpolation;
+        animated.frame_evaluator([values, offset, interpolation](double frame) {
+            if (!std::isfinite(frame))
+                throw std::runtime_error("data_feed cannot sample a non-finite frame");
+            const double index = std::clamp(frame + static_cast<double>(offset),
+                0.0, static_cast<double>(values->size() - 1));
+            const auto lower = static_cast<std::size_t>(std::floor(index));
+            if (interpolation == "step" || lower + 1 >= values->size())
+                return (*values)[lower];
+            const float fraction = static_cast<float>(index - static_cast<double>(lower));
+            return (*values)[lower] + ((*values)[lower + 1] - (*values)[lower]) * fraction;
+        });
     }
-    if (track.oscillate || track.random_hold || track.posterize_time) {
-        if constexpr (std::is_same_v<T, float>) {
-            chronon3d::ScalarAnimationDriver driver;
-            if (track.oscillate) {
-                driver.kind = chronon3d::ScalarAnimationDriver::Kind::Oscillate;
-                driver.frequency_hz = track.oscillate->frequency_hz;
-                driver.amplitude = track.oscillate->amplitude;
-                driver.phase_deg = track.oscillate->phase_deg;
-                driver.offset = track.oscillate->offset;
-                if (track.oscillate->waveform == "triangle")
-                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Triangle;
-                else if (track.oscillate->waveform == "sawtooth")
-                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Sawtooth;
-                else if (track.oscillate->waveform == "square")
-                    driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Square;
-            } else if (track.random_hold) {
-                driver.kind = chronon3d::ScalarAnimationDriver::Kind::RandomHold;
-                driver.interval_frames = track.random_hold->interval_frames;
-                driver.min = track.random_hold->min;
-                driver.max = track.random_hold->max;
-                driver.seed = track.random_hold->seed;
-            } else {
-                driver.kind = chronon3d::ScalarAnimationDriver::Kind::PosterizeTime;
-                driver.fps = track.posterize_time->fps;
-            }
-            animated.scalar_driver(driver);
+}
+
+template <typename T>
+void apply_scalar_driver(chronon3d::AnimatedValue<T>& animated,
+                         const AnimationTrackPlan& track) {
+    if (!track.oscillate && !track.random_hold && !track.posterize_time) return;
+    if constexpr (!std::is_same_v<T, float>) {
+        throw std::runtime_error("procedural animation drivers require a scalar animated value");
+    } else {
+        chronon3d::ScalarAnimationDriver driver;
+        if (track.oscillate) {
+            driver.kind = chronon3d::ScalarAnimationDriver::Kind::Oscillate;
+            driver.frequency_hz = track.oscillate->frequency_hz;
+            driver.amplitude = track.oscillate->amplitude;
+            driver.phase_deg = track.oscillate->phase_deg;
+            driver.offset = track.oscillate->offset;
+            if (track.oscillate->waveform == "triangle")
+                driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Triangle;
+            else if (track.oscillate->waveform == "sawtooth")
+                driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Sawtooth;
+            else if (track.oscillate->waveform == "square")
+                driver.waveform = chronon3d::ScalarAnimationDriver::Waveform::Square;
+        } else if (track.random_hold) {
+            driver.kind = chronon3d::ScalarAnimationDriver::Kind::RandomHold;
+            driver.interval_frames = track.random_hold->interval_frames;
+            driver.min = track.random_hold->min;
+            driver.max = track.random_hold->max;
+            driver.seed = track.random_hold->seed;
         } else {
-            throw std::runtime_error("procedural animation drivers require a scalar animated value");
+            driver.kind = chronon3d::ScalarAnimationDriver::Kind::PosterizeTime;
+            driver.fps = track.posterize_time->fps;
         }
+        animated.scalar_driver(driver);
     }
-    if (track.wiggle) {
-        if constexpr (std::is_same_v<T, float>) {
-            animated.expression("value + wiggle(" + std::to_string(track.wiggle->frequency) +
-                "," + std::to_string(track.wiggle->amplitude) +
-                ",time," + std::to_string(track.wiggle->seed) + ")");
-        } else {
-            throw std::runtime_error("wiggle driver requires a scalar animated value");
-        }
+}
+
+template <typename T>
+void apply_wiggle(chronon3d::AnimatedValue<T>& animated,
+                  const AnimationTrackPlan& track) {
+    if (!track.wiggle) return;
+    if constexpr (!std::is_same_v<T, float>) {
+        throw std::runtime_error("wiggle driver requires a scalar animated value");
+    } else {
+        animated.expression("value + wiggle(" + std::to_string(track.wiggle->frequency) +
+            "," + std::to_string(track.wiggle->amplitude) +
+            ",time," + std::to_string(track.wiggle->seed) + ")");
     }
+}
+
+template <typename T>
+bool bake_spring_segment(chronon3d::AnimatedValue<T>& animated,
+                         const AnimationTrackPlan& track,
+                         const AnimationKeyframePlan& key,
+                         const T& value,
+                         FrameRate fps) {
     const auto key_it = std::find_if(track.keyframes.begin(), track.keyframes.end(),
         [&](const AnimationKeyframePlan& candidate) { return candidate.frame == key.frame; });
-    const bool spring_segment = key_it != track.keyframes.end() &&
+    const bool is_segment = key_it != track.keyframes.end() &&
         std::next(key_it) != track.keyframes.end() &&
         (key.easing == "spring" || (!key.interpolation && !key.easing && track.easing == "spring"));
-    if (spring_segment) {
-        const auto& next_key = *std::next(key_it);
-        const auto spring = key.spring ? key.spring : track.spring;
-        if (!spring)
-            throw std::runtime_error("spring segment requires a spring config");
-        const auto frame_span = next_key.frame.integral() - key.frame.integral();
-        if (frame_span <= 0)
-            throw std::runtime_error("spring segment requires positive frame span");
-        const double seconds = static_cast<double>(frame_span) *
-            static_cast<double>(fps.den()) / static_cast<double>(fps.num());
-        const auto progress = bake_spring_progress(
-            *spring, seconds, static_cast<std::uint32_t>(fps.num()),
-            static_cast<std::uint32_t>(fps.den()), 1);
-        T target{};
-        if constexpr (std::is_same_v<T, float>) {
-            target = scalar_value(next_key, track.property);
-        } else if constexpr (std::is_same_v<T, chronon3d::Color>) {
-            if (next_key.value.size() != 4)
-                throw std::runtime_error("spring color keyframes require RGBA values");
-            target = chronon3d::Color{next_key.value[0], next_key.value[1],
-                                      next_key.value[2], next_key.value[3]};
-        } else if constexpr (is_glm_vec_type_v<T>) {
-            chronon3d::Vec3 target_vec = value;
-            if (track.property == "position_x" || track.property == "scale_x" ||
-                track.property == "rotation_x") target_vec.x = scalar_value(next_key, track.property);
-            else if (track.property == "position_y" || track.property == "scale_y" ||
-                     track.property == "rotation_y") target_vec.y = scalar_value(next_key, track.property);
-            else if (track.property == "position_z" || track.property == "scale_z" ||
-                     track.property == "rotation_z") target_vec.z = scalar_value(next_key, track.property);
-            else if (track.property == "rotation" && next_key.value.size() == 1)
-                target_vec.z = scalar_value(next_key, track.property);
-            else
-                target_vec = vector_value(next_key, track.property, value);
-            target = T{target_vec};
-        } else {
-            throw std::runtime_error("spring easing is unsupported for this animation value type");
-        }
-        animated.add_keyframe(key.frame, value, chronon3d::EasingCurve{chronon3d::Easing::Linear});
-        const auto start_frame = key.frame.integral();
-        for (std::size_t sample = 1; sample + 1 < progress.size(); ++sample) {
-            const auto sample_frame = start_frame + static_cast<std::int64_t>(sample);
-            const T sampled = chronon3d::lerp(value, target, progress[sample]);
-            animated.add_keyframe(Frame{sample_frame}, sampled,
-                                  chronon3d::EasingCurve{chronon3d::Easing::Linear});
-        }
-        return;
+    if (!is_segment) return false;
+
+    const auto& next_key = *std::next(key_it);
+    const auto spring = key.spring ? key.spring : track.spring;
+    if (!spring) throw std::runtime_error("spring segment requires a spring config");
+    const auto frame_span = next_key.frame.integral() - key.frame.integral();
+    if (frame_span <= 0) throw std::runtime_error("spring segment requires positive frame span");
+    const double seconds = static_cast<double>(frame_span) *
+        static_cast<double>(fps.den()) / static_cast<double>(fps.num());
+    const auto progress = bake_spring_progress(
+        *spring, seconds, static_cast<std::uint32_t>(fps.num()),
+        static_cast<std::uint32_t>(fps.den()), 1);
+
+    T target{};
+    if constexpr (std::is_same_v<T, float>) {
+        target = scalar_value(next_key, track.property);
+    } else if constexpr (std::is_same_v<T, chronon3d::Color>) {
+        if (next_key.value.size() != 4)
+            throw std::runtime_error("spring color keyframes require RGBA values");
+        target = chronon3d::Color{next_key.value[0], next_key.value[1],
+                                  next_key.value[2], next_key.value[3]};
+    } else if constexpr (is_glm_vec_type_v<T>) {
+        chronon3d::Vec3 target_vec = value;
+        if (track.property == "position_x" || track.property == "scale_x" ||
+            track.property == "rotation_x") target_vec.x = scalar_value(next_key, track.property);
+        else if (track.property == "position_y" || track.property == "scale_y" ||
+                 track.property == "rotation_y") target_vec.y = scalar_value(next_key, track.property);
+        else if (track.property == "position_z" || track.property == "scale_z" ||
+                 track.property == "rotation_z") target_vec.z = scalar_value(next_key, track.property);
+        else if (track.property == "rotation" && next_key.value.size() == 1)
+            target_vec.z = scalar_value(next_key, track.property);
+        else
+            target_vec = vector_value(next_key, track.property, value);
+        target = T{target_vec};
+    } else {
+        throw std::runtime_error("spring easing is unsupported for this animation value type");
     }
+
+    animated.add_keyframe(key.frame, value, chronon3d::EasingCurve{chronon3d::Easing::Linear});
+    const auto start_frame = key.frame.integral();
+    for (std::size_t sample = 1; sample + 1 < progress.size(); ++sample) {
+        const auto sample_frame = start_frame + static_cast<std::int64_t>(sample);
+        animated.add_keyframe(Frame{sample_frame},
+            chronon3d::lerp(value, target, progress[sample]),
+            chronon3d::EasingCurve{chronon3d::Easing::Linear});
+    }
+    return true;
+}
+
+template <typename T>
+void add_interpolated_keyframe(chronon3d::AnimatedValue<T>& animated,
+                               const AnimationTrackPlan& track,
+                               const AnimationKeyframePlan& key,
+                               const T& value) {
     if (key.interpolation == "bezier" && key.bezier_curve) {
         animated.add_keyframe(key.frame, value, keyframe_easing(track, key), key.roving);
     } else if (key.interpolation == "bezier") {
@@ -269,7 +297,6 @@ void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
     } else if (key.interpolation == "auto_bezier") {
         animated.add_keyframe(key.frame, value, chronon3d::InterpMode::AutoBezier,
             0.0f, 0.0f, 0.0f, 0.0f, key.roving);
-        return;
     } else if (key.temporal_in_dx || key.temporal_in_dy ||
                key.temporal_out_dx || key.temporal_out_dy) {
         animated.add_keyframe(key.frame, value, chronon3d::InterpMode::Bezier,
@@ -279,6 +306,20 @@ void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
     } else {
         animated.add_keyframe(key.frame, value, keyframe_easing(track, key), key.roving);
     }
+}
+
+template <typename T>
+void add_animation_keyframe(chronon3d::AnimatedValue<T>& animated,
+                            const AnimationTrackPlan& track,
+                            const AnimationKeyframePlan& key,
+                            const T& value,
+                            FrameRate fps = FrameRate{30, 1}) {
+    animated.loop_mode(loop_mode_value(track.loop_mode));
+    apply_data_feed(animated, track, key);
+    apply_scalar_driver(animated, track);
+    apply_wiggle(animated, track);
+    if (bake_spring_segment(animated, track, key, value, fps)) return;
+    add_interpolated_keyframe(animated, track, key, value);
 }
 
 chronon3d::Vec3 vector_value(const AnimationKeyframePlan& key,
@@ -308,6 +349,57 @@ struct PositionAnimationData {
     std::vector<Keyframe> keyframes;
 };
 
+bool has_authored_timing(const AnimationTrackPlan& track) {
+    return track.easing != "linear" || track.bezier_curve ||
+        std::any_of(track.keyframes.begin(), track.keyframes.end(), [](const auto& key) {
+            return key.interpolation || key.easing || key.bezier_curve || key.roving ||
+                   key.temporal_in_dx || key.temporal_in_dy ||
+                   key.temporal_out_dx || key.temporal_out_dy;
+        });
+}
+
+const AnimationTrackPlan* verify_shared_timing(
+    const std::array<const AnimationTrackPlan*, 3>& components) {
+    const AnimationTrackPlan* reference = nullptr;
+    for (const auto* component : components) {
+        if (component && has_authored_timing(*component)) {
+            reference = component;
+            break;
+        }
+    }
+    if (!reference) {
+        for (const auto* component : components) {
+            if (component) {
+                reference = component;
+                break;
+            }
+        }
+    }
+    if (!reference) return nullptr;
+
+    for (const auto* component : components) {
+        if (!component || component == reference) continue;
+        if (component->easing != reference->easing ||
+            component->bezier_curve != reference->bezier_curve ||
+            component->keyframes.size() != reference->keyframes.size())
+            throw std::runtime_error(
+                "position component tracks must share keyframes and easing");
+        for (std::size_t index = 0; index < reference->keyframes.size(); ++index) {
+            const auto& key = component->keyframes[index];
+            const auto& ref_key = reference->keyframes[index];
+            if (key.frame != ref_key.frame || key.interpolation != ref_key.interpolation ||
+                key.easing != ref_key.easing || key.bezier_curve != ref_key.bezier_curve ||
+                key.roving != ref_key.roving || key.temporal_in_dx != ref_key.temporal_in_dx ||
+                key.temporal_out_dx != ref_key.temporal_out_dx ||
+                key.temporal_in_dy.has_value() != ref_key.temporal_in_dy.has_value() ||
+                key.temporal_out_dy.has_value() != ref_key.temporal_out_dy.has_value())
+                throw std::runtime_error(
+                    "position component tracks must share keyframe timing data");
+        }
+    }
+    return reference;
+}
+
 PositionAnimationData position_animation_data(const LayerPlan& layer,
                                                chronon3d::Vec3 base) {
     PositionAnimationData result;
@@ -335,68 +427,16 @@ PositionAnimationData position_animation_data(const LayerPlan& layer,
     if (vector_track && component_count != 0)
         throw std::runtime_error("layer cannot combine vector and component position tracks");
     if (!vector_track && component_count == 0) return result;
+    const AnimationTrackPlan* verified_components = nullptr;
     if (!vector_track) {
-        const AnimationTrackPlan* authored_timing = nullptr;
-        bool any_component_timing = false;
-        for (const auto* component : component_tracks) {
-            if (!component) continue;
-            const bool has_timing = component->easing != "linear" || component->bezier_curve ||
-                std::any_of(component->keyframes.begin(), component->keyframes.end(), [](const auto& key) {
-                    return key.interpolation || key.easing || key.bezier_curve || key.roving ||
-                           key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy;
-                });
-            if (has_timing) {
-                any_component_timing = true;
-                if (!authored_timing) authored_timing = component;
-            }
-        }
-        if (any_component_timing) {
-            for (const auto* component : component_tracks) {
-                if (!component || component == authored_timing) continue;
-                if (component->easing != authored_timing->easing ||
-                    component->bezier_curve != authored_timing->bezier_curve ||
-                    component->keyframes.size() != authored_timing->keyframes.size())
-                    throw std::runtime_error("component position tracks with timing must share keyframes and easing");
-                for (std::size_t index = 0; index < component->keyframes.size(); ++index) {
-                    const auto& left = component->keyframes[index];
-                    const auto& right = authored_timing->keyframes[index];
-                    if (left.frame != right.frame || left.interpolation != right.interpolation ||
-                        left.easing != right.easing || left.bezier_curve != right.bezier_curve ||
-                        left.roving != right.roving || left.temporal_in_dx != right.temporal_in_dx ||
-                        left.temporal_out_dx != right.temporal_out_dx)
-                        throw std::runtime_error("component position tracks with timing must share keyframe timing");
-                }
-            }
-        }
-        if (authored_timing) vector_track = authored_timing;
+        verified_components = verify_shared_timing(component_tracks);
+        if (verified_components && has_authored_timing(*verified_components))
+            vector_track = verified_components;
     }
     if (!vector_track && component_count == 0) return result;
 
     const AnimationTrackPlan* reference = vector_track;
-    if (!reference) {
-        for (const auto* component : component_tracks)
-            if (component) { reference = component; break; }
-        for (const auto* component : component_tracks) {
-            if (!component || component == reference) continue;
-            if (component->easing != reference->easing ||
-                component->bezier_curve != reference->bezier_curve ||
-                component->keyframes.size() != reference->keyframes.size())
-                throw std::runtime_error(
-                    "position component tracks must share keyframes and easing");
-            for (std::size_t index = 0; index < reference->keyframes.size(); ++index) {
-                const auto& key = component->keyframes[index];
-                const auto& ref_key = reference->keyframes[index];
-                if (key.frame != ref_key.frame || key.interpolation != ref_key.interpolation ||
-                    key.easing != ref_key.easing || key.bezier_curve != ref_key.bezier_curve ||
-                    key.roving != ref_key.roving || key.temporal_in_dx != ref_key.temporal_in_dx ||
-                    key.temporal_out_dx != ref_key.temporal_out_dx ||
-                    key.temporal_in_dy.has_value() != ref_key.temporal_in_dy.has_value() ||
-                    key.temporal_out_dy.has_value() != ref_key.temporal_out_dy.has_value())
-                    throw std::runtime_error(
-                        "position component tracks must share keyframes and timing data");
-            }
-        }
-    }
+    if (!reference) reference = verified_components;
     result.timing.property = "position";
     result.timing.easing = reference->easing;
     result.timing.bezier_curve = reference->bezier_curve;
@@ -440,45 +480,53 @@ PositionAnimationData position_animation_data(const LayerPlan& layer,
 
 chronon3d::TextSelectorUnit text_selector_unit(std::string_view value) {
     using chronon3d::TextSelectorUnit;
-    if (value == "glyph") return TextSelectorUnit::Glyph;
-    if (value == "grapheme") return TextSelectorUnit::Grapheme;
-    if (value == "character") return TextSelectorUnit::Character;
-    if (value == "word") return TextSelectorUnit::Word;
-    if (value == "line") return TextSelectorUnit::Line;
-    throw std::runtime_error("unsupported text selector unit: " + std::string(value));
+    static constexpr std::array kValues{
+        std::pair{"glyph"sv, TextSelectorUnit::Glyph},
+        std::pair{"grapheme"sv, TextSelectorUnit::Grapheme},
+        std::pair{"character"sv, TextSelectorUnit::Character},
+        std::pair{"word"sv, TextSelectorUnit::Word},
+        std::pair{"line"sv, TextSelectorUnit::Line},
+    };
+    return enum_from_string(value, kValues, "unsupported text selector unit: ");
 }
 
 chronon3d::TextSelectorShape text_selector_shape(std::string_view value) {
     using chronon3d::TextSelectorShape;
-    if (value == "square") return TextSelectorShape::Square;
-    if (value == "ramp_up") return TextSelectorShape::RampUp;
-    if (value == "ramp_down") return TextSelectorShape::RampDown;
-    if (value == "triangle") return TextSelectorShape::Triangle;
-    if (value == "round") return TextSelectorShape::Round;
-    if (value == "smooth") return TextSelectorShape::Smooth;
-    if (value == "wiggly") return TextSelectorShape::Wiggly;
-    throw std::runtime_error("unsupported text selector shape: " + std::string(value));
+    static constexpr std::array kValues{
+        std::pair{"square"sv, TextSelectorShape::Square},
+        std::pair{"ramp_up"sv, TextSelectorShape::RampUp},
+        std::pair{"ramp_down"sv, TextSelectorShape::RampDown},
+        std::pair{"triangle"sv, TextSelectorShape::Triangle},
+        std::pair{"round"sv, TextSelectorShape::Round},
+        std::pair{"smooth"sv, TextSelectorShape::Smooth},
+        std::pair{"wiggly"sv, TextSelectorShape::Wiggly},
+    };
+    return enum_from_string(value, kValues, "unsupported text selector shape: ");
 }
 
 chronon3d::TextSelectorOrder text_selector_order(std::string_view value) {
     using chronon3d::TextSelectorOrder;
-    if (value == "forward") return TextSelectorOrder::Forward;
-    if (value == "reverse") return TextSelectorOrder::Reverse;
-    if (value == "from_center") return TextSelectorOrder::FromCenter;
-    if (value == "to_center") return TextSelectorOrder::ToCenter;
-    if (value == "random") return TextSelectorOrder::Random;
-    throw std::runtime_error("unsupported text selector order: " + std::string(value));
+    static constexpr std::array kValues{
+        std::pair{"forward"sv, TextSelectorOrder::Forward},
+        std::pair{"reverse"sv, TextSelectorOrder::Reverse},
+        std::pair{"from_center"sv, TextSelectorOrder::FromCenter},
+        std::pair{"to_center"sv, TextSelectorOrder::ToCenter},
+        std::pair{"random"sv, TextSelectorOrder::Random},
+    };
+    return enum_from_string(value, kValues, "unsupported text selector order: ");
 }
 
 chronon3d::SelectorCombineMode text_selector_combine(std::string_view value) {
     using chronon3d::SelectorCombineMode;
-    if (value == "replace") return SelectorCombineMode::Replace;
-    if (value == "add") return SelectorCombineMode::Add;
-    if (value == "subtract") return SelectorCombineMode::Subtract;
-    if (value == "intersect") return SelectorCombineMode::Intersect;
-    if (value == "min") return SelectorCombineMode::Min;
-    if (value == "max") return SelectorCombineMode::Max;
-    throw std::runtime_error("unsupported text selector combine mode: " + std::string(value));
+    static constexpr std::array kValues{
+        std::pair{"replace"sv, SelectorCombineMode::Replace},
+        std::pair{"add"sv, SelectorCombineMode::Add},
+        std::pair{"subtract"sv, SelectorCombineMode::Subtract},
+        std::pair{"intersect"sv, SelectorCombineMode::Intersect},
+        std::pair{"min"sv, SelectorCombineMode::Min},
+        std::pair{"max"sv, SelectorCombineMode::Max},
+    };
+    return enum_from_string(value, kValues, "unsupported text selector combine mode: ");
 }
 
 template <typename T>
@@ -581,71 +629,51 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
     for (const auto& selector : plan.selectors)
         animator.selectors.push_back(compile_text_selector(selector, fps));
     for (const auto& track : plan.properties) {
-        if (track.property == "position" || track.property == "position_x" ||
-            track.property == "position_y") {
+        switch (animation_property_kind(track.property)) {
+        case AnimationPropertyKind::PositionVector:
+        case AnimationPropertyKind::PositionXOffset:
+        case AnimationPropertyKind::PositionYOffset:
             animator.properties.push_back(chronon3d::PositionProperty{
                 track.property == "position"
                     ? animated_text_value(track, chronon3d::Vec3{}, track.property, fps)
                     : animated_text_vec3_component(track, chronon3d::Vec3{}, track.property, fps)});
-        } else if (track.property == "scale" || track.property == "scale_x" ||
-                   track.property == "scale_y") {
+            break;
+        case AnimationPropertyKind::UniformScale:
+        case AnimationPropertyKind::ScaleX:
+        case AnimationPropertyKind::ScaleY:
             animator.properties.push_back(chronon3d::ScaleProperty{
                 track.property == "scale"
                     ? animated_text_value(track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property, fps)
                     : animated_text_vec3_component(
                           track, chronon3d::Vec3{1.0f, 1.0f, 1.0f}, track.property, fps)});
-        } else if (track.property == "opacity") {
+            break;
+        case AnimationPropertyKind::Opacity:
             animator.properties.push_back(chronon3d::OpacityProperty{
                 animated_text_value(track, 1.0f, track.property, fps)});
-        } else if (track.property == "blur") {
+            break;
+        case AnimationPropertyKind::Blur:
             animator.properties.push_back(chronon3d::BlurProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
-        } else if (track.property == "tracking") {
+            break;
+        case AnimationPropertyKind::Tracking:
             animator.properties.push_back(chronon3d::TrackingProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
-        } else if (track.property == "rotation") {
+            break;
+        case AnimationPropertyKind::RotationVector:
             animator.properties.push_back(chronon3d::RotationProperty{
                 animated_text_rotation(track, fps)});
-        } else if (track.property == "fill_color") {
+            break;
+        case AnimationPropertyKind::FillColor:
             animator.properties.push_back(chronon3d::FillColorProperty{
                 animated_text_color(track, track.property, fps)});
-        } else {
+            break;
+        default:
             throw std::runtime_error("unsupported text animator property: " + track.property);
         }
     }
     if (animator.selectors.empty() || animator.properties.empty())
         throw std::runtime_error("text animator '" + animator.id + "' requires selectors and properties");
     return animator;
-}
-
-// The per-frame paint tracks. The render-plan scene callback samples each of
-// these into the source node it rebuilds every frame (`fill_color_at`,
-// `stroke_width_at`, `stroke_color_at`, `stroke_dash_offset_at`,
-// `shadow_scalar_at`, `shadow_color_at`) and the decoder validates every one of
-// them, so this pass must let them through untouched: it lowers transform
-// animation, and these are not transforms. Rejecting them here made a whole
-// class of contract-valid plans unbuildable — a shape animation such as a
-// dashed write-on decoded, validated, and then failed with "unsupported
-// primitive animation property" before the first frame.
-[[nodiscard]] bool is_per_frame_paint_property(std::string_view property) {
-    if (property == "fill_color" || property == "stroke_width" ||
-        property == "stroke_color" || property == "stroke_dash_offset")
-        return true;
-    // shadow_<0..2>_{opacity,blur,offset_x,offset_y,color}; the decoder bounds
-    // the index to three shadows and the suffix to this set. Match the suffix
-    // first: the five suffixes have different lengths, so slicing by a fixed
-    // offset would drop most of the family.
-    if (property.rfind("shadow_", 0) != 0) return false;
-    static constexpr std::array<std::string_view, 5> suffixes{
-        "_opacity", "_blur", "_offset_x", "_offset_y", "_color"};
-    std::string_view suffix;
-    for (const std::string_view candidate : suffixes) {
-        if (property.size() <= 7 + candidate.size()) continue;
-        if (property.ends_with(candidate)) { suffix = candidate; break; }
-    }
-    if (suffix.empty()) return false;
-    const std::string_view index = property.substr(7, property.size() - 7 - suffix.size());
-    return index == "0" || index == "1" || index == "2";
 }
 
 void apply_animation_tracks(chronon3d::LayerBuilder& builder,
@@ -673,68 +701,90 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         const AnimationTrackPlan* y = nullptr;
         const AnimationTrackPlan* z = nullptr;
     };
+    struct SkewTrackGroup {
+        const AnimationTrackPlan* angle = nullptr;
+        const AnimationTrackPlan* axis = nullptr;
+        [[nodiscard]] bool empty() const { return !angle && !axis; }
+    };
 
     AxisTrackGroup pos_tracks;
     AxisTrackGroup scale_tracks;
     AxisTrackGroup rot_tracks;
     const AnimationTrackPlan* opacity_track = nullptr;
     const AnimationTrackPlan* blur_track = nullptr;
-    const AnimationTrackPlan* skew_track = nullptr;
-    const AnimationTrackPlan* skew_axis_track = nullptr;
+    SkewTrackGroup skew_tracks;
+
+    auto assign_track = [&](const AnimationTrackPlan*& slot, const AnimationTrackPlan& track) {
+        if (slot)
+            throw std::runtime_error("layer '" + layer.id + "' has duplicate " +
+                                     track.property + " tracks");
+        slot = &track;
+    };
+    auto assign_axis_track = [&](AxisTrackGroup& group, const AnimationTrackPlan& track,
+                                 AnimationPropertyKind kind) {
+        switch (kind) {
+        case AnimationPropertyKind::PositionVector:
+        case AnimationPropertyKind::UniformScale:
+        case AnimationPropertyKind::RotationVector:
+            assign_track(group.full, track);
+            return;
+        case AnimationPropertyKind::PositionXOffset:
+        case AnimationPropertyKind::ScaleX:
+        case AnimationPropertyKind::RotationX:
+            assign_track(group.x, track);
+            return;
+        case AnimationPropertyKind::PositionYOffset:
+        case AnimationPropertyKind::ScaleY:
+        case AnimationPropertyKind::RotationY:
+            assign_track(group.y, track);
+            return;
+        case AnimationPropertyKind::PositionZOffset:
+        case AnimationPropertyKind::ScaleZ:
+        case AnimationPropertyKind::RotationZ:
+            assign_track(group.z, track);
+            return;
+        default:
+            return;
+        }
+    };
 
     if (layer.animation) for (const auto& track : layer.animation->tracks) {
-        if (track.property == "position") {
-            if (pos_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate position tracks");
-            pos_tracks.full = &track;
-        } else if (track.property == "position_x") {
-            if (pos_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_x tracks");
-            pos_tracks.x = &track;
-        } else if (track.property == "position_y") {
-            if (pos_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_y tracks");
-            pos_tracks.y = &track;
-        } else if (track.property == "position_z") {
-            if (pos_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate position_z tracks");
-            pos_tracks.z = &track;
-        } else if (track.property == "scale") {
-            if (scale_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale tracks");
-            scale_tracks.full = &track;
-        } else if (track.property == "scale_x") {
-            if (scale_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_x tracks");
-            scale_tracks.x = &track;
-        } else if (track.property == "scale_y") {
-            if (scale_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_y tracks");
-            scale_tracks.y = &track;
-        } else if (track.property == "scale_z") {
-            if (scale_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate scale_z tracks");
-            scale_tracks.z = &track;
-        } else if (track.property == "rotation") {
-            if (rot_tracks.full) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation tracks");
-            rot_tracks.full = &track;
-        } else if (track.property == "rotation_x") {
-            if (rot_tracks.x) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_x tracks");
-            rot_tracks.x = &track;
-        } else if (track.property == "rotation_y") {
-            if (rot_tracks.y) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_y tracks");
-            rot_tracks.y = &track;
-        } else if (track.property == "rotation_z") {
-            if (rot_tracks.z) throw std::runtime_error("layer '" + layer.id + "' has duplicate rotation_z tracks");
-            rot_tracks.z = &track;
-        } else if (track.property == "opacity") {
-            if (opacity_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate opacity tracks");
-            opacity_track = &track;
-        } else if (track.property == "blur") {
-            if (blur_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate blur tracks");
-            blur_track = &track;
-        } else if (track.property == "skew") {
-            if (skew_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate skew tracks");
-            skew_track = &track;
-        } else if (track.property == "skew_axis") {
-            if (skew_axis_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate skew_axis tracks");
-            skew_axis_track = &track;
-        } else if (is_per_frame_paint_property(track.property)) {
-            // Sampled into the per-frame source node by the render-plan scene
-            // callback, not lowered as transform animation.
-        } else {
+        const auto kind = animation_property_kind(track.property);
+        switch (kind) {
+        case AnimationPropertyKind::PositionVector:
+        case AnimationPropertyKind::PositionXOffset:
+        case AnimationPropertyKind::PositionYOffset:
+        case AnimationPropertyKind::PositionZOffset:
+            assign_axis_track(pos_tracks, track, kind);
+            break;
+        case AnimationPropertyKind::UniformScale:
+        case AnimationPropertyKind::ScaleX:
+        case AnimationPropertyKind::ScaleY:
+        case AnimationPropertyKind::ScaleZ:
+            assign_axis_track(scale_tracks, track, kind);
+            break;
+        case AnimationPropertyKind::RotationVector:
+        case AnimationPropertyKind::RotationX:
+        case AnimationPropertyKind::RotationY:
+        case AnimationPropertyKind::RotationZ:
+            assign_axis_track(rot_tracks, track, kind);
+            break;
+        case AnimationPropertyKind::Opacity:
+            assign_track(opacity_track, track);
+            break;
+        case AnimationPropertyKind::Blur:
+            assign_track(blur_track, track);
+            break;
+        case AnimationPropertyKind::Skew:
+            assign_track(skew_tracks.angle, track);
+            break;
+        case AnimationPropertyKind::SkewAxis:
+            assign_track(skew_tracks.axis, track);
+            break;
+        case AnimationPropertyKind::FillColor:
+            // Paint tracks are sampled into the per-frame source node.
+            break;
+        default:
             throw std::runtime_error("unsupported primitive animation property: " + track.property);
         }
     }
@@ -879,10 +929,11 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             auto y_track = *pos_tracks.full;
             x_track.property = "position_x";
             y_track.property = "position_y";
-            for (auto* track : {&x_track, &y_track})
+            const std::array<std::pair<AnimationTrackPlan*, std::size_t>, 2> axis_tracks{{
+                {&x_track, 0}, {&y_track, 1}}};
+            for (const auto& [track, axis] : axis_tracks)
                 for (std::size_t index = 0; index < track->keyframes.size(); ++index) {
                     auto& key = track->keyframes[index];
-                    const auto axis = track->property == "position_x" ? 0U : 1U;
                     if (key.value.size() != 2)
                         throw std::runtime_error("easing_xy requires 2D position keyframes");
                     key.value = {key.value[axis]};
@@ -1072,17 +1123,21 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         animated.compute_roving();
         animated.compute_auto_beziers();
     }
-    if (skew_track || skew_axis_track) {
+    if (!skew_tracks.empty()) {
         auto& animated = builder.skew_anim();
         animated.set(chronon3d::Vec3{layer.skew_angle_deg, layer.skew_axis_deg, 0.0f});
-        const auto x = skew_track ? std::optional<AnimationTrackPlan>{*skew_track} : std::nullopt;
-        const auto y = skew_axis_track ? std::optional<AnimationTrackPlan>{*skew_axis_track} : std::nullopt;
+        const auto angle_track = skew_tracks.angle
+            ? std::optional<AnimationTrackPlan>{*skew_tracks.angle} : std::nullopt;
+        const auto axis_track = skew_tracks.axis
+            ? std::optional<AnimationTrackPlan>{*skew_tracks.axis} : std::nullopt;
         const float base_x = layer.skew_angle_deg;
         const float base_y = layer.skew_axis_deg;
-        animated.frame_evaluator([x, y, base_x, base_y, fps](double frame) {
+        animated.frame_evaluator([angle_track, axis_track, base_x, base_y, fps](double frame) {
             const float angle = std::clamp(
-                x ? evaluate_scalar_track(*x, frame, base_x, fps) : base_x, -80.0f, 80.0f);
-            const float axis = y ? evaluate_scalar_track(*y, frame, base_y, fps) : base_y;
+                angle_track ? evaluate_scalar_track(*angle_track, frame, base_x, fps) : base_x,
+                -80.0f, 80.0f);
+            const float axis = axis_track
+                ? evaluate_scalar_track(*axis_track, frame, base_y, fps) : base_y;
             return chronon3d::Vec3{angle, axis, 0.0f};
         });
     }
@@ -1479,11 +1534,6 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
     descriptor.base.projection = chronon3d::camera_v1::FovProjection{
         chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
-    descriptor.base.dof.enabled = source_plan.dof_enabled;
-    descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
-    descriptor.base.dof.focus_z = source_plan.dof_focus_distance;
-    descriptor.base.dof.aperture = source_plan.dof_aperture;
-    descriptor.base.dof.max_blur = source_plan.dof_max_blur;
     if (source_plan.type == "orthographic") {
         // Camera2_5D has no second projection implementation: use its existing
         // zoom optics surface rather than introducing a parallel camera model.

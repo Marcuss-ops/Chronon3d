@@ -222,46 +222,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         };
         if (raw_shape.contains("path")) {
             for (const auto& raw_command : raw_shape.at("path")) {
-                ShapePathCommandPlan command;
-                const auto kind = raw_command.at("type").get<std::string>();
-                if (kind == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                else if (kind == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                else if (kind == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                else if (kind == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                else if (kind == "close") command.type = ShapePathCommandTypePlan::Close;
-                else throw std::runtime_error("unsupported shape path command type: " + kind);
-                const auto read_point = [](const nlohmann::json& point,
-                                           std::array<float, 2>& output) {
-                    if (!point.is_array() || point.size() != 2)
-                        throw std::runtime_error("shape path points must have exactly two numbers");
-                    output = {point[0].get<float>(), point[1].get<float>()};
-                };
-                if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
-                if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
-                if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
-                const bool has_point = raw_command.contains("point");
-                const bool has_control1 = raw_command.contains("control1");
-                const bool has_control2 = raw_command.contains("control2");
-                switch (command.type) {
-                    case ShapePathCommandTypePlan::MoveTo:
-                    case ShapePathCommandTypePlan::LineTo:
-                        if (!has_point || has_control1 || has_control2)
-                            throw std::runtime_error("move_to/line_to require point only");
-                        break;
-                    case ShapePathCommandTypePlan::QuadraticTo:
-                        if (!has_point || !has_control1 || has_control2)
-                            throw std::runtime_error("quadratic_to requires point and control1 only");
-                        break;
-                    case ShapePathCommandTypePlan::CubicTo:
-                        if (!has_point || !has_control1 || !has_control2)
-                            throw std::runtime_error("cubic_to requires point, control1, and control2");
-                        break;
-                    case ShapePathCommandTypePlan::Close:
-                        if (has_point || has_control1 || has_control2)
-                            throw std::runtime_error("close accepts no coordinates");
-                        break;
-                }
-                shape.path.push_back(command);
+                shape.path.push_back(decode_shape_path_command(raw_command, "shape path"));
             }
         }
         if ((shape.type == ShapeContentTypePlan::Line ||
@@ -613,39 +574,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                             throw std::runtime_error("merge subpath has invalid command count");
                         std::vector<ShapePathCommandPlan> subpath;
                         for (const auto& raw_command : raw_subpath) {
-                            ShapePathCommandPlan command;
-                            const auto type = raw_command.at("type").get<std::string>();
-                            if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                            else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                            else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                            else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                            else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-                            else throw std::runtime_error("unsupported merge path command: " + type);
-                            const auto read_point = [](const nlohmann::json& value,
-                                                       std::array<float, 2>& out) {
-                                if (!value.is_array() || value.size() != 2)
-                                    throw std::runtime_error("merge path point must contain two values");
-                                out = {value[0].get<float>(), value[1].get<float>()};
-                            };
-                            if (raw_command.contains("point")) read_point(raw_command.at("point"), command.point);
-                            if (raw_command.contains("control1")) read_point(raw_command.at("control1"), command.control1);
-                            if (raw_command.contains("control2")) read_point(raw_command.at("control2"), command.control2);
-                            const bool has_point = raw_command.contains("point");
-                            const bool has_c1 = raw_command.contains("control1");
-                            const bool has_c2 = raw_command.contains("control2");
-                            if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-                                 command.type == ShapePathCommandTypePlan::LineTo) &&
-                                (!has_point || has_c1 || has_c2))
-                                throw std::runtime_error("merge move_to/line_to require point only");
-                            if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
-                                (!has_point || !has_c1 || has_c2))
-                                throw std::runtime_error("merge quadratic_to requires point and control1");
-                            if (command.type == ShapePathCommandTypePlan::CubicTo &&
-                                (!has_point || !has_c1 || !has_c2))
-                                throw std::runtime_error("merge cubic_to requires point and both controls");
-                            if (command.type == ShapePathCommandTypePlan::Close &&
-                                (has_point || has_c1 || has_c2))
-                                throw std::runtime_error("merge close accepts no coordinates");
+                            auto command = decode_shape_path_command(raw_command, "merge path");
                             const auto finite = [](const auto& v) {
                                 return std::isfinite(v[0]) && std::isfinite(v[1]);
                             };
@@ -667,39 +596,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     if (!raw_target.is_array() || raw_target.empty() || raw_target.size() > 65536)
                         throw std::runtime_error("morph target must contain between 1 and 65536 commands");
                     for (const auto& raw_command : raw_target) {
-                        ShapePathCommandPlan command;
-                        const auto type = raw_command.at("type").get<std::string>();
-                        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-                        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-                        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-                        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-                        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-                        else throw std::runtime_error("unsupported morph path command: " + type);
-                        const auto read_point = [](const nlohmann::json& value,
-                                                   std::array<float, 2>& out) {
-                            if (!value.is_array() || value.size() != 2)
-                                throw std::runtime_error("morph path points must contain two values");
-                            out = {value[0].get<float>(), value[1].get<float>()};
-                        };
-                        const bool has_point = raw_command.contains("point");
-                        const bool has_c1 = raw_command.contains("control1");
-                        const bool has_c2 = raw_command.contains("control2");
-                        if (has_point) read_point(raw_command.at("point"), command.point);
-                        if (has_c1) read_point(raw_command.at("control1"), command.control1);
-                        if (has_c2) read_point(raw_command.at("control2"), command.control2);
-                        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-                             command.type == ShapePathCommandTypePlan::LineTo) &&
-                            (!has_point || has_c1 || has_c2))
-                            throw std::runtime_error("morph move_to/line_to require point only");
-                        if (command.type == ShapePathCommandTypePlan::QuadraticTo &&
-                            (!has_point || !has_c1 || has_c2))
-                            throw std::runtime_error("morph quadratic_to requires point and control1");
-                        if (command.type == ShapePathCommandTypePlan::CubicTo &&
-                            (!has_point || !has_c1 || !has_c2))
-                            throw std::runtime_error("morph cubic_to requires point and both controls");
-                        if (command.type == ShapePathCommandTypePlan::Close &&
-                            (has_point || has_c1 || has_c2))
-                            throw std::runtime_error("morph close accepts no coordinates");
+                        auto command = decode_shape_path_command(raw_command, "morph path");
                         if ((command.type != ShapePathCommandTypePlan::Close &&
                              !finite_point(command.point)) ||
                             !finite_point(command.control1) || !finite_point(command.control2))

@@ -141,6 +141,13 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     case AnimationProperty::RotationX: rotation.x = value; break;
                     case AnimationProperty::RotationY: rotation.y = value; break;
                     case AnimationProperty::RotationZ: rotation.z = value; break;
+                    case AnimationProperty::PositionVector:
+                    case AnimationProperty::RotationVector:
+                    case AnimationProperty::Blur:
+                    case AnimationProperty::Tracking:
+                    case AnimationProperty::Skew:
+                    case AnimationProperty::SkewAxis:
+                    case AnimationProperty::FillColor:
                     case AnimationProperty::Unknown: break;
                 }
             }
