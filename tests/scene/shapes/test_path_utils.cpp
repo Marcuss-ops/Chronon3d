@@ -1,6 +1,8 @@
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/vector/path_factories.hpp>
+#include <chronon3d/graphics/field2d.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include "src/backends/software/rasterizers/path/path_stroke.hpp"
 #include <doctest/doctest.h>
 #include <cmath>
@@ -51,6 +53,59 @@ TEST_CASE("Odd dash patterns repeat before splitting a polyline") {
     CHECK(dashed[1].back().x == doctest::Approx(6.0f));
     CHECK(dashed[2].front().x == doctest::Approx(9.0f));
     CHECK(dashed[2].back().x == doctest::Approx(10.0f));
+}
+
+TEST_CASE("Tapered path segment interpolates stroke radius by arc length") {
+    CHECK(chronon3d::renderer::segment_coverage(
+        {1.0f, 2.0f}, {0.0f, 0.0f}, {10.0f, 0.0f}, 0.0f, 5.0f) == doctest::Approx(0.0f));
+    CHECK(chronon3d::renderer::segment_coverage(
+        {9.0f, 2.0f}, {0.0f, 0.0f}, {10.0f, 0.0f}, 0.0f, 5.0f) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Field2D generators and operators are deterministic and bounded") {
+    using namespace chronon3d::graphics;
+    constexpr std::array generators{
+        Field2DGenerator::Perlin, Field2DGenerator::Simplex, Field2DGenerator::Fractal,
+        Field2DGenerator::Cellular, Field2DGenerator::Grid, Field2DGenerator::Checker,
+        Field2DGenerator::Dots, Field2DGenerator::Stripes, Field2DGenerator::Rings,
+        Field2DGenerator::Linear, Field2DGenerator::Radial, Field2DGenerator::Conic};
+    for (const auto generator : generators) {
+        Field2D field;
+        field.generator = generator;
+        field.seed = 73;
+        field.frequency = 5.0f;
+        field.operators = {{.kind = Field2DOperatorKind::Warp, .amount = 0.2f},
+                           {.kind = Field2DOperatorKind::Smoothstep, .edge = .5f, .softness = .3f},
+                           {.kind = Field2DOperatorKind::Invert}};
+        const float a = field.sample({0.23f, 0.71f});
+        const float b = field.sample({0.23f, 0.71f});
+        CHECK(std::isfinite(a));
+        CHECK(a >= 0.0f);
+        CHECK(a <= 1.0f);
+        CHECK(a == b);
+    }
+
+    Field2D linear;
+    linear.generator = Field2DGenerator::Linear;
+    CHECK(linear.sample({0.25f, 0.9f}) == doctest::Approx(0.25f));
+    linear.operators = {{.kind = Field2DOperatorKind::Threshold, .edge = 0.5f}};
+    CHECK(linear.sample({0.25f, 0.9f}) == doctest::Approx(0.0f));
+    CHECK(linear.sample({0.75f, 0.1f}) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Field2D is retained by the canonical FillStyle bridge") {
+    chronon3d::graphics::Field2D field;
+    field.generator = chronon3d::graphics::Field2DGenerator::Linear;
+    chronon3d::graphics::FillStyle style =
+        chronon3d::graphics::FillStyle::solid({0.8f, 0.4f, 0.2f, 0.75f});
+    style.field = field;
+    const auto runtime = style.to_fill();
+    CHECK(runtime.field.has_value());
+    const auto sampled = chronon3d::sample_fill_at(runtime, {0.25f, 0.9f});
+    CHECK(sampled.r == doctest::Approx(0.2f));
+    CHECK(sampled.g == doctest::Approx(0.1f));
+    CHECK(sampled.b == doctest::Approx(0.05f));
+    CHECK(sampled.a == doctest::Approx(0.75f));
 }
 
 TEST_CASE("Path Utilities: Trim Polyline") {

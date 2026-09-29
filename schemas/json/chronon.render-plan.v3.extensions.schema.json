@@ -359,10 +359,47 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "per_item_frames": { "type": "integer", "minimum": 0, "maximum": 600, "default": 0 },
-        "order": { "enum": ["forward", "reverse", "center_out", "random"], "default": "forward" },
+        "order": { "enum": ["forward", "reverse", "center_out", "random", "from_edges", "spatial_x", "spatial_y", "radial"], "default": "forward" },
         "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
         "track_property": { "type": "string", "minLength": 1, "maxLength": 128, "default": "opacity" },
         "easing": { "$ref": "#/$defs/easing" }
+      }
+    },
+    "run_stagger": {
+      "type": "object", "additionalProperties": false,
+      "required": ["group_id"],
+      "properties": {
+        "group_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "per_item_frames": { "type": "integer", "minimum": 0, "maximum": 600, "default": 0 },
+        "order": { "enum": ["forward", "reverse", "center_out", "random", "from_edges", "spatial_x", "spatial_y", "radial"], "default": "forward" },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
+        "track_property": { "type": "string", "minLength": 1, "maxLength": 128, "default": "opacity" },
+        "easing": { "$ref": "#/$defs/easing" }
+      }
+    },
+    "field2d": {
+      "type": "object", "additionalProperties": false, "required": ["generator"],
+      "properties": {
+        "generator": { "enum": ["perlin", "simplex", "fractal", "cellular", "grid", "checker", "dots", "stripes", "rings", "linear", "radial", "conic"] },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
+        "frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 4096, "default": 4 },
+        "octaves": { "type": "integer", "minimum": 1, "maximum": 16, "default": 4 },
+        "persistence": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
+        "lacunarity": { "type": "number", "exclusiveMinimum": 0, "maximum": 8, "default": 2 },
+        "operators": {
+          "type": "array", "maxItems": 8,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["kind"],
+            "properties": {
+              "kind": { "enum": ["remap", "threshold", "smoothstep", "invert", "warp"] },
+              "from": { "type": "number", "minimum": 0, "maximum": 1 },
+              "to": { "type": "number", "minimum": 0, "maximum": 1 },
+              "edge": { "type": "number", "minimum": 0, "maximum": 1 },
+              "softness": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+              "amount": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
       }
     },
     "follow_path_progress_keyframe": {
@@ -410,12 +447,12 @@
       ]
     },
     "animator_property_track": {
-      "description": "V3 override of the V2 animator property track. The property vocabulary is the V2 set plus the per-glyph 'rotation' and 'fill_color' tracks; V2 plans keep the frozen V2 enum and cannot use them.",
+      "description": "V3 override of the V2 animator property track. V3 adds per-glyph rotation, color, anchor, skew, baseline, background, and stroke animation; V2 plans keep the frozen V2 enum.",
       "type": "object", "additionalProperties": false,
       "required": ["property", "keyframes"],
       "properties": {
         "property": {
-          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "rotation", "fill_color"]
+          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "rotation", "fill_color", "skew", "skew_axis", "anchor", "baseline_shift", "background_color", "background_padding_em", "background_radius_em", "stroke_color", "stroke_width"]
         },
         "easing": { "$ref": "#/$defs/animation_easing" },
         "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
@@ -489,6 +526,82 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": { "enum": ["fill_color", "background_color", "stroke_color"] }
+            },
+            "required": ["property"]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": {
+                      "type": "array", "minItems": 4, "maxItems": 4,
+                      "items": { "type": "number", "minimum": 0, "maximum": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "property": { "const": "anchor" } }, "required": ["property"] },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": {
+                      "type": "array", "minItems": 3, "maxItems": 3,
+                      "items": { "type": "number" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "property": {
+                "enum": ["skew", "skew_axis", "baseline_shift", "background_padding_em", "background_radius_em", "stroke_width"]
+              }
+            },
+            "required": ["property"]
+          },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": { "properties": { "value": { "type": "number" } } }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "property": { "const": "skew" } }, "required": ["property"] },
+          "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": -80, "maximum": 80 } } } } } }
+        },
+        {
+          "if": { "properties": { "property": { "const": "skew_axis" } }, "required": ["property"] },
+          "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": -1000000, "maximum": 1000000 } } } } } }
+        },
+        {
+          "if": { "properties": { "property": { "const": "baseline_shift" } }, "required": ["property"] },
+          "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": -1000000, "maximum": 1000000 } } } } } }
+        },
+        {
+          "if": { "properties": { "property": { "enum": ["background_padding_em", "background_radius_em"] } }, "required": ["property"] },
+          "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": 0, "maximum": 128 } } } } } }
+        },
+        {
+          "if": { "properties": { "property": { "const": "stroke_width" } }, "required": ["property"] },
+          "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": 0, "maximum": 256 } } } } } }
         }
       ]
     },
@@ -546,11 +659,15 @@
         "id": { "type": "string" },
         "semantic_id": { "type": "string", "minLength": 1, "maxLength": 256 },
         "unit": { "enum": ["glyph", "grapheme", "character", "word", "line"] },
-        "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth", "wiggly"] },
+        "shape": { "enum": ["square", "ramp_up", "ramp_down", "triangle", "round", "smooth", "wiggly", "noise"] },
         "wiggly_frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
         "wiggly_amplitude": { "type": "number", "minimum": 0, "maximum": 1 },
         "wiggly_seed": { "type": "integer", "minimum": 0 },
-        "order": { "enum": ["forward", "reverse", "from_center", "to_center", "random"] },
+        "noise_frequency": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000 },
+        "noise_amplitude": { "type": "number", "minimum": 0, "maximum": 1 },
+        "noise_seed": { "type": "integer", "minimum": 0 },
+        "order": { "enum": ["forward", "reverse", "from_center", "to_center", "random", "index"] },
+        "index_step": { "type": "integer", "minimum": 1, "maximum": 1000000 },
         "combine": { "enum": ["replace", "add", "subtract", "intersect", "min", "max"] },
         "start": { "$ref": "#/$defs/selector_track" },
         "end": { "$ref": "#/$defs/selector_track" },
@@ -568,6 +685,18 @@
           { "required": ["wiggly_amplitude"] },
           { "required": ["wiggly_seed"] }
         ] } }
+      }, {
+        "if": { "properties": { "shape": { "const": "noise" } }, "required": ["shape"] },
+        "then": {},
+        "else": { "not": { "anyOf": [
+          { "required": ["noise_frequency"] },
+          { "required": ["noise_amplitude"] },
+          { "required": ["noise_seed"] }
+        ] } }
+      }, {
+        "if": { "properties": { "order": { "const": "index" } }, "required": ["order"] },
+        "then": {},
+        "else": { "not": { "required": ["index_step"] } }
       }]
     },
     "text_animator": {
@@ -637,6 +766,10 @@
         "trim_end": { "type": "number", "minimum": 0, "maximum": 1 },
         "dash_array": { "type": "array", "items": { "type": "number", "minimum": 0 } },
         "dash_offset": { "type": "number" },
+        "cap": { "enum": ["butt", "round", "square"], "default": "butt" },
+        "join": { "enum": ["miter", "round", "bevel"], "default": "miter" },
+        "taper_start": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+        "taper_end": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
         "gradient": { "$ref": "#/$defs/gradient" }
       },
       "not": { "required": ["color", "gradient"] }
@@ -663,6 +796,7 @@
         "radius": { "type": "number", "minimum": 0 },
         "corner_radius": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0 } },
         "fill": { "oneOf": [{ "$ref": "#/$defs/rgba" }, { "$ref": "#/$defs/gradient" }] },
+        "field": { "$ref": "#/$defs/field2d" },
         "stroke": { "$ref": "#/$defs/stroke" },
         "path": { "type": "array", "minItems": 1, "maxItems": 65536, "items": { "$ref": "#/$defs/path_command" } },
         "points": { "type": "integer", "minimum": 3, "maximum": 256 },
@@ -942,6 +1076,7 @@
             ]
           },
           "text_counter": {"$ref": "#/$defs/text_counter"},
+          "stagger_group": {"$ref": "#/$defs/run_stagger"},
           "flow": {
             "type": "object", "additionalProperties": false, "required": ["group_id"],
             "properties": {
@@ -1306,10 +1441,12 @@
               "type": "object", "additionalProperties": false,
               "required": ["type", "mode"],
               "properties": {
-                "type": { "enum": ["path", "rect", "rounded_rect", "ellipse"] },
+                "type": { "enum": ["path", "rect", "rounded_rect", "ellipse", "field", "text"] },
                 "mode": { "enum": ["add", "subtract", "intersect", "difference"] },
                 "path": { "type": "array", "minItems": 1, "maxItems": 65536,
                           "items": { "$ref": "#/$defs/path_command" } },
+                "field": { "$ref": "#/$defs/field2d" },
+                "source": { "type": "string", "minLength": 1, "maxLength": 256 },
                 "target_path": { "type": "array", "minItems": 1, "maxItems": 65536,
                                  "items": { "$ref": "#/$defs/path_command" } },
                 "animation": { "$ref": "#/$defs/selector_track" },
@@ -1335,6 +1472,10 @@
                   "then": { "required": ["size", "radius"] } },
                 { "if": { "properties": { "type": { "const": "ellipse" } }, "required": ["type"] },
                   "then": { "required": ["size"] } },
+                { "if": { "properties": { "type": { "const": "field" } }, "required": ["type"] },
+                  "then": { "required": ["field", "size"] } },
+                { "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+                  "then": { "required": ["source"], "not": { "anyOf": [{ "required": ["path"] }, { "required": ["field"] }, { "required": ["size"] }, { "required": ["radius"] }] } } },
                 { "if": { "properties": { "type": { "const": "path" } }, "required": ["type"] },
                   "then": { "not": { "anyOf": [{ "required": ["size"] }, { "required": ["radius"] }] } } },
                 { "if": { "required": ["target_path"] }, "then": { "required": ["animation", "path"] } },
@@ -1548,8 +1689,17 @@
                   "evolution": { "type": "number", "minimum": -10000, "maximum": 10000 },
                   "contrast": { "type": "number", "minimum": 0, "maximum": 16 },
                   "brightness": { "type": "number", "minimum": -16, "maximum": 16 },
-                  "color_mode": { "enum": ["monochrome", "rgb"] }
-                }
+                  "color_mode": { "enum": ["monochrome", "rgb"] },
+                  "field": { "$ref": "#/$defs/field2d" }
+                },
+                "allOf": [{
+                  "if": { "required": ["field"] },
+                  "then": { "not": { "anyOf": [
+                    { "required": ["seed"] },
+                    { "required": ["octaves"] },
+                    { "required": ["frequency"] }
+                  ] } }
+                }]
               },
               { "type": "object", "additionalProperties": false,
                 "required": ["type"],
@@ -1629,15 +1779,21 @@
                 }
               },
               { "type": "object", "additionalProperties": false,
-                "required": ["type", "map_layer"],
+                "required": ["type"],
                 "properties": {
                   "type": { "const": "displacement_map" },
                   "time": { "$ref": "#/$defs/effect_time" },
                   "map_layer": { "type": "string", "minLength": 1 },
+                  "field": { "$ref": "#/$defs/field2d" },
                   "intensity_x": { "type": "number", "minimum": -4, "maximum": 4 },
                   "intensity_y": { "type": "number", "minimum": -4, "maximum": 4 },
                   "map_channel": { "enum": ["luma", "red", "green", "blue", "alpha"] }
-                }
+                },
+                "allOf": [
+                  { "if": { "required": ["field"] }, "then": { "not": { "required": ["map_layer"] } } },
+                  { "if": { "required": ["map_layer"] }, "then": { "not": { "required": ["field"] } } },
+                  { "anyOf": [{ "required": ["field"] }, { "required": ["map_layer"] }] }
+                ]
               },
               { "$ref": "#/$defs/catalog_effect" }
             ] }

@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <algorithm>
 #include <memory>
 #include <atomic>
 #include <cstdint>
@@ -94,6 +95,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         if(effect.effect_type==effects::EffectType::DisplacementMap) {
             const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
             if(!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            if (params->field) { layer_output = effect_id; continue; }
             const auto map=item.displacement_map_nodes.find(params->map_layer);
             if(map==item.displacement_map_nodes.end())
                 throw std::runtime_error("DisplacementMap source layer was not materialized: "+params->map_layer);
@@ -124,6 +126,15 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     if (!layer.mask.enabled()) return;
 
     Mask mask = layer.mask;
+    std::vector<std::string> text_sources;
+    const auto add_text_source = [&](MaskType type, const std::string& source) {
+        if (type == MaskType::Text &&
+            std::find(text_sources.begin(), text_sources.end(), source) == text_sources.end())
+            text_sources.push_back(source);
+    };
+    add_text_source(mask.type, mask.text_source);
+    for (const auto& operation : mask.operations)
+        add_text_source(operation.type, operation.text_source);
     if (ctx.policy.modular_coordinates && !item.native_3d && !item.projected) {
         // Mask coordinates are authored in the layer's centered local space,
         // while MaskNode samples canvas pixels.  Convert the resolved layer
@@ -140,8 +151,19 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     // PR2-cleanup: MaskNode defaults to `static_memory_cache`; the legacy
     // `!is_static` A/B distinction was removed. Single node, taken as id.
     {
-        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(std::move(mask), is_static ? Frame{0} : Frame{-1}), node_ctx);
+        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(
+            std::move(mask), is_static && text_sources.empty()
+                ? Frame{0} : Frame{-1}, text_sources,
+            evaluate_layer_placement(item, ctx).render_matrix,
+            text_sources.empty() ? static_memory_cache("mask")
+                                 : frame_variant_cache("text_mask_source")), node_ctx);
         graph.connect(layer_output, masked);
+        for (const auto& source : text_sources) {
+            const auto node = item.text_mask_source_nodes.find(source);
+            if (node == item.text_mask_source_nodes.end())
+                throw std::runtime_error("text mask source layer was not materialized: " + source);
+            graph.connect(node->second, masked);
+        }
         layer_output = masked;
     }
 }

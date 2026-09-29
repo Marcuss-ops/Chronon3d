@@ -270,6 +270,24 @@ void add_gradient(CanonicalPlanWriter& out, const graphics::GradientDefinition& 
     graphics::write_gradient_identity(value, sink);
 }
 
+void add_field2d(CanonicalPlanWriter& out, const graphics::Field2D& field) {
+    out.add_enum(field.generator);
+    out.add_uint64(field.seed);
+    out.add_float(field.frequency);
+    out.add_uint64(field.octaves);
+    out.add_float(field.persistence);
+    out.add_float(field.lacunarity);
+    out.add_size(field.operators.size());
+    for (const auto& op : field.operators) {
+        out.add_enum(op.kind);
+        out.add_float(op.from);
+        out.add_float(op.to);
+        out.add_float(op.edge);
+        out.add_float(op.softness);
+        out.add_float(op.amount);
+    }
+}
+
 void add_gradient_animation(CanonicalPlanWriter& out,
                             const GradientAnimationPlan& animation) {
     out.add_string(animation.easing);
@@ -376,6 +394,10 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         out.add_float(selector.wiggly_frequency);
         out.add_float(selector.wiggly_amplitude);
         out.add_uint64(selector.wiggly_seed);
+        out.add_float(selector.noise_frequency);
+        out.add_float(selector.noise_amplitude);
+        out.add_uint64(selector.noise_seed);
+        out.add_uint64(selector.index_step);
         add_optional(out, selector.semantic_id, [](auto& writer, const std::string& value) {
             writer.add_string(value);
         });
@@ -490,6 +512,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         w.add_string(p.group_id); w.add_string(p.fit); w.add_uint64(static_cast<std::uint64_t>(p.columns)); w.add_uint64(static_cast<std::uint64_t>(p.rows));
         w.add_float(p.gap[0]); w.add_float(p.gap[1]); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
         add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
+    });
+    add_optional(out, layer.stagger_group, [](auto& w, const LayerPlan::StaggerPlan& stagger) {
+        w.add_string(stagger.group_id);
+        add_stagger(w, stagger);
     });
     add_optional(out, layer.follow_path, [](auto& w, const LayerPlan::FollowPathDriverPlan& p) {
         w.add_string(p.path_id);
@@ -639,6 +665,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                                                  const graphics::GradientDefinition& value) {
             add_gradient(nested, value);
         });
+        add_optional(out, shape.field, [](auto& nested, const auto& field) {
+            add_field2d(nested, field);
+        });
         add_optional(out, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
             nested.add_string(stroke.color);
             add_optional(nested, stroke.width, [](auto& w, float v) { w.add_float(v); });
@@ -650,6 +679,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             nested.add_size(stroke.dash_array.size());
             for (const float dash : stroke.dash_array) nested.add_float(dash);
             nested.add_float(stroke.dash_offset);
+            nested.add_string(stroke.cap);
+            nested.add_string(stroke.join);
+            nested.add_float(stroke.taper_start);
+            nested.add_float(stroke.taper_end);
             add_optional(nested, stroke.gradient, [](auto& w,
                     const graphics::GradientDefinition& value) {
                 add_gradient(w, value);
@@ -869,6 +902,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(layer.path_mask->feather);
         out.add_float(layer.path_mask->expansion);
         out.add_float(layer.path_mask->opacity);
+        add_optional(out, layer.path_mask->field,
+            [](auto& writer, const graphics::Field2D& field) { add_field2d(writer, field); });
         add_optional(out, layer.path_mask->feather_track,
             [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
         add_optional(out, layer.path_mask->expansion_track,
@@ -897,12 +932,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     for (const auto& mask : layer.masks) {
         out.add_string(mask.type);
         out.add_string(mask.mode);
+        out.add_string(mask.text_source);
         for (const auto value : mask.position) out.add_float(value);
         for (const auto value : mask.size) out.add_float(value);
         out.add_float(mask.radius);
         out.add_float(mask.feather);
         out.add_float(mask.expansion);
         out.add_float(mask.opacity);
+        add_optional(out, mask.field,
+            [](auto& writer, const graphics::Field2D& field) { add_field2d(writer, field); });
         add_optional(out, mask.feather_track,
             [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
         add_optional(out, mask.expansion_track,
@@ -1013,6 +1051,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.contrast);
                 out.add_float(effect.brightness);
                 out.add_bool(effect.rgb_noise);
+                add_optional(out, effect.noise_field,
+                    [](auto& writer, const graphics::Field2D& field) { add_field2d(writer, field); });
             } break;
             case LayerPlan::EffectKindPlan::CornerPin: {
                 for (const auto value : effect.quad) out.add_float(value);
@@ -1053,6 +1093,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             case LayerPlan::EffectKindPlan::DisplacementMap: {
                 out.add_string(effect.map_layer); out.add_float(effect.map_intensity_x);
                 out.add_float(effect.map_intensity_y); out.add_uint64(effect.map_channel);
+                add_optional(out, effect.map_field,
+                    [](auto& writer, const graphics::Field2D& field) { add_field2d(writer, field); });
             } break;
             case LayerPlan::EffectKindPlan::ChromaticAberration: {
                 out.add_float(effect.chromatic_red_offset);
@@ -1158,7 +1200,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v29");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v32");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

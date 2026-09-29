@@ -33,6 +33,13 @@ enum class AnimationPropertyKind : std::uint8_t {
     Skew,
     SkewAxis,
     FillColor,
+    Anchor,
+    BaselineShift,
+    BackgroundColor,
+    BackgroundPadding,
+    BackgroundRadius,
+    StrokeColor,
+    StrokeWidth,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -53,6 +60,11 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"rotation", Kind::RotationVector}, {"time_remap", Kind::TimeRemap},
         {"blur", Kind::Blur}, {"tracking", Kind::Tracking}, {"skew", Kind::Skew},
         {"skew_axis", Kind::SkewAxis}, {"fill_color", Kind::FillColor},
+        {"anchor", Kind::Anchor}, {"baseline_shift", Kind::BaselineShift},
+        {"background_color", Kind::BackgroundColor},
+        {"background_padding_em", Kind::BackgroundPadding},
+        {"background_radius_em", Kind::BackgroundRadius},
+        {"stroke_color", Kind::StrokeColor}, {"stroke_width", Kind::StrokeWidth},
     };
     const auto found = kinds.find(name);
     return found == kinds.end() ? Kind::Unknown : found->second;

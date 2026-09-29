@@ -60,7 +60,9 @@ std::optional<std::string> find_3d_track(const nlohmann::json& layer) {
     return std::nullopt;
 }
 
-std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& layers) {
+std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& layers,
+                                                    int canvas_width,
+                                                    int canvas_height) {
     struct Group {
         std::vector<std::size_t> members;
         std::optional<LayerPlan::StaggerPlan> stagger;
@@ -97,6 +99,10 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
             if (auto error = collect("grid", layers[i].grid_layout->group_id,
                                      layers[i].grid_layout->stagger)) return error;
         }
+        if (layers[i].stagger_group) {
+            if (auto error = collect("run", layers[i].stagger_group->group_id,
+                                     layers[i].stagger_group)) return error;
+        }
     }
     const auto splitmix64 = [](std::uint64_t value) {
         value += 0x9e3779b97f4a7c15ULL;
@@ -127,6 +133,35 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
                 const auto j = static_cast<std::size_t>(state % i);
                 std::swap(order[i - 1], order[j]);
             }
+        } else if (stagger.order == "spatial_x" || stagger.order == "spatial_y" ||
+                   stagger.order == "radial" || stagger.order == "from_edges") {
+            const auto position = [&](std::size_t rank) -> const LayerPlan& {
+                return layers[group.members[rank]];
+            };
+            double center_x = 0.0;
+            double center_y = 0.0;
+            for (const auto rank : order) {
+                center_x += position(rank).position[0];
+                center_y += position(rank).position[1];
+            }
+            if (!order.empty()) {
+                center_x /= static_cast<double>(order.size());
+                center_y /= static_cast<double>(order.size());
+            }
+            const auto key = [&](std::size_t rank) {
+                const auto& layer = position(rank);
+                const double x = layer.position[0];
+                const double y = layer.position[1];
+                if (stagger.order == "spatial_x") return x;
+                if (stagger.order == "spatial_y") return y;
+                if (stagger.order == "radial")
+                    return std::hypot(x - center_x, y - center_y);
+                return std::min({x, y, static_cast<double>(canvas_width) - x,
+                                 static_cast<double>(canvas_height) - y});
+            };
+            std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+                return key(a) < key(b);
+            });
         }
         std::vector<std::size_t> rank_by_member(group.members.size());
         for (std::size_t rank = 0; rank < order.size(); ++rank) rank_by_member[order[rank]] = rank;
@@ -134,12 +169,11 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
             const auto rank = rank_by_member[member];
             const std::uint64_t offset = static_cast<std::uint64_t>(stagger.per_item_frames) * rank;
             auto& layer = layers[group.members[member]];
-            if (!layer.animation) continue;
-            for (auto& track : layer.animation->tracks) {
-                if (track.property != stagger.track_property) continue;
+            const auto apply_track = [&](auto& track) -> std::optional<PlanDecodeError> {
+                if (track.property != stagger.track_property) return std::nullopt;
                 for (const auto& keyframe : track.keyframes) {
                     if (keyframe.frame.integral() > 1000000 - static_cast<std::int64_t>(offset))
-                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "].animation",
+                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "]",
                             "staggered keyframe exceeds the supported frame limit", "stagger_frame_overflow",
                             "render-plan-layout-stagger"};
                 }
@@ -151,11 +185,20 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
                             [](const auto& keyframe) {
                                 return keyframe.spring.has_value() || keyframe.easing == "spring";
                             }))
-                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "].animation",
+                        return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "]",
                             "stagger easing cannot override a spring track", "stagger_spring_easing_conflict",
                             "render-plan-layout-stagger"};
                     track.easing = stagger.easing;
                 }
+                return std::nullopt;
+            };
+            if (layer.animation) {
+                for (auto& track : layer.animation->tracks)
+                    if (auto error = apply_track(track)) return error;
+            }
+            for (auto& animator : layer.text_animators) {
+                for (auto& track : animator.properties)
+                    if (auto error = apply_track(track)) return error;
             }
         }
     }
@@ -471,8 +514,36 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
                     "track_matte_source_missing", "render-plan-relations"};
             }
         }
+        const auto validate_text_mask = [&](const LayerPlan::PathMaskPlan& mask,
+                                             const std::string& path) -> std::optional<PlanDecodeError> {
+            if (mask.type != "text") return std::nullopt;
+            const auto source = by_id.find(mask.text_source);
+            if (source == by_id.end())
+                return PlanDecodeError{path + ".source",
+                    "text mask source layer id does not exist: " + mask.text_source,
+                    "text_mask_source_missing", "render-plan-relations"};
+            if (plan.layers[source->second].type != LayerType::Text)
+                return PlanDecodeError{path + ".source",
+                    "text mask source must reference a text layer",
+                    "text_mask_source_not_text", "render-plan-relations"};
+            if (mask.text_source == layer.id)
+                return PlanDecodeError{path + ".source",
+                    "a layer cannot use itself as a text mask source",
+                    "text_mask_self_reference", "render-plan-relations"};
+            return std::nullopt;
+        };
+        if (layer.path_mask) {
+            if (auto error = validate_text_mask(*layer.path_mask,
+                    "layers[" + std::to_string(index) + "].mask")) return error;
+        }
+        for (std::size_t mask_index = 0; mask_index < layer.masks.size(); ++mask_index) {
+            if (auto error = validate_text_mask(layer.masks[mask_index],
+                    "layers[" + std::to_string(index) + "].masks[" +
+                    std::to_string(mask_index) + "]")) return error;
+        }
         for(const auto& effect:layer.effects) {
             if(effect.kind!=LayerPlan::EffectKindPlan::DisplacementMap) continue;
+            if (effect.map_field) continue;
             if(effect.map_layer==layer.id)
                 return PlanDecodeError{"layers["+std::to_string(index)+"].effects.map_layer",
                     "a layer cannot use itself as its displacement map",
@@ -517,6 +588,10 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
         const auto& layer = plan.layers[index];
         if (layer.parent && !self(self, by_id.at(*layer.parent))) return false;
         if (layer.track_matte && !self(self, by_id.at(layer.track_matte->source))) return false;
+        if (layer.path_mask && layer.path_mask->type == "text" &&
+            !self(self, by_id.at(layer.path_mask->text_source))) return false;
+        for (const auto& mask : layer.masks)
+            if (mask.type == "text" && !self(self, by_id.at(mask.text_source))) return false;
         state[index] = 2;
         return true;
     };
@@ -524,7 +599,7 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
         if (!visit_dependencies(visit_dependencies, index)) {
             return PlanDecodeError{
                 "layers[" + std::to_string(index) + "]",
-                "layer parent and track-matte dependencies must be acyclic",
+                "layer parent, track-matte, and mask-source dependencies must be acyclic",
                 "layer_dependency_cycle", "render-plan-relations"};
         }
     }
@@ -946,7 +1021,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             }
         }
 
-        if (const auto stagger_error = apply_layout_stagger(plan.layers))
+        if (const auto stagger_error = apply_layout_stagger(
+                plan.layers, plan.canvas.width, plan.canvas.height))
             return *stagger_error;
 
         for (auto& particle_layer : plan.layers) {

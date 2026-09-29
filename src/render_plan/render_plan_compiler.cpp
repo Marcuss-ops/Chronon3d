@@ -341,7 +341,8 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .contrast = effect.contrast,
             .brightness = effect.brightness,
             .color_mode = effect.rgb_noise ? NoiseColorMode::RGB
-                               : NoiseColorMode::Monochrome});
+                               : NoiseColorMode::Monochrome,
+            .field = effect.noise_field});
         } break;
         case LayerPlan::EffectKindPlan::Sharpen: {
             prepared_effects[index].emplace_back(SharpenParams{
@@ -369,7 +370,8 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             prepared_effects[index].emplace_back(DisplacementMapParams{
             .map_layer=effect.map_layer,.intensity_x=effect.map_intensity_x,
             .intensity_y=effect.map_intensity_y,
-            .channel=static_cast<DisplacementMapParams::Channel>(effect.map_channel)});
+            .channel=static_cast<DisplacementMapParams::Channel>(effect.map_channel),
+            .field=effect.map_field});
         } break;
         case LayerPlan::EffectKindPlan::CornerPin: {
             prepared_effects[index].emplace_back(CornerPinParams{
@@ -1079,12 +1081,19 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 layer, ctx.effective_frame());
                             const auto& active_gradient = animated_gradient
                                 ? animated_gradient : shape.gradient;
+                            if (active_gradient && shape.field)
+                                throw std::runtime_error("shape '" + layer.id +
+                                    "' cannot combine a gradient fill with Field2D");
                             std::optional<graphics::FillStyle> fill;
                             if (active_gradient) {
                                 fill = graphics::FillStyle::solid(base_color);
                                 fill->gradient = *active_gradient;
                             } else if (shape.fill_color) {
                                 fill = graphics::FillStyle::solid(base_color);
+                            }
+                            if (shape.field) {
+                                fill = graphics::FillStyle::solid(base_color);
+                                fill->field = *shape.field;
                             }
                             graphics::StrokeStyle stroke;
                             if (shape.stroke) {
@@ -1100,6 +1109,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     stroke.color = *parsed;
                                 }
                                 stroke.gradient = shape.stroke->gradient;
+                                stroke.cap = shape.stroke->cap == "round" ? LineCap::Round
+                                    : shape.stroke->cap == "square" ? LineCap::Square : LineCap::Butt;
+                                stroke.join = shape.stroke->join == "round" ? LineJoin::Round
+                                    : shape.stroke->join == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
+                                stroke.taper_start = shape.stroke->taper_start;
+                                stroke.taper_end = shape.stroke->taper_end;
                                 stroke.trim_start = shape.stroke->trim_start.value_or(0.0f);
                                 stroke.trim_end = shape.stroke->trim_end.value_or(1.0f);
                                 stroke.dash_array = shape.stroke->dash_array;
@@ -1241,6 +1256,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                         params.fill.enabled = true;
                                         params.fill.type = fill_type_for_gradient(active_gradient->type);
                                         params.fill.gradient = *active_gradient;
+                                    } else if (shape.field) {
+                                        params.fill = Fill::field2d(*shape.field, base_color);
                                     } else if (shape.fill_color) {
                                         // Path fill RGB/alpha lives in its Fill payload; node.color
                                         // supplies only the layer-opacity multiplier to draw_path().
@@ -1662,6 +1679,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             operation.type = source.type == "path" ? MaskType::Path
                                 : source.type == "rect" ? MaskType::Rect
                                 : source.type == "rounded_rect" ? MaskType::RoundedRect
+                                : source.type == "field" ? MaskType::Field2D
+                                : source.type == "text" ? MaskType::Text
                                 : MaskType::Ellipse;
                             operation.mode = source.mode == "add" ? MaskCombineMode::Add
                                 : source.mode == "subtract" ? MaskCombineMode::Subtract
@@ -1671,6 +1690,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             operation.size = Vec2{source.size[0], source.size[1]};
                             operation.radius = source.radius;
                             operation.path = convert_mask_path(source.path);
+                            operation.field = source.field;
+                            operation.text_source = source.text_source;
                             operation.feather = source.feather_track
                                 ? std::clamp(detail::evaluate_scalar_track(*source.feather_track,
                                     ctx.effective_frame(), source.feather, plan.canvas.fps), 0.0f, 1000000.0f)
@@ -1768,6 +1789,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         composite.size = primary.size;
                         composite.radius = primary.radius;
                         composite.path = primary.path;
+                        composite.field = primary.field;
+                        composite.text_source = primary.text_source;
                         composite.feather = primary.feather;
                         composite.expansion = primary.expansion;
                         composite.opacity = primary.opacity;

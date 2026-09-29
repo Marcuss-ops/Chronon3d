@@ -87,7 +87,8 @@ LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
     mask.type = raw.at("type").get<std::string>();
     mask.mode = raw.at("mode").get<std::string>();
     if (mask.type != "path" && mask.type != "rect" &&
-        mask.type != "rounded_rect" && mask.type != "ellipse")
+        mask.type != "rounded_rect" && mask.type != "ellipse" &&
+        mask.type != "field" && mask.type != "text")
         throw std::runtime_error("unsupported mask geometry: " + mask.type);
     if (mask.mode != "add" && mask.mode != "subtract" &&
         mask.mode != "intersect" && mask.mode != "difference")
@@ -120,7 +121,16 @@ LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
         !std::isfinite(mask.expansion) || std::abs(mask.expansion) > 1000000.0f ||
         !std::isfinite(mask.opacity) || mask.opacity < 0.0f || mask.opacity > 1.0f)
         throw std::runtime_error("mask radius, feather, and expansion must be finite and bounded");
-    if (mask.type == "path") {
+    if (mask.type == "text") {
+        mask.text_source = raw.at("source").get<std::string>();
+        if (mask.text_source.empty() || mask.text_source.size() > 256)
+            throw std::runtime_error("text mask source must be a non-empty layer id");
+        if (raw.contains("path") || raw.contains("target_path") || raw.contains("animation") ||
+            raw.contains("field") || raw.contains("size") || raw.contains("radius"))
+            throw std::runtime_error("text masks accept a source layer, not geometric parameters");
+    } else if (mask.type == "path") {
+        if (raw.contains("field"))
+            throw std::runtime_error("field sampler is only valid for field masks");
         if (raw.contains("size") || raw.contains("radius"))
             throw std::runtime_error("path mask geometry derives its bounds from path commands");
         mask.path = decode_closed_mask_path(raw.at("path"));
@@ -148,6 +158,10 @@ LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
     } else {
         if (raw.contains("path") || raw.contains("target_path") || raw.contains("animation"))
             throw std::runtime_error("only path masks accept path commands or morph animation");
+        if (mask.type == "field")
+            mask.field = decode_field2d_plan(raw.at("field"));
+        else if (raw.contains("field"))
+            throw std::runtime_error("field is only valid for field masks");
         if (mask.type == "rounded_rect" && mask.radius > std::min(mask.size[0], mask.size[1]) * 0.5f)
             throw std::runtime_error("rounded_rect mask radius cannot exceed half its smaller dimension");
         if (mask.type != "rounded_rect" && raw.contains("radius"))

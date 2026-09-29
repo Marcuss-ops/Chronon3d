@@ -117,6 +117,39 @@ TEST_CASE("semantic text selector targets only glyphs in the named span") {
     CHECK(states[3].opacity == doctest::Approx(1.0f));
 }
 
+TEST_CASE("text selector noise is deterministic and index order groups by step") {
+    const auto placed = make_test_placed_run_prop(5);
+    const std::string source = "abcde";
+    const auto units = build_text_unit_map(placed, source);
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+
+    GlyphSelectorSpec noise;
+    noise.shape = TextSelectorShape::Noise;
+    noise.start.set(0.0f);
+    noise.end.set(100.0f);
+    noise.noise.frequency = 1.0f;
+    noise.noise.amplitude = 1.0f;
+    noise.noise.seed = 91;
+    const auto compiled_noise = compile_selector(noise, units, source, &placed);
+    const auto noise_a = selector_weight(compiled_noise, units, 2, time);
+    const auto noise_b = selector_weight(compiled_noise, units, 2, time);
+    CHECK(noise_a == doctest::Approx(noise_b));
+    CHECK(noise_a >= 0.0f);
+    CHECK(noise_a <= 1.0f);
+
+    GlyphSelectorSpec index;
+    index.shape = TextSelectorShape::Square;
+    index.order = TextSelectorOrder::Index;
+    index.index_step = 2;
+    index.start.set(0.0f);
+    index.end.set(34.0f);
+    const auto compiled_index = compile_selector(index, units, source, &placed);
+    CHECK(selector_weight(compiled_index, units, 0, time) == doctest::Approx(1.0f));
+    CHECK(selector_weight(compiled_index, units, 1, time) == doctest::Approx(1.0f));
+    CHECK(selector_weight(compiled_index, units, 2, time) == doctest::Approx(0.0f));
+    CHECK(selector_weight(compiled_index, units, 3, time) == doctest::Approx(0.0f));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Initial state factory tests
 // ═══════════════════════════════════════════════════════════════════════════
@@ -564,6 +597,66 @@ TEST_CASE("Property: BaselineShiftProperty with partial weight") {
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
     CHECK(states[0].baseline_shift == doctest::Approx(5.0f));  // 10 * 0.5
+}
+
+TEST_CASE("Animated text animator properties evaluate at the sampled frame") {
+    TextAnimatorSpec spec;
+    spec.id = "per-frame-style";
+    spec.selectors.push_back({});
+    spec.selectors.back().amount.set(100.0f);
+
+    BaselineShiftProperty baseline;
+    baseline.pixels.add_keyframe(Frame{0}, 0.0f);
+    baseline.pixels.add_keyframe(Frame{10}, 20.0f);
+    spec.properties.push_back(baseline);
+
+    SkewProperty skew;
+    skew.angle.add_keyframe(Frame{0}, 0.0f);
+    skew.angle.add_keyframe(Frame{10}, 40.0f);
+    skew.axis.add_keyframe(Frame{0}, 10.0f);
+    skew.axis.add_keyframe(Frame{10}, 30.0f);
+    spec.properties.push_back(skew);
+
+    AnchorProperty anchor;
+    anchor.value.add_keyframe(Frame{0}, Vec3{0.0f, 0.0f, 0.0f});
+    anchor.value.add_keyframe(Frame{10}, Vec3{10.0f, 20.0f, 30.0f});
+    spec.properties.push_back(anchor);
+
+    BackgroundColorProperty background;
+    background.color.add_keyframe(Frame{0}, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    background.color.add_keyframe(Frame{10}, Color{1.0f, 0.0f, 0.0f, 1.0f});
+    background.padding_em.add_keyframe(Frame{0}, 0.5f);
+    background.padding_em.add_keyframe(Frame{10}, 1.5f);
+    background.radius_em.add_keyframe(Frame{0}, 0.0f);
+    background.radius_em.add_keyframe(Frame{10}, 0.4f);
+    spec.properties.push_back(background);
+
+    StrokeColorProperty stroke;
+    stroke.color.add_keyframe(Frame{0}, Color{0.0f, 0.0f, 0.0f, 1.0f});
+    stroke.color.add_keyframe(Frame{10}, Color{1.0f, 1.0f, 1.0f, 1.0f});
+    spec.properties.push_back(stroke);
+
+    StrokeWidthProperty stroke_width;
+    stroke_width.width.add_keyframe(Frame{0}, 0.0f);
+    stroke_width.width.add_keyframe(Frame{10}, 8.0f);
+    spec.properties.push_back(stroke_width);
+
+    const auto states = evaluate_animator_stack(
+        {spec}, make_test_placed_run_prop(1), make_source_prop(1),
+        SampleTime::from_frame_int(Frame{5}, FrameRate{30, 1}));
+    REQUIRE(states.size() == 1);
+    CHECK(states[0].baseline_shift == doctest::Approx(10.0f));
+    CHECK(states[0].skew == doctest::Approx(20.0f));
+    CHECK(states[0].skew_axis == doctest::Approx(20.0f));
+    CHECK(states[0].anchor.x == doctest::Approx(5.0f));
+    CHECK(states[0].anchor.y == doctest::Approx(10.0f));
+    CHECK(states[0].anchor.z == doctest::Approx(15.0f));
+    CHECK(states[0].background.r == doctest::Approx(0.5f));
+    CHECK(states[0].background.a == doctest::Approx(0.5f));
+    CHECK(states[0].background_padding_em == doctest::Approx(1.0f));
+    CHECK(states[0].background_radius_em == doctest::Approx(0.2f));
+    CHECK(states[0].stroke.r == doctest::Approx(0.5f));
+    CHECK(states[0].stroke_width == doctest::Approx(4.0f));
 }
 
 TEST_CASE("Property: StrokeColorProperty sets stroke") {

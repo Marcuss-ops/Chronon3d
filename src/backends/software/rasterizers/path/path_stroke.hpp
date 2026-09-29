@@ -8,7 +8,7 @@
 
 namespace chronon3d::renderer {
 
-f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius);
+f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius_start, f32 radius_end);
 
 std::vector<Vec2> trim_polyline_points(const std::vector<Vec2>& points, bool closed, f32 start_t, f32 end_t);
 
@@ -27,6 +27,8 @@ namespace detail {
 
 struct PreparedSubPath {
     std::vector<Vec2> points;
+    std::vector<f32> cumulative_lengths;
+    f32 total_length{0.0f};
     bool repeated_start{false};  // closed && front≈back && size > 2
     std::size_t unique_count{0}; // effective vertex count for join loop
 };

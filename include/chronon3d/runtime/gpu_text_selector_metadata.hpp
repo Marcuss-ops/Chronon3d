@@ -50,7 +50,8 @@ inline constexpr std::uint32_t kTextRunSelectorShapeMask = 0x7u;
     // Wiggly modulation has no GPU ABI fields yet. CPU/GPU route selection
     // rejects that selector before packing; if a low-level caller still packs
     // it, preserve a safe square marker rather than aliasing Smooth.
-    const auto encoded_shape = shape == chronon3d::TextSelectorShape::Wiggly
+    const auto encoded_shape = (shape == chronon3d::TextSelectorShape::Wiggly ||
+                                shape == chronon3d::TextSelectorShape::Noise)
         ? 1u
         : (static_cast<std::uint32_t>(shape) + 1u) & kTextRunSelectorShapeMask;
     return (flags & ~metadata_mask) |
