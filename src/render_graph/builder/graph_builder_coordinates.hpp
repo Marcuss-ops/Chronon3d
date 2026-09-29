@@ -20,6 +20,35 @@ inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
     ));
 }
 
+/// Convert a resolved layer matrix from canvas pixels into the camera basis.
+///
+/// Two conventions meet at `project_to_camera_space`:
+///   - a resolved layer matrix is expressed in canvas pixels: origin at the
+///     top-left, y grows downwards, and the implicit canvas centre is
+///     already baked in (the non-projected raster path consumes the same
+///     space, and `root_source_matrix_override` documents the convention);
+///   - the camera homography is authored in the canonical centre-relative,
+///     y-up layer basis and composes its own `canvas_center * ssaa * proj`
+///     prefix (`project_layer_2_5d` returns a centroid whose y sign is
+///     inverted, i.e. already in y-down screen space).
+///
+/// Handing the pixel matrix straight to `project_to_camera_space` therefore
+/// applies the centre twice and mirrors y: a 2D path at [480,420] on a
+/// 960x540 canvas came out at (757.9, 26.8) instead of staying put. This
+/// helper undoes exactly the prefix that `project_to_camera_space` composes
+/// (`canvas_center * ssaa`) and flips the y basis, so a 2D layer inside the
+/// camera's z=0 plane is left untouched when the camera is head-on at unit
+/// scale.
+inline Mat4 camera_input_matrix(const RenderGraphContext& ctx, const Mat4& pixel_matrix) {
+    const Mat4 ssaa_scale = glm::scale(
+        Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+    // Canvas y grows downwards; the camera basis is y-up.
+    const Mat4 y_up = glm::scale(Mat4(1.0f), Vec3(1.0f, -1.0f, 1.0f));
+    return y_up *
+           glm::inverse(implicit_canvas_center_matrix(ctx) * ssaa_scale) *
+           pixel_matrix;
+}
+
 inline bool is_pinned_full_canvas_rect(
     const LayerGraphItem& item,
     const RenderNode& node,

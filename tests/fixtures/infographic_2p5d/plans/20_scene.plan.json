@@ -1,0 +1,1420 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "infographic_2p5d_20_scene",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 60
+  },
+  "output": {
+    "path": "infographic_2p5d_20_scene.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "bg_gradient",
+      "type": "shape",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        480.0,
+        270.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rect",
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            1.0,
+            0.35
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.023529411764705882,
+                0.0392156862745098,
+                0.08627450980392157,
+                1.0
+              ]
+            },
+            {
+              "position": 0.6,
+              "color": [
+                0.06274509803921569,
+                0.10196078431372549,
+                0.2,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.16470588235294117,
+                0.03137254901960784,
+                0.07058823529411765,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "background_look": {
+        "type": "film_grade",
+        "grain": 0.04,
+        "seed": 11
+      }
+    },
+    {
+      "id": "dot_field",
+      "type": "shape",
+      "size": [
+        880.0,
+        460.0
+      ],
+      "position": [
+        480.0,
+        270.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "dot_grid",
+        "fill": [
+          0.10588235294117647,
+          0.1411764705882353,
+          0.25098039215686274,
+          1.0
+        ],
+        "spacing": 30,
+        "dot_radius": 2.5
+      }
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "size": [
+        560,
+        58
+      ],
+      "position": [
+        230.0,
+        65.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "2.5D PIPELINE",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 40.0,
+        "fill": "#F4F7FF"
+      }
+    },
+    {
+      "id": "subtitle",
+      "type": "text",
+      "size": [
+        700,
+        32
+      ],
+      "position": [
+        340.0,
+        102.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "motion graphics from plan primitives",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 19.0,
+        "fill": "#8fa0c4"
+      }
+    },
+    {
+      "id": "tilted_ring",
+      "type": "shape",
+      "size": [
+        300,
+        300
+      ],
+      "position": [
+        780.0,
+        460.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                1.0,
+                0.41568627450980394,
+                0.30196078431372547,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.1843137254901961,
+                0.29411764705882354,
+                0.8392156862745098,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "enable_3d": true,
+      "rotation": [
+        58,
+        0,
+        0
+      ],
+      "scale": [
+        1.0,
+        0.35,
+        1.0
+      ]
+    },
+    {
+      "id": "funnel_stage_0",
+      "type": "shape",
+      "size": [
+        86.0,
+        176.0
+      ],
+      "position": [
+        38.0,
+        250.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -39.0,
+              -84.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              -66.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              66.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -39.0,
+              84.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                1.0,
+                0.41568627450980394,
+                0.30196078431372547,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                1.0,
+                0.7019607843137254,
+                0.3607843137254902,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.0
+              },
+              {
+                "frame": 10,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "funnel_stage_1",
+      "type": "shape",
+      "size": [
+        86.0,
+        140.0
+      ],
+      "position": [
+        126.0,
+        250.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -39.0,
+              -66.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              -48.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              48.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -39.0,
+              66.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                1.0,
+                0.5411764705882353,
+                0.3607843137254902,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.48627450980392156,
+                0.3607843137254902,
+                1.0,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 5,
+                "value": 0.0
+              },
+              {
+                "frame": 15,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "funnel_stage_2",
+      "type": "shape",
+      "size": [
+        86.0,
+        104.0
+      ],
+      "position": [
+        214.0,
+        250.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -39.0,
+              -48.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              -31.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              31.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -39.0,
+              48.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.48627450980392156,
+                0.3607843137254902,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.2196078431372549,
+                0.7411764705882353,
+                0.9725490196078431,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 10,
+                "value": 0.0
+              },
+              {
+                "frame": 20,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "funnel_stage_3",
+      "type": "shape",
+      "size": [
+        86.0,
+        70.0
+      ],
+      "position": [
+        302.0,
+        250.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -39.0,
+              -31.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              -17.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              39.0,
+              17.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -39.0,
+              31.0
+            ]
+          },
+          {
+            "type": "close"
+          }
+        ],
+        "fill": {
+          "type": "linear",
+          "start": [
+            0.0,
+            0.0
+          ],
+          "end": [
+            0.0,
+            1.0
+          ],
+          "color_stops": [
+            {
+              "position": 0.0,
+              "color": [
+                0.2196078431372549,
+                0.7411764705882353,
+                0.9725490196078431,
+                1.0
+              ]
+            },
+            {
+              "position": 1.0,
+              "color": [
+                0.17647058823529413,
+                0.8313725490196079,
+                0.7490196078431373,
+                1.0
+              ]
+            }
+          ]
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 15,
+                "value": 0.0
+              },
+              {
+                "frame": 25,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "counter_leads",
+      "type": "text",
+      "size": [
+        240,
+        34
+      ],
+      "position": [
+        470.0,
+        185.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "Leads ${leads}",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 22.0,
+        "fill": "#ffb35c"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 4,
+                "value": 0.0
+              },
+              {
+                "frame": 14,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "counter_mql",
+      "type": "text",
+      "size": [
+        240,
+        34
+      ],
+      "position": [
+        470.0,
+        250.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "MQL ${mql}",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 22.0,
+        "fill": "#9d8cff"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 8,
+                "value": 0.0
+              },
+              {
+                "frame": 18,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "counter_sql",
+      "type": "text",
+      "size": [
+        240,
+        34
+      ],
+      "position": [
+        470.0,
+        315.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "text": "SQL ${sql}",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 22.0,
+        "fill": "#38bdf8"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 12,
+                "value": 0.0
+              },
+              {
+                "frame": 22,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_chart",
+      "type": "shape",
+      "size": [
+        320.0,
+        180.0
+      ],
+      "position": [
+        730.0,
+        235.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -150.0,
+              50.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -90.0,
+              50.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -90.0,
+              10.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -30.0,
+              10.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              -30.0,
+              30.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              30.0,
+              30.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              30.0,
+              -20.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              90.0,
+              -20.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              90.0,
+              -40.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              150.0,
+              -40.0
+            ]
+          },
+          {
+            "type": "line_to",
+            "point": [
+              150.0,
+              -70.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": "#38e0d0",
+          "width": 4
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": 0.0
+              },
+              {
+                "frame": 18,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_0",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        580.0,
+        285.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 8,
+                "value": 0.0
+              },
+              {
+                "frame": 16,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_1",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        640.0,
+        245.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 10,
+                "value": 0.0
+              },
+              {
+                "frame": 18,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_2",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        700.0,
+        265.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 12,
+                "value": 0.0
+              },
+              {
+                "frame": 20,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_3",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        760.0,
+        215.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 14,
+                "value": 0.0
+              },
+              {
+                "frame": 22,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_4",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        820.0,
+        195.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 16,
+                "value": 0.0
+              },
+              {
+                "frame": 24,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "step_marker_5",
+      "type": "shape",
+      "size": [
+        14.0,
+        14.0
+      ],
+      "position": [
+        880.0,
+        165.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          0.8196078431372549,
+          0.4,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 18,
+                "value": 0.0
+              },
+              {
+                "frame": 26,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "flow_ribbon",
+      "type": "shape",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        480.0,
+        410.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -300.0,
+              70.0
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -140.0,
+              -80.0
+            ],
+            "control2": [
+              70.0,
+              100.0
+            ],
+            "point": [
+              300.0,
+              70.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": "#FFFFFF",
+          "width": 7,
+          "dash_array": [
+            622.0231278342975,
+            622.0231278342975
+          ],
+          "dash_offset": 622.0231278342975
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "stroke_dash_offset",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": 622.0231278342975
+              },
+              {
+                "frame": 40,
+                "value": 0.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ribbon_head",
+      "type": "shape",
+      "size": [
+        20,
+        20
+      ],
+      "position": [
+        480.0,
+        410.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "ellipse",
+        "fill": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "follow_path": {
+        "path_commands": [
+          {
+            "type": "move_to",
+            "point": [
+              -300.0,
+              70.0
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -140.0,
+              -80.0
+            ],
+            "control2": [
+              70.0,
+              100.0
+            ],
+            "point": [
+              300.0,
+              70.0
+            ]
+          }
+        ],
+        "progress": {
+          "keyframes": [
+            {
+              "frame": 6,
+              "value": 0.0
+            },
+            {
+              "frame": 40,
+              "value": 1.0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "badge_0",
+      "type": "shape",
+      "size": [
+        170,
+        44
+      ],
+      "position": [
+        180.0,
+        500.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ],
+        "stroke": {
+          "color": [
+            0.2196078431372549,
+            0.7411764705882353,
+            0.9725490196078431,
+            0.55
+          ],
+          "width": 2
+        }
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          24,
+          0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 10,
+                "value": 0.0
+              },
+              {
+                "frame": 20,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "badge_1",
+      "type": "shape",
+      "size": [
+        170,
+        44
+      ],
+      "position": [
+        480.0,
+        500.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ],
+        "stroke": {
+          "color": [
+            0.2196078431372549,
+            0.7411764705882353,
+            0.9725490196078431,
+            0.55
+          ],
+          "width": 2
+        }
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          24,
+          0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 13,
+                "value": 0.0
+              },
+              {
+                "frame": 23,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "badge_2",
+      "type": "shape",
+      "size": [
+        170,
+        44
+      ],
+      "position": [
+        780.0,
+        500.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "corner_radius": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "fill": [
+          0.10588235294117647,
+          0.13333333333333333,
+          0.2,
+          1.0
+        ],
+        "stroke": {
+          "color": [
+            0.2196078431372549,
+            0.7411764705882353,
+            0.9725490196078431,
+            0.55
+          ],
+          "width": 2
+        }
+      },
+      "grid_layout": {
+        "group_id": "badges",
+        "columns": 3,
+        "gap": [
+          24,
+          0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 16,
+                "value": 0.0
+              },
+              {
+                "frame": 26,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    }
+  ],
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0.0,
+      0.0,
+      -1000.0
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fov_deg": 30.219150244680932,
+    "zoom": 1000.0
+  },
+  "variables": {
+    "leads": 12480,
+    "mql": 3214,
+    "sql": 842
+  }
+}

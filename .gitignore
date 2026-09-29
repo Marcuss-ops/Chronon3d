@@ -152,3 +152,7 @@ reports/
 # Fase 0. Raw benchmark run output stays out of the repo:
 bench/results/
 bench/raw/
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -233,7 +233,7 @@ TEST_CASE("ChrononMotion offline audio baking lowers into ordinary V3 transform 
     options.height = 64;
     LayerPlan image;
     image.type = LayerType::Image;
-    image.asset = "audio-driven-image.png";
+    image.asset = "audio-driven-image";
     image.size = {32.f, 32.f};
     image.size_dimensions = 2;
     options.contentLayers.emplace("41", image);

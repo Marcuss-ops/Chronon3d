@@ -82,6 +82,29 @@
               "value": { "type": "number" } } } }
       }
     },
+    "text_counter": {
+      "type": "object", "additionalProperties": false,
+      "required": ["counter"],
+      "properties": {
+        "token": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "counter": {
+          "type": "object", "additionalProperties": false,
+          "required": ["from", "to"],
+          "properties": {
+            "from": { "type": "number", "minimum": -1000000000000, "maximum": 1000000000000 },
+            "to": { "type": "number", "minimum": -1000000000000, "maximum": 1000000000000 },
+            "start_frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+            "duration_frames": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "easing": { "enum": ["linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic", "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine", "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic", "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce", "smoothstep"] },
+            "format": { "enum": ["plain", "currency", "percent", "compact"] },
+            "currency": { "type": "string", "maxLength": 8 },
+            "decimals": { "type": "integer", "minimum": 0, "maximum": 6 },
+            "prefix": { "type": "string", "maxLength": 32 },
+            "suffix": { "type": "string", "maxLength": 32 }
+          }
+        }
+      }
+    },
     "camera_shake": {
       "type": "object", "additionalProperties": false,
       "properties": {
@@ -918,6 +941,7 @@
                 } }
             ]
           },
+          "text_counter": {"$ref": "#/$defs/text_counter"},
           "flow": {
             "type": "object", "additionalProperties": false, "required": ["group_id"],
             "properties": {
@@ -1653,6 +1677,8 @@
         "allOf": [
           { "if": { "required": ["fill_gradient_animation"] }, "then": { "properties": { "type": { "const": "shape" }, "shape": { "required": ["fill"] } }, "required": ["type", "shape"] } },
           { "if": { "properties": { "type": { "const": "shape" } }, "required": ["type"] }, "then": { "required": ["shape", "size"] } },
+          { "if": { "required": ["text_counter"] }, "then": { "properties": { "type": { "const": "text" } }, "required": ["type", "text"] } },
+          { "if": { "required": ["text_counter"] }, "then": { "properties": { "type": { "const": "text" } }, "required": ["type", "text"] } },
           { "if": { "properties": { "type": { "const": "particles" } }, "required": ["type"] }, "then": { "required": ["particle_emitter"] } },
           { "if": { "properties": { "type": { "const": "light" } }, "required": ["type"] }, "then": { "required": ["light"] } },
           { "if": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] }, "then": { "required": ["inline_mesh"], "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["source"] }] } } },

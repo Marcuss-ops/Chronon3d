@@ -76,6 +76,10 @@ namespace chronon3d::renderer {
             return shape.rounded_rect().stroke.enabled ? std::max(0.0f, shape.rounded_rect().stroke.width) : 0.0f;
         case ShapeType::Circle:
             return shape.circle().stroke.enabled ? std::max(0.0f, shape.circle().stroke.width) : 0.0f;
+        case ShapeType::Path:
+            // Paths carry their stroke on the path payload. Reporting 0 here
+            // under-padded every path bbox by half the stroke width.
+            return shape.path().stroke.enabled ? std::max(0.0f, shape.path().stroke.width) : 0.0f;
         default:
             return 0.0f;
     }
