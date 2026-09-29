@@ -55,6 +55,8 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Area | Stato |
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
+| Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups and L3 static gradients/dashes plus baked static shape operators lower in software; CLI MP4 frame-hash and L4 morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
+| Vulkan effect parity | OPEN — software catalog has 41 effect types; strict Vulkan certifies Blur, Glow, Bloom and Tint, explicitly rejects DropShadow, and has no native route for the rest — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
 | Text Core V1 | PASS (focused) |

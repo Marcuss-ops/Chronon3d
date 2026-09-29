@@ -22,39 +22,12 @@ std::vector<ShapePathCommandPlan> decode_closed_mask_path(const nlohmann::json& 
     path.reserve(raw_path.size());
     bool open = false;
     std::size_t closed = 0;
-    const auto read_point = [](const nlohmann::json& point, std::array<float, 2>& out) {
-        if (!point.is_array() || point.size() != 2)
-            throw std::runtime_error("path mask coordinates require two values");
-        out = {point[0].get<float>(), point[1].get<float>()};
-    };
     for (const auto& raw : raw_path) {
-        ShapePathCommandPlan command;
-        const auto type = raw.at("type").get<std::string>();
-        if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
-        else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
-        else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
-        else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
-        else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
-        else throw std::runtime_error("unsupported path mask command: " + type);
-        const bool point = raw.contains("point");
-        const bool c1 = raw.contains("control1");
-        const bool c2 = raw.contains("control2");
-        if (point) read_point(raw.at("point"), command.point);
-        if (c1) read_point(raw.at("control1"), command.control1);
-        if (c2) read_point(raw.at("control2"), command.control2);
-        if ((command.type == ShapePathCommandTypePlan::MoveTo ||
-             command.type == ShapePathCommandTypePlan::LineTo) && (!point || c1 || c2))
-            throw std::runtime_error("path mask move_to/line_to require point only");
-        if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!point || !c1 || c2))
-            throw std::runtime_error("path mask quadratic_to requires point and control1");
-        if (command.type == ShapePathCommandTypePlan::CubicTo && (!point || !c1 || !c2))
-            throw std::runtime_error("path mask cubic_to requires point and both controls");
-        if (command.type == ShapePathCommandTypePlan::Close && (point || c1 || c2))
-            throw std::runtime_error("path mask close accepts no coordinates");
+        auto command = decode_shape_path_command(raw, "path mask");
         for (const auto* coordinates : {&command.point, &command.control1, &command.control2})
-            if (!std::isfinite((*coordinates)[0]) || !std::isfinite((*coordinates)[1]) ||
-                std::abs((*coordinates)[0]) > 1000000.0f || std::abs((*coordinates)[1]) > 1000000.0f)
-                throw std::runtime_error("path mask coordinates must be finite and within [-1000000, 1000000]");
+            if (std::abs((*coordinates)[0]) > 1000000.0f ||
+                std::abs((*coordinates)[1]) > 1000000.0f)
+                throw std::runtime_error("path mask coordinates must be within [-1000000, 1000000]");
         if (command.type == ShapePathCommandTypePlan::MoveTo) {
             if (open) throw std::runtime_error("path mask subpaths must close before move_to");
             open = true;

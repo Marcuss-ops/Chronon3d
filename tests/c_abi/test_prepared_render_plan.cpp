@@ -28,6 +28,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -113,21 +114,30 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     {
         std::ofstream file(directory.path / "shapes/mark.json");
         file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
-          "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
-            "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
-          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
+          "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[8,10,0]},
+            "s":{"a":0,"k":[120,80,100]},"r":{"a":0,"k":15},"o":{"a":0,"k":75}},
+          "shapes":[{"ty":"gr","it":[{"ty":"gr","it":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
             "v":[[0,0],[20,0],[20,20]],"i":[[0,0],[0,0],[0,0]],
             "o":[[0,0],[0,0],[0,0]]}}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}},
+            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":1},
+              "d":[{"n":"d","v":{"a":0,"k":4}},
+                {"n":"g","v":{"a":0,"k":2}},
+                {"n":"o","v":{"a":0,"k":1}}]},
+            {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[10,0]},
+              "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":50}}]},
+            {"ty":"tr","a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[5,0]},
+              "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}}]},
             {"ty":"sh","ks":{"a":0,"k":{"c":true,
             "v":[[30,0],[50,0],[50,20]],"i":[[0,0],[0,0],[0,0]],
             "o":[[0,0],[0,0],[0,0]]}}},
             {"ty":"el","p":{"a":0,"k":[0,30]},"s":{"a":0,"k":[20,10]}},
             {"ty":"rc","p":{"a":0,"k":[30,30]},"s":{"a":0,"k":[20,10]},"r":{"a":0,"k":2}},
-            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}},
             {"ty":"fl","r":1,"c":{"a":0,"k":[0,1,0,1]}},
-            {"ty":"fl","r":1,"c":{"a":0,"k":[0,0,1,1]}},
+            {"ty":"gf","r":1,"t":1,"s":{"a":0,"k":[0,30]},
+              "e":{"a":0,"k":[20,30]},"o":{"a":0,"k":100},
+              "g":{"p":2,"k":{"a":0,"k":[0,0,0,1,1,1,1,1]}}},
             {"ty":"fl","r":1,"c":{"a":0,"k":[1,1,1,1]}},
-            {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":1}},
             {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":2}},
             {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":3}},
             {"ty":"st","r":1,"c":{"a":0,"k":[1,1,1,1]},"w":{"a":0,"k":4}}]}]})JSON";
@@ -150,6 +160,13 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
                                     CompositionEvaluateContext{}, Frame{0});
     REQUIRE(evaluated);
     REQUIRE(evaluated->scene.layers().size() == 1);
+    CHECK(evaluated->scene.layers()[0].transform.position.x == doctest::Approx(-24.0f));
+    CHECK(evaluated->scene.layers()[0].transform.position.y == doctest::Approx(-22.0f));
+    CHECK(evaluated->scene.layers()[0].transform.scale.x == doctest::Approx(1.2f));
+    CHECK(evaluated->scene.layers()[0].transform.scale.y == doctest::Approx(0.8f));
+    CHECK(glm::degrees(glm::eulerAngles(evaluated->scene.layers()[0].transform.rotation).z) ==
+          doctest::Approx(15.0f));
+    CHECK(evaluated->scene.layers()[0].transform.opacity == doctest::Approx(0.75f));
     REQUIRE(evaluated->scene.layers()[0].nodes.size() == 4);
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().commands.size() == 4);
     CHECK(evaluated->scene.layers()[0].nodes[1].shape.path().commands.size() == 4);
@@ -157,13 +174,20 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     CHECK(evaluated->scene.layers()[0].nodes[3].shape.path().commands.size() == 10);
     const auto& lottie_nodes = evaluated->scene.layers()[0].nodes;
     CHECK(lottie_nodes[0].shape.path().fill.solid.r == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[0].shape.path().fill.solid.a == doctest::Approx(0.5f));
+    CHECK(lottie_nodes[0].shape.path().commands[0].p0.x == doctest::Approx(15.0f));
     CHECK(lottie_nodes[0].shape.path().fill.solid.g == doctest::Approx(0.0f));
     CHECK(lottie_nodes[1].shape.path().fill.solid.r == doctest::Approx(0.0f));
     CHECK(lottie_nodes[1].shape.path().fill.solid.g == doctest::Approx(1.0f));
-    CHECK(lottie_nodes[2].shape.path().fill.solid.b == doctest::Approx(1.0f));
+    CHECK(lottie_nodes[2].shape.path().fill.type == FillType::LinearGradient);
+    REQUIRE(lottie_nodes[2].shape.path().fill.gradient.color_stops.size() == 2);
+    CHECK(lottie_nodes[2].shape.path().fill.gradient.color_stops[0].color.b == doctest::Approx(1.0f));
     CHECK(lottie_nodes[3].shape.path().fill.solid.r == doctest::Approx(1.0f));
     CHECK(lottie_nodes[0].shape.path().stroke.enabled);
     CHECK(lottie_nodes[0].shape.path().stroke.width == doctest::Approx(1.0f));
+    REQUIRE(lottie_nodes[0].shape.path().stroke.dash_array.size() == 2);
+    CHECK(lottie_nodes[0].shape.path().stroke.dash_array[0] == doctest::Approx(4.0f));
+    CHECK(lottie_nodes[0].shape.path().stroke.dash_offset == doctest::Approx(1.0f));
     CHECK(lottie_nodes[3].shape.path().stroke.width == doctest::Approx(4.0f));
 
     auto unsupported = *decoded;
@@ -230,13 +254,123 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
         auto layer = identity_layer();
         layer["shapes"] = json::array({static_path(),
             json{{"ty", "st"}, {"r", 1}, {"c", {{"a", 0}, {"k", {1, 1, 1, 1}}}},
-                {"w", {{"a", 0}, {"k", 2}}}, {"d", json::array({json{{"n", "d"}, {"v", 4}}})}}});
+                {"w", {{"a", 0}, {"k", 2}}},
+                {"d", json::array({json{{"n", "unsupported"}, {"v", {{"a", 0}, {"k", 4}}}}})}}});
         unsupported_documents.push_back(json{{"v", "5.7.4"}, {"layers", {layer}}});
     }
     for (const auto& document : unsupported_documents) {
         { std::ofstream file(directory.path / "shapes/mark.json"); file << document.dump(); }
         CHECK_FALSE(compile_render_plan(unsupported, resolver));
     }
+}
+
+TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "shapes");
+    {
+        std::ofstream file(directory.path / "shapes/motion.json");
+        const std::string lottie_source = R"JSON({"v":"5.7.4","ip":0,"op":12,"fr":30,"layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":0,"k":[5,0,0]},
+            "p":{"a":1,"k":[{"t":0,"s":[10,20,0],"o":{"x":0.333,"y":0.333}},
+              {"t":10,"s":[50,20,0],"i":{"x":0.667,"y":0.667}}]},
+            "s":{"a":1,"k":[{"t":0,"s":[100,100,100]},
+              {"t":10,"s":[200,200,100]}]},
+            "r":{"a":1,"k":[{"t":0,"s":[0],"h":1},{"t":10,"s":[90]}]},
+            "o":{"a":1,"k":[{"t":0,"s":[100]},{"t":10,"s":[0]}]}},
+          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,"v":[[0,0],[10,0]],
+            "i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
+        file << lottie_source;
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"motion","type":"shape","size":[64,64],
+        "shape":{"type":"path","lottie":"shapes/motion.json"}}],
+      "output":{"path":"out.mp4"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto start = evaluate(prepared->compiled_composition,
+                                CompositionEvaluateContext{}, Frame{0});
+    const auto end = evaluate(prepared->compiled_composition,
+                              CompositionEvaluateContext{}, Frame{10});
+    const auto middle = evaluate(prepared->compiled_composition,
+                                 CompositionEvaluateContext{}, Frame{5});
+    REQUIRE_MESSAGE(start.has_value(), start.error().message);
+    REQUIRE_MESSAGE(end.has_value(), end.error().message);
+    REQUIRE_MESSAGE(middle.has_value(), middle.error().message);
+    REQUIRE(start->scene.layers().size() == 1);
+    REQUIRE(end->scene.layers().size() == 1);
+    CHECK(end->scene.layers()[0].transform.position.x -
+          start->scene.layers()[0].transform.position.x == doctest::Approx(40.0f));
+    CHECK(middle->scene.layers()[0].transform.scale.x == doctest::Approx(1.5f));
+    CHECK(middle->scene.layers()[0].transform.opacity == doctest::Approx(0.5f));
+    CHECK(glm::degrees(glm::eulerAngles(middle->scene.layers()[0].transform.rotation).z) ==
+          doctest::Approx(0.0f));
+    CHECK(glm::degrees(glm::eulerAngles(end->scene.layers()[0].transform.rotation).z) ==
+          doctest::Approx(90.0f));
+    CHECK(start->scene.layers()[0].nodes[0].shape.path().fill.solid.r == doctest::Approx(1.0f));
+    CHECK(start->scene.layers()[0].nodes[0].shape.path().commands[0].p0.x ==
+          doctest::Approx(-5.0f));
+
+    const auto original_source = [&] {
+        std::ifstream input(directory.path / "shapes/motion.json");
+        return std::string(std::istreambuf_iterator<char>(input),
+                           std::istreambuf_iterator<char>());
+    }();
+    auto changed_source = original_source;
+    const auto changed_value = changed_source.find("[50,20,0]");
+    REQUIRE(changed_value != std::string::npos);
+    changed_source.replace(changed_value, std::string("[50,20,0]").size(), "[51,20,0]");
+    {
+        std::ofstream file(directory.path / "shapes/motion.json");
+        file << changed_source;
+    }
+    const auto changed = compile_render_plan(*decoded, resolver);
+    REQUIRE(changed);
+    CHECK(changed->fingerprint.content_digest != prepared->fingerprint.content_digest);
+
+    {
+        std::ofstream file(directory.path / "shapes/repeater.json");
+        file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},
+            "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
+            "v":[[0,0],[10,0],[10,10]],"i":[[0,0],[0,0],[0,0]],
+            "o":[[0,0],[0,0],[0,0]]}}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}},
+            {"ty":"rp","c":{"a":0,"k":3},"tr":{"a":{"a":0,"k":[0,0]},
+              "p":{"a":0,"k":[10,0]},"s":{"a":0,"k":[100,100]},
+              "r":{"a":0,"k":0},"so":{"a":0,"k":100},"eo":{"a":0,"k":50}}}]}]})JSON";
+    }
+    auto repeater_plan = *decoded;
+    repeater_plan.layers[0].shape->lottie_asset = "shapes/repeater.json";
+    const auto repeater_prepared = compile_render_plan(repeater_plan, resolver);
+    REQUIRE(repeater_prepared);
+    const auto repeated = evaluate(repeater_prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(repeated);
+    REQUIRE(repeated->scene.layers().size() == 1);
+    REQUIRE(repeated->scene.layers()[0].nodes.size() == 3);
+    CHECK(repeated->scene.layers()[0].nodes[2].fill.solid.a == doctest::Approx(0.5f));
+
+    {
+        std::ofstream file(directory.path / "shapes/motion.json");
+        file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":1,"k":[{"t":0,"s":[0,0]},
+            {"t":10,"s":[5,0]}]},"p":{"a":0,"k":[0,0,0]},
+            "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},
+            "o":{"a":0,"k":100}},"shapes":[]}]})JSON";
+    }
+    const auto animated_anchor = compile_render_plan(*decoded, resolver);
+    CHECK_FALSE(animated_anchor);
+    if (!animated_anchor)
+        CHECK(animated_anchor.error().code == "lottie_unsupported_or_invalid");
 }
 
 #if defined(CHRONON_TEST_ENABLE_SVG)

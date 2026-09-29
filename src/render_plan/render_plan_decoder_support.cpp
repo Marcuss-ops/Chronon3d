@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include "enum_mapping.hpp"
 
 #include <nlohmann/json.hpp>
 #include <set>
@@ -10,8 +11,53 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <utility>
 
 namespace chronon3d::render_plan::detail {
+using namespace std::literals;
+
+ShapePathCommandPlan decode_shape_path_command(
+    const nlohmann::json& value, std::string_view context) {
+    const auto fail = [context](std::string_view reason) {
+        throw std::runtime_error(std::string(context) + " " + std::string(reason));
+    };
+    if (!value.is_object() || !value.contains("type"))
+        fail("command requires a type");
+    ShapePathCommandPlan command;
+    const auto type = value.at("type").get<std::string>();
+    if (type == "move_to") command.type = ShapePathCommandTypePlan::MoveTo;
+    else if (type == "line_to") command.type = ShapePathCommandTypePlan::LineTo;
+    else if (type == "quadratic_to") command.type = ShapePathCommandTypePlan::QuadraticTo;
+    else if (type == "cubic_to") command.type = ShapePathCommandTypePlan::CubicTo;
+    else if (type == "close") command.type = ShapePathCommandTypePlan::Close;
+    else fail("has unsupported type: " + type);
+
+    const bool has_point = value.contains("point");
+    const bool has_c1 = value.contains("control1");
+    const bool has_c2 = value.contains("control2");
+    const auto read_point = [&](const char* key, std::array<float, 2>& output) {
+        const auto& point = value.at(key);
+        if (!point.is_array() || point.size() != 2)
+            fail("coordinates must contain exactly two numbers");
+        output = {point[0].get<float>(), point[1].get<float>()};
+        if (!std::isfinite(output[0]) || !std::isfinite(output[1]))
+            fail("coordinates must be finite");
+    };
+    if (has_point) read_point("point", command.point);
+    if (has_c1) read_point("control1", command.control1);
+    if (has_c2) read_point("control2", command.control2);
+
+    if ((command.type == ShapePathCommandTypePlan::MoveTo ||
+         command.type == ShapePathCommandTypePlan::LineTo) && (!has_point || has_c1 || has_c2))
+        fail("move_to/line_to require point only");
+    if (command.type == ShapePathCommandTypePlan::QuadraticTo && (!has_point || !has_c1 || has_c2))
+        fail("quadratic_to requires point and control1 only");
+    if (command.type == ShapePathCommandTypePlan::CubicTo && (!has_point || !has_c1 || !has_c2))
+        fail("cubic_to requires point and both controls");
+    if (command.type == ShapePathCommandTypePlan::Close && (has_point || has_c1 || has_c2))
+        fail("close accepts no coordinates");
+    return command;
+}
 
 bool invalid_logical_path(const std::string& value) {
     if (value.empty()) return false;
@@ -92,81 +138,73 @@ graphics::GradientDefinition decode_gradient_definition(
 }
 
 LayerType layer_type(const std::string& value) {
-    if (value == "image") return LayerType::Image;
-    if (value == "video") return LayerType::Video;
-    if (value == "text") return LayerType::Text;
-    if (value == "color") return LayerType::Color;
-    if (value == "shape") return LayerType::Shape;
-    if (value == "particles") return LayerType::Particles;
-    if (value == "light") return LayerType::Light;
-    if (value == "adjustment") return LayerType::Adjustment;
-    if (value == "mesh") return LayerType::Mesh;
-    throw std::runtime_error("unsupported primitive layer type: " + value);
+    static constexpr std::array kValues{
+        std::pair{"image"sv, LayerType::Image}, std::pair{"video"sv, LayerType::Video},
+        std::pair{"text"sv, LayerType::Text}, std::pair{"color"sv, LayerType::Color},
+        std::pair{"shape"sv, LayerType::Shape}, std::pair{"particles"sv, LayerType::Particles},
+        std::pair{"light"sv, LayerType::Light}, std::pair{"adjustment"sv, LayerType::Adjustment},
+        std::pair{"mesh"sv, LayerType::Mesh},
+    };
+    return enum_from_string(value, kValues, "unsupported primitive layer type: ");
 }
 
 FitMode fit_mode(const std::string& value) {
-    if (value == "contain") return FitMode::Contain;
-    if (value == "stretch") return FitMode::Stretch;
-    if (value == "none") return FitMode::None;
-    return FitMode::Cover;
+    static constexpr std::array kValues{
+        std::pair{"contain"sv, FitMode::Contain},
+        std::pair{"stretch"sv, FitMode::Stretch},
+        std::pair{"none"sv, FitMode::None},
+        std::pair{"cover"sv, FitMode::Cover},
+    };
+    return find_enum_value(value, kValues).value_or(FitMode::Cover);
 }
 
 std::optional<chronon3d::BlendMode> blend_mode(const std::string& value) {
-    if (value == "normal") return chronon3d::BlendMode::Normal;
-    if (value == "add") return chronon3d::BlendMode::Add;
-    if (value == "multiply") return chronon3d::BlendMode::Multiply;
-    if (value == "screen") return chronon3d::BlendMode::Screen;
-    if (value == "overlay") return chronon3d::BlendMode::Overlay;
-    if (value == "darken") return chronon3d::BlendMode::Darken;
-    if (value == "lighten") return chronon3d::BlendMode::Lighten;
-    if (value == "difference") return chronon3d::BlendMode::Difference;
-    if (value == "exclusion") return chronon3d::BlendMode::Exclusion;
-    if (value == "soft_light") return chronon3d::BlendMode::SoftLight;
-    if (value == "hard_light") return chronon3d::BlendMode::HardLight;
-    if (value == "color_dodge") return chronon3d::BlendMode::ColorDodge;
-    if (value == "color_burn") return chronon3d::BlendMode::ColorBurn;
-    if (value == "subtract") return chronon3d::BlendMode::Subtract;
-    if (value == "divide") return chronon3d::BlendMode::Divide;
-    if (value == "vivid_light") return chronon3d::BlendMode::VividLight;
-    if (value == "pin_light") return chronon3d::BlendMode::PinLight;
-    if (value == "linear_light") return chronon3d::BlendMode::LinearLight;
-    if (value == "hue") return chronon3d::BlendMode::Hue;
-    if (value == "saturation") return chronon3d::BlendMode::Saturation;
-    if (value == "color") return chronon3d::BlendMode::Color;
-    if (value == "luminosity") return chronon3d::BlendMode::Luminosity;
-    return std::nullopt;
+    using Mode = chronon3d::BlendMode;
+    static constexpr std::array kValues{
+        std::pair{"normal"sv, Mode::Normal}, std::pair{"add"sv, Mode::Add},
+        std::pair{"multiply"sv, Mode::Multiply}, std::pair{"screen"sv, Mode::Screen},
+        std::pair{"overlay"sv, Mode::Overlay}, std::pair{"darken"sv, Mode::Darken},
+        std::pair{"lighten"sv, Mode::Lighten}, std::pair{"difference"sv, Mode::Difference},
+        std::pair{"exclusion"sv, Mode::Exclusion}, std::pair{"soft_light"sv, Mode::SoftLight},
+        std::pair{"hard_light"sv, Mode::HardLight}, std::pair{"color_dodge"sv, Mode::ColorDodge},
+        std::pair{"color_burn"sv, Mode::ColorBurn}, std::pair{"subtract"sv, Mode::Subtract},
+        std::pair{"divide"sv, Mode::Divide}, std::pair{"vivid_light"sv, Mode::VividLight},
+        std::pair{"pin_light"sv, Mode::PinLight}, std::pair{"linear_light"sv, Mode::LinearLight},
+        std::pair{"hue"sv, Mode::Hue}, std::pair{"saturation"sv, Mode::Saturation},
+        std::pair{"color"sv, Mode::Color}, std::pair{"luminosity"sv, Mode::Luminosity},
+    };
+    return find_enum_value(value, kValues);
 }
 
 OutputFormat output_format(const std::string& value) {
-    if (value == "png_sequence") return OutputFormat::PngSequence;
-    if (value == "gif") return OutputFormat::Gif;
-    if (value == "mp4") return OutputFormat::Mp4;
-    if (value == "mkv") return OutputFormat::Mkv;
-    if (value == "webm") return OutputFormat::WebM;
-    return OutputFormat::Png;
+    static constexpr std::array kValues{
+        std::pair{"png_sequence"sv, OutputFormat::PngSequence},
+        std::pair{"gif"sv, OutputFormat::Gif}, std::pair{"mp4"sv, OutputFormat::Mp4},
+        std::pair{"mkv"sv, OutputFormat::Mkv}, std::pair{"webm"sv, OutputFormat::WebM},
+    };
+    return find_enum_value(value, kValues).value_or(OutputFormat::Png);
 }
 
 VideoCodec video_codec(const std::string& value) {
-    if (value == "h264") return VideoCodec::H264;
-    if (value == "h265") return VideoCodec::H265;
-    if (value == "vp9") return VideoCodec::VP9;
-    if (value == "av1") return VideoCodec::AV1;
-    return VideoCodec::Auto;
+    static constexpr std::array kValues{
+        std::pair{"h264"sv, VideoCodec::H264}, std::pair{"h265"sv, VideoCodec::H265},
+        std::pair{"vp9"sv, VideoCodec::VP9}, std::pair{"av1"sv, VideoCodec::AV1},
+    };
+    return find_enum_value(value, kValues).value_or(VideoCodec::Auto);
 }
 
 CameraPropertyPlan camera_property(const std::string& value) {
-    if (value == "camera_position_x") return CameraPropertyPlan::PositionX;
-    if (value == "camera_position_y") return CameraPropertyPlan::PositionY;
-    if (value == "camera_position_z") return CameraPropertyPlan::PositionZ;
-    if (value == "camera_rotation_x") return CameraPropertyPlan::RotationX;
-    if (value == "camera_rotation_y") return CameraPropertyPlan::RotationY;
-    if (value == "camera_rotation_z") return CameraPropertyPlan::RotationZ;
-    if (value == "camera_fov_deg") return CameraPropertyPlan::FovDeg;
-    if (value == "camera_zoom") return CameraPropertyPlan::Zoom;
-    throw std::runtime_error(
-        "unsupported camera animation property '" + value +
-        "'; valid properties: camera_position_x, camera_position_y, camera_position_z, "
-        "camera_rotation_x, camera_rotation_y, camera_rotation_z, camera_fov_deg, camera_zoom");
+    static constexpr std::array kValues{
+        std::pair{"camera_position_x"sv, CameraPropertyPlan::PositionX},
+        std::pair{"camera_position_y"sv, CameraPropertyPlan::PositionY},
+        std::pair{"camera_position_z"sv, CameraPropertyPlan::PositionZ},
+        std::pair{"camera_rotation_x"sv, CameraPropertyPlan::RotationX},
+        std::pair{"camera_rotation_y"sv, CameraPropertyPlan::RotationY},
+        std::pair{"camera_rotation_z"sv, CameraPropertyPlan::RotationZ},
+        std::pair{"camera_fov_deg"sv, CameraPropertyPlan::FovDeg},
+        std::pair{"camera_zoom"sv, CameraPropertyPlan::Zoom},
+    };
+    return enum_from_string(value, kValues, "unsupported camera animation property: ");
 }
 
 CameraPlan decode_camera(const nlohmann::json& value) {

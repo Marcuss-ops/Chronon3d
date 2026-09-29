@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <chronon3d/animation/animation_property_kind.hpp>
 
 namespace chronon3d::compiler {
 
@@ -21,27 +22,7 @@ struct AnimationProgram {
     std::uint32_t data_offset{0};
 };
 
-enum class AnimationProperty : std::uint8_t {
-    Unknown,
-    Opacity,
-    PositionX,
-    PositionY,
-    PositionZ,
-    // RenderingGen's semantic overlay contract uses position_x/y/z as
-    // additive offsets from the authored layer placement. Keep these
-    // distinct from the canonical absolute position.x/y/z properties.
-    PositionXOffset,
-    PositionYOffset,
-    PositionZOffset,
-    ScaleX,
-    ScaleY,
-    ScaleZ,
-    UniformScale,
-    RotationX,
-    RotationY,
-    RotationZ,
-    TimeRemap,
-};
+using AnimationProperty = AnimationPropertyKind;
 
 /// Immutable, typed timeline entry. Frame values are authored-time data;
 /// sampling converts them into frame parameters without rebuilding the plan.
