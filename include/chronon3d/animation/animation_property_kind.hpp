@@ -40,6 +40,7 @@ enum class AnimationPropertyKind : std::uint8_t {
     BackgroundRadius,
     StrokeColor,
     StrokeWidth,
+    CharacterOffset,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -65,6 +66,7 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"background_padding_em", Kind::BackgroundPadding},
         {"background_radius_em", Kind::BackgroundRadius},
         {"stroke_color", Kind::StrokeColor}, {"stroke_width", Kind::StrokeWidth},
+        {"character_offset", Kind::CharacterOffset},
     };
     const auto found = kinds.find(name);
     return found == kinds.end() ? Kind::Unknown : found->second;

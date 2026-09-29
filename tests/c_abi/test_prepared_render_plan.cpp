@@ -106,6 +106,108 @@ TEST_CASE("render-plan layer transitions lower into the existing scene layer spe
     CHECK(chronon3d::graph::hash_layer_transition_spec(changed_spec) != transition_hash);
 }
 
+// ── media card / video corner contract ─────────────────────────────
+//
+// A media layer may declare the rounded plate behind it (style.background) and
+// the corner radius of its own box (radius). One compile must produce:
+//
+//   - a colour plate layer materialized BEFORE the clip, sized to the clip's
+//     displayed box plus 2*padding, carrying the plate colour and radius and
+//     the drop shadow (the plate IS the frame);
+//   - the clip itself unchanged in size, with its rounded-rect mask derived
+//     from radius and no residual shadow/background declaration.
+TEST_CASE("media background card and video radius lower into plate plus corner mask") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "video");
+    {
+        std::ofstream file(directory.path / "video/source.mp4", std::ios::binary);
+        file << "video bytes";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v2","version":2,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":2},
+      "layers":[{"id":"source","type":"video","source":"video/source.mp4","size":[32,32],
+        "radius":4,
+        "style":{
+          "background":{"color":"#FFFFFF","radius":6,"padding":[4,4]},
+          "shadow":{"color":"#000000","opacity":0.5,"blur":4,"offset":[0,2]}}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    const auto prepare_message = prepared.has_value() ? std::string{} :
+        prepared.error().path + ": " + prepared.error().message;
+    REQUIRE_MESSAGE(prepared.has_value(), prepare_message);
+
+    FrameContextParams params;
+    params.global_time = SampleTime::from_frame(0.0, decoded->canvas.fps);
+    params.duration = decoded->canvas.duration;
+    params.width = decoded->canvas.width;
+    params.height = decoded->canvas.height;
+    const auto scene = prepared->composition->evaluate(make_frame_context(params));
+    REQUIRE(scene.layers().size() == 2);
+    // z-order: the plate is composited UNDER the clip.
+    CHECK(scene.layers()[0].name == "source__frame");
+    CHECK(scene.layers()[1].name == "source");
+
+    const auto& plate = scene.layers()[0];
+    REQUIRE(!plate.nodes.empty());
+    CHECK(plate.nodes.front().corner_radius == doctest::Approx(6.0f));
+    CHECK(plate.nodes.front().color.r == doctest::Approx(1.0f));
+    REQUIRE(!plate.effects().empty());
+    CHECK(plate.effects()[0].enabled);
+
+    const auto& clip = scene.layers()[1];
+    REQUIRE(clip.video_source != nullptr);
+    CHECK(clip.video_source->size.x == doctest::Approx(32.0f));
+    CHECK(clip.mask.enabled());
+    CHECK(clip.mask.type == MaskType::RoundedRect);
+    CHECK(clip.mask.radius == doctest::Approx(4.0f));
+    CHECK(clip.mask.size.x == doctest::Approx(32.0f));
+    CHECK(clip.effects().empty());
+}
+
+// A shadow without a plate is the clip's own shadow (the widened style.shadow
+// gate): no plate is materialized and the clip keeps its square corners.
+TEST_CASE("video shadow without a background stays on the clip") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "video");
+    {
+        std::ofstream file(directory.path / "video/source.mp4", std::ios::binary);
+        file << "video bytes";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v2","version":2,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"source","type":"video","source":"video/source.mp4","size":[32,32],
+        "style":{"shadow":{"color":"#000000","opacity":0.4,"blur":3,"offset":[1,2]}}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    const auto prepare_message = prepared.has_value() ? std::string{} :
+        prepared.error().path + ": " + prepared.error().message;
+    REQUIRE_MESSAGE(prepared.has_value(), prepare_message);
+
+    FrameContextParams params;
+    params.global_time = SampleTime::from_frame(0.0, decoded->canvas.fps);
+    params.duration = decoded->canvas.duration;
+    params.width = decoded->canvas.width;
+    params.height = decoded->canvas.height;
+    const auto scene = prepared->composition->evaluate(make_frame_context(params));
+    REQUIRE(scene.layers().size() == 1);
+    CHECK(scene.layers()[0].name == "source");
+    CHECK(!scene.layers()[0].mask.enabled());
+    REQUIRE(!scene.layers()[0].effects().empty());
+    CHECK(scene.layers()[0].effects()[0].enabled);
+}
+
 TEST_CASE("render plan lowers a bounded static Lottie path through the resolver") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

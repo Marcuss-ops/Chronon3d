@@ -32,10 +32,11 @@ void reject_unknown_driver_fields(const nlohmann::json& value,
 }
 
 bool scalar_driver_property(std::string_view property) {
-    static constexpr std::array<std::string_view, 14> direct{
+    static constexpr std::array<std::string_view, 18> direct{
         "opacity", "blur", "tracking", "stroke_dash_offset", "stroke_width",
         "position_x", "position_y", "position_z", "scale_x", "scale_y", "scale_z",
-        "rotation_x", "rotation_y", "rotation_z"};
+        "rotation_x", "rotation_y", "rotation_z",
+        "skew", "skew_axis", "baseline_shift", "character_offset"};
     if (std::find(direct.begin(), direct.end(), property) != direct.end()) return true;
     for (const auto suffix : {"_opacity", "_blur", "_offset_x", "_offset_y"}) {
         if (!property.starts_with("shadow_") || !property.ends_with(suffix)) continue;
@@ -93,8 +94,10 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             std::abs(driver.amplitude) > 10000.0f)
             throw std::runtime_error("animation wiggle frequency/amplitude is outside supported bounds");
         if (track.property != "opacity" && track.property != "blur" &&
-            track.property != "tracking" && track.property != "stroke_dash_offset")
-            throw std::runtime_error("animation wiggle driver requires a scalar opacity, blur, tracking, or stroke_dash_offset property");
+            track.property != "tracking" && track.property != "stroke_dash_offset" &&
+            track.property != "skew" && track.property != "skew_axis" &&
+            track.property != "baseline_shift" && track.property != "stroke_width")
+            throw std::runtime_error("animation wiggle driver requires a scalar opacity, blur, tracking, stroke_dash_offset, skew, baseline_shift, or stroke_width property");
         track.wiggle = driver;
     }
     const auto driver_count = static_cast<int>(value.contains("wiggle")) +

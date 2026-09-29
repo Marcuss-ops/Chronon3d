@@ -648,6 +648,19 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
     animator.id = plan.id;
     for (const auto& selector : plan.selectors)
         animator.selectors.push_back(compile_text_selector(selector, fps));
+
+    const AnimationTrackPlan* skew_track = nullptr;
+    const AnimationTrackPlan* skew_axis_track = nullptr;
+    for (const auto& track : plan.properties) {
+        if (track.property == "skew") {
+            if (skew_track) throw std::runtime_error("text animator has duplicate skew tracks");
+            skew_track = &track;
+        } else if (track.property == "skew_axis") {
+            if (skew_axis_track) throw std::runtime_error("text animator has duplicate skew_axis tracks");
+            skew_axis_track = &track;
+        }
+    }
+
     for (const auto& track : plan.properties) {
         switch (animation_property_kind(track.property)) {
         case AnimationPropertyKind::PositionVector:
@@ -741,6 +754,12 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
             animator.properties.push_back(chronon3d::StrokeWidthProperty{
                 animated_text_value(track, 0.0f, track.property, fps)});
             break;
+        case AnimationPropertyKind::CharacterOffset: {
+            const int offset = track.keyframes.empty() ? 0 :
+                static_cast<int>(scalar_value(track.keyframes.front(), "character_offset"));
+            animator.properties.push_back(chronon3d::CharacterOffsetProperty{offset});
+            break;
+        }
         default:
             throw std::runtime_error("unsupported text animator property: " + track.property);
         }

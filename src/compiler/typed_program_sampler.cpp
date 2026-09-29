@@ -148,6 +148,12 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     case AnimationProperty::Skew:
                     case AnimationProperty::SkewAxis:
                     case AnimationProperty::FillColor:
+                    case AnimationProperty::Anchor:
+                    case AnimationProperty::BaselineShift:
+                    case AnimationProperty::BackgroundColor:
+                    case AnimationProperty::StrokeColor:
+                    case AnimationProperty::StrokeWidth:
+                    case AnimationProperty::CharacterOffset:
                     case AnimationProperty::Unknown: break;
                 }
             }

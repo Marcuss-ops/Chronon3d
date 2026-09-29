@@ -77,8 +77,61 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
             animator.selectors.push_back(decode_text_selector(selector));
     }
     if (value.contains("properties")) {
-        for (const auto& property : value.at("properties"))
-            animator.properties.push_back(decode_animation_track(property));
+        for (const auto& property : value.at("properties")) {
+            auto track = decode_animation_track(property);
+            if (track.property == "baseline_shift") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                        key.value[0] < -1000.0f || key.value[0] > 1000.0f) {
+                        throw std::runtime_error("baseline_shift keyframes must be finite numbers in [-1000, 1000]");
+                    }
+                }
+            } else if (track.property == "skew" || track.property == "skew_axis") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                        key.value[0] < -3600.0f || key.value[0] > 3600.0f) {
+                        throw std::runtime_error(track.property + " keyframes must be finite numbers in [-3600, 3600]");
+                    }
+                }
+            } else if (track.property == "stroke_width") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                        key.value[0] < 0.0f || key.value[0] > 1000.0f) {
+                        throw std::runtime_error("stroke_width keyframes must be finite numbers in [0, 1000]");
+                    }
+                }
+            } else if (track.property == "background_color" || track.property == "stroke_color") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 4) {
+                        throw std::runtime_error(track.property + " keyframes require 4 RGBA components");
+                    }
+                    for (float comp : key.value) {
+                        if (!std::isfinite(comp) || comp < 0.0f || comp > 1.0f) {
+                            throw std::runtime_error(track.property + " color components must be in [0, 1]");
+                        }
+                    }
+                }
+            } else if (track.property == "character_offset") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                        key.value[0] < -10000.0f || key.value[0] > 10000.0f) {
+                        throw std::runtime_error("character_offset keyframes must be finite integers in [-10000, 10000]");
+                    }
+                }
+            } else if (track.property == "anchor") {
+                for (const auto& key : track.keyframes) {
+                    if (key.value.empty() || key.value.size() > 3) {
+                        throw std::runtime_error("anchor keyframes require 1 to 3 components");
+                    }
+                    for (float comp : key.value) {
+                        if (!std::isfinite(comp)) {
+                            throw std::runtime_error("anchor keyframe values must be finite");
+                        }
+                    }
+                }
+            }
+            animator.properties.push_back(std::move(track));
+        }
     }
     return animator;
 }
