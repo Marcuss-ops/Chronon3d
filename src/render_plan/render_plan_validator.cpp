@@ -10,8 +10,10 @@
 
 #include <sstream>
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::render_plan {
@@ -69,6 +71,23 @@ void strip_per_key_timing_for_v2_projection(nlohmann::json& value,
         for (auto& item : value)
             strip_per_key_timing_for_v2_projection(item, false);
     }
+}
+
+// The frozen V2 layer-track property enum, verbatim. A V3 plan may animate
+// properties the legacy enum cannot express; those tracks are dropped from the
+// validation projection because the V3 extension schema is their authority.
+// Listing the V2-expressible set (instead of erasing the V3-only one) means a
+// newly added V3 paint track cannot silently make CLI validation reject a plan
+// the extension schema accepts — which is exactly how stroke_width,
+// stroke_color and shadow_<n>_* came to be unrenderable at the interface.
+[[nodiscard]] bool is_v2_layer_track_property(std::string_view property) {
+    static constexpr std::array<std::string_view, 15> v2_properties{
+        "position", "position_x", "position_y", "position_z",
+        "scale", "scale_x", "scale_y", "scale_z",
+        "rotation", "rotation_x", "rotation_y", "rotation_z",
+        "opacity", "blur", "stroke_dash_offset"};
+    return std::find(v2_properties.begin(), v2_properties.end(), property) !=
+           v2_properties.end();
 }
 
 nlohmann::json v2_projection(const nlohmann::json& root) {
@@ -177,8 +196,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
             }
             tracks.erase(std::remove_if(tracks.begin(), tracks.end(), [](const auto& track) {
                 if (!track.is_object()) return false;
-                const auto property = track.value("property", std::string{});
-                return property == "fill_color" || property == "skew" || property == "skew_axis";
+                return !is_v2_layer_track_property(track.value("property", std::string{}));
             }), tracks.end());
             if (tracks.empty()) layer.erase("animation");
         }

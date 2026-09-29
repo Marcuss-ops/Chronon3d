@@ -202,7 +202,7 @@ TEST_CASE("GPU text lowers canonical selector shapes with CPU-equivalent per-gly
     }
 }
 
-TEST_CASE("GPU text does not lower X/Y rotation into the in-plane MTSDF path") {
+TEST_CASE("GPU text rejects resolved X/Y rotation outside the in-plane MTSDF path") {
     auto layout = std::make_shared<TextRunLayout>();
     layout->placed = make_test_placed_run(1);
 
@@ -210,13 +210,36 @@ TEST_CASE("GPU text does not lower X/Y rotation into the in-plane MTSDF path") {
     shape.layout = layout;
     shape.glyphs = make_initial_glyph_states(layout->placed);
 
-    TextAnimatorSpec animator;
-    animator.selectors.push_back(full_glyph_selector());
-    animator.properties.push_back(
-        RotationProperty{AnimatedValue<Vec3>{Vec3{10.0f, 0.0f, 0.0f}}});
-    shape.animators.push_back(std::move(animator));
+    shape.glyphs[0].rotation.x = 10.0f;
 
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
+}
+
+TEST_CASE("GPU text accepts resolved states from stacked and non-square selectors") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(3);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    for (std::size_t i = 0; i < shape.glyphs.size(); ++i) {
+        shape.glyphs[i].position.y = static_cast<float>(i * 4);
+        shape.glyphs[i].scale = {0.9f + static_cast<float>(i) * 0.1f, 1.0f, 1.0f};
+        shape.glyphs[i].opacity = static_cast<float>(i) / 2.0f;
+    }
+    TextAnimatorSpec first;
+    first.selectors.push_back(full_glyph_selector());
+    first.properties.push_back(OpacityProperty{0.0f});
+    shape.animators.push_back(first);
+
+    GlyphSelectorSpec wiggly = full_glyph_selector();
+    wiggly.shape = TextSelectorShape::Wiggly;
+    TextAnimatorSpec second;
+    second.selectors.push_back(wiggly);
+    second.properties.push_back(PositionProperty{Vec3{0.0f, 4.0f, 0.0f}});
+    shape.animators.push_back(second);
+
+    CHECK(can_lower_gpu_text_animation(shape));
 }
 
 TEST_CASE("GPU text lowers fill_color and packs the per-glyph target") {

@@ -22,6 +22,7 @@
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/text/animated_text_document.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
@@ -29,7 +30,10 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iterator>
+#include <locale>
+#include <sstream>
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -440,6 +444,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         // semantics in LayerBuilder::build().
         std::vector<std::optional<chronon3d::PreparedText>> prepared_texts(
             plan.layers.size());
+        std::vector<std::shared_ptr<const chronon3d::AnimatedTextDocument>> prepared_text_counters(
+            plan.layers.size());
         std::vector<std::optional<chronon3d::Vec2>> prepared_text_bounds(
             plan.layers.size());
         const auto assets_root = resolver.mount_root();
@@ -459,6 +465,79 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     definition.style.font.font_path);
             }
             definition.style.font.font_path = resolved->string();
+            if (layer.text_counter) {
+                const auto& counter = layer.text_counter->counter;
+                AnimationTrackPlan value_track;
+                value_track.property = "text_counter";
+                value_track.easing = counter.easing;
+                value_track.keyframes = {
+                    {counter.start_frame, {counter.from}},
+                    {counter.start_frame + counter.duration_frames, {counter.to}}};
+                chronon3d::AnimatedTextDocument animated;
+                const auto replace_token = [&](float value) {
+                    double magnitude = value;
+                    std::string compact_suffix;
+                    if (counter.format == "percent") magnitude *= 100.0;
+                    if (counter.format == "compact") {
+                        const double absolute = std::abs(magnitude);
+                        if (absolute >= 1.0e9) { magnitude /= 1.0e9; compact_suffix = "B"; }
+                        else if (absolute >= 1.0e6) { magnitude /= 1.0e6; compact_suffix = "M"; }
+                        else if (absolute >= 1.0e3) { magnitude /= 1.0e3; compact_suffix = "K"; }
+                    }
+                    std::ostringstream formatted;
+                    formatted.imbue(std::locale::classic());
+                    formatted << std::fixed << std::setprecision(counter.decimals) << magnitude;
+                    std::string number = formatted.str();
+                    if (counter.decimals == 0)
+                        number = std::to_string(static_cast<std::int64_t>(std::llround(magnitude)));
+                    if (counter.format == "percent") number += "%";
+                    else if (counter.format == "currency") {
+                        const std::string symbol = counter.currency == "USD" ? "$" :
+                            counter.currency == "EUR" ? "€" : counter.currency == "GBP" ? "£" : counter.currency + " ";
+                        number = symbol + number;
+                    } else if (counter.format == "compact") number += compact_suffix;
+                    return counter.prefix + number + counter.suffix;
+                };
+                const auto fill_value = [&](float value) {
+                    auto target = definition;
+                    const auto found = target.content.value.find(layer.text_counter->token);
+                    target.content.value.replace(found, layer.text_counter->token.size(), replace_token(value));
+                    const auto token_start = found;
+                    const auto token_end = found + layer.text_counter->token.size();
+                    const auto replacement_size = target.content.value.size() -
+                        (definition.content.value.size() - layer.text_counter->token.size());
+                    const auto delta = static_cast<std::int64_t>(replacement_size) -
+                        static_cast<std::int64_t>(layer.text_counter->token.size());
+                    for (auto& span : target.spans) {
+                        if (span.byte_end <= token_start) continue;
+                        if (span.byte_start < token_end)
+                            throw std::runtime_error("text_counter token cannot overlap styled text spans");
+                        const auto shifted_start = static_cast<std::int64_t>(span.byte_start) + delta;
+                        const auto shifted_end = static_cast<std::int64_t>(span.byte_end) + delta;
+                        if (shifted_start < 0 || shifted_end < shifted_start)
+                            throw std::runtime_error("text_counter span shift overflow");
+                        span.byte_start = static_cast<std::size_t>(shifted_start);
+                        span.byte_end = static_cast<std::size_t>(shifted_end);
+                    }
+                    return target;
+                };
+                for (std::int64_t offset = 0;
+                     offset <= counter.duration_frames.integral(); ++offset) {
+                    const Frame frame = counter.start_frame + Frame{offset};
+                    const float value = detail::evaluate_scalar_track(
+                        value_track, static_cast<double>(frame.integral()),
+                        counter.from, plan.canvas.fps);
+                    const auto definition_at_frame = fill_value(value);
+                    chronon3d::SourceTextKeyframe key;
+                    key.frame = frame;
+                    key.document = chronon3d::to_text_document(definition_at_frame);
+                    animated.add_keyframe(std::move(key));
+                }
+                const auto to_definition = fill_value(counter.to);
+                prepared_text_counters[index] =
+                    std::make_shared<const chronon3d::AnimatedTextDocument>(std::move(animated));
+                definition = to_definition;
+            }
             prepared_texts[index] = chronon3d::prepare_text(definition);
             if ((layer.style && layer.style->background) || layer.safe_insets) {
                 auto measured = chronon3d::compile_text_layout(
@@ -676,7 +755,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 *layer.follow_path, base_position, base_rotation,
                 plan.canvas.width, plan.canvas.height, plan.canvas.fps);
         }
-        definition.scene = [plan, resolved_video_paths, resolved_particle_sprite_paths, prepared_texts, prepared_text_bounds, prepared_effects, font_engine,
+        definition.scene = [plan, resolved_video_paths, resolved_particle_sprite_paths, prepared_texts, prepared_text_counters, prepared_text_bounds, prepared_effects, font_engine,
                             has_3d_layer, plan_camera, follow_path_evaluators](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
@@ -1374,6 +1453,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 "text",
                                 *prepared_texts[index])
                                 .font_engine(font_engine.get());
+                            if (prepared_text_counters[index])
+                                text_builder.from_animated_document(prepared_text_counters[index]);
                             detail::apply_text_animators(text_builder, layer, plan.canvas.fps);
                             detail::apply_text_glow(builder, layer);
                             break;

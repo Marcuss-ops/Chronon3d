@@ -217,17 +217,15 @@ graph::RenderOpResult render_text_run_item(
     // glyph reset and driver call from the common typewriter/export path.
     static thread_local TextRunFrameState frame;
     const TextRunShape* render_shape = &source_shape;
-    // Lowerable GPU selectors are sampled into the run-level dynamic record by
-    // the native MTSDF path. Preparing their glyph states here would leave the
-    // compatibility opacity at frame-zero while the shader expects to own the
-    // per-glyph reveal. Only software/compatibility shapes need the scratch
-    // frame evaluation.
+    // Evaluate animator stacks once through Chronon's canonical evaluator.
+    // The GPU route consumes those resolved per-glyph states, so selector
+    // semantics and property blending stay identical to the software route.
     sampled_layer = sampled_layer ? sampled_layer : ctx.node_exec.sampled_layer;
     const bool lowerable_gpu_animation =
-        !source_shape.animators.empty() &&
+        !source_shape.animators.empty() && source_shape.layout &&
         can_lower_gpu_text_animation(source_shape);
     const bool has_element_overrides = sampled_layer && !sampled_layer->elements.empty();
-    if ((!lowerable_gpu_animation && !source_shape.animators.empty()) ||
+    if (!source_shape.animators.empty() ||
         source_shape.animated_doc || has_element_overrides) {
         prepare_per_frame_shape(source_shape, ctx.frame_input.sample_time, frame,
                                 sampled_layer);

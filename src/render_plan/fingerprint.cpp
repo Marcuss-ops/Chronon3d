@@ -411,6 +411,10 @@ void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_float(camera.near);
     out.add_float(camera.far);
     out.add_float(camera.zoom);
+    out.add_bool(camera.dof_enabled);
+    out.add_float(camera.dof_focus_distance);
+    out.add_float(camera.dof_aperture);
+    out.add_float(camera.dof_max_blur);
 }
 
 void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
@@ -499,6 +503,19 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         w.add_bool(p.auto_orient);
         w.add_float(p.offset_deg);
         w.add_bool(p.clamp_end);
+    });
+    add_optional(out, layer.text_counter, [](auto& writer, const TextCounterPlan& value) {
+        writer.add_string(value.token);
+        writer.add_float(value.counter.from);
+        writer.add_float(value.counter.to);
+        writer.add_frame(value.counter.start_frame);
+        writer.add_frame(value.counter.duration_frames);
+        writer.add_string(value.counter.easing);
+        writer.add_string(value.counter.format);
+        writer.add_string(value.counter.currency);
+        writer.add_i64(value.counter.decimals);
+        writer.add_string(value.counter.prefix);
+        writer.add_string(value.counter.suffix);
     });
     add_optional(out, layer.parent, [](auto& writer, const std::string& value) {
         writer.add_string(value);
@@ -1121,7 +1138,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v28");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v29");
     out.add_string(plan.schema);
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);

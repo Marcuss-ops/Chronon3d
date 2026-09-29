@@ -202,11 +202,19 @@ struct DeviceFramePlan {
 struct CounterPlan {
     float from{0.0f};
     float to{100.0f};
+    Frame start_frame{0};
+    Frame duration_frames{30};
+    std::string easing{"out_expo"};
     std::string format{"plain"}; // plain | currency | percent | compact
     std::string currency{"USD"};
     int decimals{0}; // 0..6
     std::string prefix{};
     std::string suffix{};
+};
+
+struct TextCounterPlan {
+    CounterPlan counter;
+    std::string token{"{{value}}"};
 };
 
 struct ShapeContentPlan {
@@ -371,6 +379,10 @@ struct CameraPlan {
     float near{1.0f};
     float far{10000.0f};
     float zoom{1.0f};
+    bool dof_enabled{false};
+    float dof_focus_distance{1000.0f};
+    float dof_aperture{0.015f};
+    float dof_max_blur{24.0f};
 };
 
 struct CameraShakePlan {
@@ -473,6 +485,7 @@ struct LayerPlan {
     std::string source;
     std::string text;
     std::vector<TextSpanOverride> text_spans;
+    std::optional<TextCounterPlan> text_counter;
 
     // Normalized concrete font asset path copied from style.font by decoder.
     // Kept as an execution field so asset preflight remains simple.

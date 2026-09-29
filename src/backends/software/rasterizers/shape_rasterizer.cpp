@@ -7,6 +7,9 @@
 
 #include "shape_rasterizer.hpp"
 #include "shape_rasterizer_helpers.hpp"
+// The canonical path world bbox. It lives with the path geometry it depends on
+// so this dispatcher delegates instead of re-deriving a path's extent.
+#include "path/path_geometry.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
@@ -43,6 +46,16 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
             static_cast<i32>(std::ceil(std::max(p0.x, p1.x) + pad)),
             static_cast<i32>(std::ceil(std::max(p0.y, p1.y) + pad))
         };
+    }
+
+    if (shape.type() == ShapeType::Path) {
+        // A path has no size box: its extent is whatever its flattened commands
+        // cover. Without this branch the size switch below left `size` at
+        // {0,0}, so every path collapsed to a 2*pad square centred on the node
+        // origin. The graph executor consumes this bbox as the draw clip, so
+        // the authored geometry was silently truncated to that square and a
+        // stroked line rendered as a ~20 px blob.
+        return detail::compute_path_world_bbox(shape.path(), model, spread);
     }
 
     Vec2 size{0, 0};

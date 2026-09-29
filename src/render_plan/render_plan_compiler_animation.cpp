@@ -618,6 +618,36 @@ chronon3d::TextAnimatorSpec compile_text_animator(const TextAnimatorPlan& plan, 
     return animator;
 }
 
+// The per-frame paint tracks. The render-plan scene callback samples each of
+// these into the source node it rebuilds every frame (`fill_color_at`,
+// `stroke_width_at`, `stroke_color_at`, `stroke_dash_offset_at`,
+// `shadow_scalar_at`, `shadow_color_at`) and the decoder validates every one of
+// them, so this pass must let them through untouched: it lowers transform
+// animation, and these are not transforms. Rejecting them here made a whole
+// class of contract-valid plans unbuildable — a shape animation such as a
+// dashed write-on decoded, validated, and then failed with "unsupported
+// primitive animation property" before the first frame.
+[[nodiscard]] bool is_per_frame_paint_property(std::string_view property) {
+    if (property == "fill_color" || property == "stroke_width" ||
+        property == "stroke_color" || property == "stroke_dash_offset")
+        return true;
+    // shadow_<0..2>_{opacity,blur,offset_x,offset_y,color}; the decoder bounds
+    // the index to three shadows and the suffix to this set. Match the suffix
+    // first: the five suffixes have different lengths, so slicing by a fixed
+    // offset would drop most of the family.
+    if (property.rfind("shadow_", 0) != 0) return false;
+    static constexpr std::array<std::string_view, 5> suffixes{
+        "_opacity", "_blur", "_offset_x", "_offset_y", "_color"};
+    std::string_view suffix;
+    for (const std::string_view candidate : suffixes) {
+        if (property.size() <= 7 + candidate.size()) continue;
+        if (property.ends_with(candidate)) { suffix = candidate; break; }
+    }
+    if (suffix.empty()) return false;
+    const std::string_view index = property.substr(7, property.size() - 7 - suffix.size());
+    return index == "0" || index == "1" || index == "2";
+}
+
 void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,
                             int canvas_width,
@@ -701,9 +731,9 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         } else if (track.property == "skew_axis") {
             if (skew_axis_track) throw std::runtime_error("layer '" + layer.id + "' has duplicate skew_axis tracks");
             skew_axis_track = &track;
-        } else if (track.property == "fill_color") {
-            // Paint tracks are sampled into the per-frame source node by the
-            // render-plan scene callback, not lowered as transform animation.
+        } else if (is_per_frame_paint_property(track.property)) {
+            // Sampled into the per-frame source node by the render-plan scene
+            // callback, not lowered as transform animation.
         } else {
             throw std::runtime_error("unsupported primitive animation property: " + track.property);
         }
@@ -1449,6 +1479,11 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
     descriptor.base.projection = chronon3d::camera_v1::FovProjection{
         chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    descriptor.base.dof.enabled = source_plan.dof_enabled;
+    descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
+    descriptor.base.dof.focus_z = source_plan.dof_focus_distance;
+    descriptor.base.dof.aperture = source_plan.dof_aperture;
+    descriptor.base.dof.max_blur = source_plan.dof_max_blur;
     if (source_plan.type == "orthographic") {
         // Camera2_5D has no second projection implementation: use its existing
         // zoom optics surface rather than introducing a parallel camera model.

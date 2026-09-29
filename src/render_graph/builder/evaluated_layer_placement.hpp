@@ -118,7 +118,7 @@ struct EvaluatedLayerPlacement {
 
     if (project_camera) {
         const auto projected = project_to_camera_space(
-            source_matrix,
+            camera_input_matrix(ctx, source_matrix),
             opacity,
             ctx,
             std::string(node_name),

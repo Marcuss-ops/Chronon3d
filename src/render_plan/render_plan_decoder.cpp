@@ -905,6 +905,15 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                     return PlanDecodeError{"layers[].style.fill",
                         "text layers require a concrete fill color"};
                 }
+                if (layer.text_counter) {
+                    const auto& counter = layer.text_counter->counter;
+                    if (counter.start_frame.integral() + counter.duration_frames.integral() >
+                        plan.canvas.duration.integral())
+                        return PlanDecodeError{
+                            "layers[" + std::to_string(layer_index) + "].text_counter.counter",
+                            "counter start_frame plus duration_frames must fit the canvas duration",
+                            "text_counter_outside_canvas", "render-plan-text-counter"};
+                }
             }
             plan.layers.push_back(std::move(layer));
             ++layer_index;

@@ -1,0 +1,110 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "infographic_2p5d_13_regression_2d_plus_color_3d",
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 60
+  },
+  "output": {
+    "path": "infographic_2p5d_13_regression_2d_plus_color_3d.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "plate3d",
+      "type": "color",
+      "size": [
+        200,
+        120
+      ],
+      "position": [
+        200.0,
+        100.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "color": [
+        0.16862745098039217,
+        0.20784313725490197,
+        0.3137254901960784,
+        1.0
+      ],
+      "enable_3d": true,
+      "rotation": [
+        40,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "flow_ribbon",
+      "type": "shape",
+      "size": [
+        960,
+        540
+      ],
+      "position": [
+        480.0,
+        420.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 60,
+      "shape": {
+        "type": "path",
+        "path": [
+          {
+            "type": "move_to",
+            "point": [
+              -260.0,
+              60.0
+            ]
+          },
+          {
+            "type": "cubic_to",
+            "control1": [
+              -120.0,
+              -70.0
+            ],
+            "control2": [
+              60.0,
+              90.0
+            ],
+            "point": [
+              260.0,
+              60.0
+            ]
+          }
+        ],
+        "stroke": {
+          "color": "#FFFFFF",
+          "width": 6,
+          "dash_array": [
+            538.9754523231786,
+            538.9754523231786
+          ],
+          "dash_offset": 0.0
+        }
+      }
+    }
+  ],
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0.0,
+      0.0,
+      -1000.0
+    ],
+    "rotation_deg": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fov_deg": 30.219150244680932,
+    "zoom": 1000.0
+  }
+}

@@ -147,6 +147,54 @@ TEST_CASE("render_plan V3 shape fill is accepted as an extension and checked by 
     CHECK(plan["layers"][0]["shape"].contains("fill"));
 }
 
+TEST_CASE("render_plan V3 accepts the per-frame paint track family") {
+    // Regression: the V3 extension schema documents stroke_width, stroke_color
+    // and shadow_<n>_* as animatable, but the frozen V2 projection only erased
+    // fill_color/skew/skew_axis, so the base pass rejected every one of those
+    // tracks with "instance not found in required enum" and the CLI refused to
+    // render a plan the extension schema accepts.
+    auto plan = json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":40,"height":30,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[{"id":"ribbon","type":"shape","size":[20,10],
+        "color":[0.1,0.2,0.3,1.0],
+        "shape":{"type":"path",
+          "path":[{"type":"move_to","point":[0,0]}],
+          "stroke":{"width":2,"color":"#FFFFFF"}},
+        "style":{"shadows":[{"color":"#000000","opacity":0.5,"blur":2,"offset":[1,1]},
+                             {"color":"#FFFFFF","opacity":0.25,"offset":[0,2]}]},
+        "animation":{"tracks":[
+          {"property":"stroke_width","keyframes":[{"frame":0,"value":1.0},{"frame":11,"value":6.0}]},
+          {"property":"stroke_color","keyframes":[{"frame":0,"value":[1.0,1.0,1.0,1.0]}]},
+          {"property":"stroke_dash_offset","keyframes":[{"frame":0,"value":0.0},{"frame":11,"value":4.0}]},
+          {"property":"shadow_0_opacity","keyframes":[{"frame":0,"value":0.0},{"frame":11,"value":0.5}]},
+          {"property":"shadow_1_blur","keyframes":[{"frame":0,"value":1.0}]},
+          {"property":"shadow_1_offset_y","keyframes":[{"frame":0,"value":0.0},{"frame":11,"value":8.0}]},
+          {"property":"shadow_1_color","keyframes":[{"frame":0,"value":[0.0,0.0,0.0,1.0]}]}
+        ]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto result = validate_render_plan(plan);
+    INFO(result.format());
+    CHECK(result.ok());
+
+    // The vocabulary stays closed: an unknown property is still rejected, and
+    // so is a shadow index past the schema's three-shadow bound.
+    plan["layers"][0]["animation"]["tracks"][0]["property"] = "shear";
+    check_schema_violation(validate_render_plan(plan));
+    plan["layers"][0]["animation"]["tracks"][0]["property"] = "shadow_3_blur";
+    check_schema_violation(validate_render_plan(plan));
+
+    // The frozen V2 enum is unchanged: the same paint tracks remain invalid
+    // there, which is what makes the projection necessary at all.
+    plan["layers"][0]["animation"]["tracks"][0]["property"] = "stroke_width";
+    plan["schema"] = "chronon.render-plan.v2";
+    plan["version"] = 2;
+    plan["layers"][0].erase("shape");
+    plan["layers"][0].erase("style");
+    plan["layers"][0]["type"] = "color";
+    check_schema_violation(validate_render_plan(plan));
+}
+
 TEST_CASE("render_plan V3 exposes typed transition parameters and excludes them from frozen V2") {
     auto plan = json{
         {"schema", "chronon.render-plan.v3"}, {"version", 3},
