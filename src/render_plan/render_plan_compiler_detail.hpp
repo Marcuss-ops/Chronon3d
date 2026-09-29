@@ -36,7 +36,7 @@ struct FollowPathEvaluators {
 [[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan);
 [[nodiscard]] std::optional<std::string> expand_static_lottie(
-    ShapeContentPlan& shape, const std::filesystem::path& path);
+    LayerPlan& layer, const std::filesystem::path& path);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer, FrameRate fps);
 void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer);

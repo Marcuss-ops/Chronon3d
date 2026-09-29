@@ -6,27 +6,28 @@
 namespace chronon3d::compiler::stages {
 namespace {
 AnimationProperty property_kind(std::string_view property) {
-    if (property == "opacity") return AnimationProperty::Opacity;
-    if (property == "position.x") return AnimationProperty::PositionX;
-    if (property == "position.y") return AnimationProperty::PositionY;
-    if (property == "position.z") return AnimationProperty::PositionZ;
-    if (property == "position_x") return AnimationProperty::PositionXOffset;
-    if (property == "position_y") return AnimationProperty::PositionYOffset;
-    if (property == "position_z") return AnimationProperty::PositionZOffset;
-    if (property == "scale.x") return AnimationProperty::ScaleX;
-    if (property == "scale.y") return AnimationProperty::ScaleY;
-    if (property == "scale.z") return AnimationProperty::ScaleZ;
-    if (property == "scale_x") return AnimationProperty::ScaleX;
-    if (property == "scale_y") return AnimationProperty::ScaleY;
-    if (property == "scale_z") return AnimationProperty::ScaleZ;
-    if (property == "scale") return AnimationProperty::UniformScale;
-    if (property == "rotation.x") return AnimationProperty::RotationX;
-    if (property == "rotation.y") return AnimationProperty::RotationY;
-    if (property == "rotation.z") return AnimationProperty::RotationZ;
-    if (property == "rotation_x") return AnimationProperty::RotationX;
-    if (property == "rotation_y") return AnimationProperty::RotationY;
-    if (property == "rotation_z") return AnimationProperty::RotationZ;
-    return AnimationProperty::Unknown;
+    using Kind = chronon3d::AnimationPropertyKind;
+    const auto kind = chronon3d::animation_property_kind(property);
+    switch (kind) {
+    case Kind::Opacity:
+    case Kind::PositionX:
+    case Kind::PositionY:
+    case Kind::PositionZ:
+    case Kind::PositionXOffset:
+    case Kind::PositionYOffset:
+    case Kind::PositionZOffset:
+    case Kind::ScaleX:
+    case Kind::ScaleY:
+    case Kind::ScaleZ:
+    case Kind::UniformScale:
+    case Kind::RotationX:
+    case Kind::RotationY:
+    case Kind::RotationZ:
+    case Kind::TimeRemap:
+        return kind;
+    default:
+        return AnimationProperty::Unknown;
+    }
 }
 }
 

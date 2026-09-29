@@ -1,5 +1,6 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include "effect_kind_coverage.hpp"
 
 #include <array>
 #include <cmath>
@@ -666,6 +667,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             add_optional(out, subpath.fill_color, [](auto& writer, const auto& color) {
                 for (const auto component : color) writer.add_float(component);
             });
+            add_optional(out, subpath.fill_gradient, [](auto& writer, const auto& gradient) {
+                add_gradient(writer, gradient);
+            });
             add_optional(out, subpath.stroke, [](auto& writer, const StrokeStyle& stroke) {
                 add_optional(writer, stroke.width, [](auto& nested, float value) {
                     nested.add_float(value);
@@ -925,14 +929,17 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_size(layer.effects.size());
         for (const auto& effect : layer.effects) {
             out.add_enum(effect.kind);
-            if (effect.kind == LayerPlan::EffectKindPlan::Lut3D) {
+            switch (effect.kind) {
+            case LayerPlan::EffectKindPlan::Lut3D: {
                 out.add_string(effect.asset);
                 out.add_float(effect.amount);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Echo) {
+            } break;
+            case LayerPlan::EffectKindPlan::Echo: {
                 out.add_size(effect.echoes);
                 out.add_float(effect.decay);
                 out.add_size(effect.time_offset_frames);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Keying) {
+            } break;
+            case LayerPlan::EffectKindPlan::Keying: {
                 out.add_enum(effect.keying_mode);
                 for (const auto value : effect.key_color) out.add_float(value);
                 out.add_float(effect.threshold);
@@ -943,42 +950,51 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.choke);
                 for (const auto value : effect.garbage_rect) out.add_float(value);
                 out.add_float(effect.garbage_feather);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Threshold) {
+            } break;
+            case LayerPlan::EffectKindPlan::Threshold: {
                 out.add_float(effect.threshold);
                 out.add_float(effect.threshold_softness);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur) {
+            } break;
+            case LayerPlan::EffectKindPlan::GaussianBlur: {
                 out.add_float(effect.radius);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::DropShadow) {
+            } break;
+            case LayerPlan::EffectKindPlan::DropShadow: {
                 out.add_float(effect.radius);
                 for (const auto value : effect.offset) out.add_float(value);
                 for (const auto value : effect.effect_color) out.add_float(value);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Bloom) {
+            } break;
+            case LayerPlan::EffectKindPlan::Bloom: {
                 out.add_float(effect.bloom_threshold);
                 out.add_float(effect.radius);
                 out.add_float(effect.bloom_intensity);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Glow) {
+            } break;
+            case LayerPlan::EffectKindPlan::Glow: {
                 out.add_float(effect.radius);
                 out.add_float(effect.glow_intensity);
                 for (const auto value : effect.effect_color) out.add_float(value);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
+            } break;
+            case LayerPlan::EffectKindPlan::Vignette: {
                 out.add_float(effect.radius);
                 out.add_float(effect.softness);
                 out.add_float(effect.amount);
                 for (const auto value : effect.effect_color) out.add_float(value);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Catalog) {
+            } break;
+            case LayerPlan::EffectKindPlan::Catalog: {
                 out.add_string(effect.canonical_effect_id);
                 out.add_size(effect.canonical_params.size());
                 for (const auto& value : effect.canonical_params) {
                     out.add_string(value.param);
                     out.add_float(value.value);
                 }
-            } else if (effect.kind == LayerPlan::EffectKindPlan::LightRays) {
+            } break;
+            case LayerPlan::EffectKindPlan::LightRays: {
                 for (const auto value : effect.light_rays_origin) out.add_float(value);
                 out.add_float(effect.light_rays_length);
                 out.add_float(effect.light_rays_density);
                 for (const auto value : effect.light_rays_color) out.add_float(value);
                 out.add_float(effect.light_rays_decay);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Noise) {
+            } break;
+            case LayerPlan::EffectKindPlan::Noise: {
                 out.add_float(effect.amount);
                 out.add_uint64(effect.seed);
                 out.add_bool(effect.animated);
@@ -987,7 +1003,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.grain_shadow_response);
                 out.add_float(effect.grain_midtone_response);
                 out.add_float(effect.grain_highlight_response);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::FractalNoise) {
+            } break;
+            case LayerPlan::EffectKindPlan::FractalNoise: {
                 out.add_uint64(effect.seed);
                 out.add_uint64(effect.octaves);
                 out.add_float(effect.frequency);
@@ -996,68 +1013,71 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.contrast);
                 out.add_float(effect.brightness);
                 out.add_bool(effect.rgb_noise);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::CornerPin) {
+            } break;
+            case LayerPlan::EffectKindPlan::CornerPin: {
                 for (const auto value : effect.quad) out.add_float(value);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Twirl) {
+            } break;
+            case LayerPlan::EffectKindPlan::Twirl: {
                 for (const auto value : effect.warp_center) out.add_float(value);
                 out.add_float(effect.warp_angle);
                 out.add_float(effect.warp_radius);
                 out.add_float(effect.warp_falloff);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Bulge) {
+            } break;
+            case LayerPlan::EffectKindPlan::Bulge: {
                 for (const auto value : effect.warp_center) out.add_float(value);
                 out.add_float(effect.warp_amount);
                 out.add_float(effect.warp_radius);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::MeshWarp) {
+            } break;
+            case LayerPlan::EffectKindPlan::MeshWarp: {
                 out.add_size(effect.mesh_cols);
                 out.add_size(effect.mesh_rows);
                 out.add_float(effect.mesh_smoothness);
                 out.add_size(effect.mesh_offsets.size());
                 for (const auto value : effect.mesh_offsets) out.add_float(value);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Sharpen) {
+            } break;
+            case LayerPlan::EffectKindPlan::Sharpen: {
                 out.add_float(effect.amount); out.add_float(effect.radius); out.add_float(effect.threshold);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::TurbulentDisplace) {
+            } break;
+            case LayerPlan::EffectKindPlan::TurbulentDisplace: {
                 out.add_float(effect.amount); out.add_float(effect.warp_size); out.add_float(effect.warp_evolution);
                 out.add_float(effect.warp_speed); out.add_uint64(effect.warp_complexity);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::WaveWarp) {
+            } break;
+            case LayerPlan::EffectKindPlan::WaveWarp: {
                 out.add_uint64(effect.wave_type); for (auto v : effect.warp_direction) out.add_float(v);
                 out.add_float(effect.amount); out.add_float(effect.warp_wavelength); out.add_float(effect.warp_speed); out.add_float(effect.warp_phase);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Ripple) {
+            } break;
+            case LayerPlan::EffectKindPlan::Ripple: {
                 for(auto v:effect.warp_center) out.add_float(v); out.add_float(effect.warp_radius); out.add_float(effect.warp_speed);
                 out.add_float(effect.warp_width); out.add_float(effect.warp_height); out.add_float(effect.warp_damping);
-            } else if(effect.kind==LayerPlan::EffectKindPlan::DisplacementMap) {
+            } break;
+            case LayerPlan::EffectKindPlan::DisplacementMap: {
                 out.add_string(effect.map_layer); out.add_float(effect.map_intensity_x);
                 out.add_float(effect.map_intensity_y); out.add_uint64(effect.map_channel);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::ChromaticAberration) {
+            } break;
+            case LayerPlan::EffectKindPlan::ChromaticAberration: {
                 out.add_float(effect.chromatic_red_offset);
                 out.add_float(effect.chromatic_blue_offset);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Halftone) {
+            } break;
+            case LayerPlan::EffectKindPlan::Halftone: {
                 out.add_size(effect.halftone_size);
                 out.add_float(effect.halftone_angle);
                 out.add_float(effect.halftone_amount);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::DirectionalBlur) {
+            } break;
+            case LayerPlan::EffectKindPlan::DirectionalBlur: {
                 out.add_float(effect.directional_angle);
                 out.add_float(effect.directional_length);
                 out.add_size(static_cast<std::size_t>(effect.directional_samples));
-            } else if (effect.kind == LayerPlan::EffectKindPlan::RadialBlur) {
+            } break;
+            case LayerPlan::EffectKindPlan::RadialBlur: {
                 out.add_float(effect.radial_center[0]);
                 out.add_float(effect.radial_center[1]);
                 out.add_float(effect.radial_amount);
                 out.add_size(static_cast<std::size_t>(effect.radial_render_samples));
                 out.add_size(static_cast<std::size_t>(effect.radial_preview_samples));
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Vignette) {
-                out.add_float(effect.amount);
-                out.add_float(effect.warp_radius);
-                out.add_float(effect.warp_falloff);
-                for (const auto component : effect.effect_color) out.add_float(component);
-            } else if (effect.kind == LayerPlan::EffectKindPlan::Catalog) {
-                out.add_string(effect.canonical_effect_id);
-                out.add_size(effect.canonical_params.size());
-                for (const auto& value : effect.canonical_params) {
-                    out.add_string(value.param);
-                    out.add_float(value.value);
-                }
-            } else {
+            } break;
+            case LayerPlan::EffectKindPlan::Mosaic: {
                 out.add_size(effect.block_size);
+            } break;
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});
             add_optional(out,effect.time_curve,[](auto& w,const AnimationTrackPlan& track){add_track(w,track);});

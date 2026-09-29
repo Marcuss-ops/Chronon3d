@@ -25,6 +25,13 @@ add_library(chronon3d_render_plan OBJECT
     audio_mix_compiler.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
+# EffectKindPlan switches are the compile-time coverage checks for decoding,
+# compilation, and fingerprinting. Keep missing enum arms fatal on this target.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(chronon3d_render_plan PRIVATE -Werror=switch)
+elseif(MSVC)
+    target_compile_options(chronon3d_render_plan PRIVATE /we4062)
+endif()
 if(CHRONON3D_ENABLE_SVG)
     target_compile_definitions(chronon3d_render_plan PRIVATE CHRONON3D_ENABLE_SVG=1)
 endif()

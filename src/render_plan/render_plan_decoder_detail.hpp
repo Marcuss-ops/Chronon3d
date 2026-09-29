@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include "effect_kind_coverage.hpp"
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -28,6 +29,8 @@ void decode_layer_text_animators(LayerPlan& layer, const nlohmann::json& value);
 [[nodiscard]] CameraPropertyPlan camera_property(const std::string& value);
 [[nodiscard]] CameraPlan decode_camera(const nlohmann::json& value);
 [[nodiscard]] std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value);
+[[nodiscard]] ShapePathCommandPlan decode_shape_path_command(
+    const nlohmann::json& value, std::string_view context);
 [[nodiscard]] LayerPlan decode_layer(const nlohmann::json& value);
 
 }  // namespace chronon3d::render_plan::detail
