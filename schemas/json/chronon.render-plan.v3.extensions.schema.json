@@ -452,7 +452,7 @@
       "required": ["property", "keyframes"],
       "properties": {
         "property": {
-          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "rotation", "fill_color", "skew", "skew_axis", "anchor", "baseline_shift", "background_color", "background_padding_em", "background_radius_em", "stroke_color", "stroke_width"]
+          "enum": ["position", "position_x", "position_y", "scale", "scale_x", "scale_y", "opacity", "blur", "tracking", "rotation", "fill_color", "skew", "skew_axis", "anchor", "baseline_shift", "background_color", "background_padding_em", "background_radius_em", "stroke_color", "stroke_width", "character_offset"]
         },
         "easing": { "$ref": "#/$defs/animation_easing" },
         "loop_mode": { "enum": ["none", "cycle", "pingpong", "offset"], "default": "none" },
@@ -557,8 +557,10 @@
                 "items": {
                   "properties": {
                     "value": {
-                      "type": "array", "minItems": 3, "maxItems": 3,
-                      "items": { "type": "number" }
+                      "oneOf": [
+                        { "type": "number" },
+                        { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "number" } }
+                      ]
                     }
                   }
                 }
@@ -602,6 +604,20 @@
         {
           "if": { "properties": { "property": { "const": "stroke_width" } }, "required": ["property"] },
           "then": { "properties": { "keyframes": { "items": { "properties": { "value": { "type": "number", "minimum": 0, "maximum": 256 } } } } } }
+        },
+        {
+          "if": { "properties": { "property": { "const": "character_offset" } }, "required": ["property"] },
+          "then": {
+            "properties": {
+              "keyframes": {
+                "items": {
+                  "properties": {
+                    "value": { "type": "integer", "minimum": -10000, "maximum": 10000 }
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },

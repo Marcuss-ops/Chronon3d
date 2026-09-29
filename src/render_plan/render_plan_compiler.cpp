@@ -424,6 +424,115 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
     return prepared_effects;
 }
 
+// ── media background card pass ─────────────────────────────────────────────
+//
+// A media layer (video/image) may declare the rounded, padded plate behind its
+// box through style.background — the very field text layers already use for
+// their card, declared by the same published style contract. This pass
+// materialises it as a real Shape layer placed immediately BEFORE the media
+// layer, so the plate is composited under the clip:
+//
+//   - the plate is a colour layer carrying the border colour and radius_px
+//     (a flat colour plate honours the top-level `radius` corner contract), so
+//     it composites through the proven centred-plate geometry;
+//   - the plate's size is the layer's DISPLAYED box (its declared size, or the
+//     canvas when it declares none) plus 2*padding: the padding IS the visible
+//     frame thickness;
+//   - its corner radius is style.background.radius (the frame's outer radius),
+//     while the media layer keeps its own `radius` (the concentric inner one);
+//   - the shadow moves to the plate. The plate IS the frame, so a shadow kept
+//     on the clip underneath would be painted over by the opaque plate and
+//     leak past it by exactly the frame thickness; the single shadow the
+//     contract declares belongs to the card;
+//   - the media layer keeps size/fit/opacity/radius untouched.
+//
+// The plate is centred on the canvas, which is the only placement the frame
+// contract admits: a clip inset by foreground_scale_percent, and an overlay
+// inset by its own scale_percent, are both centred by construction.
+//
+// Runs before any per-layer index table (resolved media paths, prepared
+// effects, content fingerprint) is built, so plan.layers stays the single
+// index space for the rest of the compile.
+void materialize_media_background_cards(RenderPlan& plan) {
+    bool any_card = false;
+    for (const auto& layer : plan.layers) {
+        if ((layer.type == LayerType::Video || layer.type == LayerType::Image) &&
+            layer.style && layer.style->background) {
+            any_card = true;
+            break;
+        }
+    }
+    if (!any_card) return;
+
+    std::vector<LayerPlan> expanded;
+    expanded.reserve(plan.layers.size() * 2);
+    for (auto& layer : plan.layers) {
+        const bool media = layer.type == LayerType::Video || layer.type == LayerType::Image;
+        if (!media || !layer.style || !layer.style->background) {
+            expanded.push_back(std::move(layer));
+            continue;
+        }
+        const auto& background = *layer.style->background;
+        const auto parsed_color = parse_hex_color(background.color, 1.0f);
+        if (!parsed_color)
+            throw std::runtime_error("layer '" + layer.id +
+                "' background colour '" + background.color + "' is not #RRGGBB");
+        const float opacity = background.opacity.value_or(1.0f);
+        if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+            throw std::runtime_error(
+                "layer '" + layer.id + "' background opacity is outside [0,1]");
+        const float padding_x = background.padding_dimensions == 2
+            ? background.padding[0] : 0.0f;
+        const float padding_y = background.padding_dimensions == 2
+            ? background.padding[1] : 0.0f;
+        if (!std::isfinite(padding_x) || !std::isfinite(padding_y) ||
+            padding_x < 0.0f || padding_y < 0.0f)
+            throw std::runtime_error("layer '" + layer.id +
+                "' background padding must be finite and non-negative");
+
+        const float scale_x = std::abs(layer.scale[0]) > 1e-6f
+            ? std::abs(layer.scale[0]) : 1.0f;
+        const float scale_y = std::abs(layer.scale[1]) > 1e-6f
+            ? std::abs(layer.scale[1]) : 1.0f;
+        const float box_w = (layer.size_dimensions == 2
+            ? layer.size[0] : static_cast<float>(plan.canvas.width)) * scale_x;
+        const float box_h = (layer.size_dimensions == 2
+            ? layer.size[1] : static_cast<float>(plan.canvas.height)) * scale_y;
+        const float card_w = box_w + 2.0f * padding_x;
+        const float card_h = box_h + 2.0f * padding_y;
+        if (!(card_w > 0.0f) || !(card_h > 0.0f) ||
+            !std::isfinite(card_w) || !std::isfinite(card_h))
+            throw std::runtime_error("layer '" + layer.id +
+                "' background plate has a non-positive size");
+
+        LayerPlan card;
+        card.id = layer.id + "__frame";
+        card.type = LayerType::Color;
+        card.start_frame = layer.start_frame;
+        card.duration_frames = layer.duration_frames;
+        card.size = {card_w, card_h};
+        card.size_dimensions = 2;
+        card.color = {parsed_color->r, parsed_color->g, parsed_color->b,
+                      parsed_color->a * opacity};
+        card.radius = std::min(background.radius.value_or(0.0f),
+                               std::min(card_w, card_h) * 0.5f);
+        if (layer.style->shadow || !layer.style->shadows.empty()) {
+            LayerStylePlan card_style;
+            card_style.shadow = layer.style->shadow;
+            card_style.shadows = layer.style->shadows;
+            card.style = std::move(card_style);
+        }
+        // The plate owns the frame and the shadow from here on: leaving the
+        // declaration on the media layer would materialize a second plate on
+        // any later pass over the same plan.
+        layer.style->background.reset();
+        layer.style->shadow.reset();
+        layer.style->shadows.clear();
+        expanded.push_back(std::move(card));
+        expanded.push_back(std::move(layer));
+    }
+    plan.layers = std::move(expanded);
+}
 } // namespace
 
 Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
@@ -434,6 +543,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     try {
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
+        materialize_media_background_cards(plan);
         bake_audio_react(plan, resolver);
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];
@@ -950,22 +1060,87 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             }
                             if (layer.loop)
                                 source.loop_mode = video::VideoLoopMode::Loop;
+                            // Rounded corners on a decoded video source. The
+                            // video node samples a decoded surface, so there is
+                            // no crop to pre-round (the image path rounds its
+                            // crop) and no coverage unit in the sampling
+                            // kernel: the corner coverage is expressed as the
+                            // layer's own rounded-rect mask instead, which is
+                            // the same alpha ramp. Two consequences are
+                            // deliberate and measured:
+                            //   - mask_enabled resolves the layer off the
+                            //     DirectYUV lane (structural check ->
+                            //     Unsupported); Auto falls back to the
+                            //     faithful graph lane, Require hard-fails
+                            //     instead of silently emitting square corners.
+                            //   - the mask is rasterized in the source
+                            //     framebuffer's pixel space (like the image
+                            //     path's scaled_radius), so the displayed
+                            //     radius is converted through the layer's
+                            //     pre-scale box.
+                            if (const auto authored_radius = layer.radius;
+                                authored_radius && *authored_radius > 0.0f) {
+                                if (!std::isfinite(*authored_radius))
+                                    throw std::runtime_error(
+                                        "video layer '" + layer.id + "' has a non-finite radius");
+                                const float scale_x = std::abs(layer.scale[0]) > 1e-6f
+                                    ? std::abs(layer.scale[0]) : 1.0f;
+                                const float scale_y = std::abs(layer.scale[1]) > 1e-6f
+                                    ? std::abs(layer.scale[1]) : 1.0f;
+                                const float box_w = source.size.x > 0.0f
+                                    ? source.size.x : static_cast<float>(plan.canvas.width);
+                                const float box_h = source.size.y > 0.0f
+                                    ? source.size.y : static_cast<float>(plan.canvas.height);
+                                const float scaled_radius = std::min(
+                                    *authored_radius / std::min(scale_x, scale_y),
+                                    std::min(box_w, box_h) * 0.5f);
+                                if (scaled_radius > 0.0f) {
+                                    Mask rounded;
+                                    rounded.type = MaskType::RoundedRect;
+                                    rounded.size = Vec2{box_w, box_h};
+                                    rounded.radius = scaled_radius;
+                                    rounded.pos = Vec3{0.0f, 0.0f, 0.0f};
+                                    builder.mask_composite(std::move(rounded));
+                                }
+                            }
                             builder.video(std::move(source));
                             break;
                         }
                         case LayerType::Color: {
-                            RectParams params;
-                            params.size = layer.size_dimensions == 2
+                            const Vec2 solid_size = layer.size_dimensions == 2
                                 ? Vec2{layer.size[0], layer.size[1]}
                                 : Vec2{static_cast<float>(plan.canvas.width),
                                        static_cast<float>(plan.canvas.height)};
-                            params.color = {layer.color[0], layer.color[1],
-                                            layer.color[2], layer.color[3]};
+                            Color solid_color{layer.color[0], layer.color[1],
+                                              layer.color[2], layer.color[3]};
                             if (const auto animated = detail::fill_color_at(
-                                    layer, ctx.effective_frame(),
-                                    Color{params.color.r, params.color.g,
-                                          params.color.b, params.color.a}, plan.canvas.fps))
-                                params.color = *animated;
+                                    layer, ctx.effective_frame(), solid_color, plan.canvas.fps))
+                                solid_color = *animated;
+                            const float authored_radius = layer.radius.value_or(0.0f);
+                            if (!std::isfinite(authored_radius) || authored_radius < 0.0f)
+                                throw std::runtime_error(
+                                    "color layer '" + layer.id + "' has a non-finite radius");
+                            // A flat colour plate may be rounded: `radius` is the
+                            // top-level layer corner contract (image and shape
+                            // layers already honour it), so a colour plate used
+                            // as a card/frame is not forced to square corners.
+                            if (authored_radius > 0.0f) {
+                                RoundedRectParams params;
+                                params.size = solid_size;
+                                params.radius = std::min(authored_radius,
+                                    std::min(solid_size.x, solid_size.y) * 0.5f);
+                                params.color = solid_color;
+                                params.fill = graphics::FillStyle::solid(solid_color);
+                                if (layer.position_dimensions < 2) {
+                                    builder.pin_to(Anchor::Center);
+                                    params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
+                                }
+                                builder.rounded_rect("color", std::move(params));
+                                break;
+                            }
+                            RectParams params;
+                            params.size = solid_size;
+                            params.color = solid_color;
                             if (layer.position_dimensions < 2) {
                                 builder.pin_to(Anchor::Center);
                                 params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
@@ -1570,15 +1745,33 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     .left = insets[3] - half_canvas_width,
                                     .right = half_canvas_width + insets[1] + rotated_size.x});
                     }
-                    if (layer.type == LayerType::Shape && layer.style) {
+                    // style.shadow/shadows is a LAYER style, not a shape style:
+                    // a drop shadow is one generic effect-stack entry
+                    // (DropShadowParams) behind the builder.effect() API, and
+                    // shape, image and video layers composite through the same
+                    // stack. Gating it on LayerType::Shape is what made a card
+                    // frame (a shape) able to cast a shadow while the clip
+                    // inside it could not.
+                    //
+                    // Contract of the widened gate: an enabled effect is an
+                    // RGBA post effect, and any RGBA post effect resolves the
+                    // layer off the DirectYUV lane (rgba_post_effects ->
+                    // RequiresFullFrame in call; Auto falls back to the
+                    // faithful full-frame graph, Require hard-fails rather than
+                    // approximating). A video/image layer with a shadow
+                    // therefore renders on the graph lane, exactly like a
+                    // shadowed shape does today.
+                    if ((layer.type == LayerType::Shape || layer.type == LayerType::Video ||
+                         layer.type == LayerType::Image || layer.type == LayerType::Color) &&
+                        layer.style) {
                         std::size_t shadow_index = 0;
                         const auto add_shadow = [&](const ShadowStyle& shadow) {
                             const std::string prefix = "shadow_" + std::to_string(shadow_index++);
                             const auto color = parse_hex_color(shadow.color, 1.0f);
                             if (!color)
-                                throw std::runtime_error("shape layer '" + layer.id + "' has invalid shadow color");
+                                throw std::runtime_error("layer '" + layer.id + "' has invalid shadow color");
                             if (shadow.offset_dimensions != 2)
-                                throw std::runtime_error("shape layer '" + layer.id + "' shadow requires a two-dimensional offset");
+                                throw std::runtime_error("layer '" + layer.id + "' shadow requires a two-dimensional offset");
                             const float opacity = detail::shadow_scalar_at(
                                 layer, prefix + "_opacity", ctx.effective_frame(),
                                 shadow.opacity.value_or(1.0f), plan.canvas.fps)
