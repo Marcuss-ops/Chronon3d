@@ -99,7 +99,9 @@ if (( has_build )); then
                 echo "$rc" > "${rcfile}"
                 echo $((end - start)) > "${elapsedfile}"
                 # also treat GATE_FAIL in output as failure even if rc==0 (WARN mode)
-                if (( rc != 0 )) || grep -q "GATE_FAIL" "${log}" 2>/dev/null; then
+                # Self-tests deliberately run negative fixtures through gates,
+                # so their captured output can contain GATE_FAIL on success.
+                if (( rc != 0 )) || { [[ "$gate" != *selftest.sh ]] && grep -q "GATE_FAIL" "${log}" 2>/dev/null; }; then
                     # normalize rc to 1 if it was 0 but GATE_FAIL present
                     if (( rc == 0 )); then echo "1" > "${rcfile}"; fi
                 fi
@@ -127,7 +129,9 @@ for gate in "${DEVELOPER_GATES[@]}"; do
             end="$(date +%s)"
             echo "$rc" > "${rcfile}"
             echo $((end - start)) > "${elapsedfile}"
-            if (( rc != 0 )) || grep -q "GATE_FAIL" "${log}" 2>/dev/null; then
+            # Self-tests deliberately run negative fixtures through gates,
+            # so their captured output can contain GATE_FAIL on success.
+            if (( rc != 0 )) || { [[ "$gate" != *selftest.sh ]] && grep -q "GATE_FAIL" "${log}" 2>/dev/null; }; then
                 if (( rc == 0 )); then echo "1" > "${rcfile}"; fi
             fi
         ) &

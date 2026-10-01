@@ -8,9 +8,10 @@ ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 BUILD_DIR="${CHRONON3D_GATE_BUILD_DIR:-${ROOT}/build/chronon/linux-video-test}"
 JOBS="${CHRONON3D_GATE_JOBS:-$(nproc 2>/dev/null || printf '14')}"
 
-if [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
-    echo "registry/render_graph/cache gate: missing configured build directory: ${BUILD_DIR}" >&2
-    exit 1
+if [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]] || \
+   ! grep -q '^CHRONON3D_ENABLE_CUDA_INTEROP:BOOL=OFF$' "${BUILD_DIR}/CMakeCache.txt"; then
+    echo "registry/render_graph/cache gate: configuring linux-video-test at ${BUILD_DIR} (CUDA interop off)"
+    cmake --preset linux-video-test -B "${BUILD_DIR}" -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF
 fi
 
 echo "registry/render_graph/cache gate: building focused targets in ${BUILD_DIR} with -j${JOBS}"
