@@ -145,9 +145,21 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
                       src.focus_distance.is_time_dependent() ||
                       src.aperture.is_time_dependent() ||
                       src.max_blur.is_time_dependent();
+    for (const auto& component : src.position_components)
+        cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
+    for (const auto& component : src.rotation_components)
+        cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
 
     cam.position = src.position.evaluate(ctx.sample_time);
     cam.rotation = src.rotation.evaluate(ctx.sample_time);
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        if (src.position_components[axis])
+            cam.position[static_cast<int>(axis)] =
+                src.position_components[axis]->evaluate(ctx.sample_time);
+        if (src.rotation_components[axis])
+            cam.rotation[static_cast<int>(axis)] =
+                src.rotation_components[axis]->evaluate(ctx.sample_time);
+    }
     // A pose track may animate position without owning the target channel.
     // Preserve the descriptor's canonical point of interest in that case so
     // downstream constraints (and the orientation contract) still see the
