@@ -157,7 +157,7 @@ TEST_CASE("Visual Accents V1: Light leak recipes") {
         CHECK_THROWS_AS(light_leak::prismatic(layer, 1.0f, 32.0f), std::invalid_argument);
         CHECK_THROWS_AS(light_leak::film_burn(layer, 1.0f, 1.5f), std::invalid_argument);
         CHECK_THROWS_AS(light_leak::bokeh_pass(layer, 1.0f, 2.0f), std::invalid_argument);
-        CHECK_THROWS_AS(light_leak::soft_flare(layer, 1.0f, kWarmTint, 512.0f), std::invalid_argument);
+        CHECK_THROWS_AS(light_leak::soft_flare(layer, 1.0f, light_leak::kWarmTint, 512.0f), std::invalid_argument);
     }
 
     SUBCASE("prismatic dispersion stays small and symmetric") {
