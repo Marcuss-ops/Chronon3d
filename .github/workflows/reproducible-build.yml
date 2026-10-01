@@ -33,6 +33,10 @@ jobs:
             mono-complete \
             pkg-config
 
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -42,6 +46,7 @@ jobs:
           bash tools/run_reproducible_build_gate.sh \
             -DCHRONON3D_BUILD_TESTS=OFF \
             -DCHRONON3D_BUILD_CLI=OFF \
+            -DCHRONON3D_BUILD_C_API=ON \
             -DCHRONON3D_ENABLE_VULKAN=OFF \
             -DCHRONON3D_ENABLE_VIDEO=OFF \
             -DCHRONON3D_ENABLE_TEXT=OFF \

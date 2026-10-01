@@ -8,7 +8,7 @@ on:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
   CHRONON3D_UPDATE_GOLDENS: ${{ secrets.CHRONON3D_UPDATE_GOLDENS || '' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,6 +40,10 @@ jobs:
       - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
         run: bash tools/check_test_hygiene.sh
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
 
       - uses: lukka/run-vcpkg@v11
         with:

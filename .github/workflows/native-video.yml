@@ -29,6 +29,10 @@ jobs:
         # vcpkg `native-ffmpeg` manifest feature (vcpkg.json); the ffmpeg CLI
         # binary remains a system package for the integration contract.
 
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}

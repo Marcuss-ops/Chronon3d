@@ -15,7 +15,7 @@ permissions:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
 jobs:
@@ -40,6 +40,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
 
       - uses: lukka/run-vcpkg@v11
         with:

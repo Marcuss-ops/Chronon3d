@@ -4,6 +4,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -80,9 +81,12 @@ struct DescriptorPools {
     VkDevice device{VK_NULL_HANDLE};
     VkDescriptorSetLayout layout{VK_NULL_HANDLE};
     std::vector<VkDescriptorPool> pools;
+    std::vector<std::size_t> allocations_per_pool;
     std::size_t active_pool{0};
 
-    static constexpr std::size_t initial_sets = 64;
+    // Keep the fixture small so pool exhaustion is reached quickly and the
+    // growth behavior is exercised consistently across Vulkan drivers.
+    static constexpr std::size_t initial_sets = 1;
 
     void grow() {
         const auto sets = initial_sets * (std::size_t{1} << pools.size());
@@ -96,10 +100,19 @@ struct DescriptorPools {
         VkDescriptorPool pool = VK_NULL_HANDLE;
         REQUIRE(vkCreateDescriptorPool(device, &info, nullptr, &pool) == VK_SUCCESS);
         pools.push_back(pool);
+        allocations_per_pool.push_back(0);
     }
 
     VkDescriptorSet allocate() {
         if (active_pool >= pools.size()) grow();
+        // Enforce the fixture's declared chunk capacity explicitly. Some
+        // software Vulkan drivers keep accepting allocations beyond maxSets,
+        // which would make this growth contract depend on driver behavior.
+        const auto capacity = initial_sets * (std::size_t{1} << active_pool);
+        if (allocations_per_pool[active_pool] >= capacity) {
+            ++active_pool;
+            return allocate();
+        }
         const VkDescriptorSetAllocateInfo info{
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr,
             pools[active_pool], 1, &layout};
@@ -110,6 +123,7 @@ struct DescriptorPools {
             return allocate();
         }
         REQUIRE(result == VK_SUCCESS);
+        ++allocations_per_pool[active_pool];
         return set;
     }
 
@@ -117,6 +131,7 @@ struct DescriptorPools {
         for (auto pool : pools) {
             REQUIRE(vkResetDescriptorPool(device, pool, 0) == VK_SUCCESS);
         }
+        std::fill(allocations_per_pool.begin(), allocations_per_pool.end(), 0);
         active_pool = 0;
     }
 
@@ -168,7 +183,7 @@ TEST_CASE("descriptor pools grow geometrically") {
     if (context.device == VK_NULL_HANDLE) { WARN("No Vulkan device available"); return; }
     DescriptorPools pools;
     REQUIRE(prepare(pools, context.device));
-    for (std::size_t i = 0; i < 65; ++i) CHECK(pools.allocate() != VK_NULL_HANDLE);
+    for (std::size_t i = 0; i < 2; ++i) CHECK(pools.allocate() != VK_NULL_HANDLE);
     REQUIRE(pools.pools.size() >= 2);
     CHECK(pools.pools.size() == 2);
 }
@@ -178,7 +193,7 @@ TEST_CASE("reset preserves all grown pools for subsequent reuse") {
     if (context.device == VK_NULL_HANDLE) { WARN("No Vulkan device available"); return; }
     DescriptorPools pools;
     REQUIRE(prepare(pools, context.device));
-    for (std::size_t i = 0; i < 65; ++i) CHECK(pools.allocate() != VK_NULL_HANDLE);
+    for (std::size_t i = 0; i < 2; ++i) CHECK(pools.allocate() != VK_NULL_HANDLE);
     REQUIRE(pools.pools.size() == 2);
     const auto first = pools.pools[0];
     const auto second = pools.pools[1];
