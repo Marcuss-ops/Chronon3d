@@ -1114,6 +1114,41 @@ TEST_CASE("camera consumer uses outgoing per-key interpolation") {
     CHECK(tracks->position.evaluate(10.0).z == doctest::Approx(-1000.0f));
 }
 
+TEST_CASE("camera render-plan scalar axes remain independent at shared keyframes") {
+    auto source = render_plan_test::base_plan();
+    source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
+        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1},
+        {"far", 10000}, {"zoom", 1}};
+    source["camera_animation"] = nlohmann::json::parse(R"JSON({"tracks":[
+      {"property":"camera_position_x","keyframes":[{"frame":0,"value":10},{"frame":2,"value":20}]},
+      {"property":"camera_position_y","keyframes":[{"frame":0,"value":30},{"frame":2,"value":40}]},
+      {"property":"camera_position_z","keyframes":[{"frame":0,"value":-500},{"frame":2,"value":-800}]},
+      {"property":"camera_rotation_x","keyframes":[{"frame":0,"value":1},{"frame":2,"value":3}]},
+      {"property":"camera_rotation_y","keyframes":[{"frame":0,"value":4},{"frame":2,"value":6}]},
+      {"property":"camera_rotation_z","keyframes":[{"frame":0,"value":7},{"frame":2,"value":9}]}
+    ]})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan);
+    const auto descriptor = chronon3d::render_plan::detail::make_camera_descriptor(*plan);
+    REQUIRE(descriptor);
+    const auto* tracks = std::get_if<chronon3d::camera_v1::PoseTracksSource>(&descriptor->source);
+    REQUIRE(tracks);
+    for (const auto& component : tracks->position_components) REQUIRE(component.has_value());
+    for (const auto& component : tracks->rotation_components) REQUIRE(component.has_value());
+    CHECK(tracks->position_components[0]->evaluate(0.0) == doctest::Approx(10.f));
+    CHECK(tracks->position_components[1]->evaluate(0.0) == doctest::Approx(30.f));
+    CHECK(tracks->position_components[2]->evaluate(0.0) == doctest::Approx(-500.f));
+    CHECK(tracks->position_components[0]->evaluate(1.0) == doctest::Approx(15.f));
+    CHECK(tracks->position_components[1]->evaluate(1.0) == doctest::Approx(35.f));
+    CHECK(tracks->position_components[2]->evaluate(1.0) == doctest::Approx(-650.f));
+    CHECK(tracks->position_components[0]->evaluate(2.0) == doctest::Approx(20.f));
+    CHECK(tracks->position_components[1]->evaluate(2.0) == doctest::Approx(40.f));
+    CHECK(tracks->position_components[2]->evaluate(2.0) == doctest::Approx(-800.f));
+    CHECK(tracks->rotation_components[0]->evaluate(2.0) == doctest::Approx(3.f));
+    CHECK(tracks->rotation_components[1]->evaluate(2.0) == doctest::Approx(6.f));
+    CHECK(tracks->rotation_components[2]->evaluate(2.0) == doctest::Approx(9.f));
+}
+
 TEST_CASE("render plan exposes true temporal shutter accumulation settings") {
     auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
