@@ -3,8 +3,9 @@
 ## Stato
 
 IN PROGRESS — L1 animated layer transforms, L2 bounded static group transforms,
-and L3 static gradients, dashed strokes, and baked static shape operators lower
-through existing plans. The CLI MP4 frame-hash gate and L4 morph remain open.
+L3 static gradients, dashed strokes, and baked static operators, plus bounded
+two-keyframe L4 morphs lower through existing plans. The CLI MP4 frame-hash gate
+and broader piecewise morph support remain open.
 
 ## Contratto
 
@@ -25,6 +26,10 @@ through existing plans. The CLI MP4 frame-hash gate and L4 morph remain open.
   entries into the existing gradient and stroke payloads. Static Bodymovin
   repeater, round-corners, zig-zag, offset-path, and pucker/bloat operators are
   baked during lowering with a 256-copy and 4,096-output-path bound.
+- L4 accepts one geometry path with exactly two integral-frame shape keyframes,
+  matching vertex/tangent topology, and linear or hold interpolation. It lowers
+  to the existing animated Morph path operator; extra keyframes, temporal
+  Bezier handles, multi-path morphing, and incompatible topology fail closed.
 - Animated anchors, split dimensions, expressions, masks, text, precompositions,
   3D layers, unsupported shape-level transforms and unsupported interpolation
   fail closed with a Lottie lowering diagnostic.
@@ -49,6 +54,8 @@ through existing plans. The CLI MP4 frame-hash gate and L4 morph remain open.
 - [ ] A CLI software fixture renders an MP4 with distinct frame hashes at the
   authored keyframes; input and command limits remain enforced.
 - [x] Focused Lottie C ABI/render-plan tests pass (software scene evaluation).
+- [x] Focused L4 two-keyframe morph test passes and verifies distinct evaluated
+  endpoint geometry.
 - [ ] CLI software fixture and frame-hash gate pass.
 
 ## Demolition debt
